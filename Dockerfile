@@ -5,11 +5,13 @@ WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
 
-RUN pip install uv
-RUN uv pip install --system --no-deps .
+RUN pip install uv==0.8.0
+RUN uv sync
+RUN uv pip install --system .
+RUN uv pip install --system uvicorn
 
 COPY . .
 
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

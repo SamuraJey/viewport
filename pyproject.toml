@@ -5,9 +5,19 @@ description = "Portal for sharing photos with friends"
 readme = "README.md"
 requires-python = ">=3.13, <3.14"
 dependencies = [
+    "alembic>=1.16.4,<2.0.0",
+    "boto3>=1.39.9,<2.0.0",
+    "botocore>=1.39.9,<2.0.0",
     "fastapi>=0.116.1,<0.117.0",
+    "httpx>=0.28.1,<0.29.0",
+    "psycopg2-binary>=2.9.10,<3.0.0",
+    "pydantic[email]>=2.11.7",
+    "pyjwt>=2.10.1,<3.0.0",
+    "python-multipart>=0.0.20,<0.0.21",
     "sqlalchemy>=2.0.41,<3.0.0",
+    "testcontainers>=4.10.0,<5.0.0",
     "uv>=0.8.0,<0.9.0",
+    "uvicorn>=0.35.0,<0.36.0",
 ]
 
 [dependency-groups]
@@ -17,4 +27,105 @@ dev = [
     "pytest>=8.4.1,<9.0.0",
     "pytest-cov>=6.2.1,<7.0.0",
     "ruff>=0.12.4,<0.13.0",
+]
+
+[tool.mypy]
+plugins = "pydantic.mypy"
+exclude = ["postgres_data"]
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+warn_unreachable = true
+
+[tool.ruff]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+    "./postgres_data",
+]
+
+line-length = 200
+indent-width = 4
+target-version = "py313"
+
+[tool.ruff.lint]
+# E - pycodestyle F - Pyflakes UP - pyupgrade B - flake8-bugbear SIM - flake8-simplify I - isort
+# N - flake8-annotations A - flake8-annotations T20 - flake8-tidy-imports ERA - flake8-eradicate
+# C4 - flake8-comprehensions TID - flake8-tidy-imports PERF - flake8-perf
+select = [
+    "E",
+    "F",
+    "UP",
+    "B",
+    "SIM",
+    "I",
+    "N",
+    "A",
+    "T20",
+    "ERA",
+    "C4",
+    "TID",
+    "PERF",
+]
+ignore = ["SIM108", "E712", "C416"]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore E501 (line too long) in tests.
+"tests/*" = ["E501"]
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
+[tool.pytest.ini_options]
+pythonpath = "."
+addopts = ["--import-mode=importlib", "-v"]
+testpaths = ["/tests"]
+norecursedirs = [
+    "postgres_data",
+    ".git",
+    ".venv",
+    "__pycache__",
+    "static",
+    "templates",
+    "logs",
 ]

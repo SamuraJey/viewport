@@ -6,7 +6,11 @@ dist/
 wheels/
 *.egg-info
 
+# cache
+*_cache
+
 # Virtual environments
 .venv
 
 .github
+.env
