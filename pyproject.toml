@@ -1,0 +1,20 @@
+[project]
+name = "viewport"
+version = "0.1.0"
+description = "Portal for sharing photos with friends"
+readme = "README.md"
+requires-python = ">=3.13, <3.14"
+dependencies = [
+    "fastapi>=0.116.1,<0.117.0",
+    "sqlalchemy>=2.0.41,<3.0.0",
+    "uv>=0.8.0,<0.9.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.17.0,<2.0.0",
+    "pre-commit>=4.2.0,<5.0.0",
+    "pytest>=8.4.1,<9.0.0",
+    "pytest-cov>=6.2.1,<7.0.0",
+    "ruff>=0.12.4,<0.13.0",
+]
