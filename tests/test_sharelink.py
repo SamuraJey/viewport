@@ -4,8 +4,8 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from src.app.main import app
-from src.app.models.sharelink import ShareLink
+from src.viewport.main import app
+from src.viewport.models.sharelink import ShareLink
 
 
 @pytest.fixture(scope="function")

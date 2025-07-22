@@ -1,6 +1,6 @@
 import json
 
-from src.app.logger import logger
+from src.viewport.logger import logger
 
 
 def test_structured_logger_format():

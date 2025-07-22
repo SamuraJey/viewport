@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from src.app.main import app
+from src.viewport.main import app
 
 
 @pytest.fixture(scope="function")

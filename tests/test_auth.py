@@ -6,9 +6,9 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 from testcontainers.postgres import PostgresContainer
 
-import src.app.db as db
-from src.app.main import app
-from src.app.models.user import Base
+import src.viewport.db as db
+from src.viewport.main import app
+from src.viewport.models.user import Base
 
 
 @pytest.fixture(scope="session")
