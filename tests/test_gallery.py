@@ -1,7 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from src.app.models.user import Base as UserBase
-from src.app.models.gallery import Base as GalleryBase
+
 from src.app.main import app
 
 

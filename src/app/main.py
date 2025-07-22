@@ -1,17 +1,22 @@
-from fastapi import FastAPI, Depends
+from fastapi import Depends, FastAPI
+
+from src.app.models.user import User
+
 from .api.auth import router as auth_router
 from .api.gallery import router as gallery_router
 from .api.photo import router as photo_router
-
-
+from .api.public import router as public_router
+from .api.sharelink import router as sharelink_router
 from .auth_utils import get_current_user
-from src.app.models.user import User
-
+from .metrics import setup_metrics
 
 app = FastAPI()
 app.include_router(auth_router)
 app.include_router(gallery_router)
 app.include_router(photo_router)
+app.include_router(sharelink_router)
+app.include_router(public_router)
+setup_metrics(app)
 
 
 @app.get("/")

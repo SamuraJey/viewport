@@ -1,12 +1,14 @@
 from collections.abc import Generator
 from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 from testcontainers.postgres import PostgresContainer
-from src.app.models.user import Base
+
 import src.app.db as db
 from src.app.main import app
+from src.app.models.user import Base
 
 
 @pytest.fixture(scope="session")

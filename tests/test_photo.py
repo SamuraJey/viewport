@@ -1,9 +1,9 @@
 import io
+
 import pytest
 from fastapi.testclient import TestClient
+
 from src.app.main import app
-from src.app.models.gallery import Gallery
-from src.app.models.gallery import Photo
 
 
 @pytest.fixture(scope="function")

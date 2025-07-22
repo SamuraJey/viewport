@@ -1,15 +1,16 @@
-from fastapi import APIRouter, HTTPException, status, Depends
-from sqlalchemy.orm import Session
-from ..schemas.auth import RegisterRequest, RegisterResponse, LoginRequest, LoginResponse
-from ..models.user import User, Base
-from ..db import get_db
-from sqlalchemy.exc import IntegrityError
-import uuid
 import hashlib
 import os
-import jwt
+import uuid
 from datetime import datetime, timedelta
 
+import jwt
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from ..db import get_db
+from ..models.user import User
+from ..schemas.auth import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -25,20 +26,12 @@ def hash_password(password: str) -> str:
 
 
 def create_access_token(user_id: str) -> str:
-    payload = {
-        "sub": user_id,
-        "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
-        "type": "access"
-    }
+    payload = {"sub": user_id, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES), "type": "access"}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 def create_refresh_token(user_id: str) -> str:
-    payload = {
-        "sub": user_id,
-        "exp": datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
-        "type": "refresh"
-    }
+    payload = {"sub": user_id, "exp": datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS), "type": "refresh"}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
@@ -66,12 +59,4 @@ def login_user(request: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     access_token = create_access_token(str(user.id))
     refresh_token = create_refresh_token(str(user.id))
-    return LoginResponse(
-        id=str(user.id),
-        email=user.email,
-        tokens={
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer"
-        }
-    )
+    return LoginResponse(id=str(user.id), email=user.email, tokens={"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"})

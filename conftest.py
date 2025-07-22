@@ -1,10 +1,12 @@
 import os
+
 import pytest
-from testcontainers.postgres import PostgresContainer
 from sqlalchemy.orm import sessionmaker
+from testcontainers.postgres import PostgresContainer
+
 import src.app.db as db
-from src.app.models.user import Base as UserBase
 from src.app.models.gallery import Base as GalleryBase
+from src.app.models.user import Base as UserBase
 
 os.environ["MINIO_ENDPOINT"] = "localhost:9000"
 # Use a session-scoped Postgres testcontainer

@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, status, HTTPException, Query
+import uuid
+
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
+
+from src.app.auth_utils import get_current_user
 from src.app.db import get_db
 from src.app.models.gallery import Gallery
-from src.app.schemas.gallery import GalleryCreateRequest, GalleryResponse, GalleryListResponse
-from src.app.auth_utils import get_current_user
 from src.app.models.user import User
-import uuid
+from src.app.schemas.gallery import GalleryCreateRequest, GalleryListResponse, GalleryResponse
 
 router = APIRouter(prefix="/galleries", tags=["galleries"])
 

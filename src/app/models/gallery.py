@@ -1,8 +1,10 @@
-from sqlalchemy import Column, DateTime, ForeignKey, String, Integer
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
 import uuid
 from datetime import datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+
 from src.app.models.user import Base
 
 
@@ -29,3 +31,4 @@ class Photo(Base):
 
 
 Gallery.photos = relationship(Photo, back_populates="gallery", cascade="all, delete-orphan")
+Gallery.share_links = relationship("ShareLink", back_populates="gallery", cascade="all, delete-orphan")

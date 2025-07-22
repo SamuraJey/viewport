@@ -1,7 +1,7 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session, declarative_base
 import os
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 Base = declarative_base()
 # Allow override for test DB (SQLite in-memory)
