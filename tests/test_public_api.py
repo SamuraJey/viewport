@@ -1,14 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
-import pytest
-from fastapi.testclient import TestClient
-
 from src.viewport.main import app
 
-
-@pytest.fixture(scope="function")
-def client(setup_db):
-    return TestClient(app)
 
 
 class TestPublicAPI:

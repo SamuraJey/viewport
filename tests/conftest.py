@@ -54,20 +54,6 @@ def test_user_data():
     return {"email": "testuser@example.com", "password": "testpassword123"}
 
 
-@pytest.fixture(scope="function")
-def auth_headers(client, test_user_data) -> dict[str, str]:
-    """Create a user and return authentication headers."""
-    # Register user
-    reg_response = client.post("/auth/register", json=test_user_data)
-    assert reg_response.status_code == 201
-
-    # Login and get token
-    login_response = client.post("/auth/login", json=test_user_data)
-    assert login_response.status_code == 200
-
-    token = login_response.json()["tokens"]["access_token"]
-    return {"Authorization": f"Bearer {token}"}
-
 
 @pytest.fixture(scope="function")
 def gallery_id_fixture(authenticated_client) -> str:

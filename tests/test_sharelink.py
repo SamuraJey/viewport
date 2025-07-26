@@ -1,16 +1,13 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-import pytest
-from fastapi.testclient import TestClient
+
 
 from src.viewport.main import app
 from src.viewport.models.sharelink import ShareLink
 
 
-@pytest.fixture(scope="function")
-def client(setup_db):
-    return TestClient(app)
+
 
 
 class TestShareLinkModel:
