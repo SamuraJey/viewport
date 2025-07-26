@@ -12,11 +12,22 @@ class PhotoCreateRequest(BaseModel):
 class PhotoResponse(BaseModel):
     id: UUID
     gallery_id: UUID
-    url_s3: str
+    url: str
     file_size: int
     uploaded_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+    
+    @classmethod
+    def from_db_photo(cls, photo):
+        """Create PhotoResponse from database Photo model"""
+        return cls(
+            id=photo.id,
+            gallery_id=photo.gallery_id,
+            url=photo.url_s3,  # Map url_s3 to url
+            file_size=photo.file_size,
+            uploaded_at=photo.uploaded_at
+        )
 
 
 class PhotoListResponse(BaseModel):

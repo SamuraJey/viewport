@@ -23,3 +23,20 @@ def create_sharelink(gallery_id: UUID, req: ShareLinkCreateRequest, db: Session 
     db.commit()
     db.refresh(sharelink)
     return sharelink
+
+
+@router.delete("/{sharelink_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_sharelink(gallery_id: UUID, sharelink_id: UUID, db: Session = Depends(get_db), user=Depends(get_current_user)):
+    # First, verify the gallery belongs to the user
+    gallery = db.query(Gallery).filter(Gallery.id == gallery_id, Gallery.owner_id == user.id).first()
+    if not gallery:
+        raise HTTPException(status_code=404, detail="Gallery not found")
+    
+    # Then find and delete the sharelink
+    sharelink = db.query(ShareLink).filter(ShareLink.id == sharelink_id, ShareLink.gallery_id == gallery_id).first()
+    if not sharelink:
+        raise HTTPException(status_code=404, detail="Share link not found")
+    
+    db.delete(sharelink)
+    db.commit()
+    return
