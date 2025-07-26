@@ -3,9 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import Column, DateTime, String
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
+from src.viewport.db import Base
 
 
 class User(Base):

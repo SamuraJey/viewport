@@ -52,6 +52,28 @@ def get_single_photo_by_sharelink(share_id: UUID, photo_id: UUID, db: Session = 
     return RedirectResponse(photo.url_s3)
 
 
+@router.get("/{share_id}/download/all")
+def download_all_photos_zip(
+    share_id: UUID,
+    db: Session = Depends(get_db),
+    sharelink: ShareLink = Depends(get_valid_sharelink)
+):
+    photos = db.query(Photo).filter(Photo.gallery_id == sharelink.gallery_id).all()
+    if not photos:
+        raise HTTPException(status_code=404, detail="No photos found")
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for photo in photos:
+            file_key = photo.url_s3.split(f"/{MINIO_BUCKET}/")[-1].split("?")[0]
+            obj = s3_client.get_object(Bucket=MINIO_BUCKET, Key=file_key)
+            zipf.writestr(file_key, obj["Body"].read())
+    zip_buffer.seek(0)
+    sharelink.zip_downloads += 1
+    db.commit()
+    logger.log_event("download_zip", share_id=str(sharelink.id), extra={"photo_count": len(photos)})
+    return StreamingResponse(zip_buffer, media_type="application/zip", headers={"Content-Disposition": "attachment; filename=gallery.zip"})
+
+
 @router.get("/{share_id}/download/{photo_id}")
 def download_single_photo(share_id: UUID, photo_id: UUID, db: Session = Depends(get_db), sharelink: ShareLink = Depends(get_valid_sharelink)):
     photo = db.query(Photo).filter(Photo.id == photo_id, Photo.gallery_id == sharelink.gallery_id).first()
@@ -64,21 +86,3 @@ def download_single_photo(share_id: UUID, photo_id: UUID, db: Session = Depends(
     db.commit()
     logger.log_event("download_photo", share_id=share_id, extra={"photo_id": str(photo_id)})
     return StreamingResponse(obj["Body"], media_type="application/octet-stream", headers={"Content-Disposition": f"attachment; filename={file_key}"})
-
-
-@router.get("/{share_id}/download/all")
-def download_all_photos_zip(share_id: UUID, db: Session = Depends(get_db), sharelink: ShareLink = Depends(get_valid_sharelink)):
-    photos = db.query(Photo).filter(Photo.gallery_id == sharelink.gallery_id).all()
-    if not photos:
-        raise HTTPException(status_code=404, detail="No photos found")
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-        for photo in photos:
-            file_key = photo.url_s3.split(f"/{MINIO_BUCKET}/")[-1]
-            obj = s3_client.get_object(Bucket=MINIO_BUCKET, Key=file_key)
-            zipf.writestr(file_key, obj["Body"].read())
-    zip_buffer.seek(0)
-    sharelink.zip_downloads += 1
-    db.commit()
-    logger.log_event("download_zip", share_id=share_id, extra={"photo_count": len(photos)})
-    return StreamingResponse(zip_buffer, media_type="application/zip", headers={"Content-Disposition": "attachment; filename=gallery.zip"})

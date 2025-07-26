@@ -8,7 +8,7 @@ from testcontainers.postgres import PostgresContainer
 
 import src.viewport.db as db
 from src.viewport.main import app
-from src.viewport.models.user import Base
+from src.viewport.models import Base, User, Gallery, ShareLink
 
 
 @pytest.fixture(scope="session")
