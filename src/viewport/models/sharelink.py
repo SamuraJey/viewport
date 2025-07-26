@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID
@@ -17,6 +17,6 @@ class ShareLink(Base):
     views = Column(Integer, default=0, nullable=False)
     zip_downloads = Column(Integer, default=0, nullable=False)
     single_downloads = Column(Integer, default=0, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
     gallery = relationship("Gallery", back_populates="share_links")

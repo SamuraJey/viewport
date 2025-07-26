@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 
 class StructuredLogger(logging.Logger):
@@ -13,7 +13,7 @@ class StructuredLogger(logging.Logger):
 
     def log_event(self, event_type, share_id=None, user_id=None, extra=None):
         log_entry = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "event": event_type,
             "share_id": str(share_id) if share_id else None,
             "user_id": str(user_id) if user_id else None,

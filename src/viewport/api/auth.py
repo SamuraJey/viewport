@@ -1,7 +1,7 @@
 import hashlib
 import os
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -26,12 +26,12 @@ def hash_password(password: str) -> str:
 
 
 def create_access_token(user_id: str) -> str:
-    payload = {"sub": user_id, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES), "type": "access"}
+    payload = {"sub": user_id, "exp": datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES), "type": "access"}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 def create_refresh_token(user_id: str) -> str:
-    payload = {"sub": user_id, "exp": datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS), "type": "refresh"}
+    payload = {"sub": user_id, "exp": datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS), "type": "refresh"}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 

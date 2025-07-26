@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,7 +12,7 @@ def client(setup_db):
 
 
 class TestPublicAPI:
-    def setup_sharelink(self, client):
+    def setup_sharelink(self, client, expires_delta_days=1):
         reg_payload = {"email": "public@example.com", "password": "publicpass123"}
         client.post("/auth/register", json=reg_payload)
         login_resp = client.post("/auth/login", json=reg_payload)
@@ -20,7 +20,7 @@ class TestPublicAPI:
         headers = {"Authorization": f"Bearer {token}"}
         gallery_resp = client.post("/galleries", json={}, headers=headers)
         gallery_id = gallery_resp.json()["id"]
-        expires = (datetime.utcnow() + timedelta(days=1)).isoformat()
+        expires = (datetime.now(UTC) + timedelta(days=expires_delta_days)).isoformat()
         share_payload = {"gallery_id": gallery_id, "expires_at": expires}
         share_resp = client.post(f"/galleries/{gallery_id}/share-links", json=share_payload, headers=headers)
         share_id = share_resp.json()["id"]
@@ -42,10 +42,22 @@ class TestPublicAPI:
         assert "full_url" in data[0]
 
     def test_get_photos_by_sharelink_expired(self, client):
-        share_id, gallery_id, headers = self.setup_sharelink(client)
-        # Manually expire sharelink (simulate)
-        # Would require direct DB access or patching in real test
-        # Here, just check endpoint returns 404 for expired
-        # resp = client.get(f"/s/{share_id}")
-        # assert resp.status_code == 404
-        pass  # Placeholder for DB patch logic
+        # Create an expired sharelink (expires 1 day in the past)
+        share_id, gallery_id, headers = self.setup_sharelink(client, expires_delta_days=-1)
+
+        # Upload photo to the gallery
+        file_content = b"test image data"
+        files = {"file": ("test.jpg", file_content, "image/jpeg")}
+        client.post(f"/galleries/{gallery_id}/photos", files=files, headers=headers)
+
+        # Try to access the expired sharelink - should return 404
+        resp = client.get(f"/s/{share_id}")
+        assert resp.status_code == 404
+        assert "expired" in resp.json()["detail"].lower()
+
+    def test_get_photos_by_sharelink_not_found(self, client):
+        # Try to access a non-existent sharelink
+        fake_uuid = "12345678-1234-1234-1234-123456789012"
+        resp = client.get(f"/s/{fake_uuid}")
+        assert resp.status_code == 404
+        assert "not found" in resp.json()["detail"].lower()

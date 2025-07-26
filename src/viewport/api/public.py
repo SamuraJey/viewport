@@ -1,6 +1,6 @@
 import io
 import zipfile
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from src.viewport.db import get_db
 from src.viewport.logger import logger
-from src.viewport.minio_utils import MINIO_BUCKET, s3_client
+from src.viewport.minio_utils import get_minio_config, get_s3_client
 from src.viewport.models.gallery import Photo
 from src.viewport.models.sharelink import ShareLink
 
@@ -20,7 +20,7 @@ def get_valid_sharelink(share_id: UUID, db: Session = Depends(get_db)) -> ShareL
     sharelink = db.query(ShareLink).filter(ShareLink.id == share_id).first()
     if not sharelink:
         raise HTTPException(status_code=404, detail="ShareLink not found")
-    if sharelink.expires_at and sharelink.expires_at < datetime.utcnow():
+    if sharelink.expires_at and sharelink.expires_at.timestamp() < datetime.now(UTC).timestamp():
         raise HTTPException(status_code=404, detail="ShareLink expired")
     return sharelink
 
@@ -53,19 +53,17 @@ def get_single_photo_by_sharelink(share_id: UUID, photo_id: UUID, db: Session = 
 
 
 @router.get("/{share_id}/download/all")
-def download_all_photos_zip(
-    share_id: UUID,
-    db: Session = Depends(get_db),
-    sharelink: ShareLink = Depends(get_valid_sharelink)
-):
+def download_all_photos_zip(share_id: UUID, db: Session = Depends(get_db), sharelink: ShareLink = Depends(get_valid_sharelink)):
     photos = db.query(Photo).filter(Photo.gallery_id == sharelink.gallery_id).all()
     if not photos:
         raise HTTPException(status_code=404, detail="No photos found")
     zip_buffer = io.BytesIO()
+    _, _, _, bucket = get_minio_config()
+    s3_client = get_s3_client()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
         for photo in photos:
-            file_key = photo.url_s3.split(f"/{MINIO_BUCKET}/")[-1].split("?")[0]
-            obj = s3_client.get_object(Bucket=MINIO_BUCKET, Key=file_key)
+            file_key = photo.url_s3.split(f"/{bucket}/")[-1].split("?")[0]
+            obj = s3_client.get_object(Bucket=bucket, Key=file_key)
             zipf.writestr(file_key, obj["Body"].read())
     zip_buffer.seek(0)
     sharelink.zip_downloads += 1
@@ -80,8 +78,10 @@ def download_single_photo(share_id: UUID, photo_id: UUID, db: Session = Depends(
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
     # Stream file from S3
-    file_key = photo.url_s3.split(f"/{MINIO_BUCKET}/")[-1]
-    obj = s3_client.get_object(Bucket=MINIO_BUCKET, Key=file_key)
+    _, _, _, bucket = get_minio_config()
+    s3_client = get_s3_client()
+    file_key = photo.url_s3.split(f"/{bucket}/")[-1]
+    obj = s3_client.get_object(Bucket=bucket, Key=file_key)
     sharelink.single_downloads += 1
     db.commit()
     logger.log_event("download_photo", share_id=share_id, extra={"photo_id": str(photo_id)})

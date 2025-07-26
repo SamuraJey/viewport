@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PhotoCreateRequest(BaseModel):
@@ -16,8 +16,7 @@ class PhotoResponse(BaseModel):
     file_size: int
     uploaded_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PhotoListResponse(BaseModel):
