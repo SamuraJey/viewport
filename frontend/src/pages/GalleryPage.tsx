@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { galleryService, type GalleryDetail } from '../services/galleryService'
 import { photoService } from '../services/photoService'
 import { shareLinkService, type ShareLink } from '../services/shareLinkService'
 import { Layout } from '../components/Layout'
+import { AuthenticatedImage } from '../components/AuthenticatedImage'
 import { formatDate } from '../lib/utils'
 import { 
   Loader2, 
@@ -30,7 +31,7 @@ export const GalleryPage = () => {
 
   const galleryId = id!
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true)
       setError('')
@@ -43,11 +44,11 @@ export const GalleryPage = () => {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [galleryId])
 
   useEffect(() => {
     fetchData()
-  }, [galleryId])
+  }, [fetchData])
 
   // Handler for photo upload
   const handlePhotoUpload = async (files: File[]) => {
@@ -185,7 +186,7 @@ export const GalleryPage = () => {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {gallery.photos.map((photo) => (
                 <div key={photo.id} className="relative group aspect-square">
-                  <img
+                  <AuthenticatedImage
                     src={photo.url}
                     alt={`Photo ${photo.id}`}
                     className="w-full h-full object-cover rounded-lg"

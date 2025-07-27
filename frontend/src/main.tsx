@@ -5,10 +5,15 @@ import './index.css'
 import './App.css'
 import App from './App.tsx'
 
+// Set to false if you want to disable duplicate requests in development
+const ENABLE_STRICT_MODE = false
+
+const AppWrapper = ENABLE_STRICT_MODE ? StrictMode : ({ children }: { children: React.ReactNode }) => <>{children}</>
+
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+  <AppWrapper>
     <BrowserRouter>
       <App />
     </BrowserRouter>
-  </StrictMode>,
+  </AppWrapper>,
 )
