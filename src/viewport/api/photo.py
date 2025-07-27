@@ -14,14 +14,15 @@ from src.viewport.schemas.photo import PhotoResponse
 MAX_FILE_SIZE = 15 * 1024 * 1024  # 15 MB
 
 router = APIRouter(prefix="/galleries", tags=["photos"])
+photo_auth_router = APIRouter(prefix="/photos", tags=["photos"])
 
 
 # GET /galleries/{gallery_id}/photos/{photo_id} - View photo for authenticated users
 @router.get("/{gallery_id}/photos/{photo_id}")
 def get_photo(
-    gallery_id: UUID,
-    photo_id: UUID,
-    db: Session = Depends(get_db),
+    gallery_id: UUID, 
+    photo_id: UUID, 
+    db: Session = Depends(get_db), 
     current_user=Depends(get_current_user)
 ):
     """Stream a photo for authenticated users who own the gallery"""
@@ -31,27 +32,87 @@ def get_photo(
         Photo.gallery_id == gallery_id,
         Photo.gallery.has(owner_id=current_user.id)
     ).first()
-
+    
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
-
+    
     # Stream photo from S3
     _, _, _, bucket = get_minio_config()
     s3_client = get_s3_client()
-
+    
     try:
         obj = s3_client.get_object(Bucket=bucket, Key=photo.object_key)
     except Exception as e:
         raise HTTPException(status_code=404, detail="File not found")
-
+    
     # Guess MIME type based on file extension
     mime_type, _ = mimetypes.guess_type(photo.object_key)
     if not mime_type:
         mime_type = obj.get("ContentType", "application/octet-stream")
+    
+    # Add caching headers for better performance
+    headers = {
+        "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
+        "ETag": f'"{photo.id}"',  # Use photo ID as ETag for cache validation
+    }
+    
+    return StreamingResponse(obj["Body"], media_type=mime_type, headers=headers)
 
-    return StreamingResponse(obj["Body"], media_type=mime_type)
 
-
+# GET /photos/auth/{photo_id} - Alternative endpoint with token-based auth for caching
+@photo_auth_router.get("/auth/{photo_id}")
+def get_photo_with_token(
+    photo_id: UUID,
+    token: str,
+    db: Session = Depends(get_db)
+):
+    """Stream a photo using a temporary access token for better caching"""
+    try:
+        # Decode the token to get user_id and photo_id
+        import jwt
+        from ..api.auth import JWT_SECRET, JWT_ALGORITHM
+        
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("user_id")
+        token_photo_id = payload.get("photo_id")
+        
+        # Verify the photo_id in token matches the requested photo
+        if str(photo_id) != token_photo_id:
+            raise HTTPException(status_code=403, detail="Invalid token for this photo")
+        
+        # Get the photo and verify user ownership
+        photo = db.query(Photo).join(Photo.gallery).filter(
+            Photo.id == photo_id,
+            Photo.gallery.has(owner_id=user_id)
+        ).first()
+        
+        if not photo:
+            raise HTTPException(status_code=404, detail="Photo not found")
+        
+        # Stream photo from S3
+        _, _, _, bucket = get_minio_config()
+        s3_client = get_s3_client()
+        
+        try:
+            obj = s3_client.get_object(Bucket=bucket, Key=photo.object_key)
+        except Exception as e:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Guess MIME type based on file extension
+        mime_type, _ = mimetypes.guess_type(photo.object_key)
+        if not mime_type:
+            mime_type = obj.get("ContentType", "application/octet-stream")
+        
+        # Add aggressive caching headers since we're using tokens
+        headers = {
+            "Cache-Control": "public, max-age=86400",  # Cache for 24 hours
+            "ETag": f'"{photo.id}"',
+        }
+        
+        return StreamingResponse(obj["Body"], media_type=mime_type, headers=headers)
+        
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=403, detail="Invalid or expired token")
 # POST /galleries/{gallery_id}/photos
 @router.post("/{gallery_id}/photos", response_model=PhotoResponse, status_code=status.HTTP_201_CREATED)
 def upload_photo(gallery_id: UUID, file: UploadFile = File(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):

@@ -5,7 +5,7 @@ from src.viewport.models.user import User
 
 from .api.auth import router as auth_router
 from .api.gallery import router as gallery_router
-from .api.photo import router as photo_router
+from .api.photo import router as photo_router, photo_auth_router
 from .api.public import router as public_router
 from .api.sharelink import router as sharelink_router
 from .auth_utils import get_current_user
@@ -24,6 +24,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(gallery_router)
 app.include_router(photo_router)
+app.include_router(photo_auth_router)
 app.include_router(sharelink_router)
 app.include_router(public_router)
 # app.include_router(files_router)

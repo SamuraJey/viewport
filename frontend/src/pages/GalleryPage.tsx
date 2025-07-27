@@ -5,7 +5,6 @@ import { photoService } from '../services/photoService'
 import { shareLinkService, type ShareLink } from '../services/shareLinkService'
 import { Layout } from '../components/Layout'
 import { formatDate } from '../lib/utils'
-import { AuthenticatedImage } from '../components/AuthenticatedImage'
 import { 
   Loader2, 
   Trash2, 
@@ -186,7 +185,7 @@ export const GalleryPage = () => {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {gallery.photos.map((photo) => (
                 <div key={photo.id} className="relative group aspect-square">
-                  <AuthenticatedImage
+                  <img
                     src={photo.url}
                     alt={`Photo ${photo.id}`}
                     className="w-full h-full object-cover rounded-lg"
