@@ -31,8 +31,9 @@ def get_photos_by_sharelink(share_id: UUID, db: Session = Depends(get_db), share
     result = [
         {
             "photo_id": str(photo.id),
-            "thumbnail_url": photo.url_s3,  # TODO: add real thumbnail logic
-            "full_url": photo.url_s3,
+            # Proxy URLs for thumbnail and full image
+            "thumbnail_url": f"/files/{photo.object_key}",
+            "full_url": f"/files/{photo.object_key}",
         }
         for photo in photos
     ]
@@ -49,7 +50,8 @@ def get_single_photo_by_sharelink(share_id: UUID, photo_id: UUID, db: Session = 
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
     logger.log_event("redirect_photo", share_id=share_id, extra={"photo_id": str(photo_id)})
-    return RedirectResponse(photo.url_s3)
+    # Redirect to proxy endpoint
+    return RedirectResponse(f"/files/{photo.object_key}")
 
 
 @router.get("/{share_id}/download/all")
@@ -62,7 +64,8 @@ def download_all_photos_zip(share_id: UUID, db: Session = Depends(get_db), share
     s3_client = get_s3_client()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
         for photo in photos:
-            file_key = photo.url_s3.split(f"/{bucket}/")[-1].split("?")[0]
+            # Object key is stored directly
+            file_key = photo.object_key
             obj = s3_client.get_object(Bucket=bucket, Key=file_key)
             zipf.writestr(file_key, obj["Body"].read())
     zip_buffer.seek(0)
@@ -80,7 +83,8 @@ def download_single_photo(share_id: UUID, photo_id: UUID, db: Session = Depends(
     # Stream file from S3
     _, _, _, bucket = get_minio_config()
     s3_client = get_s3_client()
-    file_key = photo.url_s3.split(f"/{bucket}/")[-1]
+    # Use stored object key
+    file_key = photo.object_key
     obj = s3_client.get_object(Bucket=bucket, Key=file_key)
     sharelink.single_downloads += 1
     db.commit()

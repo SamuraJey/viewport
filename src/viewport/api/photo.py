@@ -31,11 +31,12 @@ def upload_photo(gallery_id: UUID, file: UploadFile = File(...), db: Session = D
 
     # Upload to MinIO
     filename = f"{gallery_id}/{file.filename}"
-    upload_fileobj(fileobj=bytes(contents), filename=filename)
-    url_s3 = get_file_url(filename)
+    # Upload file content and store object key
+    object_key = filename
+    upload_fileobj(fileobj=bytes(contents), filename=object_key)
 
     # Save Photo record
-    photo = Photo(gallery_id=gallery_id, url_s3=url_s3, file_size=file_size)
+    photo = Photo(gallery_id=gallery_id, object_key=object_key, file_size=file_size)
     db.add(photo)
     db.commit()
     db.refresh(photo)

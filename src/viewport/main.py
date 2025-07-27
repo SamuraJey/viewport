@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.viewport.models.user import User
@@ -10,6 +10,7 @@ from .api.public import router as public_router
 from .api.sharelink import router as sharelink_router
 from .auth_utils import get_current_user
 from .metrics import setup_metrics
+from .api.files import router as files_router
 
 app = FastAPI()
 
@@ -26,6 +27,7 @@ app.include_router(gallery_router)
 app.include_router(photo_router)
 app.include_router(sharelink_router)
 app.include_router(public_router)
+app.include_router(files_router)
 setup_metrics(app)
 
 

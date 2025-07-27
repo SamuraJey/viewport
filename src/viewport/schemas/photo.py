@@ -21,10 +21,11 @@ class PhotoResponse(BaseModel):
     @classmethod
     def from_db_photo(cls, photo):
         """Create PhotoResponse from database Photo model"""
+        # Generate proxy URL to serve file
         return cls(
             id=photo.id,
             gallery_id=photo.gallery_id,
-            url=photo.url_s3,  # Map url_s3 to url
+            url=f"/files/{photo.object_key}",
             file_size=photo.file_size,
             uploaded_at=photo.uploaded_at
         )

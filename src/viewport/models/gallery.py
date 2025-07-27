@@ -23,7 +23,8 @@ class Photo(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     gallery_id = Column(UUID(as_uuid=True), ForeignKey("galleries.id", ondelete="CASCADE"), nullable=False)
-    url_s3 = Column(String, nullable=False)
+    # S3 object key (e.g., gallery_id/filename)
+    object_key = Column(String, nullable=False)
     file_size = Column(Integer, nullable=False)
     uploaded_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 

@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "alembic: revision",
+			"type": "shell",
+			"command": "alembic revision --autogenerate -m \"<message>\"",
+			"args": [],
+			"group": "build",
+			"problemMatcher": []
+		}
+	]
+}
