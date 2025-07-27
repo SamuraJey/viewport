@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models.user import User
-from ..schemas.auth import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse
+from ..schemas.auth import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, RefreshRequest, TokenPair
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -60,3 +60,39 @@ def login_user(request: LoginRequest, db: Session = Depends(get_db)):
     access_token = create_access_token(str(user.id))
     refresh_token = create_refresh_token(str(user.id))
     return LoginResponse(id=str(user.id), email=user.email, tokens={"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"})
+
+
+@router.post("/refresh", response_model=TokenPair, status_code=status.HTTP_200_OK)
+def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
+    try:
+        # Decode and validate the refresh token
+        payload = jwt.decode(request.refresh_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("sub")
+        token_type = payload.get("type")
+
+        # Check if it's actually a refresh token
+        if token_type != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+        # Check if user exists
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+
+        # Generate new tokens
+        new_access_token = create_access_token(str(user.id))
+        new_refresh_token = create_refresh_token(str(user.id))
+
+        return TokenPair(
+            access_token=new_access_token,
+            refresh_token=new_refresh_token,
+            token_type="bearer"
+        )
+
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")

@@ -26,3 +26,7 @@ class LoginResponse(BaseModel):
     id: str
     email: EmailStr
     tokens: TokenPair
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
