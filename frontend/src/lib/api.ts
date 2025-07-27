@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { AxiosError, AxiosResponse } from 'axios'
+import type { AxiosError } from 'axios'
 import { useAuthStore } from '../stores/authStore'
 
 // Create axios instance
@@ -25,14 +25,13 @@ api.interceptors.request.use(
   }
 )
 
-// Response interceptor to handle token refresh
+// Response interceptor
 api.interceptors.response.use(
-  (response: AxiosResponse) => {
-    return response
-  },
+  (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config
     
+    // Handle 401 errors with token refresh
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true
       
@@ -54,17 +53,36 @@ api.interceptors.response.use(
           return api(originalRequest)
         }
       } catch (refreshError) {
-        // Refresh failed, logout user
+        // Refresh failed, logout user and redirect to login
         useAuthStore.getState().logout()
-        window.location.href = '/auth/login'
+        
+        // Only redirect if not already on auth pages
+        if (!window.location.pathname.startsWith('/auth')) {
+          window.location.href = '/auth/login'
+        }
         return Promise.reject(refreshError)
       }
     }
     
-    // If refresh failed or other error, logout and redirect
+    // Handle other critical errors
     if (error.response?.status === 401) {
       useAuthStore.getState().logout()
-      window.location.href = '/auth/login'
+      
+      if (!window.location.pathname.startsWith('/auth')) {
+        window.location.href = '/auth/login'
+      }
+    }
+    
+    // For network errors, enhance the error message
+    if (!error.response && error.code === 'ERR_NETWORK') {
+      const networkError = new Error('Network error. Please check your internet connection.')
+      return Promise.reject(networkError)
+    }
+    
+    // For timeout errors
+    if (error.code === 'ECONNABORTED') {
+      const timeoutError = new Error('Request timeout. Please try again.')
+      return Promise.reject(timeoutError)
     }
     
     return Promise.reject(error)

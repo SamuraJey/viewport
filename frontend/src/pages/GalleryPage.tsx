@@ -178,7 +178,7 @@ export const GalleryPage = () => {
     }
   }, [selectedPhotoIndex, gallery?.photos])
 
-  if (isLoading || !gallery) {
+  if (isLoading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -191,12 +191,51 @@ export const GalleryPage = () => {
     )
   }
 
+  if (error) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center space-y-4">
+            <div className="text-red-400 text-lg font-medium">Failed to load gallery</div>
+            <div className="text-gray-400">{error}</div>
+            <button 
+              onClick={fetchData}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              Try Again
+            </button>
+            <div>
+              <Link to="/" className="text-blue-400 hover:text-blue-300 text-sm">
+                ← Back to Dashboard
+              </Link>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    )
+  }
+
+  if (!gallery) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center space-y-4">
+            <div className="text-gray-400 text-lg">Gallery not found</div>
+            <Link to="/" className="text-blue-400 hover:text-blue-300">
+              ← Back to Dashboard
+            </Link>
+          </div>
+        </div>
+      </Layout>
+    )
+  }
+
   return (
     <Layout>
       <div className="space-y-8">
         <div className="flex flex-col gap-4">
           <div>
-            <Link to="/dashboard" className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 mb-4">
+            <Link to="/" className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 mb-4">
               <ArrowLeft className="w-4 h-4" />
               Back to Galleries
             </Link>

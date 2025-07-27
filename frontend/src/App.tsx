@@ -1,17 +1,20 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { RequireAuth } from './components/RequireAuth'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { GalleryPage } from './pages/GalleryPage'
 import { PublicGalleryPage } from './pages/PublicGalleryPage'
+import { NotFoundPage, ErrorPage } from './pages/ErrorPage'
 import { useAuthStore } from './stores/authStore'
 
 function App() {
   const { isAuthenticated } = useAuthStore()
 
   return (
-    <Routes>
+    <ErrorBoundary>
+      <Routes>
         {/* Public routes */}
         <Route 
           path="/auth/login" 
@@ -49,9 +52,17 @@ function App() {
             </RequireAuth>
           }
         />
-        {/* Fallback route */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        
+        {/* Error routes */}
+        <Route path="/error/404" element={<NotFoundPage />} />
+        <Route path="/error/403" element={<ErrorPage statusCode={403} />} />
+        <Route path="/error/500" element={<ErrorPage statusCode={500} />} />
+        <Route path="/error/503" element={<ErrorPage statusCode={503} />} />
+        
+        {/* Fallback route - 404 */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
+    </ErrorBoundary>
   )
 }
 

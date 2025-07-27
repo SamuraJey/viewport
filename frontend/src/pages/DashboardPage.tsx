@@ -2,31 +2,32 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { galleryService, type Gallery } from '../services/galleryService'
 import { formatDate } from '../lib/utils'
-import { Plus, Calendar, RefreshCw, ChevronLeft, ChevronRight, Image as ImageIcon, Trash2 } from 'lucide-react'
+import { Plus, Calendar, ChevronLeft, ChevronRight, Image as ImageIcon, Trash2 } from 'lucide-react'
 import { Layout } from '../components/Layout'
+import { ErrorDisplay } from '../components/ErrorDisplay'
+import { useErrorHandler } from '../hooks/useErrorHandler'
 
 export const DashboardPage = () => {
   const [galleries, setGalleries] = useState<Gallery[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
-  const [error, setError] = useState('')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = 9
 
+  const { error, clearError, handleError, isLoading, setLoading } = useErrorHandler()
+
   const fetchGalleries = async (pageNum = 1) => {
-    setIsLoading(true)
+    setLoading(true)
     try {
-      setError('')
+      clearError()
       const response = await galleryService.getGalleries(pageNum, pageSize)
       setGalleries(response.galleries)
       setTotal(response.total)
       setPage(pageNum)
     } catch (err: any) {
-      setError('Failed to load galleries. Please try again.')
-      console.error('Error fetching galleries:', err)
+      handleError(err)
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
@@ -37,17 +38,15 @@ export const DashboardPage = () => {
   const handleCreateGallery = async () => {
     try {
       setIsCreating(true)
-      setError('')
+      clearError()
       await galleryService.createGallery()
       await fetchGalleries(1) // Refresh and go to first page
     } catch (err: any) {
-      setError('Failed to create a new gallery.')
-      console.error('Error creating gallery:', err)
+      handleError(err)
     } finally {
       setIsCreating(false)
     }
   }
-
 
   // Handler for deleting a gallery
   const handleDeleteGallery = async (galleryId: string) => {
@@ -56,8 +55,7 @@ export const DashboardPage = () => {
         await galleryService.deleteGallery(galleryId)
         await fetchGalleries(page)
       } catch (err) {
-        setError('Failed to delete gallery. Please try again.')
-        console.error('Error deleting gallery:', err)
+        handleError(err)
       }
     }
   }
@@ -71,15 +69,12 @@ export const DashboardPage = () => {
   )
 
   const renderError = () => (
-    <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg flex items-center justify-between">
-      <span>{error}</span>
-      <button
-        onClick={() => fetchGalleries(page)}
-        className="text-red-400 hover:text-red-300 transition-colors"
-      >
-        <RefreshCw className="h-5 w-5" />
-      </button>
-    </div>
+    <ErrorDisplay 
+      error={error!}
+      onRetry={() => fetchGalleries(page)}
+      onDismiss={clearError}
+      variant="banner"
+    />
   )
 
   const renderEmptyState = () => (
