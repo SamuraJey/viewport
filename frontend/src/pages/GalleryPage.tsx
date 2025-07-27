@@ -193,7 +193,7 @@ export const GalleryPage = () => {
                     loading="lazy"
                   />
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button onClick={() => handleDeletePhoto(photo.id)} className="flex items-center justify-center w-8 h-8 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all duration-200">
+                    <button onClick={() => handleDeletePhoto(photo.id)} className="flex items-center justify-center w-8 h-8 p-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all duration-200">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -238,10 +238,10 @@ export const GalleryPage = () => {
                       </a>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => copyToClipboard(fullUrl)} className="flex items-center justify-center w-8 h-8 bg-green-500/20 hover:bg-green-500/30 text-green-400 hover:text-green-300 rounded-lg transition-all duration-200">
+                      <button onClick={() => copyToClipboard(fullUrl)} className="flex items-center justify-center w-8 h-8 p-1 bg-green-500/20 hover:bg-green-500/30 text-green-400 hover:text-green-300 rounded-lg transition-all duration-200">
                         {copiedLink === fullUrl ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                       </button>
-                      <button onClick={() => handleDeleteShareLink(link.id)} className="flex items-center justify-center w-8 h-8 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all duration-200">
+                      <button onClick={() => handleDeleteShareLink(link.id)} className="flex items-center justify-center w-8 h-8 p-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all duration-200">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
