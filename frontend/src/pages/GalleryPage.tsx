@@ -154,7 +154,7 @@ export const GalleryPage = () => {
               </div>
               <button
                 onClick={handleDeleteGallery}
-                className="btn-delete"
+                className="flex items-center gap-2 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 border border-red-500/20 rounded-lg transition-all duration-200"
                 title="Delete Gallery"
               >
                 <Trash2 className="w-4 h-4" />
@@ -193,8 +193,8 @@ export const GalleryPage = () => {
                     loading="lazy"
                   />
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button onClick={() => handleDeletePhoto(photo.id)} className="photo-delete-btn">
-                      <Trash2 className="w-5 h-5" />
+                    <button onClick={() => handleDeletePhoto(photo.id)} className="flex items-center justify-center w-8 h-8 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all duration-200">
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -217,8 +217,7 @@ export const GalleryPage = () => {
               <button
                 onClick={handleCreateShareLink}
                 disabled={isCreatingLink}
-                className="modern-btn modern-btn--secondary"
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', padding: '0.5rem 1rem' }}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isCreatingLink ? <Loader2 className="w-5 h-5 animate-spin" /> : <Share2 className="w-5 h-5" />}
                 Create New Link
@@ -239,11 +238,11 @@ export const GalleryPage = () => {
                       </a>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => copyToClipboard(fullUrl)} className="share-copy-btn">
-                        {copiedLink === fullUrl ? <Check className="w-5 h-5 text-green-400" /> : <Copy className="w-5 h-5" />}
+                      <button onClick={() => copyToClipboard(fullUrl)} className="flex items-center justify-center w-8 h-8 bg-green-500/20 hover:bg-green-500/30 text-green-400 hover:text-green-300 rounded-lg transition-all duration-200">
+                        {copiedLink === fullUrl ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                       </button>
-                      <button onClick={() => handleDeleteShareLink(link.id)} className="share-delete-btn">
-                        <Trash2 className="w-5 h-5" />
+                      <button onClick={() => handleDeleteShareLink(link.id)} className="flex items-center justify-center w-8 h-8 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all duration-200">
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </li>
