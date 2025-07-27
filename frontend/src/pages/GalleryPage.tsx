@@ -14,7 +14,10 @@ import {
   Copy, 
   Check,
   ArrowLeft,
-  ImageOff
+  ImageOff,
+  X,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 import { PhotoUploader } from '../components/PhotoUploader'
 
@@ -28,6 +31,7 @@ export const GalleryPage = () => {
   const [isCreatingLink, setIsCreatingLink] = useState(false)
   const [error, setError] = useState('')
   const [copiedLink, setCopiedLink] = useState<string | null>(null)
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null)
 
   const galleryId = id!
 
@@ -125,6 +129,55 @@ export const GalleryPage = () => {
     setTimeout(() => setCopiedLink(null), 2000)
   }
 
+  // Photo modal handlers
+  const openPhoto = (index: number) => {
+    setSelectedPhotoIndex(index)
+  }
+
+  const closePhoto = () => {
+    setSelectedPhotoIndex(null)
+  }
+
+  const goToPrevPhoto = () => {
+    if (selectedPhotoIndex !== null && gallery?.photos) {
+      const newIndex = selectedPhotoIndex > 0 ? selectedPhotoIndex - 1 : gallery.photos.length - 1
+      setSelectedPhotoIndex(newIndex)
+    }
+  }
+
+  const goToNextPhoto = () => {
+    if (selectedPhotoIndex !== null && gallery?.photos) {
+      const newIndex = selectedPhotoIndex < gallery.photos.length - 1 ? selectedPhotoIndex + 1 : 0
+      setSelectedPhotoIndex(newIndex)
+    }
+  }
+
+  // Keyboard navigation
+  const handleKeyDown = (e: Event) => {
+    const keyboardEvent = e as KeyboardEvent
+    if (selectedPhotoIndex === null) return
+    
+    switch (keyboardEvent.key) {
+      case 'Escape':
+        closePhoto()
+        break
+      case 'ArrowLeft':
+        goToPrevPhoto()
+        break
+      case 'ArrowRight':
+        goToNextPhoto()
+        break
+    }
+  }
+
+  // Add keyboard event listener
+  useEffect(() => {
+    if (selectedPhotoIndex !== null) {
+      document.addEventListener('keydown', handleKeyDown)
+      return () => document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [selectedPhotoIndex, gallery?.photos])
+
   if (isLoading || !gallery) {
     return (
       <Layout>
@@ -184,16 +237,27 @@ export const GalleryPage = () => {
           </div>
           {gallery.photos.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {gallery.photos.map((photo) => (
+              {gallery.photos.map((photo, index) => (
                 <div key={photo.id} className="relative group aspect-square">
-                  <AuthenticatedImage
-                    src={photo.url}
-                    alt={`Photo ${photo.id}`}
-                    className="w-full h-full object-cover rounded-lg"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button onClick={() => handleDeletePhoto(photo.id)} className="flex items-center justify-center w-8 h-8 p-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all duration-200">
+                  <button
+                    onClick={() => openPhoto(index)}
+                    className="w-full h-full p-0 border-0 bg-transparent cursor-pointer"
+                  >
+                    <AuthenticatedImage
+                      src={photo.url}
+                      alt={`Photo ${photo.id}`}
+                      className="w-full h-full object-cover rounded-lg hover:opacity-90 transition-opacity"
+                      loading="lazy"
+                    />
+                  </button>
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeletePhoto(photo.id)
+                      }} 
+                      className="flex items-center justify-center w-8 h-8 p-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all duration-200 pointer-events-auto"
+                    >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -258,6 +322,59 @@ export const GalleryPage = () => {
           )}
         </div>
       </div>
+
+      {/* Photo Modal */}
+      {selectedPhotoIndex !== null && gallery?.photos && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
+          {/* Close button */}
+          <button
+            onClick={closePhoto}
+            className="absolute top-4 right-4 z-10 flex items-center justify-center w-10 h-10 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          {/* Navigation buttons */}
+          {gallery.photos.length > 1 && (
+            <>
+              <button
+                onClick={goToPrevPhoto}
+                className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200"
+              >
+                <ChevronLeft className="w-8 h-8" />
+              </button>
+              <button
+                onClick={goToNextPhoto}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200"
+              >
+                <ChevronRight className="w-8 h-8" />
+              </button>
+            </>
+          )}
+
+          {/* Photo container */}
+          <div 
+            className="max-w-[95vw] max-h-[95vh] flex items-center justify-center"
+            onClick={closePhoto}
+          >
+            <div onClick={(e) => e.stopPropagation()}>
+              <AuthenticatedImage
+                src={gallery.photos[selectedPhotoIndex].url}
+                alt={`Photo ${gallery.photos[selectedPhotoIndex].id}`}
+                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                loading="eager"
+              />
+            </div>
+          </div>
+
+          {/* Photo info */}
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/50 text-white px-4 py-2 rounded-lg">
+            <span className="text-sm">
+              {selectedPhotoIndex + 1} of {gallery.photos.length}
+            </span>
+          </div>
+        </div>
+      )}
     </Layout>
   )
 }
