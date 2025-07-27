@@ -1,10 +1,11 @@
 import io
+import mimetypes
 import zipfile
 from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from src.viewport.db import get_db
@@ -31,9 +32,9 @@ def get_photos_by_sharelink(share_id: UUID, db: Session = Depends(get_db), share
     result = [
         {
             "photo_id": str(photo.id),
-            # Proxy URLs for thumbnail and full image
-            "thumbnail_url": f"/files/{photo.object_key}",
-            "full_url": f"/files/{photo.object_key}",
+            # Use secure public photo endpoints instead of direct file access
+            "thumbnail_url": f"/s/{share_id}/photos/{photo.id}",
+            "full_url": f"/s/{share_id}/photos/{photo.id}",
         }
         for photo in photos
     ]
@@ -49,9 +50,24 @@ def get_single_photo_by_sharelink(share_id: UUID, photo_id: UUID, db: Session = 
     photo = db.query(Photo).filter(Photo.id == photo_id, Photo.gallery_id == sharelink.gallery_id).first()
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
-    logger.log_event("redirect_photo", share_id=share_id, extra={"photo_id": str(photo_id)})
-    # Redirect to proxy endpoint
-    return RedirectResponse(f"/files/{photo.object_key}")
+
+    logger.log_event("view_photo", share_id=share_id, extra={"photo_id": str(photo_id)})
+
+    # Stream photo directly from S3
+    _, _, _, bucket = get_minio_config()
+    s3_client = get_s3_client()
+
+    try:
+        obj = s3_client.get_object(Bucket=bucket, Key=photo.object_key)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Guess MIME type based on file extension
+    mime_type, _ = mimetypes.guess_type(photo.object_key)
+    if not mime_type:
+        mime_type = obj.get("ContentType", "application/octet-stream")
+
+    return StreamingResponse(obj["Body"], media_type=mime_type)
 
 
 @router.get("/{share_id}/download/all")

@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/authStore'
 
 // Create axios instance
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+  baseURL: import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:8000'),
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -40,7 +40,7 @@ api.interceptors.response.use(
         const { tokens } = useAuthStore.getState()
         if (tokens?.refresh_token) {
           const response = await axios.post(
-            `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/auth/refresh`,
+            `${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:8000')}/auth/refresh`,
             { refresh_token: tokens.refresh_token }
           )
           
@@ -70,6 +70,12 @@ api.interceptors.response.use(
     return Promise.reject(error)
   }
 )
+
+// Utility function to get full photo URL
+export const getPhotoUrl = (relativeUrl: string): string => {
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+  return `${baseUrl}${relativeUrl}`
+}
 
 // Declare module augmentation for retry flag
 declare module 'axios' {

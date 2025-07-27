@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { galleryService, type GalleryDetail } from '../services/galleryService'
 import { photoService } from '../services/photoService'
 import { shareLinkService, type ShareLink } from '../services/shareLinkService'
 import { Layout } from '../components/Layout'
 import { formatDate } from '../lib/utils'
+import { AuthenticatedImage } from '../components/AuthenticatedImage'
 import { 
   Loader2, 
   Trash2, 
@@ -27,8 +28,6 @@ export const GalleryPage = () => {
   const [isCreatingLink, setIsCreatingLink] = useState(false)
   const [error, setError] = useState('')
   const [copiedLink, setCopiedLink] = useState<string | null>(null)
-  // For lazy loading
-  const imgRefs = useRef<(HTMLImageElement | null)[]>([])
 
   const galleryId = id!
 
@@ -70,7 +69,7 @@ export const GalleryPage = () => {
   const handleDeletePhoto = async (photoId: string) => {
     if (window.confirm('Are you sure you want to delete this photo?')) {
       try {
-        await photoService.deletePhoto(photoId)
+        await photoService.deletePhoto(galleryId, photoId)
         await fetchData()
       } catch (err) {
         setError('Failed to delete photo. Please try again.')
@@ -125,33 +124,6 @@ export const GalleryPage = () => {
     setCopiedLink(text)
     setTimeout(() => setCopiedLink(null), 2000)
   }
-
-  // Lazy loading effect
-  useEffect(() => {
-    if (!gallery || !gallery.photos.length) return
-    const observer = new window.IntersectionObserver(
-      entries => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            const img = entry.target as HTMLImageElement
-            if (img.dataset.src) {
-              img.src = img.dataset.src
-              img.onload = () => {
-                img.classList.remove('opacity-0')
-                img.classList.add('opacity-100')
-              }
-              observer.unobserve(img)
-            }
-          }
-        })
-      },
-      { rootMargin: '100px' }
-    )
-    imgRefs.current.forEach(img => {
-      if (img) observer.observe(img)
-    })
-    return () => observer.disconnect()
-  }, [gallery])
 
   if (isLoading || !gallery) {
     return (
@@ -212,13 +184,13 @@ export const GalleryPage = () => {
           </div>
           {gallery.photos.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {gallery.photos.map((photo, idx) => (
+              {gallery.photos.map((photo) => (
                 <div key={photo.id} className="relative group aspect-square">
-                  <img
-                    ref={el => { imgRefs.current[idx] = el }}
-                    data-src={photo.url}
+                  <AuthenticatedImage
+                    src={photo.url}
                     alt={`Photo ${photo.id}`}
-                    className="w-full h-full object-cover rounded-lg opacity-0 transition-opacity duration-500"
+                    className="w-full h-full object-cover rounded-lg"
+                    loading="lazy"
                   />
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <button onClick={() => handleDeletePhoto(photo.id)} className="photo-delete-btn">

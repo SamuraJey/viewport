@@ -18,8 +18,8 @@ const uploadPhoto = async (galleryId: string, file: File): Promise<Photo> => {
   return response.data
 }
 
-const deletePhoto = async (photoId: string): Promise<void> => {
-  await api.delete(`/photos/${photoId}`)
+const deletePhoto = async (galleryId: string, photoId: string): Promise<void> => {
+  await api.delete(`/galleries/${galleryId}/photos/${photoId}`)
 }
 
 export const photoService = {

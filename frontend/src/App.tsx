@@ -3,8 +3,9 @@ import { RequireAuth } from './components/RequireAuth'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { DashboardPage } from './pages/DashboardPage'
-import { useAuthStore } from './stores/authStore'
 import { GalleryPage } from './pages/GalleryPage'
+import { PublicGalleryPage } from './pages/PublicGalleryPage'
+import { useAuthStore } from './stores/authStore'
 
 function App() {
   const { isAuthenticated } = useAuthStore()
@@ -23,6 +24,12 @@ function App() {
           element={
             isAuthenticated ? <Navigate to="/" replace /> : <RegisterPage />
           } 
+        />
+        
+        {/* Public gallery sharing route */}
+        <Route
+          path="/share/:shareId"
+          element={<PublicGalleryPage />}
         />
         
         {/* Protected routes */}

@@ -27,8 +27,8 @@ const deleteShareLink = async (galleryId: string, shareLinkId: string): Promise<
   await api.delete(`/galleries/${galleryId}/share-links/${shareLinkId}`)
 }
 
-const getSharedGallery = async (token: string): Promise<any> => {
-  const response = await api.get(`/public/share/${token}`)
+const getSharedGallery = async (shareId: string): Promise<any> => {
+  const response = await api.get(`/s/${shareId}`)
   return response.data
 }
 
