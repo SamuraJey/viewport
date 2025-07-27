@@ -71,7 +71,7 @@ export const PhotoUploader = ({ onUpload, isUploading }: PhotoUploaderProps) => 
   return (
     <div>
       <div
-        className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 transition-colors cursor-pointer ${dragActive ? 'border-blue-500 bg-blue-50/30' : 'border-gray-600 bg-white/5'}`}
+        className={`upload-dropzone relative flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 transition-colors cursor-pointer ${dragActive ? 'drag-over' : ''}`}
         onClick={() => fileInputRef.current?.click()}
         onDrop={handleDrop}
         onDragOver={handleDragOver}

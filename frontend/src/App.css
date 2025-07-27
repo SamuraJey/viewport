@@ -350,3 +350,102 @@
   transform: none !important;
   box-shadow: none !important;
 }
+
+/* Drag and drop upload area */
+.upload-dropzone {
+  border: 3px dashed rgba(96, 165, 250, 0.5) !important;
+  background: rgba(96, 165, 250, 0.05) !important;
+  transition: all 0.3s ease !important;
+  position: relative !important;
+}
+
+.upload-dropzone::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  border: 2px solid rgba(96, 165, 250, 0.3);
+  border-radius: 0.75rem;
+  pointer-events: none;
+}
+
+.upload-dropzone:hover {
+  border-color: rgba(96, 165, 250, 0.8) !important;
+  background: rgba(96, 165, 250, 0.1) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 25px rgba(96, 165, 250, 0.15) !important;
+}
+
+.upload-dropzone:hover::before {
+  border-color: rgba(96, 165, 250, 0.6);
+}
+
+.upload-dropzone.drag-over {
+  border-color: rgba(96, 165, 250, 1) !important;
+  background: rgba(96, 165, 250, 0.15) !important;
+  box-shadow: 0 12px 35px rgba(96, 165, 250, 0.25) !important;
+}
+
+.upload-dropzone.drag-over::before {
+  border-color: rgba(96, 165, 250, 0.8);
+}
+
+/* Photo delete button */
+.photo-delete-btn {
+  padding: 8px !important;
+  background: rgba(220, 38, 38, 0.9) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 50% !important;
+  transition: all 0.2s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 36px !important;
+  height: 36px !important;
+}
+
+.photo-delete-btn:hover {
+  background: rgba(185, 28, 28, 1) !important;
+  transform: scale(1.1) !important;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4) !important;
+}
+
+/* Share link action buttons */
+.share-copy-btn {
+  padding: 8px !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 6px !important;
+  transition: all 0.2s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.share-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: #e5e7eb !important;
+  transform: translateY(-1px) !important;
+}
+
+.share-delete-btn {
+  padding: 8px !important;
+  background: rgba(239, 68, 68, 0.1) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 6px !important;
+  transition: all 0.2s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.share-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #fca5a5 !important;
+  transform: translateY(-1px) !important;
+}

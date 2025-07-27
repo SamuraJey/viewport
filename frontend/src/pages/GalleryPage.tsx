@@ -221,7 +221,7 @@ export const GalleryPage = () => {
                     className="w-full h-full object-cover rounded-lg opacity-0 transition-opacity duration-500"
                   />
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button onClick={() => handleDeletePhoto(photo.id)} className="p-2 bg-red-600/80 rounded-full text-white hover:bg-red-500">
+                    <button onClick={() => handleDeletePhoto(photo.id)} className="photo-delete-btn">
                       <Trash2 className="w-5 h-5" />
                     </button>
                   </div>
@@ -267,10 +267,10 @@ export const GalleryPage = () => {
                       </a>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => copyToClipboard(fullUrl)} className="p-2 text-white hover:text-gray-200 hover:bg-white/20 rounded-lg transition-colors">
+                      <button onClick={() => copyToClipboard(fullUrl)} className="share-copy-btn">
                         {copiedLink === fullUrl ? <Check className="w-5 h-5 text-green-400" /> : <Copy className="w-5 h-5" />}
                       </button>
-                      <button onClick={() => handleDeleteShareLink(link.id)} className="p-2 text-white hover:text-red-200 hover:bg-red-500/50 rounded-lg transition-colors">
+                      <button onClick={() => handleDeleteShareLink(link.id)} className="share-delete-btn">
                         <Trash2 className="w-5 h-5" />
                       </button>
                     </div>
