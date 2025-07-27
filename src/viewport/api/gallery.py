@@ -55,7 +55,7 @@ def get_gallery(
         gallery_uuid = uuid.UUID(gallery_id)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid gallery ID format")
-    
+
     gallery = db.query(Gallery).options(
         joinedload(Gallery.photos),
         joinedload(Gallery.share_links)
@@ -63,10 +63,10 @@ def get_gallery(
         Gallery.id == gallery_uuid,
         Gallery.owner_id == current_user.id
     ).first()
-    
+
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
-    
+
     return GalleryDetailResponse(
         id=str(gallery.id),
         owner_id=str(gallery.owner_id),
@@ -74,3 +74,26 @@ def get_gallery(
         photos=[PhotoResponse.from_db_photo(photo) for photo in gallery.photos],
         share_links=[ShareLinkResponse.model_validate(link) for link in gallery.share_links],
     )
+
+
+@router.delete("/{gallery_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_gallery(
+    gallery_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        gallery_uuid = uuid.UUID(gallery_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid gallery ID format")
+
+    gallery = db.query(Gallery).filter(
+        Gallery.id == gallery_uuid,
+        Gallery.owner_id == current_user.id
+    ).first()
+    if not gallery:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
+
+    db.delete(gallery)
+    db.commit()
+    return

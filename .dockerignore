@@ -1,0 +1,10 @@
+*.md
+example_of_styles/
+.venv/
+.vscode/
+*_cache/
+__pycache__/
+.github
+.env
+# Ignore Python bytecode and build artifacts
+*.py[cod]

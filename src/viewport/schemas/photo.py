@@ -17,7 +17,7 @@ class PhotoResponse(BaseModel):
     uploaded_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-    
+
     @classmethod
     def from_db_photo(cls, photo):
         """Create PhotoResponse from database Photo model"""

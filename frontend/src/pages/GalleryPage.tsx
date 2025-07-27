@@ -78,6 +78,18 @@ export const GalleryPage = () => {
       }
     }
   }
+  // Handler for deleting the gallery from detail page
+  const handleDeleteGallery = async () => {
+    if (window.confirm('Are you sure you want to delete this gallery and all its contents?')) {
+      try {
+        await galleryService.deleteGallery(galleryId)
+        window.location.href = '/dashboard'
+      } catch (err) {
+        setError('Failed to delete gallery. Please try again.')
+        console.error('Error deleting gallery:', err)
+      }
+    }
+  }
 
   // Handler for creating a share link
   const handleCreateShareLink = async () => {
@@ -157,13 +169,23 @@ export const GalleryPage = () => {
   return (
     <Layout>
       <div className="space-y-8">
-        <div>
-          <Link to="/dashboard" className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 mb-4">
-            <ArrowLeft className="w-4 h-4" />
-            Back to Galleries
-          </Link>
-          <h1 className="text-4xl font-bold text-white">Gallery #{gallery.id}</h1>
-          <p className="mt-2 text-lg text-gray-400">Created on {formatDate(gallery.created_at)}</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <Link to="/dashboard" className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 mb-4">
+              <ArrowLeft className="w-4 h-4" />
+              Back to Galleries
+            </Link>
+            <h1 className="text-4xl font-bold text-white">Gallery #{gallery.id}</h1>
+            <p className="mt-2 text-lg text-gray-400">Created on {formatDate(gallery.created_at)}</p>
+          </div>
+          <button
+            onClick={handleDeleteGallery}
+            className="inline-flex items-center gap-2 px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 focus:ring-offset-gray-900"
+            title="Delete Gallery"
+          >
+            <Trash2 className="w-5 h-5" />
+            Delete Gallery
+          </button>
         </div>
 
         {/* Photo Section */}

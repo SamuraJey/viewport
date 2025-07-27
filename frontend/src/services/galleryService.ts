@@ -35,8 +35,13 @@ const createGallery = async (): Promise<Gallery> => {
   return response.data
 }
 
+const deleteGallery = async (id: string): Promise<void> => {
+  await api.delete(`/galleries/${id}`)
+}
+
 export const galleryService = {
   getGalleries,
   getGallery,
   createGallery,
+  deleteGallery,
 }

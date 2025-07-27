@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { galleryService, type Gallery } from '../services/galleryService'
 import { formatDate } from '../lib/utils'
-import { Plus, Calendar, Loader2, RefreshCw, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react'
+import { Plus, Calendar, Loader2, RefreshCw, ChevronLeft, ChevronRight, Image as ImageIcon, Trash2 } from 'lucide-react'
 import { Layout } from '../components/Layout'
 
 export const DashboardPage = () => {
@@ -45,6 +45,20 @@ export const DashboardPage = () => {
       console.error('Error creating gallery:', err)
     } finally {
       setIsCreating(false)
+    }
+  }
+
+
+  // Handler for deleting a gallery
+  const handleDeleteGallery = async (galleryId: string) => {
+    if (window.confirm('Are you sure you want to delete this gallery and all its contents?')) {
+      try {
+        await galleryService.deleteGallery(galleryId)
+        await fetchGalleries(page)
+      } catch (err) {
+        setError('Failed to delete gallery. Please try again.')
+        console.error('Error deleting gallery:', err)
+      }
     }
   }
 
@@ -113,8 +127,14 @@ export const DashboardPage = () => {
                     </p>
                   </div>
                 </div>
+                <button
+                  onClick={() => handleDeleteGallery(gallery.id)}
+                  className="p-2 bg-red-600/80 rounded-full text-white hover:bg-red-500 ml-2"
+                  title="Delete Gallery"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
               </div>
-              
               <div className="mt-6">
                 <Link
                   to={`/galleries/${gallery.id}`}
