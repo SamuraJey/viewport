@@ -169,23 +169,27 @@ export const GalleryPage = () => {
   return (
     <Layout>
       <div className="space-y-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col gap-4">
           <div>
             <Link to="/dashboard" className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300 mb-4">
               <ArrowLeft className="w-4 h-4" />
               Back to Galleries
             </Link>
-            <h1 className="text-4xl font-bold text-white">Gallery #{gallery.id}</h1>
-            <p className="mt-2 text-lg text-gray-400">Created on {formatDate(gallery.created_at)}</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-4xl font-bold text-white">Gallery #{gallery.id}</h1>
+                <p className="mt-2 text-lg text-gray-400">Created on {formatDate(gallery.created_at)}</p>
+              </div>
+              <button
+                onClick={handleDeleteGallery}
+                className="btn-delete"
+                title="Delete Gallery"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Gallery
+              </button>
+            </div>
           </div>
-          <button
-            onClick={handleDeleteGallery}
-            className="inline-flex items-center gap-2 px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 focus:ring-offset-gray-900"
-            title="Delete Gallery"
-          >
-            <Trash2 className="w-5 h-5" />
-            Delete Gallery
-          </button>
         </div>
 
         {/* Photo Section */}
@@ -197,6 +201,12 @@ export const GalleryPage = () => {
               <div className="mt-2 text-red-400 bg-red-500/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
                 {uploadError}
                 <button onClick={() => setUploadError('')} className="ml-2 text-xs text-white bg-red-400/40 px-2 py-1 rounded">Dismiss</button>
+              </div>
+            )}
+            {error && (
+              <div className="mt-2 text-red-400 bg-red-500/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
+                {error}
+                <button onClick={() => setError('')} className="ml-2 text-xs text-white bg-red-400/40 px-2 py-1 rounded">Dismiss</button>
               </div>
             )}
           </div>
@@ -235,7 +245,8 @@ export const GalleryPage = () => {
               <button
                 onClick={handleCreateShareLink}
                 disabled={isCreatingLink}
-                className="inline-flex items-center gap-2 px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 focus:ring-offset-gray-900 disabled:opacity-50"
+                className="modern-btn modern-btn--secondary"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', padding: '0.5rem 1rem' }}
               >
                 {isCreatingLink ? <Loader2 className="w-5 h-5 animate-spin" /> : <Share2 className="w-5 h-5" />}
                 Create New Link
@@ -250,16 +261,16 @@ export const GalleryPage = () => {
                 return (
                   <li key={link.id} className="bg-white/10 p-4 rounded-lg flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <LinkIcon className="w-5 h-5 text-gray-400" />
+                      <LinkIcon className="w-5 h-5 text-blue-400" />
                       <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline truncate">
                         {fullUrl}
                       </a>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => copyToClipboard(fullUrl)} className="p-2 text-gray-300 hover:text-white hover:bg-white/20 rounded-lg">
+                      <button onClick={() => copyToClipboard(fullUrl)} className="p-2 text-white hover:text-gray-200 hover:bg-white/20 rounded-lg transition-colors">
                         {copiedLink === fullUrl ? <Check className="w-5 h-5 text-green-400" /> : <Copy className="w-5 h-5" />}
                       </button>
-                      <button onClick={() => handleDeleteShareLink(link.id)} className="p-2 text-gray-300 hover:text-white hover:bg-red-500/50 rounded-lg">
+                      <button onClick={() => handleDeleteShareLink(link.id)} className="p-2 text-white hover:text-red-200 hover:bg-red-500/50 rounded-lg transition-colors">
                         <Trash2 className="w-5 h-5" />
                       </button>
                     </div>
