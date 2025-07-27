@@ -22,25 +22,17 @@ class PhotoResponse(BaseModel):
     def from_db_photo(cls, photo):
         """Create PhotoResponse from database Photo model"""
         # Generate token-based URL for better caching
-        from datetime import datetime, timedelta, UTC
+        from datetime import UTC, datetime, timedelta
+
         import jwt
-        from ..api.auth import JWT_SECRET, JWT_ALGORITHM
-        
+
+        from ..api.auth import JWT_ALGORITHM, JWT_SECRET
+
         # Create a photo access token that's valid for 24 hours
-        payload = {
-            "user_id": str(photo.gallery.owner_id),
-            "photo_id": str(photo.id),
-            "exp": datetime.now(UTC) + timedelta(hours=24)
-        }
+        payload = {"user_id": str(photo.gallery.owner_id), "photo_id": str(photo.id), "exp": datetime.now(UTC) + timedelta(hours=24)}
         token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-        
-        return cls(
-            id=photo.id,
-            gallery_id=photo.gallery_id,
-            url=f"/photos/auth/{photo.id}?token={token}",
-            file_size=photo.file_size,
-            uploaded_at=photo.uploaded_at
-        )
+
+        return cls(id=photo.id, gallery_id=photo.gallery_id, url=f"/photos/auth/{photo.id}?token={token}", file_size=photo.file_size, uploaded_at=photo.uploaded_at)
 
 
 class PhotoListResponse(BaseModel):

@@ -1,7 +1,5 @@
 from datetime import UTC, datetime, timedelta
 
-from src.viewport.main import app
-
 
 class TestPublicAPI:
     def setup_sharelink(self, client, expires_delta_days=1):

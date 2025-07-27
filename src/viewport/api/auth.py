@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models.user import User
-from ..schemas.auth import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, RefreshRequest, TokenPair
+from ..schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -86,11 +86,7 @@ def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
         new_access_token = create_access_token(str(user.id))
         new_refresh_token = create_refresh_token(str(user.id))
 
-        return TokenPair(
-            access_token=new_access_token,
-            refresh_token=new_refresh_token,
-            token_type="bearer"
-        )
+        return TokenPair(access_token=new_access_token, refresh_token=new_refresh_token, token_type="bearer")
 
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Refresh token expired")

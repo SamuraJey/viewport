@@ -59,7 +59,7 @@ def get_single_photo_by_sharelink(share_id: UUID, photo_id: UUID, db: Session = 
 
     try:
         obj = s3_client.get_object(Bucket=bucket, Key=photo.object_key)
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=404, detail="File not found")
 
     # Guess MIME type based on file extension

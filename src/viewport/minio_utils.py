@@ -1,9 +1,8 @@
-from functools import cache
 import os
+from functools import cache
 
 import boto3
 from botocore.client import Config
-
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -16,7 +15,9 @@ class MinioSettings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="MINIO_",
-        env_file=".env", extra="ignore",)  # Ignore extra fields not defined in the model)
+        env_file=".env",
+        extra="ignore",
+    )  # Ignore extra fields not defined in the model)
 
 
 @cache

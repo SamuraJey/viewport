@@ -1,5 +1,4 @@
 import io
-from tests.conftest import auth_headers, gallery_id_fixture
 
 
 def test_photo_access_authenticated_user(client, auth_headers, gallery_id_fixture):

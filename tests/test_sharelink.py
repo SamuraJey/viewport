@@ -1,13 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-
-
-from src.viewport.main import app
 from src.viewport.models.sharelink import ShareLink
-
-
-
 
 
 class TestShareLinkModel:

@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import List
 
 from pydantic import BaseModel
 
@@ -21,8 +20,8 @@ class GalleryDetailResponse(BaseModel):
     id: str
     owner_id: str
     created_at: datetime
-    photos: List[PhotoResponse]
-    share_links: List[ShareLinkResponse]
+    photos: list[PhotoResponse]
+    share_links: list[ShareLinkResponse]
 
 
 class GalleryListResponse(BaseModel):

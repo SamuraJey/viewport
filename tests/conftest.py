@@ -54,7 +54,6 @@ def test_user_data():
     return {"email": "testuser@example.com", "password": "testpassword123"}
 
 
-
 @pytest.fixture(scope="function")
 def gallery_id_fixture(authenticated_client) -> str:
     """Create a gallery and return its ID."""

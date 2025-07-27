@@ -56,13 +56,7 @@ def get_gallery(
     except ValueError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid gallery ID format")
 
-    gallery = db.query(Gallery).options(
-        joinedload(Gallery.photos),
-        joinedload(Gallery.share_links)
-    ).filter(
-        Gallery.id == gallery_uuid,
-        Gallery.owner_id == current_user.id
-    ).first()
+    gallery = db.query(Gallery).options(joinedload(Gallery.photos), joinedload(Gallery.share_links)).filter(Gallery.id == gallery_uuid, Gallery.owner_id == current_user.id).first()
 
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
@@ -87,10 +81,7 @@ def delete_gallery(
     except ValueError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid gallery ID format")
 
-    gallery = db.query(Gallery).filter(
-        Gallery.id == gallery_uuid,
-        Gallery.owner_id == current_user.id
-    ).first()
+    gallery = db.query(Gallery).filter(Gallery.id == gallery_uuid, Gallery.owner_id == current_user.id).first()
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
 
