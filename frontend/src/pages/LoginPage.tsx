@@ -49,107 +49,71 @@ export const LoginPage = () => {
   }
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: '#1e1e1e', 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      padding: '3rem 1rem' 
-    }}>
-      <div style={{ position: 'relative', maxWidth: '28rem', width: '100%' }}>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center p-4">
+      <div className="relative w-full max-w-md">
         {/* Card container */}
-        <div className="modern-form" style={{ maxWidth: 'none' }}>
+        <div className="bg-gray-900/95 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-white/10">
           {/* Logo/Brand area */}
           <div className="text-center mb-8">
-            <div style={{ 
-              margin: '0 auto 1rem', 
-              height: '3rem', 
-              width: '3rem', 
-              background: 'linear-gradient(to right, #2563eb, #7c3aed)', 
-              borderRadius: '0.75rem', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center' 
-            }}>
-              <Camera style={{ height: '1.5rem', width: '1.5rem', color: '#fff' }} />
+            <div className="w-12 h-12 bg-gradient-to-r from-primary-600 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <Camera className="h-6 w-6 text-white" />
             </div>
-            <h2 className="modern-heading" style={{ fontSize: '1.875rem', marginBottom: '0.5rem' }}>
+            <h2 className="font-oswald text-3xl font-bold uppercase tracking-wider text-white mb-2">
               Welcome back
             </h2>
-            <p className="modern-subheading">
+            <p className="text-gray-400 font-cuprum">
               Sign in to your Viewport account
             </p>
           </div>
 
-          <form style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }} onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email Field */}
-            <div className="form-group">
-              <label htmlFor="email" className="form-label">
+            <div>
+              <label htmlFor="email" className="block text-sm font-semibold text-gray-300 mb-2 uppercase tracking-wide">
                 Email address
               </label>
-              <div style={{ position: 'relative' }}>
+              <div className="relative">
                 <input
                   id="email"
                   name="email"
                   type="email"
                   autoComplete="email"
                   required
-                  className="form-input"
+                  className="w-full px-4 py-3 pr-12 bg-gray-800/80 border-2 border-gray-600 text-white rounded-lg transition-all focus:outline-none focus:border-primary-500 focus:bg-gray-800 focus:ring-4 focus:ring-primary-500/20 backdrop-blur-sm"
                   placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  style={{ paddingRight: '3rem' }}
                 />
-                <Mail style={{ 
-                  position: 'absolute', 
-                  right: '0.75rem', 
-                  top: '50%', 
-                  transform: 'translateY(-50%)',
-                  height: '1.25rem', 
-                  width: '1.25rem', 
-                  color: '#9ca3af' 
-                }} />
+                <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               </div>
             </div>
 
             {/* Password Field */}
-            <div className="form-group">
-              <label htmlFor="password" className="form-label">
+            <div>
+              <label htmlFor="password" className="block text-sm font-semibold text-gray-300 mb-2 uppercase tracking-wide">
                 Password
               </label>
-              <div style={{ position: 'relative' }}>
+              <div className="relative">
                 <input
                   id="password"
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   required
-                  className="form-input"
+                  className="w-full px-4 py-3 pr-12 bg-gray-800/80 border-2 border-gray-600 text-white rounded-lg transition-all focus:outline-none focus:border-primary-500 focus:bg-gray-800 focus:ring-4 focus:ring-primary-500/20 backdrop-blur-sm"
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  style={{ paddingRight: '3rem' }}
                 />
                 <button
                   type="button"
-                  style={{ 
-                    position: 'absolute',
-                    top: '50%',
-                    right: '0.75rem',
-                    transform: 'translateY(-50%)',
-                    background: 'none',
-                    border: 'none',
-                    color: '#9ca3af',
-                    cursor: 'pointer',
-                    padding: 0
-                  }}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <EyeOff style={{ height: '1.25rem', width: '1.25rem' }} />
+                    <EyeOff className="h-5 w-5" />
                   ) : (
-                    <Eye style={{ height: '1.25rem', width: '1.25rem' }} />
+                    <Eye className="h-5 w-5" />
                   )}
                 </button>
               </div>
@@ -157,7 +121,7 @@ export const LoginPage = () => {
 
             {/* Error Message */}
             {error && (
-              <div className="error-message">
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-center text-sm">
                 {error}
               </div>
             )}
@@ -166,34 +130,28 @@ export const LoginPage = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="modern-btn w-full"
-              style={{ 
-                display: 'flex', 
-                justifyContent: 'center', 
-                alignItems: 'center',
-                opacity: isLoading ? 0.6 : 1
-              }}
+              className="w-full bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>
-                  <div className="loading-spinner" style={{ width: '1.25rem', height: '1.25rem', marginRight: '0.5rem' }}></div>
+                  <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
                   Signing in...
                 </>
               ) : (
                 <>
-                  <LogIn style={{ height: '1.25rem', width: '1.25rem', marginRight: '0.5rem' }} />
+                  <LogIn className="h-5 w-5" />
                   Sign in
                 </>
               )}
             </button>
 
             {/* Divider */}
-            <div style={{ position: 'relative', margin: '1rem 0' }}>
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: '100%', borderTop: '1px solid #4b5563' }}></div>
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-600"></div>
               </div>
-              <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', fontSize: '0.875rem' }}>
-                <span style={{ padding: '0 1rem', background: '#2a2a2a', color: '#9ca3af' }}>New to Viewport?</span>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-4 bg-gray-900 text-gray-400">New to Viewport?</span>
               </div>
             </div>
 
@@ -201,17 +159,9 @@ export const LoginPage = () => {
             <div className="text-center">
               <Link
                 to="/auth/register"
-                style={{ 
-                  display: 'inline-flex', 
-                  alignItems: 'center', 
-                  fontSize: '0.875rem', 
-                  fontWeight: 500, 
-                  color: '#fff',
-                  textDecoration: 'none'
-                }}
-                className="hover:opacity-75 transition-all"
+                className="inline-flex items-center gap-1 text-sm font-medium text-white hover:text-primary-400 transition-colors"
               >
-                <UserPlus style={{ height: '1rem', width: '1rem', marginRight: '0.25rem' }} />
+                <UserPlus className="h-4 w-4" />
                 Create your account
               </Link>
             </div>

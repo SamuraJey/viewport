@@ -17,29 +17,31 @@ export const Layout = ({ children }: LayoutProps) => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#1e1e1e', color: '#fff' }}>
-      <header className="modern-nav">
-        <div className="nav-container">
+    <div className="min-h-screen bg-gray-900 text-white">
+      <header className="sticky top-0 z-50 bg-gray-900/95 backdrop-blur-lg border-b border-white/10 py-4">
+        <div className="max-w-7xl mx-auto px-4 flex justify-between items-center">
           <div className="flex items-center">
-            <Link to="/" className="nav-brand" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <Camera style={{ height: '2rem', width: '2rem', color: '#fff' }} />
+            <Link 
+              to="/" 
+              className="flex items-center gap-3 text-white hover:opacity-80 transition-opacity font-oswald text-xl font-bold uppercase tracking-wider"
+            >
+              <Camera className="h-8 w-8" />
               <span>Viewport</span>
             </Link>
           </div>
           
-          <nav className="nav-links">
+          <nav className="flex items-center gap-8">
             {user && (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: '#d1d5db' }}>
-                  <User style={{ height: '1.25rem', width: '1.25rem' }} />
+                <div className="flex items-center gap-2 text-sm text-gray-300">
+                  <User className="h-5 w-5" />
                   <span>{user.email}</span>
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="modern-btn modern-btn--secondary"
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', padding: '0.5rem 1rem' }}
+                  className="flex items-center gap-2 text-sm px-4 py-2 bg-transparent border-2 border-gray-600 text-gray-300 hover:border-primary-500 hover:text-primary-500 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/20"
                 >
-                  <LogOut style={{ height: '1.25rem', width: '1.25rem' }} />
+                  <LogOut className="h-5 w-5" />
                   <span>Sign Out</span>
                 </button>
               </>
@@ -48,7 +50,7 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
       </header>
       
-      <main className="modern-container">
+      <main className="max-w-7xl mx-auto px-4 py-8">
         {children}
       </main>
     </div>

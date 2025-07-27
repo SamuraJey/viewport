@@ -1,18 +1,12 @@
 /* Import Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Cuprum:wght@400;500;700&family=PT+Sans:wght@400;700&display=swap');
 
-/* Reset and base styles */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+@import "tailwindcss";
 
+/* Custom font configuration */
 html,
 body {
   font-family: 'Cuprum', 'PT Sans', sans-serif;
-  background: #1e1e1e;
-  color: #fff;
   margin: 0;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -21,24 +15,9 @@ body {
   font-size: 16px;
 }
 
-#root {
-  min-height: 100vh;
-}
-
 h1,
 h2 {
   font-family: 'Oswald', sans-serif;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  font-weight: 700;
-}
-
-h3,
-h4,
-h5,
-h6 {
-  font-family: 'Cuprum', sans-serif;
-  font-weight: 500;
 }
 
 /* Base button styles - using lower specificity to allow utility overrides */

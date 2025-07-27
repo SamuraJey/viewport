@@ -65,41 +65,39 @@ export const DashboardPage = () => {
   const totalPages = Math.ceil(total / pageSize)
 
   const renderLoading = () => (
-    <div className="flex items-center justify-center" style={{ height: '24rem' }}>
-      <div className="loading-spinner" style={{ width: '3rem', height: '3rem' }}></div>
+    <div className="flex items-center justify-center h-96">
+      <div className="w-12 h-12 border-4 border-gray-600 border-t-primary-500 rounded-full animate-spin"></div>
     </div>
   )
 
   const renderError = () => (
-    <div className="error-message" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+    <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg flex items-center justify-between">
       <span>{error}</span>
       <button
         onClick={() => fetchGalleries(page)}
-        className="hover:opacity-75 transition-all"
-        style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}
+        className="text-red-400 hover:text-red-300 transition-colors"
       >
-        <RefreshCw style={{ height: '1.25rem', width: '1.25rem' }} />
+        <RefreshCw className="h-5 w-5" />
       </button>
     </div>
   )
 
   const renderEmptyState = () => (
-    <div className="text-center modern-card" style={{ padding: '4rem 2rem' }}>
-      <ImageIcon style={{ margin: '0 auto', height: '4rem', width: '4rem', color: '#9ca3af' }} />
-      <h3 className="modern-heading" style={{ marginTop: '1rem', fontSize: '1.5rem', marginBottom: '0.5rem' }}>No galleries yet</h3>
-      <p className="modern-subheading" style={{ marginBottom: '1.5rem' }}>
+    <div className="text-center bg-gray-900/95 backdrop-blur-lg rounded-2xl p-16 border border-white/10">
+      <ImageIcon className="mx-auto h-16 w-16 text-gray-400 mb-4" />
+      <h3 className="font-oswald text-2xl font-bold uppercase tracking-wider text-white mb-2">No galleries yet</h3>
+      <p className="text-gray-400 font-cuprum mb-6">
         Get started by creating your first gallery.
       </p>
       <button
         onClick={handleCreateGallery}
         disabled={isCreating}
-        className="modern-btn"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+        className="inline-flex items-center gap-2 bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
       >
         {isCreating ? (
-          <div className="loading-spinner" style={{ width: '1.25rem', height: '1.25rem' }}></div>
+          <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
         ) : (
-          <Plus style={{ height: '1.25rem', width: '1.25rem' }} />
+          <Plus className="h-5 w-5" />
         )}
         Create First Gallery
       </button>
@@ -108,53 +106,38 @@ export const DashboardPage = () => {
 
   const renderGalleries = () => (
     <>
-      <div className="photo-grid">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {galleries.map((gallery) => (
-          <div key={gallery.id} className="photo-card">
-            <div className="photo-card-content">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ background: 'rgba(59, 130, 246, 0.2)', padding: '0.5rem', borderRadius: '0.5rem' }}>
-                    <Calendar style={{ height: '1.5rem', width: '1.5rem', color: '#60a5fa' }} />
-                  </div>
-                  <div>
-                    <h3 className="photo-card-title">
-                      Gallery #{gallery.id}
-                    </h3>
-                    <p className="photo-card-description">
-                      {formatDate(gallery.created_at)}
-                    </p>
-                  </div>
+          <div key={gallery.id} className="bg-gray-900/95 backdrop-blur-lg rounded-2xl p-6 border border-white/10 hover:transform hover:-translate-y-1 hover:shadow-2xl transition-all">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-primary-500/20 p-2 rounded-lg">
+                  <Calendar className="h-6 w-6 text-blue-400" />
                 </div>
-                <button
-                  onClick={() => handleDeleteGallery(gallery.id)}
-                  className="modern-btn"
-                  style={{ 
-                    padding: '0.5rem', 
-                    background: 'rgba(239, 68, 68, 0.8)', 
-                    borderRadius: '50%',
-                    minWidth: 'auto',
-                    margin: 0
-                  }}
-                  title="Delete Gallery"
-                >
-                  <Trash2 style={{ width: '1.25rem', height: '1.25rem' }} />
-                </button>
+                <div>
+                  <h3 className="font-oswald text-lg font-bold uppercase tracking-wide text-white">
+                    Gallery #{gallery.id}
+                  </h3>
+                  <p className="text-gray-400 text-sm font-cuprum">
+                    {formatDate(gallery.created_at)}
+                  </p>
+                </div>
               </div>
-              <div>
-                <Link
-                  to={`/galleries/${gallery.id}`}
-                  className="modern-btn w-full"
-                  style={{ 
-                    display: 'block', 
-                    textAlign: 'center',
-                    textDecoration: 'none',
-                    width: '100%'
-                  }}
-                >
-                  Manage Gallery
-                </Link>
-              </div>
+              <button
+                onClick={() => handleDeleteGallery(gallery.id)}
+                className="p-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full transition-colors"
+                title="Delete Gallery"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </div>
+            <div>
+              <Link
+                to={`/galleries/${gallery.id}`}
+                className="block w-full bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg text-center transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/25 no-underline"
+              >
+                Manage Gallery
+              </Link>
             </div>
           </div>
         ))}
@@ -167,45 +150,26 @@ export const DashboardPage = () => {
     if (totalPages <= 1) return null
 
     return (
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        fontSize: '0.875rem', 
-        color: '#9ca3af',
-        marginTop: '2rem'
-      }}>
+      <div className="flex items-center justify-between text-sm text-gray-400 mt-8">
         <div>
           <p>
-            Page <span style={{ fontWeight: 'bold', color: '#fff' }}>{page}</span> of <span style={{ fontWeight: 'bold', color: '#fff' }}>{totalPages}</span>
+            Page <span className="font-bold text-white">{page}</span> of <span className="font-bold text-white">{totalPages}</span>
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div className="flex items-center gap-2">
           <button
             onClick={() => fetchGalleries(page - 1)}
             disabled={page <= 1 || isLoading}
-            className="modern-btn modern-btn--secondary"
-            style={{ 
-              padding: '0.5rem',
-              minWidth: 'auto',
-              opacity: (page <= 1 || isLoading) ? 0.5 : 1,
-              cursor: (page <= 1 || isLoading) ? 'not-allowed' : 'pointer'
-            }}
+            className="p-2 bg-transparent border-2 border-gray-600 text-gray-300 hover:border-primary-500 hover:text-primary-500 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-600 disabled:hover:text-gray-300"
           >
-            <ChevronLeft style={{ height: '1.25rem', width: '1.25rem' }} />
+            <ChevronLeft className="h-5 w-5" />
           </button>
           <button
             onClick={() => fetchGalleries(page + 1)}
             disabled={page >= totalPages || isLoading}
-            className="modern-btn modern-btn--secondary"
-            style={{ 
-              padding: '0.5rem',
-              minWidth: 'auto',
-              opacity: (page >= totalPages || isLoading) ? 0.5 : 1,
-              cursor: (page >= totalPages || isLoading) ? 'not-allowed' : 'pointer'
-            }}
+            className="p-2 bg-transparent border-2 border-gray-600 text-gray-300 hover:border-primary-500 hover:text-primary-500 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-600 disabled:hover:text-gray-300"
           >
-            <ChevronRight style={{ height: '1.25rem', width: '1.25rem' }} />
+            <ChevronRight className="h-5 w-5" />
           </button>
         </div>
       </div>
@@ -214,30 +178,23 @@ export const DashboardPage = () => {
 
   return (
     <Layout>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        <div style={{ 
-          display: 'flex', 
-          flexDirection: window.innerWidth < 640 ? 'column' : 'row',
-          justifyContent: 'space-between', 
-          alignItems: window.innerWidth < 640 ? 'flex-start' : 'center',
-          gap: '1rem'
-        }}>
+      <div className="flex flex-col gap-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="modern-heading">My Galleries</h1>
-            <p className="modern-subheading">
+            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider bg-gradient-to-r from-primary-500 to-purple-500 bg-clip-text text-transparent">My Galleries</h1>
+            <p className="text-gray-400 font-cuprum text-lg">
               Your personal space to organize and share moments.
             </p>
           </div>
           <button
             onClick={handleCreateGallery}
             disabled={isCreating}
-            className="modern-btn"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
           >
             {isCreating ? (
-              <div className="loading-spinner" style={{ width: '1.25rem', height: '1.25rem' }}></div>
+              <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
             ) : (
-              <Plus style={{ height: '1.25rem', width: '1.25rem' }} />
+              <Plus className="h-5 w-5" />
             )}
             New Gallery
           </button>

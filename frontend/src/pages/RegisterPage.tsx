@@ -54,100 +54,136 @@ export const RegisterPage = () => {
   }
 
   const renderForm = () => (
-    <div className="modern-form" style={{ maxWidth: 'none' }}>
+    <div className="bg-gray-900/95 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-white/10">
       <div className="text-center mb-8">
-        <div style={{ margin: '0 auto 1rem', height: '3rem', width: '3rem', background: 'linear-gradient(to right, #2563eb, #7c3aed)', borderRadius: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Camera style={{ height: '1.5rem', width: '1.5rem', color: '#fff' }} />
+        <div className="w-12 h-12 bg-gradient-to-r from-primary-600 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <Camera className="h-6 w-6 text-white" />
         </div>
-        <h2 className="modern-heading" style={{ fontSize: '1.875rem', marginBottom: '0.5rem' }}>
+        <h2 className="font-oswald text-3xl font-bold uppercase tracking-wider text-white mb-2">
           Create Account
         </h2>
-        <p className="modern-subheading">
+        <p className="text-gray-400 font-cuprum">
           Join Viewport and start sharing your moments.
         </p>
       </div>
-      <form style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }} onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="email" className="form-label">Email Address</label>
-          <div style={{ position: 'relative' }}>
-            <input id="email" name="email" type="email" autoComplete="email" required className="form-input" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ paddingRight: '3rem' }} />
-            <Mail style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', height: '1.25rem', width: '1.25rem', color: '#9ca3af' }} />
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <label htmlFor="email" className="block text-sm font-semibold text-gray-300 mb-2 uppercase tracking-wide">Email Address</label>
+          <div className="relative">
+            <input 
+              id="email" 
+              name="email" 
+              type="email" 
+              autoComplete="email" 
+              required 
+              className="w-full px-4 py-3 pr-12 bg-gray-800/80 border-2 border-gray-600 text-white rounded-lg transition-all focus:outline-none focus:border-primary-500 focus:bg-gray-800 focus:ring-4 focus:ring-primary-500/20 backdrop-blur-sm" 
+              placeholder="Enter your email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+            />
+            <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           </div>
         </div>
-        <div className="form-group">
-          <label htmlFor="password" className="form-label">Password</label>
-          <div style={{ position: 'relative' }}>
-            <input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" required className="form-input" placeholder="Create a password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ paddingRight: '3rem' }} />
-            <button type="button" style={{ position: 'absolute', top: '50%', right: '0.75rem', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 0 }} onClick={() => setShowPassword(!showPassword)}>
-              {showPassword ? (<EyeOff style={{ height: '1.25rem', width: '1.25rem' }} />) : (<Eye style={{ height: '1.25rem', width: '1.25rem' }} />)}
+        <div>
+          <label htmlFor="password" className="block text-sm font-semibold text-gray-300 mb-2 uppercase tracking-wide">Password</label>
+          <div className="relative">
+            <input 
+              id="password" 
+              name="password" 
+              type={showPassword ? 'text' : 'password'} 
+              autoComplete="new-password" 
+              required 
+              className="w-full px-4 py-3 pr-12 bg-gray-800/80 border-2 border-gray-600 text-white rounded-lg transition-all focus:outline-none focus:border-primary-500 focus:bg-gray-800 focus:ring-4 focus:ring-primary-500/20 backdrop-blur-sm" 
+              placeholder="Create a password" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+            />
+            <button 
+              type="button" 
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors" 
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? (<EyeOff className="h-5 w-5" />) : (<Eye className="h-5 w-5" />)}
             </button>
           </div>
         </div>
-        <div className="form-group">
-          <label htmlFor="confirmPassword" className="form-label">Confirm Password</label>
-          <div style={{ position: 'relative' }}>
-            <input id="confirmPassword" name="confirmPassword" type={showConfirmPassword ? 'text' : 'password'} autoComplete="new-password" required className="form-input" placeholder="Confirm your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={{ paddingRight: '3rem' }} />
-            <button type="button" style={{ position: 'absolute', top: '50%', right: '0.75rem', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 0 }} onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
-              {showConfirmPassword ? (<EyeOff style={{ height: '1.25rem', width: '1.25rem' }} />) : (<Eye style={{ height: '1.25rem', width: '1.25rem' }} />)}
+        <div>
+          <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-300 mb-2 uppercase tracking-wide">Confirm Password</label>
+          <div className="relative">
+            <input 
+              id="confirmPassword" 
+              name="confirmPassword" 
+              type={showConfirmPassword ? 'text' : 'password'} 
+              autoComplete="new-password" 
+              required 
+              className="w-full px-4 py-3 pr-12 bg-gray-800/80 border-2 border-gray-600 text-white rounded-lg transition-all focus:outline-none focus:border-primary-500 focus:bg-gray-800 focus:ring-4 focus:ring-primary-500/20 backdrop-blur-sm" 
+              placeholder="Confirm your password" 
+              value={confirmPassword} 
+              onChange={(e) => setConfirmPassword(e.target.value)} 
+            />
+            <button 
+              type="button" 
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors" 
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            >
+              {showConfirmPassword ? (<EyeOff className="h-5 w-5" />) : (<Eye className="h-5 w-5" />)}
             </button>
           </div>
-          <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.5rem' }}>Password must be at least 8 characters long.</p>
+          <p className="text-xs text-gray-400 mt-2">Password must be at least 8 characters long.</p>
         </div>
-        {error && (<div className="error-message">{error}</div>)}
-        <button type="submit" disabled={isLoading} className="modern-btn w-full" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', opacity: isLoading ? 0.6 : 1 }}>
-          {isLoading ? (<><div className="loading-spinner" style={{ width: '1.25rem', height: '1.25rem', marginRight: '0.5rem' }}></div>Creating account...</>) : (<><UserPlus style={{ height: '1.25rem', width: '1.25rem', marginRight: '0.5rem' }} />Create Account</>)}
+        {error && (<div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-center text-sm">{error}</div>)}
+        <button 
+          type="submit" 
+          disabled={isLoading} 
+          className="w-full bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
+        >
+          {isLoading ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+              Creating account...
+            </>
+          ) : (
+            <>
+              <UserPlus className="h-5 w-5" />
+              Create Account
+            </>
+          )}
         </button>
-        <div style={{ position: 'relative', margin: '1rem 0' }}>
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center' }}>
-            <div style={{ width: '100%', borderTop: '1px solid #4b5563' }}></div>
+        <div className="relative my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-600"></div>
           </div>
-          <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', fontSize: '0.875rem' }}>
-            <span style={{ padding: '0 1rem', background: '#2a2a2a', color: '#9ca3af' }}>Already have an account?</span>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-4 bg-gray-900 text-gray-400">Already have an account?</span>
           </div>
         </div>
         <div className="text-center">
-          <Link to="/auth/login" style={{ display: 'inline-flex', alignItems: 'center', fontSize: '0.875rem', fontWeight: 500, color: '#fff', textDecoration: 'none' }} className="hover:opacity-75 transition-all">Sign in to your account</Link>
+          <Link 
+            to="/auth/login" 
+            className="inline-flex items-center text-sm font-medium text-white hover:text-primary-400 transition-colors"
+          >
+            Sign in to your account
+          </Link>
         </div>
       </form>
     </div>
   )
 
   const renderSuccess = () => (
-    <div style={{ 
-      position: 'relative', 
-      zIndex: 10, 
-      width: '100%', 
-      maxWidth: '28rem', 
-      padding: '2rem', 
-      display: 'flex', 
-      flexDirection: 'column', 
-      gap: '1.5rem', 
-      background: 'rgba(42, 42, 42, 0.95)', 
-      backdropFilter: 'blur(10px)', 
-      borderRadius: '12px', 
-      border: '1px solid rgba(255, 255, 255, 0.1)', 
-      textAlign: 'center' 
-    }}>
-      <CheckCircle style={{ margin: '0 auto', height: '4rem', width: '4rem', color: '#22c55e' }} />
-      <h2 style={{ marginTop: '1.5rem', fontSize: '1.875rem', fontWeight: 'bold', color: '#fff' }}>
+    <div className="relative z-10 w-full max-w-md p-8 flex flex-col gap-6 bg-gray-800/95 backdrop-blur-lg rounded-xl border border-white/10 text-center">
+      <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
+      <h2 className="text-3xl font-bold text-white">
         Registration Successful!
       </h2>
-      <p style={{ marginTop: '0.5rem', fontSize: '1.125rem', color: '#d1d5db' }}>
+      <p className="text-lg text-gray-300">
         Redirecting you to sign in...
       </p>
     </div>
   )
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: '#1e1e1e', 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      padding: '3rem 1rem' 
-    }}>
-      <div style={{ position: 'relative', maxWidth: '28rem', width: '100%' }}>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center p-4">
+      <div className="relative w-full max-w-md">
         {success ? renderSuccess() : renderForm()}
       </div>
     </div>
