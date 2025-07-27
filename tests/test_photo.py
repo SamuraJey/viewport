@@ -1,6 +1,6 @@
 import io
 
-from conftest import register_and_login
+from tests.conftest import register_and_login
 
 
 class TestPhotoAPI:
@@ -13,7 +13,7 @@ class TestPhotoAPI:
         assert "id" in data
         assert data["gallery_id"] == gallery_id_fixture
         assert data["file_size"] == len(file_content)
-        assert data["url_s3"]
+        assert data["url"]
 
     def test_upload_photo_too_large(self, authenticated_client, gallery_id_fixture):
         file_content = b"x" * (15 * 1024 * 1024 + 1)  # 15MB + 1 byte

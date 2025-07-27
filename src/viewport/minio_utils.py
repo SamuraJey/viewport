@@ -25,6 +25,7 @@ def get_minio_config() -> tuple[str, str, str, str]:
     return settings.endpoint, settings.access_key, settings.secret_key, settings.bucket
 
 
+@cache
 def get_s3_client():
     endpoint, access_key, secret_key, _ = get_minio_config()
     print(f"Connecting to MinIO at {endpoint} with bucket {os.getenv('MINIO_BUCKET', 'photos')}")
