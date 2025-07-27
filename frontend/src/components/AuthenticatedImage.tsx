@@ -78,7 +78,7 @@ export const AuthenticatedImage = ({ src, alt, className, loading = 'lazy' }: Au
 
   if (isLoading) {
     return (
-      <div className={`bg-gray-800 animate-pulse ${className}`}>
+      <div className={`bg-gray-200 dark:bg-gray-800 animate-pulse ${className}`}>
         <div className="w-full h-full flex items-center justify-center">
           <div className="text-gray-500 text-sm">Loading...</div>
         </div>
@@ -88,7 +88,7 @@ export const AuthenticatedImage = ({ src, alt, className, loading = 'lazy' }: Au
 
   if (error || !imageSrc) {
     return (
-      <div className={`bg-gray-800 ${className}`}>
+      <div className={`bg-gray-200 dark:bg-gray-800 ${className}`}>
         <div className="w-full h-full flex items-center justify-center">
           <div className="text-gray-500 text-sm">Failed to load</div>
         </div>

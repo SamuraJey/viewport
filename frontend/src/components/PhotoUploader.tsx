@@ -73,8 +73,8 @@ export const PhotoUploader = ({ onUpload, isUploading }: PhotoUploaderProps) => 
       <div
         className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 transition-colors cursor-pointer ${
           dragActive 
-            ? 'border-primary-500 bg-primary-500/10' 
-            : 'border-gray-600 hover:border-gray-500 bg-gray-800/50'
+            ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10' 
+            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 bg-gray-50 dark:bg-gray-800/50'
         }`}
         onClick={() => fileInputRef.current?.click()}
         onDrop={handleDrop}
@@ -84,9 +84,9 @@ export const PhotoUploader = ({ onUpload, isUploading }: PhotoUploaderProps) => 
         role="button"
         aria-label="Upload photos"
       >
-        <Upload className="w-10 h-10 text-blue-400 mb-2" />
-        <p className="text-lg text-white font-semibold">Drag & drop photos here</p>
-        <p className="text-sm text-gray-400">or click to select files (JPG/PNG, ≤ 15MB)</p>
+        <Upload className="w-10 h-10 text-blue-500 dark:text-blue-400 mb-2" />
+        <p className="text-lg text-gray-900 dark:text-white font-semibold">Drag & drop photos here</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">or click to select files (JPG/PNG, ≤ 15MB)</p>
         <input
           type="file"
           ref={fileInputRef}
@@ -99,21 +99,21 @@ export const PhotoUploader = ({ onUpload, isUploading }: PhotoUploaderProps) => 
       {files.length > 0 && (
         <div className="mt-4 space-y-2">
           {files.map((f, idx) => (
-            <div key={idx} className="flex items-center gap-3 bg-white/10 rounded-lg px-4 py-2">
-              <ImageIcon className="w-5 h-5 text-gray-400" />
-              <span className="text-white text-sm truncate max-w-xs">{f.file.name}</span>
-              <span className="text-gray-400 text-xs">{formatFileSize(f.file.size)}</span>
+            <div key={idx} className="flex items-center gap-3 bg-gray-100 dark:bg-white/10 rounded-lg px-4 py-2">
+              <ImageIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              <span className="text-gray-900 dark:text-white text-sm truncate max-w-xs">{f.file.name}</span>
+              <span className="text-gray-600 dark:text-gray-400 text-xs">{formatFileSize(f.file.size)}</span>
               {f.error ? (
-                <span className="text-red-400 text-xs flex items-center gap-1"><XCircle className="w-4 h-4" />{f.error}</span>
+                <span className="text-red-600 dark:text-red-400 text-xs flex items-center gap-1"><XCircle className="w-4 h-4" />{f.error}</span>
               ) : isUploading ? (
-                <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                <Loader2 className="w-4 h-4 animate-spin text-blue-500 dark:text-blue-400" />
               ) : null}
             </div>
           ))}
         </div>
       )}
       {error && (
-        <div className="mt-2 text-red-400 bg-red-500/20 px-3 py-2 rounded-lg text-sm">{error}</div>
+        <div className="mt-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/20 px-3 py-2 rounded-lg text-sm">{error}</div>
       )}
     </div>
   )

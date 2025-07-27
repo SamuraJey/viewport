@@ -64,7 +64,7 @@ export const DashboardPage = () => {
 
   const renderLoading = () => (
     <div className="flex items-center justify-center h-96">
-      <div className="w-12 h-12 border-4 border-gray-600 border-t-primary-500 rounded-full animate-spin"></div>
+      <div className="w-12 h-12 border-4 border-gray-300 dark:border-gray-600 border-t-primary-500 rounded-full animate-spin"></div>
     </div>
   )
 
@@ -78,10 +78,10 @@ export const DashboardPage = () => {
   )
 
   const renderEmptyState = () => (
-    <div className="text-center bg-gray-900/95 backdrop-blur-lg rounded-2xl p-16 border border-white/10">
-      <ImageIcon className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-      <h3 className="font-oswald text-2xl font-bold uppercase tracking-wider text-white mb-2">No galleries yet</h3>
-      <p className="text-gray-400 font-cuprum mb-6">
+    <div className="text-center bg-gray-100 dark:bg-gray-900/95 backdrop-blur-lg rounded-2xl p-16 border border-gray-200 dark:border-white/10">
+      <ImageIcon className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-500 mb-4" />
+      <h3 className="font-oswald text-2xl font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-2">No galleries yet</h3>
+      <p className="text-gray-600 dark:text-gray-400 font-cuprum mb-6">
         Get started by creating your first gallery.
       </p>
       <button
@@ -103,17 +103,17 @@ export const DashboardPage = () => {
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {galleries.map((gallery) => (
-          <div key={gallery.id} className="bg-gray-900/95 backdrop-blur-lg rounded-2xl p-6 border border-white/10 hover:transform hover:-translate-y-1 hover:shadow-2xl transition-all">
+          <div key={gallery.id} className="bg-gray-50 dark:bg-gray-900/95 backdrop-blur-lg rounded-2xl p-6 border border-gray-200 dark:border-white/10 hover:transform hover:-translate-y-1 hover:shadow-2xl transition-all">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="bg-primary-500/20 p-2 rounded-lg">
                   <Calendar className="h-6 w-6 text-blue-400" />
                 </div>
                 <div>
-                  <h3 className="font-oswald text-lg font-bold uppercase tracking-wide text-white">
+                  <h3 className="font-oswald text-lg font-bold uppercase tracking-wide text-gray-900 dark:text-white">
                     Gallery #{gallery.id}
                   </h3>
-                  <p className="text-gray-400 text-sm font-cuprum">
+                  <p className="text-gray-600 dark:text-gray-400 text-sm font-cuprum">
                     {formatDate(gallery.created_at)}
                   </p>
                 </div>
@@ -145,24 +145,24 @@ export const DashboardPage = () => {
     if (totalPages <= 1) return null
 
     return (
-      <div className="flex items-center justify-between text-sm text-gray-400 mt-8">
+      <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mt-8">
         <div>
           <p>
-            Page <span className="font-bold text-white">{page}</span> of <span className="font-bold text-white">{totalPages}</span>
+            Page <span className="font-bold text-gray-900 dark:text-white">{page}</span> of <span className="font-bold text-gray-900 dark:text-white">{totalPages}</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => fetchGalleries(page - 1)}
             disabled={page <= 1 || isLoading}
-            className="p-2 bg-transparent border-2 border-gray-600 text-gray-300 hover:border-primary-500 hover:text-primary-500 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-600 disabled:hover:text-gray-300"
+            className="p-2 bg-transparent border-2 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-primary-500 hover:text-primary-500 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-300 dark:disabled:hover:border-gray-600 disabled:hover:text-gray-600 dark:disabled:hover:text-gray-300"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
           <button
             onClick={() => fetchGalleries(page + 1)}
             disabled={page >= totalPages || isLoading}
-            className="p-2 bg-transparent border-2 border-gray-600 text-gray-300 hover:border-primary-500 hover:text-primary-500 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-600 disabled:hover:text-gray-300"
+            className="p-2 bg-transparent border-2 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-primary-500 hover:text-primary-500 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-300 dark:disabled:hover:border-gray-600 disabled:hover:text-gray-600 dark:disabled:hover:text-gray-300"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
@@ -176,8 +176,8 @@ export const DashboardPage = () => {
       <div className="flex flex-col gap-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider bg-gradient-to-r from-primary-500 to-purple-500 bg-clip-text text-transparent">My Galleries</h1>
-            <p className="text-gray-400 font-cuprum text-lg">
+            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-gray-900 dark:text-white">My Galleries</h1>
+            <p className="text-gray-600 dark:text-gray-400 font-cuprum text-lg">
               Your personal space to organize and share moments.
             </p>
           </div>

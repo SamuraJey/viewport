@@ -103,12 +103,12 @@ export const PublicGalleryPage = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
+      <div className="min-h-screen bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900">
         <div className="container mx-auto px-4 py-16">
           <div className="flex items-center justify-center min-h-[60vh]">
             <div className="flex items-center">
-              <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-              <span className="ml-3 text-lg text-gray-300">Loading gallery...</span>
+              <Loader2 className="w-8 h-8 animate-spin text-gray-600 dark:text-gray-400" />
+              <span className="ml-3 text-lg text-gray-700 dark:text-gray-300">Loading gallery...</span>
             </div>
           </div>
         </div>
@@ -118,13 +118,13 @@ export const PublicGalleryPage = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
+      <div className="min-h-screen bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900">
         <div className="container mx-auto px-4 py-16">
           <div className="flex items-center justify-center min-h-[60vh]">
             <div className="text-center">
-              <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
-              <h1 className="text-2xl font-bold text-white mb-2">Gallery Not Available</h1>
-              <p className="text-gray-400">{error}</p>
+              <AlertCircle className="w-16 h-16 text-red-500 dark:text-red-400 mx-auto mb-4" />
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Gallery Not Available</h1>
+              <p className="text-gray-600 dark:text-gray-400">{error}</p>
             </div>
           </div>
         </div>
@@ -133,13 +133,13 @@ export const PublicGalleryPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
+    <div className="min-h-screen bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900">
       <div className="container mx-auto px-4 py-16">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold text-white mb-4">Shared Gallery</h1>
-            <p className="text-gray-400 text-lg">
+            <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">Shared Gallery</h1>
+            <p className="text-gray-600 dark:text-gray-400 text-lg">
               You're viewing a gallery shared with you
             </p>
           </div>
@@ -196,16 +196,16 @@ export const PublicGalleryPage = () => {
                 ))}
               </div>
             ) : (
-              <div className="text-center py-16 border-2 border-dashed border-gray-600 rounded-lg">
-                <ImageOff className="mx-auto h-12 w-12 text-gray-500" />
-                <h3 className="mt-4 text-lg font-medium text-gray-300">No photos in this gallery</h3>
+              <div className="text-center py-16 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                <ImageOff className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
+                <h3 className="mt-4 text-lg font-medium text-gray-600 dark:text-gray-300">No photos in this gallery</h3>
                 <p className="mt-2 text-sm text-gray-500">This gallery appears to be empty.</p>
               </div>
             )}
           </div>
 
           {/* Footer */}
-          <div className="text-center mt-12 text-gray-400 text-sm">
+          <div className="text-center mt-12 text-gray-600 dark:text-gray-400 text-sm">
             <p>Powered by Viewport - Your Photo Gallery Solution</p>
           </div>
         </div>
