@@ -12,12 +12,7 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
-      // Proxy authenticated image requests to backend
-      '^/galleries/.*': {
-        target: 'http://localhost:8000',
-        changeOrigin: true,
-      },
-      // Proxy token-based photo requests for caching
+      // Proxy direct photo access routes to backend (for image serving)
       '^/photos/.*': {
         target: 'http://localhost:8000',
         changeOrigin: true,
