@@ -39,7 +39,7 @@ def get_photos_by_sharelink(share_id: UUID, db: Session = Depends(get_db), share
         for photo in photos
     ]
     # Increment views
-    sharelink.views += 1
+    sharelink.views += 1  # type: ignore
     db.commit()
     logger.log_event("view_gallery", share_id=share_id)
     return {"photos": result}
@@ -59,8 +59,8 @@ def get_single_photo_by_sharelink(share_id: UUID, photo_id: UUID, db: Session = 
 
     try:
         obj = s3_client.get_object(Bucket=bucket, Key=photo.object_key)
-    except Exception:
-        raise HTTPException(status_code=404, detail="File not found")
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="File not found") from e
 
     # Guess MIME type based on file extension
     mime_type, _ = mimetypes.guess_type(photo.object_key)

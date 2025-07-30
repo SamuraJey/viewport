@@ -75,6 +75,7 @@ exclude = [
     "site-packages",
     "venv",
     "./postgres_data",
+    "./src/viewport/alembic"
 ]
 
 line-length = 200
@@ -101,6 +102,9 @@ select = [
     "PERF",
 ]
 ignore = ["SIM108", "E712", "C416"]
+flake8-bugbear.extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
+
+
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]

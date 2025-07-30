@@ -1,9 +1,9 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import mapped_column, relationship
 
 from src.viewport.db import Base
 
@@ -11,9 +11,9 @@ from src.viewport.db import Base
 class Gallery(Base):
     __tablename__ = "galleries"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
-    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    id = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
+    owner_id = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
     owner = relationship("User", backref="galleries")
 
@@ -21,12 +21,12 @@ class Gallery(Base):
 class Photo(Base):
     __tablename__ = "photos"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    gallery_id = Column(UUID(as_uuid=True), ForeignKey("galleries.id", ondelete="CASCADE"), nullable=False)
+    id = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    gallery_id = mapped_column(UUID(as_uuid=True), ForeignKey("galleries.id", ondelete="CASCADE"), nullable=False)
     # S3 object key (e.g., gallery_id/filename)
-    object_key = Column(String, nullable=False)
-    file_size = Column(Integer, nullable=False)
-    uploaded_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    object_key = mapped_column(String, nullable=False)
+    file_size = mapped_column(Integer, nullable=False)
+    uploaded_at = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
     gallery = relationship(Gallery, back_populates="photos")
 

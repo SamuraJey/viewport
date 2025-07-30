@@ -33,8 +33,8 @@ def get_photo(gallery_id: UUID, photo_id: UUID, db: Session = Depends(get_db), c
 
     try:
         obj = s3_client.get_object(Bucket=bucket, Key=photo.object_key)
-    except Exception:
-        raise HTTPException(status_code=404, detail="File not found")
+    except Exception as e:
+        raise HTTPException(status_code=404, detail="File not found") from e
 
     # Guess MIME type based on file extension
     mime_type, _ = mimetypes.guess_type(photo.object_key)
@@ -58,7 +58,7 @@ def get_photo_with_token(photo_id: UUID, token: str, db: Session = Depends(get_d
         # Decode the token to get user_id and photo_id
         import jwt
 
-        from ..api.auth import JWT_ALGORITHM, JWT_SECRET
+        from src.viewport.api.auth import JWT_ALGORITHM, JWT_SECRET
 
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         user_id = payload.get("user_id")
@@ -80,8 +80,8 @@ def get_photo_with_token(photo_id: UUID, token: str, db: Session = Depends(get_d
 
         try:
             obj = s3_client.get_object(Bucket=bucket, Key=photo.object_key)
-        except Exception:
-            raise HTTPException(status_code=404, detail="File not found")
+        except Exception as e:
+            raise HTTPException(status_code=404, detail="File not found") from e
 
         # Guess MIME type based on file extension
         mime_type, _ = mimetypes.guess_type(photo.object_key)
@@ -97,14 +97,11 @@ def get_photo_with_token(photo_id: UUID, token: str, db: Session = Depends(get_d
         return StreamingResponse(obj["Body"], media_type=mime_type, headers=headers)
 
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=403, detail="Invalid or expired token")
-
-
-# POST /galleries/{gallery_id}/photos
+        raise HTTPException(status_code=403, detail="Invalid or expired token") from None
 
 
 @router.post("/{gallery_id}/photos", response_model=PhotoResponse, status_code=status.HTTP_201_CREATED)
-def upload_photo(gallery_id: UUID, file: UploadFile = File(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def upload_photo(gallery_id: UUID, file: UploadFile = File(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):  # noqa: B008
     # Check gallery ownership
     gallery = db.query(Gallery).filter_by(id=gallery_id, owner_id=current_user.id).first()
     if not gallery:
@@ -130,7 +127,6 @@ def upload_photo(gallery_id: UUID, file: UploadFile = File(...), db: Session = D
     return PhotoResponse.from_db_photo(photo)
 
 
-# DELETE /galleries/{gallery_id}/photos/{photo_id}
 @router.delete("/{gallery_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_photo(gallery_id: UUID, photo_id: UUID, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     # Verify gallery ownership and photo belongs to gallery

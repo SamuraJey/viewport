@@ -1,6 +1,6 @@
 import io
 
-from tests.conftest import register_and_login
+from tests.helpers import register_and_login
 
 
 class TestPhotoAPI:

@@ -11,9 +11,7 @@ from testcontainers.postgres import PostgresContainer
 import src.viewport.db as db
 from src.viewport.db import Base
 from src.viewport.main import app
-
-# Set MinIO endpoint for tests
-os.environ["MINIO_ENDPOINT"] = "localhost:9000"
+from tests.helpers import register_and_login
 
 
 # Use a session-scoped Postgres testcontainer
@@ -37,15 +35,6 @@ def setup_db(test_engine):
     Base.metadata.create_all(bind=test_engine)
     yield
     Base.metadata.drop_all(bind=test_engine)
-
-
-# Test clients
-@pytest.fixture(scope="function")
-def client(setup_db):
-    """Unauthenticated test client."""
-    from src.viewport.main import app
-
-    return TestClient(app)
 
 
 @pytest.fixture(scope="function")
@@ -73,19 +62,6 @@ def sharelink_data(authenticated_client, gallery_id_fixture) -> tuple[str, str]:
 
     share_id = response.json()["id"]
     return share_id, gallery_id_fixture
-
-
-# Helper functions for common test operations
-def register_and_login(client: TestClient, email: str, password: str) -> str:
-    """Register a user and return their access token."""
-    reg_payload = {"email": email, "password": password}
-    reg_response = client.post("/auth/register", json=reg_payload)
-    assert reg_response.status_code == 201
-
-    login_response = client.post("/auth/login", json=reg_payload)
-    assert login_response.status_code == 200
-
-    return login_response.json()["tokens"]["access_token"]
 
 
 def create_user_with_gallery(client: TestClient, email: str, password: str) -> tuple[str, str, dict[str, str]]:
@@ -135,18 +111,7 @@ def minio_container():
         os.environ["MINIO_ENDPOINT"] = endpoint
         os.environ["MINIO_ACCESS_KEY"] = MINIO_ROOT_USER
         os.environ["MINIO_SECRET_KEY"] = MINIO_ROOT_PASSWORD
-        yield {
-            "endpoint": endpoint,
-            "access_key": MINIO_ROOT_USER,
-            "secret_key": MINIO_ROOT_PASSWORD,
-        }
-
-
-# Use a session-scoped Postgres testcontainer
-@pytest.fixture(scope="session")
-def postgres_container():
-    with PostgresContainer(image="postgres:17-alpine") as postgres:
-        yield postgres
+        yield minio
 
 
 # Ensure MinIO is running for all tests by making minio_container a session fixture dependency
@@ -156,33 +121,11 @@ def _ensure_minio(minio_container):
     pass
 
 
-@pytest.fixture(scope="session")
-def test_engine(postgres_container):
-    db_url = postgres_container.get_connection_url()
-    os.environ["DATABASE_URL"] = db_url
-    db.engine = db.create_engine(db_url)
-    db.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db.engine)
-    return db.engine
-
-
-@pytest.fixture(scope="function")
-def setup_db(test_engine):
-    Base.metadata.create_all(bind=test_engine)
-    yield
-    Base.metadata.drop_all(bind=test_engine)
-
-
 # Test clients
 @pytest.fixture(scope="function")
 def client(setup_db, minio_container):
     """Unauthenticated test client. Depends on MinIO being up."""
     return TestClient(app)
-
-
-@pytest.fixture(scope="function")
-def test_user_data():
-    """Default test user data."""
-    return {"email": "testuser@example.com", "password": "testpassword123"}
 
 
 @pytest.fixture(scope="function")

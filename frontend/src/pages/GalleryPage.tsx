@@ -5,19 +5,17 @@ import { photoService } from '../services/photoService'
 import { shareLinkService, type ShareLink } from '../services/shareLinkService'
 import { Layout } from '../components/Layout'
 import { AuthenticatedImage } from '../components/AuthenticatedImage'
+import { PhotoModal } from '../components/PhotoModal'
 import { formatDate } from '../lib/utils'
-import { 
-  Loader2, 
-  Trash2, 
-  Share2, 
-  Link as LinkIcon, 
-  Copy, 
+import {
+  Loader2,
+  Trash2,
+  Share2,
+  Link as LinkIcon,
+  Copy,
   Check,
   ArrowLeft,
-  ImageOff,
-  X,
-  ChevronLeft,
-  ChevronRight
+  ImageOff
 } from 'lucide-react'
 import { PhotoUploader } from '../components/PhotoUploader'
 
@@ -86,7 +84,7 @@ export const GalleryPage = () => {
     if (window.confirm('Are you sure you want to delete this gallery and all its contents?')) {
       try {
         await galleryService.deleteGallery(galleryId)
-        window.location.href = '/dashboard'
+        window.location.href = '/'
       } catch (err) {
         setError('Failed to delete gallery. Please try again.')
         console.error('Error deleting gallery:', err)
@@ -152,32 +150,6 @@ export const GalleryPage = () => {
     }
   }
 
-  // Keyboard navigation
-  const handleKeyDown = (e: Event) => {
-    const keyboardEvent = e as KeyboardEvent
-    if (selectedPhotoIndex === null) return
-    
-    switch (keyboardEvent.key) {
-      case 'Escape':
-        closePhoto()
-        break
-      case 'ArrowLeft':
-        goToPrevPhoto()
-        break
-      case 'ArrowRight':
-        goToNextPhoto()
-        break
-    }
-  }
-
-  // Add keyboard event listener
-  useEffect(() => {
-    if (selectedPhotoIndex !== null) {
-      document.addEventListener('keydown', handleKeyDown)
-      return () => document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [selectedPhotoIndex, gallery?.photos])
-
   if (isLoading) {
     return (
       <Layout>
@@ -198,7 +170,7 @@ export const GalleryPage = () => {
           <div className="text-center space-y-4">
             <div className="text-red-400 text-lg font-medium">Failed to load gallery</div>
             <div className="text-gray-600 dark:text-gray-400">{error}</div>
-            <button 
+            <button
               onClick={fetchData}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
             >
@@ -290,11 +262,11 @@ export const GalleryPage = () => {
                     />
                   </button>
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                    <button 
+                    <button
                       onClick={(e) => {
                         e.stopPropagation()
                         handleDeletePhoto(photo.id)
-                      }} 
+                      }}
                       className="flex items-center justify-center w-8 h-8 p-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all duration-200 pointer-events-auto"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -363,57 +335,14 @@ export const GalleryPage = () => {
       </div>
 
       {/* Photo Modal */}
-      {selectedPhotoIndex !== null && gallery?.photos && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
-          {/* Close button */}
-          <button
-            onClick={closePhoto}
-            className="absolute top-4 right-4 z-10 flex items-center justify-center w-10 h-10 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200"
-          >
-            <X className="w-6 h-6" />
-          </button>
-
-          {/* Navigation buttons */}
-          {gallery.photos.length > 1 && (
-            <>
-              <button
-                onClick={goToPrevPhoto}
-                className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200"
-              >
-                <ChevronLeft className="w-8 h-8" />
-              </button>
-              <button
-                onClick={goToNextPhoto}
-                className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200"
-              >
-                <ChevronRight className="w-8 h-8" />
-              </button>
-            </>
-          )}
-
-          {/* Photo container */}
-          <div 
-            className="max-w-[95vw] max-h-[95vh] flex items-center justify-center"
-            onClick={closePhoto}
-          >
-            <div onClick={(e) => e.stopPropagation()}>
-              <AuthenticatedImage
-                src={gallery.photos[selectedPhotoIndex].url}
-                alt={`Photo ${gallery.photos[selectedPhotoIndex].id}`}
-                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-                loading="eager"
-              />
-            </div>
-          </div>
-
-          {/* Photo info */}
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/50 text-white px-4 py-2 rounded-lg">
-            <span className="text-sm">
-              {selectedPhotoIndex + 1} of {gallery.photos.length}
-            </span>
-          </div>
-        </div>
-      )}
+      <PhotoModal
+        photos={gallery?.photos || []}
+        selectedIndex={selectedPhotoIndex}
+        onClose={closePhoto}
+        onPrevious={goToPrevPhoto}
+        onNext={goToNextPhoto}
+        isPublic={false}
+      />
     </Layout>
   )
 }

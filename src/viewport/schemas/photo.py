@@ -26,7 +26,7 @@ class PhotoResponse(BaseModel):
 
         import jwt
 
-        from ..api.auth import JWT_ALGORITHM, JWT_SECRET
+        from src.viewport.api.auth import JWT_ALGORITHM, JWT_SECRET
 
         # Create a photo access token that's valid for 24 hours
         payload = {"user_id": str(photo.gallery.owner_id), "photo_id": str(photo.id), "exp": datetime.now(UTC) + timedelta(hours=24)}

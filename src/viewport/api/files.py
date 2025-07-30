@@ -23,7 +23,7 @@ def proxy_file(key: str):
         logging.info(f"[proxy_file] Successfully fetched object from S3: bucket={bucket}, key={key}")
     except Exception as e:
         logging.error(f"[proxy_file] Error fetching object: {e}")
-        raise HTTPException(status_code=404, detail="File not found")
+        raise HTTPException(status_code=404, detail="File not found") from e
 
     # Guess MIME type based on file extension; fall back to object ContentType or octet-stream
     mime_type, _ = mimetypes.guess_type(key)

@@ -1,10 +1,16 @@
 import os
+from collections.abc import Generator
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, declarative_base, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-Base = declarative_base()
-# Allow override for test DB (SQLite in-memory)
+
+class Base(DeclarativeBase):
+    """Base class for all models."""
+
+    __abstract__ = True  # Prevents this class from being created as a table
+
+
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://viewport:viewport@localhost:5432/viewport")
 if "sqlite" in DATABASE_URL:
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
@@ -13,7 +19,7 @@ else:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def get_db():
+def get_db() -> Generator[Session]:
     db: Session = SessionLocal()
     try:
         yield db

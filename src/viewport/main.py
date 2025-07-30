@@ -17,18 +17,19 @@ app = FastAPI()
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Frontend URL
+    allow_origins=["http://localhost:5173", "https://687bf3975fbd.ngrok-free.app"],  # Frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 app.include_router(auth_router)
 app.include_router(gallery_router)
 app.include_router(photo_router)
 app.include_router(photo_auth_router)
 app.include_router(sharelink_router)
 app.include_router(public_router)
-# app.include_router(files_router)
+
 setup_metrics(app)
 
 

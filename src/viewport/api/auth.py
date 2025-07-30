@@ -8,9 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..db import get_db
-from ..models.user import User
-from ..schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
+from src.viewport.db import get_db
+from src.viewport.models.user import User
+from src.viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -46,9 +46,9 @@ def register_user(request: RegisterRequest, db: Session = Depends(get_db)):
     try:
         db.commit()
         db.refresh(user)
-    except IntegrityError:
+    except IntegrityError as err:
         db.rollback()
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="Email already registered") from err
     return RegisterResponse(id=str(user.id), email=user.email)
 
 
@@ -89,6 +89,6 @@ def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
         return TokenPair(access_token=new_access_token, refresh_token=new_refresh_token, token_type="bearer")
 
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Refresh token expired")
+        raise HTTPException(status_code=401, detail="Refresh token expired") from None
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
+        raise HTTPException(status_code=401, detail="Invalid refresh token") from None

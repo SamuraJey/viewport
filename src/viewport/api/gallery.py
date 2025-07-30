@@ -19,7 +19,7 @@ def create_gallery(
     _: GalleryCreateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> GalleryResponse:
     gallery = Gallery(id=uuid.uuid4(), owner_id=current_user.id)
     db.add(gallery)
     db.commit()
@@ -33,7 +33,7 @@ def list_galleries(
     current_user: User = Depends(get_current_user),
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
-):
+) -> GalleryListResponse:
     query = db.query(Gallery).filter(Gallery.owner_id == current_user.id)
     total = query.count()
     galleries = query.order_by(Gallery.created_at.desc()).offset((page - 1) * size).limit(size).all()
@@ -50,11 +50,11 @@ def get_gallery(
     gallery_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> GalleryDetailResponse:
     try:
         gallery_uuid = uuid.UUID(gallery_id)
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid gallery ID format")
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid gallery ID format") from e
 
     gallery = db.query(Gallery).options(joinedload(Gallery.photos), joinedload(Gallery.share_links)).filter(Gallery.id == gallery_uuid, Gallery.owner_id == current_user.id).first()
 
@@ -78,8 +78,8 @@ def delete_gallery(
 ):
     try:
         gallery_uuid = uuid.UUID(gallery_id)
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid gallery ID format")
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid gallery ID format") from e
 
     gallery = db.query(Gallery).filter(Gallery.id == gallery_uuid, Gallery.owner_id == current_user.id).first()
     if not gallery:

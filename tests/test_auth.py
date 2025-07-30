@@ -43,7 +43,7 @@ class TestAuthAPI:
 
     def test_me_valid_token(self, client):
         reg_payload = {"email": "meuser@example.com", "password": "mepassword123"}
-        reg_resp = client.post("/auth/register", json=reg_payload)
+        client.post("/auth/register", json=reg_payload)
         login_resp = client.post("/auth/login", json=reg_payload)
         token = login_resp.json()["tokens"]["access_token"]
         headers = {"Authorization": f"Bearer {token}"}

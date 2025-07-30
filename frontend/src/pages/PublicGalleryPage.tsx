@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { Download, Loader2, ImageOff, AlertCircle, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Download, Loader2, ImageOff, AlertCircle } from 'lucide-react'
+import { useTheme } from '../hooks/useTheme'
+import { PhotoModal } from '../components/PhotoModal'
+import { ThemeSwitch } from '../components/ThemeSwitch'
 import { shareLinkService } from '../services/shareLinkService'
 
 interface PublicPhoto {
@@ -19,6 +22,7 @@ export const PublicGalleryPage = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null)
+  const { theme } = useTheme()
 
   useEffect(() => {
     const fetchGallery = async () => {
@@ -75,32 +79,6 @@ export const PublicGalleryPage = () => {
     }
   }
 
-  // Keyboard navigation
-  const handleKeyDown = (e: Event) => {
-    const keyboardEvent = e as KeyboardEvent
-    if (selectedPhotoIndex === null) return
-    
-    switch (keyboardEvent.key) {
-      case 'Escape':
-        closePhoto()
-        break
-      case 'ArrowLeft':
-        goToPrevPhoto()
-        break
-      case 'ArrowRight':
-        goToNextPhoto()
-        break
-    }
-  }
-
-  // Add keyboard event listener
-  useEffect(() => {
-    if (selectedPhotoIndex !== null) {
-      document.addEventListener('keydown', handleKeyDown)
-      return () => document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [selectedPhotoIndex, gallery?.photos])
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900">
@@ -133,7 +111,9 @@ export const PublicGalleryPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900">
+    <div className={`min-h-screen bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+      {/* Theme switch button */}
+      <ThemeSwitch />
       <div className="container mx-auto px-4 py-16">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
@@ -160,7 +140,7 @@ export const PublicGalleryPage = () => {
           {/* Photos Grid */}
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
             <div className="mb-6">
-              <h2 className="text-2xl font-semibold text-white mb-2">
+              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
                 Photos ({gallery?.photos.length || 0})
               </h2>
             </div>
@@ -211,64 +191,15 @@ export const PublicGalleryPage = () => {
         </div>
 
         {/* Photo Modal */}
-        {selectedPhotoIndex !== null && gallery?.photos && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
-            {/* Close button */}
-            <button
-              onClick={closePhoto}
-              className="absolute top-4 right-4 z-10 flex items-center justify-center w-10 h-10 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200"
-            >
-              <X className="w-6 h-6" />
-            </button>
-
-            {/* Navigation buttons */}
-            {gallery.photos.length > 1 && (
-              <>
-                <button
-                  onClick={goToPrevPhoto}
-                  className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200"
-                >
-                  <ChevronLeft className="w-8 h-8" />
-                </button>
-                <button
-                  onClick={goToNextPhoto}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200"
-                >
-                  <ChevronRight className="w-8 h-8" />
-                </button>
-              </>
-            )}
-
-            {/* Photo container */}
-            <div 
-              className="max-w-[95vw] max-h-[95vh] flex items-center justify-center"
-              onClick={closePhoto}
-            >
-              <div onClick={(e) => e.stopPropagation()}>
-                <img
-                  src={`http://localhost:8000${gallery.photos[selectedPhotoIndex].full_url}`}
-                  alt={`Photo ${gallery.photos[selectedPhotoIndex].photo_id}`}
-                  className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-                  loading="eager"
-                />
-              </div>
-            </div>
-
-            {/* Photo info and download */}
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-4 bg-black/50 text-white px-4 py-2 rounded-lg">
-              <span className="text-sm">
-                {selectedPhotoIndex + 1} of {gallery.photos.length}
-              </span>
-              <button
-                onClick={() => handleDownloadPhoto(gallery.photos[selectedPhotoIndex].photo_id)}
-                className="flex items-center gap-1 px-3 py-1 bg-white/20 hover:bg-white/30 rounded transition-colors text-sm"
-              >
-                <Download className="w-4 h-4" />
-                Download
-              </button>
-            </div>
-          </div>
-        )}
+        <PhotoModal
+          photos={gallery?.photos || []}
+          selectedIndex={selectedPhotoIndex}
+          onClose={closePhoto}
+          onPrevious={goToPrevPhoto}
+          onNext={goToNextPhoto}
+          onDownload={handleDownloadPhoto}
+          isPublic={true}
+        />
       </div>
     </div>
   )

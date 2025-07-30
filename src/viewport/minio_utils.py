@@ -1,3 +1,4 @@
+import logging
 import os
 from functools import cache
 
@@ -5,6 +6,9 @@ import boto3
 from botocore.client import Config
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 
 class MinioSettings(BaseSettings):
@@ -29,7 +33,9 @@ def get_minio_config() -> tuple[str, str, str, str]:
 @cache
 def get_s3_client():
     endpoint, access_key, secret_key, _ = get_minio_config()
-    print(f"Connecting to MinIO at {endpoint} with bucket {os.getenv('MINIO_BUCKET', 'photos')}")
+
+    logger.debug(f"Connecting to MinIO at {endpoint} with bucket {os.getenv('MINIO_BUCKET', 'photos')}")
+
     return boto3.client("s3", endpoint_url=f"http://{endpoint}", aws_access_key_id=access_key, aws_secret_access_key=secret_key, config=Config(signature_version="s3v4"), region_name="us-east-1")
 
 
