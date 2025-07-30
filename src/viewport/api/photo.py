@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.viewport.auth_utils import get_current_user
@@ -22,7 +23,8 @@ photo_auth_router = APIRouter(prefix="/photos", tags=["photos"])
 def get_photo(gallery_id: UUID, photo_id: UUID, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Stream a photo for authenticated users who own the gallery"""
     # Verify gallery ownership and photo belongs to gallery
-    photo = db.query(Photo).join(Photo.gallery).filter(Photo.id == photo_id, Photo.gallery_id == gallery_id, Photo.gallery.has(owner_id=current_user.id)).first()
+    stmt = select(Photo).join(Photo.gallery).where(Photo.id == photo_id, Photo.gallery_id == gallery_id, Gallery.owner_id == current_user.id)
+    photo = db.execute(stmt).scalar_one_or_none()
 
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
@@ -69,7 +71,8 @@ def get_photo_with_token(photo_id: UUID, token: str, db: Session = Depends(get_d
             raise HTTPException(status_code=403, detail="Invalid token for this photo")
 
         # Get the photo and verify user ownership
-        photo = db.query(Photo).join(Photo.gallery).filter(Photo.id == photo_id, Photo.gallery.has(owner_id=user_id)).first()
+        stmt = select(Photo).join(Photo.gallery).where(Photo.id == photo_id, Gallery.owner_id == user_id)
+        photo = db.execute(stmt).scalar_one_or_none()
 
         if not photo:
             raise HTTPException(status_code=404, detail="Photo not found")
@@ -103,7 +106,8 @@ def get_photo_with_token(photo_id: UUID, token: str, db: Session = Depends(get_d
 @router.post("/{gallery_id}/photos", response_model=PhotoResponse, status_code=status.HTTP_201_CREATED)
 def upload_photo(gallery_id: UUID, file: UploadFile = File(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):  # noqa: B008
     # Check gallery ownership
-    gallery = db.query(Gallery).filter_by(id=gallery_id, owner_id=current_user.id).first()
+    stmt = select(Gallery).where(Gallery.id == gallery_id, Gallery.owner_id == current_user.id)
+    gallery = db.execute(stmt).scalar_one_or_none()
     if not gallery:
         raise HTTPException(status_code=404, detail="Gallery not found")
 
@@ -130,7 +134,8 @@ def upload_photo(gallery_id: UUID, file: UploadFile = File(...), db: Session = D
 @router.delete("/{gallery_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_photo(gallery_id: UUID, photo_id: UUID, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     # Verify gallery ownership and photo belongs to gallery
-    photo = db.query(Photo).join(Photo.gallery).filter(Photo.id == photo_id, Photo.gallery_id == gallery_id, Photo.gallery.has(owner_id=current_user.id)).first()
+    stmt = select(Photo).join(Photo.gallery).where(Photo.id == photo_id, Photo.gallery_id == gallery_id, Gallery.owner_id == current_user.id)
+    photo = db.execute(stmt).scalar_one_or_none()
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
     db.delete(photo)

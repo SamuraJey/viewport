@@ -13,15 +13,15 @@ class Base(DeclarativeBase):
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://viewport:viewport@localhost:5432/viewport")
 if "sqlite" in DATABASE_URL:
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False}, future=True)
 else:
-    engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    engine = create_engine(DATABASE_URL, future=True)
+SessionLocal = sessionmaker(bind=engine, future=True)
 
 
 def get_db() -> Generator[Session]:
-    db: Session = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    with SessionLocal() as db:
+        try:
+            yield db
+        finally:
+            db.close()

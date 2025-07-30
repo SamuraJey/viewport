@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -54,7 +55,8 @@ def register_user(request: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
 def login_user(request: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == request.email).first()
+    stmt = select(User).where(User.email == request.email)
+    user = db.execute(stmt).scalar_one_or_none()
     if not user or user.password_hash != hash_password(request.password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     access_token = create_access_token(str(user.id))
@@ -78,7 +80,8 @@ def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
             raise HTTPException(status_code=401, detail="Invalid token")
 
         # Check if user exists
-        user = db.query(User).filter(User.id == user_id).first()
+        stmt = select(User).where(User.id == user_id)
+        user = db.execute(stmt).scalar_one_or_none()
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
 
