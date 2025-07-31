@@ -1,7 +1,7 @@
-import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import bcrypt
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -17,7 +17,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash a password using bcrypt with a random salt."""
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verify a password against its bcrypt hash."""
+    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 
 def create_access_token(user_id: str) -> str:
@@ -51,7 +57,7 @@ def register_user(request: RegisterRequest, db: Session = Depends(get_db)):
 def login_user(request: LoginRequest, db: Session = Depends(get_db)):
     stmt = select(User).where(User.email == request.email)
     user = db.execute(stmt).scalar_one_or_none()
-    if not user or user.password_hash != hash_password(request.password):
+    if not user or not verify_password(request.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     access_token = create_access_token(str(user.id))
     refresh_token = create_refresh_token(str(user.id))
