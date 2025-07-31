@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, String
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import mapped_column
+from sqlalchemy.orm import mapped_column, relationship
 
 from src.viewport.db import Base
 
@@ -15,3 +15,5 @@ class User(Base):
     email = mapped_column(String(255), unique=True, nullable=False, index=True)
     password_hash = mapped_column(String(255), nullable=False)
     created_at = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+
+    galleries = relationship("Gallery", back_populates="owner", passive_deletes=True)

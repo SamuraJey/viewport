@@ -12,7 +12,7 @@ class ShareLink(Base):
     __tablename__ = "share_links"
 
     id = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    gallery_id = mapped_column(UUID(as_uuid=True), ForeignKey("galleries.id"), nullable=False)
+    gallery_id = mapped_column(UUID(as_uuid=True), ForeignKey("galleries.id", ondelete="CASCADE"), nullable=False)
     expires_at = mapped_column(DateTime, nullable=True)
     views = mapped_column(Integer, default=0, nullable=False)
     zip_downloads = mapped_column(Integer, default=0, nullable=False)

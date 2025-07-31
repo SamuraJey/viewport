@@ -1,5 +1,4 @@
 import hashlib
-import os
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -12,14 +11,9 @@ from sqlalchemy.orm import Session
 from src.viewport.db import get_db
 from src.viewport.models.user import User
 from src.viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
+from viewport.auth_utils import ACCESS_TOKEN_EXPIRE_MINUTES, JWT_ALGORITHM, JWT_SECRET, REFRESH_TOKEN_EXPIRE_DAYS
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-JWT_SECRET = os.getenv("JWT_SECRET", "devsecret")
-JWT_ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 
 def hash_password(password: str) -> str:

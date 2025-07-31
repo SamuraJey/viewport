@@ -15,7 +15,7 @@ class Gallery(Base):
     owner_id = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
-    owner = relationship("User", backref="galleries")
+    owner = relationship("User", back_populates="galleries")
 
 
 class Photo(Base):
@@ -31,5 +31,5 @@ class Photo(Base):
     gallery = relationship(Gallery, back_populates="photos")
 
 
-Gallery.photos = relationship(Photo, back_populates="gallery", cascade="all, delete-orphan")
-Gallery.share_links = relationship("ShareLink", back_populates="gallery", cascade="all, delete-orphan")
+Gallery.photos = relationship(Photo, back_populates="gallery", passive_deletes=True)
+Gallery.share_links = relationship("ShareLink", back_populates="gallery", passive_deletes=True)

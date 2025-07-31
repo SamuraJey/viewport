@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 class MinioSettings(BaseSettings):
     endpoint: str = "localhost:9000"
-    access_key: str = Field(alias="ROOT_USER", default="minioadmin")
-    secret_key: str = Field(alias="ROOT_PASSWORD", default="minioadmin")
+    access_key: str = Field(alias="MINIO_ROOT_USER", default="minioadmin")
+    secret_key: str = Field(alias="MINIO_ROOT_PASSWORD", default="minioadmin")
     bucket: str = "viewport"
 
     model_config = SettingsConfigDict(

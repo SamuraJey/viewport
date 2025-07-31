@@ -22,9 +22,16 @@ photo_auth_router = APIRouter(prefix="/photos", tags=["photos"])
 @router.get("/{gallery_id}/photos/{photo_id}")
 def get_photo(gallery_id: UUID, photo_id: UUID, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Stream a photo for authenticated users who own the gallery"""
-    # Verify gallery ownership and photo belongs to gallery
-    stmt = select(Photo).join(Photo.gallery).where(Photo.id == photo_id, Photo.gallery_id == gallery_id, Gallery.owner_id == current_user.id)
-    photo = db.execute(stmt).scalar_one_or_none()
+    # First, verify gallery ownership
+    gallery_stmt = select(Gallery).where(Gallery.id == gallery_id, Gallery.owner_id == current_user.id)
+    gallery = db.execute(gallery_stmt).scalar_one_or_none()
+
+    if not gallery:
+        raise HTTPException(status_code=404, detail="Gallery not found")
+
+    # Then, verify photo belongs to that gallery
+    photo_stmt = select(Photo).where(Photo.id == photo_id, Photo.gallery_id == gallery_id)
+    photo = db.execute(photo_stmt).scalar_one_or_none()
 
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
