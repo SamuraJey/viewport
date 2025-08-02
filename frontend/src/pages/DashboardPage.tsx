@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { galleryService, type Gallery } from '../services/galleryService'
 import { formatDate } from '../lib/utils'
-import { Plus, Calendar, ChevronLeft, ChevronRight, Image as ImageIcon, Trash2 } from 'lucide-react'
+import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, Edit3, Check, X } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { ErrorDisplay } from '../components/ErrorDisplay'
 import { useErrorHandler } from '../hooks/useErrorHandler'
@@ -12,6 +12,12 @@ export const DashboardPage = () => {
   const [isCreating, setIsCreating] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [newGalleryName, setNewGalleryName] = useState('')
+  const newGalleryInputRef = useRef<HTMLInputElement>(null)
+  const renameInputRef = useRef<HTMLInputElement>(null)
+  // Inline rename state
+  const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null)
+  const [renameInput, setRenameInput] = useState('')
+  const [isRenaming, setIsRenaming] = useState(false)
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = 9
@@ -36,6 +42,18 @@ export const DashboardPage = () => {
   useEffect(() => {
     fetchGalleries()
   }, [])
+  // Focus input when create modal opens
+  useEffect(() => {
+    if (showModal) {
+      newGalleryInputRef.current?.focus()
+    }
+  }, [showModal])
+  // Focus input when inline rename begins
+  useEffect(() => {
+    if (renameGalleryId) {
+      renameInputRef.current?.focus()
+    }
+  }, [renameGalleryId])
 
   // Open modal to enter gallery name
   const handleOpenModal = () => {
@@ -70,6 +88,35 @@ export const DashboardPage = () => {
     }
   }
 
+  // Begin inline rename for a gallery
+  const beginInlineRename = (gallery: Gallery) => {
+    clearError()
+    setRenameGalleryId(gallery.id)
+    setRenameInput(gallery.name)
+  }
+
+  // Cancel inline rename
+  const cancelInlineRename = () => {
+    setRenameGalleryId(null)
+    setRenameInput('')
+  }
+
+  // Confirm inline rename
+  const handleConfirmRename = async () => {
+    if (!renameGalleryId) return
+    try {
+      setIsRenaming(true)
+      await galleryService.updateGallery(renameGalleryId, renameInput.trim())
+      setRenameGalleryId(null)
+      await fetchGalleries(page)
+    } catch (err: any) {
+      handleError(err)
+    } finally {
+      setIsRenaming(false)
+    }
+  }
+
+
   const totalPages = Math.ceil(total / pageSize)
 
   const renderLoading = () => (
@@ -86,14 +133,8 @@ export const DashboardPage = () => {
       variant="banner"
     />
   )
-
   const renderEmptyState = () => (
-    <div className="text-center bg-gray-100 dark:bg-gray-900/95 backdrop-blur-lg rounded-2xl p-16 border border-gray-200 dark:border-white/10">
-      <ImageIcon className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-500 mb-4" />
-      <h3 className="font-oswald text-2xl font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-2">No galleries yet</h3>
-      <p className="text-gray-600 dark:text-gray-400 font-cuprum mb-6">
-        Get started by creating your first gallery.
-      </p>
+    <div className="flex flex-col items-center justify-center h-96">
       <button
         onClick={handleOpenModal}
         disabled={isCreating}
@@ -111,30 +152,67 @@ export const DashboardPage = () => {
 
   const renderGalleries = () => (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {galleries.map((gallery) => (
-          <div key={gallery.id} className="bg-gray-50 dark:bg-gray-900/95 backdrop-blur-lg rounded-2xl p-6 border border-gray-200 dark:border-white/10 hover:transform hover:-translate-y-1 hover:shadow-2xl transition-all">
+          <div key={gallery.id} className="bg-gray-50 dark:bg-gray-900/95 backdrop-blur-lg rounded-2xl p-8 border border-gray-200 dark:border-white/10 hover:transform hover:-translate-y-1 hover:shadow-2xl transition-all">
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-primary-500/20 p-2 rounded-lg">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="bg-primary-500/20 p-2 rounded-lg flex-shrink-0">
                   <Calendar className="h-6 w-6 text-blue-400" />
                 </div>
-                <div>
-                <h3 className="font-oswald text-lg font-bold uppercase tracking-wide text-gray-900 dark:text-white">
-                    {gallery.name || `Gallery #${gallery.id}`}
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-sm font-cuprum">
-                    {formatDate(gallery.created_at)}
-                  </p>
+                <div className="flex-1 min-w-0">
+                  {renameGalleryId === gallery.id ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={renameInputRef}
+                        className="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded min-w-0 text-base"
+                        value={renameInput}
+                        onChange={(e) => setRenameInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleConfirmRename();
+                          } else if (e.key === 'Escape') {
+                            e.preventDefault();
+                            cancelInlineRename();
+                          }
+                        }}
+                      />
+                      <button onClick={handleConfirmRename} disabled={isRenaming || !renameInput.trim()} title="Confirm Rename">
+                        {isRenaming ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"/> : <Check className="w-5 h-5 text-green-500" />}
+                      </button>
+                      <button onClick={cancelInlineRename} title="Cancel Rename">
+                        <X className="w-5 h-5 text-red-500" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <h3 className="font-oswald text-base font-bold uppercase tracking-wide text-gray-900 dark:text-white break-words">
+                        {gallery.name || `Gallery #${gallery.id}`}
+                      </h3>
+                      <p className="text-gray-600 dark:text-gray-400 text-sm font-cuprum">
+                        {formatDate(gallery.created_at)}
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
-              <button
-                onClick={() => handleDeleteGallery(gallery.id)}
-                className="p-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full transition-colors"
-                title="Delete Gallery"
-              >
-                <Trash2 className="w-5 h-5" />
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => beginInlineRename(gallery)}
+                  className="p-2 bg-yellow-500/80 hover:bg-yellow-500 text-white rounded-full transition-colors"
+                  title="Rename Gallery"
+                >
+                  <Edit3 className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => handleDeleteGallery(gallery.id)}
+                  className="p-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full transition-colors"
+                  title="Delete Gallery"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             <div>
               <Link
@@ -220,9 +298,19 @@ export const DashboardPage = () => {
                 Enter a name for your new gallery.
               </p>
               <input
+                ref={newGalleryInputRef}
                 type="text"
                 value={newGalleryName}
                 onChange={(e) => setNewGalleryName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleConfirmCreate()
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault()
+                    setShowModal(false)
+                  }
+                }}
                 className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 placeholder="Gallery name"
               />
@@ -248,6 +336,7 @@ export const DashboardPage = () => {
             </div>
           </div>
         )}
+
       </div>
     </Layout>
   )

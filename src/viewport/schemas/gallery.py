@@ -10,6 +10,10 @@ class GalleryCreateRequest(BaseModel):
     name: str = Field("", description="Custom name for the gallery")
 
 
+class GalleryUpdateRequest(BaseModel):
+    name: str = Field(..., description="New name for the gallery")
+
+
 class GalleryResponse(BaseModel):
     id: str
     owner_id: str

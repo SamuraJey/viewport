@@ -271,3 +271,31 @@ class TestGalleryAPI:
         detail = response.json()
         assert "name" in detail
         assert detail["name"] == name
+
+    def test_update_gallery_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Test successful gallery rename."""
+        new_name = "Renamed Gallery"
+        response = authenticated_client.patch(f"/galleries/{gallery_id_fixture}", json={"name": new_name})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == gallery_id_fixture
+        assert data["name"] == new_name
+
+    def test_update_gallery_invalid_uuid(self, authenticated_client: TestClient):
+        """Test renaming with invalid UUID format."""
+        response = authenticated_client.patch("/galleries/invalid-uuid", json={"name": "Name"})
+        assert response.status_code == 400
+        assert "invalid gallery id format" in response.json()["detail"].lower()
+
+    def test_update_gallery_not_found(self, authenticated_client: TestClient):
+        """Test renaming non-existent gallery."""
+        fake_id = str(uuid4())
+        response = authenticated_client.patch(f"/galleries/{fake_id}", json={"name": "Name"})
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    def test_update_gallery_unauthorized(self, client: TestClient):
+        """Test renaming without authentication."""
+        fake_id = str(uuid4())
+        response = client.patch(f"/galleries/{fake_id}", json={"name": "Name"})
+        assert response.status_code == 401

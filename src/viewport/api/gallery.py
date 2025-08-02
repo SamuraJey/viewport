@@ -9,7 +9,7 @@ from src.viewport.auth_utils import get_current_user
 from src.viewport.db import get_db
 from src.viewport.models.gallery import Gallery
 from src.viewport.models.user import User
-from src.viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse
+from src.viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse, GalleryUpdateRequest
 from viewport.schemas.photo import PhotoResponse
 from viewport.schemas.sharelink import ShareLinkResponse
 
@@ -98,3 +98,26 @@ def delete_gallery(
 
     db.delete(gallery)
     db.commit()
+
+
+@router.patch("/{gallery_id}", response_model=GalleryResponse)
+def update_gallery(
+    gallery_id: str,
+    request: GalleryUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> GalleryResponse:
+    # Validate UUID
+    try:
+        gallery_uuid = uuid.UUID(gallery_id)
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid gallery ID format") from err
+    # Fetch gallery
+    gallery = db.query(Gallery).filter(Gallery.id == gallery_uuid, Gallery.owner_id == current_user.id).first()
+    if not gallery:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
+    # Update name
+    gallery.name = request.name
+    db.commit()
+    db.refresh(gallery)
+    return GalleryResponse(id=str(gallery.id), owner_id=str(gallery.owner_id), name=gallery.name, created_at=gallery.created_at)

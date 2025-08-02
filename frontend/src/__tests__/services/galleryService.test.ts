@@ -163,12 +163,45 @@ describe('galleryService', () => {
     })
   })
 
+  describe('updateGallery', () => {
+    it('should make PATCH request to /galleries/:id with name', async () => {
+      const galleryId = 'gallery-1'
+      const newName = 'Updated'
+      const mockResponse = {
+        data: {
+          id: galleryId,
+          owner_id: 'user1',
+          name: newName,
+          created_at: '2025-01-01T00:00:00Z',
+        },
+      }
+
+      vi.mocked(api.patch).mockResolvedValue(mockResponse)
+
+      const result = await galleryService.updateGallery(galleryId, newName)
+
+      expect(api.patch).toHaveBeenCalledWith(`/galleries/${galleryId}`, { name: newName })
+      expect(result).toEqual(mockResponse.data)
+    })
+
+    it('should handle updateGallery errors', async () => {
+      const galleryId = 'gallery-error'
+      const newName = 'Name'
+      const mockError = new Error('Update failed')
+      vi.mocked(api.patch).mockRejectedValue(mockError)
+
+      await expect(galleryService.updateGallery(galleryId, newName)).rejects.toThrow('Update failed')
+      expect(api.patch).toHaveBeenCalledWith(`/galleries/${galleryId}`, { name: newName })
+    })
+  })
+
   describe('service methods', () => {
     it('should have all required methods', () => {
       expect(typeof galleryService.getGalleries).toBe('function')
       expect(typeof galleryService.getGallery).toBe('function')
       expect(typeof galleryService.createGallery).toBe('function')
       expect(typeof galleryService.deleteGallery).toBe('function')
+      expect(typeof galleryService.updateGallery).toBe('function')
     })
   })
 })
