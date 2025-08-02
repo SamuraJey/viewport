@@ -67,9 +67,9 @@ def get_photo_with_token(photo_id: UUID, token: str, db: Session = Depends(get_d
         # Decode the token to get user_id and photo_id
         import jwt
 
-        from src.viewport.api.auth import JWT_ALGORITHM, JWT_SECRET
+        from src.viewport.api.auth import authsettings
 
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, authsettings.jwt_secret_key, algorithms=[authsettings.jwt_algorithm])
         user_id = payload.get("user_id")
         token_photo_id = payload.get("photo_id")
 

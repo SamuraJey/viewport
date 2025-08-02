@@ -1,11 +1,15 @@
 import os
 import time
+from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
+from sqlalchemy.engine.base import Engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm.session import Session
+from testcontainers.core.container import DockerContainer
 from testcontainers.postgres import PostgresContainer
 
 from src.viewport.db import Base, get_db
@@ -13,14 +17,14 @@ from src.viewport.main import app
 
 POSTGRES_IMAGE = "postgres:17-alpine"
 
-MINIO_IMAGE = "minio/minio:latest"
+MINIO_IMAGE = "minio/minio:RELEASE.2025-07-23T15-54-02Z"
 MINIO_ROOT_USER = "minioadmin"
 MINIO_ROOT_PASSWORD = "minioadmin"
 MINIO_PORT = 9000
 
 
 @pytest.fixture(scope="session")
-def postgres_container():
+def postgres_container() -> Generator[PostgresContainer]:
     """Фикстура контейнера PostgreSQL с областью видимости на всю сессию тестов."""
     with PostgresContainer(image=POSTGRES_IMAGE) as container:
         # Даем контейнеру время для инициализации
@@ -29,7 +33,7 @@ def postgres_container():
 
 
 @pytest.fixture(scope="session")
-def engine(postgres_container):
+def engine(postgres_container) -> Generator[Engine]:
     """Фикстура движка SQLAlchemy с областью видимости на сессию."""
     db_url = postgres_container.get_connection_url()
     engine = create_engine(db_url)
@@ -42,7 +46,7 @@ def engine(postgres_container):
 
 
 @pytest.fixture(scope="function")
-def db_session(engine):
+def db_session(engine) -> Generator[Session]:
     """Фикстура сессии базы данных с изоляцией на каждый тест."""
     connection = engine.connect()
     transaction = connection.begin()
@@ -58,7 +62,7 @@ def db_session(engine):
 
 
 @pytest.fixture(scope="session")
-def minio_container():
+def minio_container() -> Generator[DockerContainer]:
     """Фикстура контейнера MinIO с областью видимости на сессию."""
     from testcontainers.core.container import DockerContainer
 
@@ -75,7 +79,21 @@ def minio_container():
         time.sleep(3)
         host = minio.get_container_host_ip()
         port = minio.get_exposed_port(MINIO_PORT)
-        os.environ.update({"MINIO_ENDPOINT": f"{host}:{port}", "MINIO_ACCESS_KEY": MINIO_ROOT_USER, "MINIO_SECRET_KEY": MINIO_ROOT_PASSWORD})
+        
+        # Set environment variables
+        os.environ.update({
+            "MINIO_ENDPOINT": f"{host}:{port}", 
+            "MINIO_ACCESS_KEY": MINIO_ROOT_USER, 
+            "MINIO_SECRET_KEY": MINIO_ROOT_PASSWORD,
+            "MINIO_ROOT_USER": MINIO_ROOT_USER,
+            "MINIO_ROOT_PASSWORD": MINIO_ROOT_PASSWORD
+        })
+        
+        # Clear any cached MinIO configurations to force reload
+        from src.viewport.minio_utils import get_minio_config, get_s3_client
+        get_minio_config.cache_clear()
+        get_s3_client.cache_clear()
+        
         yield minio
 
 
@@ -88,6 +106,14 @@ def client(db_session, minio_container):
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+
+    # Ensure MinIO cache is cleared for each test to pick up fresh configuration
+    try:
+        from src.viewport.minio_utils import get_minio_config, get_s3_client
+        get_minio_config.cache_clear()
+        get_s3_client.cache_clear()
+    except ImportError:
+        pass  # If MinIO utils aren't available, that's fine
 
     with TestClient(app) as test_client:
         yield test_client
@@ -103,7 +129,7 @@ def test_user_data() -> dict[str, str]:
 
 
 @pytest.fixture(scope="function")
-def authenticated_client(client, test_user_data):
+def authenticated_client(client: TestClient, test_user_data: dict[str, str]) -> Generator[TestClient]:
     """Тестовый клиент с предустановленной аутентификацией."""
     client.post("/auth/register", json=test_user_data)
 
@@ -118,14 +144,14 @@ def authenticated_client(client, test_user_data):
 
 
 @pytest.fixture(scope="function")
-def gallery_fixture(authenticated_client):
+def gallery_fixture(authenticated_client: TestClient) -> str:
     """Фикстура для создания тестовой галереи."""
     response = authenticated_client.post("/galleries/", json={})
     return response.json()["id"]
 
 
 @pytest.fixture(scope="function")
-def sharelink_fixture(authenticated_client, gallery_fixture):
+def sharelink_fixture(authenticated_client: TestClient, gallery_fixture: str) -> str:
     """Фикстура для создания тестовой ссылки доступа."""
     expires = (datetime.now(UTC) + timedelta(days=1)).isoformat()
     payload = {"gallery_id": gallery_fixture, "expires_at": expires}
@@ -134,7 +160,7 @@ def sharelink_fixture(authenticated_client, gallery_fixture):
 
 
 @pytest.fixture(scope="function")
-def multiple_users_data():
+def multiple_users_data() -> list[dict[str, str]]:
     """Fixture providing multiple user data for multi-user tests."""
     return [
         {"email": "user1@example.com", "password": "password123"},
@@ -146,7 +172,7 @@ def multiple_users_data():
 
 
 @pytest.fixture(scope="function")
-def gallery_id_fixture(authenticated_client):
+def gallery_id_fixture(authenticated_client: TestClient) -> str:
     """Fixture that creates a gallery and returns its ID."""
     # Create a gallery for tests needing a gallery ID
     resp = authenticated_client.post("/galleries/", json={})
@@ -155,7 +181,7 @@ def gallery_id_fixture(authenticated_client):
 
 
 @pytest.fixture(scope="function")
-def sharelink_data(authenticated_client, gallery_id_fixture):
+def sharelink_data(authenticated_client: TestClient, gallery_id_fixture: str) -> tuple[str, str]:
     """Fixture that creates a share link for a gallery and returns (share_id, gallery_id)."""
     # Prepare expiration in future
     expires = (datetime.now(UTC) + timedelta(days=1)).isoformat()
@@ -167,21 +193,21 @@ def sharelink_data(authenticated_client, gallery_id_fixture):
 
 
 @pytest.fixture(scope="function")
-def invalid_auth_headers():
+def invalid_auth_headers() -> dict[str, str]:
     """Fixture providing invalid authorization header."""
     return {"Authorization": "Bearer invalid_token"}
 
 
 @pytest.fixture(scope="function")
-def expired_auth_headers():
+def expired_auth_headers() -> dict[str, str]:
     """Fixture providing expired access token in Authorization header."""
     # Generate a token expired in the past
     import uuid
 
     import jwt
 
-    from src.viewport.api.auth import JWT_ALGORITHM, JWT_SECRET
+    from src.viewport.api.auth import authsettings
 
     payload = {"sub": str(uuid.uuid4()), "exp": datetime.now(UTC) - timedelta(days=1), "type": "access"}
-    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    token = jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
     return {"Authorization": f"Bearer {token}"}

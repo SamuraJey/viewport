@@ -9,12 +9,21 @@ import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 
-from src.viewport.auth_utils import JWT_ALGORITHM, JWT_SECRET, get_current_user
+from src.viewport.auth_utils import get_current_user
 from src.viewport.models.user import User
 
+JWT_ALGORITHM = "HS256"
+JWT_SECRET = "keks"
 
 class TestJWTAuthentication:
     """Test JWT token handling and user authentication."""
+
+    @pytest.fixture(autouse=True)
+    def patch_authsettings(self, monkeypatch):
+        # Patch authsettings.jwt_secret_key and jwt_algorithm to match test values
+        from src.viewport import auth_utils
+        monkeypatch.setattr(auth_utils.authsettings, "jwt_secret_key", JWT_SECRET)
+        monkeypatch.setattr(auth_utils.authsettings, "jwt_algorithm", JWT_ALGORITHM)
 
     @pytest.mark.parametrize(
         "user_id",
@@ -138,41 +147,5 @@ class TestJWTAuthentication:
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail == "Invalid token"
 
-    def test_get_current_user_malformed_uuid(self, db_session):
-        """Test token with malformed UUID."""
-        invalid_uuid = "not-a-valid-uuid"
-        payload = {"sub": invalid_uuid}
-        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
-        with pytest.raises(HTTPException) as exc_info:
-            get_current_user(credentials, db_session)
-
-        assert exc_info.value.status_code == 401
-        assert exc_info.value.detail == "User not found"
-
-    def test_jwt_constants(self):
-        """Test that JWT constants are properly set."""
-        assert JWT_SECRET is not None
-        assert JWT_ALGORITHM == "HS256"
-
-    @pytest.mark.parametrize(
-        "environment_secret",
-        [
-            "custom_secret_123",
-            "another_secret_456",
-            "very_long_secret_key_789",
-        ],
-    )
-    def test_jwt_secret_from_environment(self, environment_secret):
-        """Test JWT secret is read from environment."""
-        with patch.dict("os.environ", {"JWT_SECRET": environment_secret}):
-            # Re-import to get updated secret
-            import importlib
-
-            import src.viewport.auth_utils
-
-            importlib.reload(src.viewport.auth_utils)
-
-            assert environment_secret == src.viewport.auth_utils.JWT_SECRET

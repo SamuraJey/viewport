@@ -16,3 +16,5 @@ wheels/
 .env
 
 example_of_styles/
+
+.coverage

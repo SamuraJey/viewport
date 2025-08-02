@@ -11,29 +11,29 @@ from sqlalchemy.orm import Session
 from src.viewport.db import get_db
 from src.viewport.models.user import User
 from src.viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
-from viewport.auth_utils import ACCESS_TOKEN_EXPIRE_MINUTES, JWT_ALGORITHM, JWT_SECRET, REFRESH_TOKEN_EXPIRE_DAYS
+from viewport.auth_utils import authsettings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt with a random salt."""
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(password: str, hashed: str) -> bool:
     """Verify a password against its bcrypt hash."""
-    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+    return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 
 def create_access_token(user_id: str) -> str:
-    payload = {"sub": user_id, "exp": datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES), "type": "access"}
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    payload = {"sub": user_id, "exp": datetime.now(UTC) + timedelta(minutes=authsettings.access_token_expire_minutes), "type": "access"}
+    return jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
 
 
 def create_refresh_token(user_id: str) -> str:
-    payload = {"sub": user_id, "exp": datetime.now(UTC) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS), "type": "refresh"}
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    payload = {"sub": user_id, "exp": datetime.now(UTC) + timedelta(minutes=authsettings.refresh_token_expire_minutes), "type": "refresh"}
+    return jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
@@ -68,7 +68,7 @@ def login_user(request: LoginRequest, db: Session = Depends(get_db)):
 def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
     try:
         # Decode and validate the refresh token
-        payload = jwt.decode(request.refresh_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(request.refresh_token, authsettings.jwt_secret_key, algorithms=[authsettings.jwt_algorithm])
         user_id = payload.get("sub")
         token_type = payload.get("type")
 
