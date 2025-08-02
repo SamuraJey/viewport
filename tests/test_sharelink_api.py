@@ -15,7 +15,7 @@ class TestSharelinkAPI:
         """Test successful sharelink creation."""
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at, "gallery_id": gallery_id_fixture}
-        
+
         response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json=payload)
         assert response.status_code == 201
         data = response.json()
@@ -42,7 +42,7 @@ class TestSharelinkAPI:
         fake_uuid = str(uuid4())
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at, "gallery_id": fake_uuid}
-        
+
         response = authenticated_client.post(f"/galleries/{fake_uuid}/share-links", json=payload)
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -65,7 +65,7 @@ class TestSharelinkAPI:
 
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at, "gallery_id": gallery_id_fixture}
-        
+
         response = client.post(f"/galleries/{gallery_id_fixture}/share-links", json=payload)
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -73,7 +73,7 @@ class TestSharelinkAPI:
     def test_create_sharelink_invalid_expiration(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test creating sharelink with invalid expiration date format."""
         payload = {"expires_at": "invalid-date", "gallery_id": gallery_id_fixture}
-        
+
         response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json=payload)
         assert response.status_code == 422
 
@@ -82,7 +82,7 @@ class TestSharelinkAPI:
         # Create a sharelink first
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at, "gallery_id": gallery_id_fixture}
-        
+
         create_response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json=payload)
         assert create_response.status_code == 201
         sharelink_id = create_response.json()["id"]
@@ -124,14 +124,13 @@ class TestSharelinkAPI:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-
     def test_multiple_sharelinks_per_gallery(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test creating multiple sharelinks for the same gallery."""
         sharelink_ids = []
         for i in range(3):
-            expires_at = (datetime.now(UTC) + timedelta(days=i+1)).isoformat()
+            expires_at = (datetime.now(UTC) + timedelta(days=i + 1)).isoformat()
             payload = {"expires_at": expires_at, "gallery_id": gallery_id_fixture}
-            
+
             response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json=payload)
             assert response.status_code == 201
             sharelink_ids.append(response.json()["id"])

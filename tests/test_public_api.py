@@ -4,10 +4,11 @@ import io
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 from tests.helpers import register_and_login
+
 
 @pytest.mark.skip(reason="Skipping public API tests as they are not implemented yet")
 class TestPublicAPI:
@@ -25,11 +26,11 @@ class TestPublicAPI:
         # Create user, gallery, and sharelink
         user_token = register_and_login(client, "user@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user_token}"})
-        
+
         # Create gallery
         gallery_response = client.post("/galleries/", json={})
         gallery_id = gallery_response.json()["id"]
-        
+
         # Upload photos
         photo_ids = []
         for i in range(3):
@@ -38,25 +39,24 @@ class TestPublicAPI:
             upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
             assert upload_response.status_code == 201
             photo_ids.append(upload_response.json()["id"])
-        
+
         # Create sharelink
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at, "gallery_id": gallery_id}
         sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
-        print(f"Sharelink response: {sharelink_response.json()}")  # Debugging output
         assert sharelink_response.status_code == 201
         share_id = sharelink_response.json()["id"]
-        
+
         # Clear auth headers for public access
         client.headers.clear()
-        
+
         # Access sharelink
         response = client.get(f"/s/{share_id}")
         assert response.status_code == 200
         data = response.json()
         assert "photos" in data
         assert len(data["photos"]) == 3
-        
+
         # Verify photo URLs are correctly formatted
         for photo in data["photos"]:
             assert "photo_id" in photo
@@ -69,20 +69,20 @@ class TestPublicAPI:
         # Create user, gallery, and sharelink
         user_token = register_and_login(client, "user@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user_token}"})
-        
+
         # Create gallery (no photos)
         gallery_response = client.post("/galleries/", json={})
         gallery_id = gallery_response.json()["id"]
-        
+
         # Create sharelink
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at}
         sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
         share_id = sharelink_response.json()["id"]
-        
+
         # Clear auth headers
         client.headers.clear()
-        
+
         # Access sharelink
         response = client.get(f"/s/{share_id}")
         assert response.status_code == 200
@@ -95,20 +95,20 @@ class TestPublicAPI:
         # Create user, gallery, and sharelink
         user_token = register_and_login(client, "user@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user_token}"})
-        
+
         # Create gallery
         gallery_response = client.post("/galleries/", json={})
         gallery_id = gallery_response.json()["id"]
-        
+
         # Create expired sharelink
         expires_at = (datetime.now(UTC) - timedelta(days=1)).isoformat()  # Expired
         payload = {"expires_at": expires_at, "gallery_id": gallery_id}
         sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
         share_id = sharelink_response.json()["id"]
-        
+
         # Clear auth headers
         client.headers.clear()
-        
+
         # Try to access expired sharelink
         response = client.get(f"/s/{share_id}")
         assert response.status_code == 404
@@ -119,25 +119,25 @@ class TestPublicAPI:
         # Setup: create user, gallery, photo, and sharelink
         user_token = register_and_login(client, "user@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user_token}"})
-        
+
         gallery_response = client.post("/galleries/", json={})
         gallery_id = gallery_response.json()["id"]
-        
+
         # Upload photo
         image_content = b"fake image content"
         files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
         upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
         photo_id = upload_response.json()["id"]
-        
+
         # Create sharelink
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at}
         sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
         share_id = sharelink_response.json()["id"]
-        
+
         # Clear auth headers
         client.headers.clear()
-        
+
         # Access single photo
         response = client.get(f"/s/{share_id}/photos/{photo_id}")
         assert response.status_code == 200
@@ -147,19 +147,19 @@ class TestPublicAPI:
         # Setup: create user, gallery, and sharelink
         user_token = register_and_login(client, "user@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user_token}"})
-        
+
         gallery_response = client.post("/galleries/", json={})
         gallery_id = gallery_response.json()["id"]
-        
+
         # Create sharelink
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at}
         sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
         share_id = sharelink_response.json()["id"]
-        
+
         # Clear auth headers
         client.headers.clear()
-        
+
         # Try to access non-existent photo
         fake_photo_id = str(uuid4())
         response = client.get(f"/s/{share_id}/photos/{fake_photo_id}")
@@ -171,25 +171,25 @@ class TestPublicAPI:
         # Setup: create user, gallery, photo, and expired sharelink
         user_token = register_and_login(client, "user@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user_token}"})
-        
+
         gallery_response = client.post("/galleries/", json={})
         gallery_id = gallery_response.json()["id"]
-        
+
         # Upload photo
         image_content = b"fake image content"
         files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
         upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
         photo_id = upload_response.json()["id"]
-        
+
         # Create expired sharelink
         expires_at = (datetime.now(UTC) - timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at, "gallery_id": gallery_id}
         sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
         share_id = sharelink_response.json()["id"]
-        
+
         # Clear auth headers
         client.headers.clear()
-        
+
         # Try to access photo via expired sharelink
         response = client.get(f"/s/{share_id}/photos/{photo_id}")
         assert response.status_code == 404
@@ -200,26 +200,26 @@ class TestPublicAPI:
         # Setup: create user, gallery, photos, and sharelink
         user_token = register_and_login(client, "user@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user_token}"})
-        
+
         gallery_response = client.post("/galleries/", json={})
         gallery_id = gallery_response.json()["id"]
-        
+
         # Upload multiple photos
         for i in range(3):
             image_content = f"fake image content {i}".encode()
             files = {"file": (f"test{i}.jpg", io.BytesIO(image_content), "image/jpeg")}
             upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
             assert upload_response.status_code == 201
-        
+
         # Create sharelink
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at}
         sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
         share_id = sharelink_response.json()["id"]
-        
+
         # Clear auth headers
         client.headers.clear()
-        
+
         # Download ZIP
         response = client.get(f"/s/{share_id}/download/all")
         assert response.status_code == 200
@@ -232,19 +232,19 @@ class TestPublicAPI:
         # Setup: create user, gallery (no photos), and sharelink
         user_token = register_and_login(client, "user@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user_token}"})
-        
+
         gallery_response = client.post("/galleries/", json={})
         gallery_id = gallery_response.json()["id"]
-        
+
         # Create sharelink
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at}
         sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
         share_id = sharelink_response.json()["id"]
-        
+
         # Clear auth headers
         client.headers.clear()
-        
+
         # Try to download ZIP
         response = client.get(f"/s/{share_id}/download/all")
         assert response.status_code == 404
@@ -255,25 +255,25 @@ class TestPublicAPI:
         # Setup: create user, gallery, photo, and expired sharelink
         user_token = register_and_login(client, "user@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user_token}"})
-        
+
         gallery_response = client.post("/galleries/", json={})
         gallery_id = gallery_response.json()["id"]
-        
+
         # Upload photo
         image_content = b"fake image content"
         files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
         upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
         assert upload_response.status_code == 201
-        
+
         # Create expired sharelink
         expires_at = (datetime.now(UTC) - timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at}
         sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
         share_id = sharelink_response.json()["id"]
-        
+
         # Clear auth headers
         client.headers.clear()
-        
+
         # Try to download ZIP
         response = client.get(f"/s/{share_id}/download/all")
         assert response.status_code == 404
@@ -284,25 +284,25 @@ class TestPublicAPI:
         # Setup: create user, gallery, photo, and sharelink
         user_token = register_and_login(client, "user@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user_token}"})
-        
+
         gallery_response = client.post("/galleries/", json={})
         gallery_id = gallery_response.json()["id"]
-        
+
         # Upload photo
         image_content = b"fake image content"
         files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
         upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
         photo_id = upload_response.json()["id"]
-        
+
         # Create sharelink
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at}
         sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
         share_id = sharelink_response.json()["id"]
-        
+
         # Clear auth headers
         client.headers.clear()
-        
+
         # Download single photo
         response = client.get(f"/s/{share_id}/download/{photo_id}")
         assert response.status_code == 200
@@ -314,19 +314,19 @@ class TestPublicAPI:
         # Setup: create user, gallery, and sharelink
         user_token = register_and_login(client, "user@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user_token}"})
-        
+
         gallery_response = client.post("/galleries/", json={})
         gallery_id = gallery_response.json()["id"]
-        
+
         # Create sharelink
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at}
         sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
         share_id = sharelink_response.json()["id"]
-        
+
         # Clear auth headers
         client.headers.clear()
-        
+
         # Try to download non-existent photo
         fake_photo_id = str(uuid4())
         response = client.get(f"/s/{share_id}/download/{fake_photo_id}")
@@ -338,25 +338,25 @@ class TestPublicAPI:
         # Setup: create user, gallery, photo, and expired sharelink
         user_token = register_and_login(client, "user@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user_token}"})
-        
+
         gallery_response = client.post("/galleries/", json={})
         gallery_id = gallery_response.json()["id"]
-        
+
         # Upload photo
         image_content = b"fake image content"
         files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
         upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
         photo_id = upload_response.json()["id"]
-        
+
         # Create expired sharelink
         expires_at = (datetime.now(UTC) - timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at}
         sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
         share_id = sharelink_response.json()["id"]
-        
+
         # Clear auth headers
         client.headers.clear()
-        
+
         # Try to download photo
         response = client.get(f"/s/{share_id}/download/{photo_id}")
         assert response.status_code == 404
@@ -367,24 +367,24 @@ class TestPublicAPI:
         # Setup: create user, gallery, photo, and sharelink
         user_token = register_and_login(client, "user@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user_token}"})
-        
+
         gallery_response = client.post("/galleries/", json={})
         gallery_id = gallery_response.json()["id"]
-        
+
         # Upload photo
         image_content = b"fake image content"
         files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
         client.post(f"/galleries/{gallery_id}/photos", files=files)
-        
+
         # Create sharelink
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
         payload = {"expires_at": expires_at}
         sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
         share_id = sharelink_response.json()["id"]
-        
+
         # Clear auth headers
         client.headers.clear()
-        
+
         # Access sharelink multiple times
         for _ in range(3):
             response = client.get(f"/s/{share_id}")

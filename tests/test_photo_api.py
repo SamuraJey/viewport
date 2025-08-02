@@ -19,7 +19,7 @@ class TestPhotoAPI:
         # Create a fake image file
         image_content = b"fake image content"
         files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-        
+
         response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
         assert response.status_code == 201
         data = response.json()
@@ -34,7 +34,7 @@ class TestPhotoAPI:
         fake_uuid = str(uuid4())
         image_content = b"fake image content"
         files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-        
+
         response = authenticated_client.post(f"/galleries/{fake_uuid}/photos", files=files)
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -56,7 +56,7 @@ class TestPhotoAPI:
 
         image_content = b"fake image content"
         files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-        
+
         response = client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -66,7 +66,7 @@ class TestPhotoAPI:
         # Create a file larger than 15MB
         large_content = b"x" * (16 * 1024 * 1024)  # 16MB
         files = {"file": ("large.jpg", io.BytesIO(large_content), "image/jpeg")}
-        
+
         response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
         assert response.status_code == 413
         assert "file too large" in response.json()["detail"].lower()
@@ -81,7 +81,7 @@ class TestPhotoAPI:
         # First upload a photo
         image_content = b"fake image content"
         files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-        
+
         upload_response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
         assert upload_response.status_code == 201
         photo_id = upload_response.json()["id"]
@@ -133,13 +133,13 @@ class TestPhotoAPI:
         login_response = client.post("/auth/login", json=test_data)
         user_token = login_response.json()["tokens"]["access_token"]
         user_id = login_response.json()["id"]
-        
+
         client.headers.update({"Authorization": f"Bearer {user_token}"})
-        
+
         # Create gallery for this user
         gallery_response = client.post("/galleries/", json={})
         gallery_id = gallery_response.json()["id"]
-        
+
         # Upload photo
         image_content = b"fake image content"
         files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
@@ -147,11 +147,7 @@ class TestPhotoAPI:
         photo_id = upload_response.json()["id"]
 
         # Create photo access token
-        payload = {
-            "user_id": user_id,
-            "photo_id": photo_id,
-            "exp": datetime.now(UTC) + timedelta(hours=1)
-        }
+        payload = {"user_id": user_id, "photo_id": photo_id, "exp": datetime.now(UTC) + timedelta(hours=1)}
         photo_token = jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
 
         # Clear auth header and use token parameter
@@ -173,12 +169,8 @@ class TestPhotoAPI:
         photo_id_1 = str(uuid4())
         photo_id_2 = str(uuid4())
         user_id = str(uuid4())
-        
-        payload = {
-            "user_id": user_id,
-            "photo_id": photo_id_1,
-            "exp": datetime.now(UTC) + timedelta(hours=1)
-        }
+
+        payload = {"user_id": user_id, "photo_id": photo_id_1, "exp": datetime.now(UTC) + timedelta(hours=1)}
         token = jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
 
         response = client.get(f"/photos/auth/{photo_id_2}?token={token}")
@@ -190,7 +182,7 @@ class TestPhotoAPI:
         # Upload a photo first
         image_content = b"fake image content"
         files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-        
+
         upload_response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
         assert upload_response.status_code == 201
         photo_id = upload_response.json()["id"]
@@ -241,7 +233,7 @@ class TestPhotoAPI:
         # Create two galleries
         gallery1_response = authenticated_client.post("/galleries/", json={})
         gallery1_id = gallery1_response.json()["id"]
-        
+
         gallery2_response = authenticated_client.post("/galleries/", json={})
         gallery2_id = gallery2_response.json()["id"]
 

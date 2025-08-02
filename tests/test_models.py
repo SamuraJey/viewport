@@ -36,7 +36,7 @@ class TestUserModel:
         db_session.commit()
 
         db_session.add(user2)
-        with pytest.raises(Exception):  # Should raise integrity error
+        with pytest.raises(Exception):  # noqa: B017
             db_session.commit()
 
     def test_user_id_auto_generated(self, db_session):

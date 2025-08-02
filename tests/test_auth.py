@@ -1,10 +1,11 @@
 """Tests for authentication API endpoints."""
 
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
+
 import jwt
 import pytest
-from datetime import UTC, datetime, timedelta
 from fastapi.testclient import TestClient
-from uuid import uuid4
 
 from src.viewport.api.auth import authsettings
 
@@ -157,6 +158,7 @@ class TestAuthFlow:
 
         # Add small delay to ensure different timestamps
         import time
+
         time.sleep(1)
 
         # Refresh token
@@ -186,44 +188,36 @@ class TestAuthFlow:
         # Register and login
         client.post("/auth/register", json=test_user_data)
         login_response = client.post("/auth/login", json=test_user_data)
-        
+
         # Try to use access token for refresh
         access_token = login_response.json()["tokens"]["access_token"]
         refresh_payload = {"refresh_token": access_token}
         response = client.post("/auth/refresh", json=refresh_payload)
-        
+
         assert response.status_code == 401
         assert "invalid token type" in response.json()["detail"].lower()
 
     def test_refresh_token_expired(self, client: TestClient):
         """Test refresh with expired token."""
         # Create expired refresh token
-        expired_payload = {
-            "sub": "fake_user_id",
-            "exp": datetime.now(UTC) - timedelta(days=1),
-            "type": "refresh"
-        }
+        expired_payload = {"sub": "fake_user_id", "exp": datetime.now(UTC) - timedelta(days=1), "type": "refresh"}
         expired_token = jwt.encode(expired_payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
-        
+
         refresh_payload = {"refresh_token": expired_token}
         response = client.post("/auth/refresh", json=refresh_payload)
-        
+
         assert response.status_code == 401
         assert "expired" in response.json()["detail"].lower()
 
     def test_refresh_token_nonexistent_user(self, client: TestClient):
         """Test refresh with token for non-existent user."""
         # Create refresh token for non-existent user
-        fake_payload = {
-            "sub": str(uuid4()),
-            "exp": datetime.now(UTC) + timedelta(days=1),
-            "type": "refresh"
-        }
+        fake_payload = {"sub": str(uuid4()), "exp": datetime.now(UTC) + timedelta(days=1), "type": "refresh"}
         fake_token = jwt.encode(fake_payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
-        
+
         refresh_payload = {"refresh_token": fake_token}
         response = client.post("/auth/refresh", json=refresh_payload)
-        
+
         assert response.status_code == 401
         assert "user not found" in response.json()["detail"].lower()
 
@@ -232,7 +226,7 @@ class TestAuthFlow:
         # Missing refresh_token field
         response = client.post("/auth/refresh", json={})
         assert response.status_code == 422
-        
+
         # Wrong field name
         response = client.post("/auth/refresh", json={"token": "some_token"})
         assert response.status_code == 422
@@ -240,19 +234,19 @@ class TestAuthFlow:
     def test_password_hashing_works(self, client: TestClient):
         """Test that passwords are properly hashed and not stored in plaintext."""
         from src.viewport.api.auth import hash_password, verify_password
-        
+
         password = "test_password_123"
         hashed = hash_password(password)
-        
+
         # Hash should be different from original password
         assert hashed != password
-        
+
         # Should be able to verify the password
         assert verify_password(password, hashed) is True
-        
+
         # Wrong password should not verify
         assert verify_password("wrong_password", hashed) is False
-        
+
         # Same password should produce different hashes (due to salt)
         hashed2 = hash_password(password)
         assert hashed != hashed2
@@ -263,24 +257,16 @@ class TestAuthFlow:
         # Register and login
         reg_response = client.post("/auth/register", json=test_user_data)
         user_id = reg_response.json()["id"]
-        
+
         login_response = client.post("/auth/login", json=test_user_data)
         tokens = login_response.json()["tokens"]
-        
+
         # Decode access token and verify user ID
-        access_payload = jwt.decode(
-            tokens["access_token"], 
-            authsettings.jwt_secret_key, 
-            algorithms=[authsettings.jwt_algorithm]
-        )
+        access_payload = jwt.decode(tokens["access_token"], authsettings.jwt_secret_key, algorithms=[authsettings.jwt_algorithm])
         assert access_payload["sub"] == user_id
         assert access_payload["type"] == "access"
-        
+
         # Decode refresh token and verify user ID
-        refresh_payload = jwt.decode(
-            tokens["refresh_token"], 
-            authsettings.jwt_secret_key, 
-            algorithms=[authsettings.jwt_algorithm]
-        )
+        refresh_payload = jwt.decode(tokens["refresh_token"], authsettings.jwt_secret_key, algorithms=[authsettings.jwt_algorithm])
         assert refresh_payload["sub"] == user_id
         assert refresh_payload["type"] == "refresh"

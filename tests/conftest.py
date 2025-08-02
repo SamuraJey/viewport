@@ -50,8 +50,8 @@ def db_session(engine) -> Generator[Session]:
     """Фикстура сессии базы данных с изоляцией на каждый тест."""
     connection = engine.connect()
     transaction = connection.begin()
-    Session = sessionmaker(bind=connection)
-    session = Session()
+    session_factory = sessionmaker(bind=connection)
+    session = session_factory()
 
     yield session
 
@@ -79,21 +79,24 @@ def minio_container() -> Generator[DockerContainer]:
         time.sleep(3)
         host = minio.get_container_host_ip()
         port = minio.get_exposed_port(MINIO_PORT)
-        
+
         # Set environment variables
-        os.environ.update({
-            "MINIO_ENDPOINT": f"{host}:{port}", 
-            "MINIO_ACCESS_KEY": MINIO_ROOT_USER, 
-            "MINIO_SECRET_KEY": MINIO_ROOT_PASSWORD,
-            "MINIO_ROOT_USER": MINIO_ROOT_USER,
-            "MINIO_ROOT_PASSWORD": MINIO_ROOT_PASSWORD
-        })
-        
+        os.environ.update(
+            {
+                "MINIO_ENDPOINT": f"{host}:{port}",
+                "MINIO_ACCESS_KEY": MINIO_ROOT_USER,
+                "MINIO_SECRET_KEY": MINIO_ROOT_PASSWORD,
+                "MINIO_ROOT_USER": MINIO_ROOT_USER,
+                "MINIO_ROOT_PASSWORD": MINIO_ROOT_PASSWORD,
+            }
+        )
+
         # Clear any cached MinIO configurations to force reload
         from src.viewport.minio_utils import get_minio_config, get_s3_client
+
         get_minio_config.cache_clear()
         get_s3_client.cache_clear()
-        
+
         yield minio
 
 
@@ -110,6 +113,7 @@ def client(db_session, minio_container):
     # Ensure MinIO cache is cleared for each test to pick up fresh configuration
     try:
         from src.viewport.minio_utils import get_minio_config, get_s3_client
+
         get_minio_config.cache_clear()
         get_s3_client.cache_clear()
     except ImportError:

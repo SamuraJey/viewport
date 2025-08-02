@@ -11,19 +11,17 @@ from sqlalchemy.orm import Session
 from src.viewport.db import get_db
 from src.viewport.models.user import User
 
-# JWT_SECRET = os.getenv("JWT_SECRET", "devsecret")
-# JWT_ALGORITHM = "HS256"
-# ACCESS_TOKEN_EXPIRE_MINUTES = 30
-# REFRESH_TOKEN_EXPIRE_DAYS = 3
 
 class AuthSettings(BaseSettings):
     """Settings for authentication, loaded from environment variables."""
+
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_minutes: int = 7200
 
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
 
 authsettings = AuthSettings()
 

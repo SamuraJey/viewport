@@ -20,6 +20,7 @@ class TestGalleryAPI:
         assert "created_at" in data
         # Verify the ID is a valid UUID format
         import uuid
+
         uuid.UUID(data["id"])  # Should not raise exception
 
     def test_create_gallery_unauthorized(self, client: TestClient):
@@ -201,7 +202,7 @@ class TestGalleryAPI:
         # Create first user and gallery
         user1_token = register_and_login(client, "user1@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user1_token}"})
-        
+
         resp1 = client.post("/galleries/", json={})
         assert resp1.status_code == 201
         gallery1_id = resp1.json()["id"]
@@ -209,7 +210,7 @@ class TestGalleryAPI:
         # Create second user and gallery
         user2_token = register_and_login(client, "user2@example.com", "password123")
         client.headers.update({"Authorization": f"Bearer {user2_token}"})
-        
+
         resp2 = client.post("/galleries/", json={})
         assert resp2.status_code == 201
         gallery2_id = resp2.json()["id"]
@@ -227,7 +228,7 @@ class TestGalleryAPI:
 
         # Switch back to user 1
         client.headers.update({"Authorization": f"Bearer {user1_token}"})
-        
+
         # User 1 should only see their gallery
         resp = client.get("/galleries/")
         assert resp.status_code == 200

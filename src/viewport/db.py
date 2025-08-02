@@ -11,26 +11,28 @@ class Base(DeclarativeBase):
 
     __abstract__ = True  # Prevents this class from being created as a table
 
+
 class DatabaseSettings(BaseSettings):
     """Settings for database connection, loaded from environment variables."""
+
     db: str
     user: str
     password: str
     host: str
-    port: int = 5432 
-    
+    port: int = 5432
+
     @property
     def database_url(self) -> str:
-        return (
-            f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"
-        )
+        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"
 
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8", env_prefix="POSTGRES_", extra="ignore")
+
 
 def get_database_url() -> str:
     """Retrieve the database URL from environment variables or settings."""
     settings = DatabaseSettings()
     return settings.database_url
+
 
 DATABASE_URL = get_database_url()
 if "sqlite" in DATABASE_URL:

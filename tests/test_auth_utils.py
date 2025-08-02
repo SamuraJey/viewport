@@ -2,7 +2,6 @@
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import patch
 
 import jwt
 import pytest
@@ -15,6 +14,7 @@ from src.viewport.models.user import User
 JWT_ALGORITHM = "HS256"
 JWT_SECRET = "keks"
 
+
 class TestJWTAuthentication:
     """Test JWT token handling and user authentication."""
 
@@ -22,6 +22,7 @@ class TestJWTAuthentication:
     def patch_authsettings(self, monkeypatch):
         # Patch authsettings.jwt_secret_key and jwt_algorithm to match test values
         from src.viewport import auth_utils
+
         monkeypatch.setattr(auth_utils.authsettings, "jwt_secret_key", JWT_SECRET)
         monkeypatch.setattr(auth_utils.authsettings, "jwt_algorithm", JWT_ALGORITHM)
 
@@ -146,6 +147,3 @@ class TestJWTAuthentication:
 
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail == "Invalid token"
-
-
-
