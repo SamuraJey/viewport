@@ -213,7 +213,9 @@ export const GalleryPage = () => {
             </Link>
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Gallery #{gallery.id}</h1>
+                <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+                  {gallery.name || `Gallery #${gallery.id}`}
+                </h1>
                 <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">Created on {formatDate(gallery.created_at)}</p>
               </div>
               <button

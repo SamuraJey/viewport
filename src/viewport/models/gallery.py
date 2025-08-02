@@ -13,6 +13,7 @@ class Gallery(Base):
 
     id = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
     owner_id = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = mapped_column(String, nullable=False, default="")  # Custom name for the gallery
     created_at = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
     owner = relationship("User", back_populates="galleries")

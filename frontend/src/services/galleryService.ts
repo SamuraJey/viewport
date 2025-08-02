@@ -5,6 +5,7 @@ import type { ShareLink } from './shareLinkService'
 export interface Gallery {
   id: string
   owner_id: string
+  name: string
   created_at: string
 }
 
@@ -30,8 +31,8 @@ const getGallery = async (id: string): Promise<GalleryDetail> => {
   return response.data
 }
 
-const createGallery = async (): Promise<Gallery> => {
-  const response = await api.post<Gallery>('/galleries', {})
+const createGallery = async (name: string): Promise<Gallery> => {
+  const response = await api.post<Gallery>('/galleries', { name })
   return response.data
 }
 

@@ -18,15 +18,15 @@ router = APIRouter(prefix="/galleries", tags=["galleries"])
 
 @router.post("/", response_model=GalleryResponse, status_code=status.HTTP_201_CREATED)
 def create_gallery(
-    _: GalleryCreateRequest,
+    request: GalleryCreateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> GalleryResponse:
-    gallery = Gallery(id=uuid.uuid4(), owner_id=current_user.id)
+    gallery = Gallery(id=uuid.uuid4(), owner_id=current_user.id, name=request.name)
     db.add(gallery)
     db.commit()
     db.refresh(gallery)
-    return GalleryResponse(id=str(gallery.id), owner_id=str(gallery.owner_id), created_at=gallery.created_at)
+    return GalleryResponse(id=str(gallery.id), owner_id=str(gallery.owner_id), name=gallery.name, created_at=gallery.created_at)
 
 
 @router.get("/", response_model=GalleryListResponse)
@@ -45,7 +45,7 @@ def list_galleries(
     galleries = db.execute(stmt).scalars().all()
 
     return GalleryListResponse(
-        galleries=[GalleryResponse(id=str(g.id), owner_id=str(g.owner_id), created_at=g.created_at) for g in galleries],
+        galleries=[GalleryResponse(id=str(g.id), owner_id=str(g.owner_id), name=g.name, created_at=g.created_at) for g in galleries],
         total=total,
         page=page,
         size=size,
@@ -71,6 +71,7 @@ def get_gallery(
     return GalleryDetailResponse(
         id=str(gallery.id),
         owner_id=str(gallery.owner_id),
+        name=gallery.name,
         created_at=gallery.created_at,
         photos=[PhotoResponse.from_db_photo(photo) for photo in gallery.photos],
         share_links=[ShareLinkResponse.model_validate(link) for link in gallery.share_links],

@@ -239,3 +239,35 @@ class TestGalleryAPI:
         # User 1 should not be able to access user 2's gallery
         resp = client.get(f"/galleries/{gallery2_id}")
         assert resp.status_code == 404
+
+    def test_create_gallery_with_name(self, authenticated_client: TestClient):
+        """Test creating a gallery with a custom name."""
+        name = "Holiday Pics"
+        response = authenticated_client.post("/galleries/", json={"name": name})
+        assert response.status_code == 201
+        data = response.json()
+        assert "name" in data
+        assert data["name"] == name
+
+    def test_list_galleries_with_name(self, authenticated_client: TestClient):
+        """Test listing galleries returns the correct names."""
+        # Create galleries with names
+        entries = [(authenticated_client.post("/galleries/", json={"name": n}).json()["id"], n) for n in ["One", "Two"]]
+        response = authenticated_client.get("/galleries/")
+        assert response.status_code == 200
+        data = response.json()
+        name_map = {g["id"]: g["name"] for g in data["galleries"]}
+        for gid, expected_name in entries:
+            assert gid in name_map
+            assert name_map[gid] == expected_name
+
+    def test_get_gallery_name(self, authenticated_client: TestClient):
+        """Test getting gallery detail returns the name."""
+        name = "Event Album"
+        resp = authenticated_client.post("/galleries/", json={"name": name})
+        gid = resp.json()["id"]
+        response = authenticated_client.get(f"/galleries/{gid}")
+        assert response.status_code == 200
+        detail = response.json()
+        assert "name" in detail
+        assert detail["name"] == name

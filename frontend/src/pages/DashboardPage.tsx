@@ -10,6 +10,8 @@ import { useErrorHandler } from '../hooks/useErrorHandler'
 export const DashboardPage = () => {
   const [galleries, setGalleries] = useState<Gallery[]>([])
   const [isCreating, setIsCreating] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [newGalleryName, setNewGalleryName] = useState('')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const pageSize = 9
@@ -35,12 +37,20 @@ export const DashboardPage = () => {
     fetchGalleries()
   }, [])
 
-  const handleCreateGallery = async () => {
+  // Open modal to enter gallery name
+  const handleOpenModal = () => {
+    setNewGalleryName('')
+    clearError()
+    setShowModal(true)
+  }
+
+  // Confirm creation with entered name
+  const handleConfirmCreate = async () => {
     try {
       setIsCreating(true)
-      clearError()
-      await galleryService.createGallery()
-      await fetchGalleries(1) // Refresh and go to first page
+      await galleryService.createGallery(newGalleryName.trim())
+      setShowModal(false)
+      await fetchGalleries(1)
     } catch (err: any) {
       handleError(err)
     } finally {
@@ -69,7 +79,7 @@ export const DashboardPage = () => {
   )
 
   const renderError = () => (
-    <ErrorDisplay 
+    <ErrorDisplay
       error={error!}
       onRetry={() => fetchGalleries(page)}
       onDismiss={clearError}
@@ -85,7 +95,7 @@ export const DashboardPage = () => {
         Get started by creating your first gallery.
       </p>
       <button
-        onClick={handleCreateGallery}
+        onClick={handleOpenModal}
         disabled={isCreating}
         className="inline-flex items-center gap-2 bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
       >
@@ -110,8 +120,8 @@ export const DashboardPage = () => {
                   <Calendar className="h-6 w-6 text-blue-400" />
                 </div>
                 <div>
-                  <h3 className="font-oswald text-lg font-bold uppercase tracking-wide text-gray-900 dark:text-white">
-                    Gallery #{gallery.id}
+                <h3 className="font-oswald text-lg font-bold uppercase tracking-wide text-gray-900 dark:text-white">
+                    {gallery.name || `Gallery #${gallery.id}`}
                   </h3>
                   <p className="text-gray-600 dark:text-gray-400 text-sm font-cuprum">
                     {formatDate(gallery.created_at)}
@@ -182,7 +192,7 @@ export const DashboardPage = () => {
             </p>
           </div>
           <button
-            onClick={handleCreateGallery}
+            onClick={handleOpenModal}
             disabled={isCreating}
             className="inline-flex items-center gap-2 bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
           >
@@ -199,6 +209,44 @@ export const DashboardPage = () => {
 
         {isLoading ? renderLoading() : (
           galleries.length === 0 ? renderEmptyState() : renderGalleries()
+        )}
+
+        {/* Modal for entering new gallery name */}
+        {showModal && (
+          <div className="fixed inset-0 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm w-full">
+              <h2 className="text-xl font-semibold mb-4">New Gallery</h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Enter a name for your new gallery.
+              </p>
+              <input
+                type="text"
+                value={newGalleryName}
+                onChange={(e) => setNewGalleryName(e.target.value)}
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="Gallery name"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmCreate}
+                  disabled={isCreating || !newGalleryName.trim()}
+                  className="px-4 py-2 bg-gradient-to-r from-primary-600 to-purple-600 text-white rounded-lg shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isCreating ? (
+                    <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                  ) : (
+                    'Create Gallery'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </Layout>

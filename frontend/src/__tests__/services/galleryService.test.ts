@@ -114,7 +114,8 @@ describe('galleryService', () => {
   })
 
   describe('createGallery', () => {
-    it('should make POST request to /galleries', async () => {
+    it('should make POST request to /galleries with provided name', async () => {
+      const name = 'My Gallery'
       const mockResponse = {
         data: {
           id: 'new-gallery-123',
@@ -125,25 +126,26 @@ describe('galleryService', () => {
 
       vi.mocked(api.post).mockResolvedValue(mockResponse)
 
-      const result = await galleryService.createGallery()
+      const result = await galleryService.createGallery(name)
 
-      expect(api.post).toHaveBeenCalledWith('/galleries', {})
+      expect(api.post).toHaveBeenCalledWith('/galleries', { name })
       expect(result).toEqual(mockResponse.data)
     })
 
     it('should handle createGallery errors', async () => {
+      const name = 'Error Gallery'
       const mockError = new Error('Failed to create gallery')
       vi.mocked(api.post).mockRejectedValue(mockError)
 
-      await expect(galleryService.createGallery()).rejects.toThrow('Failed to create gallery')
-      expect(api.post).toHaveBeenCalledWith('/galleries', {})
+      await expect(galleryService.createGallery(name)).rejects.toThrow('Failed to create gallery')
+      expect(api.post).toHaveBeenCalledWith('/galleries', { name })
     })
   })
 
   describe('deleteGallery', () => {
     it('should make DELETE request to /galleries/:id', async () => {
       const galleryId = 'gallery-to-delete'
-      
+
       vi.mocked(api.delete).mockResolvedValue({} as any)
 
       await galleryService.deleteGallery(galleryId)
