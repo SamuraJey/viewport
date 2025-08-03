@@ -1,13 +1,10 @@
 """Tests for photo API endpoints."""
 
 import io
-from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-import jwt
 from fastapi.testclient import TestClient
 
-from src.viewport.api.auth import authsettings
 from tests.helpers import register_and_login
 
 
@@ -89,7 +86,7 @@ class TestPhotoAPI:
         # Then retrieve it
         response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/{photo_id}")
         assert response.status_code == 200
-        assert response.headers.get("cache-control") == "public, max-age=3600"
+        assert response.headers.get("cache-control") == "private, max-age=3600"
         assert response.headers.get("etag") == f'"{photo_id}"'
 
     def test_get_photo_not_found(self, authenticated_client: TestClient, gallery_id_fixture: str):
@@ -125,14 +122,13 @@ class TestPhotoAPI:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    def test_get_photo_with_token_success(self, client: TestClient, gallery_id_fixture: str):
-        """Test retrieving photo using token-based auth."""
+    def test_get_photo_with_auth_endpoint(self, client: TestClient):
+        """Test retrieving photo using auth endpoint with standard authorization."""
         # First, authenticate and upload a photo
-        test_data = {"email": "tokenuser@example.com", "password": "testpassword123"}
+        test_data = {"email": "authuser@example.com", "password": "testpassword123"}
         client.post("/auth/register", json=test_data)
         login_response = client.post("/auth/login", json=test_data)
         user_token = login_response.json()["tokens"]["access_token"]
-        user_id = login_response.json()["id"]
 
         client.headers.update({"Authorization": f"Bearer {user_token}"})
 
@@ -146,36 +142,47 @@ class TestPhotoAPI:
         upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
         photo_id = upload_response.json()["id"]
 
-        # Create photo access token
-        payload = {"user_id": user_id, "photo_id": photo_id, "exp": datetime.now(UTC) + timedelta(hours=1)}
-        photo_token = jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
-
-        # Clear auth header and use token parameter
-        client.headers.clear()
-        response = client.get(f"/photos/auth/{photo_id}?token={photo_token}")
+        # Test auth endpoint with authorization header
+        response = client.get(f"/photos/auth/{photo_id}")
         assert response.status_code == 200
-        assert response.headers.get("cache-control") == "public, max-age=86400"
+        assert response.headers.get("cache-control") == "private, max-age=86400"
 
-    def test_get_photo_with_invalid_token(self, client: TestClient):
-        """Test retrieving photo with invalid token."""
+    def test_get_photo_auth_endpoint_unauthorized(self, client: TestClient):
+        """Test retrieving photo from auth endpoint without authorization."""
         fake_photo_id = str(uuid4())
-        response = client.get(f"/photos/auth/{fake_photo_id}?token=invalid_token")
-        assert response.status_code == 403
-        assert "invalid" in response.json()["detail"].lower()
+        response = client.get(f"/photos/auth/{fake_photo_id}")
+        assert response.status_code == 401
 
-    def test_get_photo_with_token_photo_mismatch(self, client: TestClient):
-        """Test retrieving photo with token for different photo."""
-        # Create a valid token for one photo but try to access another
-        photo_id_1 = str(uuid4())
-        photo_id_2 = str(uuid4())
-        user_id = str(uuid4())
+    def test_get_photo_signed_url_endpoint(self, client: TestClient):
+        """Test getting a signed URL for a photo."""
+        # First, authenticate and upload a photo
+        test_data = {"email": "signeduser@example.com", "password": "testpassword123"}
+        client.post("/auth/register", json=test_data)
+        login_response = client.post("/auth/login", json=test_data)
+        user_token = login_response.json()["tokens"]["access_token"]
 
-        payload = {"user_id": user_id, "photo_id": photo_id_1, "exp": datetime.now(UTC) + timedelta(hours=1)}
-        token = jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
+        client.headers.update({"Authorization": f"Bearer {user_token}"})
 
-        response = client.get(f"/photos/auth/{photo_id_2}?token={token}")
-        assert response.status_code == 403
-        assert "invalid token" in response.json()["detail"].lower()
+        # Create gallery for this user
+        gallery_response = client.post("/galleries/", json={})
+        gallery_id = gallery_response.json()["id"]
+
+        # Upload photo
+        image_content = b"fake image content"
+        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
+        upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
+        photo_id = upload_response.json()["id"]
+
+        # Get signed URL
+        response = client.post(f"/photos/auth/{photo_id}/url")
+        assert response.status_code == 200
+        signed_url = response.json()["url"]
+        assert signed_url.startswith(f"/photos/temp/{photo_id}?token=")
+
+        # Use the signed URL to get the photo (without auth header)
+        client.headers.clear()
+        response = client.get(signed_url)
+        assert response.status_code == 200
 
     def test_delete_photo_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test successful photo deletion."""

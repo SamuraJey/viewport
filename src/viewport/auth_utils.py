@@ -3,8 +3,7 @@ import uuid
 import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import ConfigDict
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -20,7 +19,7 @@ class AuthSettings(BaseSettings):
     access_token_expire_minutes: int = 30
     refresh_token_expire_minutes: int = 7200
 
-    model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 authsettings = AuthSettings()

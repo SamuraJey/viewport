@@ -249,17 +249,17 @@ export const GalleryPage = () => {
             )}
           </div>
           {gallery.photos.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-4">
               {gallery.photos.map((photo, index) => (
-                <div key={photo.id} className="relative group aspect-square">
+              <div key={photo.id} className="break-inside-avoid mb-4 relative group">
                   <button
                     onClick={() => openPhoto(index)}
-                    className="w-full h-full p-0 border-0 bg-transparent cursor-pointer"
+                    className="w-full p-0 border-0 bg-transparent cursor-pointer"
                   >
                     <AuthenticatedImage
                       src={photo.url}
                       alt={`Photo ${photo.id}`}
-                      className="w-full h-full object-cover rounded-lg hover:opacity-90 transition-opacity"
+                      className="w-full h-auto object-contain rounded-lg hover:opacity-90 transition-opacity"
                       loading="lazy"
                     />
                   </button>

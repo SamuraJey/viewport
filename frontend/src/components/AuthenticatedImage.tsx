@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { api } from '../lib/api'
+import { useEffect, useState } from 'react'
+import { useAuthStore } from '../stores/authStore'
 
 interface AuthenticatedImageProps {
   src: string
@@ -9,91 +9,76 @@ interface AuthenticatedImageProps {
 }
 
 export const AuthenticatedImage = ({ src, alt, className, loading = 'lazy' }: AuthenticatedImageProps) => {
-  const [imageSrc, setImageSrc] = useState<string | null>(null)
+  const [imageSrc, setImageSrc] = useState<string>('')
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(false)
-  const blobUrlRef = useRef<string | null>(null)
+  const [error, setError] = useState<string>('')
+  const { tokens } = useAuthStore()
 
   useEffect(() => {
-    let isCancelled = false
-
     const loadImage = async () => {
-      if (!src) return
+      if (!src || !tokens?.access_token) {
+        setError('No authentication token')
+        setIsLoading(false)
+        return
+      }
 
       try {
         setIsLoading(true)
-        setError(false)
-        setImageSrc(null)
+        setError('')
 
-        // Clean up previous blob URL if it exists
-        if (blobUrlRef.current) {
-          URL.revokeObjectURL(blobUrlRef.current)
-          blobUrlRef.current = null
+        // Check cache first
+        const cache = await caches.open('photo-cache')
+        const cachedResponse = await cache.match(src)
+
+        if (cachedResponse) {
+          const blob = await cachedResponse.blob()
+          const objectUrl = URL.createObjectURL(blob)
+          setImageSrc(objectUrl)
+          setIsLoading(false)
+          return
         }
 
-        // Fetch the image with authentication headers
-        const response = await api.get(src, {
-          responseType: 'blob'
+        // Fetch from server if not in cache
+        const response = await fetch(src, {
+          headers: {
+            'Authorization': `Bearer ${tokens.access_token}`,
+          },
         })
 
-        if (isCancelled) return
+        if (!response.ok) {
+          throw new Error(`Failed to load image: ${response.status}`)
+        }
 
-        // Create blob URL for the image
-        const blob = new Blob([response.data])
-        const blobUrl = URL.createObjectURL(blob)
-        blobUrlRef.current = blobUrl
-        setImageSrc(blobUrl)
+        // Store in cache for future use
+        cache.put(src, response.clone())
+
+        // Create object URL for display
+        const blob = await response.blob()
+        const objectUrl = URL.createObjectURL(blob)
+        setImageSrc(objectUrl)
       } catch (err) {
-        console.error('Failed to load authenticated image:', err)
-        if (!isCancelled) {
-          setError(true)
-        }
+        setError(err instanceof Error ? err.message : 'Failed to load image')
       } finally {
-        if (!isCancelled) {
-          setIsLoading(false)
-        }
+        setIsLoading(false)
       }
     }
 
     loadImage()
 
-    // Cleanup function
+    // Cleanup object URL on unmount or src change
     return () => {
-      isCancelled = true
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current)
-        blobUrlRef.current = null
+      if (imageSrc) {
+        URL.revokeObjectURL(imageSrc)
       }
     }
-  }, [src])
-
-  // Cleanup blob URL when component unmounts
-  useEffect(() => {
-    return () => {
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current)
-      }
-    }
-  }, [])
+  }, [src, tokens?.access_token])
 
   if (isLoading) {
-    return (
-      <div className={`bg-gray-200 dark:bg-gray-800 animate-pulse ${className}`}>
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="text-gray-500 text-sm">Loading...</div>
-        </div>
-      </div>
-    )
+    return <div className={`bg-gray-200 animate-pulse ${className}`} />
   }
 
-  if (error || !imageSrc) {
-    return (
-      <div className={`bg-gray-200 dark:bg-gray-800 ${className}`}>
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="text-gray-500 text-sm">Failed to load</div>
-        </div>
-      </div>
-    )
+  if (error) {
+    return <div className={`bg-red-100 text-red-500 text-sm p-2 ${className}`}>Error: {error}</div>
   }
 
   return (

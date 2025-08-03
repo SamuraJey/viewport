@@ -148,15 +148,15 @@ export const PublicGalleryPage = () => {
             {gallery && gallery.photos.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {gallery.photos.map((photo, index) => (
-                  <div key={photo.photo_id} className="relative group aspect-square">
+                <div key={photo.photo_id} className="relative group">
                     <button
                       onClick={() => openPhoto(index)}
-                      className="w-full h-full p-0 border-0 bg-transparent cursor-pointer"
+                      className="w-full p-0 border-0 bg-transparent cursor-pointer"
                     >
                       <img
                         src={`http://localhost:8000${photo.full_url}`}
                         alt={`Photo ${photo.photo_id}`}
-                        className="w-full h-full object-cover rounded-lg hover:opacity-90 transition-opacity"
+                        className="w-full h-auto object-contain rounded-lg hover:opacity-90 transition-opacity"
                         loading="lazy"
                       />
                     </button>

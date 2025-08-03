@@ -3,7 +3,7 @@ import os
 from functools import cache
 
 import boto3
-from botocore.client import Config
+from botocore.client import BaseClient, Config
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -31,7 +31,7 @@ def get_minio_config() -> tuple[str, str, str, str]:
 
 
 @cache
-def get_s3_client():
+def get_s3_client() -> BaseClient:
     endpoint, access_key, secret_key, _ = get_minio_config()
 
     logger.debug(f"Connecting to MinIO at {endpoint} with bucket {os.getenv('MINIO_BUCKET', 'photos')}")

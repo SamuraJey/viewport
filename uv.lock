@@ -90,30 +90,30 @@ wheels = [
 
 [[package]]
 name = "boto3"
-version = "1.39.9"
+version = "1.39.17"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "botocore" },
     { name = "jmespath" },
     { name = "s3transfer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9b/e5/7a0e98d88212b532fbf4b6fb6ace997c522a1b88d39d76d41b0f5ed14796/boto3-1.39.9.tar.gz", hash = "sha256:e3d3a6b617e1575e7ec854c820a882ab2e189a0421e74dc0dca2c9e13d4370a5", size = 111851, upload-time = "2025-07-18T19:22:50.28Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/70/15/8c2f455fccd6253ae2a95d7d872fcce27adab8c719218027b7c31a48542b/boto3-1.39.17.tar.gz", hash = "sha256:a6904a40b1c61f6a1766574b3155ec75a6020399fb570be2b51bf93a2c0a2b3d", size = 111831, upload-time = "2025-07-30T19:27:05.162Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0b/82/faf1b3bab5a94c3a3cf9ddc8e04eee2bdc29d5b8da42d7cda905c505e311/boto3-1.39.9-py3-none-any.whl", hash = "sha256:5bc85e9fdec4e21ef5ca2c22b4d51a3e32b53f3da36ce51f5a3ea4dbde07b132", size = 139887, upload-time = "2025-07-18T19:22:48.85Z" },
+    { url = "https://files.pythonhosted.org/packages/f0/45/8321081d478881779551692a185bbe19574a2ac87294f5096c549837292c/boto3-1.39.17-py3-none-any.whl", hash = "sha256:6af9f7d6db7b5e72d6869ae22ebad1b0c6602591af2ef5d914b331a055953df5", size = 139901, upload-time = "2025-07-30T19:27:04.001Z" },
 ]
 
 [[package]]
 name = "botocore"
-version = "1.39.9"
+version = "1.39.17"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jmespath" },
     { name = "python-dateutil" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4d/d3/fd0a230e320a6e23932887fa6e508b90ccad2c1be77d4e88855cfad9cbe7/botocore-1.39.9.tar.gz", hash = "sha256:02f141c2849e4589a79feea245ce4ecc478d48b7865572445af8aae3b041772d", size = 14215273, upload-time = "2025-07-18T19:22:38.011Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/9d/fc3cfb3305c355dde52870434917304c40dfb642c332c9edbe646939a3bc/botocore-1.39.17.tar.gz", hash = "sha256:1a1f0b29dab5d1b10d16f14423c16ac0a3043272f579e9ab0d757753ee9a7d2b", size = 14250697, upload-time = "2025-07-30T19:26:55.626Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/07/2d/951352b2a14e70144c1a4dff611472a6213b8dbdb7996c0029caa48c80e3/botocore-1.39.9-py3-none-any.whl", hash = "sha256:a9691cbe03a3bc8b2720b3c36e5c5a2eecace6acd72bfb1107f00e75edaec4f3", size = 13874123, upload-time = "2025-07-18T19:22:33.422Z" },
+    { url = "https://files.pythonhosted.org/packages/bc/40/d16536e0db30c35c14cfd7f2227fccb59f7b999b501ed410bddb9e1492cf/botocore-1.39.17-py3-none-any.whl", hash = "sha256:41db169e919f821b3ef684794c5e67dd7bb1f5ab905d33729b1d8c27fafe8004", size = 13908201, upload-time = "2025-07-30T19:26:50.726Z" },
 ]
 
 [[package]]
@@ -846,6 +846,15 @@ wheels = [
 ]
 
 [[package]]
+name = "types-boto3-full"
+version = "1.39.17"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b1/b4/f1f0f5383e66ed17dfa46a61d1e9228e7ad15e331a52a7d49641d4bc1720/types_boto3_full-1.39.17.tar.gz", hash = "sha256:f9718596e9ef67eb91345580fce2ec61dac2d0900798cbdb52ad565990a37a95", size = 8029238, upload-time = "2025-07-31T01:16:01.09Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/90/5007848e393011d041f6ca85e99080407799306cd452a5488da60537a1e2/types_boto3_full-1.39.17-py3-none-any.whl", hash = "sha256:7cc41a831245ca30a7c6d472bd981e5701dd382de8ea0169c22906654b192ae8", size = 12381989, upload-time = "2025-07-31T01:15:57.642Z" },
+]
+
+[[package]]
 name = "typing-extensions"
 version = "4.14.1"
 source = { registry = "https://pypi.org/simple" }
@@ -931,7 +940,6 @@ dependencies = [
     { name = "pyjwt" },
     { name = "python-multipart" },
     { name = "sqlalchemy" },
-    { name = "testcontainers" },
     { name = "uv" },
     { name = "uvicorn" },
 ]
@@ -944,14 +952,16 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-xdist" },
     { name = "ruff" },
+    { name = "testcontainers" },
+    { name = "types-boto3-full" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.16.4,<2.0.0" },
     { name = "bcrypt", specifier = ">=4.3.0,<5.0.0" },
-    { name = "boto3", specifier = ">=1.39.9,<2.0.0" },
-    { name = "botocore", specifier = ">=1.39.9,<2.0.0" },
+    { name = "boto3", specifier = ">=1.39.9,<1.40.0" },
+    { name = "botocore", specifier = ">=1.39.9,<1.40.0" },
     { name = "fastapi", specifier = ">=0.116.1,<0.117.0" },
     { name = "httpx", specifier = ">=0.28.1,<0.29.0" },
     { name = "prometheus-fastapi-instrumentator", specifier = ">=7.1.0,<8.0.0" },
@@ -961,7 +971,6 @@ requires-dist = [
     { name = "pyjwt", specifier = ">=2.10.1,<3.0.0" },
     { name = "python-multipart", specifier = ">=0.0.20,<0.0.21" },
     { name = "sqlalchemy", specifier = ">=2.0.41,<3.0.0" },
-    { name = "testcontainers", specifier = ">=4.10.0,<5.0.0" },
     { name = "uv", specifier = ">=0.8.1,<0.9.0" },
     { name = "uvicorn", specifier = ">=0.35.0,<0.36.0" },
 ]
@@ -974,6 +983,8 @@ dev = [
     { name = "pytest-cov", specifier = ">=6.2.1,<7.0.0" },
     { name = "pytest-xdist", specifier = ">=3.8.0,<4.0.0" },
     { name = "ruff", specifier = ">=0.12.4,<0.13.0" },
+    { name = "testcontainers", specifier = ">=4.10.0,<5.0.0" },
+    { name = "types-boto3-full", specifier = ">=1.39.9,<1.40.0" },
 ]
 
 [[package]]

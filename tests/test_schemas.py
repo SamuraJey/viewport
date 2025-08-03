@@ -245,7 +245,7 @@ class TestPhotoSchemas:
         assert response.gallery_id == mock_photo.gallery_id
         assert response.file_size == mock_photo.file_size
         assert response.uploaded_at == mock_photo.uploaded_at
-        assert response.url.startswith(f"/photos/auth/{mock_photo.id}?token=")
+        assert response.url == f"/photos/auth/{mock_photo.id}"
 
     def test_photo_list_response_valid(self):
         """Test valid photo list response."""

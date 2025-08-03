@@ -4,11 +4,12 @@ import zipfile
 from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from src.viewport.cache_utils import photo_cache
 from src.viewport.db import get_db
 from src.viewport.logger import logger
 from src.viewport.minio_utils import get_minio_config, get_s3_client
@@ -49,7 +50,8 @@ def get_photos_by_sharelink(share_id: UUID, db: Session = Depends(get_db), share
 
 
 @router.get("/{share_id}/photos/{photo_id}")
-def get_single_photo_by_sharelink(share_id: UUID, photo_id: UUID, db: Session = Depends(get_db), sharelink: ShareLink = Depends(get_valid_sharelink)):
+@photo_cache(max_age=86400, public=True)
+def get_single_photo_by_sharelink(request: Request, share_id: UUID, photo_id: UUID, db: Session = Depends(get_db), sharelink: ShareLink = Depends(get_valid_sharelink)):
     stmt = select(Photo).where(Photo.id == photo_id, Photo.gallery_id == sharelink.gallery_id)
     photo = db.execute(stmt).scalar_one_or_none()
     if not photo:
@@ -68,6 +70,7 @@ def get_single_photo_by_sharelink(share_id: UUID, photo_id: UUID, db: Session = 
 
     # Guess MIME type based on file extension
     mime_type, _ = mimetypes.guess_type(photo.object_key)
+    logger.warning(f"Guessed MIME type: {mime_type} for {photo.object_key}")
     if not mime_type:
         mime_type = obj.get("ContentType", "application/octet-stream")
 

@@ -17,6 +17,8 @@ class Gallery(Base):
     created_at = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
     owner = relationship("User", back_populates="galleries")
+    photos = relationship("Photo", back_populates="gallery", passive_deletes=True)
+    share_links = relationship("ShareLink", back_populates="gallery", passive_deletes=True)
 
 
 class Photo(Base):
@@ -30,7 +32,3 @@ class Photo(Base):
     uploaded_at = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
     gallery = relationship(Gallery, back_populates="photos")
-
-
-Gallery.photos = relationship(Photo, back_populates="gallery", passive_deletes=True)
-Gallery.share_links = relationship("ShareLink", back_populates="gallery", passive_deletes=True)
