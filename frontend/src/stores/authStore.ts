@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware'
 export interface User {
   id: string
   email: string
+  display_name?: string | null
 }
 
 export interface AuthTokens {
@@ -27,22 +28,22 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       tokens: null,
       isAuthenticated: false,
-      login: (user, tokens) => 
-        set({ 
-          user, 
-          tokens, 
-          isAuthenticated: true 
+      login: (user, tokens) =>
+        set({
+          user,
+          tokens,
+          isAuthenticated: true
         }),
-      logout: () => 
-        set({ 
-          user: null, 
-          tokens: null, 
-          isAuthenticated: false 
+      logout: () =>
+        set({
+          user: null,
+          tokens: null,
+          isAuthenticated: false
         }),
-      updateTokens: (tokens) => 
-        set((state) => ({ 
-          ...state, 
-          tokens 
+      updateTokens: (tokens) =>
+        set((state) => ({
+          ...state,
+          tokens
         })),
     }),
     {

@@ -6,47 +6,41 @@ Object.defineProperty(window, 'IntersectionObserver', {
   writable: true,
   configurable: true,
   value: class {
-    constructor() {}
     observe() {}
     unobserve() {}
     disconnect() {}
-    takeRecords() {
-      return []
-    }
+    takeRecords() { return [] }
   },
 })
 
-// Mock URL.createObjectURL and URL.revokeObjectURL
+// Mock URL methods
 Object.defineProperty(URL, 'createObjectURL', {
   writable: true,
-  value: vi.fn(() => 'mocked-url')
+  value: vi.fn(() => 'blob:mock-url'),
 })
-
 Object.defineProperty(URL, 'revokeObjectURL', {
   writable: true,
-  value: vi.fn()
+  value: vi.fn(),
 })
 
-// Mock localStorage
+// Mock localStorage and sessionStorage
 Object.defineProperty(window, 'localStorage', {
+  writable: true,
   value: {
     getItem: vi.fn(),
     setItem: vi.fn(),
     removeItem: vi.fn(),
     clear: vi.fn(),
   },
-  writable: true,
 })
-
-// Mock sessionStorage
 Object.defineProperty(window, 'sessionStorage', {
+  writable: true,
   value: {
     getItem: vi.fn(),
     setItem: vi.fn(),
     removeItem: vi.fn(),
     clear: vi.fn(),
   },
-  writable: true,
 })
 
 // Mock window.location
@@ -62,6 +56,6 @@ window.location = {
 
 // Mock window.confirm
 Object.defineProperty(window, 'confirm', {
-  value: vi.fn(() => true),
   writable: true,
+  value: vi.fn(() => true),
 })

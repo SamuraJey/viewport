@@ -15,5 +15,6 @@ class User(Base):
     email = mapped_column(String(255), unique=True, nullable=False, index=True)
     password_hash = mapped_column(String(255), nullable=False)
     created_at = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    display_name = mapped_column(String(255), nullable=True)  # new: optional display name
 
     galleries = relationship("Gallery", back_populates="owner", passive_deletes=True)

@@ -3,7 +3,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useTheme } from '../hooks/useTheme'
 import { ThemeSwitch } from './ThemeSwitch'
-import { LogOut, User, Camera } from 'lucide-react'
+import { LogOut, User, Camera, Settings } from 'lucide-react'
+import { useState } from 'react'
+import { ProfileModal } from './ProfileModal'
 
 interface LayoutProps {
   children: ReactNode
@@ -15,11 +17,15 @@ export const Layout = ({ children }: LayoutProps) => {
   // React state for theme
   const { theme } = useTheme()
   const navigate = useNavigate()
+  const [isProfileOpen, setProfileOpen] = useState(false)
 
   const handleLogout = () => {
     logout()
     navigate('/auth/login')
   }
+
+  const openProfile = () => setProfileOpen(true)
+  const closeProfile = () => setProfileOpen(false)
 
   return (
     <div className={`min-h-screen text-gray-900 dark:text-white ${theme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
@@ -45,6 +51,13 @@ export const Layout = ({ children }: LayoutProps) => {
                   <span>{user.email}</span>
                 </div>
                 <button
+                  onClick={openProfile}
+                  aria-label="Account Settings"
+                  className="flex items-center justify-center p-2 text-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:border-primary-500 hover:text-primary-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all cursor-pointer"
+                >
+                  <Settings className="h-5 w-5" />
+                </button>
+                <button
                   onClick={handleLogout}
                   className="flex items-center gap-2 text-sm px-4 py-2 bg-transparent border-2 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-primary-500 hover:text-primary-500 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/20"
                 >
@@ -59,6 +72,7 @@ export const Layout = ({ children }: LayoutProps) => {
       <main className="max-w-7xl mx-auto px-4 py-8">
         {children}
       </main>
+      <ProfileModal isOpen={isProfileOpen} onClose={closeProfile} />
     </div>
   )
 }

@@ -30,3 +30,19 @@ class LoginResponse(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class MeResponse(BaseModel):
+    id: str
+    email: EmailStr
+    display_name: str | None = None
+
+
+class UpdateMeRequest(BaseModel):
+    display_name: str | None = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=8)
+    new_password: str = Field(min_length=8)
+    confirm_password: str = Field(min_length=8)

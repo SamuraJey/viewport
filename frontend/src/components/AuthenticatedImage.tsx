@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useAuthStore } from '../stores/authStore'
+import { api } from '../lib/api'
 
 interface AuthenticatedImageProps {
   src: string
@@ -12,73 +12,52 @@ export const AuthenticatedImage = ({ src, alt, className, loading = 'lazy' }: Au
   const [imageSrc, setImageSrc] = useState<string>('')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string>('')
-  const { tokens } = useAuthStore()
 
   useEffect(() => {
+    let activeUrl: string | null = null
     const loadImage = async () => {
-      if (!src || !tokens?.access_token) {
-        setError('No authentication token')
+      if (!src) {
         setIsLoading(false)
         return
       }
-
+      setIsLoading(true)
+      setError('')
       try {
-        setIsLoading(true)
-        setError('')
-
-        // Check cache first
-        const cache = await caches.open('photo-cache')
-        const cachedResponse = await cache.match(src)
-
-        if (cachedResponse) {
-          const blob = await cachedResponse.blob()
-          const objectUrl = URL.createObjectURL(blob)
-          setImageSrc(objectUrl)
-          setIsLoading(false)
-          return
-        }
-
-        // Fetch from server if not in cache
-        const response = await fetch(src, {
-          headers: {
-            'Authorization': `Bearer ${tokens.access_token}`,
-          },
-        })
-
-        if (!response.ok) {
-          throw new Error(`Failed to load image: ${response.status}`)
-        }
-
-        // Store in cache for future use
-        cache.put(src, response.clone())
-
-        // Create object URL for display
-        const blob = await response.blob()
+        const response = await api.get(src, { responseType: 'blob' })
+        const blob = response.data
         const objectUrl = URL.createObjectURL(blob)
+        activeUrl = objectUrl
         setImageSrc(objectUrl)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load image')
+      } catch (err: any) {
+        console.error('Failed to load authenticated image:', err)
+        setError('Failed to load')
       } finally {
         setIsLoading(false)
       }
     }
 
     loadImage()
-
-    // Cleanup object URL on unmount or src change
     return () => {
-      if (imageSrc) {
-        URL.revokeObjectURL(imageSrc)
+      if (activeUrl) {
+        URL.revokeObjectURL(activeUrl)
       }
     }
-  }, [src, tokens?.access_token])
+  }, [src])
 
   if (isLoading) {
-    return <div className={`bg-gray-200 animate-pulse ${className}`} />
+    return (
+      <div className={`bg-gray-800 animate-pulse ${className}`}>
+        <div>
+          <div>Loading...</div>
+        </div>
+      </div>
+    )
   }
 
   if (error) {
-    return <div className={`bg-red-100 text-red-500 text-sm p-2 ${className}`}>Error: {error}</div>
+    return (
+      <div className={`bg-red-100 text-red-500 text-sm p-2 ${className}`}>{error}</div>
+    )
   }
 
   return (
