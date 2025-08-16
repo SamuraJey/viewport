@@ -48,7 +48,7 @@ export const Layout = ({ children }: LayoutProps) => {
               <>
                 <div className="flex items-center gap-2">
                   <User className="h-5 w-5" />
-                  <span>{user.email}</span>
+                  <span>{user.display_name || user.email}</span>
                 </div>
                 <button
                   onClick={openProfile}

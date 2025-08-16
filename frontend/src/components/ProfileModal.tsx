@@ -70,7 +70,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
     try {
       const updated = await authService.updateProfile({ display_name: displayName })
       if (tokens) {
-        login({ id: updated.id, email: updated.email }, tokens)
+        // Update auth store including display_name
+        login({ id: updated.id, email: updated.email, display_name: updated.display_name }, tokens)
       }
       onClose()
     } catch (err: any) {
@@ -195,7 +196,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                type="email"
                value={email}
                readOnly
-               className="w-full mb-4 mt-1 p-2 border rounded"
+               className="w-full mb-4 mt-1 p-2 border rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed opacity-50"
              />
              <label htmlFor="displayName" className="block text-sm font-medium">Display Name</label>
              <input
