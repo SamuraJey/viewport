@@ -117,6 +117,48 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
     navigate('/auth/login')
   }
 
+  // In-modal two-step delete flow
+  const [deleteStep, setDeleteStep] = useState<'initial' | 'password' | 'confirm'>('initial')
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deletingAccount, setDeletingAccount] = useState(false)
+  const startDelete = () => {
+    setDeleteError(null)
+    setDeletePassword('')
+    setDeleteStep('password')
+  }
+  const verifyDeletePassword = () => {
+    if (!deletePassword) {
+      setDeleteError('Please enter your current password')
+      return
+    }
+    // TODO: verify password via API
+    setDeleteError(null)
+    setDeleteStep('confirm')
+  }
+  const cancelDelete = () => setDeleteStep('initial')
+  const confirmDelete = async () => {
+    setDeletingAccount(true)
+    try {
+      // TODO: call delete endpoint with deletePassword
+      alert('Account deletion is not implemented yet.')
+      onClose()
+    } catch (err) {
+      setDeleteError('Failed to delete account')
+    } finally {
+      setDeletingAccount(false)
+    }
+  }
+
+  // Reset delete flow when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setDeleteStep('initial')
+      setDeletePassword('')
+      setDeleteError(null)
+      setDeletingAccount(false)
+    }
+  }, [isOpen])
   if (!isOpen) return null
 
   return (
@@ -213,21 +255,71 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
            </form>
          </section>
          <hr className="border-gray-300 dark:border-gray-600 my-4" />
-         {/* Actions section */}
-         <section className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg flex justify-between">
-           <button
-             onClick={handleLogout}
-             className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md transition"
-           >
-             Logout
-           </button>
-           <button
-             disabled
-             className="px-4 py-2 bg-red-600 text-white rounded-md opacity-50 cursor-not-allowed"
-           >
-             Delete Account
-           </button>
-         </section>
+        {/* Actions / Delete Confirmation Sections */}
+        {deleteStep === 'initial' && (
+          <section className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg flex justify-between w-full">
+            <button
+              onClick={startDelete}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition"
+            >
+              Delete Account
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md transition"
+            >
+              Logout
+            </button>
+          </section>
+        )}
+        {deleteStep === 'password' && (
+          <section className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg space-y-4">
+            <p className="text-sm">Please enter your current password to proceed with account deletion.</p>
+            <input
+              type="password"
+              placeholder="Current Password"
+              value={deletePassword}
+              onChange={e => setDeletePassword(e.target.value)}
+              className="w-full p-2 border rounded"
+            />
+            {deleteError && <div className="text-red-500 text-sm">{deleteError}</div>}
+            <div className="flex justify-between">
+              <button
+                onClick={cancelDelete}
+                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={verifyDeletePassword}
+                className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md transition"
+              >
+                Next
+              </button>
+            </div>
+          </section>
+        )}
+        {deleteStep === 'confirm' && (
+          <section className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg space-y-4">
+            <p className="text-red-700 font-medium">Are you sure you want to delete your account? This action cannot be undone.</p>
+            {deleteError && <div className="text-red-500 text-sm">{deleteError}</div>}
+            <div className="flex justify-between">
+              <button
+                onClick={cancelDelete}
+                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deletingAccount}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md disabled:opacity-50 transition"
+              >
+                {deletingAccount ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </section>
+        )}
        </div>
      </div>
    )
