@@ -13,7 +13,7 @@ from src.viewport.cache_utils import photo_cache
 from src.viewport.db import get_db
 from src.viewport.logger import logger
 from src.viewport.minio_utils import get_minio_config, get_s3_client
-from src.viewport.models.gallery import Photo
+from src.viewport.models.gallery import Gallery, Photo
 from src.viewport.models.sharelink import ShareLink
 
 router = APIRouter(prefix="/s", tags=["public"])
@@ -30,10 +30,16 @@ def get_valid_sharelink(share_id: UUID, db: Session = Depends(get_db)) -> ShareL
 
 
 @router.get("/{share_id}")
-def get_photos_by_sharelink(share_id: UUID, db: Session = Depends(get_db), sharelink: ShareLink = Depends(get_valid_sharelink)):
+def get_photos_by_sharelink(
+    share_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    sharelink: ShareLink = Depends(get_valid_sharelink),
+):
+    # Photos
     stmt = select(Photo).where(Photo.gallery_id == sharelink.gallery_id)
     photos = db.execute(stmt).scalars().all()
-    result = [
+    photo_list = [
         {
             "photo_id": str(photo.id),
             # Use secure public photo endpoints instead of direct file access
@@ -42,11 +48,31 @@ def get_photos_by_sharelink(share_id: UUID, db: Session = Depends(get_db), share
         }
         for photo in photos
     ]
+
+    # Gallery metadata
+    gallery: Gallery = sharelink.gallery  # lazy-loaded
+    cover_id = str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None
+    cover = {"photo_id": cover_id, "full_url": f"/s/{share_id}/photos/{cover_id}", "thumbnail_url": f"/s/{share_id}/photos/{cover_id}"} if cover_id else None
+    photographer = getattr(gallery.owner, "display_name", None) or ""
+    gallery_name = getattr(gallery, "name", "")
+    # Format date as DD.MM.YYYY similar to wfolio sample
+    dt = getattr(gallery, "created_at", None) or getattr(sharelink, "created_at", None)
+    date_str = dt.strftime("%d.%m.%Y") if dt else ""
+    # Build site URL base
+    site_url = str(request.base_url).rstrip("/")
+
     # Increment views
     sharelink.views += 1  # type: ignore
     db.commit()
     logger.log_event("view_gallery", share_id=share_id)
-    return {"photos": result}
+    return {
+        "photos": photo_list,
+        "cover": cover,
+        "photographer": photographer,
+        "gallery_name": gallery_name,
+        "date": date_str,
+        "site_url": site_url,
+    }
 
 
 @router.get("/{share_id}/photos/{photo_id}")

@@ -7,6 +7,7 @@ export interface Gallery {
   owner_id: string
   name: string
   created_at: string
+  cover_photo_id?: string | null
 }
 
 export interface GalleryDetail extends Gallery {
@@ -45,10 +46,21 @@ const updateGallery = async (id: string, name: string): Promise<Gallery> => {
   return response.data
 }
 
+const setCoverPhoto = async (galleryId: string, photoId: string): Promise<Gallery> => {
+  const response = await api.post<Gallery>(`/galleries/${galleryId}/cover/${photoId}`)
+  return response.data
+}
+
+const clearCoverPhoto = async (galleryId: string): Promise<void> => {
+  await api.delete(`/galleries/${galleryId}/cover`)
+}
+
 export const galleryService = {
   getGalleries,
   getGallery,
   createGallery,
   deleteGallery,
   updateGallery,
+  setCoverPhoto,
+  clearCoverPhoto,
 }

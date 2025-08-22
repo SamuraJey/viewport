@@ -15,7 +15,9 @@ import {
   Copy,
   Check,
   ArrowLeft,
-  ImageOff
+  ImageOff,
+  Star,
+  StarOff
 } from 'lucide-react'
 import { PhotoUploader } from '../components/PhotoUploader'
 
@@ -150,6 +152,26 @@ export const GalleryPage = () => {
     }
   }
 
+  const handleSetCover = async (photoId: string) => {
+    try {
+      await galleryService.setCoverPhoto(galleryId, photoId)
+      await fetchData()
+    } catch (err) {
+      setError('Failed to set cover photo. Please try again.')
+      console.error(err)
+    }
+  }
+
+  const handleClearCover = async () => {
+    try {
+      await galleryService.clearCoverPhoto(galleryId)
+      await fetchData()
+    } catch (err) {
+      setError('Failed to clear cover photo. Please try again.')
+      console.error(err)
+    }
+  }
+
   if (isLoading) {
     return (
       <Layout>
@@ -263,16 +285,44 @@ export const GalleryPage = () => {
                       loading="lazy"
                     />
                   </button>
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeletePhoto(photo.id)
-                      }}
-                      className="flex items-center justify-center w-8 h-8 p-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all duration-200 pointer-events-auto"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-between pointer-events-none rounded-lg p-2">
+                    <div className="pointer-events-auto flex gap-2">
+                      {gallery.cover_photo_id === photo.id ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleClearCover()
+                          }}
+                          className="flex items-center justify-center w-8 h-8 p-1 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 rounded-lg transition-all duration-200"
+                          title="Clear cover photo"
+                        >
+                          <StarOff className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleSetCover(photo.id)
+                          }}
+                          className="flex items-center justify-center w-8 h-8 p-1 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 rounded-lg transition-all duration-200"
+                          title="Set as cover"
+                        >
+                          <Star className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="pointer-events-auto">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeletePhoto(photo.id)
+                        }}
+                        className="flex items-center justify-center w-8 h-8 p-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all duration-200"
+                        title="Delete photo"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

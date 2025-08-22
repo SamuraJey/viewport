@@ -19,6 +19,7 @@ class GalleryResponse(BaseModel):
     owner_id: str
     name: str = Field("", description="Custom name for the gallery")
     created_at: datetime
+    cover_photo_id: str | None = Field(None, description="Optional cover photo id")
 
 
 class GalleryDetailResponse(BaseModel):
@@ -26,6 +27,7 @@ class GalleryDetailResponse(BaseModel):
     owner_id: str
     name: str = Field("", description="Custom name for the gallery")
     created_at: datetime
+    cover_photo_id: str | None = Field(None, description="Optional cover photo id")
     photos: list[PhotoResponse]
     share_links: list[ShareLinkResponse]
 
