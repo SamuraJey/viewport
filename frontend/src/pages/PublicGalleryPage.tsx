@@ -115,7 +115,7 @@ export const PublicGalleryPage = () => {
       {/* Theme switch button */}
       <ThemeSwitch />
       <div className="container mx-auto px-4 py-16">
-        <div className="max-w-6xl mx-auto">
+  <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">Shared Gallery</h1>
@@ -146,9 +146,9 @@ export const PublicGalleryPage = () => {
             </div>
 
             {gallery && gallery.photos.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              <div className="columns-1 sm:columns-2 md:columns-2 lg:columns-3 xl:columns-3 2xl:columns-4 gap-5">
                 {gallery.photos.map((photo, index) => (
-                <div key={photo.photo_id} className="relative group">
+                  <div key={photo.photo_id} className="break-inside-avoid mb-5 relative group">
                     <button
                       onClick={() => openPhoto(index)}
                       className="w-full p-0 border-0 bg-transparent cursor-pointer"
@@ -156,11 +156,11 @@ export const PublicGalleryPage = () => {
                       <img
                         src={`http://localhost:8000${photo.full_url}`}
                         alt={`Photo ${photo.photo_id}`}
-                        className="w-full h-auto object-contain rounded-lg hover:opacity-90 transition-opacity"
+                        className="block w-full h-auto rounded-lg hover:opacity-90 transition-opacity"
                         loading="lazy"
                       />
                     </button>
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none rounded-lg">
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
