@@ -114,8 +114,7 @@ export const PublicGalleryPage = () => {
     <div className={`min-h-screen bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
       {/* Theme switch button */}
       <ThemeSwitch />
-      <div className="container mx-auto px-4 py-16">
-  <div className="max-w-7xl mx-auto">
+  <div className="w-full px-4 sm:px-6 lg:px-10 py-16">
           {/* Header */}
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">Shared Gallery</h1>
@@ -146,9 +145,9 @@ export const PublicGalleryPage = () => {
             </div>
 
             {gallery && gallery.photos.length > 0 ? (
-              <div className="columns-1 sm:columns-2 md:columns-2 lg:columns-3 xl:columns-3 2xl:columns-4 gap-5">
+              <div className="columns-1 sm:columns-2 md:columns-2 lg:columns-3 xl:columns-3 2xl:columns-3 gap-6">
                 {gallery.photos.map((photo, index) => (
-                  <div key={photo.photo_id} className="break-inside-avoid mb-5 relative group">
+                  <div key={photo.photo_id} className="break-inside-avoid mb-6 relative group">
                     <button
                       onClick={() => openPhoto(index)}
                       className="w-full p-0 border-0 bg-transparent cursor-pointer"
@@ -188,19 +187,18 @@ export const PublicGalleryPage = () => {
           <div className="text-center mt-12 text-gray-600 dark:text-gray-400 text-sm">
             <p>Powered by Viewport - Your Photo Gallery Solution</p>
           </div>
-        </div>
 
-        {/* Photo Modal */}
-        <PhotoModal
-          photos={gallery?.photos || []}
-          selectedIndex={selectedPhotoIndex}
-          onClose={closePhoto}
-          onPrevious={goToPrevPhoto}
-          onNext={goToNextPhoto}
-          onDownload={handleDownloadPhoto}
-          isPublic={true}
-        />
+          {/* Photo Modal */}
+          <PhotoModal
+            photos={gallery?.photos || []}
+            selectedIndex={selectedPhotoIndex}
+            onClose={closePhoto}
+            onPrevious={goToPrevPhoto}
+            onNext={goToNextPhoto}
+            onDownload={handleDownloadPhoto}
+            isPublic={true}
+          />
+        </div>
       </div>
-    </div>
   )
 }
