@@ -15,6 +15,7 @@ from src.viewport.logger import logger
 from src.viewport.minio_utils import get_minio_config, get_s3_client
 from src.viewport.models.gallery import Gallery, Photo
 from src.viewport.models.sharelink import ShareLink
+from src.viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto
 
 router = APIRouter(prefix="/s", tags=["public"])
 
@@ -29,7 +30,7 @@ def get_valid_sharelink(share_id: UUID, db: Session = Depends(get_db)) -> ShareL
     return sharelink
 
 
-@router.get("/{share_id}")
+@router.get("/{share_id}", response_model=PublicGalleryResponse)
 def get_photos_by_sharelink(
     share_id: UUID,
     request: Request,
@@ -40,19 +41,19 @@ def get_photos_by_sharelink(
     stmt = select(Photo).where(Photo.gallery_id == sharelink.gallery_id)
     photos = db.execute(stmt).scalars().all()
     photo_list = [
-        {
-            "photo_id": str(photo.id),
+        PublicPhoto(
+            photo_id=str(photo.id),
             # Use secure public photo endpoints instead of direct file access
-            "thumbnail_url": f"/s/{share_id}/photos/{photo.id}",
-            "full_url": f"/s/{share_id}/photos/{photo.id}",
-        }
+            thumbnail_url=f"/s/{share_id}/photos/{photo.id}",
+            full_url=f"/s/{share_id}/photos/{photo.id}",
+        )
         for photo in photos
     ]
 
     # Gallery metadata
     gallery: Gallery = sharelink.gallery  # lazy-loaded
     cover_id = str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None
-    cover = {"photo_id": cover_id, "full_url": f"/s/{share_id}/photos/{cover_id}", "thumbnail_url": f"/s/{share_id}/photos/{cover_id}"} if cover_id else None
+    cover = PublicCover(photo_id=cover_id, full_url=f"/s/{share_id}/photos/{cover_id}", thumbnail_url=f"/s/{share_id}/photos/{cover_id}") if cover_id else None
     photographer = getattr(gallery.owner, "display_name", None) or ""
     gallery_name = getattr(gallery, "name", "")
     # Format date as DD.MM.YYYY similar to wfolio sample
@@ -65,14 +66,14 @@ def get_photos_by_sharelink(
     sharelink.views += 1  # type: ignore
     db.commit()
     logger.log_event("view_gallery", share_id=share_id)
-    return {
-        "photos": photo_list,
-        "cover": cover,
-        "photographer": photographer,
-        "gallery_name": gallery_name,
-        "date": date_str,
-        "site_url": site_url,
-    }
+    return PublicGalleryResponse(
+        photos=photo_list,
+        cover=cover,
+        photographer=photographer,
+        gallery_name=gallery_name,
+        date=date_str,
+        site_url=site_url,
+    )
 
 
 @router.get("/{share_id}/photos/{photo_id}")
