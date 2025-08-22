@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { X, User } from 'lucide-react'
+import { X, User, Eye, EyeOff } from 'lucide-react'
 import { authService } from '../services/authService'
 import { useAuthStore } from '../stores/authStore'
 import { useNavigate } from 'react-router-dom'
@@ -15,6 +15,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savingProfile, setSavingProfile] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
@@ -121,6 +124,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
   // In-modal two-step delete flow
   const [deleteStep, setDeleteStep] = useState<'initial' | 'password' | 'confirm'>('initial')
   const [deletePassword, setDeletePassword] = useState('')
+  const [showDeletePassword, setShowDeletePassword] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deletingAccount, setDeletingAccount] = useState(false)
   const startDelete = () => {
@@ -222,30 +226,60 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
            <h3 className="text-lg font-medium mb-2">Change Password</h3>
            <form onSubmit={e => { e.preventDefault(); handlePasswordChange() }}>
              <label htmlFor="currentPassword" className="block text-sm font-medium">Current Password</label>
-             <input
-               id="currentPassword"
-               type="password"
-               value={currentPassword}
-               onChange={e => setCurrentPassword(e.target.value)}
-               className="w-full mb-4 mt-1 p-2 border rounded"
-             />
+             <div className="relative">
+               <input
+                 id="currentPassword"
+                 type={showCurrentPassword ? 'text' : 'password'}
+                 value={currentPassword}
+                 onChange={e => setCurrentPassword(e.target.value)}
+                 className="w-full mb-4 mt-1 p-2 pr-10 border rounded"
+               />
+               <button
+                 type="button"
+                 aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
+                 onClick={() => setShowCurrentPassword(v => !v)}
+                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 transition-colors"
+               >
+                 {showCurrentPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+               </button>
+             </div>
              <label htmlFor="newPassword" className="block text-sm font-medium">New Password</label>
-             <input
-               id="newPassword"
-               type="password"
-               value={newPassword}
-               onChange={e => setNewPassword(e.target.value)}
-               className="w-full mb-4 mt-1 p-2 border rounded"
-             />
+             <div className="relative">
+               <input
+                 id="newPassword"
+                 type={showNewPassword ? 'text' : 'password'}
+                 value={newPassword}
+                 onChange={e => setNewPassword(e.target.value)}
+                 className="w-full mb-4 mt-1 p-2 pr-10 border rounded"
+               />
+               <button
+                 type="button"
+                 aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
+                 onClick={() => setShowNewPassword(v => !v)}
+                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 transition-colors"
+               >
+                 {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+               </button>
+             </div>
              <label htmlFor="confirmPassword" className="block text-sm font-medium">Confirm Password</label>
-             <input
-               id="confirmPassword"
-               type="password"
-               ref={confirmPassRef}
-               value={confirmPassword}
-               onChange={e => setConfirmPassword(e.target.value)}
-               className="w-full mb-4 mt-1 p-2 border rounded"
-             />
+             <div className="relative">
+               <input
+                 id="confirmPassword"
+                 type={showConfirmPassword ? 'text' : 'password'}
+                 ref={confirmPassRef}
+                 value={confirmPassword}
+                 onChange={e => setConfirmPassword(e.target.value)}
+                 className="w-full mb-4 mt-1 p-2 pr-10 border rounded"
+               />
+               <button
+                 type="button"
+                 aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                 onClick={() => setShowConfirmPassword(v => !v)}
+                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 transition-colors"
+               >
+                 {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+               </button>
+             </div>
              <button
                type="submit"
                disabled={changingPassword}
@@ -276,13 +310,23 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
         {deleteStep === 'password' && (
           <section className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg space-y-4">
             <p className="text-sm">Please enter your current password to proceed with account deletion.</p>
-            <input
-              type="password"
-              placeholder="Current Password"
-              value={deletePassword}
-              onChange={e => setDeletePassword(e.target.value)}
-              className="w-full p-2 border rounded"
-            />
+            <div className="relative">
+              <input
+                type={showDeletePassword ? 'text' : 'password'}
+                placeholder="Current Password"
+                value={deletePassword}
+                onChange={e => setDeletePassword(e.target.value)}
+                className="w-full p-2 pr-10 border rounded"
+              />
+              <button
+                type="button"
+                aria-label={showDeletePassword ? 'Hide password' : 'Show password'}
+                onClick={() => setShowDeletePassword(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 transition-colors"
+              >
+                {showDeletePassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
             {deleteError && <div className="text-red-500 text-sm">{deleteError}</div>}
             <div className="flex justify-between">
               <button

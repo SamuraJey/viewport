@@ -9,11 +9,13 @@ const mockGalleries = [
   {
     id: '1',
     owner_id: 'user1',
+  name: 'Gallery 1',
     created_at: '2024-01-01T00:00:00Z'
   },
   {
     id: '2',
     owner_id: 'user1',
+    name: 'Gallery 2',
     created_at: '2024-01-02T00:00:00Z'
   }
 ]
