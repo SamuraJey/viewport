@@ -12,7 +12,7 @@ wheels/
 # Virtual environments
 .venv
 
-.github
+.github/chatmodes
 .env
 
 example_of_styles/

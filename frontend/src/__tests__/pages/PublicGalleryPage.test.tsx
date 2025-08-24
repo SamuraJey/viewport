@@ -41,11 +41,11 @@ const PublicGalleryPageWrapper = () => {
 describe('PublicGalleryPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
-    
+
     // Reset useParams mock to default valid shareId
     const { useParams } = await import('react-router-dom')
     vi.mocked(useParams).mockReturnValue({ shareId: 'share123' })
-    
+
     // Default mock response
     const { shareLinkService } = await import('../../services/shareLinkService')
     vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue(mockPublicGallery)
@@ -53,12 +53,12 @@ describe('PublicGalleryPage', () => {
 
   it('should render public gallery page correctly', async () => {
     render(<PublicGalleryPageWrapper />)
-    
+
     await waitFor(() => {
       expect(screen.getByText('Shared Gallery')).toBeInTheDocument()
     })
-    
-    expect(screen.getByText("You're viewing a gallery shared with you")).toBeInTheDocument()
+
+    expect(screen.getByText("Powered by Viewport - Your Photo Gallery Solution")).toBeInTheDocument()
     expect(screen.getByText('Photos (3)')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /download all photos/i })).toBeInTheDocument()
     expect(screen.getAllByRole('img')).toHaveLength(3)
@@ -66,7 +66,7 @@ describe('PublicGalleryPage', () => {
 
   it('should display loading state initially', () => {
     render(<PublicGalleryPageWrapper />)
-    
+
     expect(screen.getByText('Loading gallery...')).toBeInTheDocument()
   })
 
@@ -75,7 +75,7 @@ describe('PublicGalleryPage', () => {
     vi.mocked(shareLinkService.getSharedGallery).mockRejectedValue(new Error('Network error'))
 
     render(<PublicGalleryPageWrapper />)
-    
+
     await waitFor(() => {
       expect(screen.getByText('Gallery Not Available')).toBeInTheDocument()
     })
@@ -87,9 +87,9 @@ describe('PublicGalleryPage', () => {
     // Mock useParams to return undefined shareId for this test
     const { useParams } = await import('react-router-dom')
     vi.mocked(useParams).mockReturnValue({ shareId: undefined })
-    
+
     render(<PublicGalleryPageWrapper />)
-    
+
     await waitFor(() => {
       expect(screen.getByText('Gallery Not Available')).toBeInTheDocument()
     })
@@ -100,7 +100,7 @@ describe('PublicGalleryPage', () => {
   describe('Photo Modal Features', () => {
     it('should open photo modal when clicking on a photo', async () => {
       render(<PublicGalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Shared Gallery')).toBeInTheDocument()
       })
@@ -108,10 +108,10 @@ describe('PublicGalleryPage', () => {
       const photos = screen.getAllByRole('img')
       await userEvent.click(photos[0])
 
-      // Modal should be visible - check for modal elements 
+      // Modal should be visible - check for modal elements
       expect(screen.getByText('1 of 3')).toBeInTheDocument()
       expect(screen.getByText('Download')).toBeInTheDocument()
-      
+
       // Modal should show the first photo
       const modalImages = screen.getAllByAltText('Photo photo1')
       expect(modalImages).toHaveLength(2) // One in gallery, one in modal
@@ -119,24 +119,24 @@ describe('PublicGalleryPage', () => {
 
     it('should close photo modal when clicking close button', async () => {
       render(<PublicGalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Shared Gallery')).toBeInTheDocument()
       })
 
       // Open modal by clicking photo button
       await userEvent.click(screen.getByRole('button', { name: 'Photo photo1' }))
-      
+
       // Modal should be open
       expect(screen.getByText('1 of 3')).toBeInTheDocument()
-      
+
       // Close modal by finding the close button (top-right positioned button)
       const buttons = screen.getAllByRole('button')
-      const closeButton = buttons.find(button => 
+      const closeButton = buttons.find(button =>
         button.className.includes('absolute top-4 right-4')
       )
       expect(closeButton).toBeDefined()
-      
+
       await userEvent.click(closeButton!)
 
       // Modal should be gone
@@ -147,17 +147,17 @@ describe('PublicGalleryPage', () => {
 
     it('should close photo modal when pressing Escape key', async () => {
       render(<PublicGalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Shared Gallery')).toBeInTheDocument()
       })
 
       // Open modal by clicking photo button
       await userEvent.click(screen.getByRole('button', { name: 'Photo photo1' }))
-      
+
       // Modal should be open
       expect(screen.getByText('1 of 3')).toBeInTheDocument()
-      
+
       // Press Escape
       fireEvent.keyDown(document, { key: 'Escape' })
 
@@ -169,16 +169,16 @@ describe('PublicGalleryPage', () => {
 
     it('should navigate to next photo with arrow key', async () => {
       render(<PublicGalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Shared Gallery')).toBeInTheDocument()
       })
 
       // Open modal on first photo
       await userEvent.click(screen.getByRole('button', { name: 'Photo photo1' }))
-      
+
       expect(screen.getByText('1 of 3')).toBeInTheDocument()
-      
+
       // Press ArrowRight
       fireEvent.keyDown(document, { key: 'ArrowRight' })
 
@@ -190,16 +190,16 @@ describe('PublicGalleryPage', () => {
 
     it('should navigate to previous photo with arrow key', async () => {
       render(<PublicGalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Shared Gallery')).toBeInTheDocument()
       })
 
       // Open modal on second photo
       await userEvent.click(screen.getByRole('button', { name: 'Photo photo2' }))
-      
+
       expect(screen.getByText('2 of 3')).toBeInTheDocument()
-      
+
       // Press ArrowLeft
       fireEvent.keyDown(document, { key: 'ArrowLeft' })
 
@@ -211,14 +211,14 @@ describe('PublicGalleryPage', () => {
 
     it('should wrap around navigation', async () => {
       render(<PublicGalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Shared Gallery')).toBeInTheDocument()
       })
 
       // Open modal on first photo and go to previous (should wrap to last)
       await userEvent.click(screen.getByRole('button', { name: 'Photo photo1' }))
-      
+
       fireEvent.keyDown(document, { key: 'ArrowLeft' })
 
       await waitFor(() => {
@@ -242,25 +242,25 @@ describe('PublicGalleryPage', () => {
       vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue(singlePhotoGallery)
 
       render(<PublicGalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Photos (1)')).toBeInTheDocument()
       })
 
       // Open modal
       await userEvent.click(screen.getByRole('button', { name: 'Photo photo1' }))
-      
+
       expect(screen.getByText('1 of 1')).toBeInTheDocument()
-      
+
       // Navigation buttons should not exist for single photo
       const buttons = screen.getAllByRole('button')
-      const leftNavButton = buttons.find(button => 
+      const leftNavButton = buttons.find(button =>
         button.className.includes('absolute left-4') && button.className.includes('top-1/2')
       )
-      const rightNavButton = buttons.find(button => 
+      const rightNavButton = buttons.find(button =>
         button.className.includes('absolute right-4') && button.className.includes('top-1/2')
       )
-      
+
       // These should not exist in DOM at all for single photo
       expect(leftNavButton).toBeUndefined()
       expect(rightNavButton).toBeUndefined()
@@ -268,14 +268,14 @@ describe('PublicGalleryPage', () => {
 
     it('should download photo from modal', async () => {
       render(<PublicGalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Shared Gallery')).toBeInTheDocument()
       })
 
       // Open modal
       await userEvent.click(screen.getByRole('button', { name: 'Photo photo1' }))
-      
+
       // Click download button in modal (the one with just "Download" text)
       await userEvent.click(screen.getByText('Download'))
 
@@ -286,7 +286,7 @@ describe('PublicGalleryPage', () => {
   describe('Download Features', () => {
     it('should handle download all photos', async () => {
       render(<PublicGalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Shared Gallery')).toBeInTheDocument()
       })
@@ -300,7 +300,7 @@ describe('PublicGalleryPage', () => {
 
     it('should handle individual photo download', async () => {
       render(<PublicGalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Shared Gallery')).toBeInTheDocument()
       })
@@ -308,7 +308,7 @@ describe('PublicGalleryPage', () => {
       // Find download button for individual photo (on hover)
       const photoContainer = screen.getAllByRole('img')[0].closest('div')
       const downloadButton = photoContainer?.querySelector('button[title="Download Photo"]')
-      
+
       if (downloadButton) {
         await userEvent.click(downloadButton)
         expect(window.open).toHaveBeenCalledWith('http://localhost:8000/s/share123/download/photo1', '_blank')
@@ -324,7 +324,7 @@ describe('PublicGalleryPage', () => {
       vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue(emptyGallery)
 
       render(<PublicGalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('No photos in this gallery')).toBeInTheDocument()
       })
@@ -337,23 +337,23 @@ describe('PublicGalleryPage', () => {
   describe('Modal Navigation Buttons', () => {
     it('should navigate with navigation buttons when multiple photos', async () => {
       render(<PublicGalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Shared Gallery')).toBeInTheDocument()
       })
 
       // Open modal
       await userEvent.click(screen.getByRole('button', { name: 'Photo photo1' }))
-      
+
       expect(screen.getByText('1 of 3')).toBeInTheDocument()
-      
+
       // Click next button (right-side navigation button)
       const buttons = screen.getAllByRole('button')
-      const nextButton = buttons.find(button => 
+      const nextButton = buttons.find(button =>
         button.className.includes('absolute right-4')
       )
       expect(nextButton).toBeDefined()
-      
+
       await userEvent.click(nextButton!)
       await waitFor(() => {
         expect(screen.getByText('2 of 3')).toBeInTheDocument()
