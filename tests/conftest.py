@@ -116,7 +116,7 @@ def client(db_session, minio_container):
 
         get_minio_config.cache_clear()
         get_s3_client.cache_clear()
-    except ImportError:
+    except ImportError:  # pragma: no cover
         pass  # If MinIO utils aren't available, that's fine
 
     with TestClient(app) as test_client:

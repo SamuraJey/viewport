@@ -41,7 +41,7 @@ else:
 SessionLocal = sessionmaker(bind=engine, future=True)
 
 
-def get_db() -> Generator[Session]:
+def get_db() -> Generator[Session]:  # pragma: no cover
     with SessionLocal() as db:
         try:
             yield db
