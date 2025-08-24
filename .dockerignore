@@ -1,4 +1,5 @@
 *.md
+!README.md
 example_of_styles/
 .venv/
 .vscode/
