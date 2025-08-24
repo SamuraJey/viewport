@@ -13,15 +13,14 @@ from sqlalchemy.orm.session import Session
 from testcontainers.core.container import DockerContainer
 from testcontainers.postgres import PostgresContainer
 
-from src.viewport.db import Base, get_db
-from src.viewport.main import app
-
 POSTGRES_IMAGE = "postgres:17-alpine"
 
 MINIO_IMAGE = "minio/minio:RELEASE.2025-07-23T15-54-02Z"
 MINIO_ROOT_USER = "minioadmin"
 MINIO_ROOT_PASSWORD = "minioadmin"
 MINIO_PORT = 9000
+
+os.environ.update({"JWT_SECRET_KEY": "supersecretkey"})
 
 
 @pytest.fixture(scope="session")
@@ -42,12 +41,15 @@ def postgres_container() -> Generator[PostgresContainer]:
                 "POSTGRES_HOST": url.host or "",
             }
         )
+
         yield container
 
 
 @pytest.fixture(scope="session")
 def engine(postgres_container: PostgresContainer) -> Generator[Engine]:
     """Фикстура движка SQLAlchemy с областью видимости на сессию."""
+    from src.viewport.db import Base
+
     db_url = postgres_container.get_connection_url()
     engine = create_engine(db_url)
     # Create all tables once at session startup
@@ -118,6 +120,9 @@ def client(db_session: Session, minio_container: DockerContainer):
     """Фикстура тестового клиента FastAPI с очисткой состояния между тестами."""
 
     # Override get_db to use the transactional db_session for each test
+    from src.viewport.db import get_db
+    from src.viewport.main import app
+
     def override_get_db():
         yield db_session
 

@@ -1,8 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: ["**"]
   pull_request:
     branches: ["**"]
 
@@ -31,26 +29,28 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
+
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v6
         with:
-          version: "0.8.1"
+          version: "0.8.13"
           enable-cache: true
+
+      - name: Set Up Python
+        run: uv python install
+
       - name: Sync dependencies
         run: uv sync
+
       - name: Run tests with coverage
         env:
           JWT_SECRET_KEY: supersecretkey
         run: |
           uv run pytest -n 4 --cov=src --cov-report=xml --cov-report=term-missing --cov-fail-under=80
+
       - name: Comment coverage on PR
         uses: py-cov-action/python-coverage-comment-action@v3
         with:
-          # Use the default GITHUB_TOKEN with appropriate permissions
           GITHUB_TOKEN: ${{ github.token }}
 
 
