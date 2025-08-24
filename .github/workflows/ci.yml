@@ -49,6 +49,11 @@ jobs:
       - name: Run tests with coverage
         env:
           DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/viewport_test
+          POSTGRES_HOST: localhost
+          POSTGRES_DB: viewport_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          JWT_SECRET_KEY: supersecretkey
         run: |
           uv run pytest --cov=src --cov-report=xml --cov-report=term-missing
       - name: Enforce coverage >= 80%
