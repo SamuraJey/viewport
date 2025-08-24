@@ -6,9 +6,8 @@ WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
 COPY src/ src/
-COPY README.md ./
 
-RUN pip install uv==0.8.1
+RUN pip install uv==0.8.13
 RUN uv sync
 
 EXPOSE 8000
