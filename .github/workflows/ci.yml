@@ -29,17 +29,6 @@ jobs:
       # Required for posting/updating PR comments and pushing the data branch on default branch
       pull-requests: write
       contents: write
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: viewport_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U postgres" --health-interval=5s --health-timeout=5s --health-retries=5
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -55,11 +44,6 @@ jobs:
         run: uv sync
       - name: Run tests with coverage
         env:
-          DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/viewport_test
-          POSTGRES_HOST: localhost
-          POSTGRES_DB: viewport_test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
           JWT_SECRET_KEY: supersecretkey
         run: |
           uv run pytest -n 4 --cov=src --cov-report=xml --cov-report=term-missing --cov-fail-under=80
