@@ -36,7 +36,7 @@ def get_photos_by_sharelink(
     request: Request,
     db: Session = Depends(get_db),
     sharelink: ShareLink = Depends(get_valid_sharelink),
-):
+) -> PublicGalleryResponse:
     # Photos
     stmt = select(Photo).where(Photo.gallery_id == sharelink.gallery_id)
     photos = db.execute(stmt).scalars().all()
