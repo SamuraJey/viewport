@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 
 interface AuthenticatedImageProps {
@@ -9,90 +9,54 @@ interface AuthenticatedImageProps {
 }
 
 export const AuthenticatedImage = ({ src, alt, className, loading = 'lazy' }: AuthenticatedImageProps) => {
-  const [imageSrc, setImageSrc] = useState<string | null>(null)
+  const [imageSrc, setImageSrc] = useState<string>('')
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState(false)
-  const blobUrlRef = useRef<string | null>(null)
+  const [error, setError] = useState<string>('')
 
   useEffect(() => {
-    let isCancelled = false
-
+    let activeUrl: string | null = null
     const loadImage = async () => {
-      if (!src) return
-
+      if (!src) {
+        setIsLoading(false)
+        return
+      }
+      setIsLoading(true)
+      setError('')
       try {
-        setIsLoading(true)
-        setError(false)
-        setImageSrc(null)
-
-        // Clean up previous blob URL if it exists
-        if (blobUrlRef.current) {
-          URL.revokeObjectURL(blobUrlRef.current)
-          blobUrlRef.current = null
-        }
-
-        // Fetch the image with authentication headers
-        const response = await api.get(src, {
-          responseType: 'blob'
-        })
-
-        if (isCancelled) return
-
-        // Create blob URL for the image
-        const blob = new Blob([response.data])
-        const blobUrl = URL.createObjectURL(blob)
-        blobUrlRef.current = blobUrl
-        setImageSrc(blobUrl)
-      } catch (err) {
+        const response = await api.get(src, { responseType: 'blob' })
+        const blob = response.data
+        const objectUrl = URL.createObjectURL(blob)
+        activeUrl = objectUrl
+        setImageSrc(objectUrl)
+      } catch (err: any) {
         console.error('Failed to load authenticated image:', err)
-        if (!isCancelled) {
-          setError(true)
-        }
+        setError('Failed to load')
       } finally {
-        if (!isCancelled) {
-          setIsLoading(false)
-        }
+        setIsLoading(false)
       }
     }
 
     loadImage()
-
-    // Cleanup function
     return () => {
-      isCancelled = true
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current)
-        blobUrlRef.current = null
+      if (activeUrl) {
+        URL.revokeObjectURL(activeUrl)
       }
     }
   }, [src])
 
-  // Cleanup blob URL when component unmounts
-  useEffect(() => {
-    return () => {
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current)
-      }
-    }
-  }, [])
-
   if (isLoading) {
     return (
-      <div className={`bg-gray-200 dark:bg-gray-800 animate-pulse ${className}`}>
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="text-gray-500 text-sm">Loading...</div>
+      <div className={`bg-gray-800 animate-pulse ${className}`}>
+        <div>
+          <div>Loading...</div>
         </div>
       </div>
     )
   }
 
-  if (error || !imageSrc) {
+  if (error) {
     return (
-      <div className={`bg-gray-200 dark:bg-gray-800 ${className}`}>
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="text-gray-500 text-sm">Failed to load</div>
-        </div>
-      </div>
+      <div className={`bg-red-100 text-red-500 text-sm p-2 ${className}`}>{error}</div>
     )
   }
 

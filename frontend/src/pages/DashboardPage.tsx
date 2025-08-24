@@ -135,7 +135,9 @@ export const DashboardPage = () => {
   )
   const renderEmptyState = () => (
     <div className="flex flex-col items-center justify-center h-96">
-      <button
+        <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">No galleries yet</p>
+        {/* Button to create first gallery */}
+        <button
         onClick={handleOpenModal}
         disabled={isCreating}
         className="inline-flex items-center gap-2 bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"

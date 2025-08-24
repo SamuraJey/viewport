@@ -38,10 +38,20 @@ export const authService = {
     return response.data
   },
 
+  updateProfile: async (data: { display_name: string | null }): Promise<User> => {
+    const response = await api.put('/me', data)
+    return response.data
+  },
+
   refreshToken: async (refreshToken: string): Promise<AuthTokens> => {
     const response = await api.post('/auth/refresh', {
       refresh_token: refreshToken,
     })
+    return response.data
+  },
+
+  changePassword: async (data: { current_password: string; new_password: string; confirm_password: string }): Promise<{ message: string }> => {
+    const response = await api.put('/me/password', data)
     return response.data
   },
 }

@@ -8,6 +8,7 @@ vi.mock('../../lib/api', () => ({
     get: vi.fn(),
     post: vi.fn(),
     delete: vi.fn(),
+    patch: vi.fn(),
   },
 }))
 
