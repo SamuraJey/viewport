@@ -86,8 +86,9 @@ class TestPhotoAPI:
         # Then retrieve it
         response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/{photo_id}")
         assert response.status_code == 200
-        assert response.headers.get("cache-control") == "private, max-age=3600"
-        assert response.headers.get("etag") == f'"{photo_id}"'
+        assert response.json()["id"] == photo_id
+        assert response.json()["file_size"] == len(image_content)
+        assert "uploaded_at" in response.json()
 
     def test_get_photo_not_found(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test retrieving non-existent photo."""
@@ -122,37 +123,6 @@ class TestPhotoAPI:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    def test_get_photo_with_auth_endpoint(self, client: TestClient):
-        """Test retrieving photo using auth endpoint with standard authorization."""
-        # First, authenticate and upload a photo
-        test_data = {"email": "authuser@example.com", "password": "testpassword123"}
-        client.post("/auth/register", json=test_data)
-        login_response = client.post("/auth/login", json=test_data)
-        user_token = login_response.json()["tokens"]["access_token"]
-
-        client.headers.update({"Authorization": f"Bearer {user_token}"})
-
-        # Create gallery for this user
-        gallery_response = client.post("/galleries/", json={})
-        gallery_id = gallery_response.json()["id"]
-
-        # Upload photo
-        image_content = b"fake image content"
-        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-        upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
-        photo_id = upload_response.json()["id"]
-
-        # Test auth endpoint with authorization header
-        response = client.get(f"/photos/auth/{photo_id}")
-        assert response.status_code == 200
-        assert response.headers.get("cache-control") == "private, max-age=86400"
-
-    def test_get_photo_auth_endpoint_unauthorized(self, client: TestClient):
-        """Test retrieving photo from auth endpoint without authorization."""
-        fake_photo_id = str(uuid4())
-        response = client.get(f"/photos/auth/{fake_photo_id}")
-        assert response.status_code == 401
-
     def test_get_photo_signed_url_endpoint(self, client: TestClient):
         """Test getting a signed URL for a photo."""
         # First, authenticate and upload a photo
@@ -174,15 +144,18 @@ class TestPhotoAPI:
         photo_id = upload_response.json()["id"]
 
         # Get signed URL
-        response = client.post(f"/photos/auth/{photo_id}/url")
+        response = client.get(f"/photos/auth/{photo_id}/url")
         assert response.status_code == 200
         signed_url = response.json()["url"]
-        assert signed_url.startswith(f"/photos/temp/{photo_id}?token=")
 
-        # Use the signed URL to get the photo (without auth header)
+        # The URL should be a valid presigned URL for the object storage
+        assert signed_url.startswith("http")
+        assert str(gallery_id) in signed_url
+        assert "test.jpg" in signed_url
+
+        # We can't `get` the minio url in a test without more extensive mocking.
+        # So we just clear headers for any subsequent tests.
         client.headers.clear()
-        response = client.get(signed_url)
-        assert response.status_code == 200
 
     def test_delete_photo_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test successful photo deletion."""

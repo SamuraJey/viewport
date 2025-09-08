@@ -77,6 +77,10 @@ class GalleryRepository(BaseRepository):
         stmt = select(Photo).join(Photo.gallery).where(Photo.id == photo_id, Gallery.owner_id == owner_id)
         return self.db.execute(stmt).scalar_one_or_none()
 
+    def get_photo_by_id(self, photo_id: uuid.UUID) -> Photo | None:
+        stmt = select(Photo).where(Photo.id == photo_id)
+        return self.db.execute(stmt).scalar_one_or_none()
+
     def get_photos_by_gallery_id(self, gallery_id: uuid.UUID) -> list[Photo]:
         stmt = select(Photo).where(Photo.gallery_id == gallery_id)
         return list(self.db.execute(stmt).scalars().all())
