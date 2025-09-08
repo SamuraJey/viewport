@@ -1,13 +1,15 @@
 import { api } from '../lib/api'
 
-export interface Photo {
+export interface PhotoResponse {
   id: string
   gallery_id: string
   url: string
-  created_at: string
+  file_size: number
+  uploaded_at: string
 }
 
 export interface PhotoUrlResponse {
+  id: string
   url: string
   expires_in: number
 }
@@ -16,7 +18,7 @@ export interface PhotoUploadResult {
   filename: string
   success: boolean
   error?: string
-  photo?: Photo
+  photo?: PhotoResponse
 }
 
 export interface PhotoUploadResponse {
@@ -26,10 +28,10 @@ export interface PhotoUploadResponse {
   failed_uploads: number
 }
 
-const uploadPhoto = async (galleryId: string, file: File): Promise<Photo> => {
+const uploadPhoto = async (galleryId: string, file: File): Promise<PhotoResponse> => {
   const formData = new FormData()
   formData.append('file', file)
-  const response = await api.post<Photo>(`/galleries/${galleryId}/photos`, formData, {
+  const response = await api.post<PhotoResponse>(`/galleries/${galleryId}/photos`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
@@ -84,10 +86,16 @@ const uploadPhotos = async (
   return response.data
 }
 
+const getAllPhotoUrls = async (galleryId: string): Promise<PhotoResponse[]> => {
+  const response = await api.get<PhotoResponse[]>(`/galleries/${galleryId}/photos/urls`)
+  return response.data
+}
+
 export const photoService = {
   uploadPhoto,
   uploadPhotos,
   deletePhoto,
   getPhotoUrl,
   getPhotoUrlDirect,
-}
+  getAllPhotoUrls,
+};

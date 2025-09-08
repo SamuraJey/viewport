@@ -51,3 +51,9 @@ class PhotoUploadResponse(BaseModel):
     total_files: int
     successful_uploads: int
     failed_uploads: int
+
+
+class PhotoURLResponse(BaseModel):
+    id: UUID
+    url: str
+    expires_in: int
