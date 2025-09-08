@@ -127,8 +127,9 @@ export const PublicGalleryPage = () => {
             <div className="relative w-full max-w-6xl mx-auto">
               <div className="cover cover--photo cover--fill" data-role="cover">
                 <div className="cover__image">
-                  <img
-                    src={`http://localhost:8000${gallery.cover.full_url}`}
+                  <PublicPresignedImage
+                    shareId={shareId!}
+                    photoId={gallery.cover.photo_id}
                     alt=""
                     className="w-full h-[60vh] md:h-[70vh] object-cover rounded-2xl shadow-xl"
                     loading="eager"
