@@ -46,7 +46,7 @@ mypy:
 lint: ruff-lint mypy
 
 test:
-	$(VENV)/bin/pytest ./tests
+	$(VENV)/bin/pytest -n 4 ./tests
 
 test-cov:
-	$(VENV)/bin/pytest ./tests --cov=$(PROJECT_NAME) --cov=./tests --cov-report term-missing --cov-fail-under=85
+	$(VENV)/bin/pytest -n 4 ./tests --cov=$(PROJECT_NAME) --cov=./tests --cov-report term-missing --cov-fail-under=85

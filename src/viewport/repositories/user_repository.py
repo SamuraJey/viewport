@@ -37,8 +37,12 @@ class UserRepository(BaseRepository):
             return None
         user.display_name = display_name
         self.db.add(user)
-        self.db.commit()
-        self.db.refresh(user)
+        try:
+            self.db.commit()
+            self.db.refresh(user)
+        except IntegrityError:
+            self.db.rollback()
+            raise
         return user
 
     def update_user_password(self, user_id: uuid.UUID, password_hash: str) -> User | None:
@@ -47,6 +51,10 @@ class UserRepository(BaseRepository):
             return None
         user.password_hash = password_hash
         self.db.add(user)
-        self.db.commit()
-        self.db.refresh(user)
+        try:
+            self.db.commit()
+            self.db.refresh(user)
+        except IntegrityError:
+            self.db.rollback()
+            raise
         return user
