@@ -4,16 +4,19 @@ from datetime import UTC, datetime, timedelta
 import bcrypt
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.viewport.db import get_db
-from src.viewport.models.user import User
+from src.viewport.repositories.user_repository import UserRepository
 from src.viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
 from viewport.auth_utils import authsettings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
+    return UserRepository(db)
 
 
 def hash_password(password: str) -> str:
@@ -37,26 +40,17 @@ def create_refresh_token(user_id: str) -> str:
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
-def register_user(request: RegisterRequest, db: Session = Depends(get_db)):
-    user = User(
-        id=uuid.uuid4(),
-        email=request.email,
-        password_hash=hash_password(request.password),
-    )
-    db.add(user)
+def register_user(request: RegisterRequest, repo: UserRepository = Depends(get_user_repository)):
     try:
-        db.commit()
-        db.refresh(user)
+        user = repo.create_user(request.email, hash_password(request.password))
     except IntegrityError as err:
-        db.rollback()
         raise HTTPException(status_code=400, detail="Email already registered") from err
     return RegisterResponse(id=str(user.id), email=user.email)
 
 
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
-def login_user(request: LoginRequest, db: Session = Depends(get_db)):
-    stmt = select(User).where(User.email == request.email)
-    user = db.execute(stmt).scalar_one_or_none()
+def login_user(request: LoginRequest, repo: UserRepository = Depends(get_user_repository)):
+    user = repo.get_user_by_email(request.email)
     if not user or not verify_password(request.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     access_token = create_access_token(str(user.id))
@@ -65,7 +59,7 @@ def login_user(request: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh", response_model=TokenPair, status_code=status.HTTP_200_OK)
-def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
+def refresh_token(request: RefreshRequest, repo: UserRepository = Depends(get_user_repository)):
     try:
         # Decode and validate the refresh token
         payload = jwt.decode(request.refresh_token, authsettings.jwt_secret_key, algorithms=[authsettings.jwt_algorithm])
@@ -80,8 +74,7 @@ def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
             raise HTTPException(status_code=401, detail="Invalid token")
 
         # Check if user exists
-        stmt = select(User).where(User.id == user_id)
-        user = db.execute(stmt).scalar_one_or_none()
+        user = repo.get_user_by_id(uuid.UUID(user_id))
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
 
