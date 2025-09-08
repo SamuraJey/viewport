@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import create_engine
@@ -28,21 +29,32 @@ class DatabaseSettings(BaseSettings):
 
 
 def get_database_url() -> str:
-    """Retrieve the database URL from environment variables or settings."""
     settings = DatabaseSettings()
     return settings.database_url
 
 
-DATABASE_URL = get_database_url()
-if "sqlite" in DATABASE_URL:
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False}, future=True)
-else:
-    engine = create_engine(DATABASE_URL, future=True)
-SessionLocal = sessionmaker(bind=engine, future=True)
+@lru_cache(maxsize=1)
+def _get_engine_and_sessionmaker():
+    """Create and cache the SQLAlchemy engine and sessionmaker lazily."""
+    database_url = get_database_url()
+    connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
+    eng = create_engine(database_url, future=True, connect_args=connect_args)
+    sess = sessionmaker(bind=eng, future=True)
+
+    return eng, sess
+
+
+def get_engine():  # pragma: no cover - simple accessor
+    return _get_engine_and_sessionmaker()[0]
+
+
+def get_session_maker():  # pragma: no cover - simple accessor
+    return _get_engine_and_sessionmaker()[1]
 
 
 def get_db() -> Generator[Session]:  # pragma: no cover
-    with SessionLocal() as db:
+    session_maker = get_session_maker()
+    with session_maker() as db:
         try:
             yield db
         finally:

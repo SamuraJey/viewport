@@ -6,14 +6,12 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.session import Session
 from testcontainers.core.container import DockerContainer
 from testcontainers.postgres import PostgresContainer
-
-from src.viewport.db import Base, get_db
-from src.viewport.main import app
 
 POSTGRES_IMAGE = "postgres:17-alpine"
 
@@ -22,6 +20,8 @@ MINIO_ROOT_USER = "minioadmin"
 MINIO_ROOT_PASSWORD = "minioadmin"
 MINIO_PORT = 9000
 
+os.environ.update({"JWT_SECRET_KEY": "supersecretkey"})
+
 
 @pytest.fixture(scope="session")
 def postgres_container() -> Generator[PostgresContainer]:
@@ -29,12 +29,27 @@ def postgres_container() -> Generator[PostgresContainer]:
     with PostgresContainer(image=POSTGRES_IMAGE) as container:
         # Даем контейнеру время для инициализации
         time.sleep(2)
+        # Выставляем переменные окружения POSTGRES_* как в MinIO фикстуре
+        # чтобы код, читающий настройки из окружения, указывал на этот контейнер
+        db_url = container.get_connection_url()
+        url = make_url(db_url)
+        os.environ.update(
+            {
+                "POSTGRES_DB": url.database or "",
+                "POSTGRES_USER": url.username or "",
+                "POSTGRES_PASSWORD": url.password or "",
+                "POSTGRES_HOST": url.host or "",
+            }
+        )
+
         yield container
 
 
 @pytest.fixture(scope="session")
-def engine(postgres_container) -> Generator[Engine]:
+def engine(postgres_container: PostgresContainer) -> Generator[Engine]:
     """Фикстура движка SQLAlchemy с областью видимости на сессию."""
+    from src.viewport.db import Base
+
     db_url = postgres_container.get_connection_url()
     engine = create_engine(db_url)
     # Create all tables once at session startup
@@ -46,7 +61,7 @@ def engine(postgres_container) -> Generator[Engine]:
 
 
 @pytest.fixture(scope="function")
-def db_session(engine) -> Generator[Session]:
+def db_session(engine: Engine) -> Generator[Session]:
     """Фикстура сессии базы данных с изоляцией на каждый тест."""
     connection = engine.connect()
     transaction = connection.begin()
@@ -101,10 +116,13 @@ def minio_container() -> Generator[DockerContainer]:
 
 
 @pytest.fixture(scope="function")
-def client(db_session, minio_container):
+def client(db_session: Session, minio_container: DockerContainer):
     """Фикстура тестового клиента FastAPI с очисткой состояния между тестами."""
 
     # Override get_db to use the transactional db_session for each test
+    from src.viewport.db import get_db
+    from src.viewport.main import app
+
     def override_get_db():
         yield db_session
 

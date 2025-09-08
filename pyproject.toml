@@ -78,7 +78,7 @@ exclude = [
     "site-packages",
     "venv",
     "./postgres_data",
-    "./src/viewport/alembic"
+    "./src/viewport/alembic",
 ]
 
 line-length = 200
@@ -106,7 +106,6 @@ select = [
 ]
 ignore = ["SIM108", "E712", "C416"]
 flake8-bugbear.extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
-
 
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
@@ -145,3 +144,7 @@ norecursedirs = [
     "templates",
     "logs",
 ]
+
+[tool.coverage.run]
+# Needed by py-cov-action/python-coverage-comment-action to map paths correctly
+relative_files = true
