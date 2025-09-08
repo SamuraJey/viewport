@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated
 from uuid import UUID
 
@@ -10,8 +11,6 @@ from src.viewport.db import get_db
 from src.viewport.minio_utils import generate_presigned_url, upload_fileobj
 from src.viewport.repositories.gallery_repository import GalleryRepository
 from src.viewport.schemas.photo import PhotoResponse, PhotoUploadResponse, PhotoUploadResult
-
-import logging
 
 logger = logging.getLogger(__name__)
 
