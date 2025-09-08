@@ -1,12 +1,13 @@
 import { useEffect } from 'react'
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react'
-import { AuthenticatedImage } from './AuthenticatedImage'
+import { PresignedImage } from './PresignedImage'
 
 interface Photo {
   id?: string
   photo_id?: string
   url?: string
   full_url?: string
+  gallery_id?: string
 }
 
 interface PhotoModalProps {
@@ -58,9 +59,7 @@ export const PhotoModal = ({
 
   const currentPhoto = photos[selectedIndex]
   const photoId = currentPhoto.id || currentPhoto.photo_id || ''
-  const photoSrc = isPublic
-    ? `http://localhost:8000${currentPhoto.full_url}`
-    : currentPhoto.url || ''
+  const galleryId = currentPhoto.gallery_id
 
   return (
     <div
@@ -98,14 +97,15 @@ export const PhotoModal = ({
         <div onClick={e => e.stopPropagation()}>
           {isPublic ? (
             <img
-              src={photoSrc}
+              src={`http://localhost:8000${currentPhoto.full_url}`}
               alt={`Photo ${photoId}`}
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
               loading="eager"
             />
           ) : (
-            <AuthenticatedImage
-              src={photoSrc}
+            <PresignedImage
+              photoId={photoId}
+              galleryId={galleryId}
               alt={`Photo ${photoId}`}
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
               loading="eager"

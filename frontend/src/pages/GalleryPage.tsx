@@ -4,7 +4,7 @@ import { galleryService, type GalleryDetail } from '../services/galleryService'
 import { photoService } from '../services/photoService'
 import { shareLinkService, type ShareLink } from '../services/shareLinkService'
 import { Layout } from '../components/Layout'
-import { AuthenticatedImage } from '../components/AuthenticatedImage'
+import { PresignedImage } from '../components/PresignedImage'
 import { PhotoModal } from '../components/PhotoModal'
 import { formatDate } from '../lib/utils'
 import {
@@ -273,13 +273,14 @@ export const GalleryPage = () => {
           {gallery.photos.length > 0 ? (
             <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-4">
               {gallery.photos.map((photo, index) => (
-              <div key={photo.id} className="break-inside-avoid mb-4 relative group">
+                <div key={photo.id} className="break-inside-avoid mb-4 relative group">
                   <button
                     onClick={() => openPhoto(index)}
                     className="w-full p-0 border-0 bg-transparent cursor-pointer"
                   >
-                    <AuthenticatedImage
-                      src={photo.url}
+                    <PresignedImage
+                      photoId={photo.id}
+                      galleryId={galleryId}
                       alt={`Photo ${photo.id}`}
                       className="w-full h-auto object-contain rounded-lg hover:opacity-90 transition-opacity"
                       loading="lazy"

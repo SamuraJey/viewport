@@ -1,5 +1,4 @@
 import io
-import mimetypes
 import zipfile
 from uuid import UUID
 
@@ -7,10 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from src.viewport.cache_utils import photo_cache
+from src.viewport.cache_utils import url_cache
 from src.viewport.db import get_db
 from src.viewport.logger import logger
-from src.viewport.minio_utils import get_minio_config, get_s3_client
+from src.viewport.minio_utils import generate_presigned_url, generate_presigned_urls_batch, get_minio_config, get_s3_client
 from src.viewport.models.gallery import Gallery
 from src.viewport.models.sharelink import ShareLink
 from src.viewport.repositories.sharelink_repository import ShareLinkRepository
@@ -39,20 +38,33 @@ def get_photos_by_sharelink(
 ) -> PublicGalleryResponse:
     # Photos
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
+
+    # Generate presigned URLs for all photos at once for efficiency
+    object_keys = [photo.object_key for photo in photos]
+    presigned_urls = generate_presigned_urls_batch(object_keys, expires_in=7200)  # 2 hours expiration for public links
+
     photo_list = [
         PublicPhoto(
             photo_id=str(photo.id),
-            # Use secure public photo endpoints instead of direct file access
-            thumbnail_url=f"/s/{share_id}/photos/{photo.id}",
-            full_url=f"/s/{share_id}/photos/{photo.id}",
+            # Use presigned URLs directly
+            thumbnail_url=presigned_urls.get(photo.object_key, ""),
+            full_url=presigned_urls.get(photo.object_key, ""),
         )
         for photo in photos
+        if photo.object_key in presigned_urls  # Only include photos with valid URLs
     ]
 
     # Gallery metadata
     gallery: Gallery = sharelink.gallery  # lazy-loaded
     cover_id = str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None
-    cover = PublicCover(photo_id=cover_id, full_url=f"/s/{share_id}/photos/{cover_id}", thumbnail_url=f"/s/{share_id}/photos/{cover_id}") if cover_id else None
+    cover = None
+    if cover_id:
+        # Find cover photo and generate presigned URL
+        cover_photo = next((p for p in photos if str(p.id) == cover_id), None)
+        if cover_photo and cover_photo.object_key in presigned_urls:
+            cover_url = presigned_urls[cover_photo.object_key]
+            cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_url)
+
     photographer = getattr(gallery.owner, "display_name", None) or ""
     gallery_name = getattr(gallery, "name", "")
     # Format date as DD.MM.YYYY similar to wfolio sample
@@ -74,31 +86,22 @@ def get_photos_by_sharelink(
     )
 
 
-@router.get("/{share_id}/photos/{photo_id}")
-@photo_cache(max_age=86400, public=True)
-def get_single_photo_by_sharelink(request: Request, share_id: UUID, photo_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
+@router.get("/{share_id}/photos/{photo_id}/url")
+@url_cache(max_age=7200)  # 2 hours for public links
+def get_photo_url_by_sharelink(share_id: UUID, photo_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
+    """Get presigned URL for a photo in a public gallery"""
     photo = repo.get_photo_by_id_and_gallery(photo_id, sharelink.gallery_id)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
 
     logger.log_event("view_photo", share_id=share_id, extra={"photo_id": str(photo_id)})
 
-    # Stream photo directly from S3
-    _, _, _, bucket = get_minio_config()
-    s3_client = get_s3_client()
-
+    # Generate presigned URL
     try:
-        obj = s3_client.get_object(Bucket=bucket, Key=photo.object_key)
+        url = generate_presigned_url(photo.object_key, expires_in=7200)  # 2 hours expiration for public links
+        return {"url": url, "expires_in": 7200}
     except Exception as e:
-        raise HTTPException(status_code=404, detail="File not found") from e
-
-    # Guess MIME type based on file extension
-    mime_type, _ = mimetypes.guess_type(photo.object_key)
-    logger.warning(f"Guessed MIME type: {mime_type} for {photo.object_key}")
-    if not mime_type:
-        mime_type = obj.get("ContentType", "application/octet-stream")
-
-    return StreamingResponse(obj["Body"], media_type=mime_type)
+        raise HTTPException(status_code=500, detail="Failed to generate photo URL") from e
 
 
 @router.get("/{share_id}/download/all")

@@ -1,5 +1,4 @@
 import logging
-import os
 from functools import cache
 
 import boto3
@@ -32,11 +31,11 @@ def get_minio_config() -> tuple[str, str, str, str]:
 
 @cache
 def get_s3_client() -> BaseClient:
-    endpoint, access_key, secret_key, _ = get_minio_config()
+    endpoint, access_key, secret_key, bucket = get_minio_config()
 
-    logger.debug(f"Connecting to MinIO at {endpoint} with bucket {os.getenv('MINIO_BUCKET', 'photos')}")
+    logger.debug(f"Connecting to MinIO at {endpoint} with bucket {bucket}")
 
-    return boto3.client("s3", endpoint_url=f"http://{endpoint}", aws_access_key_id=access_key, aws_secret_access_key=secret_key, config=Config(signature_version="s3v4"), region_name="us-east-1")
+    return boto3.client("s3", endpoint_url=f"http://{endpoint}", aws_access_key_id=access_key, aws_secret_access_key=secret_key, config=Config(signature_version="s3v4"), region_name="eu-west-1")
 
 
 def ensure_bucket_exists():
@@ -59,7 +58,49 @@ def upload_fileobj(fileobj, filename):
     return f"/{bucket}/{filename}"
 
 
-def get_file_url(filename):
+def get_file_url(filename, time: int = 3600):
     s3_client = get_s3_client()
     _, _, _, bucket = get_minio_config()
-    return s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": filename}, ExpiresIn=3600)
+    return s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": filename}, ExpiresIn=time)
+
+
+def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:
+    """Generate a presigned URL for direct S3 access to an object"""
+    from src.viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
+
+    # Check cache first
+    cached_url = get_cached_presigned_url(object_key)
+    if cached_url:
+        return cached_url
+
+    s3_client = get_s3_client()
+    _, _, _, bucket = get_minio_config()
+
+    try:
+        url = s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": object_key}, ExpiresIn=expires_in)
+
+        # Cache the URL
+        cache_presigned_url(object_key, url, expires_in)
+
+        return url
+    except Exception as e:
+        logger.error(f"Failed to generate presigned URL for {object_key}: {e}")
+        raise
+
+
+def generate_presigned_urls_batch(object_keys: list[str], expires_in: int = 3600) -> dict[str, str]:
+    """Generate presigned URLs for multiple objects"""
+    s3_client = get_s3_client()
+    _, _, _, bucket = get_minio_config()
+
+    urls = {}
+    for object_key in object_keys:
+        try:
+            url = s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": object_key}, ExpiresIn=expires_in)
+            urls[object_key] = url
+        except Exception as e:
+            logger.error(f"Failed to generate presigned URL for {object_key}: {e}")
+            # Continue with other URLs even if one fails
+            continue
+
+    return urls

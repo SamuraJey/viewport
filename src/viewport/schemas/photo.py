@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.viewport.minio_utils import generate_presigned_url
+
 
 class PhotoCreateRequest(BaseModel):
     file_size: int = Field(..., ge=1)
@@ -20,8 +22,10 @@ class PhotoResponse(BaseModel):
 
     @classmethod
     def from_db_photo(cls, photo) -> "PhotoResponse":
-        """Create PhotoResponse from database Photo model"""
-        return cls(id=photo.id, gallery_id=photo.gallery_id, url=f"/photos/auth/{photo.id}", file_size=photo.file_size, uploaded_at=photo.uploaded_at)
+        """Create PhotoResponse from database Photo model with presigned URL"""
+        # Generate presigned URL directly for S3 access
+        presigned_url = generate_presigned_url(photo.object_key, expires_in=3600)  # 1 hour expiration
+        return cls(id=photo.id, gallery_id=photo.gallery_id, url=presigned_url, file_size=photo.file_size, uploaded_at=photo.uploaded_at)
 
 
 class PhotoListResponse(BaseModel):

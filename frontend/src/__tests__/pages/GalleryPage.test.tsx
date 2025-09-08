@@ -50,11 +50,11 @@ vi.mock('../../services/shareLinkService', () => ({
   }
 }))
 
-// Mock AuthenticatedImage to avoid network requests
-vi.mock('../../components/AuthenticatedImage', () => ({
-  AuthenticatedImage: ({ alt, ...props }: any) => (
-    <img alt={alt} {...props} />
-  )
+// Mock PresignedImage to avoid network requests
+vi.mock('../../components/PresignedImage', () => ({
+  PresignedImage: ({ alt, ...props }: any) => (
+    <img alt={alt} data-testid="presigned-image" {...props} />
+  ),
 }))
 
 // Mock Layout to avoid router context issues
@@ -89,16 +89,16 @@ const GalleryPageWrapper = () => {
 describe('GalleryPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
-    
+
     // Default mock responses
     const { galleryService } = await import('../../services/galleryService')
     const { photoService } = await import('../../services/photoService')
     const { shareLinkService } = await import('../../services/shareLinkService')
-    
+
     vi.mocked(galleryService.getGallery).mockResolvedValue(mockGalleryData)
     vi.mocked(photoService.uploadPhoto).mockResolvedValue({
       id: 'photo4',
-      url: '/api/photos/photo4.jpg', 
+      url: '/api/photos/photo4.jpg',
       gallery_id: '1',
       created_at: '2024-01-01T10:00:00Z'
     })
@@ -108,11 +108,11 @@ describe('GalleryPage', () => {
 
   it('should render gallery page correctly', async () => {
     render(<GalleryPageWrapper />)
-    
+
     await waitFor(() => {
       expect(screen.getByText('Gallery #1')).toBeInTheDocument()
     })
-    
+
     expect(screen.getByText('Photos (3)')).toBeInTheDocument()
     expect(screen.getByText('Share Links')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /delete gallery/i })).toBeInTheDocument()
@@ -121,7 +121,7 @@ describe('GalleryPage', () => {
 
   it('should display loading state initially', () => {
     render(<GalleryPageWrapper />)
-    
+
     expect(screen.getByText('Loading gallery...')).toBeInTheDocument()
   })
 
@@ -130,13 +130,13 @@ describe('GalleryPage', () => {
     vi.mocked(galleryService.getGallery).mockRejectedValue(new Error('Network error'))
 
     render(<GalleryPageWrapper />)
-    
+
     // When gallery loading fails, component stays in loading state due to !gallery check
     // This is a design issue but testing current behavior
     await waitFor(() => {
       expect(screen.getByText('Loading gallery...')).toBeInTheDocument()
     }, { timeout: 1000 })
-    
+
     // Error state is not properly handled for gallery loading failures
     // Component should be improved to show error state instead of infinite loading
   })
@@ -144,7 +144,7 @@ describe('GalleryPage', () => {
   describe('Photo Modal Features', () => {
     it('should open photo modal when clicking on a photo', async () => {
       render(<GalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Photos (3)')).toBeInTheDocument()
       })
@@ -152,7 +152,7 @@ describe('GalleryPage', () => {
       // Find photo images and their parent buttons
       const photoImages = screen.getAllByAltText(/Photo photo/i)
       expect(photoImages).toHaveLength(3)
-      
+
       const firstPhotoButton = photoImages[0].closest('button')
       expect(firstPhotoButton).toBeInTheDocument()
 
@@ -166,7 +166,7 @@ describe('GalleryPage', () => {
 
     it('should close photo modal when pressing Escape key', async () => {
       render(<GalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Photos (3)')).toBeInTheDocument()
       })
@@ -175,11 +175,11 @@ describe('GalleryPage', () => {
       const photoImages = screen.getAllByAltText(/Photo photo/i)
       const firstPhotoButton = photoImages[0].closest('button')
       await userEvent.click(firstPhotoButton!)
-      
+
       await waitFor(() => {
         expect(screen.getByText('1 of 3')).toBeInTheDocument()
       })
-      
+
       // Press Escape
       fireEvent.keyDown(document, { key: 'Escape' })
 
@@ -191,7 +191,7 @@ describe('GalleryPage', () => {
 
     it('should navigate to next photo with arrow key', async () => {
       render(<GalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Photos (3)')).toBeInTheDocument()
       })
@@ -200,11 +200,11 @@ describe('GalleryPage', () => {
       const photoImages = screen.getAllByAltText(/Photo photo/i)
       const firstPhotoButton = photoImages[0].closest('button')
       await userEvent.click(firstPhotoButton!)
-      
+
       await waitFor(() => {
         expect(screen.getByText('1 of 3')).toBeInTheDocument()
       })
-      
+
       // Press ArrowRight
       fireEvent.keyDown(document, { key: 'ArrowRight' })
 
@@ -216,7 +216,7 @@ describe('GalleryPage', () => {
 
     it('should navigate to previous photo with arrow key', async () => {
       render(<GalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Photos (3)')).toBeInTheDocument()
       })
@@ -225,11 +225,11 @@ describe('GalleryPage', () => {
       const photoImages = screen.getAllByAltText(/Photo photo/i)
       const secondPhotoButton = photoImages[1].closest('button')
       await userEvent.click(secondPhotoButton!)
-      
+
       await waitFor(() => {
         expect(screen.getByText('2 of 3')).toBeInTheDocument()
       })
-      
+
       // Press ArrowLeft
       fireEvent.keyDown(document, { key: 'ArrowLeft' })
 
@@ -241,7 +241,7 @@ describe('GalleryPage', () => {
 
     it('should wrap around navigation', async () => {
       render(<GalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Photos (3)')).toBeInTheDocument()
       })
@@ -250,7 +250,7 @@ describe('GalleryPage', () => {
       const photoImages = screen.getAllByAltText(/Photo photo/i)
       const firstPhotoButton = photoImages[0].closest('button')
       await userEvent.click(firstPhotoButton!)
-      
+
       await waitFor(() => {
         expect(screen.getByText('1 of 3')).toBeInTheDocument()
       })
@@ -279,7 +279,7 @@ describe('GalleryPage', () => {
       vi.mocked(galleryService.getGallery).mockResolvedValue(singlePhotoGallery)
 
       render(<GalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Photos (1)')).toBeInTheDocument()
       })
@@ -288,7 +288,7 @@ describe('GalleryPage', () => {
       const photoImages = screen.getAllByAltText(/Photo photo/i)
       const photoButton = photoImages[0].closest('button')
       await userEvent.click(photoButton!)
-      
+
       await waitFor(() => {
         expect(screen.getByText('1 of 1')).toBeInTheDocument()
       })
@@ -305,7 +305,7 @@ describe('GalleryPage', () => {
       const { photoService } = await import('../../services/photoService')
 
       render(<GalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Photos (3)')).toBeInTheDocument()
       })
@@ -313,15 +313,15 @@ describe('GalleryPage', () => {
       // Find the first photo container and get its delete button
       const photoImages = screen.getAllByAltText(/Photo photo/i)
       const firstPhoto = photoImages[0]
-      
+
       // Navigate to parent container and find the delete button within it
       const photoContainer = firstPhoto.closest('.group')
       expect(photoContainer).toBeInTheDocument()
-      
+
       // Find the delete button inside this specific photo container
       const deleteButton = photoContainer!.querySelector('button svg[class*="trash"]')?.closest('button')
       expect(deleteButton).toBeInTheDocument()
-      
+
       await userEvent.click(deleteButton!)
 
       expect(confirmSpy).toHaveBeenCalledWith('Are you sure you want to delete this photo?')
@@ -334,7 +334,7 @@ describe('GalleryPage', () => {
       const { shareLinkService } = await import('../../services/shareLinkService')
 
       render(<GalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('Share Links')).toBeInTheDocument()
       })
@@ -357,7 +357,7 @@ describe('GalleryPage', () => {
       vi.mocked(galleryService.getGallery).mockResolvedValue(emptyGallery)
 
       render(<GalleryPageWrapper />)
-      
+
       await waitFor(() => {
         expect(screen.getByText('No photos in this gallery')).toBeInTheDocument()
       })
