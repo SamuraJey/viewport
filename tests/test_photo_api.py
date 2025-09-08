@@ -157,6 +157,82 @@ class TestPhotoAPI:
         # So we just clear headers for any subsequent tests.
         client.headers.clear()
 
+    def test_get_photo_url_auth_not_found(self, authenticated_client: TestClient):
+        """Test getting a signed URL for a non-existent photo."""
+        fake_photo_id = str(uuid4())
+        response = authenticated_client.get(f"/photos/auth/{fake_photo_id}/url")
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    def test_get_photo_url_auth_exception(self, authenticated_client: TestClient, gallery_id_fixture: str, mocker):
+        """Test exception handling when generating a signed URL."""
+        # Upload a photo
+        image_content = b"fake image content"
+        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
+        upload_response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
+        photo_id = upload_response.json()["id"]
+
+        # Mock generate_presigned_url to raise an exception
+        mocker.patch("src.viewport.api.photo.generate_presigned_url", side_effect=Exception("MinIO error"))
+
+        response = authenticated_client.get(f"/photos/auth/{photo_id}/url")
+        assert response.status_code == 500
+        assert "failed to generate photo url" in response.json()["detail"].lower()
+
+    def test_upload_photos_batch_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Test successful batch photo upload."""
+        files = [
+            ("files", ("photo1.jpg", b"content1", "image/jpeg")),
+            ("files", ("photo2.png", b"content2", "image/png")),
+        ]
+        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch", files=files)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_files"] == 2
+        assert data["successful_uploads"] == 2
+        assert data["failed_uploads"] == 0
+        assert len(data["results"]) == 2
+        assert data["results"][0]["success"] is True
+        assert data["results"][1]["success"] is True
+
+    def test_upload_photos_batch_partial_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Test batch upload with some files too large."""
+        large_content = b"x" * (16 * 1024 * 1024)  # 16MB
+        files = [
+            ("files", ("photo1.jpg", b"content1", "image/jpeg")),
+            ("files", ("large_photo.jpg", large_content, "image/jpeg")),
+        ]
+        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch", files=files)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_files"] == 2
+        assert data["successful_uploads"] == 1
+        assert data["failed_uploads"] == 1
+        assert len(data["results"]) == 2
+        assert data["results"][0]["success"] is True
+        assert data["results"][1]["success"] is False
+        assert "file too large" in data["results"][1]["error"].lower()
+
+    def test_upload_photos_batch_gallery_not_found(self, authenticated_client: TestClient):
+        """Test batch uploading to a non-existent gallery."""
+        fake_gallery_id = str(uuid4())
+        files = [("files", ("photo1.jpg", b"content1", "image/jpeg"))]
+        response = authenticated_client.post(f"/galleries/{fake_gallery_id}/photos/batch", files=files)
+        assert response.status_code == 404
+
+    def test_upload_photos_batch_unauthorized(self, client: TestClient):
+        """Test batch uploading without authentication."""
+        fake_gallery_id = str(uuid4())
+        files = [("files", ("photo1.jpg", b"content1", "image/jpeg"))]
+        response = client.post(f"/galleries/{fake_gallery_id}/photos/batch", files=files)
+        assert response.status_code == 401
+
+    def test_upload_photos_batch_no_files(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Test batch uploading with no files."""
+        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch")
+        assert response.status_code == 400
+        assert "no files provided" in response.json()["detail"].lower()
+
     def test_delete_photo_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test successful photo deletion."""
         # Upload a photo first
