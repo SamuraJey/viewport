@@ -2,13 +2,12 @@ import uuid
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from src.viewport.auth_utils import get_current_user
 from src.viewport.db import get_db
-from src.viewport.models.gallery import Gallery, Photo
 from src.viewport.models.user import User
+from src.viewport.repositories.gallery_repository import GalleryRepository
 from src.viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse, GalleryUpdateRequest
 from viewport.schemas.photo import PhotoResponse
 from viewport.schemas.sharelink import ShareLinkResponse
@@ -16,16 +15,17 @@ from viewport.schemas.sharelink import ShareLinkResponse
 router = APIRouter(prefix="/galleries", tags=["galleries"])
 
 
+def get_gallery_repository(db: Session = Depends(get_db)) -> GalleryRepository:
+    return GalleryRepository(db)
+
+
 @router.post("/", response_model=GalleryResponse, status_code=status.HTTP_201_CREATED)
 def create_gallery(
     request: GalleryCreateRequest,
-    db: Session = Depends(get_db),
+    repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> GalleryResponse:
-    gallery = Gallery(id=uuid.uuid4(), owner_id=current_user.id, name=request.name)
-    db.add(gallery)
-    db.commit()
-    db.refresh(gallery)
+    gallery = repo.create_gallery(current_user.id, request.name)
     return GalleryResponse(
         id=str(gallery.id),
         owner_id=str(gallery.owner_id),
@@ -37,19 +37,12 @@ def create_gallery(
 
 @router.get("/", response_model=GalleryListResponse)
 def list_galleries(
-    db: Session = Depends(get_db),
+    repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
 ) -> GalleryListResponse:
-    # Get total count
-    count_stmt = select(func.count()).select_from(Gallery).where(Gallery.owner_id == current_user.id)
-    total = db.execute(count_stmt).scalar()
-
-    # Get galleries with pagination
-    stmt = select(Gallery).where(Gallery.owner_id == current_user.id).order_by(Gallery.created_at.desc()).offset((page - 1) * size).limit(size)
-    galleries = db.execute(stmt).scalars().all()
-
+    galleries, total = repo.get_galleries_by_owner(current_user.id, page, size)
     return GalleryListResponse(
         galleries=[
             GalleryResponse(
@@ -70,7 +63,7 @@ def list_galleries(
 @router.get("/{gallery_id}", response_model=GalleryDetailResponse)
 def get_gallery(
     gallery_id: str,
-    db: Session = Depends(get_db),
+    repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> GalleryDetailResponse:
     try:
@@ -78,7 +71,7 @@ def get_gallery(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid gallery ID format") from e
 
-    gallery = db.query(Gallery).filter(Gallery.id == gallery_uuid, Gallery.owner_id == current_user.id).first()
+    gallery = repo.get_gallery_by_id_and_owner(gallery_uuid, current_user.id)
 
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
@@ -98,7 +91,7 @@ def get_gallery(
 def set_cover_photo(
     gallery_id: str,
     photo_id: str,
-    db: Session = Depends(get_db),
+    repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> GalleryResponse:
     # Validate UUIDs
@@ -108,17 +101,9 @@ def set_cover_photo(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid ID format") from e
 
-    # Verify gallery ownership and photo membership
-    gallery = db.query(Gallery).filter(Gallery.id == gallery_uuid, Gallery.owner_id == current_user.id).first()
+    gallery = repo.set_cover_photo(gallery_uuid, photo_uuid, current_user.id)
     if not gallery:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
-    photo = db.query(Photo).filter(Photo.id == photo_uuid, Photo.gallery_id == gallery_uuid).first()
-    if not photo:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Photo not found in this gallery")
-
-    gallery.cover_photo_id = photo_uuid
-    db.commit()
-    db.refresh(gallery)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery or photo not found")
 
     return GalleryResponse(
         id=str(gallery.id),
@@ -132,25 +117,22 @@ def set_cover_photo(
 @router.delete("/{gallery_id}/cover", status_code=status.HTTP_204_NO_CONTENT)
 def clear_cover_photo(
     gallery_id: str,
-    db: Session = Depends(get_db),
+    repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> None:
     try:
         gallery_uuid = uuid.UUID(gallery_id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid ID format") from e
-    gallery = db.query(Gallery).filter(Gallery.id == gallery_uuid, Gallery.owner_id == current_user.id).first()
+    gallery = repo.clear_cover_photo(gallery_uuid, current_user.id)
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
-    gallery.cover_photo_id = None
-    db.commit()
-    return
 
 
 @router.delete("/{gallery_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_gallery(
     gallery_id: str,
-    db: Session = Depends(get_db),
+    repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> None:
     # Convert string to UUID
@@ -159,21 +141,15 @@ def delete_gallery(
     except ValueError:
         raise HTTPException(status_code=422, detail="Invalid gallery ID format") from None
 
-    stmt = select(Gallery).where(Gallery.id == gallery_uuid, Gallery.owner_id == current_user.id)
-    gallery = db.execute(stmt).scalar_one_or_none()
-
-    if not gallery:
+    if not repo.delete_gallery(gallery_uuid, current_user.id):
         raise HTTPException(status_code=404, detail="Gallery not found")
-
-    db.delete(gallery)
-    db.commit()
 
 
 @router.patch("/{gallery_id}", response_model=GalleryResponse)
 def update_gallery(
     gallery_id: str,
     request: GalleryUpdateRequest,
-    db: Session = Depends(get_db),
+    repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> GalleryResponse:
     # Validate UUID
@@ -181,14 +157,10 @@ def update_gallery(
         gallery_uuid = uuid.UUID(gallery_id)
     except ValueError as err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid gallery ID format") from err
-    # Fetch gallery
-    gallery = db.query(Gallery).filter(Gallery.id == gallery_uuid, Gallery.owner_id == current_user.id).first()
+    # Update gallery
+    gallery = repo.update_gallery_name(gallery_uuid, current_user.id, request.name)
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
-    # Update name
-    gallery.name = request.name
-    db.commit()
-    db.refresh(gallery)
     return GalleryResponse(
         id=str(gallery.id),
         owner_id=str(gallery.owner_id),

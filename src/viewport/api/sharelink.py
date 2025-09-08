@@ -1,46 +1,31 @@
-from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.viewport.auth_utils import get_current_user
 from src.viewport.db import get_db
-from src.viewport.models.gallery import Gallery
-from src.viewport.models.sharelink import ShareLink
+from src.viewport.repositories.gallery_repository import GalleryRepository
 from src.viewport.schemas.sharelink import ShareLinkCreateRequest, ShareLinkResponse
 
 router = APIRouter(prefix="/galleries/{gallery_id}/share-links", tags=["sharelinks"])
 
 
+def get_gallery_repository(db: Session = Depends(get_db)) -> GalleryRepository:
+    return GalleryRepository(db)
+
+
 @router.post("", response_model=ShareLinkResponse, status_code=status.HTTP_201_CREATED)
-def create_sharelink(gallery_id: UUID, req: ShareLinkCreateRequest, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    stmt = select(Gallery).where(Gallery.id == gallery_id, Gallery.owner_id == user.id)
-    gallery = db.execute(stmt).scalar_one_or_none()
+def create_sharelink(gallery_id: UUID, req: ShareLinkCreateRequest, repo: GalleryRepository = Depends(get_gallery_repository), user=Depends(get_current_user)):
+    gallery = repo.get_gallery_by_id_and_owner(gallery_id, user.id)
     if not gallery:
         raise HTTPException(status_code=404, detail="Gallery not found")
-    sharelink = ShareLink(gallery_id=gallery_id, expires_at=req.expires_at, created_at=datetime.now(UTC))
-    db.add(sharelink)
-    db.commit()
-    db.refresh(sharelink)
+    sharelink = repo.create_sharelink(gallery_id, req.expires_at)
     return sharelink
 
 
 @router.delete("/{sharelink_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_sharelink(gallery_id: UUID, sharelink_id: UUID, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    # First, verify the gallery belongs to the user
-    stmt = select(Gallery).where(Gallery.id == gallery_id, Gallery.owner_id == user.id)
-    gallery = db.execute(stmt).scalar_one_or_none()
-    if not gallery:
-        raise HTTPException(status_code=404, detail="Gallery not found")
-
-    # Then find and delete the sharelink
-    stmt2 = select(ShareLink).where(ShareLink.id == sharelink_id, ShareLink.gallery_id == gallery_id)
-    sharelink = db.execute(stmt2).scalar_one_or_none()
-    if not sharelink:
+def delete_sharelink(gallery_id: UUID, sharelink_id: UUID, repo: GalleryRepository = Depends(get_gallery_repository), user=Depends(get_current_user)):
+    if not repo.delete_sharelink(sharelink_id, gallery_id, user.id):
         raise HTTPException(status_code=404, detail="Share link not found")
-
-    db.delete(sharelink)
-    db.commit()
     return

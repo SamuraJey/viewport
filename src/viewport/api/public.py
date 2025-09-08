@@ -1,32 +1,32 @@
 import io
 import mimetypes
 import zipfile
-from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.viewport.cache_utils import photo_cache
 from src.viewport.db import get_db
 from src.viewport.logger import logger
 from src.viewport.minio_utils import get_minio_config, get_s3_client
-from src.viewport.models.gallery import Gallery, Photo
+from src.viewport.models.gallery import Gallery
 from src.viewport.models.sharelink import ShareLink
+from src.viewport.repositories.sharelink_repository import ShareLinkRepository
 from src.viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto
 
 router = APIRouter(prefix="/s", tags=["public"])
 
 
-def get_valid_sharelink(share_id: UUID, db: Session = Depends(get_db)) -> ShareLink:
-    stmt = select(ShareLink).where(ShareLink.id == share_id)
-    sharelink = db.execute(stmt).scalar_one_or_none()
+def get_sharelink_repository(db: Session = Depends(get_db)) -> ShareLinkRepository:
+    return ShareLinkRepository(db)
+
+
+def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository)) -> ShareLink:
+    sharelink = repo.get_valid_sharelink(share_id)
     if not sharelink:
         raise HTTPException(status_code=404, detail="ShareLink not found")
-    if sharelink.expires_at and sharelink.expires_at.timestamp() < datetime.now(UTC).timestamp():
-        raise HTTPException(status_code=404, detail="ShareLink expired")
     return sharelink
 
 
@@ -34,12 +34,11 @@ def get_valid_sharelink(share_id: UUID, db: Session = Depends(get_db)) -> ShareL
 def get_photos_by_sharelink(
     share_id: UUID,
     request: Request,
-    db: Session = Depends(get_db),
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
 ) -> PublicGalleryResponse:
     # Photos
-    stmt = select(Photo).where(Photo.gallery_id == sharelink.gallery_id)
-    photos = db.execute(stmt).scalars().all()
+    photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
     photo_list = [
         PublicPhoto(
             photo_id=str(photo.id),
@@ -63,8 +62,7 @@ def get_photos_by_sharelink(
     site_url = str(request.base_url).rstrip("/")
 
     # Increment views
-    sharelink.views += 1  # type: ignore
-    db.commit()
+    repo.increment_views(share_id)
     logger.log_event("view_gallery", share_id=share_id)
     return PublicGalleryResponse(
         photos=photo_list,
@@ -78,9 +76,8 @@ def get_photos_by_sharelink(
 
 @router.get("/{share_id}/photos/{photo_id}")
 @photo_cache(max_age=86400, public=True)
-def get_single_photo_by_sharelink(request: Request, share_id: UUID, photo_id: UUID, db: Session = Depends(get_db), sharelink: ShareLink = Depends(get_valid_sharelink)):
-    stmt = select(Photo).where(Photo.id == photo_id, Photo.gallery_id == sharelink.gallery_id)
-    photo = db.execute(stmt).scalar_one_or_none()
+def get_single_photo_by_sharelink(request: Request, share_id: UUID, photo_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
+    photo = repo.get_photo_by_id_and_gallery(photo_id, sharelink.gallery_id)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
 
@@ -105,9 +102,8 @@ def get_single_photo_by_sharelink(request: Request, share_id: UUID, photo_id: UU
 
 
 @router.get("/{share_id}/download/all")
-def download_all_photos_zip(share_id: UUID, db: Session = Depends(get_db), sharelink: ShareLink = Depends(get_valid_sharelink)):
-    stmt = select(Photo).where(Photo.gallery_id == sharelink.gallery_id)
-    photos = db.execute(stmt).scalars().all()
+def download_all_photos_zip(share_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
+    photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
     if not photos:
         raise HTTPException(status_code=404, detail="No photos found")
     zip_buffer = io.BytesIO()
@@ -120,16 +116,14 @@ def download_all_photos_zip(share_id: UUID, db: Session = Depends(get_db), share
             obj = s3_client.get_object(Bucket=bucket, Key=file_key)
             zipf.writestr(file_key, obj["Body"].read())
     zip_buffer.seek(0)
-    sharelink.zip_downloads += 1
-    db.commit()
+    repo.increment_zip_downloads(share_id)
     logger.log_event("download_zip", share_id=str(sharelink.id), extra={"photo_count": len(photos)})
     return StreamingResponse(zip_buffer, media_type="application/zip", headers={"Content-Disposition": "attachment; filename=gallery.zip"})
 
 
 @router.get("/{share_id}/download/{photo_id}")
-def download_single_photo(share_id: UUID, photo_id: UUID, db: Session = Depends(get_db), sharelink: ShareLink = Depends(get_valid_sharelink)):
-    stmt = select(Photo).where(Photo.id == photo_id, Photo.gallery_id == sharelink.gallery_id)
-    photo = db.execute(stmt).scalar_one_or_none()
+def download_single_photo(share_id: UUID, photo_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
+    photo = repo.get_photo_by_id_and_gallery(photo_id, sharelink.gallery_id)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
     # Stream file from S3
@@ -138,7 +132,6 @@ def download_single_photo(share_id: UUID, photo_id: UUID, db: Session = Depends(
     # Use stored object key
     file_key = photo.object_key
     obj = s3_client.get_object(Bucket=bucket, Key=file_key)
-    sharelink.single_downloads += 1
-    db.commit()
+    repo.increment_single_downloads(share_id)
     logger.log_event("download_photo", share_id=share_id, extra={"photo_id": str(photo_id)})
     return StreamingResponse(obj["Body"], media_type="application/octet-stream", headers={"Content-Disposition": f"attachment; filename={file_key}"})
