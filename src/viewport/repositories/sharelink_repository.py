@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from src.viewport.models.gallery import Photo
 from src.viewport.models.sharelink import ShareLink
@@ -30,19 +30,16 @@ class ShareLinkRepository(BaseRepository):
         return self.db.execute(stmt).scalar_one_or_none()
 
     def increment_views(self, sharelink_id: uuid.UUID) -> None:
-        sharelink = self.get_sharelink_by_id(sharelink_id)
-        if sharelink:
-            sharelink.views += 1
-            self.db.commit()
+        stmt = update(ShareLink).where(ShareLink.id == sharelink_id).values(views=ShareLink.views + 1)
+        self.db.execute(stmt)
+        self.db.commit()
 
     def increment_zip_downloads(self, sharelink_id: uuid.UUID) -> None:
-        sharelink = self.get_sharelink_by_id(sharelink_id)
-        if sharelink:
-            sharelink.zip_downloads += 1
-            self.db.commit()
+        stmt = update(ShareLink).where(ShareLink.id == sharelink_id).values(zip_downloads=ShareLink.zip_downloads + 1)
+        self.db.execute(stmt)
+        self.db.commit()
 
     def increment_single_downloads(self, sharelink_id: uuid.UUID) -> None:
-        sharelink = self.get_sharelink_by_id(sharelink_id)
-        if sharelink:
-            sharelink.single_downloads += 1
-            self.db.commit()
+        stmt = update(ShareLink).where(ShareLink.id == sharelink_id).values(single_downloads=ShareLink.single_downloads + 1)
+        self.db.execute(stmt)
+        self.db.commit()

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 
@@ -28,7 +28,8 @@ class GalleryRepository(BaseRepository):
         return list(galleries), total
 
     def get_gallery_by_id_and_owner(self, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> Gallery | None:
-        return self.db.query(Gallery).filter(Gallery.id == gallery_id, Gallery.owner_id == owner_id).first()
+        stmt = select(Gallery).where(Gallery.id == gallery_id, Gallery.owner_id == owner_id)
+        return self.db.execute(stmt).scalar_one_or_none()
 
     def update_gallery_name(self, gallery_id: uuid.UUID, owner_id: uuid.UUID, name: str) -> Gallery | None:
         gallery = self.get_gallery_by_id_and_owner(gallery_id, owner_id)
@@ -48,7 +49,8 @@ class GalleryRepository(BaseRepository):
         return True
 
     def get_photo_by_id_and_gallery(self, photo_id: uuid.UUID, gallery_id: uuid.UUID) -> Photo | None:
-        return self.db.query(Photo).filter(Photo.id == photo_id, Photo.gallery_id == gallery_id).first()
+        stmt = select(Photo).where(Photo.id == photo_id, Photo.gallery_id == gallery_id)
+        return self.db.execute(stmt).scalar_one_or_none()
 
     def set_cover_photo(self, gallery_id: uuid.UUID, photo_id: uuid.UUID, owner_id: uuid.UUID) -> Gallery | None:
         gallery = self.get_gallery_by_id_and_owner(gallery_id, owner_id)
@@ -95,8 +97,6 @@ class GalleryRepository(BaseRepository):
         return True
 
     def create_sharelink(self, gallery_id: uuid.UUID, expires_at: datetime | None) -> ShareLink:
-        from datetime import UTC
-
         sharelink = ShareLink(gallery_id=gallery_id, expires_at=expires_at, created_at=datetime.now(UTC))
         self.db.add(sharelink)
         self.db.commit()
