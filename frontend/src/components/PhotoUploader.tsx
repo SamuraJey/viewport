@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react'
-import { Upload, Loader2, Image as ImageIcon, XCircle } from 'lucide-react'
-import { formatFileSize } from '../lib/utils'
+import { Upload } from 'lucide-react'
+import { PhotoUploadConfirmModal } from './PhotoUploadConfirmModal'
+import type { PhotoUploadResponse } from '../services/photoService'
 
 interface PhotoUploaderProps {
-  onUpload: (files: File[]) => Promise<void>
-  isUploading: boolean
+  galleryId: string
+  onUploadComplete: (result: PhotoUploadResponse) => void
 }
 
 interface FileWithMeta {
@@ -16,11 +17,12 @@ interface FileWithMeta {
 const MAX_SIZE_MB = 15
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/jpg']
 
-export const PhotoUploader = ({ onUpload, isUploading }: PhotoUploaderProps) => {
+export const PhotoUploader = ({ galleryId, onUploadComplete }: PhotoUploaderProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [dragActive, setDragActive] = useState(false)
   const [files, setFiles] = useState<FileWithMeta[]>([])
   const [error, setError] = useState('')
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
 
   const validateFiles = (fileList: FileList | File[]): FileWithMeta[] => {
     return Array.from(fileList).map((file) => {
@@ -36,13 +38,23 @@ export const PhotoUploader = ({ onUpload, isUploading }: PhotoUploaderProps) => 
 
   const handleFiles = (fileList: FileList | File[]) => {
     const validated = validateFiles(fileList)
-    setFiles(validated)
     setError('')
+
     const validFiles = validated.filter(f => !f.error).map(f => f.file)
     if (validFiles.length > 0) {
-      onUpload(validFiles).catch(() => setError('Photo upload failed.'))
+      setFiles(validated)
+      setShowConfirmModal(true)
+    } else {
+      // Show only error files if any
+      const errorFiles = validated.filter(f => f.error)
+      setFiles(errorFiles)
+      if (errorFiles.length > 0) {
+        setError('Some files have errors and cannot be uploaded')
+      }
     }
   }
+
+
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
@@ -68,14 +80,31 @@ export const PhotoUploader = ({ onUpload, isUploading }: PhotoUploaderProps) => 
     }
   }
 
+  const handleUploadComplete = (result: PhotoUploadResponse) => {
+    setShowConfirmModal(false)
+    setFiles([])
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+    onUploadComplete(result)
+  }
+
+  const handleCloseConfirmModal = () => {
+    setShowConfirmModal(false)
+    // Clear all files when modal is cancelled
+    setFiles([])
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
   return (
     <div>
       <div
-        className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 transition-colors cursor-pointer ${
-          dragActive 
-            ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10' 
+        className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 transition-colors cursor-pointer ${dragActive
+            ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10'
             : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 bg-gray-50 dark:bg-gray-800/50'
-        }`}
+          }`}
         onClick={() => fileInputRef.current?.click()}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
@@ -85,8 +114,12 @@ export const PhotoUploader = ({ onUpload, isUploading }: PhotoUploaderProps) => 
         aria-label="Upload photos"
       >
         <Upload className="w-10 h-10 text-blue-500 dark:text-blue-400 mb-2" />
-        <p className="text-lg text-gray-900 dark:text-white font-semibold">Drag & drop photos here</p>
-        <p className="text-sm text-gray-600 dark:text-gray-400">or click to select files (JPG/PNG, ≤ 15MB)</p>
+        <p className="text-lg text-gray-900 dark:text-white font-semibold">
+          {files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''} selected` : 'Drag & drop photos here'}
+        </p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          {files.length > 0 ? 'Opening upload confirmation...' : 'or click to select files (JPG/PNG, ≤ 15MB)'}
+        </p>
         <input
           type="file"
           ref={fileInputRef}
@@ -96,25 +129,19 @@ export const PhotoUploader = ({ onUpload, isUploading }: PhotoUploaderProps) => 
           className="hidden"
         />
       </div>
-      {files.length > 0 && (
-        <div className="mt-4 space-y-2">
-          {files.map((f, idx) => (
-            <div key={idx} className="flex items-center gap-3 bg-gray-100 dark:bg-white/10 rounded-lg px-4 py-2">
-              <ImageIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-              <span className="text-gray-900 dark:text-white text-sm truncate max-w-xs">{f.file.name}</span>
-              <span className="text-gray-600 dark:text-gray-400 text-xs">{formatFileSize(f.file.size)}</span>
-              {f.error ? (
-                <span className="text-red-600 dark:text-red-400 text-xs flex items-center gap-1"><XCircle className="w-4 h-4" />{f.error}</span>
-              ) : isUploading ? (
-                <Loader2 className="w-4 h-4 animate-spin text-blue-500 dark:text-blue-400" />
-              ) : null}
-            </div>
-          ))}
-        </div>
-      )}
+
       {error && (
         <div className="mt-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/20 px-3 py-2 rounded-lg text-sm">{error}</div>
       )}
+
+      {/* Upload Confirmation Modal */}
+      <PhotoUploadConfirmModal
+        isOpen={showConfirmModal}
+        onClose={handleCloseConfirmModal}
+        files={files.filter(f => !f.error).map(f => f.file)}
+        galleryId={galleryId}
+        onUploadComplete={handleUploadComplete}
+      />
     </div>
   )
 }

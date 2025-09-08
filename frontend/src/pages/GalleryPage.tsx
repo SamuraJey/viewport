@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { galleryService, type GalleryDetail } from '../services/galleryService'
 import { photoService } from '../services/photoService'
+import type { PhotoUploadResponse } from '../services/photoService'
 import { shareLinkService, type ShareLink } from '../services/shareLinkService'
 import { Layout } from '../components/Layout'
 import { PresignedImage } from '../components/PresignedImage'
@@ -26,7 +27,7 @@ export const GalleryPage = () => {
   const [gallery, setGallery] = useState<GalleryDetail | null>(null)
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isUploading, setIsUploading] = useState(false)
+
   const [uploadError, setUploadError] = useState('')
   const [isCreatingLink, setIsCreatingLink] = useState(false)
   const [error, setError] = useState('')
@@ -54,18 +55,14 @@ export const GalleryPage = () => {
     fetchData()
   }, [fetchData])
 
-  // Handler for photo upload
-  const handlePhotoUpload = async (files: File[]) => {
-    setIsUploading(true)
+  // Handler for photo upload completion
+  const handleUploadComplete = (result: PhotoUploadResponse) => {
     setUploadError('')
-    try {
-      await Promise.all(files.map(file => photoService.uploadPhoto(galleryId, file)))
-      await fetchData()
-    } catch (err) {
-      setUploadError('Photo upload failed. Please try again.')
-      console.error(err)
-    } finally {
-      setIsUploading(false)
+    if (result.successful_uploads > 0) {
+      fetchData() // Refresh gallery data to show new photos
+    }
+    if (result.failed_uploads > 0) {
+      setUploadError(`${result.failed_uploads} of ${result.total_files} photos failed to upload`)
     }
   }
 
@@ -256,7 +253,7 @@ export const GalleryPage = () => {
         <div className="bg-gray-50 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 dark:border-white/10">
           <div className="mb-6">
             <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Photos ({gallery.photos.length})</h2>
-            <PhotoUploader onUpload={handlePhotoUpload} isUploading={isUploading} />
+            <PhotoUploader galleryId={galleryId} onUploadComplete={handleUploadComplete} />
             {uploadError && (
               <div className="mt-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
                 {uploadError}

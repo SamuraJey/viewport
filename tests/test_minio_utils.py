@@ -120,7 +120,7 @@ class TestMinioConfiguration:
             assert call_args[1]["endpoint_url"] == "http://test.com:9000"
             assert call_args[1]["aws_access_key_id"] == "testuser"
             assert call_args[1]["aws_secret_access_key"] == "testpass"
-            assert call_args[1]["region_name"] == "us-east-1"
+            assert call_args[1]["region_name"] == "eu-west-1"
 
 
 class TestBucketOperations:

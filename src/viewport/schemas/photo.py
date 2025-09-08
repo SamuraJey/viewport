@@ -33,3 +33,21 @@ class PhotoListResponse(BaseModel):
     total: int
     page: int
     size: int
+
+
+class PhotoUploadResult(BaseModel):
+    """Result of uploading a single photo"""
+
+    filename: str
+    success: bool
+    error: str | None = None
+    photo: PhotoResponse | None = None
+
+
+class PhotoUploadResponse(BaseModel):
+    """Response for batch photo upload"""
+
+    results: list[PhotoUploadResult]
+    total_files: int
+    successful_uploads: int
+    failed_uploads: int

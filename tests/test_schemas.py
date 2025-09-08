@@ -231,21 +231,26 @@ class TestPhotoSchemas:
 
     def test_photo_response_from_db_photo(self):
         """Test creating PhotoResponse from database photo."""
+        from unittest.mock import patch
+
         # Mock database photo object
         mock_photo = Mock()
         mock_photo.id = uuid.uuid4()
         mock_photo.gallery_id = uuid.uuid4()
         mock_photo.file_size = 1024
         mock_photo.uploaded_at = datetime.now(UTC)
-        mock_photo.gallery.owner_id = uuid.uuid4()
+        mock_photo.object_key = f"{mock_photo.gallery_id}/test.jpg"
 
-        response = PhotoResponse.from_db_photo(mock_photo)
+        # Mock the presigned URL generation
+        expected_url = f"https://example.com/presigned-url/{mock_photo.id}"
+        with patch("src.viewport.schemas.photo.generate_presigned_url", return_value=expected_url):
+            response = PhotoResponse.from_db_photo(mock_photo)
 
         assert response.id == mock_photo.id
         assert response.gallery_id == mock_photo.gallery_id
         assert response.file_size == mock_photo.file_size
         assert response.uploaded_at == mock_photo.uploaded_at
-        assert response.url == f"/photos/auth/{mock_photo.id}"
+        assert response.url == expected_url
 
     def test_photo_list_response_valid(self):
         """Test valid photo list response."""

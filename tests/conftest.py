@@ -49,6 +49,7 @@ def postgres_container() -> Generator[PostgresContainer]:
 def engine(postgres_container: PostgresContainer) -> Generator[Engine]:
     """Фикстура движка SQLAlchemy с областью видимости на сессию."""
     from src.viewport.db import Base
+    from src.viewport.models import Gallery, Photo, ShareLink, User  # noqa: F401
 
     db_url = postgres_container.get_connection_url()
     engine = create_engine(db_url)
