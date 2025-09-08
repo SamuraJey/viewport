@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from src.viewport.cache_utils import url_cache
 from src.viewport.db import get_db
 from src.viewport.logger import logger
-from src.viewport.minio_utils import generate_presigned_url, generate_presigned_urls_batch, get_minio_config, get_s3_client
+from src.viewport.minio_utils import generate_presigned_url, get_minio_config, get_s3_client
 from src.viewport.models.gallery import Gallery
 from src.viewport.models.sharelink import ShareLink
 from src.viewport.repositories.sharelink_repository import ShareLinkRepository
@@ -30,6 +30,7 @@ def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depends(get_
 
 
 @router.get("/{share_id}", response_model=PublicGalleryResponse)
+@url_cache(max_age=3600)  # Cache gallery metadata for 1 hour
 def get_photos_by_sharelink(
     share_id: UUID,
     request: Request,
@@ -39,31 +40,22 @@ def get_photos_by_sharelink(
     # Photos
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
 
-    # Generate presigned URLs for all photos at once for efficiency
-    object_keys = [photo.object_key for photo in photos]
-    presigned_urls = generate_presigned_urls_batch(object_keys, expires_in=7200)  # 2 hours expiration for public links
-
     photo_list = [
         PublicPhoto(
             photo_id=str(photo.id),
-            # Use presigned URLs directly
-            thumbnail_url=presigned_urls.get(photo.object_key, ""),
-            full_url=presigned_urls.get(photo.object_key, ""),
+            # Use endpoint URLs instead of direct presigned URLs
+            thumbnail_url=f"/s/{share_id}/photos/{photo.id}/url",
+            full_url=f"/s/{share_id}/photos/{photo.id}/url",
         )
         for photo in photos
-        if photo.object_key in presigned_urls  # Only include photos with valid URLs
     ]
-
-    # Gallery metadata
     gallery: Gallery = sharelink.gallery  # lazy-loaded
     cover_id = str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None
     cover = None
     if cover_id:
-        # Find cover photo and generate presigned URL
-        cover_photo = next((p for p in photos if str(p.id) == cover_id), None)
-        if cover_photo and cover_photo.object_key in presigned_urls:
-            cover_url = presigned_urls[cover_photo.object_key]
-            cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_url)
+        # Use endpoint URL for cover photo
+        cover_url = f"/s/{share_id}/photos/{cover_id}/url"
+        cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_url)
 
     photographer = getattr(gallery.owner, "display_name", None) or ""
     gallery_name = getattr(gallery, "name", "")
@@ -87,9 +79,9 @@ def get_photos_by_sharelink(
 
 
 @router.get("/{share_id}/photos/{photo_id}/url")
-@url_cache(max_age=7200)  # 2 hours for public links
-def get_photo_url_by_sharelink(share_id: UUID, photo_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
-    """Get presigned URL for a photo in a public gallery"""
+@url_cache(max_age=1800)  # Cache presigned URLs for 30 minutes
+def get_public_photo_presigned_url(share_id: UUID, photo_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
+    """Get presigned URL for a photo from public gallery"""
     photo = repo.get_photo_by_id_and_gallery(photo_id, sharelink.gallery_id)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
@@ -97,11 +89,47 @@ def get_photo_url_by_sharelink(share_id: UUID, photo_id: UUID, repo: ShareLinkRe
     logger.log_event("view_photo", share_id=share_id, extra={"photo_id": str(photo_id)})
 
     # Generate presigned URL
+    presigned_url = generate_presigned_url(photo.object_key)
+    return {"url": presigned_url}
+
+
+@router.get("/{share_id}/photos/{photo_id}")
+def get_photo_by_sharelink(share_id: UUID, photo_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
+    """Stream a photo from public gallery with proper caching headers"""
+    photo = repo.get_photo_by_id_and_gallery(photo_id, sharelink.gallery_id)
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    logger.log_event("view_photo", share_id=share_id, extra={"photo_id": str(photo_id)})
+
+    # Stream photo directly from S3
+    _, _, _, bucket = get_minio_config()
+    s3_client = get_s3_client()
+
     try:
-        url = generate_presigned_url(photo.object_key, expires_in=7200)  # 2 hours expiration for public links
-        return {"url": url, "expires_in": 7200}
+        obj = s3_client.get_object(Bucket=bucket, Key=photo.object_key)
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to generate photo URL") from e
+        raise HTTPException(status_code=404, detail="File not found") from e
+
+    # Determine MIME type
+    import mimetypes
+
+    mime_type, _ = mimetypes.guess_type(photo.object_key)
+    if not mime_type:
+        mime_type = obj.get("ContentType", "image/jpeg")
+
+    # Create response with aggressive caching headers for public content
+    response = StreamingResponse(
+        obj["Body"],
+        media_type=mime_type,
+        headers={
+            "Cache-Control": "public, max-age=86400, immutable",  # 24 hours cache
+            "ETag": f'"{photo_id}"',
+            "Expires": "Thu, 31 Dec 2037 23:55:55 GMT",  # Far future expires
+        },
+    )
+
+    return response
 
 
 @router.get("/{share_id}/download/all")

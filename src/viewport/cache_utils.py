@@ -52,10 +52,20 @@ def url_cache(max_age: int = 3600):
             # Add caching headers to the response
             if isinstance(result, dict):
                 # Create JSONResponse with cache headers
-                return JSONResponse(content=result, headers={"Cache-Control": f"private, max-age={max_age}", "Vary": "Authorization"})
+                cache_control = f"public, max-age={max_age}" if max_age > 3600 else f"private, max-age={max_age}"
+                headers = {"Cache-Control": cache_control}
+
+                # Only add Vary header for private content
+                if "private" in cache_control:
+                    headers["Vary"] = "Authorization"
+
+                return JSONResponse(content=result, headers=headers)
             elif isinstance(result, Response):
-                result.headers["Cache-Control"] = f"private, max-age={max_age}"
-                result.headers["Vary"] = "Authorization"
+                cache_control = f"public, max-age={max_age}" if max_age > 3600 else f"private, max-age={max_age}"
+                result.headers["Cache-Control"] = cache_control
+
+                if "private" in cache_control:
+                    result.headers["Vary"] = "Authorization"
 
             return result
 

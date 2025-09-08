@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { PresignedImage } from './PresignedImage'
+import { PublicPresignedImage } from './PublicImage'
 
 interface Photo {
   id?: string
@@ -18,6 +19,7 @@ interface PhotoModalProps {
   onNext: () => void
   onDownload?: (photoId: string) => void
   isPublic?: boolean
+  shareId?: string
 }
 
 export const PhotoModal = ({
@@ -27,7 +29,8 @@ export const PhotoModal = ({
   onPrevious,
   onNext,
   onDownload,
-  isPublic = false
+  isPublic = false,
+  shareId
 }: PhotoModalProps) => {
   // Keyboard navigation
   useEffect(() => {
@@ -95,9 +98,10 @@ export const PhotoModal = ({
       {/* Photo container */}
       <div className="max-w-[95vw] max-h-[95vh] flex items-center justify-center">
         <div onClick={e => e.stopPropagation()}>
-          {isPublic ? (
-            <img
-              src={`http://localhost:8000${currentPhoto.full_url}`}
+          {isPublic && shareId ? (
+            <PublicPresignedImage
+              shareId={shareId}
+              photoId={photoId}
               alt={`Photo ${photoId}`}
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
               loading="eager"

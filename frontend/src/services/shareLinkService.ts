@@ -32,9 +32,15 @@ const getSharedGallery = async (shareId: string): Promise<any> => {
   return response.data
 }
 
+const getPublicPhotoUrl = async (shareId: string, photoId: string): Promise<{ url: string, expires_in: number }> => {
+  const response = await api.get(`/s/${shareId}/photos/${photoId}/url`)
+  return response.data
+}
+
 export const shareLinkService = {
   getShareLinks,
   createShareLink,
   deleteShareLink,
   getSharedGallery,
+  getPublicPhotoUrl,
 }
