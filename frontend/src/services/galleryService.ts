@@ -1,5 +1,5 @@
 import { api } from '../lib/api'
-import type { Photo } from './photoService'
+import type { PhotoResponse } from './photoService'
 import type { ShareLink } from './shareLinkService'
 
 export interface Gallery {
@@ -11,7 +11,7 @@ export interface Gallery {
 }
 
 export interface GalleryDetail extends Gallery {
-  photos: Photo[]
+  photos: PhotoResponse[]
   share_links: ShareLink[]
 }
 

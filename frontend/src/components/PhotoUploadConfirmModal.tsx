@@ -4,9 +4,6 @@ import { formatFileSize } from '../lib/utils'
 import { photoService } from '../services/photoService'
 import type { PhotoUploadResponse } from '../services/photoService'
 
-interface FileWithPreview extends File {
-    preview?: string
-}
 
 interface PhotoUploadConfirmModalProps {
     isOpen: boolean
