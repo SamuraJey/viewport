@@ -4,6 +4,7 @@ import { Download, Loader2, ImageOff, AlertCircle } from 'lucide-react'
 import { useTheme } from '../hooks/useTheme'
 import { PhotoModal } from '../components/PhotoModal'
 import { PublicPresignedImage } from '../components/PublicImage'
+import { PublicBatchImage, PublicBatchImageProvider } from '../components/PublicBatchImage'
 import { ThemeSwitch } from '../components/ThemeSwitch'
 import { shareLinkService } from '../services/shareLinkService'
 
@@ -209,36 +210,38 @@ export const PublicGalleryPage = () => {
           </div>
 
           {gallery && gallery.photos.length > 0 ? (
-            <div className="columns-1 sm:columns-2 md:columns-2 lg:columns-3 xl:columns-3 2xl:columns-3 gap-6">
-              {gallery.photos.map((photo, index) => (
-                <div key={photo.photo_id} className="break-inside-avoid mb-6 relative group">
-                  <button
-                    onClick={() => openPhoto(index)}
-                    className="w-full p-0 border-0 bg-transparent cursor-pointer"
-                  >
-                    <PublicPresignedImage
-                      shareId={shareId!}
-                      photoId={photo.photo_id}
-                      alt={`Photo ${photo.photo_id}`}
-                      className="block w-full h-auto rounded-lg hover:opacity-90 transition-opacity"
-                      loading="lazy"
-                    />
-                  </button>
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none rounded-lg">
+            <PublicBatchImageProvider shareId={shareId!}>
+              <div className="columns-1 sm:columns-2 md:columns-2 lg:columns-3 xl:columns-3 2xl:columns-3 gap-6">
+                {gallery.photos.map((photo, index) => (
+                  <div key={photo.photo_id} className="break-inside-avoid mb-6 relative group">
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDownloadPhoto(photo.photo_id)
-                      }}
-                      className="flex items-center justify-center w-10 h-10 p-2 bg-white/20 hover:bg-white/30 text-white rounded-full transition-colors pointer-events-auto"
-                      title="Download Photo"
+                      onClick={() => openPhoto(index)}
+                      className="w-full p-0 border-0 bg-transparent cursor-pointer"
                     >
-                      <Download className="w-5 h-5" />
+                      <PublicBatchImage
+                        shareId={shareId!}
+                        photoId={photo.photo_id}
+                        alt={`Photo ${photo.photo_id}`}
+                        className="block w-full h-auto rounded-lg hover:opacity-90 transition-opacity"
+                        loading="lazy"
+                      />
                     </button>
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none rounded-lg">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDownloadPhoto(photo.photo_id)
+                        }}
+                        className="flex items-center justify-center w-10 h-10 p-2 bg-white/20 hover:bg-white/30 text-white rounded-full transition-colors pointer-events-auto"
+                        title="Download Photo"
+                      >
+                        <Download className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </PublicBatchImageProvider>
           ) : (
             <div className="text-center py-16 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
               <ImageOff className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />

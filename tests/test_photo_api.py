@@ -1,6 +1,7 @@
 """Tests for photo API endpoints."""
 
 import io
+from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 import pytest
@@ -314,16 +315,21 @@ class TestPhotoAPI:
         response = authenticated_client.get(f"/galleries/{gallery1_id}/photos/{photo_id}")
         assert response.status_code == 200
 
-    def test_get_all_photo_urls_for_gallery_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
+    def test_get_all_photo_urls_for_gallery_success(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+    ):
         """Test getting all photo URLs for a gallery successfully."""
-        # Upload two photos
+        contents = [b"content1", b"content2"]
+
         authenticated_client.post(
             f"/galleries/{gallery_id_fixture}/photos",
-            files={"file": ("photo1.jpg", b"content1", "image/jpeg")},
+            files={"file": ("photo1.jpg", contents[0], "image/jpeg")},
         )
         authenticated_client.post(
             f"/galleries/{gallery_id_fixture}/photos",
-            files={"file": ("photo2.jpg", b"content2", "image/jpeg")},
+            files={"file": ("photo2.jpg", contents[1], "image/jpeg")},
         )
 
         response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/urls")
@@ -331,11 +337,24 @@ class TestPhotoAPI:
         data = response.json()
         assert isinstance(data, list)
         assert len(data) == 2
-        for item in data:
+
+        required_params = {"X-Amz-Algorithm", "X-Amz-Credential", "X-Amz-Date", "X-Amz-Signature"}
+
+        for i, item in enumerate(data):
+            assert "gallery_id" in item
+            assert item["gallery_id"] == gallery_id_fixture
+
             assert "url" in item
-            assert item["url"].startswith("http")
-            assert "expires_in" in item
-            assert item["expires_in"] == 3600
+            url = item["url"]
+            assert url.startswith("http")
+
+            parsed = urlparse(url)
+            qs = parse_qs(parsed.query)
+            for param in required_params:
+                assert param in qs, f"Missing {param} in presigned URL: {url}"
+
+            assert "file_size" in item
+            assert item["file_size"] == len(contents[i])
 
     def test_get_all_photo_urls_for_gallery_not_found(self, authenticated_client: TestClient):
         """Test getting URLs from a non-existent gallery."""

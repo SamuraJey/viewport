@@ -78,6 +78,35 @@ def get_photos_by_sharelink(
     )
 
 
+@router.get("/{share_id}/photos/urls", response_model=list[PublicPhoto])
+@url_cache(max_age=1800)  # Cache presigned URLs for 30 minutes
+def get_all_public_photo_urls(
+    share_id: UUID,
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    sharelink: ShareLink = Depends(get_valid_sharelink),
+) -> list[PublicPhoto]:
+    """Get presigned URLs for all photos in a public gallery"""
+    photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
+
+    photo_list = []
+    for photo in photos:
+        try:
+            presigned_url = generate_presigned_url(photo.object_key)
+            photo_list.append(
+                PublicPhoto(
+                    photo_id=str(photo.id),
+                    thumbnail_url=presigned_url,
+                    full_url=presigned_url,
+                )
+            )
+        except Exception:
+            logger.error("Failed to generate presigned URL for photo %s in share %s", photo.id, share_id)
+            continue
+
+    logger.log_event("view_gallery_urls", share_id=share_id, extra={"photo_count": len(photo_list)})
+    return photo_list
+
+
 @router.get("/{share_id}/photos/{photo_id}/url")
 @url_cache(max_age=1800)  # Cache presigned URLs for 30 minutes
 def get_public_photo_presigned_url(share_id: UUID, photo_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):

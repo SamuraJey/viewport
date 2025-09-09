@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react'
 import { PresignedImage } from './PresignedImage'
-import { PublicPresignedImage } from './PublicImage'
+import { PublicBatchImage, PublicBatchImageProvider } from './PublicBatchImage'
 
 interface Photo {
   id?: string
@@ -98,13 +98,15 @@ export const PhotoModal = ({
       {/* Photo container */}
       <div className="w-full h-full flex items-center justify-center p-4" onClick={e => e.stopPropagation()}>
         {isPublic && shareId ? (
-          <PublicPresignedImage
-            shareId={shareId}
-            photoId={photoId}
-            alt={`Photo ${photoId}`}
-            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-            loading="eager"
-          />
+          <PublicBatchImageProvider shareId={shareId}>
+            <PublicBatchImage
+              shareId={shareId}
+              photoId={photoId}
+              alt={`Photo ${photoId}`}
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              loading="eager"
+            />
+          </PublicBatchImageProvider>
         ) : (
           <PresignedImage
             photoId={photoId}

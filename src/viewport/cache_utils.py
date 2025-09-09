@@ -28,7 +28,6 @@ def get_cached_presigned_url(photo_id: str) -> str | None:
     if cached and cached["expires_at"] > datetime.now():
         return cached["url"]
 
-    # Clean up expired cache entry
     if photo_id in _url_cache:
         del _url_cache[photo_id]
 

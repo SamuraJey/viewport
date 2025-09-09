@@ -47,8 +47,7 @@ def get_all_photo_urls_for_gallery(
         try:
             photo_responses.append(PhotoResponse.from_db_photo(photo))
         except Exception:
-            # In a real app, you'd want to log this error.
-            # For now, we'll just skip the photo if URL generation fails.
+            logger.error("Failed to generate presigned URL for photo %s in gallery %s", photo.id, gallery_id)
             continue
 
     return photo_responses
