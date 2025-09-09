@@ -34,6 +34,24 @@ Object.defineProperty(window, 'open', {
   value: vi.fn()
 })
 
+// Mock components
+vi.mock('../../components/PublicBatchImage', () => ({
+  PublicBatchImage: ({ alt, ...props }: any) => (
+    <img alt={alt} data-testid="public-batch-image" {...props} />
+  ),
+  PublicBatchImageProvider: ({ children }: any) => <div data-testid="provider">{children}</div>
+}))
+
+vi.mock('../../components/PublicImage', () => ({
+  PublicPresignedImage: ({ alt, ...props }: any) => (
+    <img alt={alt} data-testid="public-presigned-image" {...props} />
+  )
+}))
+
+vi.mock('../../hooks/useTheme', () => ({
+  useTheme: () => ({ theme: 'light' })
+}))
+
 const PublicGalleryPageWrapper = () => {
   return <PublicGalleryPage />
 }

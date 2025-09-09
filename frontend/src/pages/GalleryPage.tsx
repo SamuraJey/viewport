@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { galleryService, type GalleryDetail } from '../services/galleryService'
-import { photoService, type PhotoUrlResponse, type PhotoResponse } from '../services/photoService'
+import { photoService, type PhotoResponse } from '../services/photoService'
 import type { PhotoUploadResponse } from '../services/photoService'
 import { shareLinkService, type ShareLink } from '../services/shareLinkService'
 import { Layout } from '../components/Layout'
-import { PresignedImage } from '../components/PresignedImage'
 import { PhotoModal } from '../components/PhotoModal'
 import { formatDate } from '../lib/utils'
 import {
@@ -293,6 +292,7 @@ export const GalleryPage = () => {
                   <button
                     onClick={() => openPhoto(index)}
                     className="w-full p-0 border-0 bg-transparent cursor-pointer"
+                    aria-label={`Photo ${photo.id}`}
                   >
                     <img
                       src={photo.url}

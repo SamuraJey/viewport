@@ -217,6 +217,7 @@ export const PublicGalleryPage = () => {
                     <button
                       onClick={() => openPhoto(index)}
                       className="w-full p-0 border-0 bg-transparent cursor-pointer"
+                      aria-label={`Photo ${photo.photo_id}`}
                     >
                       <PublicBatchImage
                         shareId={shareId!}
