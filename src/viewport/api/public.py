@@ -1,5 +1,4 @@
 import io
-import mimetypes
 import zipfile
 from uuid import UUID
 
@@ -7,10 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from src.viewport.cache_utils import photo_cache
+from src.viewport.cache_utils import url_cache
 from src.viewport.db import get_db
 from src.viewport.logger import logger
-from src.viewport.minio_utils import get_minio_config, get_s3_client
+from src.viewport.minio_utils import generate_presigned_url, get_minio_config, get_s3_client
 from src.viewport.models.gallery import Gallery
 from src.viewport.models.sharelink import ShareLink
 from src.viewport.repositories.sharelink_repository import ShareLinkRepository
@@ -31,6 +30,7 @@ def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depends(get_
 
 
 @router.get("/{share_id}", response_model=PublicGalleryResponse)
+@url_cache(max_age=3600)  # Cache gallery metadata for 1 hour
 def get_photos_by_sharelink(
     share_id: UUID,
     request: Request,
@@ -39,20 +39,24 @@ def get_photos_by_sharelink(
 ) -> PublicGalleryResponse:
     # Photos
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
+
     photo_list = [
         PublicPhoto(
             photo_id=str(photo.id),
-            # Use secure public photo endpoints instead of direct file access
-            thumbnail_url=f"/s/{share_id}/photos/{photo.id}",
-            full_url=f"/s/{share_id}/photos/{photo.id}",
+            # Use endpoint URLs instead of direct presigned URLs
+            thumbnail_url=f"/s/{share_id}/photos/{photo.id}/url",
+            full_url=f"/s/{share_id}/photos/{photo.id}/url",
         )
         for photo in photos
     ]
-
-    # Gallery metadata
     gallery: Gallery = sharelink.gallery  # lazy-loaded
     cover_id = str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None
-    cover = PublicCover(photo_id=cover_id, full_url=f"/s/{share_id}/photos/{cover_id}", thumbnail_url=f"/s/{share_id}/photos/{cover_id}") if cover_id else None
+    cover = None
+    if cover_id:
+        # Use endpoint URL for cover photo
+        cover_url = f"/s/{share_id}/photos/{cover_id}/url"
+        cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_url)
+
     photographer = getattr(gallery.owner, "display_name", None) or ""
     gallery_name = getattr(gallery, "name", "")
     # Format date as DD.MM.YYYY similar to wfolio sample
@@ -74,9 +78,53 @@ def get_photos_by_sharelink(
     )
 
 
+@router.get("/{share_id}/photos/urls", response_model=list[PublicPhoto])
+@url_cache(max_age=1800)  # Cache presigned URLs for 30 minutes
+def get_all_public_photo_urls(
+    share_id: UUID,
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    sharelink: ShareLink = Depends(get_valid_sharelink),
+) -> list[PublicPhoto]:
+    """Get presigned URLs for all photos in a public gallery"""
+    photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
+
+    photo_list = []
+    for photo in photos:
+        try:
+            presigned_url = generate_presigned_url(photo.object_key)
+            photo_list.append(
+                PublicPhoto(
+                    photo_id=str(photo.id),
+                    thumbnail_url=presigned_url,
+                    full_url=presigned_url,
+                )
+            )
+        except Exception:
+            logger.error("Failed to generate presigned URL for photo %s in share %s", photo.id, share_id)
+            continue
+
+    logger.log_event("view_gallery_urls", share_id=share_id, extra={"photo_count": len(photo_list)})
+    return photo_list
+
+
+@router.get("/{share_id}/photos/{photo_id}/url")
+@url_cache(max_age=1800)  # Cache presigned URLs for 30 minutes
+def get_public_photo_presigned_url(share_id: UUID, photo_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
+    """Get presigned URL for a photo from public gallery"""
+    photo = repo.get_photo_by_id_and_gallery(photo_id, sharelink.gallery_id)
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    logger.log_event("view_photo", share_id=share_id, extra={"photo_id": str(photo_id)})
+
+    # Generate presigned URL
+    presigned_url = generate_presigned_url(photo.object_key)
+    return {"url": presigned_url}
+
+
 @router.get("/{share_id}/photos/{photo_id}")
-@photo_cache(max_age=86400, public=True)
-def get_single_photo_by_sharelink(request: Request, share_id: UUID, photo_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
+def get_photo_by_sharelink(share_id: UUID, photo_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
+    """Stream a photo from public gallery with proper caching headers"""
     photo = repo.get_photo_by_id_and_gallery(photo_id, sharelink.gallery_id)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
@@ -92,13 +140,25 @@ def get_single_photo_by_sharelink(request: Request, share_id: UUID, photo_id: UU
     except Exception as e:
         raise HTTPException(status_code=404, detail="File not found") from e
 
-    # Guess MIME type based on file extension
-    mime_type, _ = mimetypes.guess_type(photo.object_key)
-    logger.warning(f"Guessed MIME type: {mime_type} for {photo.object_key}")
-    if not mime_type:
-        mime_type = obj.get("ContentType", "application/octet-stream")
+    # Determine MIME type
+    import mimetypes
 
-    return StreamingResponse(obj["Body"], media_type=mime_type)
+    mime_type, _ = mimetypes.guess_type(photo.object_key)
+    if not mime_type:
+        mime_type = obj.get("ContentType", "image/jpeg")
+
+    # Create response with aggressive caching headers for public content
+    response = StreamingResponse(
+        obj["Body"],
+        media_type=mime_type,
+        headers={
+            "Cache-Control": "public, max-age=86400, immutable",  # 24 hours cache
+            "ETag": f'"{photo_id}"',
+            "Expires": "Thu, 31 Dec 2037 23:55:55 GMT",  # Far future expires
+        },
+    )
+
+    return response
 
 
 @router.get("/{share_id}/download/all")

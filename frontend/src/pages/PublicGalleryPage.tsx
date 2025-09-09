@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom'
 import { Download, Loader2, ImageOff, AlertCircle } from 'lucide-react'
 import { useTheme } from '../hooks/useTheme'
 import { PhotoModal } from '../components/PhotoModal'
+import { PublicPresignedImage } from '../components/PublicImage'
+import { PublicBatchImage, PublicBatchImageProvider } from '../components/PublicBatchImage'
 import { ThemeSwitch } from '../components/ThemeSwitch'
 import { shareLinkService } from '../services/shareLinkService'
 
@@ -119,115 +121,107 @@ export const PublicGalleryPage = () => {
     <div className={`min-h-screen bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
       {/* Theme switch button */}
       <ThemeSwitch />
-  <div className="w-full px-4 sm:px-6 lg:px-10 py-16">
-          {/* Header with optional cover */}
-          <div className="mb-12">
-            {gallery?.cover ? (
-              <div className="relative w-full max-w-6xl mx-auto">
-                <div className="cover cover--photo cover--fill" data-role="cover">
-                  <div className="cover__image">
-                    <img
-                      src={`http://localhost:8000${gallery.cover.full_url}`}
-                      alt=""
-                      className="w-full h-[60vh] md:h-[70vh] object-cover rounded-2xl shadow-xl"
-                      loading="eager"
-                    />
-                  </div>
-                  <div className="cover__hero absolute bottom-6 left-6 right-6">
-                    {gallery.date && (
-                      <div className="cover__date text-white/80 text-sm mb-2">{gallery.date}</div>
-                    )}
-                    <h1 className="cover__header text-4xl md:text-5xl font-bold text-white drop-shadow-lg">
-                      {gallery.gallery_name || 'Shared Gallery'}
-                    </h1>
-                    <div className="cover__subheader text-white/90 mt-1">
-                      {gallery.photographer ? (
-                        <>
-                          {gallery.photographer}
-                          {gallery.site_url && (
-                            <a
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="cover__site ml-2 underline text-white/80 hover:text-white"
-                              href={gallery.site_url}
-                            >
-                              {new URL(gallery.site_url).host}
-                            </a>
-                          )}
-                        </>
-                      ) : (
-                        gallery.site_url && (
-                          <a
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="cover__site underline text-white/80 hover:text-white"
-                            href={gallery.site_url}
-                          >
-                            {new URL(gallery.site_url).host}
-                          </a>
-                        )
-                      )}
-                    </div>
-                  </div>
-                  <div className="cover__arrow cover-arrow absolute bottom-2 left-1/2 -translate-x-1/2 text-white opacity-90">
-                    <a
-                      href="#gallery-photos"
-                      aria-label="Scroll to photos"
-                      className="block w-10 h-10 border-2 border-white/70 rounded-full flex items-center justify-center"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        const el = document.getElementById('gallery-photos')
-                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                      }}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
-                        <path d="M6 9l6 6 6-6" />
-                      </svg>
-                    </a>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center">
-                <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">{gallery?.gallery_name || 'Shared Gallery'}</h1>
-                {gallery?.photographer && (
-                  <p className="text-gray-600 dark:text-gray-400 text-lg">Репортаж {gallery.photographer}</p>
-                )}
-              </div>
+      {/* Hero Section */}
+      {gallery?.cover ? (
+        <div className="relative h-screen w-full flex items-center justify-center text-center text-white">
+          {/* Background Image */}
+          <PublicPresignedImage
+            shareId={shareId!}
+            photoId={gallery.cover.photo_id}
+            alt="Gallery cover"
+            className="absolute inset-0 w-full h-full object-cover"
+            loading="eager"
+          />
+          {/* Overlay */}
+          <div className="absolute inset-0 bg-black/50" />
+
+          {/* Centered Content */}
+          <div className="relative z-10 p-4">
+            {gallery.date && (
+              <p className="text-sm text-white/80 mb-2">{gallery.date}</p>
             )}
+            <h1 className="text-4xl md:text-6xl font-bold drop-shadow-lg">
+              {gallery.gallery_name || 'Shared Gallery'}
+            </h1>
+            <div className="mt-4 text-lg text-white/90">
+              {gallery.photographer && <span>{gallery.photographer}</span>}
+              {gallery.photographer && gallery.site_url && <span className="mx-2">|</span>}
+              {gallery.site_url && (
+                <a
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-white"
+                  href={gallery.site_url}
+                >
+                  {new URL(gallery.site_url).host}
+                </a>
+              )}
+            </div>
           </div>
 
-          {/* Gallery Actions */}
-          {gallery && gallery.photos.length > 0 && (
-            <div className="mb-8 text-center">
-              <button
-                onClick={handleDownloadAll}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center gap-2"
-              >
-                <Download className="w-5 h-5" />
-                Download All Photos
-              </button>
-            </div>
+          {/* Scroll Down Arrow */}
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
+            <a
+              href="#gallery-content"
+              aria-label="Scroll to photos"
+              className="block w-10 h-10 border-2 border-white/70 rounded-full flex items-center justify-center animate-bounce"
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById('gallery-content')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      ) : (
+        // Fallback for no cover photo
+        <div className="text-center py-16">
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">{gallery?.gallery_name || 'Shared Gallery'}</h1>
+          {gallery?.photographer && (
+            <p className="text-gray-600 dark:text-gray-400 text-lg">By {gallery.photographer}</p>
           )}
+        </div>
+      )}
 
-          {/* Photos Grid */}
-          <div id="gallery-photos" className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-            <div className="mb-6">
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
-                Photos ({gallery?.photos.length || 0})
-              </h2>
-            </div>
+      {/* Main Content Area */}
+      <div id="gallery-content" className="w-full px-4 sm:px-6 lg:px-10 py-16">
+        {/* Gallery Actions */}
+        {gallery && gallery.photos.length > 0 && (
+          <div className="mb-8 text-center">
+            <button
+              onClick={handleDownloadAll}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center gap-2"
+            >
+              <Download className="w-5 h-5" />
+              Download All Photos
+            </button>
+          </div>
+        )}
 
-            {gallery && gallery.photos.length > 0 ? (
+        {/* Photos Grid */}
+        <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+          <div className="mb-6">
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+              Photos ({gallery?.photos.length || 0})
+            </h2>
+          </div>
+
+          {gallery && gallery.photos.length > 0 ? (
+            <PublicBatchImageProvider shareId={shareId!}>
               <div className="columns-1 sm:columns-2 md:columns-2 lg:columns-3 xl:columns-3 2xl:columns-3 gap-6">
                 {gallery.photos.map((photo, index) => (
                   <div key={photo.photo_id} className="break-inside-avoid mb-6 relative group">
                     <button
                       onClick={() => openPhoto(index)}
                       className="w-full p-0 border-0 bg-transparent cursor-pointer"
+                      aria-label={`Photo ${photo.photo_id}`}
                     >
-                      <img
-                        src={`http://localhost:8000${photo.full_url}`}
+                      <PublicBatchImage
+                        shareId={shareId!}
+                        photoId={photo.photo_id}
                         alt={`Photo ${photo.photo_id}`}
                         className="block w-full h-auto rounded-lg hover:opacity-90 transition-opacity"
                         loading="lazy"
@@ -248,31 +242,33 @@ export const PublicGalleryPage = () => {
                   </div>
                 ))}
               </div>
-            ) : (
-              <div className="text-center py-16 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
-                <ImageOff className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-                <h3 className="mt-4 text-lg font-medium text-gray-600 dark:text-gray-300">No photos in this gallery</h3>
-                <p className="mt-2 text-sm text-gray-500">This gallery appears to be empty.</p>
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className="text-center mt-12 text-gray-600 dark:text-gray-400 text-sm">
-            <p>Powered by Viewport - Your Photo Gallery Solution</p>
-          </div>
-
-          {/* Photo Modal */}
-          <PhotoModal
-            photos={gallery?.photos || []}
-            selectedIndex={selectedPhotoIndex}
-            onClose={closePhoto}
-            onPrevious={goToPrevPhoto}
-            onNext={goToNextPhoto}
-            onDownload={handleDownloadPhoto}
-            isPublic={true}
-          />
+            </PublicBatchImageProvider>
+          ) : (
+            <div className="text-center py-16 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+              <ImageOff className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
+              <h3 className="mt-4 text-lg font-medium text-gray-600 dark:text-gray-300">No photos in this gallery</h3>
+              <p className="mt-2 text-sm text-gray-500">This gallery appears to be empty.</p>
+            </div>
+          )}
         </div>
+
+        {/* Footer */}
+        <div className="text-center mt-12 text-gray-600 dark:text-gray-400 text-sm">
+          <p>Powered by Viewport - Your Photo Gallery Solution</p>
+        </div>
+
+        {/* Photo Modal */}
+        <PhotoModal
+          photos={gallery?.photos || []}
+          selectedIndex={selectedPhotoIndex}
+          onClose={closePhoto}
+          onPrevious={goToPrevPhoto}
+          onNext={goToNextPhoto}
+          onDownload={handleDownloadPhoto}
+          isPublic={true}
+          shareId={shareId}
+        />
       </div>
+    </div>
   )
 }

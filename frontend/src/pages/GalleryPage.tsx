@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { galleryService, type GalleryDetail } from '../services/galleryService'
-import { photoService } from '../services/photoService'
+import { photoService, type PhotoResponse } from '../services/photoService'
+import type { PhotoUploadResponse } from '../services/photoService'
 import { shareLinkService, type ShareLink } from '../services/shareLinkService'
 import { Layout } from '../components/Layout'
-import { AuthenticatedImage } from '../components/AuthenticatedImage'
 import { PhotoModal } from '../components/PhotoModal'
 import { formatDate } from '../lib/utils'
 import {
@@ -24,9 +24,10 @@ import { PhotoUploader } from '../components/PhotoUploader'
 export const GalleryPage = () => {
   const { id } = useParams<{ id: string }>()
   const [gallery, setGallery] = useState<GalleryDetail | null>(null)
+  const [photoUrls, setPhotoUrls] = useState<PhotoResponse[]>([])
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isUploading, setIsUploading] = useState(false)
+
   const [uploadError, setUploadError] = useState('')
   const [isCreatingLink, setIsCreatingLink] = useState(false)
   const [error, setError] = useState('')
@@ -35,37 +36,46 @@ export const GalleryPage = () => {
 
   const galleryId = id!
 
-  const fetchData = useCallback(async () => {
+  const fetchGalleryDetails = useCallback(async () => {
     try {
-      setIsLoading(true)
-      setError('')
       const galleryData = await galleryService.getGallery(galleryId)
       setGallery(galleryData)
       setShareLinks(galleryData.share_links || [])
     } catch (err) {
       setError('Failed to load gallery data. Please try again.')
       console.error(err)
-    } finally {
-      setIsLoading(false)
     }
   }, [galleryId])
+
+  const fetchPhotoUrls = useCallback(async () => {
+    try {
+      const urls = await photoService.getAllPhotoUrls(galleryId)
+      setPhotoUrls(urls)
+    } catch (err) {
+      setError('Failed to load photo URLs. Please try again.')
+      console.error(err)
+    }
+  }, [galleryId])
+
+  const fetchData = useCallback(async () => {
+    setIsLoading(true)
+    setError('')
+    await Promise.all([fetchGalleryDetails(), fetchPhotoUrls()])
+    setIsLoading(false)
+  }, [fetchGalleryDetails, fetchPhotoUrls])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
 
-  // Handler for photo upload
-  const handlePhotoUpload = async (files: File[]) => {
-    setIsUploading(true)
+  // Handler for photo upload completion
+  const handleUploadComplete = (result: PhotoUploadResponse) => {
     setUploadError('')
-    try {
-      await Promise.all(files.map(file => photoService.uploadPhoto(galleryId, file)))
-      await fetchData()
-    } catch (err) {
-      setUploadError('Photo upload failed. Please try again.')
-      console.error(err)
-    } finally {
-      setIsUploading(false)
+    if (result.successful_uploads > 0) {
+      fetchData() // Refresh gallery data and photo URLs
+    }
+    if (result.failed_uploads > 0) {
+      setUploadError(`${result.failed_uploads} of ${result.total_files} photos failed to upload`)
     }
   }
 
@@ -81,6 +91,7 @@ export const GalleryPage = () => {
       }
     }
   }
+  // ... (keep existing handlers for delete gallery, share links, etc.)
   // Handler for deleting the gallery from detail page
   const handleDeleteGallery = async () => {
     if (window.confirm('Are you sure you want to delete this gallery and all its contents?')) {
@@ -100,7 +111,7 @@ export const GalleryPage = () => {
     setError('')
     try {
       await shareLinkService.createShareLink(galleryId)
-      await fetchData()
+      await fetchGalleryDetails() // Only need to refresh gallery details
     } catch (err) {
       setError('Failed to create share link. Please try again.')
       console.error(err)
@@ -114,7 +125,7 @@ export const GalleryPage = () => {
     if (window.confirm('Are you sure you want to delete this share link?')) {
       try {
         await shareLinkService.deleteShareLink(galleryId, linkId)
-        await fetchData()
+        await fetchGalleryDetails() // Only need to refresh gallery details
       } catch (err) {
         setError('Failed to delete share link. Please try again.')
         console.error(err)
@@ -139,15 +150,15 @@ export const GalleryPage = () => {
   }
 
   const goToPrevPhoto = () => {
-    if (selectedPhotoIndex !== null && gallery?.photos) {
-      const newIndex = selectedPhotoIndex > 0 ? selectedPhotoIndex - 1 : gallery.photos.length - 1
+    if (selectedPhotoIndex !== null) {
+      const newIndex = selectedPhotoIndex > 0 ? selectedPhotoIndex - 1 : photoUrls.length - 1
       setSelectedPhotoIndex(newIndex)
     }
   }
 
   const goToNextPhoto = () => {
-    if (selectedPhotoIndex !== null && gallery?.photos) {
-      const newIndex = selectedPhotoIndex < gallery.photos.length - 1 ? selectedPhotoIndex + 1 : 0
+    if (selectedPhotoIndex !== null) {
+      const newIndex = selectedPhotoIndex < photoUrls.length - 1 ? selectedPhotoIndex + 1 : 0
       setSelectedPhotoIndex(newIndex)
     }
   }
@@ -155,7 +166,7 @@ export const GalleryPage = () => {
   const handleSetCover = async (photoId: string) => {
     try {
       await galleryService.setCoverPhoto(galleryId, photoId)
-      await fetchData()
+      await fetchGalleryDetails()
     } catch (err) {
       setError('Failed to set cover photo. Please try again.')
       console.error(err)
@@ -165,7 +176,7 @@ export const GalleryPage = () => {
   const handleClearCover = async () => {
     try {
       await galleryService.clearCoverPhoto(galleryId)
-      await fetchData()
+      await fetchGalleryDetails()
     } catch (err) {
       setError('Failed to clear cover photo. Please try again.')
       console.error(err)
@@ -173,6 +184,7 @@ export const GalleryPage = () => {
   }
 
   if (isLoading) {
+    // ... (keep existing loading state)
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -185,7 +197,8 @@ export const GalleryPage = () => {
     )
   }
 
-  if (error) {
+  if (error && !gallery) {
+    // ... (keep existing error state)
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -210,6 +223,7 @@ export const GalleryPage = () => {
   }
 
   if (!gallery) {
+    // ... (keep existing not found state)
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -227,6 +241,7 @@ export const GalleryPage = () => {
   return (
     <Layout>
       <div className="space-y-8">
+        {/* ... (keep existing header section) */}
         <div className="flex flex-col gap-4">
           <div>
             <Link to="/" className="flex items-center gap-2 text-sm text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 mb-4">
@@ -255,8 +270,8 @@ export const GalleryPage = () => {
         {/* Photo Section */}
         <div className="bg-gray-50 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 dark:border-white/10">
           <div className="mb-6">
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Photos ({gallery.photos.length})</h2>
-            <PhotoUploader onUpload={handlePhotoUpload} isUploading={isUploading} />
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Photos ({photoUrls.length})</h2>
+            <PhotoUploader galleryId={galleryId} onUploadComplete={handleUploadComplete} />
             {uploadError && (
               <div className="mt-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
                 {uploadError}
@@ -270,15 +285,16 @@ export const GalleryPage = () => {
               </div>
             )}
           </div>
-          {gallery.photos.length > 0 ? (
+          {photoUrls.length > 0 ? (
             <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-4">
-              {gallery.photos.map((photo, index) => (
-              <div key={photo.id} className="break-inside-avoid mb-4 relative group">
+              {photoUrls.map((photo, index) => (
+                <div key={photo.id} className="break-inside-avoid mb-4 relative group">
                   <button
                     onClick={() => openPhoto(index)}
                     className="w-full p-0 border-0 bg-transparent cursor-pointer"
+                    aria-label={`Photo ${photo.id}`}
                   >
-                    <AuthenticatedImage
+                    <img
                       src={photo.url}
                       alt={`Photo ${photo.id}`}
                       className="w-full h-auto object-contain rounded-lg hover:opacity-90 transition-opacity"
@@ -336,7 +352,7 @@ export const GalleryPage = () => {
           )}
         </div>
 
-        {/* Share Links Section */}
+        {/* ... (keep existing share links section) */}
         <div className="bg-gray-50 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 dark:border-white/10">
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-4">
@@ -388,7 +404,7 @@ export const GalleryPage = () => {
 
       {/* Photo Modal */}
       <PhotoModal
-        photos={gallery?.photos || []}
+        photos={photoUrls.map(p => ({ id: p.id, url: p.url, created_at: '', gallery_id: galleryId }))}
         selectedIndex={selectedPhotoIndex}
         onClose={closePhoto}
         onPrevious={goToPrevPhoto}

@@ -1,19 +1,18 @@
-import mimetypes
-from datetime import UTC, datetime, timedelta
+import logging
+from typing import Annotated
 from uuid import UUID
 
-import jwt
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
-from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from src.viewport.api.auth import authsettings
 from src.viewport.auth_utils import get_current_user
-from src.viewport.cache_utils import photo_cache
+from src.viewport.cache_utils import photo_cache, url_cache
 from src.viewport.db import get_db
-from src.viewport.minio_utils import get_minio_config, get_s3_client, upload_fileobj
+from src.viewport.minio_utils import generate_presigned_url, upload_fileobj
 from src.viewport.repositories.gallery_repository import GalleryRepository
-from src.viewport.schemas.photo import PhotoResponse
+from src.viewport.schemas.photo import PhotoResponse, PhotoUploadResponse, PhotoUploadResult
+
+logger = logging.getLogger(__name__)
 
 MAX_FILE_SIZE = 15 * 1024 * 1024  # 15 MB
 
@@ -25,11 +24,40 @@ def get_gallery_repository(db: Session = Depends(get_db)) -> GalleryRepository:
     return GalleryRepository(db)
 
 
-# GET /galleries/{gallery_id}/photos/{photo_id} - View photo for authenticated users
-@router.get("/{gallery_id}/photos/{photo_id}")
+# GET /galleries/{gallery_id}/photos/urls - Get all photo URLs for a gallery
+@router.get("/{gallery_id}/photos/urls", response_model=list[PhotoResponse])
+@photo_cache(max_age=3600, public=False)
+def get_all_photo_urls_for_gallery(
+    gallery_id: UUID,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user=Depends(get_current_user),
+) -> list[PhotoResponse]:
+    """Get presigned URLs for all photos in a gallery for the owner."""
+    # First, verify gallery ownership
+    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    if not gallery:
+        raise HTTPException(status_code=404, detail="Gallery not found")
+
+    # Get all photos for the gallery
+    photos = repo.get_photos_by_gallery_id(gallery_id)
+
+    # Generate presigned URLs for each photo
+    photo_responses = []
+    for photo in photos:
+        try:
+            photo_responses.append(PhotoResponse.from_db_photo(photo))
+        except Exception:
+            logger.error("Failed to generate presigned URL for photo %s in gallery %s", photo.id, gallery_id)
+            continue
+
+    return photo_responses
+
+
+# GET /galleries/{gallery_id}/photos/{photo_id} - Get photo info for gallery
+@router.get("/{gallery_id}/photos/{photo_id}", response_model=PhotoResponse)
 @photo_cache(max_age=3600, public=False)
 def get_photo(request: Request, gallery_id: UUID, photo_id: UUID, repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
-    """Stream a photo for authenticated users who own the gallery"""
+    """Get photo information for authenticated users who own the gallery"""
     # First, verify gallery ownership
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
@@ -40,107 +68,52 @@ def get_photo(request: Request, gallery_id: UUID, photo_id: UUID, repo: GalleryR
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
 
-    # Stream photo from S3
-    _, _, _, bucket = get_minio_config()
-    s3_client = get_s3_client()
-
-    try:
-        obj = s3_client.get_object(Bucket=bucket, Key=photo.object_key)
-    except Exception as e:
-        raise HTTPException(status_code=404, detail="File not found") from e
-
-    # Guess MIME type based on file extension
-    mime_type, _ = mimetypes.guess_type(photo.object_key)
-    if not mime_type:
-        mime_type = obj.get("ContentType", "application/octet-stream")
-
-    return StreamingResponse(obj["Body"], media_type=mime_type)
+    return PhotoResponse.from_db_photo(photo)
 
 
-@photo_auth_router.get("/auth/{photo_id}")
-@photo_cache(max_age=86400, public=False)
-def get_photo_with_token(request: Request, photo_id: UUID, repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
-    """Stream a photo for authenticated users with caching"""
-    # Get the photo and verify user ownership
-    photo = repo.get_photo_by_id_and_owner(photo_id, current_user.id)
+# GET /galleries/{gallery_id}/photos/{photo_id}/url - Get presigned URL for photo in gallery
+@router.get("/{gallery_id}/photos/{photo_id}/url")
+@url_cache(max_age=3600)
+def get_photo_url(gallery_id: UUID, photo_id: UUID, repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
+    """Get a presigned URL for a photo for authenticated users who own the gallery"""
 
+    # First, verify gallery ownership
+    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    if not gallery:
+        raise HTTPException(status_code=404, detail="Gallery not found")
+
+    # Then, verify photo belongs to that gallery
+    photo = repo.get_photo_by_id_and_gallery(photo_id, gallery_id)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
 
-    # Stream photo from S3
-    _, _, _, bucket = get_minio_config()
-    s3_client = get_s3_client()
-
+    # Generate presigned URL
     try:
-        obj = s3_client.get_object(Bucket=bucket, Key=photo.object_key)
+        url = generate_presigned_url(photo.object_key, expires_in=3600)  # 1 hour expiration
+        return {"url": url, "expires_in": 3600}
     except Exception as e:
-        raise HTTPException(status_code=404, detail="File not found") from e
-
-    # Guess MIME type based on file extension
-    mime_type, _ = mimetypes.guess_type(photo.object_key)
-    if not mime_type:
-        mime_type = obj.get("ContentType", "application/octet-stream")
-
-    return StreamingResponse(obj["Body"], media_type=mime_type)
+        raise HTTPException(status_code=500, detail="Failed to generate photo URL") from e
 
 
-@photo_auth_router.post("/auth/{photo_id}/url")
-def get_photo_signed_url(photo_id: UUID, repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
-    """Get a temporary signed URL for a photo that can be used in img tags"""
+# GET /photos/auth/{photo_id}/url - Get presigned URL for direct photo access
+# @photo_auth_router.get("/auth/{photo_id}/url")
+# @url_cache(max_age=3600)
+# def get_photo_url_auth(photo_id: UUID, repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
+#     """Get a presigned URL for a photo for authenticated users with direct access"""
+#     # Get the photo and verify user ownership
+#     photo = repo.get_photo_by_id_and_owner(photo_id, current_user.id)
 
-    # Verify user owns the photo
-    photo = repo.get_photo_by_id_and_owner(photo_id, current_user.id)
+#     if not photo:
+#         raise HTTPException(status_code=404, detail="Photo not found")
 
-    if not photo:
-        raise HTTPException(status_code=404, detail="Photo not found")
+#     # Generate presigned URL
+#     try:
+#         url = generate_presigned_url(photo.object_key, expires_in=3600)  # 1 hour expiration
+#         return {"url": url, "expires_in": 3600}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail="Failed to generate photo URL") from e
 
-    # Create a temporary token valid for 1 hour
-    payload = {"photo_id": str(photo_id), "user_id": str(current_user.id), "exp": datetime.now(UTC) + timedelta(hours=1), "type": "photo_access"}
-    token = jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
-
-    return {"url": f"/photos/temp/{photo_id}?token={token}"}
-
-
-@photo_auth_router.get("/temp/{photo_id}")
-@photo_cache(max_age=3600, public=False)  # Cache for 1 hour
-def get_photo_with_temp_token(request: Request, photo_id: UUID, token: str, repo: GalleryRepository = Depends(get_gallery_repository)):
-    """Stream a photo using a temporary token that can be used in img tags"""
-    try:
-        # Decode and validate the token
-        payload = jwt.decode(token, authsettings.jwt_secret_key, algorithms=[authsettings.jwt_algorithm])
-
-        if payload.get("type") != "photo_access":
-            raise HTTPException(status_code=403, detail="Invalid token type")
-
-        if payload.get("photo_id") != str(photo_id):
-            raise HTTPException(status_code=403, detail="Token photo mismatch")
-
-        user_id = payload.get("user_id")
-
-        # Get the photo and verify user ownership
-        photo = repo.get_photo_by_id_and_owner(photo_id, UUID(user_id))
-
-        if not photo:
-            raise HTTPException(status_code=404, detail="Photo not found")
-
-        # Stream photo from S3
-        _, _, _, bucket = get_minio_config()
-        s3_client = get_s3_client()
-
-        try:
-            obj = s3_client.get_object(Bucket=bucket, Key=photo.object_key)
-        except Exception as e:
-            raise HTTPException(status_code=404, detail="File not found") from e
-
-        # Guess MIME type based on file extension
-        mime_type, _ = mimetypes.guess_type(photo.object_key)
-        if not mime_type:
-            mime_type = obj.get("ContentType", "application/octet-stream")
-
-        return StreamingResponse(obj["Body"], media_type=mime_type)
-
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=403, detail="Invalid or expired token") from None
+# noqa: ERA001
 
 
 @router.post("/{gallery_id}/photos", response_model=PhotoResponse, status_code=status.HTTP_201_CREATED)
@@ -165,6 +138,55 @@ def upload_photo(gallery_id: UUID, file: UploadFile = File(...), repo: GalleryRe
     # Save Photo record
     photo = repo.create_photo(gallery_id, object_key, file_size)
     return PhotoResponse.from_db_photo(photo)
+
+
+@router.post("/{gallery_id}/photos/batch", response_model=PhotoUploadResponse)
+def upload_photos_batch(gallery_id: UUID, files: Annotated[list[UploadFile], File()], repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
+    """Upload multiple photos to a gallery"""
+    # Check gallery ownership
+    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    if not gallery:
+        raise HTTPException(status_code=404, detail="Gallery not found")
+
+    if not files:
+        logger.warning("No files provided in batch upload")
+        raise HTTPException(status_code=400, detail="No files provided")
+
+    results = []
+    successful_uploads = 0
+    failed_uploads = 0
+
+    for file in files:
+        try:
+            # Validate file size
+            contents = file.file.read()
+            file_size = len(contents)
+
+            if file_size > MAX_FILE_SIZE:
+                results.append(PhotoUploadResult(filename=file.filename or "unknown", success=False, error=f"File too large (max 15MB), got {file_size / (1024 * 1024):.1f}MB"))
+                failed_uploads += 1
+                continue
+
+            # Upload to MinIO
+            filename = f"{gallery_id}/{file.filename}"
+            object_key = filename
+            upload_fileobj(fileobj=bytes(contents), filename=object_key)
+
+            # Save Photo record
+            photo = repo.create_photo(gallery_id, object_key, file_size)
+            photo_response = PhotoResponse.from_db_photo(photo)
+
+            results.append(PhotoUploadResult(filename=file.filename or "unknown", success=True, photo=photo_response))
+            successful_uploads += 1
+
+        except Exception as e:
+            results.append(PhotoUploadResult(filename=file.filename or "unknown", success=False, error=str(e)))
+            failed_uploads += 1
+        finally:
+            # Reset file position for next iteration
+            file.file.seek(0)
+
+    return PhotoUploadResponse(results=results, total_files=len(files), successful_uploads=successful_uploads, failed_uploads=failed_uploads)
 
 
 @router.delete("/{gallery_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)

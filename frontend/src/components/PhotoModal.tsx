@@ -1,12 +1,14 @@
 import { useEffect } from 'react'
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react'
-import { AuthenticatedImage } from './AuthenticatedImage'
+import { PresignedImage } from './PresignedImage'
+import { PublicBatchImage, PublicBatchImageProvider } from './PublicBatchImage'
 
 interface Photo {
   id?: string
   photo_id?: string
   url?: string
   full_url?: string
+  gallery_id?: string
 }
 
 interface PhotoModalProps {
@@ -17,6 +19,7 @@ interface PhotoModalProps {
   onNext: () => void
   onDownload?: (photoId: string) => void
   isPublic?: boolean
+  shareId?: string
 }
 
 export const PhotoModal = ({
@@ -26,7 +29,8 @@ export const PhotoModal = ({
   onPrevious,
   onNext,
   onDownload,
-  isPublic = false
+  isPublic = false,
+  shareId
 }: PhotoModalProps) => {
   // Keyboard navigation
   useEffect(() => {
@@ -58,9 +62,7 @@ export const PhotoModal = ({
 
   const currentPhoto = photos[selectedIndex]
   const photoId = currentPhoto.id || currentPhoto.photo_id || ''
-  const photoSrc = isPublic
-    ? `http://localhost:8000${currentPhoto.full_url}`
-    : currentPhoto.url || ''
+  const galleryId = currentPhoto.gallery_id
 
   return (
     <div
@@ -94,24 +96,26 @@ export const PhotoModal = ({
       )}
 
       {/* Photo container */}
-      <div className="max-w-[95vw] max-h-[95vh] flex items-center justify-center">
-        <div onClick={e => e.stopPropagation()}>
-          {isPublic ? (
-            <img
-              src={photoSrc}
+      <div className="w-full h-full flex items-center justify-center p-4" onClick={e => e.stopPropagation()}>
+        {isPublic && shareId ? (
+          <PublicBatchImageProvider shareId={shareId}>
+            <PublicBatchImage
+              shareId={shareId}
+              photoId={photoId}
               alt={`Photo ${photoId}`}
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
               loading="eager"
             />
-          ) : (
-            <AuthenticatedImage
-              src={photoSrc}
-              alt={`Photo ${photoId}`}
-              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-              loading="eager"
-            />
-          )}
-        </div>
+          </PublicBatchImageProvider>
+        ) : (
+          <PresignedImage
+            photoId={photoId}
+            galleryId={galleryId}
+            alt={`Photo ${photoId}`}
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            loading="eager"
+          />
+        )}
       </div>
 
       {/* Photo info */}

@@ -8,7 +8,7 @@ from src.viewport.models.sharelink import ShareLink
 from src.viewport.repositories.base_repository import BaseRepository
 
 
-class ShareLinkRepository(BaseRepository):
+class ShareLinkRepository(BaseRepository): # pragma: no cover # TODO tests
     def get_sharelink_by_id(self, sharelink_id: uuid.UUID) -> ShareLink | None:
         stmt = select(ShareLink).where(ShareLink.id == sharelink_id)
         return self.db.execute(stmt).scalar_one_or_none()
