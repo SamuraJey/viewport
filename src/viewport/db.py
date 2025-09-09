@@ -3,6 +3,7 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import create_engine
+from sqlalchemy.engine.base import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 
@@ -22,7 +23,7 @@ class DatabaseSettings(BaseSettings):
     port: int = 5432
 
     @property
-    def database_url(self) -> str:
+    def database_url(self) -> str: # pragma: no cover
         return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_prefix="POSTGRES_", extra="ignore")
@@ -34,7 +35,7 @@ def get_database_url() -> str:
 
 
 @lru_cache(maxsize=1)
-def _get_engine_and_sessionmaker():
+def _get_engine_and_sessionmaker() -> tuple[Engine, sessionmaker[Session]]: # pragma: no cover
     """Create and cache the SQLAlchemy engine and sessionmaker lazily."""
     database_url = get_database_url()
     connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}

@@ -86,21 +86,3 @@ def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:
     except Exception as e:
         logger.error(f"Failed to generate presigned URL for {object_key}: {e}")
         raise
-
-
-def generate_presigned_urls_batch(object_keys: list[str], expires_in: int = 3600) -> dict[str, str]:
-    """Generate presigned URLs for multiple objects"""
-    s3_client = get_s3_client()
-    _, _, _, bucket = get_minio_config()
-
-    urls = {}
-    for object_key in object_keys:
-        try:
-            url = s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": object_key}, ExpiresIn=expires_in)
-            urls[object_key] = url
-        except Exception as e:
-            logger.error(f"Failed to generate presigned URL for {object_key}: {e}")
-            # Continue with other URLs even if one fails
-            continue
-
-    return urls

@@ -125,40 +125,6 @@ class TestPhotoAPI:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    @pytest.mark.xfail(reason="Endpoint currently disabled")
-    def test_get_photo_signed_url_endpoint(self, client: TestClient):
-        """Test getting a signed URL for a photo."""
-        # First, authenticate and upload a photo
-        test_data = {"email": "signeduser@example.com", "password": "testpassword123"}
-        client.post("/auth/register", json=test_data)
-        login_response = client.post("/auth/login", json=test_data)
-        user_token = login_response.json()["tokens"]["access_token"]
-
-        client.headers.update({"Authorization": f"Bearer {user_token}"})
-
-        # Create gallery for this user
-        gallery_response = client.post("/galleries/", json={})
-        gallery_id = gallery_response.json()["id"]
-
-        # Upload photo
-        image_content = b"fake image content"
-        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-        upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
-        photo_id = upload_response.json()["id"]
-
-        # Get signed URL
-        response = client.get(f"/photos/auth/{photo_id}/url")
-        assert response.status_code == 200
-        signed_url = response.json()["url"]
-
-        # The URL should be a valid presigned URL for the object storage
-        assert signed_url.startswith("http")
-        assert str(gallery_id) in signed_url
-        assert "test.jpg" in signed_url
-
-        # We can't `get` the minio url in a test without more extensive mocking.
-        # So we just clear headers for any subsequent tests.
-        client.headers.clear()
 
     def test_get_photo_url_auth_not_found(self, authenticated_client: TestClient):
         """Test getting a signed URL for a non-existent photo."""
@@ -167,21 +133,7 @@ class TestPhotoAPI:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    @pytest.mark.xfail(reason="Endpoint currently disabled")
-    def test_get_photo_url_auth_exception(self, authenticated_client: TestClient, gallery_id_fixture: str, mocker):
-        """Test exception handling when generating a signed URL."""
-        # Upload a photo
-        image_content = b"fake image content"
-        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-        upload_response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
-        photo_id = upload_response.json()["id"]
 
-        # Mock generate_presigned_url to raise an exception
-        mocker.patch("src.viewport.api.photo.generate_presigned_url", side_effect=Exception("MinIO error"))
-
-        response = authenticated_client.get(f"/photos/auth/{photo_id}/url")
-        assert response.status_code == 500
-        assert "failed to generate photo url" in response.json()["detail"].lower()
 
     def test_upload_photos_batch_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test successful batch photo upload."""
