@@ -96,26 +96,24 @@ export const PhotoModal = ({
       )}
 
       {/* Photo container */}
-      <div className="max-w-[95vw] max-h-[95vh] flex items-center justify-center">
-        <div onClick={e => e.stopPropagation()}>
-          {isPublic && shareId ? (
-            <PublicPresignedImage
-              shareId={shareId}
-              photoId={photoId}
-              alt={`Photo ${photoId}`}
-              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-              loading="eager"
-            />
-          ) : (
-            <PresignedImage
-              photoId={photoId}
-              galleryId={galleryId}
-              alt={`Photo ${photoId}`}
-              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-              loading="eager"
-            />
-          )}
-        </div>
+      <div className="w-full h-full flex items-center justify-center p-4" onClick={e => e.stopPropagation()}>
+        {isPublic && shareId ? (
+          <PublicPresignedImage
+            shareId={shareId}
+            photoId={photoId}
+            alt={`Photo ${photoId}`}
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            loading="eager"
+          />
+        ) : (
+          <PresignedImage
+            photoId={photoId}
+            galleryId={galleryId}
+            alt={`Photo ${photoId}`}
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            loading="eager"
+          />
+        )}
       </div>
 
       {/* Photo info */}
