@@ -144,7 +144,7 @@ export const PhotoUploadConfirmModal = ({
             // Second attempt - close modal
             handleForceClose()
         } else {
-            // First attempt - always show warning
+            // First attempt - show warning
             setShowCancelWarning(true)
         }
     }
