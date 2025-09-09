@@ -76,7 +76,6 @@ def get_photo(request: Request, gallery_id: UUID, photo_id: UUID, repo: GalleryR
 @url_cache(max_age=3600)
 def get_photo_url(gallery_id: UUID, photo_id: UUID, repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
     """Get a presigned URL for a photo for authenticated users who own the gallery"""
-    # TODO NEED TO OPTIMIZE, SEND BATCH OF URLS INSTEAD OF ONE BY ONE!!!!!!!!!!!!
 
     # First, verify gallery ownership
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
