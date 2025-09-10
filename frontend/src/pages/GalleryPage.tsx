@@ -302,9 +302,12 @@ export const GalleryPage = () => {
           {photoUrls.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {photoUrls.map((photo, index) => (
-                <div key={photo.id} className="relative group bg-gray-50 dark:bg-gray-800 rounded-lg overflow-hidden flex flex-col min-h-64">
-                  {/* Action Panel - appears above photo on hover, part of layout */}
-                  <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-2 border-b border-gray-200 dark:border-gray-700">
+                <div key={photo.id} className="relative group bg-gray-50 dark:bg-gray-800 rounded-lg h-64">
+                  {/* Action Panel - floating pop-up above container */}
+                  <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 z-20 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-300 p-2 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700">
+                    {/* Pop-up arrow */}
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white/95 dark:border-t-gray-800/95"></div>
+
                     <div className="flex justify-center gap-2">
                       <button
                         onClick={(e) => {
@@ -384,25 +387,23 @@ export const GalleryPage = () => {
                     </div>
                   </div>
 
-                  {/* Photo Container - takes up available space */}
-                  <div className="flex-1 relative">
-                    <button
-                      onClick={() => openPhoto(index)}
-                      className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0"
-                      aria-label={`Photo ${photo.id}`}
-                    >
-                      <img
-                        src={photo.url}
-                        alt={`Photo ${photo.id}`}
-                        className="w-full h-full object-contain transition-opacity"
-                        loading="lazy"
-                      />
-                    </button>
-                  </div>
+                  {/* Photo - takes full container space */}
+                  <button
+                    onClick={() => openPhoto(index)}
+                    className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0"
+                    aria-label={`Photo ${photo.id}`}
+                  >
+                    <img
+                      src={photo.url}
+                      alt={`Photo ${photo.id}`}
+                      className="w-full h-full object-contain rounded-lg transition-opacity"
+                      loading="lazy"
+                    />
+                  </button>
 
-                  {/* Filename - fixed at bottom of container */}
-                  <div className="p-2 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 truncate text-center" title={photo.filename}>
+                  {/* Filename - overlay at bottom */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
+                    <p className="text-sm text-white truncate text-center font-medium drop-shadow-lg" title={photo.filename}>
                       {photo.filename}
                     </p>
                   </div>
