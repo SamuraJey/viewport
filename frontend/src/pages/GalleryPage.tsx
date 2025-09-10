@@ -402,8 +402,8 @@ export const GalleryPage = () => {
                   </button>
 
                   {/* Filename - overlay at bottom */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
-                    <p className="text-sm text-white truncate text-center font-medium drop-shadow-lg" title={photo.filename}>
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/40 to-transparent p-3 rounded-b-lg">
+                    <p className="text-sm text-white truncate text-center font-medium drop-shadow-md" title={photo.filename}>
                       {photo.filename}
                     </p>
                   </div>
