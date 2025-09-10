@@ -79,6 +79,21 @@ export const GalleryPage = () => {
     }
   }
 
+  // Handler for renaming a photo
+  const handleRenamePhoto = async (photoId: string, currentFilename: string) => {
+    const newFilename = prompt('Enter new filename:', currentFilename)
+    if (newFilename && newFilename !== currentFilename) {
+      try {
+        // TODO: Implement backend rename endpoint
+        // For now, just show a message
+        alert(`Rename functionality: "${currentFilename}" -> "${newFilename}"\n\nNote: Backend endpoint needed for persistence`)
+      } catch (err) {
+        setError('Failed to rename photo. Please try again.')
+        console.error(err)
+      }
+    }
+  }
+
   // Handler for deleting a photo
   const handleDeletePhoto = async (photoId: string) => {
     if (window.confirm('Are you sure you want to delete this photo?')) {
@@ -91,7 +106,6 @@ export const GalleryPage = () => {
       }
     }
   }
-  // ... (keep existing handlers for delete gallery, share links, etc.)
   // Handler for deleting the gallery from detail page
   const handleDeleteGallery = async () => {
     if (window.confirm('Are you sure you want to delete this gallery and all its contents?')) {
@@ -286,30 +300,31 @@ export const GalleryPage = () => {
             )}
           </div>
           {photoUrls.length > 0 ? (
-            <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {photoUrls.map((photo, index) => (
-                <div key={photo.id} className="break-inside-avoid mb-4 relative group">
-                  <button
-                    onClick={() => openPhoto(index)}
-                    className="w-full p-0 border-0 bg-transparent cursor-pointer"
-                    aria-label={`Photo ${photo.id}`}
-                  >
-                    <img
-                      src={photo.url}
-                      alt={`Photo ${photo.id}`}
-                      className="w-full h-auto object-contain rounded-lg hover:opacity-90 transition-opacity"
-                      loading="lazy"
-                    />
-                  </button>
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-between pointer-events-none rounded-lg p-2">
-                    <div className="pointer-events-auto flex gap-2">
+                <div key={photo.id} className="relative group bg-gray-50 dark:bg-gray-800 rounded-lg overflow-hidden flex flex-col min-h-64">
+                  {/* Action Panel - appears above photo on hover, part of layout */}
+                  <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-2 border-b border-gray-200 dark:border-gray-700">
+                    <div className="flex justify-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openPhoto(index)
+                        }}
+                        className="flex items-center justify-center w-8 h-8 p-1 bg-white/20 hover:bg-white/30 text-gray-700 dark:text-gray-300 rounded-lg transition-all duration-200"
+                        title="Open photo"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                        </svg>
+                      </button>
                       {gallery.cover_photo_id === photo.id ? (
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
                             handleClearCover()
                           }}
-                          className="flex items-center justify-center w-8 h-8 p-1 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 rounded-lg transition-all duration-200"
+                          className="flex items-center justify-center w-8 h-8 p-1 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-600 rounded-lg transition-all duration-200"
                           title="Clear cover photo"
                         >
                           <StarOff className="w-4 h-4" />
@@ -320,25 +335,76 @@ export const GalleryPage = () => {
                             e.stopPropagation()
                             handleSetCover(photo.id)
                           }}
-                          className="flex items-center justify-center w-8 h-8 p-1 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 rounded-lg transition-all duration-200"
+                          className="flex items-center justify-center w-8 h-8 p-1 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-600 rounded-lg transition-all duration-200"
                           title="Set as cover"
                         >
                           <Star className="w-4 h-4" />
                         </button>
                       )}
-                    </div>
-                    <div className="pointer-events-auto">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRenamePhoto(photo.id, photo.filename)
+                        }}
+                        className="flex items-center justify-center w-8 h-8 p-1 bg-white/20 hover:bg-white/30 text-gray-700 dark:text-gray-300 rounded-lg transition-all duration-200"
+                        title="Rename photo"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          // Download functionality
+                          const link = document.createElement('a')
+                          link.href = photo.url
+                          link.download = photo.filename
+                          document.body.appendChild(link)
+                          link.click()
+                          document.body.removeChild(link)
+                        }}
+                        className="flex items-center justify-center w-8 h-8 p-1 bg-white/20 hover:bg-white/30 text-gray-700 dark:text-gray-300 rounded-lg transition-all duration-200"
+                        title="Download photo"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
                           handleDeletePhoto(photo.id)
                         }}
-                        className="flex items-center justify-center w-8 h-8 p-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all duration-200"
+                        className="flex items-center justify-center w-8 h-8 p-1 bg-red-500/20 hover:bg-red-500/30 text-red-600 rounded-lg transition-all duration-200"
                         title="Delete photo"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
+                  </div>
+
+                  {/* Photo Container - takes up available space */}
+                  <div className="flex-1 relative">
+                    <button
+                      onClick={() => openPhoto(index)}
+                      className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0"
+                      aria-label={`Photo ${photo.id}`}
+                    >
+                      <img
+                        src={photo.url}
+                        alt={`Photo ${photo.id}`}
+                        className="w-full h-full object-contain transition-opacity"
+                        loading="lazy"
+                      />
+                    </button>
+                  </div>
+
+                  {/* Filename - fixed at bottom of container */}
+                  <div className="p-2 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 truncate text-center" title={photo.filename}>
+                      {photo.filename}
+                    </p>
                   </div>
                 </div>
               ))}
