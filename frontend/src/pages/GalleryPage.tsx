@@ -282,7 +282,7 @@ export const GalleryPage = () => {
         </div>
 
         {/* Photo Section */}
-        <div className="bg-gray-50 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 dark:border-white/10">
+        <div className="bg-gray-50 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-4 lg:p-6 xl:p-8 border border-gray-200 dark:border-white/10">
           <div className="mb-6">
             <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Photos ({photoUrls.length})</h2>
             <PhotoUploader galleryId={galleryId} onUploadComplete={handleUploadComplete} />
@@ -300,9 +300,9 @@ export const GalleryPage = () => {
             )}
           </div>
           {photoUrls.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8">
               {photoUrls.map((photo, index) => (
-                <div key={photo.id} className="relative group bg-gray-50 dark:bg-gray-800 rounded-lg h-64">
+                <div key={photo.id} className="relative group bg-gray-50 dark:bg-gray-800 rounded-lg h-80">
                   {/* Action Panel - floating pop-up above container */}
                   <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 z-20 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-300 p-2 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700">
                     {/* Pop-up arrow */}

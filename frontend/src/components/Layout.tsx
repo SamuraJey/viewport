@@ -69,7 +69,7 @@ export const Layout = ({ children }: LayoutProps) => {
           </nav>
         </div>
       </header>
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="max-w-7xl xl:max-w-[95rem] 2xl:max-w-[120rem] mx-auto px-4 xl:px-6 2xl:px-8 py-8">
         {children}
       </main>
       <ProfileModal isOpen={isProfileOpen} onClose={closeProfile} />
