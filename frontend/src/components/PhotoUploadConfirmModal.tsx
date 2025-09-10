@@ -272,22 +272,22 @@ export const PhotoUploadConfirmModal = ({
                                     return (
                                         <div
                                             key={index}
-                                            className={`flex items-center gap-3 p-3 rounded-lg ${hasError
+                                            className={`flex items-center gap-4 p-4 rounded-lg ${hasError
                                                 ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20'
                                                 : 'bg-gray-50 dark:bg-gray-700/50'
                                                 }`}
                                         >
                                             {/* Image Preview */}
-                                            <div className="w-12 h-12 flex-shrink-0">
+                                            <div className="w-20 h-20 flex-shrink-0">
                                                 {preview ? (
                                                     <img
                                                         src={preview}
                                                         alt={file.name}
-                                                        className="w-12 h-12 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                                                        className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
                                                     />
                                                 ) : (
-                                                    <div className="w-12 h-12 bg-gray-200 dark:bg-gray-600 rounded-lg flex items-center justify-center">
-                                                        <FileImage className={`w-6 h-6 ${hasError ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`} />
+                                                    <div className="w-20 h-20 bg-gray-200 dark:bg-gray-600 rounded-lg flex items-center justify-center">
+                                                        <FileImage className={`w-8 h-8 ${hasError ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`} />
                                                     </div>
                                                 )}
                                             </div>
