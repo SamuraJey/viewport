@@ -184,11 +184,11 @@ export const PhotoUploadConfirmModal = ({
 
     return (
         <div
-            className={`fixed inset-0 z-50 flex items-center justify-center overflow-y-auto transition-all duration-200 ${isOpen ? 'bg-black/50 backdrop-blur-sm' : 'bg-transparent backdrop-blur-0'
+            className={`fixed inset-0 z-50 flex items-start justify-center overflow-y-auto transition-all duration-200 pt-4 ${isOpen ? 'bg-black/50 backdrop-blur-sm' : 'bg-transparent backdrop-blur-0'
                 }`}
             onClick={handleBackdropClick}
         >
-            <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden m-4 my-8 transition-all duration-200 ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
+            <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] overflow-hidden mx-4 mb-8 transition-all duration-200 ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
                 }`}>
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
@@ -273,8 +273,8 @@ export const PhotoUploadConfirmModal = ({
                                         <div
                                             key={index}
                                             className={`flex items-center gap-3 p-3 rounded-lg ${hasError
-                                                    ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20'
-                                                    : 'bg-gray-50 dark:bg-gray-700/50'
+                                                ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20'
+                                                : 'bg-gray-50 dark:bg-gray-700/50'
                                                 }`}
                                         >
                                             {/* Image Preview */}
