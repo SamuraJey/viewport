@@ -23,7 +23,9 @@ photo_auth_router = APIRouter(prefix="/photos", tags=["photos"])
 def get_gallery_repository(db: Session = Depends(get_db)) -> GalleryRepository:
     return GalleryRepository(db)
 
-#TODO: NEED TO ADD RENAME PHOTO ENDPOINT AND UPDATE FRONTEND TO ACTUALLY USE IT
+
+# TODO: NEED TO ADD RENAME PHOTO ENDPOINT AND UPDATE FRONTEND TO ACTUALLY USE IT
+
 
 # GET /galleries/{gallery_id}/photos/urls - Get all photo URLs for a gallery
 @router.get("/{gallery_id}/photos/urls", response_model=list[PhotoResponse])

@@ -4,7 +4,6 @@ import io
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
-import pytest
 from fastapi.testclient import TestClient
 
 from tests.helpers import register_and_login
@@ -125,15 +124,12 @@ class TestPhotoAPI:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-
     def test_get_photo_url_auth_not_found(self, authenticated_client: TestClient):
         """Test getting a signed URL for a non-existent photo."""
         fake_photo_id = str(uuid4())
         response = authenticated_client.get(f"/photos/auth/{fake_photo_id}/url")
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
-
-
 
     def test_upload_photos_batch_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test successful batch photo upload."""
