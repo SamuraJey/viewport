@@ -6,6 +6,7 @@ import type { PhotoUploadResponse } from '../services/photoService'
 import { shareLinkService, type ShareLink } from '../services/shareLinkService'
 import { Layout } from '../components/Layout'
 import { PhotoModal } from '../components/PhotoModal'
+import { PhotoRenameModal } from '../components/PhotoRenameModal'
 import { formatDate } from '../lib/utils'
 import {
   Loader2,
@@ -33,6 +34,10 @@ export const GalleryPage = () => {
   const [error, setError] = useState('')
   const [copiedLink, setCopiedLink] = useState<string | null>(null)
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null)
+
+  // Rename modal states
+  const [showRenameModal, setShowRenameModal] = useState(false)
+  const [photoToRename, setPhotoToRename] = useState<{ id: string; filename: string } | null>(null)
 
   const galleryId = id!
 
@@ -80,17 +85,28 @@ export const GalleryPage = () => {
   }
 
   // Handler for renaming a photo
-  const handleRenamePhoto = async (photoId: string, currentFilename: string) => {
-    const newFilename = prompt('Enter new filename:', currentFilename)
-    if (newFilename && newFilename !== currentFilename) {
-      try {
-        await photoService.renamePhoto(galleryId, photoId, newFilename)
-        await fetchData() // Refresh gallery data and photo URLs
-      } catch (err) {
-        setError('Failed to rename photo. Please try again.')
-        console.error(err)
-      }
+  // Handler for opening rename modal
+  const handleRenamePhoto = (photoId: string, currentFilename: string) => {
+    setPhotoToRename({ id: photoId, filename: currentFilename })
+    setShowRenameModal(true)
+  }
+
+  // Handler for actual rename operation
+  const handleRenameConfirm = async (newFilename: string) => {
+    if (!photoToRename) return
+
+    try {
+      await photoService.renamePhoto(galleryId, photoToRename.id, newFilename)
+      await fetchData() // Refresh gallery data and photo URLs
+    } catch (err) {
+      throw err // Let the modal handle the error
     }
+  }
+
+  // Handler for closing rename modal
+  const handleCloseRenameModal = () => {
+    setShowRenameModal(false)
+    setPhotoToRename(null)
   }
 
   // Handler for deleting a photo
@@ -389,8 +405,13 @@ export const GalleryPage = () => {
                   {/* Photo - takes full container space */}
                   <button
                     onClick={() => openPhoto(index)}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation()
+                      handleRenamePhoto(photo.id, photo.filename)
+                    }}
                     className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0"
                     aria-label={`Photo ${photo.id}`}
+                    title="Click to view, double-click to rename"
                   >
                     <img
                       src={photo.url}
@@ -476,6 +497,14 @@ export const GalleryPage = () => {
         onPrevious={goToPrevPhoto}
         onNext={goToNextPhoto}
         isPublic={false}
+      />
+
+      {/* Photo Rename Modal */}
+      <PhotoRenameModal
+        isOpen={showRenameModal}
+        onClose={handleCloseRenameModal}
+        currentFilename={photoToRename?.filename || ''}
+        onRename={handleRenameConfirm}
       />
     </Layout>
   )
