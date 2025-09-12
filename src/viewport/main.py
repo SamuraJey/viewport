@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Import logger early to configure logging levels for botocore and other libraries
+from .logger import logger  # noqa: F401
+
 # Routers
 from .api.auth import router as auth_router
 from .api.gallery import router as gallery_router

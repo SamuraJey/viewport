@@ -6,8 +6,13 @@ from botocore.client import BaseClient, Config
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-logging.basicConfig(level=logging.DEBUG)
+# Configure logging - set botocore to WARNING level to reduce noise
+logging.getLogger("botocore").setLevel(logging.WARNING)
+logging.getLogger("boto3").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)  # Set our logger to INFO level
 
 
 class MinioSettings(BaseSettings):
