@@ -84,9 +84,8 @@ export const GalleryPage = () => {
     const newFilename = prompt('Enter new filename:', currentFilename)
     if (newFilename && newFilename !== currentFilename) {
       try {
-        // TODO: Implement backend rename endpoint
-        // For now, just show a message
-        alert(`Rename functionality: "${currentFilename}" -> "${newFilename}"\n\nNote: Backend endpoint needed for persistence`)
+        await photoService.renamePhoto(galleryId, photoId, newFilename)
+        await fetchData() // Refresh gallery data and photo URLs
       } catch (err) {
         setError('Failed to rename photo. Please try again.')
         console.error(err)

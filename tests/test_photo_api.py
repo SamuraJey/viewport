@@ -331,3 +331,73 @@ class TestPhotoAPI:
 
         response = client.get(f"/galleries/{gallery_id_fixture}/photos/urls")
         assert response.status_code == 404
+
+    def test_rename_photo_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Test successful photo rename."""
+        # First upload a photo
+        image_content = b"fake image content"
+        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
+        upload_response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
+        assert upload_response.status_code == 201
+        photo_id = upload_response.json()["id"]
+
+        # Rename the photo
+        rename_data = {"filename": "renamed_photo.jpg"}
+        response = authenticated_client.patch(f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rename", json=rename_data)
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["filename"] == "renamed_photo.jpg"
+        assert data["id"] == photo_id
+        assert data["gallery_id"] == gallery_id_fixture
+
+    def test_rename_photo_not_found(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Test renaming non-existent photo."""
+        fake_photo_id = str(uuid4())
+        rename_data = {"filename": "renamed_photo.jpg"}
+        response = authenticated_client.patch(f"/galleries/{gallery_id_fixture}/photos/{fake_photo_id}/rename", json=rename_data)
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    def test_rename_photo_gallery_not_found(self, authenticated_client: TestClient):
+        """Test renaming photo in non-existent gallery."""
+        fake_gallery_id = str(uuid4())
+        fake_photo_id = str(uuid4())
+        rename_data = {"filename": "renamed_photo.jpg"}
+        response = authenticated_client.patch(f"/galleries/{fake_gallery_id}/photos/{fake_photo_id}/rename", json=rename_data)
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    def test_rename_photo_unauthorized(self, client: TestClient):
+        """Test renaming photo without authentication."""
+        fake_gallery_id = str(uuid4())
+        fake_photo_id = str(uuid4())
+        rename_data = {"filename": "renamed_photo.jpg"}
+        response = client.patch(f"/galleries/{fake_gallery_id}/photos/{fake_photo_id}/rename", json=rename_data)
+        assert response.status_code == 401
+
+    def test_rename_photo_different_user_gallery(self, client: TestClient, gallery_id_fixture: str):
+        """Test renaming photo in gallery owned by different user."""
+        # Create and authenticate as different user
+        different_user_token = register_and_login(client, "different@example.com", "password123")
+        client.headers.update({"Authorization": f"Bearer {different_user_token}"})
+
+        fake_photo_id = str(uuid4())
+        rename_data = {"filename": "renamed_photo.jpg"}
+        response = client.patch(f"/galleries/{gallery_id_fixture}/photos/{fake_photo_id}/rename", json=rename_data)
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    def test_rename_photo_invalid_filename(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Test renaming photo with invalid filename."""
+        # First upload a photo
+        image_content = b"fake image content"
+        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
+        upload_response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
+        assert upload_response.status_code == 201
+        photo_id = upload_response.json()["id"]
+
+        # Try to rename with empty filename
+        rename_data = {"filename": ""}
+        response = authenticated_client.patch(f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rename", json=rename_data)
+        assert response.status_code == 422  # Validation error

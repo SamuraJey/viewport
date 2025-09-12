@@ -44,6 +44,13 @@ const deletePhoto = async (galleryId: string, photoId: string): Promise<void> =>
   await api.delete(`/galleries/${galleryId}/photos/${photoId}`)
 }
 
+const renamePhoto = async (galleryId: string, photoId: string, filename: string): Promise<PhotoResponse> => {
+  const response = await api.patch<PhotoResponse>(`/galleries/${galleryId}/photos/${photoId}/rename`, {
+    filename
+  })
+  return response.data
+}
+
 const getPhotoUrl = async (galleryId: string, photoId: string): Promise<PhotoUrlResponse> => {
   const response = await api.get<PhotoUrlResponse>(`/galleries/${galleryId}/photos/${photoId}/url`)
   return response.data
@@ -96,6 +103,7 @@ export const photoService = {
   uploadPhoto,
   uploadPhotos,
   deletePhoto,
+  renamePhoto,
   getPhotoUrl,
   getPhotoUrlDirect,
   getAllPhotoUrls,

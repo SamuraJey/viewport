@@ -10,7 +10,7 @@ from src.viewport.cache_utils import photo_cache, url_cache
 from src.viewport.db import get_db
 from src.viewport.minio_utils import generate_presigned_url, upload_fileobj
 from src.viewport.repositories.gallery_repository import GalleryRepository
-from src.viewport.schemas.photo import PhotoResponse, PhotoUploadResponse, PhotoUploadResult
+from src.viewport.schemas.photo import PhotoRenameRequest, PhotoResponse, PhotoUploadResponse, PhotoUploadResult
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +22,6 @@ photo_auth_router = APIRouter(prefix="/photos", tags=["photos"])
 
 def get_gallery_repository(db: Session = Depends(get_db)) -> GalleryRepository:
     return GalleryRepository(db)
-
-
-# TODO: NEED TO ADD RENAME PHOTO ENDPOINT AND UPDATE FRONTEND TO ACTUALLY USE IT
 
 
 # GET /galleries/{gallery_id}/photos/urls - Get all photo URLs for a gallery
@@ -176,3 +173,19 @@ def delete_photo(gallery_id: UUID, photo_id: UUID, repo: GalleryRepository = Dep
     if not repo.delete_photo(photo_id, gallery_id, current_user.id):
         raise HTTPException(status_code=404, detail="Photo not found")
     return
+
+
+@router.patch("/{gallery_id}/photos/{photo_id}/rename", response_model=PhotoResponse)
+def rename_photo(gallery_id: UUID, photo_id: UUID, request: PhotoRenameRequest, repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)) -> PhotoResponse:
+    """Rename a photo in a gallery"""
+    # First, verify gallery ownership
+    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    if not gallery:
+        raise HTTPException(status_code=404, detail="Gallery not found")
+
+    # Then, verify photo belongs to that gallery and rename it
+    photo = repo.rename_photo(photo_id, gallery_id, current_user.id, request.filename)
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    return PhotoResponse.from_db_photo(photo)

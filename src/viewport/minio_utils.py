@@ -91,3 +91,37 @@ def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:
     except Exception as e:
         logger.error(f"Failed to generate presigned URL for {object_key}: {e}")
         raise
+
+
+def rename_object(old_object_key: str, new_object_key: str) -> bool:
+    """Rename an object in MinIO by copying it to a new key and deleting the old one"""
+    s3_client = get_s3_client()
+    _, _, _, bucket = get_minio_config()
+
+    try:
+        # Copy object to new key
+        copy_source = {"Bucket": bucket, "Key": old_object_key}
+        s3_client.copy_object(CopySource=copy_source, Bucket=bucket, Key=new_object_key)
+
+        # Delete old object
+        s3_client.delete_object(Bucket=bucket, Key=old_object_key)
+
+        logger.info(f"Successfully renamed object from {old_object_key} to {new_object_key}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to rename object from {old_object_key} to {new_object_key}: {e}")
+        return False
+
+
+def delete_object(object_key: str) -> bool:
+    """Delete an object from MinIO"""
+    s3_client = get_s3_client()
+    _, _, _, bucket = get_minio_config()
+
+    try:
+        s3_client.delete_object(Bucket=bucket, Key=object_key)
+        logger.info(f"Successfully deleted object {object_key}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to delete object {object_key}: {e}")
+        return False

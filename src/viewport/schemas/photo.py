@@ -60,3 +60,9 @@ class PhotoURLResponse(BaseModel):
     id: UUID
     url: str
     expires_in: int
+
+
+class PhotoRenameRequest(BaseModel):
+    """Request model for renaming a photo"""
+
+    filename: str = Field(..., min_length=1, max_length=255, description="New filename for the photo")
