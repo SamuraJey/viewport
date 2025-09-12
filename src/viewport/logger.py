@@ -23,10 +23,10 @@ class StructuredLogger(logging.Logger):
 
 
 # Configure external libraries logging levels to reduce noise
-logging.getLogger('botocore').setLevel(logging.WARNING)
-logging.getLogger('boto3').setLevel(logging.WARNING)
-logging.getLogger('urllib3').setLevel(logging.WARNING)
-logging.getLogger('botocore.auth').setLevel(logging.WARNING)
-logging.getLogger('botocore.endpoint').setLevel(logging.WARNING)
+logging.getLogger("botocore").setLevel(logging.WARNING)
+logging.getLogger("boto3").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("botocore.auth").setLevel(logging.WARNING)
+logging.getLogger("botocore.endpoint").setLevel(logging.WARNING)
 
 logger = StructuredLogger("viewport")
