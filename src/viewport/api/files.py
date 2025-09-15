@@ -10,7 +10,7 @@ router = APIRouter(prefix="/files", tags=["files"])
 
 
 @router.get("/{key:path}")
-def proxy_file(key: str):
+def proxy_file(key: str) -> StreamingResponse:
     """Proxy file requests, streaming from MinIO S3"""
     logging.info(f"[proxy_file] Received request for key: {key}")
 
