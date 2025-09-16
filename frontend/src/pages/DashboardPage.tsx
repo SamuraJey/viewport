@@ -121,7 +121,7 @@ export const DashboardPage = () => {
 
   const renderLoading = () => (
     <div className="flex items-center justify-center h-96">
-      <div className="w-12 h-12 border-4 border-gray-300 dark:border-gray-600 border-t-primary-500 rounded-full animate-spin"></div>
+      <div className="w-12 h-12 border-4 border-muted/60 dark:border-muted-dark/60 border-t-accent rounded-full animate-spin"></div>
     </div>
   )
 
@@ -135,9 +135,9 @@ export const DashboardPage = () => {
   )
   const renderEmptyState = () => (
     <div className="flex flex-col items-center justify-center h-96">
-        <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">No galleries yet</p>
-        {/* Button to create first gallery */}
-        <button
+      <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">No galleries yet</p>
+      {/* Button to create first gallery */}
+      <button
         onClick={handleOpenModal}
         disabled={isCreating}
         className="inline-flex items-center gap-2 bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
@@ -156,11 +156,11 @@ export const DashboardPage = () => {
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {galleries.map((gallery) => (
-          <div key={gallery.id} className="bg-gray-50 dark:bg-gray-900/95 backdrop-blur-lg rounded-2xl p-8 border border-gray-200 dark:border-white/10 hover:transform hover:-translate-y-1 hover:shadow-2xl transition-all">
+          <div key={gallery.id} className="bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-8 border border-border dark:border-border/10 hover:transform hover:-translate-y-1 hover:shadow-2xl transition-all">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="bg-primary-500/20 p-2 rounded-lg flex-shrink-0">
-                  <Calendar className="h-6 w-6 text-blue-400" />
+                <div className="bg-accent/20 p-2 rounded-lg flex-shrink-0 border border-accent/10">
+                  <Calendar className="h-6 w-6 text-accent" />
                 </div>
                 <div className="flex-1 min-w-0">
                   {renameGalleryId === gallery.id ? (
@@ -181,7 +181,7 @@ export const DashboardPage = () => {
                         }}
                       />
                       <button onClick={handleConfirmRename} disabled={isRenaming || !renameInput.trim()} title="Confirm Rename">
-                        {isRenaming ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"/> : <Check className="w-5 h-5 text-green-500" />}
+                        {isRenaming ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <Check className="w-5 h-5 text-green-500" />}
                       </button>
                       <button onClick={cancelInlineRename} title="Cancel Rename">
                         <X className="w-5 h-5 text-red-500" />
@@ -189,10 +189,10 @@ export const DashboardPage = () => {
                     </div>
                   ) : (
                     <>
-                      <h3 className="font-oswald text-base font-bold uppercase tracking-wide text-gray-900 dark:text-white break-words">
+                      <h3 className="font-oswald text-base font-bold uppercase tracking-wide text-text break-words">
                         {gallery.name || `Gallery #${gallery.id}`}
                       </h3>
-                      <p className="text-gray-600 dark:text-gray-400 text-sm font-cuprum">
+                      <p className="text-muted text-sm font-cuprum">
                         {formatDate(gallery.created_at)}
                       </p>
                     </>
@@ -202,15 +202,17 @@ export const DashboardPage = () => {
               <div className="flex gap-2">
                 <button
                   onClick={() => beginInlineRename(gallery)}
-                  className="p-2 bg-yellow-500/80 hover:bg-yellow-500 text-white rounded-full transition-colors"
+                  className="p-2 bg-warning/80 hover:bg-warning text-accent-foreground rounded-full transition transform duration-150 ease-out border border-border shadow-sm hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:ring-offset-1"
                   title="Rename Gallery"
+                  aria-label={`Rename ${gallery.name || `Gallery #${gallery.id}`}`}
                 >
                   <Edit3 className="w-5 h-5" />
                 </button>
                 <button
                   onClick={() => handleDeleteGallery(gallery.id)}
-                  className="p-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full transition-colors"
+                  className="p-2 bg-danger/80 hover:bg-danger text-accent-foreground rounded-full transition transform duration-150 ease-out border border-border shadow-sm hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger/20 focus:ring-offset-1"
                   title="Delete Gallery"
+                  aria-label={`Delete ${gallery.name || `Gallery #${gallery.id}`}`}
                 >
                   <Trash2 className="w-5 h-5" />
                 </button>
@@ -219,7 +221,7 @@ export const DashboardPage = () => {
             <div>
               <Link
                 to={`/galleries/${gallery.id}`}
-                className="block w-full bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg text-center transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/25 no-underline"
+                className="block w-full bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg text-center transition-all hover:-translate-y-0.5 hover:shadow-lg shadow-sm border border-accent/20 no-underline"
               >
                 Manage Gallery
               </Link>
@@ -235,24 +237,24 @@ export const DashboardPage = () => {
     if (totalPages <= 1) return null
 
     return (
-      <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 mt-8">
+      <div className="flex items-center justify-between text-sm text-muted dark:text-muted-dark mt-8">
         <div>
           <p>
-            Page <span className="font-bold text-gray-900 dark:text-white">{page}</span> of <span className="font-bold text-gray-900 dark:text-white">{totalPages}</span>
+            Page <span className="font-bold text-text">{page}</span> of <span className="font-bold text-text">{totalPages}</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => fetchGalleries(page - 1)}
             disabled={page <= 1 || isLoading}
-            className="p-2 bg-transparent border-2 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-primary-500 hover:text-primary-500 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-300 dark:disabled:hover:border-gray-600 disabled:hover:text-gray-600 dark:disabled:hover:text-gray-300"
+            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
           <button
             onClick={() => fetchGalleries(page + 1)}
             disabled={page >= totalPages || isLoading}
-            className="p-2 bg-transparent border-2 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-primary-500 hover:text-primary-500 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-300 dark:disabled:hover:border-gray-600 disabled:hover:text-gray-600 dark:disabled:hover:text-gray-300"
+            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
@@ -266,18 +268,18 @@ export const DashboardPage = () => {
       <div className="flex flex-col gap-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-gray-900 dark:text-white">My Galleries</h1>
-            <p className="text-gray-600 dark:text-gray-400 font-cuprum text-lg">
+            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">My Galleries</h1>
+            <p className="text-muted font-cuprum text-lg">
               Your personal space to organize and share moments.
             </p>
           </div>
           <button
             onClick={handleOpenModal}
             disabled={isCreating}
-            className="inline-flex items-center gap-2 bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+            className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm border border-accent/20 transition-all hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
           >
             {isCreating ? (
-              <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+              <div className="w-5 h-5 border-2 border-border dark:border-border/40 rounded-full animate-spin"></div>
             ) : (
               <Plus className="h-5 w-5" />
             )}
@@ -294,9 +296,9 @@ export const DashboardPage = () => {
         {/* Modal for entering new gallery name */}
         {showModal && (
           <div className="fixed inset-0 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm w-full">
-              <h2 className="text-xl font-semibold mb-4">New Gallery</h2>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
+            <div className="bg-surface dark:bg-surface-dark rounded-lg shadow-lg p-6 max-w-sm w-full">
+              <h2 className="text-xl font-semibold mb-4 text-text">New Gallery</h2>
+              <p className="text-muted mb-4">
                 Enter a name for your new gallery.
               </p>
               <input
@@ -313,23 +315,23 @@ export const DashboardPage = () => {
                     setShowModal(false)
                   }
                 }}
-                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full p-3 border border-border dark:border-border/40 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent bg-transparent text-text"
                 placeholder="Gallery name"
               />
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  className="px-4 py-2 bg-surface-1 dark:bg-surface-dark-1 rounded-lg text-text dark:text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmCreate}
                   disabled={isCreating || !newGalleryName.trim()}
-                  className="px-4 py-2 bg-gradient-to-r from-primary-600 to-purple-600 text-white rounded-lg shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isCreating ? (
-                    <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                    <div className="w-5 h-5 border-2 border-accent/20 border-t-accent rounded-full animate-spin"></div>
                   ) : (
                     'Create Gallery'
                   )}

@@ -1,7 +1,6 @@
 /* Import Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Cuprum:wght@400;500;700&family=PT+Sans:wght@400;700&display=swap');
 @import "tailwindcss";
-@custom-variant dark (&:where(.dark, .dark *));
 
 html,
 body {
@@ -24,10 +23,861 @@ html.light {
   color-scheme: light;
 }
 
+/* Theme color variables used by Tailwind color tokens in tailwind.config.js
+   We define RGB variables to support Tailwind alpha modifiers like `bg-white/95`.
+   For each semantic color we provide both an `-rgb` (space-separated r g b)
+   and a fallback hex variable for non-alpha use where needed.
+*/
+
+:root {
+  /* Neutral palette (light theme) as RGB tokens */
+  --color-neutral-50-rgb: 248 250 252;
+  /* #f8fafc */
+  --color-neutral-100-rgb: 241 245 249;
+  /* #f1f5f9 */
+  --color-neutral-200-rgb: 226 232 240;
+  /* #e2e8f0 */
+  --color-neutral-300-rgb: 203 213 225;
+  /* #cbd5e1 */
+  --color-neutral-400-rgb: 148 163 184;
+  /* #94a3b8 */
+  --color-neutral-500-rgb: 100 116 139;
+  /* #64748b */
+  --color-neutral-600-rgb: 71 85 105;
+  /* #475569 */
+  --color-neutral-700-rgb: 51 65 85;
+  /* #334155 */
+  --color-neutral-800-rgb: 31 41 55;
+  /* #1f2937 */
+  --color-neutral-900-rgb: 15 23 36;
+  /* #0f1724 */
+
+  /* Also expose hex fallbacks for convenience */
+  --color-neutral-50: #f8fafc;
+  --color-neutral-100: #f1f5f9;
+  --color-neutral-200: #e2e8f0;
+  --color-neutral-300: #cbd5e1;
+  --color-neutral-400: #94a3b8;
+  --color-neutral-500: #64748b;
+  --color-neutral-600: #475569;
+  --color-neutral-700: #334155;
+  --color-neutral-800: #1f2937;
+  --color-neutral-900: #0f1724;
+
+  /* Primary accent (light theme) - RGB tokens */
+  --color-primary-50-rgb: 240 247 255;
+  /* #f0f7ff */
+  --color-primary-100-rgb: 224 240 255;
+  /* #e0f0ff */
+  --color-primary-200-rgb: 191 224 255;
+  /* #bfe0ff */
+  --color-primary-300-rgb: 143 207 255;
+  /* #8fcfff */
+  --color-primary-400-rgb: 79 176 255;
+  /* #4fb0ff */
+  --color-primary-500-rgb: 31 144 255;
+  /* #1f90ff */
+  --color-primary-600-rgb: 25 118 210;
+  /* #1976d2 */
+  --color-primary-700-rgb: 21 88 163;
+  /* #1558a3 */
+  --color-primary-800-rgb: 15 63 115;
+  /* #0f3f73 */
+  --color-primary-900-rgb: 11 42 75;
+  /* #0b2a4b */
+
+  --color-primary-50: #f0f7ff;
+  --color-primary-100: #e0f0ff;
+  --color-primary-200: #bfe0ff;
+  --color-primary-300: #8fcfff;
+  --color-primary-400: #4fb0ff;
+  --color-primary-500: #1f90ff;
+  --color-primary-600: #1976d2;
+  --color-primary-700: #1558a3;
+  --color-primary-800: #0f3f73;
+  --color-primary-900: #0b2a4b;
+
+  /* White / black as RGB tokens so /NN works */
+  --color-white-rgb: 255 255 255;
+  --color-black-rgb: 0 0 0;
+  --color-white: #ffffff;
+  --color-black: #000000;
+}
+
+/* Dark theme overrides (use semantic inversions appropriate for dark) */
+:root.dark,
+html.dark {
+  --color-neutral-50-rgb: 11 18 32;
+  /* #0b1220 */
+  --color-neutral-100-rgb: 15 23 36;
+  /* #0f1724 */
+  --color-neutral-200-rgb: 17 24 39;
+  /* #111827 */
+  --color-neutral-300-rgb: 31 41 55;
+  /* #1f2937 */
+  --color-neutral-400-rgb: 55 65 81;
+  /* #374151 */
+  --color-neutral-500-rgb: 75 85 99;
+  /* #4b5563 */
+  --color-neutral-600-rgb: 107 114 128;
+  /* #6b7280 */
+  --color-neutral-700-rgb: 156 163 175;
+  /* #9ca3af */
+  --color-neutral-800-rgb: 209 213 219;
+  /* #d1d5db */
+  --color-neutral-900-rgb: 243 244 246;
+  /* #f3f4f6 */
+
+  --color-neutral-50: #0b1220;
+  --color-neutral-100: #0f1724;
+  --color-neutral-200: #111827;
+  --color-neutral-300: #1f2937;
+  --color-neutral-400: #374151;
+  --color-neutral-500: #4b5563;
+  --color-neutral-600: #6b7280;
+  --color-neutral-700: #9ca3af;
+  --color-neutral-800: #d1d5db;
+  --color-neutral-900: #f3f4f6;
+
+  --color-primary-50-rgb: 7 20 40;
+  /* #071428 */
+  --color-primary-100-rgb: 8 32 52;
+  /* #082034 */
+  --color-primary-200-rgb: 11 51 80;
+  /* #0b3350 */
+  --color-primary-300-rgb: 14 75 117;
+  /* #0e4b75 */
+  --color-primary-400-rgb: 15 103 168;
+  /* #0f67a8 */
+  --color-primary-500-rgb: 22 128 209;
+  /* #1680d1 */
+  --color-primary-600-rgb: 53 161 239;
+  /* #35a1ef */
+  --color-primary-700-rgb: 127 198 255;
+  /* #7fc6ff */
+  --color-primary-800-rgb: 207 236 255;
+  /* #cfecff */
+  --color-primary-900-rgb: 234 247 255;
+  /* #eaf7ff */
+
+  --color-primary-50: #071428;
+  --color-primary-100: #082034;
+  --color-primary-200: #0b3350;
+  --color-primary-300: #0e4b75;
+  --color-primary-400: #0f67a8;
+  --color-primary-500: #1680d1;
+  --color-primary-600: #35a1ef;
+  --color-primary-700: #7fc6ff;
+  --color-primary-800: #cfecff;
+  --color-primary-900: #eaf7ff;
+
+  --color-white-rgb: 255 255 255;
+  --color-black-rgb: 0 0 0;
+}
+
+/* Demo helpers */
+.demo-swatch {
+  border-radius: 0.375rem;
+  /* rounded-md */
+  border: 1px solid var(--color-neutral-300);
+  padding: 1rem;
+  /* p-4 */
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.dark .demo-swatch,
+:root.dark .demo-swatch {
+  border-color: var(--color-neutral-700);
+}
+
+/* Pop-up action buttons: explicit classes to ensure runtime color application
+   (avoids relying on Tailwind per-property opacity variables which can be
+   inconsistent across build/runtime). */
+.popup-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  /* 8 */
+  height: 2rem;
+  padding: 0.25rem;
+  border-radius: 0.5rem;
+  /* rounded-lg */
+  transition: background-color 160ms ease, transform 120ms ease;
+  box-shadow: 0 1px 2px rgba(2, 6, 23, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+}
+
+.popup-action:focus {
+  outline: none;
+}
+
+.popup-action:active {
+  transform: translateY(1px);
+}
+
+.popup-action {
+  /* neutral solid background, icons may be colored by variant below */
+  color: rgb(var(--color-neutral-600-rgb));
+  border-color: var(--color-neutral-300);
+  background-color: var(--color-neutral-50);
+}
+
+/* Variant: neutral by default, show color on hover/focus */
+.popup-action--accent {
+  /* colored by default: keep accent color for icons/borders */
+  color: rgb(var(--color-primary-500-rgb));
+  border-color: rgb(var(--color-primary-500-rgb) / 0.32);
+}
+
+.popup-action--accent:hover,
+.popup-action--accent:focus-visible {
+  box-shadow: 0 0 0 3px rgb(var(--color-primary-500-rgb) / 0.08);
+}
+
+.popup-action--warning {
+  color: rgb(245 158 11);
+  border-color: rgb(245 158 11 / 0.32);
+}
+
+.popup-action--warning:hover,
+.popup-action--warning:focus-visible {
+  box-shadow: 0 0 0 3px rgb(245 158 11 / 0.08);
+}
+
+.popup-action--success {
+  color: rgb(16 185 129);
+  border-color: rgb(16 185 129 / 0.32);
+}
+
+.popup-action--success:hover,
+.popup-action--success:focus-visible {
+  box-shadow: 0 0 0 3px rgb(16 185 129 / 0.08);
+}
+
+.popup-action--danger {
+  color: rgb(239 68 68);
+  border-color: rgb(239 68 68 / 0.32);
+}
+
+.popup-action--danger:hover,
+.popup-action--danger:focus-visible {
+  box-shadow: 0 0 0 3px rgb(239 68 68 / 0.08);
+}
+
+
+/* Popup container: use semantic neutral tokens so the popup adapts to
+   light/dark themes via the variables defined in :root / :root.dark.
+   Avoid global `!important` rules here so Tailwind utilities can still
+   adjust opacity when needed. */
+.popup-container {
+  background-color: rgb(var(--color-neutral-50-rgb) / 0.98);
+  border: 1px solid rgb(var(--color-neutral-300-rgb));
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.12);
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  color: rgb(var(--color-neutral-900-rgb));
+}
+
+/* For dark mode the RGB variables are inverted in `:root.dark`, so the
+   same rule above already produces a dark popup background. Provide a
+   slightly stronger box-shadow only for dark mode for better contrast. */
+html.dark .popup-container,
+.dark .popup-container,
+body.dark .popup-container {
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+}
+
+/* Arrow: set border-top color explicitly to match the popup background */
+.popup-arrow {
+  /* Match popup container background (light mode) */
+  border-top-color: rgb(var(--color-white-rgb) / 0.98);
+}
+
+.dark .popup-arrow,
+html.dark .popup-arrow,
+body.dark .popup-arrow,
+:root.dark .popup-arrow {
+  /* Match popup container background in dark mode */
+  border-top-color: rgb(var(--color-neutral-50-rgb) / 0.96) !important;
+}
+
+.demo-swatch__color {
+  width: 5rem;
+  height: 3rem;
+  border-radius: 0.375rem;
+}
+
 h1 {
   font-family: 'Oswald', sans-serif;
 }
 
 h2 {
   font-family: 'Oswald', sans-serif;
+}
+
+/* Fallbacks for semantic danger utilities — some Tailwind semantic
+   tokens may not have been emitted in the generated CSS in some
+   environments. Provide explicit rules so `text-danger`, `bg-danger/10`,
+   `bg-danger/20`, `border-danger/20` etc. always render correctly. */
+.text-danger {
+  color: #ef4444 !important;
+  /* red-500 */
+}
+
+/* Classes containing slashes are hard to author in plain CSS selectors
+   (Tailwind escapes them). Use attribute selectors to match class names
+   emitted in markup like `bg-danger/10` or `border-danger/20`. */
+[class*="bg-danger/10"] {
+  background-color: rgba(239, 68, 68, 0.10) !important;
+}
+
+[class*="bg-danger/20"] {
+  background-color: rgba(239, 68, 68, 0.20) !important;
+}
+
+[class*="border-danger/20"] {
+  border-color: rgba(239, 68, 68, 0.20) !important;
+}
+
+/* Ensure small danger-bg buttons that use bg-danger/80 or /80 variants
+   still show a visible red background when used (used on small dismiss
+   buttons). */
+[class*="bg-danger/80"] {
+  background-color: rgba(239, 68, 68, 0.80) !important;
+  color: #ffffff !important;
+}
+
+/* Dark theme adjustments: slightly different tints so danger remains
+   visible on dark backgrounds. */
+.dark .text-danger,
+html.dark .text-danger,
+body.dark .text-danger {
+  color: #ff7b7b !important;
+}
+
+/* Fallbacks for accent (primary) utilities */
+.gallery-create__btn .w-5,
+.gallery-create__btn .w-5 svg,
+.gallery-create__btn .w-5 path,
+.gallery-create__btn .text-accent-foreground,
+.gallery-create__btn .text-accent {
+  color: var(--color-primary-600);
+}
+
+/* Ensure the small copy button and its icons use success color only in the gallery list */
+.gallery-copy__btn .w-4,
+.gallery-copy__btn .w-4 svg,
+.gallery-copy__btn .w-4 path,
+.gallery-copy__btn {
+  color: rgb(16 185 129);
+  /* green-500 */
+  border-color: rgba(16, 185, 129, 0.20);
+}
+
+/* Scope copy-button accent to the share-links container used in GalleryPage
+   so we don't globally override other icons. This keeps the green accent
+   for the copy button where it belongs. */
+.bg-surface-1 .gallery-copy__btn,
+.bg-surface-1 .gallery-copy__btn .w-4,
+.bg-surface-1 .gallery-copy__btn svg,
+.bg-surface-1 .gallery-copy__btn * {
+  color: rgb(16 185 129) !important;
+  border-color: rgba(16, 185, 129, 0.20) !important;
+}
+
+/* Ensure SVG stroke/fill uses success color inside the copy button */
+.bg-surface-1 .gallery-copy__btn svg,
+.bg-surface-1 .gallery-copy__btn svg path {
+  stroke: rgb(16 185 129) !important;
+  fill: none !important;
+}
+
+/* Give the copy button a subtle success-tinted background so it reads as an accent */
+.bg-surface-1 .gallery-copy__btn {
+  background-color: rgba(16, 185, 129, 0.08) !important;
+}
+
+/* Dark variant for copy button inside dark surfaces */
+.bg-surface-1.dark .gallery-copy__btn,
+html.dark .bg-surface-1 .gallery-copy__btn,
+body.dark .bg-surface-1 .gallery-copy__btn {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+}
+
+/* Target link icon and anchor specifically so we don't change global .text-accent */
+.gallery-link__icon,
+.gallery-link__anchor {
+  color: var(--color-primary-600);
+}
+
+/* Ensure the Create New Link button always shows an accent background and border
+   even if some global styles override generic .bg-accent. Keep text/icon colors
+   driven by existing classes. */
+.gallery-create__btn {
+  background-color: var(--color-primary-500);
+  /* fallback border color for browsers that don't support color-mix */
+  border-color: rgba(31, 144, 255, 0.20);
+  color: var(--color-white);
+}
+
+/* Dark mode variant: use a slightly lighter accent background so it reads on dark */
+.dark .gallery-create__btn,
+html.dark .gallery-create__btn,
+body.dark .gallery-create__btn,
+:root.dark .gallery-create__btn {
+  background-color: var(--color-primary-400);
+  border-color: rgba(79, 176, 255, 0.24);
+  color: var(--color-white);
+}
+
+.dark [class*="bg-danger/10"],
+html.dark [class*="bg-danger/10"],
+body.dark [class*="bg-danger/10"] {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+}
+
+/* Fallbacks for semantic utilities used on the public gallery page.
+   These ensure the UI looks correct even when Tailwind doesn't emit
+   the corresponding utility classes in the production CSS. */
+.bg-photo-overlay {
+  /* Theme-independent photo overlay: keeps photos visually consistent
+     (uses black at 50% alpha so toggling themes doesn't desaturate images) */
+  background-color: rgb(var(--color-black-rgb) / 0.5);
+}
+
+.bg-accent {
+  background-color: rgb(var(--color-primary-500-rgb) / 1);
+}
+
+.hover\:bg-accent\/90:hover {
+  background-color: rgb(var(--color-primary-500-rgb) / 0.9);
+}
+
+.text-accent-foreground {
+  color: rgb(var(--color-white-rgb));
+}
+
+.bg-surface-foreground\/20 {
+  background-color: rgb(var(--color-neutral-900-rgb) / 0.2);
+}
+
+.hover\:bg-surface-foreground\/30:hover {
+  background-color: rgb(var(--color-neutral-900-rgb) / 0.3);
+}
+
+.border-border {
+  border-color: rgb(var(--color-neutral-300-rgb));
+}
+
+/* Dark mode border-border fix */
+.dark .border-border,
+html.dark .border-border,
+body.dark .border-border,
+:root.dark .border-border {
+  border-color: rgb(82, 82, 91) !important;
+}
+
+.text-text {
+  color: rgb(var(--color-neutral-900-rgb));
+}
+
+.text-muted {
+  color: rgb(var(--color-neutral-500-rgb));
+}
+
+.bg-neutral-900\/50 {
+  background-color: rgb(var(--color-neutral-900-rgb) / 0.5);
+}
+
+/* Fallbacks for surface utilities so components like profile/settings
+   always have a defined background in both light and dark themes. */
+.bg-surface {
+  background-color: rgb(var(--color-neutral-50-rgb));
+}
+
+/* Slightly elevated surface used in cards/panels */
+.bg-surface-1 {
+  background-color: rgb(var(--color-neutral-100-rgb));
+}
+
+/* Dark variants: the RGB variables are inverted in :root.dark so using the
+   same variables will produce correct dark backgrounds. Provide explicit
+   selectors to ensure specificity. */
+.dark .bg-surface,
+html.dark .bg-surface,
+body.dark .bg-surface,
+:root.dark .bg-surface {
+  background-color: rgb(var(--color-neutral-50-rgb));
+}
+
+.dark .bg-surface-1,
+html.dark .bg-surface-1,
+body.dark .bg-surface-1,
+:root.dark .bg-surface-1 {
+  background-color: rgb(var(--color-neutral-100-rgb));
+}
+
+/* Some templates use `bg-surface-dark` explicitly; ensure it maps to the
+   dark surface on dark mode and a neutral surface on light mode. */
+.bg-surface-dark {
+  background-color: rgb(var(--color-neutral-800-rgb));
+}
+
+.dark .bg-surface-dark,
+html.dark .bg-surface-dark,
+body.dark .bg-surface-dark,
+:root.dark .bg-surface-dark {
+  background-color: rgb(var(--color-neutral-50-rgb));
+}
+
+/* Gallery-specific helpers */
+.pg-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  /* Make hero fill the full viewport height so cover photos are immersive on load */
+  height: 100vh;
+  min-height: 100vh;
+}
+
+.pg-hero__title {
+  font-size: clamp(1.75rem, 2.5vw + 1rem, 3.5rem);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.pg-hero__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.28) 0%, rgba(0, 0, 0, 0.48) 60%);
+}
+
+.pg-hero__meta {
+  color: rgb(var(--color-white-rgb));
+  opacity: 0.95;
+}
+
+.pg-card {
+  transition: transform 220ms cubic-bezier(.2, .9, .3, 1), box-shadow 220ms;
+  will-change: transform;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 6px 22px rgba(2, 6, 23, 0.08);
+}
+
+.pg-card:hover {
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: 0 18px 50px rgba(2, 6, 23, 0.12);
+}
+
+.pg-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .pg-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .pg-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.pg-download-btn {
+  box-shadow: 0 6px 18px rgba(31, 144, 255, 0.12);
+}
+
+/* Masonry / column-based layout helpers (used previously). */
+.pg-columns {
+  column-gap: 1.25rem;
+  /* default single column on very small screens */
+  column-count: 1;
+}
+
+@media (min-width: 640px) {
+  .pg-columns {
+    column-count: 2;
+  }
+}
+
+@media (min-width: 1024px) {
+  .pg-columns {
+    column-count: 3;
+  }
+}
+
+/* Ensure cards behave correctly inside CSS columns (masonry) */
+.pg-columns>.pg-card {
+  display: inline-block;
+  width: 100%;
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;
+  margin-bottom: 1.25rem;
+}
+
+/* Strong overrides for surface utilities to prevent accidental blue/primary
+   backgrounds from leaking into panels. These use the neutral RGB tokens
+   which are overridden in :root.dark, so the same rule produces dark
+   backgrounds in dark mode. */
+.bg-surface {
+  /* Provide a conservative fallback background that respects theme vars.
+     Keep these non-!important so component-level utilities (e.g. `bg-accent`)
+     can still override when intentionally used. */
+  background-color: rgb(var(--color-neutral-50-rgb));
+  color: rgb(var(--color-neutral-900-rgb));
+}
+
+.bg-surface-1 {
+  background-color: rgb(var(--color-neutral-100-rgb));
+  color: rgb(var(--color-neutral-900-rgb));
+}
+
+.bg-surface-dark {
+  background-color: rgb(var(--color-neutral-800-rgb));
+  color: rgb(var(--color-neutral-50-rgb));
+}
+
+/* Additional surface fallbacks used across components (dark-mode specific
+   variants are named like `bg-surface-dark-1` in markup). Provide explicit
+   fallbacks so these classes render even if Tailwind doesn't emit them. */
+.bg-surface-2 {
+  background-color: rgb(var(--color-neutral-200-rgb));
+  color: rgb(var(--color-neutral-900-rgb));
+}
+
+.bg-surface-dark-1 {
+  /* Typically used only in dark mode (applied via `dark:bg-surface-dark-1`).
+     Map to a slightly different neutral token so panels are visibly
+     distinct from page background but still neutral (not blue). */
+  background-color: rgb(var(--color-neutral-100-rgb));
+  color: rgb(var(--color-neutral-900-rgb));
+}
+
+.bg-surface-dark-2 {
+  background-color: rgb(var(--color-neutral-200-rgb));
+  color: rgb(var(--color-neutral-900-rgb));
+}
+
+/* Dark-mode variants are handled by the variable overrides defined in
+   `:root.dark` — no need for repeated high-specificity selectors here. */
+
+/* Fix for modal backgrounds: override the problematic dark mode bg-surface
+   that uses bluish neutral colors. Use pure neutral gray instead. */
+.dark .bg-surface,
+html.dark .bg-surface,
+body.dark .bg-surface,
+:root.dark .bg-surface {
+  background-color: rgb(24, 24, 27) !important;
+  color: rgb(244, 244, 245) !important;
+}
+
+.dark .bg-surface-dark,
+html.dark .bg-surface-dark,
+body.dark .bg-surface-dark,
+:root.dark .bg-surface-dark {
+  background-color: rgb(24, 24, 27) !important;
+  color: rgb(244, 244, 245) !important;
+}
+
+/* Fix for profile sections and sharelinks that use bg-surface-1 and bg-surface-dark-1 */
+.dark .bg-surface-1,
+html.dark .bg-surface-1,
+body.dark .bg-surface-1,
+:root.dark .bg-surface-1 {
+  background-color: rgb(39, 39, 42) !important;
+  color: rgb(244, 244, 245) !important;
+}
+
+.dark .bg-surface-dark-1,
+html.dark .bg-surface-dark-1,
+body.dark .bg-surface-dark-1,
+:root.dark .bg-surface-dark-1 {
+  background-color: rgb(39, 39, 42) !important;
+  color: rgb(244, 244, 245) !important;
+}
+
+/* Fix for popup menus on photos */
+.dark .popup-container,
+html.dark .popup-container,
+body.dark .popup-container,
+:root.dark .popup-container {
+  background-color: rgb(39, 39, 42) !important;
+  color: rgb(244, 244, 245) !important;
+  border-color: rgb(63, 63, 70) !important;
+}
+
+/* Fix for popup action buttons inside popups - only override neutral ones, preserve accent colors */
+.dark .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(.popup-action--success):not(.popup-action--danger),
+html.dark .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(.popup-action--success):not(.popup-action--danger),
+body.dark .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(.popup-action--success):not(.popup-action--danger),
+:root.dark .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(.popup-action--success):not(.popup-action--danger) {
+  background-color: rgb(63, 63, 70) !important;
+  color: rgb(244, 244, 245) !important;
+  border-color: rgb(82, 82, 91) !important;
+}
+
+/* Fix accent buttons to use same neutral background but with accent text color */
+.dark .popup-action--accent,
+html.dark .popup-action--accent,
+body.dark .popup-action--accent,
+:root.dark .popup-action--accent {
+  background-color: rgb(63, 63, 70) !important;
+  color: rgb(96, 165, 250) !important;
+  border-color: rgb(96, 165, 250) !important;
+}
+
+/* Final dark-mode popup override (placed at file end so it wins cascade). */
+html.dark .popup-container,
+body.dark .popup-container,
+.dark .popup-container {
+  background-color: rgb(var(--color-neutral-50-rgb) / 0.98) !important;
+  color: rgb(var(--color-neutral-900-rgb)) !important;
+  border-color: rgb(var(--color-neutral-500-rgb)) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45) !important;
+}
+
+html.dark .popup-arrow,
+.dark .popup-arrow,
+body.dark .popup-arrow {
+  border-top-color: rgb(var(--color-neutral-50-rgb) / 0.98) !important;
+}
+
+/* Fix for input fields in dark mode - add visible borders */
+.dark input[type="email"],
+.dark input[type="text"],
+.dark input[type="password"],
+html.dark input[type="email"],
+html.dark input[type="text"],
+html.dark input[type="password"],
+body.dark input[type="email"],
+body.dark input[type="text"],
+body.dark input[type="password"] {
+  border-color: rgb(82, 82, 91) !important;
+  background-color: transparent !important;
+  color: rgb(244, 244, 245) !important;
+}
+
+/* Focus state for input fields in dark mode */
+.dark input[type="email"]:focus,
+.dark input[type="text"]:focus,
+.dark input[type="password"]:focus,
+html.dark input[type="email"]:focus,
+html.dark input[type="text"]:focus,
+html.dark input[type="password"]:focus,
+body.dark input[type="email"]:focus,
+body.dark input[type="text"]:focus,
+body.dark input[type="password"]:focus {
+  border-color: rgb(96, 165, 250) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 1px rgb(96, 165, 250) !important;
+}
+
+/* Disabled input fields in dark mode */
+.dark input[type="email"]:disabled,
+.dark input[type="text"]:disabled,
+.dark input[type="password"]:disabled,
+html.dark input[type="email"]:disabled,
+html.dark input[type="text"]:disabled,
+html.dark input[type="password"]:disabled,
+body.dark input[type="email"]:disabled,
+body.dark input[type="text"]:disabled,
+body.dark input[type="password"]:disabled {
+  border-color: rgb(63, 63, 70) !important;
+  background-color: rgb(39, 39, 42) !important;
+  color: rgb(161, 161, 170) !important;
+  opacity: 0.7;
+}
+
+/* Fix button backgrounds for profile modal */
+.bg-success {
+  background-color: rgb(16, 185, 129) !important;
+  color: rgb(255, 255, 255) !important;
+}
+
+.bg-success:hover,
+.hover\:bg-success-600:hover {
+  background-color: rgb(5, 150, 105) !important;
+}
+
+.bg-danger {
+  background-color: rgb(239, 68, 68) !important;
+  color: rgb(255, 255, 255) !important;
+}
+
+.bg-danger:hover,
+.hover\:bg-danger-600:hover {
+  background-color: rgb(220, 38, 38) !important;
+}
+
+.bg-muted {
+  background-color: rgb(107, 114, 128) !important;
+  color: rgb(255, 255, 255) !important;
+}
+
+.bg-muted:hover,
+.hover\:bg-muted-600:hover {
+  background-color: rgb(75, 85, 99) !important;
+}
+
+/* Dark mode button fixes */
+.dark .bg-success,
+html.dark .bg-success,
+body.dark .bg-success {
+  background-color: rgb(34, 197, 94) !important;
+  color: rgb(0, 0, 0) !important;
+}
+
+.dark .bg-success:hover,
+.dark .hover\:bg-success-600:hover,
+html.dark .bg-success:hover,
+html.dark .hover\:bg-success-600:hover,
+body.dark .bg-success:hover,
+body.dark .hover\:bg-success-600:hover {
+  background-color: rgb(22, 163, 74) !important;
+}
+
+.dark .bg-danger,
+html.dark .bg-danger,
+body.dark .bg-danger {
+  background-color: rgb(248, 113, 113) !important;
+  color: rgb(0, 0, 0) !important;
+}
+
+.dark .bg-danger:hover,
+.dark .hover\:bg-danger-600:hover,
+html.dark .bg-danger:hover,
+html.dark .hover\:bg-danger-600:hover,
+body.dark .bg-danger:hover,
+body.dark .hover\:bg-danger-600:hover {
+  background-color: rgb(239, 68, 68) !important;
+}
+
+.dark .bg-muted,
+html.dark .bg-muted,
+body.dark .bg-muted {
+  background-color: rgb(82, 82, 91) !important;
+  color: rgb(255, 255, 255) !important;
+}
+
+.dark .bg-muted:hover,
+.dark .hover\:bg-muted-600:hover,
+html.dark .bg-muted:hover,
+html.dark .hover\:bg-muted-600:hover,
+body.dark .bg-muted:hover,
+body.dark .hover\:bg-muted-600:hover {
+  background-color: rgb(63, 63, 70) !important;
 }

@@ -218,8 +218,8 @@ export const GalleryPage = () => {
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="flex items-center">
-            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-            <span className="ml-3 text-lg text-gray-600 dark:text-gray-300">Loading gallery...</span>
+            <Loader2 className="w-8 h-8 animate-spin text-muted" />
+            <span className="ml-3 text-lg text-muted dark:text-muted-dark">Loading gallery...</span>
           </div>
         </div>
       </Layout>
@@ -232,16 +232,16 @@ export const GalleryPage = () => {
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center space-y-4">
-            <div className="text-red-400 text-lg font-medium">Failed to load gallery</div>
-            <div className="text-gray-600 dark:text-gray-400">{error}</div>
+            <div className="text-danger text-lg font-medium">Failed to load gallery</div>
+            <div className="text-muted dark:text-muted-dark">{error}</div>
             <button
               onClick={fetchData}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-sm border border-accent/20 transition-colors"
             >
               Try Again
             </button>
             <div>
-              <Link to="/" className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 text-sm">
+              <Link to="/" className="text-accent dark:text-accent hover:underline text-sm">
                 ← Back to Dashboard
               </Link>
             </div>
@@ -257,8 +257,8 @@ export const GalleryPage = () => {
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center space-y-4">
-            <div className="text-gray-600 dark:text-gray-400 text-lg">Gallery not found</div>
-            <Link to="/" className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300">
+            <div className="text-muted dark:text-muted-dark text-lg">Gallery not found</div>
+            <Link to="/" className="text-accent hover:underline">
               ← Back to Dashboard
             </Link>
           </div>
@@ -279,14 +279,14 @@ export const GalleryPage = () => {
             </Link>
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+                <h1 className="text-4xl font-bold text-text">
                   {gallery.name || `Gallery #${gallery.id}`}
                 </h1>
-                <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">Created on {formatDate(gallery.created_at)}</p>
+                <p className="mt-2 text-lg text-muted">Created on {formatDate(gallery.created_at)}</p>
               </div>
               <button
                 onClick={handleDeleteGallery}
-                className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-500/20 hover:bg-red-100 dark:hover:bg-red-500/30 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 border border-red-200 dark:border-red-500/20 rounded-lg transition-all duration-200"
+                className="flex items-center gap-2 px-4 py-2 bg-danger/10 dark:bg-danger/20 hover:bg-danger/20 text-danger border border-danger/20 rounded-lg transition-all duration-200 shadow-sm"
                 title="Delete Gallery"
               >
                 <Trash2 className="w-4 h-4" />
@@ -297,31 +297,31 @@ export const GalleryPage = () => {
         </div>
 
         {/* Photo Section */}
-        <div className="bg-gray-50 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-4 lg:p-6 xl:p-8 border border-gray-200 dark:border-white/10">
+        <div className="bg-surface dark:bg-surface-foreground/5 backdrop-blur-sm rounded-2xl p-4 lg:p-6 xl:p-8 border border-border dark:border-border/10">
           <div className="mb-6">
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Photos ({photoUrls.length})</h2>
+            <h2 className="text-2xl font-semibold text-text mb-2">Photos ({photoUrls.length})</h2>
             <PhotoUploader galleryId={galleryId} onUploadComplete={handleUploadComplete} />
             {uploadError && (
-              <div className="mt-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
+              <div className="mt-2 text-danger bg-danger/10 dark:bg-danger/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
                 {uploadError}
-                <button onClick={() => setUploadError('')} className="ml-2 text-xs text-white bg-red-500 dark:bg-red-400/40 px-2 py-1 rounded">Dismiss</button>
+                <button onClick={() => setUploadError('')} className="ml-2 text-xs text-accent-foreground bg-danger/80 px-2 py-1 rounded">Dismiss</button>
               </div>
             )}
             {error && (
-              <div className="mt-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
+              <div className="mt-2 text-danger bg-danger/10 dark:bg-danger/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
                 {error}
-                <button onClick={() => setError('')} className="ml-2 text-xs text-white bg-red-500 dark:bg-red-400/40 px-2 py-1 rounded">Dismiss</button>
+                <button onClick={() => setError('')} className="ml-2 text-xs text-accent-foreground bg-danger/80 px-2 py-1 rounded">Dismiss</button>
               </div>
             )}
           </div>
           {photoUrls.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8">
               {photoUrls.map((photo, index) => (
-                <div key={photo.id} className="relative group bg-gray-50 dark:bg-gray-800 rounded-lg h-80">
+                <div key={photo.id} className="relative group bg-surface dark:bg-surface-foreground rounded-lg h-80">
                   {/* Action Panel - floating pop-up above container */}
-                  <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 z-20 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-300 p-2 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700">
+                  <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 z-20 popup-container opacity-0 group-hover:opacity-100 transition-all duration-300">
                     {/* Pop-up arrow */}
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-white/95 dark:border-t-gray-800/95"></div>
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent popup-arrow"></div>
 
                     <div className="flex justify-center gap-2">
                       <button
@@ -329,7 +329,7 @@ export const GalleryPage = () => {
                           e.stopPropagation()
                           openPhoto(index)
                         }}
-                        className="flex items-center justify-center w-8 h-8 p-1 bg-white/20 hover:bg-white/30 text-gray-700 dark:text-gray-300 rounded-lg transition-all duration-200"
+                        className="popup-action popup-action--accent"
                         title="Open photo"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -342,7 +342,7 @@ export const GalleryPage = () => {
                             e.stopPropagation()
                             handleClearCover()
                           }}
-                          className="flex items-center justify-center w-8 h-8 p-1 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-600 rounded-lg transition-all duration-200"
+                          className="popup-action popup-action--warning"
                           title="Clear cover photo"
                         >
                           <StarOff className="w-4 h-4" />
@@ -353,7 +353,7 @@ export const GalleryPage = () => {
                             e.stopPropagation()
                             handleSetCover(photo.id)
                           }}
-                          className="flex items-center justify-center w-8 h-8 p-1 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-600 rounded-lg transition-all duration-200"
+                          className="popup-action popup-action--warning"
                           title="Set as cover"
                         >
                           <Star className="w-4 h-4" />
@@ -364,7 +364,7 @@ export const GalleryPage = () => {
                           e.stopPropagation()
                           handleRenamePhoto(photo.id, photo.filename)
                         }}
-                        className="flex items-center justify-center w-8 h-8 p-1 bg-white/20 hover:bg-white/30 text-gray-700 dark:text-gray-300 rounded-lg transition-all duration-200"
+                        className="popup-action popup-action--accent"
                         title="Rename photo"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -382,7 +382,7 @@ export const GalleryPage = () => {
                           link.click()
                           document.body.removeChild(link)
                         }}
-                        className="flex items-center justify-center w-8 h-8 p-1 bg-white/20 hover:bg-white/30 text-gray-700 dark:text-gray-300 rounded-lg transition-all duration-200"
+                        className="popup-action popup-action--success"
                         title="Download photo"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -394,7 +394,7 @@ export const GalleryPage = () => {
                           e.stopPropagation()
                           handleDeletePhoto(photo.id)
                         }}
-                        className="flex items-center justify-center w-8 h-8 p-1 bg-red-500/20 hover:bg-red-500/30 text-red-600 rounded-lg transition-all duration-200"
+                        className="popup-action popup-action--danger"
                         title="Delete photo"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -422,7 +422,7 @@ export const GalleryPage = () => {
                   </button>
 
                   {/* Filename - overlay at bottom */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/40 to-transparent p-3 rounded-b-lg">
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/40 p-3 rounded-b-lg">
                     <p className="text-sm text-white truncate text-center font-medium drop-shadow-md" title={photo.filename}>
                       {photo.filename}
                     </p>
@@ -431,26 +431,31 @@ export const GalleryPage = () => {
               ))}
             </div>
           ) : (
-            <div className="text-center py-16 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
-              <ImageOff className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-              <h3 className="mt-4 text-lg font-medium text-gray-600 dark:text-gray-300">No photos in this gallery</h3>
-              <p className="mt-2 text-sm text-gray-500">Upload your first photo to get started.</p>
+            <div className="text-center py-16 border-2 border-dashed border-border dark:border-border/40 rounded-lg">
+              <ImageOff className="mx-auto h-12 w-12 text-muted dark:text-muted-dark" />
+              <h3 className="mt-4 text-lg font-medium text-muted">No photos in this gallery</h3>
+              <p className="mt-2 text-sm text-muted">Upload your first photo to get started.</p>
             </div>
           )}
         </div>
 
         {/* ... (keep existing share links section) */}
-        <div className="bg-gray-50 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 dark:border-white/10">
+        <div className="bg-surface-1 dark:bg-surface-dark-1 backdrop-blur-sm rounded-2xl p-6 border border-border dark:border-border/40">
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-4">
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">Share Links</h2>
+              <h2 className="text-2xl font-semibold text-text">Share Links</h2>
               <button
                 onClick={handleCreateShareLink}
                 disabled={isCreatingLink}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm border border-accent/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed gallery-create__btn"
+                id="gallery-create-btn"
               >
-                {isCreatingLink ? <Loader2 className="w-5 h-5 animate-spin" /> : <Share2 className="w-5 h-5" />}
-                Create New Link
+                {isCreatingLink ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-white" />
+                ) : (
+                  <Share2 className="w-5 h-5 text-white" />
+                )}
+                <span className="text-white">Create New Link</span>
               </button>
             </div>
           </div>
@@ -460,18 +465,26 @@ export const GalleryPage = () => {
               {shareLinks.map(link => {
                 const fullUrl = `${window.location.origin}/share/${link.id}`
                 return (
-                  <li key={link.id} className="bg-gray-100 dark:bg-white/10 p-4 rounded-lg flex items-center justify-between">
+                  <li key={link.id} className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg flex items-center justify-between border border-border">
                     <div className="flex items-center gap-4">
-                      <LinkIcon className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-                      <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline truncate">
+                      <LinkIcon className="w-5 h-5 text-accent gallery-link__icon" />
+                      <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline truncate gallery-link__anchor">
                         {fullUrl}
                       </a>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => copyToClipboard(fullUrl)} className="flex items-center justify-center w-8 h-8 p-1 bg-green-500/20 hover:bg-green-500/30 text-green-400 hover:text-green-300 rounded-lg transition-all duration-200">
-                        {copiedLink === fullUrl ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      <button
+                        onClick={() => copyToClipboard(fullUrl)}
+                        className="flex items-center justify-center w-8 h-8 p-1 bg-success/20 hover:bg-success/30 text-success rounded-lg transition-all duration-200 border border-border gallery-copy__btn"
+                        title="Copy link"
+                      >
+                        {copiedLink === fullUrl ? (
+                          <Check className="w-4 h-4 text-success" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-success" />
+                        )}
                       </button>
-                      <button onClick={() => handleDeleteShareLink(link.id)} className="flex items-center justify-center w-8 h-8 p-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all duration-200">
+                      <button onClick={() => handleDeleteShareLink(link.id)} className="flex items-center justify-center w-8 h-8 p-1 bg-danger/20 hover:bg-danger/30 text-danger rounded-lg transition-all duration-200 border border-border">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -480,10 +493,10 @@ export const GalleryPage = () => {
               })}
             </ul>
           ) : (
-            <div className="text-center py-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
-              <Share2 className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-              <h3 className="mt-4 text-lg font-medium text-gray-600 dark:text-gray-300">No share links created</h3>
-              <p className="mt-2 text-sm text-gray-500">Create a link to share this gallery with others.</p>
+            <div className="text-center py-12 border-2 border-dashed border-border dark:border-border/40 rounded-lg">
+              <Share2 className="mx-auto h-12 w-12 text-muted" />
+              <h3 className="mt-4 text-lg font-medium text-muted">No share links created</h3>
+              <p className="mt-2 text-sm text-muted">Create a link to share this gallery with others.</p>
             </div>
           )}
         </div>

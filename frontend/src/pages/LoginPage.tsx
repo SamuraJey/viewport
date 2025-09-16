@@ -12,29 +12,29 @@ export const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  
+
   const navigate = useNavigate()
   const location = useLocation()
   const { login } = useAuthStore()
-  
+
   const from = location.state?.from?.pathname || '/'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    
+
     if (!validateEmail(email)) {
       setError('Please enter a valid email address')
       return
     }
-    
+
     if (!password) {
       setError('Password is required')
       return
     }
-    
+
     setIsLoading(true)
-    
+
     try {
       const response = await authService.login({ email, password })
       login(
@@ -53,16 +53,16 @@ export const LoginPage = () => {
     <AuthLayout>
       <div className="relative w-full max-w-md">
         {/* Card container */}
-        <div className="bg-white dark:bg-gray-900/95 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-gray-200 dark:border-white/10">
+        <div className="bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-border dark:border-border/10">
           {/* Logo/Brand area */}
           <div className="text-center mb-8">
-            <div className="w-12 h-12 bg-gradient-to-r from-primary-600 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+            <div className="w-12 h-12 bg-accent rounded-xl flex items-center justify-center mx-auto mb-4">
               <Camera className="h-6 w-6 text-white" />
             </div>
-            <h2 className="font-oswald text-3xl font-bold uppercase tracking-wider text-gray-900 dark:text-white mb-2">
+            <h2 className="font-oswald text-3xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground mb-2">
               Welcome back
             </h2>
-            <p className="text-gray-600 dark:text-gray-400 font-cuprum">
+            <p className="text-text-muted dark:text-text font-cuprum">
               Sign in to your Viewport account
             </p>
           </div>
@@ -80,7 +80,7 @@ export const LoginPage = () => {
                   type="email"
                   autoComplete="email"
                   required
-                  className="w-full px-4 py-3 pr-12 bg-gray-50 dark:bg-gray-800/80 border-2 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg transition-all focus:outline-none focus:border-primary-500 focus:bg-white dark:focus:bg-gray-800 focus:ring-4 focus:ring-primary-500/20 backdrop-blur-sm"
+                  className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border rounded-lg transition-all focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm text-text dark:text-accent-foreground"
                   placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -101,14 +101,14 @@ export const LoginPage = () => {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   required
-                  className="w-full px-4 py-3 pr-12 bg-gray-50 dark:bg-gray-800/80 border-2 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg transition-all focus:outline-none focus:border-primary-500 focus:bg-white dark:focus:bg-gray-800 focus:ring-4 focus:ring-primary-500/20 backdrop-blur-sm"
+                  className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg transition-all focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm"
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground transition-colors"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
@@ -131,7 +131,7 @@ export const LoginPage = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
+              className="w-full bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>
