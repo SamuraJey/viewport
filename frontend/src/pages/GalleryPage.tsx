@@ -318,9 +318,11 @@ export const GalleryPage = () => {
           {photoUrls.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8">
               {photoUrls.map((photo, index) => (
-                <div key={photo.id} className="relative group bg-surface dark:bg-surface-foreground rounded-lg h-80">
-                  {/* Action Panel - floating pop-up above container */}
-                  <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 z-20 popup-container opacity-0 group-hover:opacity-100 transition-all duration-300">
+                <div key={photo.id} className="group bg-surface dark:bg-surface-foreground rounded-lg overflow-hidden flex flex-col">
+                  {/* Image area */}
+                  <div className="relative h-80">
+                    {/* Action Panel - floating pop-up above container */}
+                    <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 z-20 popup-container opacity-0 group-hover:opacity-100 transition-all duration-300">
                     {/* Pop-up arrow */}
                     <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent popup-arrow"></div>
 
@@ -403,28 +405,29 @@ export const GalleryPage = () => {
                     </div>
                   </div>
 
-                  {/* Photo - takes full container space */}
-                  <button
-                    onClick={() => openPhoto(index)}
-                    onDoubleClick={(e) => {
-                      e.stopPropagation()
-                      handleRenamePhoto(photo.id, photo.filename)
-                    }}
-                    className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0"
-                    aria-label={`Photo ${photo.id}`}
-                    title="Click to view, double-click to rename"
-                  >
-                    <img
-                      src={photo.url}
-                      alt={`Photo ${photo.id}`}
-                      className="w-full h-full object-contain rounded-lg transition-opacity"
-                      loading="lazy"
-                    />
-                  </button>
+                    {/* Photo - takes full image area */}
+                    <button
+                      onClick={() => openPhoto(index)}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation()
+                        handleRenamePhoto(photo.id, photo.filename)
+                      }}
+                      className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0"
+                      aria-label={`Photo ${photo.id}`}
+                      title="Click to view, double-click to rename"
+                    >
+                      <img
+                        src={photo.url}
+                        alt={`Photo ${photo.id}`}
+                        className="w-full h-full object-contain rounded-t-lg transition-opacity"
+                        loading="lazy"
+                      />
+                    </button>
+                  </div>
 
-                  {/* Filename - overlay at bottom */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-photo-overlay p-3 rounded-b-lg">
-                    <p className="text-sm text-accent-foreground truncate text-center font-medium drop-shadow-md" title={photo.filename}>
+                  {/* Caption below the image (not overlapping) */}
+                  <div className="px-2 py-2">
+                    <p className="text-xs text-muted truncate text-center" title={photo.filename}>
                       {photo.filename}
                     </p>
                   </div>
