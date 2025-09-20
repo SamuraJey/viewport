@@ -19,16 +19,13 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = ({
     const [error, setError] = useState<string | null>(null)
     const inputRef = useRef<HTMLInputElement>(null)
 
-    // Initialize filename when modal opens
     useEffect(() => {
         if (isOpen) {
             setFilename(currentFilename)
             setError(null)
-            // Focus and select the filename (without extension) after modal opens
             setTimeout(() => {
                 if (inputRef.current) {
                     inputRef.current.focus()
-                    // Select just the filename part, not the extension
                     const lastDotIndex = currentFilename.lastIndexOf('.')
                     if (lastDotIndex > 0) {
                         inputRef.current.setSelectionRange(0, lastDotIndex)
@@ -40,17 +37,12 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = ({
         }
     }, [isOpen, currentFilename])
 
-    // Handle keyboard events
     useEffect(() => {
         if (!isOpen) return
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                onClose()
-            }
-            if (e.key === 'Enter' && !isRenaming) {
-                handleRename()
-            }
+            if (e.key === 'Escape') onClose()
+            if (e.key === 'Enter' && !isRenaming) handleRename()
         }
 
         window.addEventListener('keydown', handleKeyDown)
@@ -70,7 +62,6 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = ({
 
         setIsRenaming(true)
         setError(null)
-
         try {
             await onRename(filename.trim())
             onClose()
@@ -82,49 +73,32 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = ({
     }
 
     const handleCancel = () => {
-        if (!isRenaming) {
-            onClose()
-        }
+        if (!isRenaming) onClose()
     }
 
     if (!isOpen) return null
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-            {/* Backdrop */}
-            <div
-                className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
-                onClick={handleCancel}
-            />
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onClick={handleCancel} />
 
-            {/* Modal */}
-            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4 transform transition-all">
-                {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="relative bg-surface dark:bg-surface-foreground rounded-lg shadow-xl w-full max-w-md mx-4 transform transition-all">
+                <div className="flex items-center justify-between p-6 border-b border-border dark:border-border">
                     <div className="flex items-center gap-3">
                         <div className="flex items-center justify-center w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
                             <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                         </div>
-                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            Rename Photo
-                        </h2>
+                        <h2 className="text-lg font-semibold text-text dark:text-white">Rename Photo</h2>
                     </div>
-                    <button
-                        onClick={handleCancel}
-                        disabled={isRenaming}
-                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-50"
-                    >
+                    <button onClick={handleCancel} disabled={isRenaming} className="p-1 text-text-muted hover:text-text dark:hover:text-text transition-colors disabled:opacity-50">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
-                {/* Content */}
                 <div className="p-6">
                     <div className="space-y-4">
                         <div>
-                            <label htmlFor="filename" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                Filename
-                            </label>
+                            <label htmlFor="filename" className="block text-sm font-medium text-text dark:text-text mb-2">Filename</label>
                             <input
                                 ref={inputRef}
                                 id="filename"
@@ -132,7 +106,7 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = ({
                                 value={filename}
                                 onChange={(e) => setFilename(e.target.value)}
                                 disabled={isRenaming}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full px-3 py-2 border border-border dark:border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-accent dark:bg-surface-foreground dark:text-accent-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                                 placeholder="Enter new filename"
                             />
                         </div>
@@ -145,13 +119,8 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = ({
                     </div>
                 </div>
 
-                {/* Footer */}
-                <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
-                    <button
-                        onClick={handleCancel}
-                        disabled={isRenaming}
-                        className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
-                    >
+                <div className="flex items-center justify-end gap-3 p-6 border-t border-border">
+                    <button onClick={handleCancel} disabled={isRenaming} className="px-4 py-2 text-text dark:text-text-muted hover:bg-surface dark:hover:bg-surface-foreground rounded-lg transition-colors disabled:opacity-50">
                         Cancel
                     </button>
                     <button

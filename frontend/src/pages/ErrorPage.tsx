@@ -164,11 +164,11 @@ const ErrorPageContent = ({
         <div className="mt-12 text-sm text-text-muted">
           <p>Error Code: {errorStatus}</p>
           {error && import.meta.env.DEV && typeof error === 'object' && error !== null ? (
-            <details className="mt-4 text-left bg-black/20 rounded-lg p-4">
-              <summary className="cursor-pointer text-gray-400 mb-2">
+            <details className="mt-4 text-left bg-surface-foreground/10 rounded-lg p-4">
+              <summary className="cursor-pointer text-text-muted mb-2">
                 Debug Information (Development Only)
               </summary>
-              <pre className="text-xs text-gray-300 overflow-auto">
+              <pre className="text-xs text-text-muted overflow-auto">
                 {JSON.stringify(error, null, 2)}
               </pre>
             </details>

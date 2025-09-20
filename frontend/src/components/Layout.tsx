@@ -53,13 +53,13 @@ export const Layout = ({ children }: LayoutProps) => {
                 <button
                   onClick={openProfile}
                   aria-label="Account Settings"
-                  className="flex items-center justify-center p-2 text-text-muted dark:text-text border border-border dark:border-border hover:border-accent hover:text-accent hover:bg-surface/50 dark:hover:bg-surface-foreground/50 rounded-lg transition-all cursor-pointer"
+                  className="flex items-center justify-center p-2 text-text-muted dark:text-text border border-border dark:border-border hover:border-accent hover:text-accent hover:bg-surface/50 dark:hover:bg-surface-foreground/50 hover:-translate-y-0.5 hover:shadow-lg rounded-lg cursor-pointer"
                 >
                   <Settings className="h-5 w-5" />
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-2 text-sm px-4 py-2 bg-transparent border-2 border-border dark:border-border text-text-muted dark:text-text hover:border-accent hover:text-accent rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/20"
+                  className="flex items-center gap-2 text-sm px-4 py-2 bg-transparent border-2 border-border dark:border-border text-text-muted dark:text-text hover:border-accent hover:text-accent rounded-lg hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/20"
                 >
                   <LogOut className="h-5 w-5" />
                   <span>Sign Out</span>

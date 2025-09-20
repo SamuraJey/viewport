@@ -13,7 +13,7 @@ vi.mock('../../lib/api', () => ({
 describe('AuthenticatedImage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    
+
     // Mock URL methods
     global.URL.createObjectURL = vi.fn(() => 'blob:mock-url')
     global.URL.revokeObjectURL = vi.fn()
@@ -29,7 +29,7 @@ describe('AuthenticatedImage', () => {
     expect(screen.getByText('Loading...')).toBeInTheDocument()
     // Check the outermost loading container div
     const loadingContainer = screen.getByText('Loading...').closest('div')?.parentElement?.parentElement
-    expect(loadingContainer).toHaveClass('bg-gray-800', 'animate-pulse', 'test-class')
+    expect(loadingContainer).toHaveClass('bg-surface-foreground', 'animate-pulse', 'test-class')
   })
 
   it('should load and display image successfully', async () => {
@@ -61,8 +61,8 @@ describe('AuthenticatedImage', () => {
   })
 
   it('should show error state when image fails to load', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { })
+
     vi.mocked(api.get).mockRejectedValue(new Error('Network error'))
 
     render(

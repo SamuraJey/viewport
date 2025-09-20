@@ -135,12 +135,12 @@ export const DashboardPage = () => {
   )
   const renderEmptyState = () => (
     <div className="flex flex-col items-center justify-center h-96">
-      <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">No galleries yet</p>
+      <p className="text-text-muted text-lg mb-4">No galleries yet</p>
       {/* Button to create first gallery */}
       <button
         onClick={handleOpenModal}
         disabled={isCreating}
-        className="inline-flex items-center gap-2 bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+        className="inline-flex items-center gap-2 bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg  hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
       >
         {isCreating ? (
           <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
@@ -156,7 +156,7 @@ export const DashboardPage = () => {
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {galleries.map((gallery) => (
-          <div key={gallery.id} className="bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-8 border border-border dark:border-border/10 hover:transform hover:-translate-y-1 hover:shadow-2xl transition-all">
+          <div key={gallery.id} className="bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-8 border border-border dark:border-border/10 hover:transform hover:scale-101 hover:shadow-2xl ">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <div className="bg-accent/20 p-2 rounded-lg flex-shrink-0 border border-accent/10">
@@ -167,7 +167,7 @@ export const DashboardPage = () => {
                     <div className="flex items-center gap-2">
                       <input
                         ref={renameInputRef}
-                        className="flex-1 p-1 border border-gray-300 dark:border-gray-600 rounded min-w-0 text-base"
+                        className="flex-1 p-2 border border-border rounded min-w-0 text-base bg-surface-foreground/5 text-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
                         value={renameInput}
                         onChange={(e) => setRenameInput(e.target.value)}
                         onKeyDown={(e) => {
@@ -180,10 +180,25 @@ export const DashboardPage = () => {
                           }
                         }}
                       />
-                      <button onClick={handleConfirmRename} disabled={isRenaming || !renameInput.trim()} title="Confirm Rename">
-                        {isRenaming ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <Check className="w-5 h-5 text-green-500" />}
+                      <button
+                        onClick={handleConfirmRename}
+                        disabled={isRenaming || !renameInput.trim()}
+                        title="Confirm Rename"
+                        aria-label="Confirm rename"
+                        className="p-2 rounded-md flex items-center justify-center cursor-pointer hover:bg-surface-foreground/10 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent"
+                      >
+                        {isRenaming ? (
+                          <div className="w-4 h-4 border-2 border-border/20 border-t-accent rounded-full animate-spin" />
+                        ) : (
+                          <Check className="w-5 h-5 text-green-500" />
+                        )}
                       </button>
-                      <button onClick={cancelInlineRename} title="Cancel Rename">
+                      <button
+                        onClick={cancelInlineRename}
+                        title="Cancel Rename"
+                        aria-label="Cancel rename"
+                        className="p-2 rounded-md flex items-center justify-center cursor-pointer hover:bg-surface-foreground/10 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger"
+                      >
                         <X className="w-5 h-5 text-red-500" />
                       </button>
                     </div>
@@ -192,7 +207,7 @@ export const DashboardPage = () => {
                       <h3 className="font-oswald text-base font-bold uppercase tracking-wide text-text break-words">
                         {gallery.name || `Gallery #${gallery.id}`}
                       </h3>
-                      <p className="text-muted text-sm font-cuprum">
+                      <p className="text-text-muted text-sm font-cuprum">
                         {formatDate(gallery.created_at)}
                       </p>
                     </>
@@ -202,7 +217,7 @@ export const DashboardPage = () => {
               <div className="flex gap-2">
                 <button
                   onClick={() => beginInlineRename(gallery)}
-                  className="p-2 bg-warning/80 hover:bg-warning text-accent-foreground rounded-full transition transform duration-150 ease-out border border-border shadow-sm hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:ring-offset-1"
+                  className="p-2 bg-warning/80 hover:bg-warning text-text dark:text-accent-foreground rounded-full  border border-border shadow-sm hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:ring-offset-1"
                   title="Rename Gallery"
                   aria-label={`Rename ${gallery.name || `Gallery #${gallery.id}`}`}
                 >
@@ -210,7 +225,7 @@ export const DashboardPage = () => {
                 </button>
                 <button
                   onClick={() => handleDeleteGallery(gallery.id)}
-                  className="p-2 bg-danger/80 hover:bg-danger text-accent-foreground rounded-full transition transform duration-150 ease-out border border-border shadow-sm hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger/20 focus:ring-offset-1"
+                  className="p-2 bg-danger/80 hover:bg-danger text-text dark:text-accent-foreground rounded-full border border-border shadow-sm hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger/20 focus:ring-offset-1"
                   title="Delete Gallery"
                   aria-label={`Delete ${gallery.name || `Gallery #${gallery.id}`}`}
                 >
@@ -221,7 +236,7 @@ export const DashboardPage = () => {
             <div>
               <Link
                 to={`/galleries/${gallery.id}`}
-                className="block w-full bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg text-center transition-all hover:-translate-y-0.5 hover:shadow-lg shadow-sm border border-accent/20 no-underline"
+                className="block w-full bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg text-center  hover:-translate-y-0.5 hover:shadow-lg shadow-sm border border-accent/20 no-underline"
               >
                 Manage Gallery
               </Link>
@@ -247,14 +262,14 @@ export const DashboardPage = () => {
           <button
             onClick={() => fetchGalleries(page - 1)}
             disabled={page <= 1 || isLoading}
-            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark"
+            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
           <button
             onClick={() => fetchGalleries(page + 1)}
             disabled={page >= totalPages || isLoading}
-            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark"
+            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
@@ -276,7 +291,7 @@ export const DashboardPage = () => {
           <button
             onClick={handleOpenModal}
             disabled={isCreating}
-            className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm border border-accent/20 transition-all hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+            className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm border border-accent/20  hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
           >
             {isCreating ? (
               <div className="w-5 h-5 border-2 border-border dark:border-border/40 rounded-full animate-spin"></div>
@@ -321,14 +336,14 @@ export const DashboardPage = () => {
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 bg-surface-1 dark:bg-surface-dark-1 rounded-lg text-text dark:text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 transition-colors"
+                  className="px-4 py-2 bg-surface-1 dark:bg-surface-dark-1 rounded-lg text-text dark:text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmCreate}
                   disabled={isCreating || !newGalleryName.trim()}
-                  className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-md transition-all hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-md  hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isCreating ? (
                     <div className="w-5 h-5 border-2 border-accent/20 border-t-accent rounded-full animate-spin"></div>

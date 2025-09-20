@@ -8,15 +8,15 @@ interface ErrorDisplayProps {
   className?: string
 }
 
-export const ErrorDisplay = ({ 
-  error, 
-  onRetry, 
-  onDismiss, 
+export const ErrorDisplay = ({
+  error,
+  onRetry,
+  onDismiss,
   variant = 'inline',
   className = ''
 }: ErrorDisplayProps) => {
   const baseClasses = 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 rounded-lg'
-  
+
   const variantClasses = {
     inline: 'px-4 py-3 flex items-center justify-between',
     banner: 'px-6 py-4 flex items-center justify-between',
@@ -45,7 +45,7 @@ export const ErrorDisplay = ({
             {onDismiss && (
               <button
                 onClick={onDismiss}
-                className="inline-flex items-center gap-2 bg-gray-100 dark:bg-gray-500/20 hover:bg-gray-200 dark:hover:bg-gray-500/30 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 bg-surface-foreground dark:bg-surface hover:bg-surface transition-colors text-text dark:text-text px-4 py-2 rounded-lg"
               >
                 <X className="w-4 h-4" />
                 Dismiss

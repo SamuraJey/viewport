@@ -286,8 +286,9 @@ export const GalleryPage = () => {
               </div>
               <button
                 onClick={handleDeleteGallery}
-                className="flex items-center gap-2 px-4 py-2 bg-danger/10 dark:bg-danger/20 hover:bg-danger/20 text-danger border border-danger/20 rounded-lg transition-all duration-200 shadow-sm"
+                className="flex items-center gap-2 px-4 py-2 bg-danger/10 dark:bg-danger/20 hover:bg-danger/20 text-danger border border-danger/20 rounded-lg  shadow-sm cursor-pointer hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-1 active:scale-95"
                 title="Delete Gallery"
+                aria-label="Delete gallery"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete Gallery
@@ -422,8 +423,8 @@ export const GalleryPage = () => {
                   </button>
 
                   {/* Filename - overlay at bottom */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-black/40 p-3 rounded-b-lg">
-                    <p className="text-sm text-white truncate text-center font-medium drop-shadow-md" title={photo.filename}>
+                  <div className="absolute bottom-0 left-0 right-0 bg-photo-overlay p-3 rounded-b-lg">
+                    <p className="text-sm text-accent-foreground truncate text-center font-medium drop-shadow-md" title={photo.filename}>
                       {photo.filename}
                     </p>
                   </div>
@@ -447,15 +448,16 @@ export const GalleryPage = () => {
               <button
                 onClick={handleCreateShareLink}
                 disabled={isCreatingLink}
-                className="flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm border border-accent/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed gallery-create__btn"
+                className="flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm border border-accent/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed gallery-create__btn cursor-pointer hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 active:scale-95"
                 id="gallery-create-btn"
+                aria-label="Create new share link"
               >
                 {isCreatingLink ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-white" />
+                  <Loader2 className="w-5 h-5 animate-spin text-accent-foreground" />
                 ) : (
-                  <Share2 className="w-5 h-5 text-white" />
+                  <Share2 className="w-5 h-5 text-accent-foreground" />
                 )}
-                <span className="text-white">Create New Link</span>
+                <span className="text-accent-foreground">Create New Link</span>
               </button>
             </div>
           </div>
@@ -475,8 +477,9 @@ export const GalleryPage = () => {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => copyToClipboard(fullUrl)}
-                        className="flex items-center justify-center w-8 h-8 p-1 bg-success/20 hover:bg-success/30 text-success rounded-lg transition-all duration-200 border border-border gallery-copy__btn"
+                        className="flex items-center justify-center w-8 h-8 p-1 bg-success/20 hover:bg-success/30 text-success rounded-lg transition-all duration-200 border border-border gallery-copy__btn cursor-pointer hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 active:scale-95"
                         title="Copy link"
+                        aria-label="Copy link"
                       >
                         {copiedLink === fullUrl ? (
                           <Check className="w-4 h-4 text-success" />
@@ -484,7 +487,7 @@ export const GalleryPage = () => {
                           <Copy className="w-4 h-4 text-success" />
                         )}
                       </button>
-                      <button onClick={() => handleDeleteShareLink(link.id)} className="flex items-center justify-center w-8 h-8 p-1 bg-danger/20 hover:bg-danger/30 text-danger rounded-lg transition-all duration-200 border border-border">
+                      <button onClick={() => handleDeleteShareLink(link.id)} className="flex items-center justify-center w-8 h-8 p-1 bg-danger/20 hover:bg-danger/30 text-danger rounded-lg transition-all duration-200 border border-border cursor-pointer hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 active:scale-95" aria-label="Delete share link">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>

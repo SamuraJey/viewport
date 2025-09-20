@@ -46,9 +46,9 @@ export const AuthenticatedImage = ({ src, alt, className, loading = 'lazy' }: Au
 
   if (isLoading) {
     return (
-      <div className={`bg-gray-800 animate-pulse ${className}`}>
+      <div className={`bg-surface-foreground animate-pulse ${className}`}>
         <div>
-          <div>Loading...</div>
+          <div className="text-text-muted">Loading...</div>
         </div>
       </div>
     )

@@ -214,7 +214,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
             <button
               type="submit"
               disabled={savingProfile}
-              className="px-4 py-2 bg-accent hover:bg-accent-600 text-accent-foreground rounded-md disabled:opacity-50 transition"
+              className="px-4 py-2 bg-accent text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-accent/90 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
             >
               {savingProfile ? 'Saving...' : 'Save'}
             </button>
@@ -238,7 +238,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                 type="button"
                 aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
                 onClick={() => setShowCurrentPassword(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text "
               >
                 {showCurrentPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
@@ -256,7 +256,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                 type="button"
                 aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
                 onClick={() => setShowNewPassword(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text "
               >
                 {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
@@ -275,7 +275,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                 type="button"
                 aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
                 onClick={() => setShowConfirmPassword(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text "
               >
                 {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
@@ -283,7 +283,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
             <button
               type="submit"
               disabled={changingPassword}
-              className="px-4 py-2 bg-success hover:bg-success-600 text-white rounded-md disabled:opacity-50 transition"
+              className="px-4 py-2 bg-success text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-success-600 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
             >
               {changingPassword ? 'Changing...' : 'Change Password'}
             </button>
@@ -295,13 +295,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
           <section className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg flex justify-between w-full">
             <button
               onClick={startDelete}
-              className="px-4 py-2 bg-danger hover:bg-danger-600 text-white rounded-md transition"
+              className="px-4 py-2 bg-danger text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-danger-600 focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-1"
             >
               Delete Account
             </button>
             <button
               onClick={handleLogout}
-              className="px-4 py-2 bg-muted hover:bg-muted-600 text-white rounded-md transition"
+              className="px-4 py-2 bg-muted text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-muted-600 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
             >
               Logout
             </button>
@@ -322,7 +322,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                 type="button"
                 aria-label={showDeletePassword ? 'Hide password' : 'Show password'}
                 onClick={() => setShowDeletePassword(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text "
               >
                 {showDeletePassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
@@ -331,13 +331,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
             <div className="flex justify-between">
               <button
                 onClick={cancelDelete}
-                className="px-4 py-2 bg-muted hover:bg-muted-600 text-white rounded-md transition"
+                className="px-4 py-2 bg-muted text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-muted-600 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
               >
                 Cancel
               </button>
               <button
                 onClick={verifyDeletePassword}
-                className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md transition"
+                className="px-4 py-2 bg-yellow-600 text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
               >
                 Next
               </button>
@@ -351,14 +351,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
             <div className="flex justify-between">
               <button
                 onClick={cancelDelete}
-                className="px-4 py-2 bg-muted hover:bg-muted-600 text-white rounded-md transition"
+                className="px-4 py-2 bg-muted text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-muted-600 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDelete}
                 disabled={deletingAccount}
-                className="px-4 py-2 bg-danger hover:bg-danger-600 text-white rounded-md disabled:opacity-50 transition"
+                className="px-4 py-2 bg-danger text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-danger-600 focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-1"
               >
                 {deletingAccount ? 'Deleting...' : 'Confirm Delete'}
               </button>

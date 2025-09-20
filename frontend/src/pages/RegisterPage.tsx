@@ -57,7 +57,7 @@ export const RegisterPage = () => {
   const renderForm = () => (
     <div className="bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-border dark:border-border/10">
       <div className="text-center mb-8">
-        <div className="w-12 h-12 bg-gradient-to-r from-primary-600 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+        <div className="w-12 h-12 bg-accent rounded-xl flex items-center justify-center mx-auto mb-4">
           <Camera className="h-6 w-6 text-white" />
         </div>
         <h2 className="font-oswald text-3xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground mb-2">
@@ -69,7 +69,7 @@ export const RegisterPage = () => {
       </div>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label htmlFor="email" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Email Address</label>
+          <label htmlFor="email" className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide">Email Address</label>
           <div className="relative">
             <input
               id="email"
@@ -77,7 +77,7 @@ export const RegisterPage = () => {
               type="email"
               autoComplete="email"
               required
-              className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg transition-all focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm"
+              className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm"
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -86,7 +86,7 @@ export const RegisterPage = () => {
           </div>
         </div>
         <div>
-          <label htmlFor="password" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Password</label>
+          <label htmlFor="password" className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide">Password</label>
           <div className="relative">
             <input
               id="password"
@@ -94,14 +94,14 @@ export const RegisterPage = () => {
               type={showPassword ? 'text' : 'password'}
               autoComplete="new-password"
               required
-              className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg transition-all focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm"
+              className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg  focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm"
               placeholder="Create a password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
             <button
               type="button"
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground transition-colors"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground"
               onClick={() => setShowPassword(!showPassword)}
             >
               {showPassword ? (<EyeOff className="h-5 w-5" />) : (<Eye className="h-5 w-5" />)}
@@ -109,7 +109,7 @@ export const RegisterPage = () => {
           </div>
         </div>
         <div>
-          <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wide">Confirm Password</label>
+          <label htmlFor="confirmPassword" className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide">Confirm Password</label>
           <div className="relative">
             <input
               id="confirmPassword"
@@ -117,14 +117,14 @@ export const RegisterPage = () => {
               type={showConfirmPassword ? 'text' : 'password'}
               autoComplete="new-password"
               required
-              className="w-full px-4 py-3 pr-12 bg-gray-50 dark:bg-gray-800/80 border-2 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg transition-all focus:outline-none focus:border-primary-500 focus:bg-white dark:focus:bg-gray-800 focus:ring-4 focus:ring-primary-500/20 backdrop-blur-sm"
+              className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg  focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm"
               placeholder="Confirm your password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
             />
             <button
               type="button"
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground "
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
             >
               {showConfirmPassword ? (<EyeOff className="h-5 w-5" />) : (<Eye className="h-5 w-5" />)}
@@ -136,7 +136,7 @@ export const RegisterPage = () => {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
+          className="w-full bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg  hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
         >
           {isLoading ? (
             <>
@@ -161,7 +161,7 @@ export const RegisterPage = () => {
         <div className="text-center">
           <Link
             to="/auth/login"
-            className="inline-flex items-center text-sm font-medium text-text dark:text-accent-foreground hover:text-accent dark:hover:text-accent-foreground transition-colors"
+            className="inline-flex items-center text-sm font-medium text-text dark:text-accent-foreground hover:text-accent dark:hover:text-accent-foreground"
           >
             Sign in to your account
           </Link>
@@ -171,12 +171,12 @@ export const RegisterPage = () => {
   )
 
   const renderSuccess = () => (
-    <div className="relative z-10 w-full max-w-md p-8 flex flex-col gap-6 bg-white dark:bg-gray-800/95 backdrop-blur-lg rounded-xl border border-gray-200 dark:border-white/10 text-center">
+    <div className="relative z-10 w-full max-w-md p-8 flex flex-col gap-6 bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-xl border border-border dark:border-white/10 text-center">
       <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
-      <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+      <h2 className="text-3xl font-bold text-text dark:text-white">
         Registration Successful!
       </h2>
-      <p className="text-lg text-gray-600 dark:text-gray-300">
+      <p className="text-lg text-text-muted dark:text-text">
         Redirecting you to sign in...
       </p>
     </div>
