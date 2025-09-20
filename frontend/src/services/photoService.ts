@@ -5,6 +5,8 @@ export interface PhotoResponse {
   gallery_id: string
   url: string
   filename: string
+  width?: number | null
+  height?: number | null
   file_size: number
   uploaded_at: string
 }

@@ -582,6 +582,9 @@ body.dark .bg-surface-dark,
   display: grid;
   grid-template-columns: repeat(1, minmax(0, 1fr));
   gap: 1.25rem;
+  /* Make grid rows small so we can span them to create masonry effect */
+  grid-auto-rows: 8px;
+  align-items: start;
 }
 
 @media (min-width: 640px) {
@@ -627,6 +630,53 @@ body.dark .bg-surface-dark,
   -webkit-column-break-inside: avoid;
   page-break-inside: avoid;
   margin-bottom: 1.25rem;
+  /* Reserve a stable height so images loading asynchronously don't
+     change the flow of the masonry columns. Adjust this value to taste. */
+  min-height: 220px;
+}
+
+/* Ensure the clickable button and image fill the reserved card area so
+   the layout doesn't jump when the image src is applied. Use object-fit
+   to preserve aspect and crop as needed. */
+.pg-columns>.pg-card>button {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+}
+
+.pg-columns>.pg-card img,
+.pg-columns>.pg-card>button>img,
+.pg-columns>.pg-card .animate-pulse {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Aspect-specific helpers: wide images should be shown contained and centered
+   to avoid very short heights distorting masonry; tall images keep cover. */
+.pg-columns>.pg-card img.photo--wide,
+.pg-columns>.pg-card>button>img.photo--wide {
+  object-fit: contain;
+  background-color: rgb(var(--color-neutral-50-rgb));
+}
+
+.dark .pg-columns>.pg-card img.photo--wide,
+.dark .pg-columns>.pg-card>button>img.photo--wide,
+html.dark .pg-columns>.pg-card img.photo--wide,
+html.dark .pg-columns>.pg-card>button>img.photo--wide {
+  background-color: rgb(24, 24, 27);
+}
+
+.pg-columns>.pg-card img.photo--tall,
+.pg-columns>.pg-card>button>img.photo--tall {
+  object-fit: cover;
+}
+
+.pg-columns>.pg-card img.photo--square,
+.pg-columns>.pg-card>button>img.photo--square {
+  object-fit: cover;
 }
 
 /* Strong overrides for surface utilities to prevent accidental blue/primary
@@ -880,4 +930,35 @@ html.dark .hover\:bg-muted-600:hover,
 body.dark .bg-muted:hover,
 body.dark .hover\:bg-muted-600:hover {
   background-color: rgb(63, 63, 70) !important;
+}
+
+/* Scoped styles for auth pages (login/register) to ensure links are readable
+   on the AuthLayout background gradient. The LoginPage uses `text-gray-900`
+   for the register link — ensure that resolves to a dark color in light
+   theme and a white color in dark theme, with an accent hover. */
+.auth-layout a,
+.auth-layout .text-gray-900 {
+  color: rgb(var(--color-neutral-900-rgb)) !important;
+}
+
+.auth-layout a:hover,
+.auth-layout .text-gray-900:hover {
+  color: rgb(var(--color-primary-500-rgb)) !important;
+  text-decoration: none;
+}
+
+/* Dark theme variant: keep register link white and use lighter accent on hover */
+.dark .auth-layout a,
+html.dark .auth-layout a,
+body.dark .auth-layout a,
+.dark .auth-layout .text-gray-900,
+html.dark .auth-layout .text-gray-900,
+body.dark .auth-layout .text-gray-900 {
+  color: rgb(var(--color-white-rgb)) !important;
+}
+
+.dark .auth-layout a:hover,
+html.dark .auth-layout a:hover,
+body.dark .auth-layout a:hover {
+  color: rgb(var(--color-primary-400-rgb)) !important;
 }

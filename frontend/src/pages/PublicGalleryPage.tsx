@@ -7,6 +7,7 @@ import { PublicPresignedImage } from '../components/PublicImage'
 import { PublicBatchImage, PublicBatchImageProvider } from '../components/PublicBatchImage'
 import { ThemeSwitch } from '../components/ThemeSwitch'
 import { shareLinkService } from '../services/shareLinkService'
+import { useRef } from 'react'
 
 interface PublicPhoto {
   photo_id: string
@@ -30,6 +31,8 @@ export const PublicGalleryPage = () => {
   const [error, setError] = useState<string>('')
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null)
   const { theme } = useTheme()
+  const gridRef = useRef<HTMLDivElement | null>(null)
+  const computeSpansDebounceRef = useRef<number | null>(null)
 
   useEffect(() => {
     const fetchGallery = async () => {
@@ -41,7 +44,18 @@ export const PublicGalleryPage = () => {
 
       try {
         const data = await shareLinkService.getSharedGallery(shareId)
+        // Sort photos by filename on the client to ensure consistent ordering
+        if (data && data.photos && Array.isArray(data.photos)) {
+          // Use localeCompare with numeric option for natural numeric sorting
+          data.photos.sort((a: any, b: any) => (a.filename || '').localeCompare(b.filename || '', undefined, { numeric: true, sensitivity: 'base' }))
+        }
         setGallery(data)
+        // After gallery is set, schedule masonry spans computation
+        requestAnimationFrame(() => {
+          // debounce a bit to wait for images to start loading
+          if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current)
+          computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100)
+        })
       } catch (err) {
         console.error('Failed to fetch shared gallery:', err)
         setError('Gallery not found or link has expired')
@@ -52,6 +66,43 @@ export const PublicGalleryPage = () => {
 
     fetchGallery()
   }, [shareId])
+
+  // Masonry span computation
+  const computeSpans = () => {
+    const grid = gridRef.current
+    if (!grid) return
+    const cs = getComputedStyle(grid)
+    const rowHeight = parseFloat(cs.getPropertyValue('grid-auto-rows')) || 8
+    const rowGap = parseFloat(cs.getPropertyValue('gap')) || 20
+    const items = Array.from(grid.children) as HTMLElement[]
+    items.forEach(item => {
+      const el = item as HTMLElement
+      const height = el.getBoundingClientRect().height
+      const span = Math.ceil((height + rowGap) / (rowHeight + rowGap))
+      el.style.gridRowEnd = `span ${span}`
+    })
+  }
+
+  // Observe resize to reflow masonry
+  useEffect(() => {
+    const grid = gridRef.current
+    if (!grid) return
+    const schedule = () => {
+      if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current)
+      computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 80)
+    }
+    const ro = new ResizeObserver(() => schedule())
+    // observe the grid itself and images inside so we recalc when content changes
+    ro.observe(grid)
+    grid.querySelectorAll('img').forEach(img => ro.observe(img))
+    return () => {
+      ro.disconnect()
+      if (computeSpansDebounceRef.current) {
+        window.clearTimeout(computeSpansDebounceRef.current)
+        computeSpansDebounceRef.current = null
+      }
+    }
+  }, [gallery])
 
   const handleDownloadAll = () => {
     if (!shareId) return
@@ -213,7 +264,7 @@ export const PublicGalleryPage = () => {
 
           {gallery && gallery.photos.length > 0 ? (
             <PublicBatchImageProvider shareId={shareId!}>
-              <div className="pg-columns">
+              <div className="pg-grid" ref={gridRef}>
                 {gallery.photos.map((photo, index) => (
                   <div key={photo.photo_id} className="pg-card relative group">
                     <button

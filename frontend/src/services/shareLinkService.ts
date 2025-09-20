@@ -14,6 +14,9 @@ export interface PublicPhotoResponse {
   photo_id: string
   thumbnail_url: string
   full_url: string
+  filename?: string | null
+  width?: number | null
+  height?: number | null
 }
 
 const getShareLinks = async (galleryId: string): Promise<ShareLink[]> => {

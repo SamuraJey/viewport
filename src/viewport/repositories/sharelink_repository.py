@@ -22,7 +22,8 @@ class ShareLinkRepository(BaseRepository):  # pragma: no cover # TODO tests
         return sharelink
 
     def get_photos_by_gallery_id(self, gallery_id: uuid.UUID) -> list[Photo]:
-        stmt = select(Photo).where(Photo.gallery_id == gallery_id)
+        # Ensure consistent ordering by filename/object_key for public listings
+        stmt = select(Photo).where(Photo.gallery_id == gallery_id).order_by(Photo.object_key.asc())
         return list(self.db.execute(stmt).scalars().all())
 
     def get_photo_by_id_and_gallery(self, photo_id: uuid.UUID, gallery_id: uuid.UUID) -> Photo | None:

@@ -16,6 +16,8 @@ class PhotoResponse(BaseModel):
     gallery_id: UUID
     url: str
     filename: str
+    width: int | None = None
+    height: int | None = None
     file_size: int
     uploaded_at: datetime
 
@@ -28,7 +30,19 @@ class PhotoResponse(BaseModel):
         presigned_url = generate_presigned_url(photo.object_key, expires_in=3600)  # 1 hour expiration
         # Extract filename from object_key (format: gallery_id/filename)
         filename = photo.object_key.split("/", 1)[1] if "/" in photo.object_key else photo.object_key
-        return cls(id=photo.id, gallery_id=photo.gallery_id, url=presigned_url, filename=filename, file_size=photo.file_size, uploaded_at=photo.uploaded_at)
+        # Attempt to read metadata (width/height) from S3 object metadata if available
+        try:
+            from src.viewport.minio_utils import get_object_metadata
+
+            meta = get_object_metadata(photo.object_key) or {}
+            metadata = meta.get("Metadata", {}) if isinstance(meta, dict) else {}
+            width = int(metadata.get("width")) if metadata.get("width") else None
+            height = int(metadata.get("height")) if metadata.get("height") else None
+        except Exception:
+            width = None
+            height = None
+
+        return cls(id=photo.id, gallery_id=photo.gallery_id, url=presigned_url, filename=filename, width=width, height=height, file_size=photo.file_size, uploaded_at=photo.uploaded_at)
 
 
 class PhotoListResponse(BaseModel):

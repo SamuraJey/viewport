@@ -1,8 +1,10 @@
+import io
 import logging
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from PIL import Image
 from sqlalchemy.orm import Session
 
 from src.viewport.auth_utils import get_current_user
@@ -108,14 +110,27 @@ def upload_photo(gallery_id: UUID, file: UploadFile = File(...), repo: GalleryRe
     if file_size > MAX_FILE_SIZE:
         raise HTTPException(status_code=413, detail="File too large (max 15MB)")
 
-    # Upload to MinIO
+    # Determine image dimensions and upload to MinIO with metadata
     filename = f"{gallery_id}/{file.filename}"
-    # Upload file content and store object key
     object_key = filename
-    upload_fileobj(fileobj=bytes(contents), filename=object_key)
+    try:
+        img = Image.open(io.BytesIO(contents))
+        width, height = img.size
+    except Exception:
+        width = None
+        height = None
 
-    # Save Photo record
-    photo = repo.create_photo(gallery_id, object_key, file_size)
+    metadata = {}
+    if width:
+        metadata["width"] = str(width)
+    if height:
+        metadata["height"] = str(height)
+
+    # Upload file content and store object key. Pass metadata to S3.
+    upload_fileobj((bytes(contents), metadata), filename=object_key)
+
+    # Save Photo record (persist width/height if available)
+    photo = repo.create_photo(gallery_id, object_key, file_size, width=width, height=height)
     return PhotoResponse.from_db_photo(photo)
 
 
@@ -146,13 +161,26 @@ def upload_photos_batch(gallery_id: UUID, files: Annotated[list[UploadFile], Fil
                 failed_uploads += 1
                 continue
 
-            # Upload to MinIO
+            # Upload to MinIO with dimensions metadata when available
             filename = f"{gallery_id}/{file.filename}"
             object_key = filename
-            upload_fileobj(fileobj=bytes(contents), filename=object_key)
+            try:
+                img = Image.open(io.BytesIO(contents))
+                w, h = img.size
+            except Exception:
+                w = None
+                h = None
 
-            # Save Photo record
-            photo = repo.create_photo(gallery_id, object_key, file_size)
+            metadata = {}
+            if w:
+                metadata["width"] = str(w)
+            if h:
+                metadata["height"] = str(h)
+
+            upload_fileobj((bytes(contents), metadata), filename=object_key)
+
+            # Save Photo record (persist width/height if available)
+            photo = repo.create_photo(gallery_id, object_key, file_size, width=w, height=h)
             photo_response = PhotoResponse.from_db_photo(photo)
 
             results.append(PhotoUploadResult(filename=file.filename or "unknown", success=True, photo=photo_response))

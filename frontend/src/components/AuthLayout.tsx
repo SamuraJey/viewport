@@ -15,9 +15,8 @@ export const AuthLayout = ({ children }: AuthLayoutProps) => {
 
   return (
     <div
-      className={`min-h-screen bg-gradient-to-br ${
-        theme === 'dark' ? 'from-gray-900 to-gray-800' : 'from-gray-100 to-gray-200'
-      } flex items-center justify-center p-4`}
+      className={`auth-layout min-h-screen bg-gradient-to-br ${theme === 'dark' ? 'from-gray-900 to-gray-800' : 'from-gray-100 to-gray-200'
+        } flex items-center justify-center p-4`}
     >
       {/* Theme Toggle - positioned at top right */}
       <button

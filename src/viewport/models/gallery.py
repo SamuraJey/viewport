@@ -57,6 +57,9 @@ class Photo(Base):
     # S3 object key (e.g., gallery_id/filename)
     object_key = mapped_column(String, nullable=False)
     file_size = mapped_column(Integer, nullable=False)
+    # Optional stored dimensions (filled from S3 metadata during upload)
+    width = mapped_column(Integer, nullable=True)
+    height = mapped_column(Integer, nullable=True)
     uploaded_at = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
     # Disambiguate relationship via this model's gallery_id

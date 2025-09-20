@@ -1,3 +1,4 @@
+import contextlib
 import io
 import zipfile
 from uuid import UUID
@@ -37,8 +38,10 @@ def get_photos_by_sharelink(
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
 ) -> PublicGalleryResponse:
-    # Photos
+    # Photos - ensure deterministic ordering by filename (case-insensitive)
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
+    with contextlib.suppress(Exception):
+        photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
 
     photo_list = [
         PublicPhoto(
@@ -46,6 +49,9 @@ def get_photos_by_sharelink(
             # Use endpoint URLs instead of direct presigned URLs
             thumbnail_url=f"/s/{share_id}/photos/{photo.id}/url",
             full_url=f"/s/{share_id}/photos/{photo.id}/url",
+            filename=(photo.object_key.split("/", 1)[1] if "/" in photo.object_key else photo.object_key),
+            width=getattr(photo, "width", None),
+            height=getattr(photo, "height", None),
         )
         for photo in photos
     ]
@@ -55,7 +61,19 @@ def get_photos_by_sharelink(
     if cover_id:
         # Use endpoint URL for cover photo
         cover_url = f"/s/{share_id}/photos/{cover_id}/url"
-        cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_url)
+        # Try to obtain filename from gallery.cover_photo_id via gallery relationship
+        cover_photo_obj = None
+        try:
+            # gallery.cover_photo is viewonly relationship to Photo
+            cover_photo_obj = getattr(gallery, "cover_photo", None)
+        except Exception:
+            cover_photo_obj = None
+
+        cover_filename = None
+        if cover_photo_obj:
+            cover_filename = cover_photo_obj.object_key.split("/", 1)[1] if "/" in cover_photo_obj.object_key else cover_photo_obj.object_key
+
+        cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_url, filename=cover_filename)
 
     photographer = getattr(gallery.owner, "display_name", None) or ""
     gallery_name = getattr(gallery, "name", "")
@@ -87,6 +105,8 @@ def get_all_public_photo_urls(
 ) -> list[PublicPhoto]:
     """Get presigned URLs for all photos in a public gallery"""
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
+    with contextlib.suppress(Exception):
+        photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
 
     photo_list = []
     for photo in photos:
@@ -97,6 +117,9 @@ def get_all_public_photo_urls(
                     photo_id=str(photo.id),
                     thumbnail_url=presigned_url,
                     full_url=presigned_url,
+                    filename=(photo.object_key.split("/", 1)[1] if "/" in photo.object_key else photo.object_key),
+                    width=getattr(photo, "width", None),
+                    height=getattr(photo, "height", None),
                 )
             )
         except Exception:
@@ -164,6 +187,8 @@ def get_photo_by_sharelink(share_id: UUID, photo_id: UUID, repo: ShareLinkReposi
 @router.get("/{share_id}/download/all")
 def download_all_photos_zip(share_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
+    with contextlib.suppress(Exception):
+        photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
     if not photos:
         raise HTTPException(status_code=404, detail="No photos found")
     zip_buffer = io.BytesIO()

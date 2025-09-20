@@ -82,11 +82,12 @@ class GalleryRepository(BaseRepository):
         return self.db.execute(stmt).scalar_one_or_none()
 
     def get_photos_by_gallery_id(self, gallery_id: uuid.UUID) -> list[Photo]:
-        stmt = select(Photo).where(Photo.gallery_id == gallery_id)
+        # Sort by object_key (which contains the filename after the gallery prefix)
+        stmt = select(Photo).where(Photo.gallery_id == gallery_id).order_by(Photo.object_key.asc())
         return list(self.db.execute(stmt).scalars().all())
 
-    def create_photo(self, gallery_id: uuid.UUID, object_key: str, file_size: int) -> Photo:
-        photo = Photo(gallery_id=gallery_id, object_key=object_key, file_size=file_size)
+    def create_photo(self, gallery_id: uuid.UUID, object_key: str, file_size: int, width: int | None = None, height: int | None = None) -> Photo:
+        photo = Photo(gallery_id=gallery_id, object_key=object_key, file_size=file_size, width=width, height=height)
         self.db.add(photo)
         self.db.commit()
         self.db.refresh(photo)
