@@ -318,7 +318,7 @@ export const GalleryPage = () => {
           {photoUrls.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8">
               {photoUrls.map((photo, index) => (
-                <div key={photo.id} className="group bg-surface dark:bg-surface-foreground rounded-lg overflow-hidden flex flex-col">
+                <div key={photo.id} className="group bg-surface dark:bg-surface-foreground rounded-lg flex flex-col">
                   {/* Image area */}
                   <div className="relative h-80">
                     {/* Action Panel - floating pop-up above container */}
