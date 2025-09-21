@@ -31,7 +31,7 @@ def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depends(get_
 
 
 @router.get("/{share_id}", response_model=PublicGalleryResponse)
-@url_cache(max_age=3600)  # Cache gallery metadata for 1 hour
+@url_cache(max_age=3600)
 def get_photos_by_sharelink(
     share_id: UUID,
     request: Request,
@@ -46,7 +46,6 @@ def get_photos_by_sharelink(
     photo_list = [
         PublicPhoto(
             photo_id=str(photo.id),
-            # Use endpoint URLs instead of direct presigned URLs
             thumbnail_url=f"/s/{share_id}/photos/{photo.id}/url",
             full_url=f"/s/{share_id}/photos/{photo.id}/url",
             filename=(photo.object_key.split("/", 1)[1] if "/" in photo.object_key else photo.object_key),
@@ -85,7 +84,7 @@ def get_photos_by_sharelink(
 
     # Increment views
     repo.increment_views(share_id)
-    logger.log_event("view_gallery", share_id=share_id)
+
     return PublicGalleryResponse(
         photos=photo_list,
         cover=cover,

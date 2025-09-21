@@ -1,32 +1,50 @@
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 
 
-class StructuredLogger(logging.Logger):
-    def __init__(self, name):
-        super().__init__(name)
-        handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("%(message)s"))
-        self.addHandler(handler)
-        self.setLevel(logging.INFO)
+class StructuredLogger:
+    """A small wrapper that emits structured JSON events via the standard
+    logging system. The JSON is written as the message so it flows through the
+    configured handlers (stdout) and formatters.
+    """
 
-    def log_event(self, event_type, share_id=None, user_id=None, extra=None):
-        log_entry = {
-            "timestamp": datetime.now(UTC).isoformat(),
-            "event": event_type,
-            "share_id": str(share_id) if share_id else None,
-            "user_id": str(user_id) if user_id else None,
-            "extra": extra or {},
-        }
-        self.info(json.dumps(log_entry))
+    def __init__(self, name: str = "viewport"):
+        self._logger = logging.getLogger(name)
+
+    def log_event(self, event: str, **kwargs) -> None:
+        """Emit a structured event. Common usage:
+
+        logger.log_event("view_photo", share_id=..., extra={...})
+        """
+        payload = {"timestamp": datetime.utcnow().isoformat() + "Z", "event": event}
+
+        # Merge kwargs into payload. If `extra` is provided and is a dict,
+        # merge its keys at top-level to match existing expectations.
+        for k, v in kwargs.items():
+            if k == "extra" and isinstance(v, dict):
+                payload.update(v)
+            else:
+                payload[k] = v
+
+        try:
+            self._logger.info(json.dumps(payload, default=str))
+        except Exception:
+            # Fallback to plain log if JSON serialization fails
+            self._logger.info("%s %s", event, kwargs)
+
+    # Proxy common logging methods to the underlying logger for convenience
+    def info(self, msg: str, *args, **kwargs):
+        return self._logger.info(msg, *args, **kwargs)
+
+    def warning(self, msg: str, *args, **kwargs):
+        return self._logger.warning(msg, *args, **kwargs)
+
+    def error(self, msg: str, *args, **kwargs):
+        return self._logger.error(msg, *args, **kwargs)
 
 
-# Configure external libraries logging levels to reduce noise
-logging.getLogger("botocore").setLevel(logging.WARNING)
-logging.getLogger("boto3").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
-logging.getLogger("botocore.auth").setLevel(logging.WARNING)
-logging.getLogger("botocore.endpoint").setLevel(logging.WARNING)
+# Export a single logger instance used by the project and tests
+logger = StructuredLogger()
 
-logger = StructuredLogger("viewport")
+__all__ = ["logger", "StructuredLogger"]
