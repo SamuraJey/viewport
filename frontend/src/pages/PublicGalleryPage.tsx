@@ -3,9 +3,8 @@ import { useParams } from 'react-router-dom'
 import { Download, Loader2, ImageOff, AlertCircle } from 'lucide-react'
 import { useTheme } from '../hooks/useTheme'
 import { PhotoModal } from '../components/PhotoModal'
-import { PublicPresignedImage } from '../components/PublicImage'
-import { PublicBatchImage, PublicBatchImageProvider } from '../components/PublicBatchImage'
 import { ThemeSwitch } from '../components/ThemeSwitch'
+import { LazyImage } from '../components/LazyImage'
 import { shareLinkService } from '../services/shareLinkService'
 import { useRef } from 'react'
 
@@ -13,6 +12,9 @@ interface PublicPhoto {
   photo_id: string
   thumbnail_url: string
   full_url: string
+  filename?: string
+  width?: number
+  height?: number
 }
 
 interface PublicGalleryData {
@@ -178,12 +180,10 @@ export const PublicGalleryPage = () => {
       {gallery?.cover ? (
         <div className="pg-hero relative w-full text-accent-foreground">
           {/* Background Image */}
-          <PublicPresignedImage
-            shareId={shareId!}
-            photoId={gallery.cover.photo_id}
+          <img
+            src={gallery.cover.full_url}
             alt="Gallery cover"
             className="absolute inset-0 w-full h-full object-cover"
-            loading="eager"
           />
           {/* Overlay */}
           <div className="pg-hero__overlay" />
@@ -263,30 +263,28 @@ export const PublicGalleryPage = () => {
           </div>
 
           {gallery && gallery.photos.length > 0 ? (
-            <PublicBatchImageProvider shareId={shareId!}>
-              <div className="pg-grid" ref={gridRef}>
-                {gallery.photos.map((photo, index) => (
-                  <div key={photo.photo_id} className="pg-card relative group">
-                    <button
-                      onClick={() => openPhoto(index)}
-                      className="w-full p-0 border-0 bg-transparent cursor-pointer block"
-                      aria-label={`Photo ${photo.photo_id}`}
-                    >
-                      <PublicBatchImage
-                        shareId={shareId!}
-                        photoId={photo.photo_id}
-                        alt={`Photo ${photo.photo_id}`}
-                        className="block w-full h-auto object-cover"
-                        loading="lazy"
-                      />
-                    </button>
-                    {/* Removed hover overlay for public gallery items.
-                        Downloads are available via the Download All button and inside the photo modal.
-                        This prevents any hover-centered upload/click affordance on public galleries. */}
-                  </div>
-                ))}
-              </div>
-            </PublicBatchImageProvider>
+            <div className="pg-grid" ref={gridRef}>
+              {gallery.photos.map((photo, index) => (
+                <div key={photo.photo_id} className="pg-card relative group">
+                  <button
+                    onClick={() => openPhoto(index)}
+                    className="w-full p-0 border-0 bg-transparent cursor-pointer block"
+                    aria-label={`Photo ${photo.photo_id}`}
+                  >
+                    <LazyImage
+                      src={photo.full_url}
+                      alt={`Photo ${photo.photo_id}`}
+                      className="w-full"
+                      width={photo.width}
+                      height={photo.height}
+                    />
+                  </button>
+                  {/* Removed hover overlay for public gallery items.
+                      Downloads are available via the Download All button and inside the photo modal.
+                      This prevents any hover-centered upload/click affordance on public galleries. */}
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="text-center py-16 border-2 border-dashed border-border dark:border-border/10 rounded-lg">
               <ImageOff className="mx-auto h-12 w-12 text-muted" />

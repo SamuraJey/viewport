@@ -43,23 +43,27 @@ def get_photos_by_sharelink(
     with contextlib.suppress(Exception):
         photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
 
-    photo_list = [
-        PublicPhoto(
-            photo_id=str(photo.id),
-            thumbnail_url=f"/s/{share_id}/photos/{photo.id}/url",
-            full_url=f"/s/{share_id}/photos/{photo.id}/url",
-            filename=(photo.object_key.split("/", 1)[1] if "/" in photo.object_key else photo.object_key),
-            width=getattr(photo, "width", None),
-            height=getattr(photo, "height", None),
-        )
-        for photo in photos
-    ]
+    photo_list = []
+    for photo in photos:
+        try:
+            presigned_url = generate_presigned_url(photo.object_key)
+            photo_list.append(
+                PublicPhoto(
+                    photo_id=str(photo.id),
+                    thumbnail_url=presigned_url,
+                    full_url=presigned_url,
+                    filename=(photo.object_key.split("/", 1)[1] if "/" in photo.object_key else photo.object_key),
+                    width=getattr(photo, "width", None),
+                    height=getattr(photo, "height", None),
+                )
+            )
+        except Exception:
+            logger.error("Failed to generate presigned URL for photo %s in share %s", photo.id, share_id)
+            continue
     gallery: Gallery = sharelink.gallery  # lazy-loaded
     cover_id = str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None
     cover = None
     if cover_id:
-        # Use endpoint URL for cover photo
-        cover_url = f"/s/{share_id}/photos/{cover_id}/url"
         # Try to obtain filename from gallery.cover_photo_id via gallery relationship
         cover_photo_obj = None
         try:
@@ -69,10 +73,13 @@ def get_photos_by_sharelink(
             cover_photo_obj = None
 
         cover_filename = None
+        cover_url = None
         if cover_photo_obj:
             cover_filename = cover_photo_obj.object_key.split("/", 1)[1] if "/" in cover_photo_obj.object_key else cover_photo_obj.object_key
+            cover_url = generate_presigned_url(cover_photo_obj.object_key)
 
-        cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_url, filename=cover_filename)
+        if cover_url:
+            cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_url, filename=cover_filename)
 
     photographer = getattr(gallery.owner, "display_name", None) or ""
     gallery_name = getattr(gallery, "name", "")

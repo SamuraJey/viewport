@@ -302,7 +302,6 @@ export const PublicBatchImage = ({
             src={imageSrc}
             alt={alt}
             className={`${className} ${aspectClass}`}
-            loading={loading}
             style={style}
         />
     )
