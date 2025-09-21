@@ -345,7 +345,7 @@ describe('GalleryPage', () => {
         expect(screen.getByText('Share Links')).toBeInTheDocument()
       })
 
-      const createLinkButton = screen.getByRole('button', { name: /create new link/i })
+      const createLinkButton = screen.getByRole('button', { name: /create new share link/i })
       await userEvent.click(createLinkButton)
 
       expect(shareLinkService.createShareLink).toHaveBeenCalledWith('1')
