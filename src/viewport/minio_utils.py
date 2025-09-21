@@ -83,7 +83,6 @@ def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:
     """Generate a presigned URL for direct S3 access to an object"""
     from src.viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
 
-    # Check cache first
     cached_url = get_cached_presigned_url(object_key)
     if cached_url:
         return cached_url
@@ -94,7 +93,6 @@ def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:
     try:
         url = s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": object_key}, ExpiresIn=expires_in)
 
-        # Cache the URL
         cache_presigned_url(object_key, url, expires_in)
 
         return url
@@ -124,11 +122,9 @@ def rename_object(old_object_key: str, new_object_key: str) -> bool:
     _, _, _, bucket = get_minio_config()
 
     try:
-        # Copy object to new key
         copy_source = {"Bucket": bucket, "Key": old_object_key}
         s3_client.copy_object(CopySource=copy_source, Bucket=bucket, Key=new_object_key)
 
-        # Delete old object
         s3_client.delete_object(Bucket=bucket, Key=old_object_key)
 
         logger.info(f"Successfully renamed object from {old_object_key} to {new_object_key}")
