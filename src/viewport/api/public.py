@@ -214,6 +214,7 @@ def download_all_photos_zip(share_id: UUID, repo: ShareLinkRepository = Depends(
 
 @router.get("/{share_id}/download/{photo_id}")
 def download_single_photo(share_id: UUID, photo_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
+    # TODO выплить нафиг и дать фронту скачивать напрямую по presigned URL
     photo = repo.get_photo_by_id_and_gallery(photo_id, sharelink.gallery_id)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
