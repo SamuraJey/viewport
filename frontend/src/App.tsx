@@ -6,7 +6,6 @@ import { RegisterPage } from './pages/RegisterPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { GalleryPage } from './pages/GalleryPage'
 import { PublicGalleryPage } from './pages/PublicGalleryPage'
-import { DemoPage } from './pages/DemoPage'
 import { NotFoundPage, ErrorPage } from './pages/ErrorPage'
 import { useAuthStore } from './stores/authStore'
 
@@ -16,7 +15,7 @@ function App() {
   return (
     <ErrorBoundary>
       <Routes>
-        <Route path="/demo" element={<DemoPage />} />
+
         {/* Public routes */}
         <Route
           path="/auth/login"
