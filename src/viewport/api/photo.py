@@ -125,11 +125,23 @@ def upload_photo(gallery_id: UUID, file: UploadFile = File(...), repo: GalleryRe
     if height:
         metadata["height"] = str(height)
 
-    # Upload file content and store object key. Pass metadata to S3.
+    # Upload original file content and store object key. Pass metadata to S3.
     upload_fileobj((bytes(contents), metadata), filename=object_key)
 
-    # Save Photo record (persist width/height if available)
-    photo = repo.create_photo(gallery_id, object_key, file_size, width=width, height=height)
+    # Create and upload thumbnail
+    from src.viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key
+
+    try:
+        thumbnail_bytes = create_thumbnail(contents)
+        thumbnail_object_key = generate_thumbnail_object_key(object_key)
+        upload_fileobj(thumbnail_bytes, filename=thumbnail_object_key)
+    except Exception as e:
+        logger.error(f"Failed to create thumbnail for {object_key}: {e}")
+        # If thumbnail creation fails, use original image as thumbnail for backward compatibility
+        thumbnail_object_key = object_key
+
+    # Save Photo record (persist width/height and thumbnail_object_key)
+    photo = repo.create_photo(gallery_id, object_key, thumbnail_object_key, file_size, width=width, height=height)
     return PhotoResponse.from_db_photo(photo)
 
 
@@ -176,10 +188,23 @@ def upload_photos_batch(gallery_id: UUID, files: Annotated[list[UploadFile], Fil
             if h:
                 metadata["height"] = str(h)
 
+            # Upload original file
             upload_fileobj((bytes(contents), metadata), filename=object_key)
 
-            # Save Photo record (persist width/height if available)
-            photo = repo.create_photo(gallery_id, object_key, file_size, width=w, height=h)
+            # Create and upload thumbnail
+            from src.viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key
+
+            try:
+                thumbnail_bytes = create_thumbnail(contents)
+                thumbnail_object_key = generate_thumbnail_object_key(object_key)
+                upload_fileobj(thumbnail_bytes, filename=thumbnail_object_key)
+            except Exception as e:
+                logger.error(f"Failed to create thumbnail for {object_key}: {e}")
+                # If thumbnail creation fails, use original image as thumbnail for backward compatibility
+                thumbnail_object_key = object_key
+
+            # Save Photo record (persist width/height and thumbnail_object_key)
+            photo = repo.create_photo(gallery_id, object_key, thumbnail_object_key, file_size, width=w, height=h)
             photo_response = PhotoResponse.from_db_photo(photo)
 
             results.append(PhotoUploadResult(filename=file.filename or "unknown", success=True, photo=photo_response))

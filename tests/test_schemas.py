@@ -220,7 +220,15 @@ class TestPhotoSchemas:
         gallery_id = uuid.uuid4()
         uploaded_at = datetime.now(UTC)
 
-        data = {"id": photo_id, "gallery_id": gallery_id, "url": "/photos/test.jpg", "filename": "test.jpg", "file_size": 2048, "uploaded_at": uploaded_at}
+        data = {
+            "id": photo_id,
+            "gallery_id": gallery_id,
+            "url": "/photos/test.jpg",
+            "thumbnail_url": "/photos/thumbnails/test.jpg",
+            "filename": "test.jpg",
+            "file_size": 2048,
+            "uploaded_at": uploaded_at,
+        }
         response = PhotoResponse(**data)
 
         assert response.id == photo_id
@@ -257,7 +265,9 @@ class TestPhotoSchemas:
         gallery_id = uuid.uuid4()
         uploaded_at = datetime.now(UTC)
 
-        photos = [{"id": photo_id, "gallery_id": gallery_id, "url": "/photos/test.jpg", "filename": "test.jpg", "file_size": 1024, "uploaded_at": uploaded_at}]
+        photos = [
+            {"id": photo_id, "gallery_id": gallery_id, "url": "/photos/test.jpg", "thumbnail_url": "/photos/thumbnails/test.jpg", "filename": "test.jpg", "file_size": 1024, "uploaded_at": uploaded_at}
+        ]
 
         data = {"photos": photos, "total": 1, "page": 1, "size": 10}
         response = PhotoListResponse(**data)

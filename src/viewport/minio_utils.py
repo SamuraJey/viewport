@@ -146,3 +146,57 @@ def delete_object(object_key: str) -> bool:
     except Exception as e:
         logger.error(f"Failed to delete object {object_key}: {e}")
         return False
+
+
+def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (300, 300), quality: int = 85) -> bytes:
+    """Create a thumbnail from image bytes
+
+    Args:
+        image_bytes: Original image as bytes
+        max_size: Maximum dimensions (width, height) for thumbnail
+        quality: JPEG quality (1-95, higher is better quality)
+
+    Returns:
+        Thumbnail image as bytes
+    """
+    import io
+
+    from PIL import Image
+
+    try:
+        # Open image from bytes
+        image = Image.open(io.BytesIO(image_bytes))
+
+        # Convert to RGB if necessary (for JPEG compatibility)
+        if image.mode in ("RGBA", "P"):
+            image = image.convert("RGB")
+
+        # Create thumbnail maintaining aspect ratio
+        image.thumbnail(max_size, Image.Resampling.LANCZOS)
+
+        # Save thumbnail to bytes
+        thumbnail_io = io.BytesIO()
+        image.save(thumbnail_io, format="JPEG", quality=quality, optimize=True)
+        thumbnail_io.seek(0)
+
+        return thumbnail_io.read()
+    except Exception as e:
+        logger.error(f"Failed to create thumbnail: {e}")
+        raise
+
+
+def generate_thumbnail_object_key(original_object_key: str) -> str:
+    """Generate thumbnail object key from original object key
+
+    Args:
+        original_object_key: Original object key (e.g., 'gallery_id/filename.jpg')
+
+    Returns:
+        Thumbnail object key (e.g., 'gallery_id/thumbnails/filename.jpg')
+    """
+    if "/" in original_object_key:
+        gallery_id, filename = original_object_key.split("/", 1)
+        return f"{gallery_id}/thumbnails/{filename}"
+    else:
+        # Fallback if no gallery_id prefix
+        return f"thumbnails/{original_object_key}"

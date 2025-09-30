@@ -82,8 +82,8 @@ class GalleryRepository(BaseRepository):
         stmt = select(Photo).where(Photo.gallery_id == gallery_id).order_by(Photo.object_key.asc())
         return list(self.db.execute(stmt).scalars().all())
 
-    def create_photo(self, gallery_id: uuid.UUID, object_key: str, file_size: int, width: int | None = None, height: int | None = None) -> Photo:
-        photo = Photo(gallery_id=gallery_id, object_key=object_key, file_size=file_size, width=width, height=height)
+    def create_photo(self, gallery_id: uuid.UUID, object_key: str, thumbnail_object_key: str, file_size: int, width: int | None = None, height: int | None = None) -> Photo:
+        photo = Photo(gallery_id=gallery_id, object_key=object_key, thumbnail_object_key=thumbnail_object_key, file_size=file_size, width=width, height=height)
         self.db.add(photo)
         self.db.commit()
         self.db.refresh(photo)
@@ -96,8 +96,10 @@ class GalleryRepository(BaseRepository):
         if not photo or photo.gallery_id != gallery_id:
             return False
 
-        # Delete from MinIO first
+        # Delete both original and thumbnail from MinIO
         delete_object(photo.object_key)  # We don't fail if MinIO deletion fails
+        if photo.thumbnail_object_key != photo.object_key:  # Only delete if different
+            delete_object(photo.thumbnail_object_key)
 
         # Delete from database
         self.db.delete(photo)
