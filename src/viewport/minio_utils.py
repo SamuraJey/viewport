@@ -6,8 +6,13 @@ from botocore.client import BaseClient, Config
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-logging.basicConfig(level=logging.DEBUG)
+# Configure logging - set botocore to WARNING level to reduce noise
+logging.getLogger("botocore").setLevel(logging.WARNING)
+logging.getLogger("boto3").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)  # Set our logger to INFO level
 
 
 class MinioSettings(BaseSettings):
@@ -52,9 +57,19 @@ def upload_fileobj(fileobj, filename):
 
     s3_client = get_s3_client()
     _, _, _, bucket = get_minio_config()
+    # Allow passing additional metadata via (fileobj, metadata_dict)
+    # Support signature: upload_fileobj(fileobj, filename) or upload_fileobj((fileobj, metadata_dict), filename)
+    metadata = None
+    if isinstance(fileobj, tuple) and len(fileobj) == 2:
+        fileobj, metadata = fileobj
+
+    # Normalize raw bytes into a file-like object implementing read()
     if isinstance(fileobj, bytes):
         fileobj = io.BytesIO(fileobj)
-    s3_client.upload_fileobj(fileobj, bucket, filename)
+    if metadata:
+        s3_client.upload_fileobj(fileobj, bucket, filename, ExtraArgs={"Metadata": metadata})
+    else:
+        s3_client.upload_fileobj(fileobj, bucket, filename)
     return f"/{bucket}/{filename}"
 
 
@@ -68,7 +83,6 @@ def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:
     """Generate a presigned URL for direct S3 access to an object"""
     from src.viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
 
-    # Check cache first
     cached_url = get_cached_presigned_url(object_key)
     if cached_url:
         return cached_url
@@ -79,10 +93,56 @@ def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:
     try:
         url = s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": object_key}, ExpiresIn=expires_in)
 
-        # Cache the URL
         cache_presigned_url(object_key, url, expires_in)
 
         return url
     except Exception as e:
         logger.error(f"Failed to generate presigned URL for {object_key}: {e}")
         raise
+
+
+def get_object_metadata(object_key: str) -> dict:
+    """Return object metadata for a given object key. Returns a dict with keys from S3 HeadObject response.
+
+    Example returns: {'ContentLength': 12345, 'Metadata': {'width': '1024', 'height': '768'}}
+    """
+    s3_client = get_s3_client()
+    _, _, _, bucket = get_minio_config()
+    try:
+        resp = s3_client.head_object(Bucket=bucket, Key=object_key)
+        return resp
+    except Exception as e:
+        logger.debug(f"Failed to get metadata for {object_key}: {e}")
+        return {}
+
+
+def rename_object(old_object_key: str, new_object_key: str) -> bool:
+    """Rename an object in MinIO by copying it to a new key and deleting the old one"""
+    s3_client = get_s3_client()
+    _, _, _, bucket = get_minio_config()
+
+    try:
+        copy_source = {"Bucket": bucket, "Key": old_object_key}
+        s3_client.copy_object(CopySource=copy_source, Bucket=bucket, Key=new_object_key)
+
+        s3_client.delete_object(Bucket=bucket, Key=old_object_key)
+
+        logger.info(f"Successfully renamed object from {old_object_key} to {new_object_key}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to rename object from {old_object_key} to {new_object_key}: {e}")
+        return False
+
+
+def delete_object(object_key: str) -> bool:
+    """Delete an object from MinIO"""
+    s3_client = get_s3_client()
+    _, _, _, bucket = get_minio_config()
+
+    try:
+        s3_client.delete_object(Bucket=bucket, Key=object_key)
+        logger.info(f"Successfully deleted object {object_key}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to delete object {object_key}: {e}")
+        return False

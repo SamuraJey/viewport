@@ -220,12 +220,13 @@ class TestPhotoSchemas:
         gallery_id = uuid.uuid4()
         uploaded_at = datetime.now(UTC)
 
-        data = {"id": photo_id, "gallery_id": gallery_id, "url": "/photos/test.jpg", "file_size": 2048, "uploaded_at": uploaded_at}
+        data = {"id": photo_id, "gallery_id": gallery_id, "url": "/photos/test.jpg", "filename": "test.jpg", "file_size": 2048, "uploaded_at": uploaded_at}
         response = PhotoResponse(**data)
 
         assert response.id == photo_id
         assert response.gallery_id == gallery_id
         assert response.url == "/photos/test.jpg"
+        assert response.filename == "test.jpg"
         assert response.file_size == 2048
         assert response.uploaded_at == uploaded_at
 
@@ -233,7 +234,6 @@ class TestPhotoSchemas:
         """Test creating PhotoResponse from database photo."""
         from unittest.mock import patch
 
-        # Mock database photo object
         mock_photo = Mock()
         mock_photo.id = uuid.uuid4()
         mock_photo.gallery_id = uuid.uuid4()
@@ -241,7 +241,6 @@ class TestPhotoSchemas:
         mock_photo.uploaded_at = datetime.now(UTC)
         mock_photo.object_key = f"{mock_photo.gallery_id}/test.jpg"
 
-        # Mock the presigned URL generation
         expected_url = f"https://example.com/presigned-url/{mock_photo.id}"
         with patch("src.viewport.schemas.photo.generate_presigned_url", return_value=expected_url):
             response = PhotoResponse.from_db_photo(mock_photo)
@@ -258,7 +257,7 @@ class TestPhotoSchemas:
         gallery_id = uuid.uuid4()
         uploaded_at = datetime.now(UTC)
 
-        photos = [{"id": photo_id, "gallery_id": gallery_id, "url": "/photos/test.jpg", "file_size": 1024, "uploaded_at": uploaded_at}]
+        photos = [{"id": photo_id, "gallery_id": gallery_id, "url": "/photos/test.jpg", "filename": "test.jpg", "file_size": 1024, "uploaded_at": uploaded_at}]
 
         data = {"photos": photos, "total": 1, "page": 1, "size": 10}
         response = PhotoListResponse(**data)
@@ -341,7 +340,7 @@ class TestSchemaEdgeCases:
         """Test UUID fields accept string representations."""
         gallery_id = uuid.uuid4()
         data = {
-            "gallery_id": str(gallery_id),  # String instead of UUID
+            "gallery_id": str(gallery_id),
             "expires_at": None,
         }
         request = ShareLinkCreateRequest(**data)
@@ -367,7 +366,6 @@ class TestSchemaEdgeCases:
         data = {"email": "test@example.com", "password": "password123"}
         request = RegisterRequest(**data)
 
-        # Should be able to serialize
         json_data = request.model_dump()
         assert json_data["email"] == "test@example.com"
         assert json_data["password"] == "password123"

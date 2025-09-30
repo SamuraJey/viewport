@@ -3,15 +3,18 @@ import { useParams } from 'react-router-dom'
 import { Download, Loader2, ImageOff, AlertCircle } from 'lucide-react'
 import { useTheme } from '../hooks/useTheme'
 import { PhotoModal } from '../components/PhotoModal'
-import { PublicPresignedImage } from '../components/PublicImage'
-import { PublicBatchImage, PublicBatchImageProvider } from '../components/PublicBatchImage'
 import { ThemeSwitch } from '../components/ThemeSwitch'
+import { LazyImage } from '../components/LazyImage'
 import { shareLinkService } from '../services/shareLinkService'
+import { useRef } from 'react'
 
 interface PublicPhoto {
   photo_id: string
   thumbnail_url: string
   full_url: string
+  filename?: string
+  width?: number
+  height?: number
 }
 
 interface PublicGalleryData {
@@ -30,6 +33,8 @@ export const PublicGalleryPage = () => {
   const [error, setError] = useState<string>('')
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null)
   const { theme } = useTheme()
+  const gridRef = useRef<HTMLDivElement | null>(null)
+  const computeSpansDebounceRef = useRef<number | null>(null)
 
   useEffect(() => {
     const fetchGallery = async () => {
@@ -41,7 +46,18 @@ export const PublicGalleryPage = () => {
 
       try {
         const data = await shareLinkService.getSharedGallery(shareId)
+        // Sort photos by filename on the client to ensure consistent ordering
+        if (data && data.photos && Array.isArray(data.photos)) {
+          // Use localeCompare with numeric option for natural numeric sorting
+          data.photos.sort((a: any, b: any) => (a.filename || '').localeCompare(b.filename || '', undefined, { numeric: true, sensitivity: 'base' }))
+        }
         setGallery(data)
+        // After gallery is set, schedule masonry spans computation
+        requestAnimationFrame(() => {
+          // debounce a bit to wait for images to start loading
+          if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current)
+          computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100)
+        })
       } catch (err) {
         console.error('Failed to fetch shared gallery:', err)
         setError('Gallery not found or link has expired')
@@ -52,6 +68,43 @@ export const PublicGalleryPage = () => {
 
     fetchGallery()
   }, [shareId])
+
+  // Masonry span computation
+  const computeSpans = () => {
+    const grid = gridRef.current
+    if (!grid) return
+    const cs = getComputedStyle(grid)
+    const rowHeight = parseFloat(cs.getPropertyValue('grid-auto-rows')) || 8
+    const rowGap = parseFloat(cs.getPropertyValue('gap')) || 20
+    const items = Array.from(grid.children) as HTMLElement[]
+    items.forEach(item => {
+      const el = item as HTMLElement
+      const height = el.getBoundingClientRect().height
+      const span = Math.ceil((height + rowGap) / (rowHeight + rowGap))
+      el.style.gridRowEnd = `span ${span}`
+    })
+  }
+
+  // Observe resize to reflow masonry
+  useEffect(() => {
+    const grid = gridRef.current
+    if (!grid) return
+    const schedule = () => {
+      if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current)
+      computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 80)
+    }
+    const ro = new ResizeObserver(() => schedule())
+    // observe the grid itself and images inside so we recalc when content changes
+    ro.observe(grid)
+    grid.querySelectorAll('img').forEach(img => ro.observe(img))
+    return () => {
+      ro.disconnect()
+      if (computeSpansDebounceRef.current) {
+        window.clearTimeout(computeSpansDebounceRef.current)
+        computeSpansDebounceRef.current = null
+      }
+    }
+  }, [gallery])
 
   const handleDownloadAll = () => {
     if (!shareId) return
@@ -88,12 +141,12 @@ export const PublicGalleryPage = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900">
+      <div className="min-h-screen bg-surface dark:bg-surface-foreground/5">
         <div className="container mx-auto px-4 py-16">
           <div className="flex items-center justify-center min-h-[60vh]">
             <div className="flex items-center">
-              <Loader2 className="w-8 h-8 animate-spin text-gray-600 dark:text-gray-400" />
-              <span className="ml-3 text-lg text-gray-700 dark:text-gray-300">Loading gallery...</span>
+              <Loader2 className="w-8 h-8 animate-spin text-text-muted" />
+              <span className="ml-3 text-lg text-text-muted">Loading gallery...</span>
             </div>
           </div>
         </div>
@@ -103,13 +156,13 @@ export const PublicGalleryPage = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900">
+      <div className="min-h-screen bg-surface dark:bg-surface-foreground/5">
         <div className="container mx-auto px-4 py-16">
           <div className="flex items-center justify-center min-h-[60vh]">
             <div className="text-center">
-              <AlertCircle className="w-16 h-16 text-red-500 dark:text-red-400 mx-auto mb-4" />
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Gallery Not Available</h1>
-              <p className="text-gray-600 dark:text-gray-400">{error}</p>
+              <AlertCircle className="w-16 h-16 text-danger mx-auto mb-4" />
+              <h1 className="text-2xl font-bold text-text dark:text-accent-foreground mb-2">Gallery Not Available</h1>
+              <p className="text-muted dark:text-text">{error}</p>
             </div>
           </div>
         </div>
@@ -118,39 +171,39 @@ export const PublicGalleryPage = () => {
   }
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-gray-100 via-blue-50 to-purple-50 dark:from-gray-900 dark:via-blue-900 dark:to-purple-900 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+    <div className={`min-h-screen bg-surface dark:bg-surface-foreground/5 ${theme === 'dark' ? 'text-accent-foreground' : 'text-text'}`}>
       {/* Theme switch button */}
-      <ThemeSwitch />
+      <div className="fixed top-6 right-6 z-30">
+        <ThemeSwitch />
+      </div>
       {/* Hero Section */}
       {gallery?.cover ? (
-        <div className="relative h-screen w-full flex items-center justify-center text-center text-white">
+        <div className="pg-hero relative w-full text-accent-foreground">
           {/* Background Image */}
-          <PublicPresignedImage
-            shareId={shareId!}
-            photoId={gallery.cover.photo_id}
+          <img
+            src={gallery.cover.full_url}
             alt="Gallery cover"
             className="absolute inset-0 w-full h-full object-cover"
-            loading="eager"
           />
           {/* Overlay */}
-          <div className="absolute inset-0 bg-black/50" />
+          <div className="pg-hero__overlay" />
 
           {/* Centered Content */}
-          <div className="relative z-10 p-4">
+          <div className="relative z-10 p-6">
             {gallery.date && (
-              <p className="text-sm text-white/80 mb-2">{gallery.date}</p>
+              <p className="text-sm pg-hero__meta mb-2">{gallery.date}</p>
             )}
-            <h1 className="text-4xl md:text-6xl font-bold drop-shadow-lg">
+            <h1 className="pg-hero__title font-bold drop-shadow-lg">
               {gallery.gallery_name || 'Shared Gallery'}
             </h1>
-            <div className="mt-4 text-lg text-white/90">
+            <div className="mt-4 text-lg pg-hero__meta">
               {gallery.photographer && <span>{gallery.photographer}</span>}
               {gallery.photographer && gallery.site_url && <span className="mx-2">|</span>}
               {gallery.site_url && (
                 <a
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="underline hover:text-white"
+                  className="underline hover:text-accent-foreground"
                   href={gallery.site_url}
                 >
                   {new URL(gallery.site_url).host}
@@ -164,7 +217,7 @@ export const PublicGalleryPage = () => {
             <a
               href="#gallery-content"
               aria-label="Scroll to photos"
-              className="block w-10 h-10 border-2 border-white/70 rounded-full flex items-center justify-center animate-bounce"
+              className="w-10 h-10 border-2 border-white/70 rounded-full flex items-center justify-center animate-bounce"
               onClick={(e) => {
                 e.preventDefault();
                 document.getElementById('gallery-content')?.scrollIntoView({ behavior: 'smooth' });
@@ -179,9 +232,9 @@ export const PublicGalleryPage = () => {
       ) : (
         // Fallback for no cover photo
         <div className="text-center py-16">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">{gallery?.gallery_name || 'Shared Gallery'}</h1>
+          <h1 className="text-4xl font-bold text-text dark:text-accent-foreground mb-2">{gallery?.gallery_name || 'Shared Gallery'}</h1>
           {gallery?.photographer && (
-            <p className="text-gray-600 dark:text-gray-400 text-lg">By {gallery.photographer}</p>
+            <p className="text-muted dark:text-text text-lg">By {gallery.photographer}</p>
           )}
         </div>
       )}
@@ -193,7 +246,7 @@ export const PublicGalleryPage = () => {
           <div className="mb-8 text-center">
             <button
               onClick={handleDownloadAll}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center gap-2"
+              className="bg-accent hover:bg-accent/90 text-accent-foreground px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center gap-2"
             >
               <Download className="w-5 h-5" />
               Download All Photos
@@ -202,58 +255,47 @@ export const PublicGalleryPage = () => {
         )}
 
         {/* Photos Grid */}
-        <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
+        <div className="bg-surface-foreground/5 backdrop-blur-sm rounded-2xl p-6 border border-border">
           <div className="mb-6">
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+            <h2 className="text-2xl font-semibold text-text dark:text-accent-foreground mb-2">
               Photos ({gallery?.photos.length || 0})
             </h2>
           </div>
 
           {gallery && gallery.photos.length > 0 ? (
-            <PublicBatchImageProvider shareId={shareId!}>
-              <div className="columns-1 sm:columns-2 md:columns-2 lg:columns-3 xl:columns-3 2xl:columns-3 gap-6">
-                {gallery.photos.map((photo, index) => (
-                  <div key={photo.photo_id} className="break-inside-avoid mb-6 relative group">
-                    <button
-                      onClick={() => openPhoto(index)}
-                      className="w-full p-0 border-0 bg-transparent cursor-pointer"
-                      aria-label={`Photo ${photo.photo_id}`}
-                    >
-                      <PublicBatchImage
-                        shareId={shareId!}
-                        photoId={photo.photo_id}
-                        alt={`Photo ${photo.photo_id}`}
-                        className="block w-full h-auto rounded-lg hover:opacity-90 transition-opacity"
-                        loading="lazy"
-                      />
-                    </button>
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none rounded-lg">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDownloadPhoto(photo.photo_id)
-                        }}
-                        className="flex items-center justify-center w-10 h-10 p-2 bg-white/20 hover:bg-white/30 text-white rounded-full transition-colors pointer-events-auto"
-                        title="Download Photo"
-                      >
-                        <Download className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </PublicBatchImageProvider>
+            <div className="pg-grid" ref={gridRef}>
+              {gallery.photos.map((photo, index) => (
+                <div key={photo.photo_id} className="pg-card relative group">
+                  <button
+                    onClick={() => openPhoto(index)}
+                    className="w-full p-0 border-0 bg-transparent cursor-pointer block"
+                    aria-label={`Photo ${photo.photo_id}`}
+                  >
+                    <LazyImage
+                      src={photo.full_url}
+                      alt={`Photo ${photo.photo_id}`}
+                      className="w-full"
+                      width={photo.width}
+                      height={photo.height}
+                    />
+                  </button>
+                  {/* Removed hover overlay for public gallery items.
+                      Downloads are available via the Download All button and inside the photo modal.
+                      This prevents any hover-centered upload/click affordance on public galleries. */}
+                </div>
+              ))}
+            </div>
           ) : (
-            <div className="text-center py-16 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
-              <ImageOff className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-              <h3 className="mt-4 text-lg font-medium text-gray-600 dark:text-gray-300">No photos in this gallery</h3>
-              <p className="mt-2 text-sm text-gray-500">This gallery appears to be empty.</p>
+            <div className="text-center py-16 border-2 border-dashed border-border dark:border-border/10 rounded-lg">
+              <ImageOff className="mx-auto h-12 w-12 text-muted" />
+              <h3 className="mt-4 text-lg font-medium text-muted dark:text-muted-foreground">No photos in this gallery</h3>
+              <p className="mt-2 text-sm text-muted">This gallery appears to be empty.</p>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-12 text-gray-600 dark:text-gray-400 text-sm">
+        <div className="text-center mt-12 text-muted dark:text-text text-sm">
           <p>Powered by Viewport - Your Photo Gallery Solution</p>
         </div>
 

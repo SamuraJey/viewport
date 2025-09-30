@@ -6,6 +6,7 @@ import type { PhotoUploadResponse } from '../services/photoService'
 import { shareLinkService, type ShareLink } from '../services/shareLinkService'
 import { Layout } from '../components/Layout'
 import { PhotoModal } from '../components/PhotoModal'
+import { PhotoRenameModal } from '../components/PhotoRenameModal'
 import { formatDate } from '../lib/utils'
 import {
   Loader2,
@@ -33,6 +34,10 @@ export const GalleryPage = () => {
   const [error, setError] = useState('')
   const [copiedLink, setCopiedLink] = useState<string | null>(null)
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null)
+
+  // Rename modal states
+  const [showRenameModal, setShowRenameModal] = useState(false)
+  const [photoToRename, setPhotoToRename] = useState<{ id: string; filename: string } | null>(null)
 
   const galleryId = id!
 
@@ -79,6 +84,31 @@ export const GalleryPage = () => {
     }
   }
 
+  // Handler for renaming a photo
+  // Handler for opening rename modal
+  const handleRenamePhoto = (photoId: string, currentFilename: string) => {
+    setPhotoToRename({ id: photoId, filename: currentFilename })
+    setShowRenameModal(true)
+  }
+
+  // Handler for actual rename operation
+  const handleRenameConfirm = async (newFilename: string) => {
+    if (!photoToRename) return
+
+    try {
+      await photoService.renamePhoto(galleryId, photoToRename.id, newFilename)
+      await fetchData() // Refresh gallery data and photo URLs
+    } catch (err) {
+      throw err // Let the modal handle the error
+    }
+  }
+
+  // Handler for closing rename modal
+  const handleCloseRenameModal = () => {
+    setShowRenameModal(false)
+    setPhotoToRename(null)
+  }
+
   // Handler for deleting a photo
   const handleDeletePhoto = async (photoId: string) => {
     if (window.confirm('Are you sure you want to delete this photo?')) {
@@ -91,7 +121,6 @@ export const GalleryPage = () => {
       }
     }
   }
-  // ... (keep existing handlers for delete gallery, share links, etc.)
   // Handler for deleting the gallery from detail page
   const handleDeleteGallery = async () => {
     if (window.confirm('Are you sure you want to delete this gallery and all its contents?')) {
@@ -189,8 +218,8 @@ export const GalleryPage = () => {
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="flex items-center">
-            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-            <span className="ml-3 text-lg text-gray-600 dark:text-gray-300">Loading gallery...</span>
+            <Loader2 className="w-8 h-8 animate-spin text-muted" />
+            <span className="ml-3 text-lg text-muted dark:text-muted-dark">Loading gallery...</span>
           </div>
         </div>
       </Layout>
@@ -203,16 +232,16 @@ export const GalleryPage = () => {
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center space-y-4">
-            <div className="text-red-400 text-lg font-medium">Failed to load gallery</div>
-            <div className="text-gray-600 dark:text-gray-400">{error}</div>
+            <div className="text-danger text-lg font-medium">Failed to load gallery</div>
+            <div className="text-muted dark:text-muted-dark">{error}</div>
             <button
               onClick={fetchData}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-sm border border-accent/20 transition-colors"
             >
               Try Again
             </button>
             <div>
-              <Link to="/" className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 text-sm">
+              <Link to="/" className="text-accent dark:text-accent hover:underline text-sm">
                 ← Back to Dashboard
               </Link>
             </div>
@@ -228,8 +257,8 @@ export const GalleryPage = () => {
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center space-y-4">
-            <div className="text-gray-600 dark:text-gray-400 text-lg">Gallery not found</div>
-            <Link to="/" className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300">
+            <div className="text-muted dark:text-muted-dark text-lg">Gallery not found</div>
+            <Link to="/" className="text-accent hover:underline">
               ← Back to Dashboard
             </Link>
           </div>
@@ -250,15 +279,16 @@ export const GalleryPage = () => {
             </Link>
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+                <h1 className="text-4xl font-bold text-text">
                   {gallery.name || `Gallery #${gallery.id}`}
                 </h1>
-                <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">Created on {formatDate(gallery.created_at)}</p>
+                <p className="mt-2 text-lg text-muted">Created on {formatDate(gallery.created_at)}</p>
               </div>
               <button
                 onClick={handleDeleteGallery}
-                className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-500/20 hover:bg-red-100 dark:hover:bg-red-500/30 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 border border-red-200 dark:border-red-500/20 rounded-lg transition-all duration-200"
+                className="flex items-center gap-2 px-4 py-2 bg-danger/10 dark:bg-danger/20 hover:bg-danger/20 text-danger border border-danger/20 rounded-lg  shadow-sm cursor-pointer hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-1 active:scale-95"
                 title="Delete Gallery"
+                aria-label="Delete gallery"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete Gallery
@@ -268,102 +298,169 @@ export const GalleryPage = () => {
         </div>
 
         {/* Photo Section */}
-        <div className="bg-gray-50 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 dark:border-white/10">
+        <div className="bg-surface dark:bg-surface-foreground/5 backdrop-blur-sm rounded-2xl p-4 lg:p-6 xl:p-8 border border-border dark:border-border/10">
           <div className="mb-6">
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">Photos ({photoUrls.length})</h2>
+            <h2 className="text-2xl font-semibold text-text mb-2">Photos ({photoUrls.length})</h2>
             <PhotoUploader galleryId={galleryId} onUploadComplete={handleUploadComplete} />
             {uploadError && (
-              <div className="mt-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
+              <div className="mt-2 text-danger bg-danger/10 dark:bg-danger/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
                 {uploadError}
-                <button onClick={() => setUploadError('')} className="ml-2 text-xs text-white bg-red-500 dark:bg-red-400/40 px-2 py-1 rounded">Dismiss</button>
+                <button onClick={() => setUploadError('')} className="ml-2 text-xs text-accent-foreground bg-danger/80 px-2 py-1 rounded">Dismiss</button>
               </div>
             )}
             {error && (
-              <div className="mt-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
+              <div className="mt-2 text-danger bg-danger/10 dark:bg-danger/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
                 {error}
-                <button onClick={() => setError('')} className="ml-2 text-xs text-white bg-red-500 dark:bg-red-400/40 px-2 py-1 rounded">Dismiss</button>
+                <button onClick={() => setError('')} className="ml-2 text-xs text-accent-foreground bg-danger/80 px-2 py-1 rounded">Dismiss</button>
               </div>
             )}
           </div>
           {photoUrls.length > 0 ? (
-            <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8">
               {photoUrls.map((photo, index) => (
-                <div key={photo.id} className="break-inside-avoid mb-4 relative group">
-                  <button
-                    onClick={() => openPhoto(index)}
-                    className="w-full p-0 border-0 bg-transparent cursor-pointer"
-                    aria-label={`Photo ${photo.id}`}
-                  >
-                    <img
-                      src={photo.url}
-                      alt={`Photo ${photo.id}`}
-                      className="w-full h-auto object-contain rounded-lg hover:opacity-90 transition-opacity"
-                      loading="lazy"
-                    />
-                  </button>
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-between pointer-events-none rounded-lg p-2">
-                    <div className="pointer-events-auto flex gap-2">
-                      {gallery.cover_photo_id === photo.id ? (
+                <div key={photo.id} className="group bg-surface dark:bg-surface-foreground rounded-lg flex flex-col">
+                  {/* Image area */}
+                  <div className="relative h-80">
+                    {/* Action Panel - floating pop-up above container */}
+                    <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 z-20 popup-container opacity-0 group-hover:opacity-100 transition-all duration-300">
+                      {/* Pop-up arrow */}
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent popup-arrow"></div>
+
+                      <div className="flex justify-center gap-2">
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleClearCover()
+                            openPhoto(index)
                           }}
-                          className="flex items-center justify-center w-8 h-8 p-1 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 rounded-lg transition-all duration-200"
-                          title="Clear cover photo"
+                          className="popup-action popup-action--accent"
+                          title="Open photo"
                         >
-                          <StarOff className="w-4 h-4" />
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                          </svg>
                         </button>
-                      ) : (
+                        {gallery.cover_photo_id === photo.id ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleClearCover()
+                            }}
+                            className="popup-action popup-action--warning"
+                            title="Clear cover photo"
+                          >
+                            <StarOff className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleSetCover(photo.id)
+                            }}
+                            className="popup-action popup-action--warning"
+                            title="Set as cover"
+                          >
+                            <Star className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleSetCover(photo.id)
+                            handleRenamePhoto(photo.id, photo.filename)
                           }}
-                          className="flex items-center justify-center w-8 h-8 p-1 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 rounded-lg transition-all duration-200"
-                          title="Set as cover"
+                          className="popup-action popup-action--accent"
+                          title="Rename photo"
                         >
-                          <Star className="w-4 h-4" />
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
                         </button>
-                      )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            // Download functionality
+                            const link = document.createElement('a')
+                            link.href = photo.url
+                            link.download = photo.filename
+                            document.body.appendChild(link)
+                            link.click()
+                            document.body.removeChild(link)
+                          }}
+                          className="popup-action popup-action--success"
+                          title="Download photo"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeletePhoto(photo.id)
+                          }}
+                          className="popup-action popup-action--danger"
+                          title="Delete photo"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="pointer-events-auto">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeletePhoto(photo.id)
-                        }}
-                        className="flex items-center justify-center w-8 h-8 p-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all duration-200"
-                        title="Delete photo"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+
+                    {/* Photo - takes full image area */}
+                    <button
+                      onClick={() => openPhoto(index)}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation()
+                        handleRenamePhoto(photo.id, photo.filename)
+                      }}
+                      className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0"
+                      aria-label={`Photo ${photo.id}`}
+                      title="Click to view, double-click to rename"
+                    >
+                      <img
+                        src={photo.url}
+                        alt={`Photo ${photo.id}`}
+                        className="w-full h-full object-contain rounded-t-lg transition-opacity"
+                        loading="lazy"
+                      />
+                    </button>
+                  </div>
+
+                  {/* Caption below the image (not overlapping) */}
+                  <div className="px-2 py-2">
+                    <p className="text-xs text-muted truncate text-center" title={photo.filename}>
+                      {photo.filename}
+                    </p>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-16 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
-              <ImageOff className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-              <h3 className="mt-4 text-lg font-medium text-gray-600 dark:text-gray-300">No photos in this gallery</h3>
-              <p className="mt-2 text-sm text-gray-500">Upload your first photo to get started.</p>
+            <div className="text-center py-16 border-2 border-dashed border-border dark:border-border/40 rounded-lg">
+              <ImageOff className="mx-auto h-12 w-12 text-muted dark:text-muted-dark" />
+              <h3 className="mt-4 text-lg font-medium text-muted">No photos in this gallery</h3>
+              <p className="mt-2 text-sm text-muted">Upload your first photo to get started.</p>
             </div>
           )}
         </div>
 
         {/* ... (keep existing share links section) */}
-        <div className="bg-gray-50 dark:bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 dark:border-white/10">
+        <div className="bg-surface-1 dark:bg-surface-dark-1 backdrop-blur-sm rounded-2xl p-6 border border-border dark:border-border/40">
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-4">
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">Share Links</h2>
+              <h2 className="text-2xl font-semibold text-text">Share Links</h2>
               <button
                 onClick={handleCreateShareLink}
                 disabled={isCreatingLink}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm border border-accent/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed gallery-create__btn cursor-pointer hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 active:scale-95"
+                id="gallery-create-btn"
+                aria-label="Create new share link"
               >
-                {isCreatingLink ? <Loader2 className="w-5 h-5 animate-spin" /> : <Share2 className="w-5 h-5" />}
-                Create New Link
+                {isCreatingLink ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-accent-foreground" />
+                ) : (
+                  <Share2 className="w-5 h-5 text-accent-foreground" />
+                )}
+                <span className="text-accent-foreground">Create New Link</span>
               </button>
             </div>
           </div>
@@ -373,18 +470,27 @@ export const GalleryPage = () => {
               {shareLinks.map(link => {
                 const fullUrl = `${window.location.origin}/share/${link.id}`
                 return (
-                  <li key={link.id} className="bg-gray-100 dark:bg-white/10 p-4 rounded-lg flex items-center justify-between">
+                  <li key={link.id} className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg flex items-center justify-between border border-border">
                     <div className="flex items-center gap-4">
-                      <LinkIcon className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-                      <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline truncate">
+                      <LinkIcon className="w-5 h-5 text-accent gallery-link__icon" />
+                      <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline truncate gallery-link__anchor">
                         {fullUrl}
                       </a>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => copyToClipboard(fullUrl)} className="flex items-center justify-center w-8 h-8 p-1 bg-green-500/20 hover:bg-green-500/30 text-green-400 hover:text-green-300 rounded-lg transition-all duration-200">
-                        {copiedLink === fullUrl ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      <button
+                        onClick={() => copyToClipboard(fullUrl)}
+                        className="flex items-center justify-center w-8 h-8 p-1 bg-success/20 hover:bg-success/30 text-success rounded-lg transition-all duration-200 border border-border gallery-copy__btn cursor-pointer hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 active:scale-95"
+                        title="Copy link"
+                        aria-label="Copy link"
+                      >
+                        {copiedLink === fullUrl ? (
+                          <Check className="w-4 h-4 text-success" />
+                        ) : (
+                          <Copy className="w-4 h-4 text-success" />
+                        )}
                       </button>
-                      <button onClick={() => handleDeleteShareLink(link.id)} className="flex items-center justify-center w-8 h-8 p-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 hover:text-red-300 rounded-lg transition-all duration-200">
+                      <button onClick={() => handleDeleteShareLink(link.id)} className="flex items-center justify-center w-8 h-8 p-1 bg-danger/20 hover:bg-danger/30 text-danger rounded-lg transition-all duration-200 border border-border cursor-pointer hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 active:scale-95" aria-label="Delete share link">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -393,10 +499,10 @@ export const GalleryPage = () => {
               })}
             </ul>
           ) : (
-            <div className="text-center py-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
-              <Share2 className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-              <h3 className="mt-4 text-lg font-medium text-gray-600 dark:text-gray-300">No share links created</h3>
-              <p className="mt-2 text-sm text-gray-500">Create a link to share this gallery with others.</p>
+            <div className="text-center py-12 border-2 border-dashed border-border dark:border-border/40 rounded-lg">
+              <Share2 className="mx-auto h-12 w-12 text-muted" />
+              <h3 className="mt-4 text-lg font-medium text-muted">No share links created</h3>
+              <p className="mt-2 text-sm text-muted">Create a link to share this gallery with others.</p>
             </div>
           )}
         </div>
@@ -410,6 +516,14 @@ export const GalleryPage = () => {
         onPrevious={goToPrevPhoto}
         onNext={goToNextPhoto}
         isPublic={false}
+      />
+
+      {/* Photo Rename Modal */}
+      <PhotoRenameModal
+        isOpen={showRenameModal}
+        onClose={handleCloseRenameModal}
+        currentFilename={photoToRename?.filename || ''}
+        onRename={handleRenameConfirm}
       />
     </Layout>
   )

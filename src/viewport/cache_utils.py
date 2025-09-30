@@ -34,6 +34,12 @@ def get_cached_presigned_url(photo_id: str) -> str | None:
     return None
 
 
+def clear_presigned_url_cache(photo_id: str) -> None:
+    """Clear cached presigned URL for a specific photo"""
+    if photo_id in _url_cache:
+        del _url_cache[photo_id]
+
+
 def url_cache(max_age: int = 3600):
     """
     Decorator to add HTTP caching headers for presigned URL endpoints.

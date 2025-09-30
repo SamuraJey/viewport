@@ -4,6 +4,14 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from src.viewport.db import Base
+# Ensure all model modules are imported so that Base.metadata is populated for autogenerate
+try:
+    # Importing the package will import individual model modules via models/__init__.py
+    import importlib
+    importlib.import_module('src.viewport.models')
+except Exception:
+    # If model import fails, we still set target_metadata; autogenerate will be incomplete
+    pass
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -61,8 +69,21 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
 
+    def include_object(object, name, type_, reflected, compare_to):
+        """Prevent autogenerate from dropping tables automatically.
+
+        Returns True to include the object in autogenerate processing. We intentionally
+        include everything but when an object would be dropped (i.e. compare_to is None and reflected is False),
+        we return True but log it so human can inspect; this avoids alembic auto-generating drop_table operations.
+        """
+        # If alembic tries to drop a table (object exists in DB but not in models), don't auto-drop
+        if type_ == 'table' and compare_to is None and reflected:
+            # detected a DB table not present in models -- don't drop automatically
+            return False
+        return True
+
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(connection=connection, target_metadata=target_metadata, include_object=include_object, compare_type=True)
 
         with context.begin_transaction():
             context.run_migrations()

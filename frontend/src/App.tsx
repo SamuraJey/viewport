@@ -15,26 +15,27 @@ function App() {
   return (
     <ErrorBoundary>
       <Routes>
+
         {/* Public routes */}
-        <Route 
-          path="/auth/login" 
+        <Route
+          path="/auth/login"
           element={
             isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />
-          } 
+          }
         />
-        <Route 
-          path="/auth/register" 
+        <Route
+          path="/auth/register"
           element={
             isAuthenticated ? <Navigate to="/" replace /> : <RegisterPage />
-          } 
+          }
         />
-        
+
         {/* Public gallery sharing route */}
         <Route
           path="/share/:shareId"
           element={<PublicGalleryPage />}
         />
-        
+
         {/* Protected routes */}
         <Route
           path="/"
@@ -52,13 +53,13 @@ function App() {
             </RequireAuth>
           }
         />
-        
+
         {/* Error routes */}
         <Route path="/error/404" element={<NotFoundPage />} />
         <Route path="/error/403" element={<ErrorPage statusCode={403} />} />
         <Route path="/error/500" element={<ErrorPage statusCode={500} />} />
         <Route path="/error/503" element={<ErrorPage statusCode={503} />} />
-        
+
         {/* Fallback route - 404 */}
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

@@ -99,8 +99,8 @@ export const PublicPresignedImage = ({
 
     if (isLoading) {
         return (
-            <div className={`bg-gray-200 dark:bg-gray-700 animate-pulse flex items-center justify-center ${className}`}>
-                <div className="text-gray-500 text-sm">Loading...</div>
+            <div className={`bg-surface-foreground dark:bg-surface animate-pulse flex items-center justify-center ${className}`}>
+                <div className="text-text-muted text-sm">Loading...</div>
             </div>
         )
     }

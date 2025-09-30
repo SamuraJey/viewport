@@ -72,7 +72,7 @@ export const PhotoModal = ({
       {/* Close button */}
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 z-10 flex items-center justify-center w-10 h-10 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200"
+        className="absolute top-4 right-4 z-10 flex items-center justify-center w-10 h-10 p-2 bg-surface-foreground/10 hover:bg-surface-foreground/20 text-white rounded-full transition-all duration-200"
       >
         <X className="w-6 h-6" />
       </button>
@@ -82,13 +82,13 @@ export const PhotoModal = ({
         <>
           <button
             onClick={e => { e.stopPropagation(); onPrevious(); }}
-            className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200"
+            className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-surface-foreground/10 hover:bg-surface-foreground/20 text-white rounded-full transition-all duration-200"
           >
             <ChevronLeft className="w-8 h-8" />
           </button>
           <button
             onClick={e => { e.stopPropagation(); onNext(); }}
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all duration-200"
+            className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-surface-foreground/10 hover:bg-surface-foreground/20 text-white rounded-full transition-all duration-200"
           >
             <ChevronRight className="w-8 h-8" />
           </button>
@@ -119,14 +119,14 @@ export const PhotoModal = ({
       </div>
 
       {/* Photo info */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-4 bg-black/50 text-white px-4 py-2 rounded-lg">
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-4 bg-surface-foreground/50 text-white px-4 py-2 rounded-lg">
         <span className="text-sm">
           {selectedIndex + 1} of {photos.length}
         </span>
         {onDownload && (
           <button
             onClick={() => onDownload(photoId)}
-            className="flex items-center gap-1 px-3 py-1 bg-white/20 hover:bg-white/30 rounded transition-colors text-sm"
+            className="flex items-center gap-1 px-3 py-1 bg-surface-foreground/20 hover:bg-surface-foreground/30 rounded text-sm"
           >
             <Download className="w-4 h-4" />
             Download

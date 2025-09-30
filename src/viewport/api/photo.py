@@ -1,8 +1,10 @@
+import io
 import logging
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from PIL import Image
 from sqlalchemy.orm import Session
 
 from src.viewport.auth_utils import get_current_user
@@ -10,7 +12,7 @@ from src.viewport.cache_utils import photo_cache, url_cache
 from src.viewport.db import get_db
 from src.viewport.minio_utils import generate_presigned_url, upload_fileobj
 from src.viewport.repositories.gallery_repository import GalleryRepository
-from src.viewport.schemas.photo import PhotoResponse, PhotoUploadResponse, PhotoUploadResult
+from src.viewport.schemas.photo import PhotoRenameRequest, PhotoResponse, PhotoUploadResponse, PhotoUploadResult
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +78,7 @@ def get_photo(request: Request, gallery_id: UUID, photo_id: UUID, repo: GalleryR
 @url_cache(max_age=3600)
 def get_photo_url(gallery_id: UUID, photo_id: UUID, repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
     """Get a presigned URL for a photo for authenticated users who own the gallery"""
-
+    logger.debug("Generating presigned URL for photo %s in gallery %s", photo_id, gallery_id)
     # First, verify gallery ownership
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
@@ -95,27 +97,6 @@ def get_photo_url(gallery_id: UUID, photo_id: UUID, repo: GalleryRepository = De
         raise HTTPException(status_code=500, detail="Failed to generate photo URL") from e
 
 
-# GET /photos/auth/{photo_id}/url - Get presigned URL for direct photo access
-# @photo_auth_router.get("/auth/{photo_id}/url")
-# @url_cache(max_age=3600)
-# def get_photo_url_auth(photo_id: UUID, repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
-#     """Get a presigned URL for a photo for authenticated users with direct access"""
-#     # Get the photo and verify user ownership
-#     photo = repo.get_photo_by_id_and_owner(photo_id, current_user.id)
-
-#     if not photo:
-#         raise HTTPException(status_code=404, detail="Photo not found")
-
-#     # Generate presigned URL
-#     try:
-#         url = generate_presigned_url(photo.object_key, expires_in=3600)  # 1 hour expiration
-#         return {"url": url, "expires_in": 3600}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail="Failed to generate photo URL") from e
-
-# noqa: ERA001
-
-
 @router.post("/{gallery_id}/photos", response_model=PhotoResponse, status_code=status.HTTP_201_CREATED)
 def upload_photo(gallery_id: UUID, file: UploadFile = File(...), repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):  # noqa: B008
     # Check gallery ownership
@@ -129,14 +110,27 @@ def upload_photo(gallery_id: UUID, file: UploadFile = File(...), repo: GalleryRe
     if file_size > MAX_FILE_SIZE:
         raise HTTPException(status_code=413, detail="File too large (max 15MB)")
 
-    # Upload to MinIO
+    # Determine image dimensions and upload to MinIO with metadata
     filename = f"{gallery_id}/{file.filename}"
-    # Upload file content and store object key
     object_key = filename
-    upload_fileobj(fileobj=bytes(contents), filename=object_key)
+    try:
+        img = Image.open(io.BytesIO(contents))
+        width, height = img.size
+    except Exception:
+        width = None
+        height = None
 
-    # Save Photo record
-    photo = repo.create_photo(gallery_id, object_key, file_size)
+    metadata = {}
+    if width:
+        metadata["width"] = str(width)
+    if height:
+        metadata["height"] = str(height)
+
+    # Upload file content and store object key. Pass metadata to S3.
+    upload_fileobj((bytes(contents), metadata), filename=object_key)
+
+    # Save Photo record (persist width/height if available)
+    photo = repo.create_photo(gallery_id, object_key, file_size, width=width, height=height)
     return PhotoResponse.from_db_photo(photo)
 
 
@@ -167,13 +161,26 @@ def upload_photos_batch(gallery_id: UUID, files: Annotated[list[UploadFile], Fil
                 failed_uploads += 1
                 continue
 
-            # Upload to MinIO
+            # Upload to MinIO with dimensions metadata when available
             filename = f"{gallery_id}/{file.filename}"
             object_key = filename
-            upload_fileobj(fileobj=bytes(contents), filename=object_key)
+            try:
+                img = Image.open(io.BytesIO(contents))
+                w, h = img.size
+            except Exception:
+                w = None
+                h = None
 
-            # Save Photo record
-            photo = repo.create_photo(gallery_id, object_key, file_size)
+            metadata = {}
+            if w:
+                metadata["width"] = str(w)
+            if h:
+                metadata["height"] = str(h)
+
+            upload_fileobj((bytes(contents), metadata), filename=object_key)
+
+            # Save Photo record (persist width/height if available)
+            photo = repo.create_photo(gallery_id, object_key, file_size, width=w, height=h)
             photo_response = PhotoResponse.from_db_photo(photo)
 
             results.append(PhotoUploadResult(filename=file.filename or "unknown", success=True, photo=photo_response))
@@ -194,3 +201,19 @@ def delete_photo(gallery_id: UUID, photo_id: UUID, repo: GalleryRepository = Dep
     if not repo.delete_photo(photo_id, gallery_id, current_user.id):
         raise HTTPException(status_code=404, detail="Photo not found")
     return
+
+
+@router.patch("/{gallery_id}/photos/{photo_id}/rename", response_model=PhotoResponse)
+def rename_photo(gallery_id: UUID, photo_id: UUID, request: PhotoRenameRequest, repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)) -> PhotoResponse:
+    """Rename a photo in a gallery"""
+    # First, verify gallery ownership
+    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    if not gallery:
+        raise HTTPException(status_code=404, detail="Gallery not found")
+
+    # Then, verify photo belongs to that gallery and rename it
+    photo = repo.rename_photo(photo_id, gallery_id, current_user.id, request.filename)
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    return PhotoResponse.from_db_photo(photo)

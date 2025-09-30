@@ -9,6 +9,7 @@ dependencies = [
     "bcrypt>=4.3.0,<5.0.0",
     "boto3>=1.39.9,<1.40.0",
     "botocore>=1.39.9,<1.40.0",
+    "Pillow>=10.0.0,<11.0.0",
     "fastapi>=0.116.1,<0.117.0",
     "httpx>=0.28.1,<0.29.0",
     "prometheus-fastapi-instrumentator>=7.1.0, <8.0.0",
@@ -19,7 +20,7 @@ dependencies = [
     "python-multipart>=0.0.20,<0.0.21",
     "sqlalchemy>=2.0.41,<3.0.0",
     "uv>=0.8.1,<0.9.0",
-    "uvicorn>=0.35.0,<0.36.0",
+    "uvicorn>=0.35.0,<0.36.0"
 ]
 
 [dependency-groups]
@@ -32,7 +33,7 @@ dev = [
     "pytest-xdist>=3.8.0,<4.0.0",
     "types-boto3-full>=1.39.9,<1.40.0",
     "testcontainers>=4.10.0,<5.0.0",
-    "pytest-mock>=3.15.0, <4.0.0",
+    "pytest-mock>=3.15.0, <4.0.0"
 ]
 
 [build-system]
@@ -79,7 +80,7 @@ exclude = [
     "site-packages",
     "venv",
     "./postgres_data",
-    "./src/viewport/alembic",
+    "./src/viewport/alembic"
 ]
 
 line-length = 200
@@ -103,7 +104,7 @@ select = [
     "ERA",
     "C4",
     "TID",
-    "PERF",
+    "PERF"
 ]
 ignore = ["SIM108", "E712", "C416"]
 flake8-bugbear.extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
@@ -143,7 +144,7 @@ norecursedirs = [
     "__pycache__",
     "static",
     "templates",
-    "logs",
+    "logs"
 ]
 
 [tool.coverage.run]

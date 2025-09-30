@@ -101,9 +101,9 @@ export const PhotoUploader = ({ galleryId, onUploadComplete }: PhotoUploaderProp
   return (
     <div>
       <div
-        className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 transition-colors cursor-pointer ${dragActive
-            ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10'
-            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 bg-gray-50 dark:bg-gray-800/50'
+        className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8  cursor-pointer ${dragActive
+          ? 'border-accent bg-accent/10 dark:bg-accent/10'
+          : 'border-border hover:border-muted dark:hover:border-muted bg-surface dark:bg-surface-foreground/50'
           }`}
         onClick={() => fileInputRef.current?.click()}
         onDrop={handleDrop}
@@ -113,11 +113,11 @@ export const PhotoUploader = ({ galleryId, onUploadComplete }: PhotoUploaderProp
         role="button"
         aria-label="Upload photos"
       >
-        <Upload className="w-10 h-10 text-blue-500 dark:text-blue-400 mb-2" />
-        <p className="text-lg text-gray-900 dark:text-white font-semibold">
+        <Upload className="w-10 h-10 text-accent mb-2" />
+        <p className="text-lg text-text font-semibold">
           {files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''} selected` : 'Drag & drop photos here'}
         </p>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
+        <p className="text-sm text-muted dark:text-muted-dark">
           {files.length > 0 ? 'Opening upload confirmation...' : 'or click to select files (JPG/PNG, ≤ 15MB)'}
         </p>
         <input
@@ -131,7 +131,7 @@ export const PhotoUploader = ({ galleryId, onUploadComplete }: PhotoUploaderProp
       </div>
 
       {error && (
-        <div className="mt-2 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/20 px-3 py-2 rounded-lg text-sm">{error}</div>
+        <div role="status" aria-live="polite" className="mt-2 text-danger bg-danger/10 dark:bg-danger/20 px-3 py-2 rounded-lg text-sm">{error}</div>
       )}
 
       {/* Upload Confirmation Modal */}

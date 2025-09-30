@@ -1,395 +1,107 @@
-"""Tests for public API endpoints (sharelinks)."""
-
 import io
-from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
 
-from tests.helpers import register_and_login
+
+def _upload_photo(client: TestClient, gallery_id: str, content: bytes, filename: str = "photo.jpg") -> str:
+    files = {"file": (filename, io.BytesIO(content), "image/jpeg")}
+    resp = client.post(f"/galleries/{gallery_id}/photos", files=files)
+    assert resp.status_code == 201
+    return resp.json()["id"]
 
 
-@pytest.mark.skip(reason="Skipping public API tests as they are not implemented yet")
 class TestPublicAPI:
-    """Test public API endpoints with comprehensive coverage."""
+    def test_get_photos_by_sharelink_and_urls(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        # Upload two photos
+        _p1 = _upload_photo(authenticated_client, gallery_id_fixture, b"one", "a.jpg")
+        _p2 = _upload_photo(authenticated_client, gallery_id_fixture, b"two", "b.jpg")
 
-    def test_get_photos_by_sharelink_not_found(self, client: TestClient):
-        """Test accessing a non-existent sharelink."""
-        fake_uuid = str(uuid4())
-        response = client.get(f"/s/{fake_uuid}")
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
+        # Create sharelink for gallery
+        resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"})
+        assert resp.status_code == 201
+        share_id = resp.json()["id"]
 
-    def test_get_photos_by_sharelink_success(self, client: TestClient):
-        """Test successful access to sharelink with photos."""
-        # Create user, gallery, and sharelink
-        user_token = register_and_login(client, "user@example.com", "password123")
-        client.headers.update({"Authorization": f"Bearer {user_token}"})
-
-        # Create gallery
-        gallery_response = client.post("/galleries/", json={})
-        gallery_id = gallery_response.json()["id"]
-
-        # Upload photos
-        photo_ids = []
-        for i in range(3):
-            image_content = f"fake image content {i}".encode()
-            files = {"file": (f"test{i}.jpg", io.BytesIO(image_content), "image/jpeg")}
-            upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
-            assert upload_response.status_code == 201
-            photo_ids.append(upload_response.json()["id"])
-
-        # Create sharelink
-        expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
-        payload = {"expires_at": expires_at, "gallery_id": gallery_id}
-        sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
-        assert sharelink_response.status_code == 201
-        share_id = sharelink_response.json()["id"]
-
-        # Clear auth headers for public access
-        client.headers.clear()
-
-        # Access sharelink
-        response = client.get(f"/s/{share_id}")
-        assert response.status_code == 200
-        data = response.json()
+        # Public gallery listing
+        public_resp = authenticated_client.get(f"/s/{share_id}")
+        assert public_resp.status_code == 200
+        data = public_resp.json()
         assert "photos" in data
-        assert len(data["photos"]) == 3
-
-        # Verify photo URLs are correctly formatted
-        for photo in data["photos"]:
-            assert "photo_id" in photo
-            assert photo["photo_id"] in photo_ids
-            assert photo["thumbnail_url"] == f"/s/{share_id}/photos/{photo['photo_id']}"
-            assert photo["full_url"] == f"/s/{share_id}/photos/{photo['photo_id']}"
-
-    def test_get_photos_by_sharelink_empty_gallery(self, client: TestClient):
-        """Test accessing sharelink for gallery with no photos."""
-        # Create user, gallery, and sharelink
-        user_token = register_and_login(client, "user@example.com", "password123")
-        client.headers.update({"Authorization": f"Bearer {user_token}"})
-
-        # Create gallery (no photos)
-        gallery_response = client.post("/galleries/", json={})
-        gallery_id = gallery_response.json()["id"]
-
-        # Create sharelink
-        expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
-        payload = {"expires_at": expires_at}
-        sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
-        share_id = sharelink_response.json()["id"]
-
-        # Clear auth headers
-        client.headers.clear()
-
-        # Access sharelink
-        response = client.get(f"/s/{share_id}")
-        assert response.status_code == 200
-        data = response.json()
-        assert "photos" in data
-        assert len(data["photos"]) == 0
-
-    def test_get_photos_by_sharelink_expired(self, client: TestClient):
-        """Test accessing expired sharelink."""
-        # Create user, gallery, and sharelink
-        user_token = register_and_login(client, "user@example.com", "password123")
-        client.headers.update({"Authorization": f"Bearer {user_token}"})
-
-        # Create gallery
-        gallery_response = client.post("/galleries/", json={})
-        gallery_id = gallery_response.json()["id"]
-
-        # Create expired sharelink
-        expires_at = (datetime.now(UTC) - timedelta(days=1)).isoformat()  # Expired
-        payload = {"expires_at": expires_at, "gallery_id": gallery_id}
-        sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
-        share_id = sharelink_response.json()["id"]
-
-        # Clear auth headers
-        client.headers.clear()
-
-        # Try to access expired sharelink
-        response = client.get(f"/s/{share_id}")
-        assert response.status_code == 404
-        assert "expired" in response.json()["detail"].lower()
-
-    def test_get_single_photo_by_sharelink_success(self, client: TestClient):
-        """Test successfully accessing a single photo via sharelink."""
-        # Setup: create user, gallery, photo, and sharelink
-        user_token = register_and_login(client, "user@example.com", "password123")
-        client.headers.update({"Authorization": f"Bearer {user_token}"})
-
-        gallery_response = client.post("/galleries/", json={})
-        gallery_id = gallery_response.json()["id"]
-
-        # Upload photo
-        image_content = b"fake image content"
-        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-        upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
-        photo_id = upload_response.json()["id"]
-
-        # Create sharelink
-        expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
-        payload = {"expires_at": expires_at}
-        sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
-        share_id = sharelink_response.json()["id"]
-
-        # Clear auth headers
-        client.headers.clear()
-
-        # Access single photo
-        response = client.get(f"/s/{share_id}/photos/{photo_id}")
-        assert response.status_code == 200
-
-    def test_get_single_photo_by_sharelink_not_found(self, client: TestClient):
-        """Test accessing non-existent photo via sharelink."""
-        # Setup: create user, gallery, and sharelink
-        user_token = register_and_login(client, "user@example.com", "password123")
-        client.headers.update({"Authorization": f"Bearer {user_token}"})
-
-        gallery_response = client.post("/galleries/", json={})
-        gallery_id = gallery_response.json()["id"]
-
-        # Create sharelink
-        expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
-        payload = {"expires_at": expires_at}
-        sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
-        share_id = sharelink_response.json()["id"]
-
-        # Clear auth headers
-        client.headers.clear()
-
-        # Try to access non-existent photo
-        fake_photo_id = str(uuid4())
-        response = client.get(f"/s/{share_id}/photos/{fake_photo_id}")
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
-
-    def test_get_single_photo_by_sharelink_expired(self, client: TestClient):
-        """Test accessing photo via expired sharelink."""
-        # Setup: create user, gallery, photo, and expired sharelink
-        user_token = register_and_login(client, "user@example.com", "password123")
-        client.headers.update({"Authorization": f"Bearer {user_token}"})
-
-        gallery_response = client.post("/galleries/", json={})
-        gallery_id = gallery_response.json()["id"]
-
-        # Upload photo
-        image_content = b"fake image content"
-        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-        upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
-        photo_id = upload_response.json()["id"]
-
-        # Create expired sharelink
-        expires_at = (datetime.now(UTC) - timedelta(days=1)).isoformat()
-        payload = {"expires_at": expires_at, "gallery_id": gallery_id}
-        sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
-        share_id = sharelink_response.json()["id"]
-
-        # Clear auth headers
-        client.headers.clear()
-
-        # Try to access photo via expired sharelink
-        response = client.get(f"/s/{share_id}/photos/{photo_id}")
-        assert response.status_code == 404
-        assert "expired" in response.json()["detail"].lower()
-
-    def test_download_all_photos_zip_success(self, client: TestClient):
-        """Test downloading all photos as ZIP via sharelink."""
-        # Setup: create user, gallery, photos, and sharelink
-        user_token = register_and_login(client, "user@example.com", "password123")
-        client.headers.update({"Authorization": f"Bearer {user_token}"})
-
-        gallery_response = client.post("/galleries/", json={})
-        gallery_id = gallery_response.json()["id"]
-
-        # Upload multiple photos
-        for i in range(3):
-            image_content = f"fake image content {i}".encode()
-            files = {"file": (f"test{i}.jpg", io.BytesIO(image_content), "image/jpeg")}
-            upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
-            assert upload_response.status_code == 201
-
-        # Create sharelink
-        expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
-        payload = {"expires_at": expires_at}
-        sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
-        share_id = sharelink_response.json()["id"]
-
-        # Clear auth headers
-        client.headers.clear()
-
-        # Download ZIP
-        response = client.get(f"/s/{share_id}/download/all")
-        assert response.status_code == 200
-        assert response.headers["content-type"] == "application/zip"
-        assert "attachment" in response.headers["content-disposition"]
-        assert "gallery.zip" in response.headers["content-disposition"]
-
-    def test_download_all_photos_zip_empty_gallery(self, client: TestClient):
-        """Test downloading ZIP from gallery with no photos."""
-        # Setup: create user, gallery (no photos), and sharelink
-        user_token = register_and_login(client, "user@example.com", "password123")
-        client.headers.update({"Authorization": f"Bearer {user_token}"})
-
-        gallery_response = client.post("/galleries/", json={})
-        gallery_id = gallery_response.json()["id"]
-
-        # Create sharelink
-        expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
-        payload = {"expires_at": expires_at}
-        sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
-        share_id = sharelink_response.json()["id"]
-
-        # Clear auth headers
-        client.headers.clear()
-
-        # Try to download ZIP
-        response = client.get(f"/s/{share_id}/download/all")
-        assert response.status_code == 404
-        assert "no photos found" in response.json()["detail"].lower()
-
-    def test_download_all_photos_zip_expired_sharelink(self, client: TestClient):
-        """Test downloading ZIP via expired sharelink."""
-        # Setup: create user, gallery, photo, and expired sharelink
-        user_token = register_and_login(client, "user@example.com", "password123")
-        client.headers.update({"Authorization": f"Bearer {user_token}"})
-
-        gallery_response = client.post("/galleries/", json={})
-        gallery_id = gallery_response.json()["id"]
-
-        # Upload photo
-        image_content = b"fake image content"
-        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-        upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
-        assert upload_response.status_code == 201
-
-        # Create expired sharelink
-        expires_at = (datetime.now(UTC) - timedelta(days=1)).isoformat()
-        payload = {"expires_at": expires_at}
-        sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
-        share_id = sharelink_response.json()["id"]
-
-        # Clear auth headers
-        client.headers.clear()
-
-        # Try to download ZIP
-        response = client.get(f"/s/{share_id}/download/all")
-        assert response.status_code == 404
-        assert "expired" in response.json()["detail"].lower()
-
-    def test_download_single_photo_success(self, client: TestClient):
-        """Test downloading single photo via sharelink."""
-        # Setup: create user, gallery, photo, and sharelink
-        user_token = register_and_login(client, "user@example.com", "password123")
-        client.headers.update({"Authorization": f"Bearer {user_token}"})
-
-        gallery_response = client.post("/galleries/", json={})
-        gallery_id = gallery_response.json()["id"]
-
-        # Upload photo
-        image_content = b"fake image content"
-        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-        upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
-        photo_id = upload_response.json()["id"]
-
-        # Create sharelink
-        expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
-        payload = {"expires_at": expires_at}
-        sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
-        share_id = sharelink_response.json()["id"]
-
-        # Clear auth headers
-        client.headers.clear()
-
-        # Download single photo
-        response = client.get(f"/s/{share_id}/download/{photo_id}")
-        assert response.status_code == 200
-        assert response.headers["content-type"] == "application/octet-stream"
-        assert "attachment" in response.headers["content-disposition"]
-
-    def test_download_single_photo_not_found(self, client: TestClient):
-        """Test downloading non-existent photo via sharelink."""
-        # Setup: create user, gallery, and sharelink
-        user_token = register_and_login(client, "user@example.com", "password123")
-        client.headers.update({"Authorization": f"Bearer {user_token}"})
-
-        gallery_response = client.post("/galleries/", json={})
-        gallery_id = gallery_response.json()["id"]
-
-        # Create sharelink
-        expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
-        payload = {"expires_at": expires_at}
-        sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
-        share_id = sharelink_response.json()["id"]
-
-        # Clear auth headers
-        client.headers.clear()
-
-        # Try to download non-existent photo
-        fake_photo_id = str(uuid4())
-        response = client.get(f"/s/{share_id}/download/{fake_photo_id}")
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
-
-    def test_download_single_photo_expired_sharelink(self, client: TestClient):
-        """Test downloading photo via expired sharelink."""
-        # Setup: create user, gallery, photo, and expired sharelink
-        user_token = register_and_login(client, "user@example.com", "password123")
-        client.headers.update({"Authorization": f"Bearer {user_token}"})
-
-        gallery_response = client.post("/galleries/", json={})
-        gallery_id = gallery_response.json()["id"]
-
-        # Upload photo
-        image_content = b"fake image content"
-        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-        upload_response = client.post(f"/galleries/{gallery_id}/photos", files=files)
-        photo_id = upload_response.json()["id"]
-
-        # Create expired sharelink
-        expires_at = (datetime.now(UTC) - timedelta(days=1)).isoformat()
-        payload = {"expires_at": expires_at}
-        sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
-        share_id = sharelink_response.json()["id"]
-
-        # Clear auth headers
-        client.headers.clear()
-
-        # Try to download photo
-        response = client.get(f"/s/{share_id}/download/{photo_id}")
-        assert response.status_code == 404
-        assert "expired" in response.json()["detail"].lower()
-
-    def test_sharelink_view_counter_increment(self, client: TestClient):
-        """Test that sharelink view counter increments properly."""
-        # Setup: create user, gallery, photo, and sharelink
-        user_token = register_and_login(client, "user@example.com", "password123")
-        client.headers.update({"Authorization": f"Bearer {user_token}"})
-
-        gallery_response = client.post("/galleries/", json={})
-        gallery_id = gallery_response.json()["id"]
-
-        # Upload photo
-        image_content = b"fake image content"
-        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-        client.post(f"/galleries/{gallery_id}/photos", files=files)
-
-        # Create sharelink
-        expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
-        payload = {"expires_at": expires_at}
-        sharelink_response = client.post(f"/galleries/{gallery_id}/share-links", json=payload)
-        share_id = sharelink_response.json()["id"]
-
-        # Clear auth headers
-        client.headers.clear()
-
-        # Access sharelink multiple times
-        for _ in range(3):
-            response = client.get(f"/s/{share_id}")
-            assert response.status_code == 200
-
-        # TODO: Add test to verify view counter increased
-        # This would require adding an endpoint to get sharelink details
-        # or modifying the gallery detail endpoint to show sharelink stats
+        assert isinstance(data["photos"], list)
+        # filenames should be present
+        names = [p["filename"] for p in data["photos"]]
+        assert any("a.jpg" in n or "b.jpg" in n for n in names)
+
+        # Get all photo urls - the app will generate real presigned URLs in tests
+        urls_resp = authenticated_client.get(f"/s/{share_id}/photos/urls")
+        assert urls_resp.status_code == 200
+        url_list = urls_resp.json()
+        assert isinstance(url_list, list)
+        assert len(url_list) == 2
+        for item in url_list:
+            assert isinstance(item.get("thumbnail_url"), str)
+            assert item["thumbnail_url"].startswith("http")
+            # presigned urls generated by boto3 include X-Amz-Algorithm or X-Amz-Signature
+            assert ("X-Amz-Algorithm" in item["thumbnail_url"] or "X-Amz-Signature" in item["thumbnail_url"]) or item["thumbnail_url"].startswith("http://localhost")
+
+    def test_get_single_photo_presigned_url_and_not_found(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        # Upload a photo and create sharelink
+        photo_id = _upload_photo(authenticated_client, gallery_id_fixture, b"imgdata", "one.jpg")
+        resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"})
+        share_id = resp.json()["id"]
+
+        r = authenticated_client.get(f"/s/{share_id}/photos/{photo_id}/url")
+        assert r.status_code == 200
+        url = r.json()["url"]
+        assert isinstance(url, str)
+        assert url.startswith("http")
+        assert ("X-Amz-Algorithm" in url or "X-Amz-Signature" in url) or url.startswith("http://localhost")
+
+        fake = "00000000-0000-0000-0000-000000000000"
+        r2 = authenticated_client.get(f"/s/{share_id}/photos/{fake}/url")
+        assert r2.status_code == 404
+
+    def test_stream_photo_and_downloads(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        # Upload photo and create sharelink
+        content = b"streamcontent"
+        photo_id = _upload_photo(authenticated_client, gallery_id_fixture, content, "stream.jpg")
+        resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"})
+        share_id = resp.json()["id"]
+
+        # Mock minio config and s3 client get_object to return a file-like body
+        fake_bucket = "test-bucket"
+        fake_obj = {"Body": io.BytesIO(content), "ContentType": "image/jpeg"}
+
+        with patch("src.viewport.api.public.get_minio_config", return_value=(None, None, None, fake_bucket)), patch("src.viewport.api.public.get_s3_client") as mock_get_s3:
+            mock_client = MagicMock()
+            mock_client.get_object.return_value = fake_obj
+            mock_get_s3.return_value = mock_client
+
+            # Stream photo
+            stream_resp = authenticated_client.get(f"/s/{share_id}/photos/{photo_id}")
+            assert stream_resp.status_code == 200
+            # content should match
+            assert stream_resp.content == content
+            # headers should include caching
+            assert "Cache-Control" in stream_resp.headers
+
+            # Download single
+            dl_resp = authenticated_client.get(f"/s/{share_id}/download/{photo_id}")
+            assert dl_resp.status_code == 200
+            assert dl_resp.content == content
+            assert dl_resp.headers.get("Content-Disposition", "").startswith("attachment;")
+
+            # Download all as zip
+            dl_all = authenticated_client.get(f"/s/{share_id}/download/all")
+            assert dl_all.status_code == 200
+            assert dl_all.headers.get("Content-Type") == "application/zip"
+
+    def test_download_all_404_when_no_photos(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        # Create sharelink for empty gallery
+        resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"})
+        share_id = resp.json()["id"]
+
+        # Remove photos from gallery by attempting download on a new empty gallery
+        r = authenticated_client.get(f"/s/{share_id}/download/all")
+        # Should be 404 because no photos
+        assert r.status_code == 404

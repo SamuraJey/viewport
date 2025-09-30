@@ -184,21 +184,21 @@ export const PhotoUploadConfirmModal = ({
 
     return (
         <div
-            className={`fixed inset-0 z-50 flex items-center justify-center overflow-y-auto transition-all duration-200 ${isOpen ? 'bg-black/50 backdrop-blur-sm' : 'bg-transparent backdrop-blur-0'
+            className={`fixed inset-0 z-50 flex items-start justify-center overflow-y-auto transition-all duration-200 pt-4 ${isOpen ? 'bg-black/50 backdrop-blur-sm' : 'bg-transparent backdrop-blur-0'
                 }`}
             onClick={handleBackdropClick}
         >
-            <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden m-4 my-8 transition-all duration-200 ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
+            <div className={`bg-surface dark:bg-surface-foreground rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] overflow-hidden mx-4 mb-8 transition-all duration-200 ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
                 }`}>
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                <div className="flex items-center justify-between p-6 border-b border-border">
+                    <h2 className="text-xl font-semibold text-text dark:text-white">
                         {result ? 'Upload Complete' : isUploading ? 'Uploading Photos...' : 'Confirm Photo Upload'}
                     </h2>
                     {!isUploading && result && (
                         <button
                             onClick={handleClose}
-                            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            className="text-text-muted hover:text-text dark:text-text dark:hover:text-accent-foreground"
                         >
                             <X className="w-6 h-6" />
                         </button>
@@ -229,7 +229,7 @@ export const PhotoUploadConfirmModal = ({
                             </button>
                             <button
                                 onClick={() => setShowCancelWarning(false)}
-                                className="px-3 py-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 text-sm rounded hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                                className="px-3 py-1 bg-surface-foreground dark:bg-surface text-text dark:text-text text-sm rounded hover:bg-surface transition-colors"
                             >
                                 {isUploading ? 'Continue Upload' : 'Stay Here'}
                             </button>
@@ -257,10 +257,10 @@ export const PhotoUploadConfirmModal = ({
 
                             {/* Files list */}
                             <div className="space-y-2 mb-6">
-                                <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300 mb-3">
+                                <div className="flex items-center gap-2 text-text mb-3">
                                     <FileImage className="w-5 h-5" />
                                     <span className="font-medium">{files.length} file{files.length > 1 ? 's' : ''} selected</span>
-                                    <span className="text-sm text-gray-500">({formatFileSize(totalSize)} total)</span>
+                                    <span className="text-sm text-text-muted">({formatFileSize(totalSize)} total)</span>
                                 </div>
 
                                 {files.map((file, index) => {
@@ -272,32 +272,32 @@ export const PhotoUploadConfirmModal = ({
                                     return (
                                         <div
                                             key={index}
-                                            className={`flex items-center gap-3 p-3 rounded-lg ${hasError
-                                                    ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20'
-                                                    : 'bg-gray-50 dark:bg-gray-700/50'
+                                            className={`flex items-center gap-4 p-4 rounded-lg ${hasError
+                                                ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20'
+                                                : 'bg-surface-foreground dark:bg-surface'
                                                 }`}
                                         >
                                             {/* Image Preview */}
-                                            <div className="w-12 h-12 flex-shrink-0">
+                                            <div className="w-20 h-20 flex-shrink-0">
                                                 {preview ? (
                                                     <img
                                                         src={preview}
                                                         alt={file.name}
-                                                        className="w-12 h-12 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                                                        className="w-20 h-20 object-cover rounded-lg border border-border"
                                                     />
                                                 ) : (
-                                                    <div className="w-12 h-12 bg-gray-200 dark:bg-gray-600 rounded-lg flex items-center justify-center">
-                                                        <FileImage className={`w-6 h-6 ${hasError ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`} />
+                                                    <div className="w-20 h-20 bg-surface-foreground dark:bg-surface rounded-lg flex items-center justify-center">
+                                                        <FileImage className={`w-8 h-8 ${hasError ? 'text-red-500' : 'text-text-muted dark:text-text'}`} />
                                                     </div>
                                                 )}
                                             </div>
 
                                             {/* File Info */}
                                             <div className="flex-1 min-w-0">
-                                                <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                                <div className="text-sm font-medium text-text dark:text-white truncate">
                                                     {file.name}
                                                 </div>
-                                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                <div className="text-xs text-text-muted">
                                                     {formatFileSize(file.size)} • {file.type}
                                                 </div>
                                                 {hasError && (
@@ -319,15 +319,15 @@ export const PhotoUploadConfirmModal = ({
                         <div className="space-y-4">
                             <div className="flex items-center gap-3">
                                 <Upload className="w-5 h-5 text-blue-500 animate-pulse" />
-                                <span className="text-gray-900 dark:text-white">Uploading {progress.currentFile}...</span>
+                                <span className="text-text">Uploading {progress.currentFile}...</span>
                             </div>
 
                             <div className="space-y-2">
-                                <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                                <div className="flex justify-between text-sm text-text-muted">
                                     <span>{progress.percentage}% complete</span>
                                     <span>{formatFileSize(progress.loaded)} / {formatFileSize(progress.total)}</span>
                                 </div>
-                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                <div className="w-full bg-surface-foreground dark:bg-surface rounded-full h-2">
                                     <div
                                         className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                                         style={{ width: `${progress.percentage}%` }}
@@ -340,7 +340,7 @@ export const PhotoUploadConfirmModal = ({
                     {/* Upload results */}
                     {result && (
                         <div className="space-y-4">
-                            <div className="flex items-center gap-2 text-lg font-medium text-gray-900 dark:text-white">
+                            <div className="flex items-center gap-2 text-lg font-medium text-text dark:text-white">
                                 {result.successful_uploads > 0 && result.failed_uploads === 0 && (
                                     <CheckCircle className="w-6 h-6 text-green-500" />
                                 )}
@@ -361,13 +361,13 @@ export const PhotoUploadConfirmModal = ({
 
                             {result.results.filter(r => !r.success).length > 0 && (
                                 <div className="space-y-2">
-                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Failed uploads:</div>
+                                    <div className="text-sm font-medium text-text dark:text-text">Failed uploads:</div>
                                     {result.results
                                         .filter(r => !r.success)
                                         .map((r, index) => (
                                             <div key={index} className="flex items-center gap-2 p-2 bg-red-50 dark:bg-red-500/10 rounded">
                                                 <XCircle className="w-4 h-4 text-red-500" />
-                                                <span className="text-sm text-gray-900 dark:text-white">{r.filename}</span>
+                                                <span className="text-sm text-text dark:text-white">{r.filename}</span>
                                                 <span className="text-xs text-red-600 dark:text-red-400">{r.error}</span>
                                             </div>
                                         ))}
@@ -378,7 +378,7 @@ export const PhotoUploadConfirmModal = ({
                 </div>
 
                 {/* Footer */}
-                <div className="flex justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex justify-end gap-3 p-6 border-t border-border">
                     {result && (
                         <button
                             onClick={handleClose}
@@ -391,7 +391,7 @@ export const PhotoUploadConfirmModal = ({
                         <>
                             <button
                                 onClick={() => onClose()}
-                                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                className="px-4 py-2 text-text-muted dark:text-text hover:bg-surface dark:hover:bg-surface-foreground rounded-lg transition-colors"
                             >
                                 Cancel
                             </button>
@@ -399,7 +399,7 @@ export const PhotoUploadConfirmModal = ({
                                 ref={uploadButtonRef}
                                 onClick={handleUpload}
                                 disabled={files.length === 0}
-                                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center gap-2"
+                                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-surface-foreground disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center gap-2"
                             >
                                 <Upload className="w-4 h-4" />
                                 Upload {files.length} Photo{files.length > 1 ? 's' : ''}
@@ -407,7 +407,7 @@ export const PhotoUploadConfirmModal = ({
                         </>
                     )}
                     {isUploading && (
-                        <div className="px-4 py-2 text-gray-500 dark:text-gray-400 text-sm">
+                        <div className="px-4 py-2 text-text-muted text-sm">
                             Upload in progress... Please wait.
                         </div>
                     )}

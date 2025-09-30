@@ -173,142 +173,142 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
       aria-labelledby="profile-modal-title"
       className="fixed inset-0 z-50 flex items-start sm:items-center justify-center overflow-y-auto bg-black/50 py-6"
     >
-      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md mx-4 md:mx-0 p-4 md:p-6 relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div className="bg-surface text-text dark:bg-surface-dark rounded-lg w-full max-w-md mx-4 md:mx-0 p-4 md:p-6 relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <button
           onClick={onClose}
           aria-label="Close"
-          className="absolute top-4 right-4 text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+          className="absolute top-4 right-4 text-muted hover:text-text"
         >
           <X />
         </button>
         <h2 id="profile-modal-title" className="text-2xl font-semibold mb-4">Account Settings</h2>
-        {error && <div className="text-red-500 mb-4">{error}</div>}
+        {error && <div className="text-danger mb-4">{error}</div>}
         {/* Avatar stub section */}
         <section className="flex flex-col items-center mb-6">
-          <div className="w-24 h-24 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-2">
-            <User className="w-12 h-12 text-gray-400 dark:text-gray-500" />
+          <div className="w-24 h-24 bg-muted/30 dark:bg-muted-dark/30 rounded-full flex items-center justify-center mb-2">
+            <User className="w-12 h-12 text-muted dark:text-muted-dark" />
           </div>
-          <button disabled className="text-sm text-gray-500 dark:text-gray-400">Change Avatar (coming soon)</button>
+          <button disabled className="text-sm text-muted dark:text-muted-dark">Change Avatar (coming soon)</button>
         </section>
         {/* Profile info section */}
-        <section className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg mb-6">
+        <section className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg mb-6">
           <h3 className="text-lg font-medium mb-2">Profile Information</h3>
           <form onSubmit={e => { e.preventDefault(); handleProfileSave() }} className="space-y-4">
-             <label htmlFor="email" className="block text-sm font-medium">Email</label>
-             <input
-               id="email"
-               type="email"
-               value={email}
-               readOnly
-               className="w-full mb-4 mt-1 p-2 border rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed opacity-50"
-             />
-             <label htmlFor="displayName" className="block text-sm font-medium">Display Name</label>
-             <input
-               id="displayName"
-               type="text"
-               ref={firstFieldRef}
-               value={displayName}
-               onChange={e => setDisplayName(e.target.value)}
-               className="w-full mb-4 mt-1 p-2 border rounded"
-             />
-             <button
-               type="submit"
-               disabled={savingProfile}
-               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md disabled:opacity-50 transition"
-             >
-               {savingProfile ? 'Saving...' : 'Save'}
-             </button>
-           </form>
-         </section>
-         <hr className="border-gray-300 dark:border-gray-600 my-4" />
-         {/* Password change section */}
-         <section className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg mb-6">
-           <h3 className="text-lg font-medium mb-2">Change Password</h3>
-           <form onSubmit={e => { e.preventDefault(); handlePasswordChange() }}>
-             <label htmlFor="currentPassword" className="block text-sm font-medium">Current Password</label>
-             <div className="relative">
-               <input
-                 id="currentPassword"
-                 type={showCurrentPassword ? 'text' : 'password'}
-                 value={currentPassword}
-                 onChange={e => setCurrentPassword(e.target.value)}
-                 className="w-full mb-4 mt-1 p-2 pr-10 border rounded"
-               />
-               <button
-                 type="button"
-                 aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
-                 onClick={() => setShowCurrentPassword(v => !v)}
-                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 transition-colors"
-               >
-                 {showCurrentPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-               </button>
-             </div>
-             <label htmlFor="newPassword" className="block text-sm font-medium">New Password</label>
-             <div className="relative">
-               <input
-                 id="newPassword"
-                 type={showNewPassword ? 'text' : 'password'}
-                 value={newPassword}
-                 onChange={e => setNewPassword(e.target.value)}
-                 className="w-full mb-4 mt-1 p-2 pr-10 border rounded"
-               />
-               <button
-                 type="button"
-                 aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
-                 onClick={() => setShowNewPassword(v => !v)}
-                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 transition-colors"
-               >
-                 {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-               </button>
-             </div>
-             <label htmlFor="confirmPassword" className="block text-sm font-medium">Confirm Password</label>
-             <div className="relative">
-               <input
-                 id="confirmPassword"
-                 type={showConfirmPassword ? 'text' : 'password'}
-                 ref={confirmPassRef}
-                 value={confirmPassword}
-                 onChange={e => setConfirmPassword(e.target.value)}
-                 className="w-full mb-4 mt-1 p-2 pr-10 border rounded"
-               />
-               <button
-                 type="button"
-                 aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
-                 onClick={() => setShowConfirmPassword(v => !v)}
-                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 transition-colors"
-               >
-                 {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-               </button>
-             </div>
-             <button
-               type="submit"
-               disabled={changingPassword}
-               className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md disabled:opacity-50 transition"
-             >
-               {changingPassword ? 'Changing...' : 'Change Password'}
-             </button>
-           </form>
-         </section>
-         <hr className="border-gray-300 dark:border-gray-600 my-4" />
+            <label htmlFor="email" className="block text-sm font-medium">Email</label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              readOnly
+              className="w-full mb-4 mt-1 p-2 border border-border rounded bg-muted/10 dark:bg-muted-dark/10 text-muted dark:text-muted-dark cursor-not-allowed opacity-70"
+            />
+            <label htmlFor="displayName" className="block text-sm font-medium">Display Name</label>
+            <input
+              id="displayName"
+              type="text"
+              ref={firstFieldRef}
+              value={displayName}
+              onChange={e => setDisplayName(e.target.value)}
+              className="w-full mb-4 mt-1 p-2 border border-border rounded bg-transparent"
+            />
+            <button
+              type="submit"
+              disabled={savingProfile}
+              className="px-4 py-2 bg-accent text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-accent/90 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
+            >
+              {savingProfile ? 'Saving...' : 'Save'}
+            </button>
+          </form>
+        </section>
+        <hr className="border-border my-4" />
+        {/* Password change section */}
+        <section className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg mb-6">
+          <h3 className="text-lg font-medium mb-2">Change Password</h3>
+          <form onSubmit={e => { e.preventDefault(); handlePasswordChange() }}>
+            <label htmlFor="currentPassword" className="block text-sm font-medium">Current Password</label>
+            <div className="relative">
+              <input
+                id="currentPassword"
+                type={showCurrentPassword ? 'text' : 'password'}
+                value={currentPassword}
+                onChange={e => setCurrentPassword(e.target.value)}
+                className="w-full mb-4 mt-1 p-2 pr-10 border border-border rounded bg-transparent"
+              />
+              <button
+                type="button"
+                aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
+                onClick={() => setShowCurrentPassword(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text "
+              >
+                {showCurrentPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
+            <label htmlFor="newPassword" className="block text-sm font-medium">New Password</label>
+            <div className="relative">
+              <input
+                id="newPassword"
+                type={showNewPassword ? 'text' : 'password'}
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                className="w-full mb-4 mt-1 p-2 pr-10 border border-border rounded bg-transparent"
+              />
+              <button
+                type="button"
+                aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
+                onClick={() => setShowNewPassword(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text "
+              >
+                {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium">Confirm Password</label>
+            <div className="relative">
+              <input
+                id="confirmPassword"
+                type={showConfirmPassword ? 'text' : 'password'}
+                ref={confirmPassRef}
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                className="w-full mb-4 mt-1 p-2 pr-10 border border-border rounded bg-transparent"
+              />
+              <button
+                type="button"
+                aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                onClick={() => setShowConfirmPassword(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text "
+              >
+                {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
+            <button
+              type="submit"
+              disabled={changingPassword}
+              className="px-4 py-2 bg-success text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-success-600 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
+            >
+              {changingPassword ? 'Changing...' : 'Change Password'}
+            </button>
+          </form>
+        </section>
+        <hr className="border-border my-4" />
         {/* Actions / Delete Confirmation Sections */}
         {deleteStep === 'initial' && (
-          <section className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg flex justify-between w-full">
+          <section className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg flex justify-between w-full">
             <button
               onClick={startDelete}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition"
+              className="px-4 py-2 bg-danger text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-danger-600 focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-1"
             >
               Delete Account
             </button>
             <button
               onClick={handleLogout}
-              className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md transition"
+              className="px-4 py-2 bg-muted text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-muted-600 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
             >
               Logout
             </button>
           </section>
         )}
         {deleteStep === 'password' && (
-          <section className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg space-y-4">
+          <section className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg space-y-4">
             <p className="text-sm">Please enter your current password to proceed with account deletion.</p>
             <div className="relative">
               <input
@@ -316,28 +316,28 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                 placeholder="Current Password"
                 value={deletePassword}
                 onChange={e => setDeletePassword(e.target.value)}
-                className="w-full p-2 pr-10 border rounded"
+                className="w-full p-2 pr-10 border border-border rounded bg-transparent"
               />
               <button
                 type="button"
                 aria-label={showDeletePassword ? 'Hide password' : 'Show password'}
                 onClick={() => setShowDeletePassword(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-100 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text "
               >
                 {showDeletePassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
             </div>
-            {deleteError && <div className="text-red-500 text-sm">{deleteError}</div>}
+            {deleteError && <div className="text-danger text-sm">{deleteError}</div>}
             <div className="flex justify-between">
               <button
                 onClick={cancelDelete}
-                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md transition"
+                className="px-4 py-2 bg-muted text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-muted-600 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
               >
                 Cancel
               </button>
               <button
                 onClick={verifyDeletePassword}
-                className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-md transition"
+                className="px-4 py-2 bg-yellow-600 text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
               >
                 Next
               </button>
@@ -345,27 +345,27 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
           </section>
         )}
         {deleteStep === 'confirm' && (
-          <section className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg space-y-4">
-            <p className="text-red-700 font-medium">Are you sure you want to delete your account? This action cannot be undone.</p>
-            {deleteError && <div className="text-red-500 text-sm">{deleteError}</div>}
+          <section className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg space-y-4">
+            <p className="text-danger font-medium">Are you sure you want to delete your account? This action cannot be undone.</p>
+            {deleteError && <div className="text-danger text-sm">{deleteError}</div>}
             <div className="flex justify-between">
               <button
                 onClick={cancelDelete}
-                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md transition"
+                className="px-4 py-2 bg-muted text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-muted-600 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDelete}
                 disabled={deletingAccount}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md disabled:opacity-50 transition"
+                className="px-4 py-2 bg-danger text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-danger-600 focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-1"
               >
                 {deletingAccount ? 'Deleting...' : 'Confirm Delete'}
               </button>
             </div>
           </section>
         )}
-       </div>
-     </div>
-   )
- }
+      </div>
+    </div>
+  )
+}
