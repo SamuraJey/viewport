@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from viewport.api.auth import router as auth_router
 from viewport.api.gallery import router as gallery_router
-from viewport.api.photo import photo_auth_router
 from viewport.api.photo import router as photo_router
 from viewport.api.public import router as public_router
 from viewport.api.sharelink import router as sharelink_router
@@ -41,7 +40,6 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(gallery_router)
 app.include_router(photo_router)
-app.include_router(photo_auth_router)
 app.include_router(sharelink_router)
 app.include_router(public_router)
 app.include_router(user_router)

@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 MAX_FILE_SIZE = 15 * 1024 * 1024  # 15 MB
 
 router = APIRouter(prefix="/galleries", tags=["photos"])
-photo_auth_router = APIRouter(prefix="/photos", tags=["photos"])
 
 
 def get_gallery_repository(db: Session = Depends(get_db)) -> GalleryRepository:
