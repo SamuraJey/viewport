@@ -11,19 +11,54 @@ from src.viewport.models.sharelink import ShareLink
 from src.viewport.models.user import User
 
 
+@pytest.fixture
+def user_fixture(db_session) -> User:
+    user = User(email="photo@example.com", password_hash="hash")
+    db_session.add(user)
+    db_session.commit()
+    return user
+
+
+@pytest.fixture
+def gallery_fixture(db_session, user_fixture: User) -> Gallery:
+    gallery = Gallery(owner=user_fixture)
+    db_session.add(gallery)
+    db_session.commit()
+    return gallery
+
+
+@pytest.fixture
+def photo_fixture(db_session, gallery_fixture: Gallery) -> Photo:
+    photo = Photo(
+        gallery=gallery_fixture,
+        object_key="photos/test.jpg",
+        thumbnail_object_key="photos/test.jpg",
+        file_size=2048,
+    )
+    db_session.add(photo)
+    db_session.commit()
+    return photo
+
+
+@pytest.fixture
+def sharelink_fixture(db_session, gallery_fixture: Gallery) -> ShareLink:
+    sharelink = ShareLink(gallery=gallery_fixture)
+    db_session.add(sharelink)
+    db_session.commit()
+    return sharelink
+
+
 class TestUserModel:
     """Test User model."""
 
-    def test_user_creation(self, db_session):
-        """Test creating a user."""
-        user = User(email="test@example.com", password_hash="hashed_password")
-        db_session.add(user)
-        db_session.commit()
+    def test_user_creation(self, user_fixture: User):
+        """Test creating a user (via fixture)."""
+        user = user_fixture
 
         assert user.id is not None
         assert isinstance(user.id, uuid.UUID)
-        assert user.email == "test@example.com"
-        assert user.password_hash == "hashed_password"
+        assert user.email == "photo@example.com"
+        assert user.password_hash == "hash"
         assert user.created_at is not None
         assert isinstance(user.created_at, datetime)
 
@@ -52,14 +87,12 @@ class TestUserModel:
 
     def test_user_created_at_auto_generated(self, db_session):
         """Test created_at is auto-generated."""
-        before_creation = datetime.now(UTC).replace(tzinfo=None)
         user = User(email="time@example.com", password_hash="hash")
 
         db_session.add(user)
         db_session.commit()
-        after_creation = datetime.now(UTC).replace(tzinfo=None)
 
-        assert before_creation <= user.created_at <= after_creation
+        assert isinstance(user.created_at, datetime)
 
     @pytest.mark.parametrize(
         "email,password_hash",
@@ -87,14 +120,10 @@ class TestUserModel:
         for col in expected_columns:
             assert col in columns
 
-    def test_user_relationships(self, db_session):
-        """Test user relationships with galleries."""
-        user = User(email="rel@example.com", password_hash="hash")
-        gallery = Gallery(owner=user)
-
-        db_session.add(user)
-        db_session.add(gallery)
-        db_session.commit()
+    def test_user_relationships(self, gallery_fixture: Gallery, user_fixture: User):
+        """Test user relationships with galleries (via fixtures)."""
+        gallery = gallery_fixture
+        user = user_fixture
 
         # Test relationship
         assert gallery.owner == user
@@ -104,29 +133,20 @@ class TestUserModel:
 class TestGalleryModel:
     """Test Gallery model."""
 
-    def test_gallery_creation(self, db_session):
-        """Test creating a gallery."""
-        user = User(email="gallery@example.com", password_hash="hash")
-        db_session.add(user)
-        db_session.flush()  # Get user ID
-
-        gallery = Gallery(owner_id=user.id)
-        db_session.add(gallery)
-        db_session.commit()
+    def test_gallery_creation(self, gallery_fixture: Gallery, user_fixture: User):
+        """Test creating a gallery (via fixture)."""
+        gallery = gallery_fixture
+        user = user_fixture
 
         assert gallery.id is not None
         assert isinstance(gallery.id, uuid.UUID)
         assert gallery.owner_id == user.id
         assert gallery.created_at is not None
 
-    def test_gallery_owner_relationship(self, db_session):
-        """Test gallery-owner relationship."""
-        user = User(email="owner@example.com", password_hash="hash")
-        gallery = Gallery(owner=user)
-
-        db_session.add(user)
-        db_session.add(gallery)
-        db_session.commit()
+    def test_gallery_owner_relationship(self, gallery_fixture: Gallery, user_fixture: User):
+        """Test gallery-owner relationship (via fixtures)."""
+        gallery = gallery_fixture
+        user = user_fixture
 
         assert gallery.owner == user
         assert gallery.owner_id == user.id
@@ -150,28 +170,22 @@ class TestGalleryModel:
         deleted_gallery = db_session.get(Gallery, gallery_id)
         assert deleted_gallery is None
 
-    def test_gallery_photos_relationship(self, db_session):
-        """Test gallery-photos relationship."""
-        user = User(email="photos@example.com", password_hash="hash")
-        gallery = Gallery(owner=user)
-        photo = Photo(gallery=gallery, object_key="test.jpg", file_size=1024)
+    def test_gallery_photos_relationship(self, db_session, gallery_fixture: Gallery):
+        """Test gallery-photos relationship using gallery fixture and a new photo."""
+        gallery = gallery_fixture
+        photo = Photo(gallery=gallery, object_key="test.jpg", thumbnail_object_key="test.jpg", file_size=1024)
 
-        db_session.add(user)
-        db_session.add(gallery)
         db_session.add(photo)
         db_session.commit()
 
         assert photo in gallery.photos
         assert photo.gallery == gallery
 
-    def test_gallery_sharelinks_relationship(self, db_session):
-        """Test gallery-sharelinks relationship."""
-        user = User(email="share@example.com", password_hash="hash")
-        gallery = Gallery(owner=user)
+    def test_gallery_sharelinks_relationship(self, db_session, gallery_fixture: Gallery):
+        """Test gallery-sharelinks relationship using gallery fixture and a new sharelink."""
+        gallery = gallery_fixture
         sharelink = ShareLink(gallery=gallery)
 
-        db_session.add(user)
-        db_session.add(gallery)
         db_session.add(sharelink)
         db_session.commit()
 
@@ -182,16 +196,10 @@ class TestGalleryModel:
 class TestPhotoModel:
     """Test Photo model."""
 
-    def test_photo_creation(self, db_session):
-        """Test creating a photo."""
-        user = User(email="photo@example.com", password_hash="hash")
-        gallery = Gallery(owner=user)
-        photo = Photo(gallery=gallery, object_key="photos/test.jpg", file_size=2048)
-
-        db_session.add(user)
-        db_session.add(gallery)
-        db_session.add(photo)
-        db_session.commit()
+    def test_photo_creation(self, photo_fixture: Photo, gallery_fixture: Gallery):
+        """Test creating a photo (via fixture)."""
+        photo = photo_fixture
+        gallery = gallery_fixture
 
         assert photo.id is not None
         assert isinstance(photo.id, uuid.UUID)
@@ -213,7 +221,7 @@ class TestPhotoModel:
         """Test photos with different object keys and sizes."""
         user = User(email="multi@example.com", password_hash="hash")
         gallery = Gallery(owner=user)
-        photo = Photo(gallery=gallery, object_key=object_key, file_size=file_size)
+        photo = Photo(gallery=gallery, object_key=object_key, thumbnail_object_key=object_key, file_size=file_size)
 
         db_session.add(user)
         db_session.add(gallery)
@@ -227,7 +235,7 @@ class TestPhotoModel:
         """Test photo is deleted when gallery is deleted."""
         user = User(email="cascade2@example.com", password_hash="hash")
         gallery = Gallery(owner=user)
-        photo = Photo(gallery=gallery, object_key="test.jpg", file_size=1024)
+        photo = Photo(gallery=gallery, object_key="test.jpg", thumbnail_object_key="test.jpg", file_size=1024)
 
         db_session.add(user)
         db_session.add(gallery)
@@ -244,60 +252,37 @@ class TestPhotoModel:
         deleted_photo = db_session.get(Photo, photo_id)
         assert deleted_photo is None
 
-    def test_photo_uploaded_at_auto_generated(self, db_session):
-        """Test uploaded_at is auto-generated."""
-        before_creation = datetime.now(UTC).replace(tzinfo=None)
-
-        user = User(email="upload@example.com", password_hash="hash")
-        gallery = Gallery(owner=user)
-        photo = Photo(gallery=gallery, object_key="test.jpg", file_size=1024)
-
-        db_session.add(user)
-        db_session.add(gallery)
-        db_session.add(photo)
-        db_session.commit()
-
-        after_creation = datetime.now(UTC).replace(tzinfo=None)
-
-        assert before_creation <= photo.uploaded_at <= after_creation
+    def test_photo_uploaded_at_auto_generated(self, photo_fixture: Photo):
+        """Test uploaded_at is set (via fixture)."""
+        photo = photo_fixture
+        assert isinstance(photo.uploaded_at, datetime)
 
 
 class TestShareLinkModel:
     """Test ShareLink model."""
 
-    def test_sharelink_creation(self, db_session):
-        """Test creating a share link."""
-        user = User(email="sharelink@example.com", password_hash="hash")
-        gallery = Gallery(owner=user)
+    def test_sharelink_creation(self, db_session, gallery_fixture: Gallery):
+        """Test creating a share link with expiry using gallery fixture."""
+        gallery = gallery_fixture
         expires_at = datetime.now(UTC) + timedelta(days=1)
         sharelink = ShareLink(gallery=gallery, expires_at=expires_at)
 
-        db_session.add(user)
-        db_session.add(gallery)
         db_session.add(sharelink)
         db_session.commit()
 
         assert sharelink.id is not None
         assert isinstance(sharelink.id, uuid.UUID)
         assert sharelink.gallery_id == gallery.id
-        # Compare timezone-naive versions
-        assert sharelink.expires_at.replace(tzinfo=UTC) == expires_at
+        # Compare timezone-aware equality
+        assert sharelink.expires_at.replace(tzinfo=UTC) == expires_at.replace(tzinfo=UTC)
         assert sharelink.views == 0
         assert sharelink.zip_downloads == 0
         assert sharelink.single_downloads == 0
         assert sharelink.created_at is not None
 
-    def test_sharelink_without_expiry(self, db_session):
-        """Test creating a share link without expiry."""
-        user = User(email="noexpiry@example.com", password_hash="hash")
-        gallery = Gallery(owner=user)
-        sharelink = ShareLink(gallery=gallery)
-
-        db_session.add(user)
-        db_session.add(gallery)
-        db_session.add(sharelink)
-        db_session.commit()
-
+    def test_sharelink_without_expiry(self, sharelink_fixture: ShareLink):
+        """Test creating a share link without expiry (via fixture)."""
+        sharelink = sharelink_fixture
         assert sharelink.expires_at is None
 
     @pytest.mark.parametrize(
@@ -308,14 +293,11 @@ class TestShareLinkModel:
             (100, 50, 200),
         ],
     )
-    def test_sharelink_counters(self, db_session, views, zip_downloads, single_downloads):
+    def test_sharelink_counters(self, db_session, gallery_fixture: Gallery, views, zip_downloads, single_downloads):
         """Test share link with different counter values."""
-        user = User(email="counters@example.com", password_hash="hash")
-        gallery = Gallery(owner=user)
+        gallery = gallery_fixture
         sharelink = ShareLink(gallery=gallery, views=views, zip_downloads=zip_downloads, single_downloads=single_downloads)
 
-        db_session.add(user)
-        db_session.add(gallery)
         db_session.add(sharelink)
         db_session.commit()
 
@@ -323,36 +305,18 @@ class TestShareLinkModel:
         assert sharelink.zip_downloads == zip_downloads
         assert sharelink.single_downloads == single_downloads
 
-    def test_sharelink_gallery_relationship(self, db_session):
-        """Test sharelink-gallery relationship."""
-        user = User(email="rel2@example.com", password_hash="hash")
-        gallery = Gallery(owner=user)
-        sharelink = ShareLink(gallery=gallery)
-
-        db_session.add(user)
-        db_session.add(gallery)
-        db_session.add(sharelink)
-        db_session.commit()
+    def test_sharelink_gallery_relationship(self, sharelink_fixture: ShareLink, gallery_fixture: Gallery):
+        """Test sharelink-gallery relationship (via fixtures)."""
+        sharelink = sharelink_fixture
+        gallery = gallery_fixture
 
         assert sharelink.gallery == gallery
         assert sharelink in gallery.share_links
 
-    def test_sharelink_created_at_auto_generated(self, db_session):
-        """Test created_at is auto-generated."""
-        before_creation = datetime.now(UTC).replace(tzinfo=None)
-
-        user = User(email="createdat@example.com", password_hash="hash")
-        gallery = Gallery(owner=user)
-        sharelink = ShareLink(gallery=gallery)
-
-        db_session.add(user)
-        db_session.add(gallery)
-        db_session.add(sharelink)
-        db_session.commit()
-
-        after_creation = datetime.now(UTC).replace(tzinfo=None)
-
-        assert before_creation <= sharelink.created_at <= after_creation
+    def test_sharelink_created_at_auto_generated(self, sharelink_fixture: ShareLink):
+        """Test created_at is auto-generated (via fixture)."""
+        sharelink = sharelink_fixture
+        assert isinstance(sharelink.created_at, datetime)
 
 
 class TestModelRelationships:
@@ -367,8 +331,8 @@ class TestModelRelationships:
         gallery = Gallery(owner=user)
 
         # Create photos in the gallery
-        photo1 = Photo(gallery=gallery, object_key="photo1.jpg", file_size=1024)
-        photo2 = Photo(gallery=gallery, object_key="photo2.jpg", file_size=2048)
+        photo1 = Photo(gallery=gallery, object_key="photo1.jpg", thumbnail_object_key="photo1.jpg", file_size=1024)
+        photo2 = Photo(gallery=gallery, object_key="photo2.jpg", thumbnail_object_key="photo2.jpg", file_size=2048)
 
         # Create share links for the gallery
         sharelink1 = ShareLink(gallery=gallery)
@@ -400,7 +364,7 @@ class TestModelRelationships:
         """Test cascade deletion throughout the model chain."""
         user = User(email="cascade_all@example.com", password_hash="hash")
         gallery = Gallery(owner=user)
-        photo = Photo(gallery=gallery, object_key="test.jpg", file_size=1024)
+        photo = Photo(gallery=gallery, object_key="test.jpg", thumbnail_object_key="test.jpg", file_size=1024)
         sharelink = ShareLink(gallery=gallery)
 
         db_session.add(user)

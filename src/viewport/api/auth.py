@@ -41,6 +41,10 @@ def create_refresh_token(user_id: str) -> str:
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 def register_user(request: RegisterRequest, repo: UserRepository = Depends(get_user_repository)):
+    # Verify invite code
+    if request.invite_code != authsettings.invite_code:
+        raise HTTPException(status_code=403, detail="Invalid invite code")
+
     try:
         user = repo.create_user(request.email, hash_password(request.password))
     except IntegrityError as err:

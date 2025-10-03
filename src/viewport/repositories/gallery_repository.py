@@ -41,9 +41,15 @@ class GalleryRepository(BaseRepository):
         return gallery
 
     def delete_gallery(self, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> bool:
+        from src.viewport.minio_utils import delete_folder
+
         gallery = self.get_gallery_by_id_and_owner(gallery_id, owner_id)
         if not gallery:
             return False
+
+        # Delete the entire gallery folder from MinIO (including all photos and thumbnails)
+        delete_folder(f"{gallery_id}/")
+
         self.db.delete(gallery)
         self.db.commit()
         return True
@@ -77,17 +83,13 @@ class GalleryRepository(BaseRepository):
         stmt = select(Photo).join(Photo.gallery).where(Photo.id == photo_id, Gallery.owner_id == owner_id)
         return self.db.execute(stmt).scalar_one_or_none()
 
-    def get_photo_by_id(self, photo_id: uuid.UUID) -> Photo | None:
-        stmt = select(Photo).where(Photo.id == photo_id)
-        return self.db.execute(stmt).scalar_one_or_none()
-
     def get_photos_by_gallery_id(self, gallery_id: uuid.UUID) -> list[Photo]:
         # Sort by object_key (which contains the filename after the gallery prefix)
         stmt = select(Photo).where(Photo.gallery_id == gallery_id).order_by(Photo.object_key.asc())
         return list(self.db.execute(stmt).scalars().all())
 
-    def create_photo(self, gallery_id: uuid.UUID, object_key: str, file_size: int, width: int | None = None, height: int | None = None) -> Photo:
-        photo = Photo(gallery_id=gallery_id, object_key=object_key, file_size=file_size, width=width, height=height)
+    def create_photo(self, gallery_id: uuid.UUID, object_key: str, thumbnail_object_key: str, file_size: int, width: int | None = None, height: int | None = None) -> Photo:
+        photo = Photo(gallery_id=gallery_id, object_key=object_key, thumbnail_object_key=thumbnail_object_key, file_size=file_size, width=width, height=height)
         self.db.add(photo)
         self.db.commit()
         self.db.refresh(photo)
@@ -100,8 +102,10 @@ class GalleryRepository(BaseRepository):
         if not photo or photo.gallery_id != gallery_id:
             return False
 
-        # Delete from MinIO first
+        # Delete both original and thumbnail from MinIO
         delete_object(photo.object_key)  # We don't fail if MinIO deletion fails
+        if photo.thumbnail_object_key != photo.object_key:  # Only delete if different
+            delete_object(photo.thumbnail_object_key)
 
         # Delete from database
         self.db.delete(photo)

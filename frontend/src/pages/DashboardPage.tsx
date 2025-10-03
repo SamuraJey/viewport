@@ -135,15 +135,15 @@ export const DashboardPage = () => {
   )
   const renderEmptyState = () => (
     <div className="flex flex-col items-center justify-center h-96">
-      <p className="text-text-muted text-lg mb-4">No galleries yet</p>
+      <p className="text-muted text-lg mb-4">No galleries yet</p>
       {/* Button to create first gallery */}
       <button
         onClick={handleOpenModal}
         disabled={isCreating}
-        className="inline-flex items-center gap-2 bg-gradient-to-r from-primary-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg  hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary-500/25 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+        className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm border border-accent/20 hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
       >
         {isCreating ? (
-          <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+          <div className="w-5 h-5 border-2 border-border/20 border-t-accent rounded-full animate-spin"></div>
         ) : (
           <Plus className="h-5 w-5" />
         )}

@@ -9,6 +9,7 @@ export const RegisterPage = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -37,10 +38,15 @@ export const RegisterPage = () => {
       return
     }
 
+    if (!inviteCode.trim()) {
+      setError('Invite code is required.')
+      return
+    }
+
     setIsLoading(true)
 
     try {
-      await authService.register({ email, password })
+      await authService.register({ email, password, invite_code: inviteCode })
       setSuccess(true)
       setTimeout(() => {
         navigate('/auth/login', {
@@ -83,6 +89,22 @@ export const RegisterPage = () => {
               onChange={(e) => setEmail(e.target.value)}
             />
             <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-text-muted dark:text-text" />
+          </div>
+        </div>
+        <div>
+          <label htmlFor="inviteCode" className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide">Invite Code</label>
+          <div className="relative">
+            <input
+              id="inviteCode"
+              name="inviteCode"
+              type="text"
+              autoComplete="off"
+              required
+              className="w-full px-4 py-3 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm"
+              placeholder="Enter your invite code"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+            />
           </div>
         </div>
         <div>

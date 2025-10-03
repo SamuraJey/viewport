@@ -1,5 +1,6 @@
 import logging
 from functools import cache
+from typing import cast
 
 import boto3
 from botocore.client import BaseClient, Config
@@ -79,7 +80,7 @@ def get_file_url(filename, time: int = 3600):
     return s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": filename}, ExpiresIn=time)
 
 
-def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:
+def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:  # TODO maybe change to url
     """Generate a presigned URL for direct S3 access to an object"""
     from src.viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
 
@@ -95,7 +96,7 @@ def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:
 
         cache_presigned_url(object_key, url, expires_in)
 
-        return url
+        return cast(str, url)
     except Exception as e:
         logger.error(f"Failed to generate presigned URL for {object_key}: {e}")
         raise
@@ -110,7 +111,7 @@ def get_object_metadata(object_key: str) -> dict:
     _, _, _, bucket = get_minio_config()
     try:
         resp = s3_client.head_object(Bucket=bucket, Key=object_key)
-        return resp
+        return cast(dict, resp)
     except Exception as e:
         logger.debug(f"Failed to get metadata for {object_key}: {e}")
         return {}
@@ -146,3 +147,96 @@ def delete_object(object_key: str) -> bool:
     except Exception as e:
         logger.error(f"Failed to delete object {object_key}: {e}")
         return False
+
+
+def delete_folder(prefix: str) -> bool:
+    """Delete all objects with a given prefix (folder) from MinIO
+
+    Args:
+        prefix: The folder prefix to delete (e.g., 'gallery_id/')
+
+    Returns:
+        True if deletion was successful, False otherwise
+    """
+    s3_client = get_s3_client()
+    _, _, _, bucket = get_minio_config()
+
+    try:
+        # List all objects with the given prefix
+        paginator = s3_client.get_paginator("list_objects_v2")
+        pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
+
+        objects_to_delete = []
+        for page in pages:
+            if "Contents" in page:
+                objects_to_delete.extend([{"Key": obj["Key"]} for obj in page["Contents"]])
+
+        # Delete all objects if any were found
+        if objects_to_delete:
+            # S3 delete_objects can handle up to 1000 objects at a time
+            for i in range(0, len(objects_to_delete), 1000):
+                batch = objects_to_delete[i : i + 1000]
+                s3_client.delete_objects(Bucket=bucket, Delete={"Objects": batch})
+
+            logger.info(f"Successfully deleted {len(objects_to_delete)} objects with prefix {prefix}")
+        else:
+            logger.info(f"No objects found with prefix {prefix}")
+
+        return True
+    except Exception as e:
+        logger.error(f"Failed to delete folder with prefix {prefix}: {e}")
+        return False
+
+
+def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800), quality: int = 85) -> bytes:
+    """Create a thumbnail from image bytes
+
+    Args:
+        image_bytes: Original image as bytes
+        max_size: Maximum dimensions (width, height) for thumbnail
+        quality: JPEG quality (1-95, higher is better quality)
+
+    Returns:
+        Thumbnail image as bytes
+    """
+    import io
+
+    from PIL import Image
+
+    try:
+        # Open image from bytes
+        image = Image.open(io.BytesIO(image_bytes))
+
+        # Convert to RGB if necessary (for JPEG compatibility)
+        if image.mode in ("RGBA", "P"):
+            new_image = image.convert("RGB")
+
+        # Create thumbnail maintaining aspect ratio
+        new_image.thumbnail(max_size, Image.Resampling.LANCZOS)
+
+        # Save thumbnail to bytes
+        thumbnail_io = io.BytesIO()
+        new_image.save(thumbnail_io, format="JPEG", quality=quality, optimize=True)
+        thumbnail_io.seek(0)
+
+        return thumbnail_io.read()
+    except Exception as e:
+        logger.error(f"Failed to create thumbnail: {e}")
+        raise
+
+
+def generate_thumbnail_object_key(original_object_key: str) -> str:
+    """Generate thumbnail object key from original object key
+
+    Args:
+        original_object_key: Original object key (e.g., 'gallery_id/filename.jpg')
+
+    Returns:
+        Thumbnail object key (e.g., 'gallery_id/thumbnails/filename.jpg')
+    """
+    if "/" in original_object_key:
+        gallery_id, filename = original_object_key.split("/", 1)
+        return f"{gallery_id}/thumbnails/{filename}"
+    else:
+        # Fallback if no gallery_id prefix
+        return f"thumbnails/{original_object_key}"

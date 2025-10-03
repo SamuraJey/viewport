@@ -1,4 +1,5 @@
 import io
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -8,7 +9,7 @@ def _upload_photo(client: TestClient, gallery_id: str, content: bytes, filename:
     files = {"file": (filename, io.BytesIO(content), "image/jpeg")}
     resp = client.post(f"/galleries/{gallery_id}/photos", files=files)
     assert resp.status_code == 201
-    return resp.json()["id"]
+    return cast(str, resp.json()["id"])
 
 
 class TestPublicAPI:

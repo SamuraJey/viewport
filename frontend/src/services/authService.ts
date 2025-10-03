@@ -9,6 +9,7 @@ export interface LoginRequest {
 export interface RegisterRequest {
   email: string
   password: string
+  invite_code: string
 }
 
 export interface LoginResponse {

@@ -56,6 +56,8 @@ class Photo(Base):
     )
     # S3 object key (e.g., gallery_id/filename)
     object_key = mapped_column(String, nullable=False)
+    # S3 object key for thumbnail (e.g., gallery_id/thumbnails/filename)
+    thumbnail_object_key = mapped_column(String, nullable=False)
     file_size = mapped_column(Integer, nullable=False)
     # Optional stored dimensions (filled from S3 metadata during upload)
     width = mapped_column(Integer, nullable=True)
