@@ -1,9 +1,11 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile-backend
     container_name: viewport_app
     env_file:
-      - .env
+      - .env.prod
     ports:
       - "8000:8000"
     depends_on:
