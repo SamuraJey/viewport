@@ -41,9 +41,15 @@ class GalleryRepository(BaseRepository):
         return gallery
 
     def delete_gallery(self, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> bool:
+        from src.viewport.minio_utils import delete_folder
+
         gallery = self.get_gallery_by_id_and_owner(gallery_id, owner_id)
         if not gallery:
             return False
+
+        # Delete the entire gallery folder from MinIO (including all photos and thumbnails)
+        delete_folder(f"{gallery_id}/")
+
         self.db.delete(gallery)
         self.db.commit()
         return True

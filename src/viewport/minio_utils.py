@@ -148,6 +148,45 @@ def delete_object(object_key: str) -> bool:
         return False
 
 
+def delete_folder(prefix: str) -> bool:
+    """Delete all objects with a given prefix (folder) from MinIO
+
+    Args:
+        prefix: The folder prefix to delete (e.g., 'gallery_id/')
+
+    Returns:
+        True if deletion was successful, False otherwise
+    """
+    s3_client = get_s3_client()
+    _, _, _, bucket = get_minio_config()
+
+    try:
+        # List all objects with the given prefix
+        paginator = s3_client.get_paginator("list_objects_v2")
+        pages = paginator.paginate(Bucket=bucket, Prefix=prefix)
+
+        objects_to_delete = []
+        for page in pages:
+            if "Contents" in page:
+                objects_to_delete.extend([{"Key": obj["Key"]} for obj in page["Contents"]])
+
+        # Delete all objects if any were found
+        if objects_to_delete:
+            # S3 delete_objects can handle up to 1000 objects at a time
+            for i in range(0, len(objects_to_delete), 1000):
+                batch = objects_to_delete[i : i + 1000]
+                s3_client.delete_objects(Bucket=bucket, Delete={"Objects": batch})
+
+            logger.info(f"Successfully deleted {len(objects_to_delete)} objects with prefix {prefix}")
+        else:
+            logger.info(f"No objects found with prefix {prefix}")
+
+        return True
+    except Exception as e:
+        logger.error(f"Failed to delete folder with prefix {prefix}: {e}")
+        return False
+
+
 def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (300, 300), quality: int = 85) -> bytes:
     """Create a thumbnail from image bytes
 
