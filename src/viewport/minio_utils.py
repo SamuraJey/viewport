@@ -188,7 +188,7 @@ def delete_folder(prefix: str) -> bool:
         return False
 
 
-def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (300, 300), quality: int = 85) -> bytes:
+def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800), quality: int = 85) -> bytes:
     """Create a thumbnail from image bytes
 
     Args:
