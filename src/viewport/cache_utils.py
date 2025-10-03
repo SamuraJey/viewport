@@ -11,7 +11,7 @@ from fastapi import Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
 
 # In-memory cache for presigned URLs
-_url_cache: dict[str, dict[str, Any]] = {}
+_url_cache: dict[str, dict[str, str | datetime]] = {}
 
 
 def cache_presigned_url(photo_id: str, url: str, expires_in: int) -> None:
@@ -25,8 +25,11 @@ def cache_presigned_url(photo_id: str, url: str, expires_in: int) -> None:
 def get_cached_presigned_url(photo_id: str) -> str | None:
     """Get cached presigned URL if still valid"""
     cached = _url_cache.get(photo_id)
-    if cached and cached["expires_at"] > datetime.now():
-        return cached["url"]
+    if cached:
+        expires_at = cached["expires_at"]
+        if isinstance(expires_at, datetime) and expires_at > datetime.now():
+            url = cached["url"]
+            return str(url) if isinstance(url, str) else None
 
     if photo_id in _url_cache:
         del _url_cache[photo_id]

@@ -60,7 +60,7 @@ class TestSharelinkAPI:
     def test_create_sharelink_different_user_gallery(self, client: TestClient, gallery_id_fixture: str):
         """Test creating sharelink for gallery owned by different user."""
         # Create and authenticate as different user
-        different_user_token = register_and_login(client, "different@example.com", "password123")
+        different_user_token = register_and_login(client, "different@example.com", "password123", "testinvitecode")
         client.headers.update({"Authorization": f"Bearer {different_user_token}"})
 
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
@@ -116,7 +116,7 @@ class TestSharelinkAPI:
     def test_delete_sharelink_different_user_gallery(self, client: TestClient, gallery_id_fixture: str):
         """Test deleting sharelink from gallery owned by different user."""
         # Create and authenticate as different user
-        different_user_token = register_and_login(client, "different@example.com", "password123")
+        different_user_token = register_and_login(client, "different@example.com", "password123", "testinvitecode")
         client.headers.update({"Authorization": f"Bearer {different_user_token}"})
 
         fake_sharelink_id = str(uuid4())

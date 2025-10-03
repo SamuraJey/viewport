@@ -1,5 +1,4 @@
 import os
-import time
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 
@@ -20,15 +19,13 @@ MINIO_ROOT_USER = "minioadmin"
 MINIO_ROOT_PASSWORD = "minioadmin"
 MINIO_PORT = 9000
 
-os.environ.update({"JWT_SECRET_KEY": "supersecretkey"})
+os.environ.update({"JWT_SECRET_KEY": "supersecretkey", "INVITE_CODE": "testinvitecode"})
 
 
 @pytest.fixture(scope="session")
 def postgres_container() -> Generator[PostgresContainer]:
     """Фикстура контейнера PostgreSQL с областью видимости на всю сессию тестов."""
     with PostgresContainer(image=POSTGRES_IMAGE) as container:
-        # Даем контейнеру время для инициализации
-        time.sleep(2)
         # Выставляем переменные окружения POSTGRES_* как в MinIO фикстуре
         # чтобы код, читающий настройки из окружения, указывал на этот контейнер
         db_url = container.get_connection_url()
@@ -91,8 +88,6 @@ def minio_container() -> Generator[DockerContainer]:
     )
 
     with container as minio:
-        # Ждем инициализации MinIO
-        time.sleep(3)
         host = minio.get_container_host_ip()
         port = minio.get_exposed_port(MINIO_PORT)
 
@@ -148,7 +143,7 @@ def client(db_session: Session, minio_container: DockerContainer):
 @pytest.fixture(scope="function")
 def test_user_data() -> dict[str, str]:
     """Данные тестового пользователя."""
-    return {"email": "botuhh@example.com", "password": "testpassword123"}
+    return {"email": "botuhh@example.com", "password": "testpassword123", "invite_code": "testinvitecode"}
 
 
 @pytest.fixture(scope="function")
@@ -157,7 +152,9 @@ def authenticated_client(client: TestClient, test_user_data: dict[str, str]) -> 
     client.post("/auth/register", json=test_user_data)
 
     # Аутентификация
+
     response = client.post("/auth/login", json=test_user_data)
+
     token = response.json()["tokens"]["access_token"]
 
     client.headers.update({"Authorization": f"Bearer {token}"})
@@ -186,11 +183,11 @@ def sharelink_fixture(authenticated_client: TestClient, gallery_fixture: str) ->
 def multiple_users_data() -> list[dict[str, str]]:
     """Fixture providing multiple user data for multi-user tests."""
     return [
-        {"email": "user1@example.com", "password": "password123"},
-        {"email": "user2@example.com", "password": "password456"},
-        {"email": "user3@example.com", "password": "password789"},
-        {"email": "user4@example.com", "password": "passwordabc"},
-        {"email": "user5@example.com", "password": "passworddef"},
+        {"email": "user1@example.com", "password": "password123", "invite_code": "testinvitecode"},
+        {"email": "user2@example.com", "password": "password456", "invite_code": "testinvitecode"},
+        {"email": "user3@example.com", "password": "password789", "invite_code": "testinvitecode"},
+        {"email": "user4@example.com", "password": "passwordabc", "invite_code": "testinvitecode"},
+        {"email": "user5@example.com", "password": "passworddef", "invite_code": "testinvitecode"},
     ]
 
 

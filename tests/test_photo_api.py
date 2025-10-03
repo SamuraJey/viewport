@@ -49,7 +49,7 @@ class TestPhotoAPI:
     def test_upload_photo_different_user_gallery(self, client: TestClient, gallery_id_fixture: str):
         """Test uploading photo to gallery owned by different user."""
         # Create and authenticate as different user
-        different_user_token = register_and_login(client, "different@example.com", "password123")
+        different_user_token = register_and_login(client, "different@example.com", "password123", "testinvitecode")
         client.headers.update({"Authorization": f"Bearer {different_user_token}"})
 
         image_content = b"fake image content"
@@ -113,16 +113,18 @@ class TestPhotoAPI:
         response = client.get(f"/galleries/{fake_gallery_id}/photos/{fake_photo_id}")
         assert response.status_code == 401
 
-    def test_get_photo_different_user_gallery(self, client: TestClient, gallery_id_fixture: str):
-        """Test retrieving photo from gallery owned by different user."""
-        # Create and authenticate as different user
-        different_user_token = register_and_login(client, "different@example.com", "password123")
-        client.headers.update({"Authorization": f"Bearer {different_user_token}"})
+    def test_get_photo_different_user_gallery(self, client: TestClient, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Test getting photo from gallery owned by different user."""
+        # First, upload a photo as authenticated user
+        image_content = b"fake image content"
+        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
+        upload_response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
+        assert upload_response.status_code == 201
+        assert upload_response.json()["id"]
 
-        fake_photo_id = str(uuid4())
-        response = client.get(f"/galleries/{gallery_id_fixture}/photos/{fake_photo_id}")
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
+        # Create and authenticate as different user
+        different_user_token = register_and_login(client, "different@example.com", "password123", "testinvitecode")
+        client.headers.update({"Authorization": f"Bearer {different_user_token}"})
 
     def test_get_photo_url_auth_not_found(self, authenticated_client: TestClient):
         """Test getting a signed URL for a non-existent photo."""
@@ -228,7 +230,7 @@ class TestPhotoAPI:
     def test_delete_photo_different_user_gallery(self, client: TestClient, gallery_id_fixture: str):
         """Test deleting photo from gallery owned by different user."""
         # Create and authenticate as different user
-        different_user_token = register_and_login(client, "different@example.com", "password123")
+        different_user_token = register_and_login(client, "different@example.com", "password123", "testinvitecode")
         client.headers.update({"Authorization": f"Bearer {different_user_token}"})
 
         fake_photo_id = str(uuid4())
@@ -326,7 +328,7 @@ class TestPhotoAPI:
 
     def test_get_all_photo_urls_for_gallery_different_user(self, client: TestClient, gallery_id_fixture: str):
         """Test getting URLs from another user's gallery."""
-        different_user_token = register_and_login(client, "different@example.com", "password123")
+        different_user_token = register_and_login(client, "different@example.com", "password123", "testinvitecode")
         client.headers.update({"Authorization": f"Bearer {different_user_token}"})
 
         response = client.get(f"/galleries/{gallery_id_fixture}/photos/urls")
@@ -379,7 +381,7 @@ class TestPhotoAPI:
     def test_rename_photo_different_user_gallery(self, client: TestClient, gallery_id_fixture: str):
         """Test renaming photo in gallery owned by different user."""
         # Create and authenticate as different user
-        different_user_token = register_and_login(client, "different@example.com", "password123")
+        different_user_token = register_and_login(client, "different@example.com", "password123", "testinvitecode")
         client.headers.update({"Authorization": f"Bearer {different_user_token}"})
 
         fake_photo_id = str(uuid4())

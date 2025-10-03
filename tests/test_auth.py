@@ -16,10 +16,10 @@ class TestAuthAPI:
     @pytest.mark.parametrize(
         "user_data",
         [
-            {"email": "test1@example.com", "password": "password123"},
-            {"email": "test2@example.com", "password": "verylongpassword12345"},
-            {"email": "user.with.dots@example.com", "password": "password123"},
-            {"email": "user+tag@example.com", "password": "password123"},
+            {"email": "test1@example.com", "password": "password123", "invite_code": "testinvitecode"},
+            {"email": "test2@example.com", "password": "verylongpassword12345", "invite_code": "testinvitecode"},
+            {"email": "user.with.dots@example.com", "password": "password123", "invite_code": "testinvitecode"},
+            {"email": "user+tag@example.com", "password": "password123", "invite_code": "testinvitecode"},
         ],
     )
     def test_register_success(self, client: TestClient, user_data):
@@ -33,12 +33,14 @@ class TestAuthAPI:
     @pytest.mark.parametrize(
         "invalid_data,expected_status",
         [
-            ({"email": "invalid-email", "password": "password123"}, 422),
-            ({"email": "test@example.com", "password": "short"}, 422),
-            ({"email": "test@example.com", "password": ""}, 422),
-            ({"email": "", "password": "password123"}, 422),
-            ({"email": "test@example.com"}, 422),  # Missing password
-            ({"password": "password123"}, 422),  # Missing email
+            ({"email": "invalid-email", "password": "password123", "invite_code": "testinvitecode"}, 422),
+            ({"email": "test@example.com", "password": "short", "invite_code": "testinvitecode"}, 422),
+            ({"email": "test@example.com", "password": "", "invite_code": "testinvitecode"}, 422),
+            ({"email": "", "password": "password123", "invite_code": "testinvitecode"}, 422),
+            ({"email": "test@example.com", "invite_code": "testinvitecode"}, 422),  # Missing password
+            ({"password": "password123", "invite_code": "testinvitecode"}, 422),  # Missing email
+            ({"email": "test@example.com", "password": "password123"}, 422),  # Missing invite_code
+            ({"email": "test@example.com", "password": "password123", "invite_code": ""}, 422),  # Empty invite_code
             ({}, 422),  # Empty payload
         ],
     )
@@ -46,6 +48,13 @@ class TestAuthAPI:
         """Test registration with various invalid inputs."""
         response = client.post("/auth/register", json=invalid_data)
         assert response.status_code == expected_status
+
+    def test_register_invalid_invite_code(self, client: TestClient):
+        """Test registration with invalid invite code."""
+        user_data = {"email": "test@example.com", "password": "password123", "invite_code": "wrongcode"}
+        response = client.post("/auth/register", json=user_data)
+        assert response.status_code == 403
+        assert response.json()["detail"] == "Invalid invite code"
 
     def test_register_duplicate_email(self, client: TestClient, test_user_data):
         """Test registration with duplicate email."""
@@ -100,7 +109,7 @@ class TestAuthFlow:
 
     def test_complete_auth_flow(self, client: TestClient):
         """Test complete registration -> login -> access protected endpoint flow."""
-        user_data = {"email": "flow@example.com", "password": "flowpassword123"}
+        user_data = {"email": "flow@example.com", "password": "flowpassword123", "invite_code": "testinvitecode"}
 
         # Step 1: Register
         reg_response = client.post("/auth/register", json=user_data)

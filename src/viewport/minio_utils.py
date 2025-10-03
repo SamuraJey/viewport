@@ -1,5 +1,6 @@
 import logging
 from functools import cache
+from typing import cast
 
 import boto3
 from botocore.client import BaseClient, Config
@@ -79,7 +80,7 @@ def get_file_url(filename, time: int = 3600):
     return s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": filename}, ExpiresIn=time)
 
 
-def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:
+def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:  # TODO maybe change to url
     """Generate a presigned URL for direct S3 access to an object"""
     from src.viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
 
@@ -95,7 +96,7 @@ def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:
 
         cache_presigned_url(object_key, url, expires_in)
 
-        return url
+        return cast(str, url)
     except Exception as e:
         logger.error(f"Failed to generate presigned URL for {object_key}: {e}")
         raise
@@ -110,7 +111,7 @@ def get_object_metadata(object_key: str) -> dict:
     _, _, _, bucket = get_minio_config()
     try:
         resp = s3_client.head_object(Bucket=bucket, Key=object_key)
-        return resp
+        return cast(dict, resp)
     except Exception as e:
         logger.debug(f"Failed to get metadata for {object_key}: {e}")
         return {}
@@ -208,14 +209,14 @@ def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (300, 300),
 
         # Convert to RGB if necessary (for JPEG compatibility)
         if image.mode in ("RGBA", "P"):
-            image = image.convert("RGB")
+            new_image = image.convert("RGB")
 
         # Create thumbnail maintaining aspect ratio
-        image.thumbnail(max_size, Image.Resampling.LANCZOS)
+        new_image.thumbnail(max_size, Image.Resampling.LANCZOS)
 
         # Save thumbnail to bytes
         thumbnail_io = io.BytesIO()
-        image.save(thumbnail_io, format="JPEG", quality=quality, optimize=True)
+        new_image.save(thumbnail_io, format="JPEG", quality=quality, optimize=True)
         thumbnail_io.seek(0)
 
         return thumbnail_io.read()
