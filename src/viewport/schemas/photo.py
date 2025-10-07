@@ -1,6 +1,5 @@
 from datetime import datetime
 from uuid import UUID
-from venv import logger
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -31,7 +30,6 @@ class PhotoResponse(BaseModel):
         # Generate presigned URL directly for S3 access
         presigned_url = generate_presigned_url(photo.object_key, expires_in=3600)  # 1 hour expiration
         thumbnail_url = generate_presigned_url(photo.thumbnail_object_key, expires_in=3600)  # 1 hour expiration
-        logger.info(thumbnail_url)
         # Extract filename from object_key (format: gallery_id/filename)
         filename = photo.object_key.split("/", 1)[1] if "/" in photo.object_key else photo.object_key
         # Attempt to read metadata (width/height) from S3 object metadata if available
