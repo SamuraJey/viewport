@@ -272,7 +272,7 @@ export const PublicGalleryPage = () => {
                     aria-label={`Photo ${photo.photo_id}`}
                   >
                     <LazyImage
-                      src={photo.full_url}
+                      src={photo.thumbnail_url}
                       alt={`Photo ${photo.photo_id}`}
                       className="w-full"
                       width={photo.width}

@@ -417,7 +417,7 @@ export const GalleryPage = () => {
                       title="Click to view, double-click to rename"
                     >
                       <img
-                        src={photo.url}
+                        src={photo.thumbnail_url}
                         alt={`Photo ${photo.id}`}
                         className="w-full h-full object-contain rounded-t-lg transition-opacity"
                         loading="lazy"

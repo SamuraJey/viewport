@@ -4,6 +4,7 @@ export interface PhotoResponse {
   id: string
   gallery_id: string
   url: string
+  thumbnail_url: string
   filename: string
   width?: number | null
   height?: number | null

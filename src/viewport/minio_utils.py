@@ -208,15 +208,15 @@ def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800),
         image = Image.open(io.BytesIO(image_bytes))
 
         # Convert to RGB if necessary (for JPEG compatibility)
-        if image.mode in ("RGBA", "P"):
-            new_image = image.convert("RGB")
+        image = image.convert("RGB")
 
         # Create thumbnail maintaining aspect ratio
-        new_image.thumbnail(max_size, Image.Resampling.LANCZOS)
+        image.thumbnail(max_size, Image.Resampling.LANCZOS)
 
         # Save thumbnail to bytes
         thumbnail_io = io.BytesIO()
-        new_image.save(thumbnail_io, format="JPEG", quality=quality, optimize=True)
+        image.save(thumbnail_io, format="JPEG", quality=quality, optimize=True)
+        image.close()
         thumbnail_io.seek(0)
 
         return thumbnail_io.read()

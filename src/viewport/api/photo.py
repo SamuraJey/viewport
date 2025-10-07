@@ -96,55 +96,6 @@ def get_photo_url(gallery_id: UUID, photo_id: UUID, repo: GalleryRepository = De
         raise HTTPException(status_code=500, detail="Failed to generate photo URL") from e
 
 
-@router.post("/{gallery_id}/photos", response_model=PhotoResponse, status_code=status.HTTP_201_CREATED)
-def upload_photo(gallery_id: UUID, file: UploadFile = File(...), repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):  # noqa: B008
-    # Check gallery ownership
-    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
-    if not gallery:
-        raise HTTPException(status_code=404, detail="Gallery not found")
-
-    # Validate file size
-    contents = file.file.read()
-    file_size = len(contents)
-    if file_size > MAX_FILE_SIZE:
-        raise HTTPException(status_code=413, detail="File too large (max 15MB)")
-
-    # Determine image dimensions and upload to MinIO with metadata
-    filename = f"{gallery_id}/{file.filename}"
-    object_key = filename
-    try:
-        img = Image.open(io.BytesIO(contents))
-        width, height = img.size
-    except Exception:
-        width = None
-        height = None
-
-    metadata = {}
-    if width:
-        metadata["width"] = str(width)
-    if height:
-        metadata["height"] = str(height)
-
-    # Upload original file content and store object key. Pass metadata to S3.
-    upload_fileobj((bytes(contents), metadata), filename=object_key)
-
-    # Create and upload thumbnail
-    from src.viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key
-
-    try:
-        thumbnail_bytes = create_thumbnail(contents)
-        thumbnail_object_key = generate_thumbnail_object_key(object_key)
-        upload_fileobj(thumbnail_bytes, filename=thumbnail_object_key)
-    except Exception as e:
-        logger.error(f"Failed to create thumbnail for {object_key}: {e}")
-        # If thumbnail creation fails, use original image as thumbnail for backward compatibility
-        thumbnail_object_key = object_key
-
-    # Save Photo record (persist width/height and thumbnail_object_key)
-    photo = repo.create_photo(gallery_id, object_key, thumbnail_object_key, file_size, width=width, height=height)
-    return PhotoResponse.from_db_photo(photo)
-
-
 @router.post("/{gallery_id}/photos/batch", response_model=PhotoUploadResponse)
 def upload_photos_batch(gallery_id: UUID, files: Annotated[list[UploadFile], File()], repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
     """Upload multiple photos to a gallery"""
@@ -198,6 +149,7 @@ def upload_photos_batch(gallery_id: UUID, files: Annotated[list[UploadFile], Fil
                 thumbnail_bytes = create_thumbnail(contents)
                 thumbnail_object_key = generate_thumbnail_object_key(object_key)
                 upload_fileobj(thumbnail_bytes, filename=thumbnail_object_key)
+                logger.info("Uploaded thumbnail for %s as %s", object_key, thumbnail_object_key)
             except Exception as e:
                 logger.error(f"Failed to create thumbnail for {object_key}: {e}")
                 # If thumbnail creation fails, use original image as thumbnail for backward compatibility

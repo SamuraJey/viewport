@@ -43,14 +43,16 @@ def get_photos_by_sharelink(
     with contextlib.suppress(Exception):
         photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
 
+    logger.error("Generating public gallery view for share %s with %d photos", share_id, len(photos))
     photo_list = []
     for photo in photos:
         try:
             presigned_url = generate_presigned_url(photo.object_key)
+            presigned_url_thumb = generate_presigned_url(photo.thumbnail_object_key)
             photo_list.append(
                 PublicPhoto(
                     photo_id=str(photo.id),
-                    thumbnail_url=presigned_url,
+                    thumbnail_url=presigned_url_thumb,
                     full_url=presigned_url,
                     filename=(photo.object_key.split("/", 1)[1] if "/" in photo.object_key else photo.object_key),
                     width=getattr(photo, "width", None),
@@ -118,10 +120,11 @@ def get_all_public_photo_urls(
     for photo in photos:
         try:
             presigned_url = generate_presigned_url(photo.object_key)
+            presigned_url_thumb = generate_presigned_url(photo.thumbnail_object_key)
             photo_list.append(
                 PublicPhoto(
                     photo_id=str(photo.id),
-                    thumbnail_url=presigned_url,
+                    thumbnail_url=presigned_url_thumb,
                     full_url=presigned_url,
                     filename=(photo.object_key.split("/", 1)[1] if "/" in photo.object_key else photo.object_key),
                     width=getattr(photo, "width", None),

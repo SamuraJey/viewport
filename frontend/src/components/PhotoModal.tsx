@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react'
-import { PresignedImage } from './PresignedImage'
 import { PublicBatchImage, PublicBatchImageProvider } from './PublicBatchImage'
 
 interface Photo {
@@ -62,7 +61,7 @@ export const PhotoModal = ({
 
   const currentPhoto = photos[selectedIndex]
   const photoId = currentPhoto.id || currentPhoto.photo_id || ''
-  const galleryId = currentPhoto.gallery_id
+  const photoUrl = currentPhoto.url || currentPhoto.full_url || ''
 
   return (
     <div
@@ -108,9 +107,8 @@ export const PhotoModal = ({
             />
           </PublicBatchImageProvider>
         ) : (
-          <PresignedImage
-            photoId={photoId}
-            galleryId={galleryId}
+          <img
+            src={photoUrl}
             alt={`Photo ${photoId}`}
             className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
             loading="eager"
