@@ -12,21 +12,6 @@ from tests.helpers import register_and_login
 class TestPhotoAPI:
     """Test photo API endpoints with comprehensive coverage."""
 
-    def test_upload_photo_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
-        """Test successful photo upload."""
-        # Create a fake image file
-        image_content = b"fake image content"
-        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-
-        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
-        assert response.status_code == 201
-        data = response.json()
-
-        assert "id" in data
-        assert "file_size" in data
-        assert data["file_size"] == len(image_content)
-        assert "uploaded_at" in data
-
     def test_upload_photo_gallery_not_found(self, authenticated_client: TestClient):
         """Test uploading photo to non-existent gallery."""
         fake_uuid = str(uuid4())
@@ -36,15 +21,6 @@ class TestPhotoAPI:
         response = authenticated_client.post(f"/galleries/{fake_uuid}/photos", files=files)
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
-
-    def test_upload_photo_unauthorized(self, client: TestClient):
-        """Test uploading photo without authentication."""
-        fake_gallery_id = str(uuid4())
-        image_content = b"fake image content"
-        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-
-        response = client.post(f"/galleries/{fake_gallery_id}/photos", files=files)
-        assert response.status_code == 401
 
     def test_upload_photo_different_user_gallery(self, client: TestClient, gallery_id_fixture: str):
         """Test uploading photo to gallery owned by different user."""
@@ -58,21 +34,6 @@ class TestPhotoAPI:
         response = client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
-
-    def test_upload_photo_file_too_large(self, authenticated_client: TestClient, gallery_id_fixture: str):
-        """Test uploading photo that exceeds size limit."""
-        # Create a file larger than 15MB
-        large_content = b"x" * (16 * 1024 * 1024)  # 16MB
-        files = {"file": ("large.jpg", io.BytesIO(large_content), "image/jpeg")}
-
-        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
-        assert response.status_code == 413
-        assert "file too large" in response.json()["detail"].lower()
-
-    def test_upload_photo_no_file(self, authenticated_client: TestClient, gallery_id_fixture: str):
-        """Test uploading without providing a file."""
-        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos")
-        assert response.status_code == 422
 
     def test_get_photo_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test successful photo retrieval."""

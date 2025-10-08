@@ -201,11 +201,14 @@ def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800),
     """
     import io
 
-    from PIL import Image
+    from PIL import Image, ImageOps
 
     try:
         # Open image from bytes
         image = Image.open(io.BytesIO(image_bytes))
+
+        # Apply EXIF orientation to fix rotation issues
+        image = ImageOps.exif_transpose(image) or image
 
         # Convert to RGB if necessary (for JPEG compatibility)
         image = image.convert("RGB")

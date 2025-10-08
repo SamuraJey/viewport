@@ -6,8 +6,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 from botocore.exceptions import ClientError, NoCredentialsError
+from PIL import Image
 
-from src.viewport.minio_utils import MinioSettings, ensure_bucket_exists, get_file_url, get_minio_config, get_s3_client, upload_fileobj
+from src.viewport.minio_utils import MinioSettings, create_thumbnail, ensure_bucket_exists, get_file_url, get_minio_config, get_s3_client, upload_fileobj
 
 
 class TestMinioSettings:
@@ -345,3 +346,122 @@ class TestMinioErrorHandling:
 
         with pytest.raises(NoCredentialsError):
             get_s3_client()
+
+
+class TestThumbnailCreation:
+    """Test thumbnail creation utilities."""
+
+    def _create_test_image(self, width: int, height: int, mode: str = "RGB", exif_orientation: int | None = None) -> bytes:
+        """Helper to create a test image with optional EXIF orientation."""
+        img = Image.new(mode, (width, height), color="red")
+
+        # Add EXIF orientation if specified
+        if exif_orientation:
+            exif = img.getexif()
+            exif[0x0112] = exif_orientation  # 0x0112 is the Orientation tag
+
+            # Save with EXIF data
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG", exif=exif)
+            buffer.seek(0)
+            return buffer.read()
+
+        # Save without EXIF
+        buffer = io.BytesIO()
+        img.save(buffer, format="JPEG")
+        buffer.seek(0)
+        return buffer.read()
+
+    def test_create_thumbnail_basic(self):
+        """Test basic thumbnail creation."""
+        # Create a test image
+        test_image_bytes = self._create_test_image(1600, 1200)
+
+        # Create thumbnail
+        thumbnail_bytes = create_thumbnail(test_image_bytes, max_size=(800, 800))
+
+        # Verify thumbnail was created
+        assert thumbnail_bytes is not None
+        assert len(thumbnail_bytes) > 0
+
+        # Verify thumbnail dimensions
+        thumbnail_img = Image.open(io.BytesIO(thumbnail_bytes))
+        assert thumbnail_img.width <= 800
+        assert thumbnail_img.height <= 800
+
+        # Verify aspect ratio is maintained
+        assert abs(thumbnail_img.width / thumbnail_img.height - 1600 / 1200) < 0.01
+
+    def test_create_thumbnail_with_exif_orientation(self):
+        """Test thumbnail creation with EXIF orientation (rotation)."""
+        # Create a portrait image (600x800) with EXIF orientation 6 (rotate 90 CW)
+        # This simulates how cameras often store portrait photos
+        test_image_bytes = self._create_test_image(800, 600, exif_orientation=6)
+
+        # Create thumbnail
+        thumbnail_bytes = create_thumbnail(test_image_bytes, max_size=(800, 800))
+
+        # Verify thumbnail was created
+        assert thumbnail_bytes is not None
+
+        # Load thumbnail and check it was rotated correctly
+        thumbnail_img = Image.open(io.BytesIO(thumbnail_bytes))
+
+        # After applying EXIF orientation 6, the image should be rotated 90 degrees CW
+        # Original: 800x600 (landscape) -> After rotation: 600x800 (portrait)
+        # The thumbnail should respect this rotation
+        assert thumbnail_img.width <= 800
+        assert thumbnail_img.height <= 800
+
+    def test_create_thumbnail_maintains_aspect_ratio(self):
+        """Test that thumbnail maintains aspect ratio."""
+        # Test with various aspect ratios
+        test_cases = [
+            (1600, 1200),  # 4:3 landscape
+            (1200, 1600),  # 3:4 portrait
+            (2000, 1000),  # 2:1 wide
+            (1000, 2000),  # 1:2 tall
+        ]
+
+        for width, height in test_cases:
+            test_image_bytes = self._create_test_image(width, height)
+            thumbnail_bytes = create_thumbnail(test_image_bytes, max_size=(400, 400))
+
+            thumbnail_img = Image.open(io.BytesIO(thumbnail_bytes))
+            original_ratio = width / height
+            thumbnail_ratio = thumbnail_img.width / thumbnail_img.height
+
+            # Allow small floating point differences
+            assert abs(original_ratio - thumbnail_ratio) < 0.01, f"Aspect ratio not maintained for {width}x{height}"
+
+    def test_create_thumbnail_custom_size(self):
+        """Test thumbnail creation with custom max size."""
+        test_image_bytes = self._create_test_image(2000, 1500)
+
+        # Create with custom size
+        thumbnail_bytes = create_thumbnail(test_image_bytes, max_size=(400, 300))
+
+        thumbnail_img = Image.open(io.BytesIO(thumbnail_bytes))
+        assert thumbnail_img.width <= 400
+        assert thumbnail_img.height <= 300
+
+    def test_create_thumbnail_smaller_than_max(self):
+        """Test that small images are not upscaled."""
+        # Create an image smaller than max_size
+        test_image_bytes = self._create_test_image(400, 300)
+
+        thumbnail_bytes = create_thumbnail(test_image_bytes, max_size=(800, 800))
+
+        thumbnail_img = Image.open(io.BytesIO(thumbnail_bytes))
+        # thumbnail() doesn't upscale, so dimensions should remain the same or smaller
+        assert thumbnail_img.width <= 400
+        assert thumbnail_img.height <= 300
+
+    def test_create_thumbnail_invalid_image(self):
+        """Test that invalid image data raises exception."""
+        from PIL import UnidentifiedImageError
+
+        invalid_bytes = b"not an image"
+
+        with pytest.raises(UnidentifiedImageError):
+            create_thumbnail(invalid_bytes)

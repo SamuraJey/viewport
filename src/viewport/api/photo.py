@@ -97,7 +97,7 @@ def get_photo_url(gallery_id: UUID, photo_id: UUID, repo: GalleryRepository = De
 
 
 @router.post("/{gallery_id}/photos/batch", response_model=PhotoUploadResponse)
-def upload_photos_batch(gallery_id: UUID, files: Annotated[list[UploadFile], File()], repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
+async def upload_photos_batch(gallery_id: UUID, files: Annotated[list[UploadFile], File()], repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
     """Upload multiple photos to a gallery"""
     # Check gallery ownership
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
@@ -127,7 +127,11 @@ def upload_photos_batch(gallery_id: UUID, files: Annotated[list[UploadFile], Fil
             filename = f"{gallery_id}/{file.filename}"
             object_key = filename
             try:
+                from PIL import ImageOps
+
                 img = Image.open(io.BytesIO(contents))
+                # Apply EXIF orientation to get correct dimensions
+                img = ImageOps.exif_transpose(img) or img
                 w, h = img.size
             except Exception:
                 w = None
