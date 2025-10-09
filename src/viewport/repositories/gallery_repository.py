@@ -95,6 +95,35 @@ class GalleryRepository(BaseRepository):
         self.db.refresh(photo)
         return photo
 
+    def create_photos_batch(
+        self,
+        photos_data: list[dict],
+    ) -> list[Photo]:
+        """Batch create multiple photos efficiently
+
+        Args:
+            photos_data: List of dicts with keys: gallery_id, object_key, thumbnail_object_key,
+                        file_size, width (optional), height (optional)
+
+        Returns:
+            List of created Photo objects
+        """
+        from datetime import UTC, datetime
+
+        # Add timestamps to all records
+        now = datetime.now(UTC)
+        for data in photos_data:
+            data["uploaded_at"] = now
+
+        # Bulk insert
+        self.db.bulk_insert_mappings(Photo, photos_data)
+        self.db.commit()
+
+        # Fetch the inserted photos (can't use RETURNING with bulk_insert_mappings easily)
+        # We'll query by gallery_id and uploaded_at timestamp
+        stmt = select(Photo).where(Photo.gallery_id == photos_data[0]["gallery_id"], Photo.uploaded_at == now)
+        return list(self.db.execute(stmt).scalars().all())
+
     def delete_photo(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> bool:
         from src.viewport.minio_utils import delete_object
 

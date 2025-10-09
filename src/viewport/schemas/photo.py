@@ -71,6 +71,9 @@ class PhotoUploadResult(BaseModel):
     success: bool
     error: str | None = None
     photo: PhotoResponse | None = None
+    metadata_: dict | None = None  # Internal metadata for processing, not serialized
+
+    model_config = ConfigDict(exclude={"metadata_"})
 
 
 class PhotoUploadResponse(BaseModel):

@@ -41,7 +41,21 @@ def get_s3_client() -> BaseClient:
 
     logger.debug(f"Connecting to MinIO at {endpoint} with bucket {bucket}")
 
-    return boto3.client("s3", endpoint_url=f"http://{endpoint}", aws_access_key_id=access_key, aws_secret_access_key=secret_key, config=Config(signature_version="s3v4"), region_name="eu-west-1")
+    # Increase max pool connections to support concurrent uploads
+    # Default is 10, but we need more for parallel batch processing
+    config = Config(
+        signature_version="s3v4",
+        max_pool_connections=50,  # Support up to 50 concurrent connections
+    )
+
+    return boto3.client(
+        "s3",
+        endpoint_url=f"http://{endpoint}",
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        config=config,
+        region_name="eu-west-1",
+    )
 
 
 def ensure_bucket_exists():
@@ -228,6 +242,54 @@ def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800),
         raise
 
 
+def process_image_and_create_thumbnail(
+    image_bytes: bytes,
+    max_size: tuple[int, int] = (800, 800),
+    quality: int = 85,
+) -> tuple[bytes, int | None, int | None]:
+    """Process image: extract dimensions and create thumbnail in one pass
+
+    Args:
+        image_bytes: Original image bytes
+        max_size: Maximum thumbnail dimensions
+        quality: JPEG quality
+
+    Returns:
+        Tuple of (thumbnail_bytes, width, height)
+    """
+    import io
+
+    from PIL import Image, ImageOps
+
+    try:
+        # Open image once
+        image = Image.open(io.BytesIO(image_bytes))
+
+        # Apply EXIF orientation
+        image = ImageOps.exif_transpose(image) or image
+
+        # Get dimensions
+        width, height = image.size
+
+        # Convert to RGB
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+
+        # Create thumbnail (modifies image in-place)
+        image.thumbnail(max_size, Image.Resampling.LANCZOS)
+
+        # Save thumbnail
+        thumbnail_io = io.BytesIO()
+        image.save(thumbnail_io, format="JPEG", quality=quality, optimize=True)
+        image.close()
+        thumbnail_io.seek(0)
+
+        return thumbnail_io.read(), width, height
+    except Exception as e:
+        logger.error(f"Failed to process image: {e}")
+        raise
+
+
 def generate_thumbnail_object_key(original_object_key: str) -> str:
     """Generate thumbnail object key from original object key
 
@@ -243,3 +305,201 @@ def generate_thumbnail_object_key(original_object_key: str) -> str:
     else:
         # Fallback if no gallery_id prefix
         return f"thumbnails/{original_object_key}"
+
+
+# ============================================================================
+# Async functions for concurrent operations using aioboto3
+# ============================================================================
+
+# Global lock for bucket creation
+_bucket_creation_lock = None
+_bucket_ensured = False
+
+# Shared thread pool for CPU-bound operations
+_executor = None
+
+
+def _get_executor():
+    """Get or create a shared thread pool executor"""
+    import os
+    from concurrent.futures import ThreadPoolExecutor
+
+    global _executor
+    if _executor is None:
+        # Use number of CPUs for optimal parallelism
+        max_workers = min(32, (os.cpu_count() or 1) * 2)
+        _executor = ThreadPoolExecutor(max_workers=max_workers)
+    return _executor
+
+
+def _get_bucket_lock():
+    """Get or create the bucket creation lock"""
+    global _bucket_creation_lock
+    if _bucket_creation_lock is None:
+        import asyncio
+
+        _bucket_creation_lock = asyncio.Lock()
+    return _bucket_creation_lock
+
+
+async def async_ensure_bucket_exists():
+    """Async version of ensure_bucket_exists using sync boto3 (faster)"""
+    import asyncio
+
+    global _bucket_ensured
+
+    # Fast path: if bucket already ensured, return immediately
+    if _bucket_ensured:
+        return
+
+    # Acquire lock to prevent concurrent bucket creation attempts
+    lock = _get_bucket_lock()
+    async with lock:
+        # Double-check after acquiring lock
+        if _bucket_ensured:
+            return
+
+        # Use sync boto3 in executor
+        executor = _get_executor()
+        loop = asyncio.get_event_loop()
+
+        def _sync_ensure_bucket():
+            global _bucket_ensured
+            s3_client = get_s3_client()
+            _, _, _, bucket = get_minio_config()
+
+            try:
+                buckets_response = s3_client.list_buckets()
+                buckets = buckets_response.get("Buckets", [])
+                if not any(b["Name"] == bucket for b in buckets):
+                    s3_client.create_bucket(Bucket=bucket)
+                    logger.info(f"Created bucket: {bucket}")
+                _bucket_ensured = True
+            except Exception as e:
+                logger.error(f"Failed to ensure bucket exists: {e}")
+                raise
+
+        await loop.run_in_executor(executor, _sync_ensure_bucket)
+
+
+async def async_upload_fileobj(fileobj, filename: str, metadata: dict | None = None):
+    """Async version of upload_fileobj using sync boto3 in executor (faster than aioboto3)
+
+    Args:
+        fileobj: File-like object or bytes to upload
+        filename: S3 object key
+        metadata: Optional metadata dict to attach to the object
+
+    Returns:
+        S3 object path
+    """
+    import asyncio
+    import io
+
+    # Ensure bucket exists (cached after first call)
+    await async_ensure_bucket_exists()
+
+    # Use sync boto3 in executor - it's faster than aioboto3 for small files
+    executor = _get_executor()
+    loop = asyncio.get_event_loop()
+
+    def _sync_upload():
+        s3_client = get_s3_client()
+        _, _, _, bucket = get_minio_config()
+
+        # Normalize raw bytes into a file-like object
+        file_to_upload = fileobj
+        if isinstance(fileobj, bytes):
+            file_to_upload = io.BytesIO(fileobj)
+
+        extra_args = {}
+        if metadata:
+            extra_args["Metadata"] = metadata
+
+        s3_client.upload_fileobj(file_to_upload, bucket, filename, ExtraArgs=extra_args if extra_args else None)
+        return f"/{bucket}/{filename}"
+
+    return await loop.run_in_executor(executor, _sync_upload)
+
+
+async def async_create_and_upload_thumbnail(
+    image_bytes: bytes,
+    object_key: str,
+    max_size: tuple[int, int] = (800, 800),
+    quality: int = 85,
+) -> tuple[str, int | None, int | None]:
+    """Process image and upload thumbnail asynchronously
+
+    Args:
+        image_bytes: Original image bytes
+        object_key: Original object key
+        max_size: Maximum thumbnail dimensions
+        quality: JPEG quality
+
+    Returns:
+        Tuple of (thumbnail_object_key, width, height)
+    """
+    import asyncio
+
+    # Process image and create thumbnail in shared thread pool
+    executor = _get_executor()
+    loop = asyncio.get_event_loop()
+
+    thumbnail_bytes, width, height = await loop.run_in_executor(
+        executor,
+        process_image_and_create_thumbnail,
+        image_bytes,
+        max_size,
+        quality,
+    )
+
+    # Upload thumbnail asynchronously
+    thumbnail_object_key = generate_thumbnail_object_key(object_key)
+    await async_upload_fileobj(thumbnail_bytes, thumbnail_object_key)
+
+    return thumbnail_object_key, width, height
+
+
+async def async_process_and_upload_image(
+    image_bytes: bytes,
+    object_key: str,
+    extract_dimensions: bool = True,
+) -> tuple[str, str, int | None, int | None]:
+    """Process image, create thumbnail, and upload both concurrently
+
+    Args:
+        image_bytes: Image bytes to process
+        object_key: S3 object key for the original image
+        extract_dimensions: Whether to extract image dimensions (always True for optimization)
+
+    Returns:
+        Tuple of (object_key, thumbnail_object_key, width, height)
+    """
+    import asyncio
+
+    # Process image and create thumbnail (gets dimensions as side effect)
+    # Upload original and thumbnail concurrently
+    # Use return_exceptions to handle thumbnail errors gracefully
+    results = await asyncio.gather(
+        async_upload_fileobj(image_bytes, object_key, None),
+        async_create_and_upload_thumbnail(image_bytes, object_key),
+        return_exceptions=True,
+    )
+
+    # Check results
+    original_result, thumbnail_result = results
+
+    # If original upload failed, raise the exception
+    if isinstance(original_result, Exception):
+        logger.error(f"Failed to upload original for {object_key}: {original_result}")
+        raise original_result
+
+    # If thumbnail creation failed, use original as thumbnail
+    if isinstance(thumbnail_result, Exception):
+        logger.warning(f"Thumbnail creation failed for {object_key}, using original as thumbnail")
+        thumbnail_object_key = object_key
+        width, height = None, None
+    else:
+        thumbnail_object_key, width, height = thumbnail_result
+
+    return object_key, thumbnail_object_key, width, height

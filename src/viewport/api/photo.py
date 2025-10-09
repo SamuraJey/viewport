@@ -1,16 +1,14 @@
-import io
 import logging
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
-from PIL import Image
 from sqlalchemy.orm import Session
 
 from src.viewport.auth_utils import get_current_user
 from src.viewport.cache_utils import photo_cache, url_cache
 from src.viewport.db import get_db
-from src.viewport.minio_utils import generate_presigned_url, upload_fileobj
+from src.viewport.minio_utils import generate_presigned_url
 from src.viewport.repositories.gallery_repository import GalleryRepository
 from src.viewport.schemas.photo import PhotoRenameRequest, PhotoResponse, PhotoUploadResponse, PhotoUploadResult
 
@@ -97,8 +95,15 @@ def get_photo_url(gallery_id: UUID, photo_id: UUID, repo: GalleryRepository = De
 
 
 @router.post("/{gallery_id}/photos/batch", response_model=PhotoUploadResponse)
-async def upload_photos_batch(gallery_id: UUID, files: Annotated[list[UploadFile], File()], repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
-    """Upload multiple photos to a gallery"""
+async def upload_photos_batch(
+    gallery_id: UUID,
+    files: Annotated[list[UploadFile], File()],
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user=Depends(get_current_user),
+):
+    """Upload multiple photos to a gallery with concurrent processing"""
+    import asyncio
+
     # Check gallery ownership
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
@@ -112,68 +117,100 @@ async def upload_photos_batch(gallery_id: UUID, files: Annotated[list[UploadFile
     successful_uploads = 0
     failed_uploads = 0
 
-    for file in files:
-        try:
-            # Validate file size
-            contents = file.file.read()
-            file_size = len(contents)
+    # Semaphore to limit concurrent processing (avoid overwhelming the system)
+    # Limit to 25 concurrent file operations (matches connection pool size)
+    semaphore = asyncio.Semaphore(25)
 
-            if file_size > MAX_FILE_SIZE:
-                results.append(PhotoUploadResult(filename=file.filename or "unknown", success=False, error=f"File too large (max 15MB), got {file_size / (1024 * 1024):.1f}MB"))
-                failed_uploads += 1
-                continue
-
-            # Upload to MinIO with dimensions metadata when available
-            filename = f"{gallery_id}/{file.filename}"
-            object_key = filename
+    async def process_single_file(file: UploadFile) -> PhotoUploadResult:
+        """Process a single file: validate, upload, create thumbnail"""
+        async with semaphore:  # Limit concurrent processing
             try:
-                from PIL import ImageOps
+                # Read file contents
+                contents = await file.read()
+                file_size = len(contents)
 
-                img = Image.open(io.BytesIO(contents))
-                # Apply EXIF orientation to get correct dimensions
-                img = ImageOps.exif_transpose(img) or img
-                w, h = img.size
-            except Exception:
-                w = None
-                h = None
+                # Validate file size
+                if file_size > MAX_FILE_SIZE:
+                    return PhotoUploadResult(
+                        filename=file.filename or "unknown",
+                        success=False,
+                        error=f"File too large (max 15MB), got {file_size / (1024 * 1024):.1f}MB",
+                    )
 
-            metadata = {}
-            if w:
-                metadata["width"] = str(w)
-            if h:
-                metadata["height"] = str(h)
+                # Generate object key
+                object_key = f"{gallery_id}/{file.filename}"
 
-            # Upload original file
-            upload_fileobj((bytes(contents), metadata), filename=object_key)
+                # Process and upload image with thumbnail concurrently
+                from src.viewport.minio_utils import async_process_and_upload_image
 
-            # Create and upload thumbnail
-            from src.viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key
+                _, thumbnail_object_key, width, height = await async_process_and_upload_image(contents, object_key, extract_dimensions=True)
 
-            try:
-                thumbnail_bytes = create_thumbnail(contents)
-                thumbnail_object_key = generate_thumbnail_object_key(object_key)
-                upload_fileobj(thumbnail_bytes, filename=thumbnail_object_key)
-                logger.info("Uploaded thumbnail for %s as %s", object_key, thumbnail_object_key)
+                # Return data for batch DB insert
+                return PhotoUploadResult(
+                    filename=file.filename or "unknown",
+                    success=True,
+                    photo=None,  # Will be populated after DB insert
+                    metadata_={
+                        "object_key": object_key,
+                        "thumbnail_object_key": thumbnail_object_key,
+                        "file_size": file_size,
+                        "width": width,
+                        "height": height,
+                    },
+                )
+
             except Exception as e:
-                logger.error(f"Failed to create thumbnail for {object_key}: {e}")
-                # If thumbnail creation fails, use original image as thumbnail for backward compatibility
-                thumbnail_object_key = object_key
+                logger.error(f"Failed to process file {file.filename}: {e}", exc_info=True)
+                return PhotoUploadResult(filename=file.filename or "unknown", success=False, error=str(e))
+            finally:
+                # Reset file position
+                await file.seek(0)
 
-            # Save Photo record (persist width/height and thumbnail_object_key)
-            photo = repo.create_photo(gallery_id, object_key, thumbnail_object_key, file_size, width=w, height=h)
-            photo_response = PhotoResponse.from_db_photo(photo)
+    # Process all files concurrently (with semaphore limiting)
+    results = await asyncio.gather(*[process_single_file(file) for file in files])
 
-            results.append(PhotoUploadResult(filename=file.filename or "unknown", success=True, photo=photo_response))
-            successful_uploads += 1
+    # Separate successful and failed uploads
+    successful_results = [r for r in results if r.success and r.metadata_ is not None]
+    failed_results = [r for r in results if not r.success or r.metadata_ is None]
 
-        except Exception as e:
-            results.append(PhotoUploadResult(filename=file.filename or "unknown", success=False, error=str(e)))
-            failed_uploads += 1
-        finally:
-            # Reset file position for next iteration
-            file.file.seek(0)
+    logger.info(f"Batch upload complete: {len(successful_results)} successful, {len(failed_results)} failed out of {len(results)} total")
 
-    return PhotoUploadResponse(results=results, total_files=len(files), successful_uploads=successful_uploads, failed_uploads=failed_uploads)
+    # Batch insert successful photos into database
+    if successful_results:
+        photos_data = []
+        for result in successful_results:
+            metadata = result.metadata_
+            photos_data.append(
+                {
+                    "gallery_id": gallery_id,
+                    "object_key": metadata["object_key"],
+                    "thumbnail_object_key": metadata["thumbnail_object_key"],
+                    "file_size": metadata["file_size"],
+                    "width": metadata["width"],
+                    "height": metadata["height"],
+                }
+            )
+
+        # Batch insert into database
+        created_photos = repo.create_photos_batch(photos_data)
+
+        # Map created photos back to results
+        photo_map = {p.object_key: p for p in created_photos}
+        for result in successful_results:
+            object_key = result.metadata_["object_key"]
+            if object_key in photo_map:
+                result.photo = PhotoResponse.from_db_photo(photo_map[object_key])
+
+        successful_uploads = len(successful_results)
+
+    failed_uploads = len(failed_results)
+
+    return PhotoUploadResponse(
+        results=results,
+        total_files=len(files),
+        successful_uploads=successful_uploads,
+        failed_uploads=failed_uploads,
+    )
 
 
 @router.delete("/{gallery_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)

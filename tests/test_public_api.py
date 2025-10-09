@@ -6,10 +6,12 @@ from fastapi.testclient import TestClient
 
 
 def _upload_photo(client: TestClient, gallery_id: str, content: bytes, filename: str = "photo.jpg") -> str:
-    files = {"file": (filename, io.BytesIO(content), "image/jpeg")}
-    resp = client.post(f"/galleries/{gallery_id}/photos", files=files)
-    assert resp.status_code == 201
-    return cast(str, resp.json()["id"])
+    files = {"files": (filename, io.BytesIO(content), "image/jpeg")}
+    resp = client.post(f"/galleries/{gallery_id}/photos/batch", files=files)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["successful_uploads"] == 1
+    return cast(str, data["results"][0]["photo"]["id"])
 
 
 class TestPublicAPI:
@@ -49,6 +51,7 @@ class TestPublicAPI:
         # Upload a photo and create sharelink
         photo_id = _upload_photo(authenticated_client, gallery_id_fixture, b"imgdata", "one.jpg")
         resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"})
+        assert resp.status_code == 201
         share_id = resp.json()["id"]
 
         r = authenticated_client.get(f"/s/{share_id}/photos/{photo_id}/url")
@@ -67,6 +70,7 @@ class TestPublicAPI:
         content = b"streamcontent"
         photo_id = _upload_photo(authenticated_client, gallery_id_fixture, content, "stream.jpg")
         resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"})
+        assert resp.status_code == 201
         share_id = resp.json()["id"]
 
         # Mock minio config and s3 client get_object to return a file-like body
@@ -100,6 +104,7 @@ class TestPublicAPI:
     def test_download_all_404_when_no_photos(self, authenticated_client: TestClient, gallery_id_fixture: str):
         # Create sharelink for empty gallery
         resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"})
+        assert resp.status_code == 201
         share_id = resp.json()["id"]
 
         # Remove photos from gallery by attempting download on a new empty gallery
