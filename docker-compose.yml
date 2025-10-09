@@ -1,3 +1,5 @@
+version: "3.8"
+
 services:
   app:
     build:
@@ -16,6 +18,14 @@ services:
     volumes:
       - ./src:/app/src
       - ./config:/app/config
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
 
   postgres:
     image: postgres:17-alpine
@@ -31,6 +41,14 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
 
   minio:
     image: minio/minio:RELEASE.2025-07-23T15-54-02Z
@@ -47,6 +65,14 @@ services:
       - minio_data:/data
     networks:
       - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 1G
+        reservations:
+          cpus: '0.50'
+          memory: 512M
 
 volumes:
   postgres_data:
