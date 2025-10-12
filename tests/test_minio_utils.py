@@ -497,17 +497,18 @@ class TestPresignedURLGeneration:
         mock_client = Mock()
         mock_client.generate_presigned_url.side_effect = [
             "https://presigned.url/key1.jpg",
-            "https://presigned.url/thumbnails/key1.jpg",
+            "https://presigned.url/key2.jpg",
         ]
         mock_get_client.return_value = mock_client
         mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
 
         # Mock cache to return None for all keys (no cached URLs)
         with patch("src.viewport.cache_utils.get_cached_presigned_url", return_value=None), patch("src.viewport.cache_utils.cache_presigned_url"):
-            object_keys = ["key1.jpg"]
+            object_keys = ["key1.jpg", "key2.jpg"]
             result = await async_generate_presigned_urls_batch(object_keys)
-            assert len(result) == 1
+            assert len(result) == 2
             assert result["key1.jpg"] == "https://presigned.url/key1.jpg"
+            assert result["key2.jpg"] == "https://presigned.url/key2.jpg"
 
 
 class TestObjectOperations:

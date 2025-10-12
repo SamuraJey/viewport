@@ -135,29 +135,29 @@ async def async_generate_presigned_urls_batch(object_keys: list[str], expires_in
     if not uncached_keys:
         return result
 
-    # Generate presigned URLs for uncached keys concurrently
+    # Generate presigned URLs for uncached keys - run batch in single thread
     executor = _get_executor()
     loop = asyncio.get_event_loop()
 
-    def _generate_url(object_key: str) -> tuple[str, str]:
-        """Generate single presigned URL (runs in thread pool)"""
+    def _generate_urls_batch(keys: list[str]) -> dict[str, str]:
+        """Generate multiple presigned URLs in a single thread (faster - reuses S3 client)"""
         s3_client = get_s3_client()
         _, _, _, bucket = get_minio_config()
-        url = s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": object_key}, ExpiresIn=expires_in)
-        cache_presigned_url(object_key, url, expires_in)
-        return object_key, cast(str, url)
 
-    # Generate URLs concurrently
-    tasks = [loop.run_in_executor(executor, _generate_url, key) for key in uncached_keys]
-    generated = await asyncio.gather(*tasks, return_exceptions=True)
+        urls = {}
+        for object_key in keys:
+            try:
+                url = s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": object_key}, ExpiresIn=expires_in)
+                cache_presigned_url(object_key, url, expires_in)
+                urls[object_key] = cast(str, url)
+            except Exception as e:  # pragma: no cover
+                logger.error(f"Failed to generate presigned URL for {object_key}: {e}")
 
-    # Process results
-    for item in generated:
-        if isinstance(item, Exception):  # pragma: no cover
-            logger.error(f"Failed to generate presigned URL: {item}")
-            continue
-        object_key, url = item
-        result[object_key] = url
+        return urls
+
+    # Generate all URLs in a single thread execution (much faster than multiple thread pool tasks)
+    generated_urls = await loop.run_in_executor(executor, _generate_urls_batch, uncached_keys)
+    result.update(generated_urls)
 
     return result
 
