@@ -7,10 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from src.viewport.cache_utils import url_cache
 from src.viewport.db import get_db
 from src.viewport.logger import logger
-from src.viewport.minio_utils import generate_presigned_url, get_minio_config, get_s3_client
+from src.viewport.minio_utils import async_generate_presigned_urls_batch, generate_presigned_url, get_minio_config, get_s3_client
 from src.viewport.models.gallery import Gallery
 from src.viewport.models.sharelink import ShareLink
 from src.viewport.repositories.sharelink_repository import ShareLinkRepository
@@ -31,8 +30,7 @@ def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depends(get_
 
 
 @router.get("/{share_id}", response_model=PublicGalleryResponse)
-@url_cache(max_age=3600)
-def get_photos_by_sharelink(
+async def get_photos_by_sharelink(
     share_id: UUID,
     request: Request,
     limit: int | None = Query(None, ge=1, le=1000, description="Limit number of photos to return"),
@@ -50,11 +48,19 @@ def get_photos_by_sharelink(
 
     logger.info(f"Generating public gallery view for share {share_id} with {len(photos_to_process)} photos (offset={offset}, limit={limit}, total={len(photos)})")
 
+    object_keys = []
+    for photo in photos_to_process:
+        object_keys.append(photo.object_key)
+        object_keys.append(photo.thumbnail_object_key)
+
+    url_map = await async_generate_presigned_urls_batch(object_keys)
+
     photo_list = []
     for photo in photos_to_process:
-        try:
-            presigned_url = generate_presigned_url(photo.object_key)
-            presigned_url_thumb = generate_presigned_url(photo.thumbnail_object_key)
+        presigned_url = url_map.get(photo.object_key, "")
+        presigned_url_thumb = url_map.get(photo.thumbnail_object_key, "")
+
+        if presigned_url and presigned_url_thumb:
             photo_list.append(
                 PublicPhoto(
                     photo_id=str(photo.id),
@@ -65,9 +71,6 @@ def get_photos_by_sharelink(
                     height=getattr(photo, "height", None),
                 )
             )
-        except Exception:
-            logger.error("Failed to generate presigned URL for photo %s in share %s", photo.id, share_id)
-            continue
 
     gallery: Gallery = sharelink.gallery  # lazy-loaded
     cover_id = str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None
