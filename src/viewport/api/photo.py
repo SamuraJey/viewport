@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Annotated
 from uuid import UUID
 
@@ -136,8 +137,6 @@ async def upload_photos_batch(
 
     # Batch insert successful photos into database
     if successful_results:
-        import time
-
         batch_insert_start = time.time()
         logger.info(f"Starting database batch insert for {len(successful_results)} photos")
 

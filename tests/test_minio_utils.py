@@ -749,7 +749,7 @@ class TestAsyncOperations:
 
         assert result == ("thumbnails/test.jpg", 800, 600)
         mock_process.assert_called_once_with(b"image_bytes", (800, 800), 85)
-        mock_upload.assert_called_once_with(b"thumbnail_bytes", "thumbnails/test.jpg")
+        mock_upload.assert_called_once_with(b"thumbnail_bytes", "thumbnails/test.jpg", content_type="image/jpeg")
 
     @pytest.mark.asyncio
     @patch("src.viewport.minio_utils.async_upload_fileobj")

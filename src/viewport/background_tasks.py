@@ -105,6 +105,8 @@ def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
         # Note: width and height are already extracted during upload, so we only update thumbnail_object_key
         from sqlalchemy import update
 
+        from src.viewport.cache_utils import clear_presigned_url_cache
+
         # Use context manager to ensure transaction is always closed properly
         session_maker = get_session_maker()
         with session_maker() as db:
@@ -118,6 +120,9 @@ def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
                 if result.rowcount == 0:
                     logger.warning(f"Photo {photo_id} not found in database")
                     return {"status": "error", "message": "Photo not found"}
+
+                # Invalidate cache for the thumbnail now that it's updated
+                clear_presigned_url_cache(thumbnail_object_key)
 
                 logger.info(f"Successfully created thumbnail for photo {photo_id}")
             except Exception as db_error:
@@ -141,7 +146,7 @@ def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
             return {"status": "error", "message": str(e), "photo_id": photo_id}
 
 
-@celery_app.task(name="create_thumbnails_batch", bind=True, max_retries=3, rate_limit="10/s")  # pragma: no cover
+@celery_app.task(name="create_thumbnails_batch", bind=True, max_retries=3, rate_limit="100/s")  # pragma: no cover
 def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
     """Background task to create thumbnails for multiple photos in one batch
 
@@ -232,29 +237,25 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
     if successful > 0:
         with session_maker() as db:
             try:
-                # Build CASE statement for batch update
-                # UPDATE photos SET thumbnail_object_key = CASE
-                #   WHEN id = 'id1' THEN 'thumb1'
-                #   WHEN id = 'id2' THEN 'thumb2'
-                # END
-                # WHERE id IN ('id1', 'id2', ...)
-
-                from sqlalchemy import case
-
+                # Use modern SQLAlchemy 2.0 Update API with executemany pattern
+                # This is cleaner and potentially faster than CASE WHEN approach
                 successful_results = [r for r in results if r["status"] == "success"]
-                photo_id_to_thumb = {r["photo_id"]: r["thumbnail_object_key"] for r in successful_results}
 
-                if photo_id_to_thumb:
-                    # Create CASE expression
-                    when_clauses = [(Photo.id == pid, thumb) for pid, thumb in photo_id_to_thumb.items()]
-                    case_expr = case(*when_clauses, else_=Photo.thumbnail_object_key)
+                if successful_results:
+                    # Build list of mappings for executemany
+                    update_mappings = [{"id": r["photo_id"], "thumbnail_object_key": r["thumbnail_object_key"]} for r in successful_results]
 
-                    # Execute batch UPDATE
-                    stmt = update(Photo).where(Photo.id.in_(list(photo_id_to_thumb.keys()))).values(thumbnail_object_key=case_expr)
-                    db.execute(stmt)
+                    # Execute batch UPDATE using modern executemany pattern
+                    db.execute(update(Photo), update_mappings)
                     db.commit()
 
-                    logger.info(f"Batch updated {len(photo_id_to_thumb)} photos with thumbnails")
+                    logger.info(f"Batch updated {len(update_mappings)} photos with thumbnails")
+
+                    # Invalidate cache for all updated thumbnails
+                    from src.viewport.cache_utils import clear_presigned_urls_batch
+
+                    thumbnail_keys = [r["thumbnail_object_key"] for r in successful_results]
+                    clear_presigned_urls_batch(thumbnail_keys)
 
             except Exception as db_error:
                 logger.error(f"Batch database update failed: {db_error}")
