@@ -351,11 +351,12 @@ class TestThumbnailCreation:
         test_image_bytes = self._create_test_image(1600, 1200)
 
         # Create thumbnail
-        thumbnail_bytes = create_thumbnail(test_image_bytes, max_size=(800, 800))
+        thumbnail_bytes, width, height = create_thumbnail(test_image_bytes, max_size=(800, 800))
 
         # Verify thumbnail was created
         assert thumbnail_bytes is not None
         assert len(thumbnail_bytes) > 0
+        assert width == 800 or height == 800
 
         # Verify thumbnail dimensions
         thumbnail_img = Image.open(io.BytesIO(thumbnail_bytes))
@@ -372,7 +373,7 @@ class TestThumbnailCreation:
         test_image_bytes = self._create_test_image(800, 600, exif_orientation=6)
 
         # Create thumbnail
-        thumbnail_bytes = create_thumbnail(test_image_bytes, max_size=(800, 800))
+        thumbnail_bytes, w, h = create_thumbnail(test_image_bytes, max_size=(800, 800))
 
         # Verify thumbnail was created
         assert thumbnail_bytes is not None
@@ -398,7 +399,7 @@ class TestThumbnailCreation:
 
         for width, height in test_cases:
             test_image_bytes = self._create_test_image(width, height)
-            thumbnail_bytes = create_thumbnail(test_image_bytes, max_size=(400, 400))
+            thumbnail_bytes, w, h = create_thumbnail(test_image_bytes, max_size=(400, 400))
 
             thumbnail_img = Image.open(io.BytesIO(thumbnail_bytes))
             original_ratio = width / height
@@ -412,7 +413,7 @@ class TestThumbnailCreation:
         test_image_bytes = self._create_test_image(2000, 1500)
 
         # Create with custom size
-        thumbnail_bytes = create_thumbnail(test_image_bytes, max_size=(400, 300))
+        thumbnail_bytes, w, h = create_thumbnail(test_image_bytes, max_size=(400, 300))
 
         thumbnail_img = Image.open(io.BytesIO(thumbnail_bytes))
         assert thumbnail_img.width <= 400
@@ -423,7 +424,7 @@ class TestThumbnailCreation:
         # Create an image smaller than max_size
         test_image_bytes = self._create_test_image(400, 300)
 
-        thumbnail_bytes = create_thumbnail(test_image_bytes, max_size=(800, 800))
+        thumbnail_bytes, w, h = create_thumbnail(test_image_bytes, max_size=(800, 800))
 
         thumbnail_img = Image.open(io.BytesIO(thumbnail_bytes))
         # thumbnail() doesn't upscale, so dimensions should remain the same or smaller

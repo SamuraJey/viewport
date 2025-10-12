@@ -263,7 +263,7 @@ def delete_folder(prefix: str) -> bool:
         return False
 
 
-def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800), quality: int = 85) -> bytes:
+def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800), quality: int = 85) -> tuple[bytes, int, int]:
     """Create a thumbnail from image bytes
 
     Args:
@@ -287,7 +287,7 @@ def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800),
         image.close()
         thumbnail_io.seek(0)
 
-        return thumbnail_io.read()
+        return thumbnail_io.read(), image.width, image.height
     except Exception as e:
         logger.error(f"Failed to create thumbnail: {e}")
         raise

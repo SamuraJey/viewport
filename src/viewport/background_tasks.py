@@ -211,7 +211,7 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
                 raise
 
             # Create thumbnail
-            thumbnail_bytes = create_thumbnail(image_bytes)
+            thumbnail_bytes, width, height = create_thumbnail(image_bytes)
 
             # Free memory immediately after creating thumbnail
             del image_bytes
@@ -225,7 +225,7 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
             del thumbnail_bytes
 
             # Store for batch UPDATE
-            results.append({"photo_id": photo_id, "status": "success", "thumbnail_object_key": thumbnail_object_key})
+            results.append({"photo_id": photo_id, "status": "success", "thumbnail_object_key": thumbnail_object_key, "width": width, "height": height})
             successful += 1
 
         except Exception as e:
@@ -243,7 +243,7 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
 
                 if successful_results:
                     # Build list of mappings for executemany
-                    update_mappings = [{"id": r["photo_id"], "thumbnail_object_key": r["thumbnail_object_key"]} for r in successful_results]
+                    update_mappings = [{"id": r["photo_id"], "thumbnail_object_key": r["thumbnail_object_key"], "width": r["width"], "height": r["height"]} for r in successful_results]
 
                     # Execute batch UPDATE using modern executemany pattern
                     db.execute(update(Photo), update_mappings)
