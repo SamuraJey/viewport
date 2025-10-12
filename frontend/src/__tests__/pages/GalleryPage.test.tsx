@@ -11,9 +11,9 @@ const mockGalleryData = {
   created_at: '2024-01-01T10:00:00Z',
   owner_id: 'user1',
   photos: [
-    { id: 'photo1', url: '/api/photos/photo1.jpg', thumbnail_url: '/api/photos/thumbnails/photo1.jpg', gallery_id: '1', filename: 'photo1.jpg', created_at: '2024-01-01T10:00:00Z', file_size: 12345, uploaded_at: '2024-01-01T10:00:00Z' },
-    { id: 'photo2', url: '/api/photos/photo2.jpg', thumbnail_url: '/api/photos/thumbnails/photo2.jpg', gallery_id: '1', filename: 'photo2.jpg', created_at: '2024-01-01T10:00:00Z', file_size: 12345, uploaded_at: '2024-01-01T10:00:00Z' },
-    { id: 'photo3', url: '/api/photos/photo3.jpg', thumbnail_url: '/api/photos/thumbnails/photo3.jpg', gallery_id: '1', filename: 'photo3.jpg', created_at: '2024-01-01T10:00:00Z', file_size: 12345, uploaded_at: '2024-01-01T10:00:00Z' }
+    { id: 'photo1', url: '/api/photos/photo1.jpg', thumbnail_url: '/api/photos/photo1_thumb.jpg', gallery_id: '1', filename: 'photo1.jpg', created_at: '2024-01-01T10:00:00Z', file_size: 12345, uploaded_at: '2024-01-01T10:00:00Z' },
+    { id: 'photo2', url: '/api/photos/photo2.jpg', thumbnail_url: '/api/photos/photo2_thumb.jpg', gallery_id: '1', filename: 'photo2.jpg', created_at: '2024-01-01T10:00:00Z', file_size: 12345, uploaded_at: '2024-01-01T10:00:00Z' },
+    { id: 'photo3', url: '/api/photos/photo3.jpg', thumbnail_url: '/api/photos/photo3_thumb.jpg', gallery_id: '1', filename: 'photo3.jpg', created_at: '2024-01-01T10:00:00Z', file_size: 12345, uploaded_at: '2024-01-01T10:00:00Z' }
   ],
   share_links: []
 }
@@ -101,7 +101,7 @@ describe('GalleryPage', () => {
     vi.mocked(photoService.uploadPhoto).mockResolvedValue({
       id: 'photo4',
       url: '/api/photos/photo4.jpg',
-      thumbnail_url: '/api/photos/thumbnails/photo4.jpg',
+      thumbnail_url: '/api/photos/photo4_thumb.jpg',
       gallery_id: '1',
       filename: 'photo4.jpg',
       file_size: 12345,

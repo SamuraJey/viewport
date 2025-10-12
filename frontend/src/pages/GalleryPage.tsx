@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { galleryService, type GalleryDetail } from '../services/galleryService'
 import { photoService, type PhotoResponse } from '../services/photoService'
@@ -28,6 +28,8 @@ export const GalleryPage = () => {
   const [photoUrls, setPhotoUrls] = useState<PhotoResponse[]>([])
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
 
   const [uploadError, setUploadError] = useState('')
   const [isCreatingLink, setIsCreatingLink] = useState(false)
@@ -41,43 +43,103 @@ export const GalleryPage = () => {
 
   const galleryId = id!
 
+  // Pagination settings
+  const PHOTOS_PER_PAGE = 100
+
+  // Intersection Observer ref for infinite scroll
+  const observerTarget = useRef<HTMLDivElement>(null)
+
   const fetchGalleryDetails = useCallback(async () => {
     try {
-      const galleryData = await galleryService.getGallery(galleryId)
+      // Fetch gallery metadata and first batch of photos
+      const galleryData = await galleryService.getGallery(galleryId, { limit: PHOTOS_PER_PAGE, offset: 0 })
       setGallery(galleryData)
+      setPhotoUrls(galleryData.photos || [])
       setShareLinks(galleryData.share_links || [])
+
+      // Check if there are more photos to load
+      setHasMore(galleryData.photos.length === PHOTOS_PER_PAGE)
     } catch (err) {
       setError('Failed to load gallery data. Please try again.')
       console.error(err)
     }
   }, [galleryId])
 
-  const fetchPhotoUrls = useCallback(async () => {
+  const loadMorePhotos = useCallback(async () => {
+    if (isLoadingMore || !hasMore) return
+
+    setIsLoadingMore(true)
     try {
-      const urls = await photoService.getAllPhotoUrls(galleryId)
-      setPhotoUrls(urls)
+      const currentOffset = photoUrls.length
+      const moreData = await galleryService.getGallery(galleryId, {
+        limit: PHOTOS_PER_PAGE,
+        offset: currentOffset
+      })
+
+      const newPhotos = moreData.photos || []
+      setPhotoUrls(prev => [...prev, ...newPhotos])
+
+      // Check if there are more photos to load
+      setHasMore(newPhotos.length === PHOTOS_PER_PAGE)
     } catch (err) {
-      setError('Failed to load photo URLs. Please try again.')
-      console.error(err)
+      console.error('Failed to load more photos:', err)
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [galleryId, photoUrls.length, isLoadingMore, hasMore])
+
+  const fetchShareLinksOnly = useCallback(async () => {
+    try {
+      // Fetch only share links without affecting photos
+      const galleryData = await galleryService.getGallery(galleryId, { limit: 1, offset: 0 })
+      setShareLinks(galleryData.share_links || [])
+    } catch (err) {
+      console.error('Failed to load share links:', err)
     }
   }, [galleryId])
 
   const fetchData = useCallback(async () => {
     setIsLoading(true)
     setError('')
-    await Promise.all([fetchGalleryDetails(), fetchPhotoUrls()])
+    await fetchGalleryDetails()
     setIsLoading(false)
-  }, [fetchGalleryDetails, fetchPhotoUrls])
+  }, [fetchGalleryDetails])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
 
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // When the sentinel element becomes visible, load more photos
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+          loadMorePhotos()
+        }
+      },
+      {
+        threshold: 0.1, // Trigger when 10% visible
+        rootMargin: '400px' // Start loading 400px before sentinel enters viewport
+      }
+    )
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current)
+    }
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [hasMore, isLoadingMore, loadMorePhotos])
+
   // Handler for photo upload completion
   const handleUploadComplete = (result: PhotoUploadResponse) => {
     setUploadError('')
     if (result.successful_uploads > 0) {
-      fetchData() // Refresh gallery data and photo URLs
+      // Reload gallery to get new photos, but maintain current position
+      // This is acceptable because user just uploaded photos
+      fetchData()
     }
     if (result.failed_uploads > 0) {
       setUploadError(`${result.failed_uploads} of ${result.total_files} photos failed to upload`)
@@ -97,7 +159,12 @@ export const GalleryPage = () => {
 
     try {
       await photoService.renamePhoto(galleryId, photoToRename.id, newFilename)
-      await fetchData() // Refresh gallery data and photo URLs
+      // Update filename locally without reloading all photos
+      setPhotoUrls(prev => prev.map(photo =>
+        photo.id === photoToRename.id
+          ? { ...photo, filename: newFilename }
+          : photo
+      ))
     } catch (err) {
       throw err // Let the modal handle the error
     }
@@ -114,7 +181,8 @@ export const GalleryPage = () => {
     if (window.confirm('Are you sure you want to delete this photo?')) {
       try {
         await photoService.deletePhoto(galleryId, photoId)
-        await fetchData()
+        // Remove photo locally without reloading all photos
+        setPhotoUrls(prev => prev.filter(photo => photo.id !== photoId))
       } catch (err) {
         setError('Failed to delete photo. Please try again.')
         console.error(err)
@@ -140,7 +208,7 @@ export const GalleryPage = () => {
     setError('')
     try {
       await shareLinkService.createShareLink(galleryId)
-      await fetchGalleryDetails() // Only need to refresh gallery details
+      await fetchShareLinksOnly() // Only refresh share links, not photos
     } catch (err) {
       setError('Failed to create share link. Please try again.')
       console.error(err)
@@ -154,7 +222,7 @@ export const GalleryPage = () => {
     if (window.confirm('Are you sure you want to delete this share link?')) {
       try {
         await shareLinkService.deleteShareLink(galleryId, linkId)
-        await fetchGalleryDetails() // Only need to refresh gallery details
+        await fetchShareLinksOnly() // Only refresh share links, not photos
       } catch (err) {
         setError('Failed to delete share link. Please try again.')
         console.error(err)
@@ -195,7 +263,8 @@ export const GalleryPage = () => {
   const handleSetCover = async (photoId: string) => {
     try {
       await galleryService.setCoverPhoto(galleryId, photoId)
-      await fetchGalleryDetails()
+      // Update cover photo locally without reloading all photos
+      setGallery(prev => prev ? { ...prev, cover_photo_id: photoId } : null)
     } catch (err) {
       setError('Failed to set cover photo. Please try again.')
       console.error(err)
@@ -205,7 +274,8 @@ export const GalleryPage = () => {
   const handleClearCover = async () => {
     try {
       await galleryService.clearCoverPhoto(galleryId)
-      await fetchGalleryDetails()
+      // Update cover photo locally without reloading all photos
+      setGallery(prev => prev ? { ...prev, cover_photo_id: null } : null)
     } catch (err) {
       setError('Failed to clear cover photo. Please try again.')
       console.error(err)
@@ -375,15 +445,26 @@ export const GalleryPage = () => {
                           </svg>
                         </button>
                         <button
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation()
-                            // Download functionality
-                            const link = document.createElement('a')
-                            link.href = photo.url
-                            link.download = photo.filename
-                            document.body.appendChild(link)
-                            link.click()
-                            document.body.removeChild(link)
+                            // Download functionality using fetch to force download dialog
+                            try {
+                              const response = await fetch(photo.url)
+                              const blob = await response.blob()
+
+                              const url = window.URL.createObjectURL(blob)
+                              const link = document.createElement('a')
+                              link.href = url
+                              link.download = photo.filename
+                              document.body.appendChild(link)
+                              link.click()
+
+                              // Cleanup
+                              document.body.removeChild(link)
+                              window.URL.revokeObjectURL(url)
+                            } catch (error) {
+                              console.error('Failed to download photo:', error)
+                            }
                           }}
                           className="popup-action popup-action--success"
                           title="Download photo"
@@ -440,6 +521,29 @@ export const GalleryPage = () => {
               <h3 className="mt-4 text-lg font-medium text-muted">No photos in this gallery</h3>
               <p className="mt-2 text-sm text-muted">Upload your first photo to get started.</p>
             </div>
+          )}
+
+          {/* Infinite scroll sentinel and loading indicator */}
+          {photoUrls.length > 0 && (
+            <>
+              {/* Sentinel element for Intersection Observer */}
+              <div ref={observerTarget} className="h-4" />
+
+              {/* Loading indicator */}
+              {isLoadingMore && (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-accent" />
+                  <span className="ml-2 text-muted">Loading more photos...</span>
+                </div>
+              )}
+
+              {/* End of photos indicator */}
+              {!hasMore && photoUrls.length > PHOTOS_PER_PAGE && (
+                <div className="text-center py-8 text-muted text-sm">
+                  All photos loaded ({photoUrls.length} total)
+                </div>
+              )}
+            </>
           )}
         </div>
 

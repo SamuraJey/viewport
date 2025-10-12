@@ -148,6 +148,12 @@ norecursedirs = [
     "templates",
     "logs"
 ]
+filterwarnings = [
+    # Ignore testcontainers deprecation warning about @wait_container_is_ready decorator
+    "ignore:The @wait_container_is_ready decorator is deprecated:DeprecationWarning:testcontainers",
+    # Ignore datetime.utcnow() deprecation warnings
+    "ignore:datetime.datetime.utcnow\\(\\) is deprecated:DeprecationWarning"
+]
 
 [tool.coverage.run]
 # Needed by py-cov-action/python-coverage-comment-action to map paths correctly

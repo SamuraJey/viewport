@@ -36,8 +36,22 @@ const deleteShareLink = async (galleryId: string, shareLinkId: string): Promise<
   await api.delete(`/galleries/${galleryId}/share-links/${shareLinkId}`)
 }
 
-const getSharedGallery = async (shareId: string): Promise<any> => {
-  const response = await api.get(`/s/${shareId}`)
+const getSharedGallery = async (
+  shareId: string,
+  options?: { limit?: number; offset?: number }
+): Promise<any> => {
+  const params = new URLSearchParams()
+  if (options?.limit !== undefined) {
+    params.append('limit', options.limit.toString())
+  }
+  if (options?.offset !== undefined) {
+    params.append('offset', options.offset.toString())
+  }
+
+  const queryString = params.toString()
+  const url = queryString ? `/s/${shareId}?${queryString}` : `/s/${shareId}`
+
+  const response = await api.get(url)
   return response.data
 }
 

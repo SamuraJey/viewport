@@ -140,8 +140,8 @@ class TestGalleryAPI:
     def test_get_gallery_invalid_uuid(self, authenticated_client: TestClient):
         """Test retrieving gallery with invalid UUID format."""
         response = authenticated_client.get("/galleries/invalid-uuid")
-        assert response.status_code == 400
-        assert "invalid gallery id format" in response.json()["detail"].lower()
+        assert response.status_code == 422
+        assert "Input should be a valid UUID" in str(response.json())
 
     def test_get_gallery_unauthorized(self, client: TestClient):
         """Test retrieving gallery without authentication."""
@@ -179,7 +179,7 @@ class TestGalleryAPI:
         """Test deleting gallery with invalid UUID format."""
         response = authenticated_client.delete("/galleries/invalid-uuid")
         assert response.status_code == 422
-        assert "invalid gallery id format" in response.json()["detail"].lower()
+        assert "Input should be a valid UUID" in str(response.json())
 
     def test_delete_gallery_unauthorized(self, client: TestClient):
         """Test deleting gallery without authentication."""
@@ -284,8 +284,8 @@ class TestGalleryAPI:
     def test_update_gallery_invalid_uuid(self, authenticated_client: TestClient):
         """Test renaming with invalid UUID format."""
         response = authenticated_client.patch("/galleries/invalid-uuid", json={"name": "Name"})
-        assert response.status_code == 400
-        assert "invalid gallery id format" in response.json()["detail"].lower()
+        assert response.status_code == 422
+        assert "Input should be a valid UUID" in str(response.json())
 
     def test_update_gallery_not_found(self, authenticated_client: TestClient):
         """Test renaming non-existent gallery."""

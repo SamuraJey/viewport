@@ -29,6 +29,7 @@ class Gallery(Base):
         back_populates="gallery",
         passive_deletes=True,
         foreign_keys="Photo.gallery_id",
+        order_by="Photo.object_key",
     )
     # Optional relationship to the cover photo (may be None)
     cover_photo = relationship(

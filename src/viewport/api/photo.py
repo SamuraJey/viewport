@@ -2,10 +2,11 @@ import logging
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from src.viewport.auth_utils import get_current_user
+from src.viewport.cache_utils import url_cache
 from src.viewport.db import get_db
 from src.viewport.minio_utils import generate_presigned_url
 from src.viewport.repositories.gallery_repository import GalleryRepository
@@ -38,31 +39,15 @@ async def get_all_photo_urls_for_gallery(
     # Get all photos for the gallery
     photos = repo.get_photos_by_gallery_id(gallery_id)
 
-    # Generate presigned URLs for all photos in one batch (much faster!)
+    # Use batch method for faster URL generation (parallel processing)
     photo_responses = await PhotoResponse.from_db_photos_batch(photos)
 
     return photo_responses
 
 
-# GET /galleries/{gallery_id}/photos/{photo_id} - Get photo info for gallery
-@router.get("/{gallery_id}/photos/{photo_id}", response_model=PhotoResponse)
-def get_photo(request: Request, gallery_id: UUID, photo_id: UUID, repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
-    """Get photo information for authenticated users who own the gallery"""
-    # First, verify gallery ownership
-    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
-    if not gallery:
-        raise HTTPException(status_code=404, detail="Gallery not found")
-
-    # Then, verify photo belongs to that gallery
-    photo = repo.get_photo_by_id_and_gallery(photo_id, gallery_id)
-    if not photo:
-        raise HTTPException(status_code=404, detail="Photo not found")
-
-    return PhotoResponse.from_db_photo(photo)
-
-
 # GET /galleries/{gallery_id}/photos/{photo_id}/url - Get presigned URL for photo in gallery
 @router.get("/{gallery_id}/photos/{photo_id}/url")
+@url_cache(max_age=3600)
 def get_photo_url(gallery_id: UUID, photo_id: UUID, repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
     """Get a presigned URL for a photo for authenticated users who own the gallery"""
     logger.debug("Generating presigned URL for photo %s in gallery %s", photo_id, gallery_id)
@@ -91,7 +76,7 @@ async def upload_photos_batch(
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user=Depends(get_current_user),
 ):
-    """Upload multiple photos to a gallery - fast upload, deferred thumbnail generation"""
+    """Upload multiple photos to a gallery with concurrent processing"""
     import asyncio
 
     # Check gallery ownership
@@ -107,12 +92,13 @@ async def upload_photos_batch(
     successful_uploads = 0
     failed_uploads = 0
 
-    # Semaphore to limit concurrent uploads to S3
-    semaphore = asyncio.Semaphore(10)  # Reduced from 25 to save memory
+    # Semaphore to limit concurrent processing (avoid overwhelming the system)
+    # Limit to 25 concurrent file operations (matches connection pool size)
+    semaphore = asyncio.Semaphore(25)
 
     async def process_single_file(file: UploadFile) -> PhotoUploadResult:
-        """Process a single file: validate and upload original to S3"""
-        async with semaphore:
+        """Process a single file: validate, upload, create thumbnail"""
+        async with semaphore:  # Limit concurrent processing
             try:
                 # Read file contents
                 contents = await file.read()
@@ -126,47 +112,34 @@ async def upload_photos_batch(
                         error=f"File too large (max 15MB), got {file_size / (1024 * 1024):.1f}MB",
                     )
 
-                # Extract dimensions early (before uploading to S3)
-                # This avoids downloading the image again in Celery task
-                import io
-
-                from PIL import Image
-
-                width, height = None, None
-                try:
-                    image = Image.open(io.BytesIO(contents))
-                    width, height = image.size
-                    image.close()
-                except Exception as img_error:
-                    logger.warning(f"Failed to extract dimensions for {file.filename}: {img_error}")
-
                 # Generate object key
                 object_key = f"{gallery_id}/{file.filename}"
 
-                # Upload only the original image to S3 (no thumbnail yet)
-                from src.viewport.minio_utils import async_upload_fileobj
+                # Process and upload image with thumbnail concurrently
+                from src.viewport.minio_utils import async_process_and_upload_image
 
-                await async_upload_fileobj(contents, object_key)
+                # Pass content_type from UploadFile to preserve MIME type in S3
+                _, thumbnail_object_key, width, height = await async_process_and_upload_image(contents, object_key, extract_dimensions=True, content_type=file.content_type)
 
-                # Return data for batch DB insert (thumbnail will be created later)
+                # Return data for batch DB insert
                 return PhotoUploadResult(
                     filename=file.filename or "unknown",
                     success=True,
                     photo=None,  # Will be populated after DB insert
                     metadata_={
                         "object_key": object_key,
-                        "thumbnail_object_key": object_key,  # Use original as placeholder
+                        "thumbnail_object_key": thumbnail_object_key,
                         "file_size": file_size,
-                        "width": width,  # Already extracted!
-                        "height": height,  # Already extracted!
+                        "width": width,
+                        "height": height,
                     },
                 )
 
             except Exception as e:
-                logger.error(f"Failed to upload file {file.filename}: {e}", exc_info=True)
+                logger.error(f"Failed to process file {file.filename}: {e}", exc_info=True)
                 return PhotoUploadResult(filename=file.filename or "unknown", success=False, error=str(e))
             finally:
-                # Reset file position and free memory
+                # Reset file position
                 await file.seek(0)
                 del contents
 
@@ -181,11 +154,6 @@ async def upload_photos_batch(
 
     # Batch insert successful photos into database
     if successful_results:
-        import time
-
-        batch_insert_start = time.time()
-        logger.info(f"Starting database batch insert for {len(successful_results)} photos")
-
         photos_data = []
         for result in successful_results:
             metadata = result.metadata_
@@ -202,41 +170,6 @@ async def upload_photos_batch(
 
         # Batch insert into database
         created_photos = repo.create_photos_batch(photos_data)
-
-        batch_insert_duration = time.time() - batch_insert_start
-        logger.info(f"Database batch insert completed in {batch_insert_duration:.2f}s")
-
-        # Schedule background tasks for thumbnail creation in batches
-        from src.viewport.background_tasks import create_thumbnails_batch_task
-
-        celery_schedule_start = time.time()
-
-        # Group photos into batches of 5 for memory-efficient processing
-        # (reduced from 10 to avoid OOM in Celery workers)
-        batch_size = 10
-        scheduled_batches = 0
-        failed_count = 0
-
-        # Prepare photo data for Celery tasks
-        photos_for_celery = [{"object_key": photo.object_key, "photo_id": str(photo.id)} for photo in created_photos]
-
-        # Split into batches and schedule
-        for i in range(0, len(photos_for_celery), batch_size):
-            batch = photos_for_celery[i : i + batch_size]
-            try:
-                # Fire-and-forget: don't wait for result, don't track result
-                create_thumbnails_batch_task.apply_async(
-                    args=(batch,),
-                    ignore_result=True,  # Don't store result in backend (faster)
-                    retry=False,  # Don't retry on connection errors (let task retry itself)
-                )
-                scheduled_batches += 1
-            except Exception as e:
-                failed_count += 1
-                logger.error(f"Failed to schedule batch task: {e}")
-
-        celery_schedule_duration = time.time() - celery_schedule_start
-        logger.info(f"Scheduled {scheduled_batches} batch tasks ({len(photos_for_celery)} photos in batches of {batch_size}) in {celery_schedule_duration:.2f}s ({failed_count} failed)")
 
         # Map created photos back to results
         photo_map = {p.object_key: p for p in created_photos}
