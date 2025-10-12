@@ -2,7 +2,10 @@
     "python.testing.pytestArgs": [
         "-n",
         "4",
-        "tests"
+        "tests",
+        "--cov=src",
+        "--cov-branch",
+        "--cov-report=term-missing"
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,

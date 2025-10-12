@@ -1,11 +1,18 @@
+import asyncio
+import io
 import logging
+import os
+from concurrent.futures import ThreadPoolExecutor
 from functools import cache
 from typing import cast
 
 import boto3
 from botocore.client import BaseClient, Config
+from PIL import Image, ImageOps
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from src.viewport.cache_utils import cache_presigned_url, clear_presigned_url_cache, clear_presigned_urls_by_prefix, get_cached_presigned_url
 
 # Configure logging - set botocore to WARNING level to reduce noise
 logging.getLogger("botocore").setLevel(logging.WARNING)
@@ -58,33 +65,36 @@ def get_s3_client() -> BaseClient:
     )
 
 
-def ensure_bucket_exists():
-    s3_client = get_s3_client()
-    _, _, _, bucket = get_minio_config()
+def ensure_bucket_exists(s3_client: BaseClient, bucket: str) -> None:
     buckets = s3_client.list_buckets()["Buckets"]
     if not any(b["Name"] == bucket for b in buckets):
         s3_client.create_bucket(Bucket=bucket)
 
 
-def upload_fileobj(fileobj, filename):
-    ensure_bucket_exists()
-    import io
+def upload_fileobj(fileobj, filename, content_type: str | None = None):
+    """Upload file object to MinIO/S3
 
+    Args:
+        fileobj: File-like object or bytes to upload
+        filename: S3 object key
+        content_type: Optional Content-Type header (e.g., 'image/jpeg')
+
+    Returns:
+        S3 object path
+    """
     s3_client = get_s3_client()
     _, _, _, bucket = get_minio_config()
-    # Allow passing additional metadata via (fileobj, metadata_dict)
-    # Support signature: upload_fileobj(fileobj, filename) or upload_fileobj((fileobj, metadata_dict), filename)
-    metadata = None
-    if isinstance(fileobj, tuple) and len(fileobj) == 2:
-        fileobj, metadata = fileobj
+    ensure_bucket_exists(s3_client, bucket)
 
     # Normalize raw bytes into a file-like object implementing read()
     if isinstance(fileobj, bytes):
         fileobj = io.BytesIO(fileobj)
-    if metadata:
-        s3_client.upload_fileobj(fileobj, bucket, filename, ExtraArgs={"Metadata": metadata})
-    else:
-        s3_client.upload_fileobj(fileobj, bucket, filename)
+
+    extra_args = {}
+    if content_type:
+        extra_args["ContentType"] = content_type
+
+    s3_client.upload_fileobj(fileobj, bucket, filename, ExtraArgs=extra_args if extra_args else None)
     return f"/{bucket}/{filename}"
 
 
@@ -96,7 +106,6 @@ def get_file_url(filename, time: int = 3600):
 
 def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:  # TODO maybe change to url
     """Generate a presigned URL for direct S3 access to an object"""
-    from src.viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
 
     cached_url = get_cached_presigned_url(object_key)
     if cached_url:
@@ -111,28 +120,67 @@ def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:  # T
         cache_presigned_url(object_key, url, expires_in)
 
         return cast(str, url)
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         logger.error(f"Failed to generate presigned URL for {object_key}: {e}")
         raise
 
 
-def get_object_metadata(object_key: str) -> dict:
-    """Return object metadata for a given object key. Returns a dict with keys from S3 HeadObject response.
+async def async_generate_presigned_urls_batch(object_keys: list[str], expires_in: int = 3600) -> dict[str, str]:
+    """Generate presigned URLs for multiple objects concurrently
 
-    Example returns: {'ContentLength': 12345, 'Metadata': {'width': '1024', 'height': '768'}}
+    Args:
+        object_keys: List of S3 object keys
+        expires_in: URL expiration time in seconds
+
+    Returns:
+        Dict mapping object_key to presigned URL
     """
-    s3_client = get_s3_client()
-    _, _, _, bucket = get_minio_config()
-    try:
-        resp = s3_client.head_object(Bucket=bucket, Key=object_key)
-        return cast(dict, resp)
-    except Exception as e:
-        logger.debug(f"Failed to get metadata for {object_key}: {e}")
-        return {}
+
+    # Check cache first
+    result = {}
+    uncached_keys = []
+
+    for object_key in object_keys:
+        cached_url = get_cached_presigned_url(object_key)
+        if cached_url:
+            result[object_key] = cached_url
+        else:
+            uncached_keys.append(object_key)
+
+    # If all URLs are cached, return immediately
+    if not uncached_keys:
+        return result
+
+    # Generate presigned URLs for uncached keys - run batch in single thread
+    executor = _get_executor()
+    loop = asyncio.get_event_loop()
+
+    def _generate_urls_batch(keys: list[str]) -> dict[str, str]:
+        """Generate multiple presigned URLs in a single thread (faster - reuses S3 client)"""
+        s3_client = get_s3_client()
+        _, _, _, bucket = get_minio_config()
+
+        urls = {}
+        for object_key in keys:
+            try:
+                url = s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": object_key}, ExpiresIn=expires_in)
+                cache_presigned_url(object_key, url, expires_in)
+                urls[object_key] = cast(str, url)
+            except Exception as e:  # pragma: no cover
+                logger.error(f"Failed to generate presigned URL for {object_key}: {e}")
+
+        return urls
+
+    # Generate all URLs in a single thread execution (much faster than multiple thread pool tasks)
+    generated_urls = await loop.run_in_executor(executor, _generate_urls_batch, uncached_keys)
+    result.update(generated_urls)
+
+    return result
 
 
 def rename_object(old_object_key: str, new_object_key: str) -> bool:
     """Rename an object in MinIO by copying it to a new key and deleting the old one"""
+
     s3_client = get_s3_client()
     _, _, _, bucket = get_minio_config()
 
@@ -141,6 +189,10 @@ def rename_object(old_object_key: str, new_object_key: str) -> bool:
         s3_client.copy_object(CopySource=copy_source, Bucket=bucket, Key=new_object_key)
 
         s3_client.delete_object(Bucket=bucket, Key=old_object_key)
+
+        # Invalidate cache for both old and new keys
+        clear_presigned_url_cache(old_object_key)
+        clear_presigned_url_cache(new_object_key)
 
         logger.info(f"Successfully renamed object from {old_object_key} to {new_object_key}")
         return True
@@ -151,11 +203,16 @@ def rename_object(old_object_key: str, new_object_key: str) -> bool:
 
 def delete_object(object_key: str) -> bool:
     """Delete an object from MinIO"""
+
     s3_client = get_s3_client()
     _, _, _, bucket = get_minio_config()
 
     try:
         s3_client.delete_object(Bucket=bucket, Key=object_key)
+
+        # Invalidate cache for deleted object
+        clear_presigned_url_cache(object_key)
+
         logger.info(f"Successfully deleted object {object_key}")
         return True
     except Exception as e:
@@ -172,6 +229,7 @@ def delete_folder(prefix: str) -> bool:
     Returns:
         True if deletion was successful, False otherwise
     """
+
     s3_client = get_s3_client()
     _, _, _, bucket = get_minio_config()
 
@@ -193,6 +251,9 @@ def delete_folder(prefix: str) -> bool:
                 s3_client.delete_objects(Bucket=bucket, Delete={"Objects": batch})
 
             logger.info(f"Successfully deleted {len(objects_to_delete)} objects with prefix {prefix}")
+
+            # Invalidate cache for all deleted objects (by prefix)
+            clear_presigned_urls_by_prefix(prefix)
         else:
             logger.info(f"No objects found with prefix {prefix}")
 
@@ -202,7 +263,7 @@ def delete_folder(prefix: str) -> bool:
         return False
 
 
-def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800), quality: int = 85) -> bytes:
+def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800), quality: int = 85) -> tuple[bytes, int, int]:
     """Create a thumbnail from image bytes
 
     Args:
@@ -213,30 +274,20 @@ def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800),
     Returns:
         Thumbnail image as bytes
     """
-    import io
-
-    from PIL import Image, ImageOps
 
     try:
-        # Open image from bytes
-        image = Image.open(io.BytesIO(image_bytes))
-
+        image = cast(Image.Image, Image.open(io.BytesIO(image_bytes)))
         # Apply EXIF orientation to fix rotation issues
         image = ImageOps.exif_transpose(image) or image
-
-        # Convert to RGB if necessary (for JPEG compatibility)
         image = image.convert("RGB")
-
-        # Create thumbnail maintaining aspect ratio
         image.thumbnail(max_size, Image.Resampling.LANCZOS)
 
-        # Save thumbnail to bytes
         thumbnail_io = io.BytesIO()
         image.save(thumbnail_io, format="JPEG", quality=quality, optimize=True)
         image.close()
         thumbnail_io.seek(0)
 
-        return thumbnail_io.read()
+        return thumbnail_io.read(), image.width, image.height
     except Exception as e:
         logger.error(f"Failed to create thumbnail: {e}")
         raise
@@ -257,13 +308,9 @@ def process_image_and_create_thumbnail(
     Returns:
         Tuple of (thumbnail_bytes, width, height)
     """
-    import io
-
-    from PIL import Image, ImageOps
 
     try:
-        # Open image once
-        image = Image.open(io.BytesIO(image_bytes))
+        image = cast(Image.Image, Image.open(io.BytesIO(image_bytes)))
 
         # Apply EXIF orientation
         image = ImageOps.exif_transpose(image) or image
@@ -321,8 +368,6 @@ _executor = None
 
 def _get_executor():
     """Get or create a shared thread pool executor"""
-    import os
-    from concurrent.futures import ThreadPoolExecutor
 
     global _executor
     if _executor is None:
@@ -336,15 +381,12 @@ def _get_bucket_lock():
     """Get or create the bucket creation lock"""
     global _bucket_creation_lock
     if _bucket_creation_lock is None:
-        import asyncio
-
         _bucket_creation_lock = asyncio.Lock()
     return _bucket_creation_lock
 
 
 async def async_ensure_bucket_exists():
     """Async version of ensure_bucket_exists using sync boto3 (faster)"""
-    import asyncio
 
     global _bucket_ensured
 
@@ -382,19 +424,18 @@ async def async_ensure_bucket_exists():
         await loop.run_in_executor(executor, _sync_ensure_bucket)
 
 
-async def async_upload_fileobj(fileobj, filename: str, metadata: dict | None = None):
+async def async_upload_fileobj(fileobj, filename: str, metadata: dict | None = None, content_type: str | None = None):
     """Async version of upload_fileobj using sync boto3 in executor (faster than aioboto3)
 
     Args:
         fileobj: File-like object or bytes to upload
         filename: S3 object key
         metadata: Optional metadata dict to attach to the object
+        content_type: Optional Content-Type header (e.g., 'image/jpeg')
 
     Returns:
         S3 object path
     """
-    import asyncio
-    import io
 
     # Ensure bucket exists (cached after first call)
     await async_ensure_bucket_exists()
@@ -415,6 +456,8 @@ async def async_upload_fileobj(fileobj, filename: str, metadata: dict | None = N
         extra_args = {}
         if metadata:
             extra_args["Metadata"] = metadata
+        if content_type:
+            extra_args["ContentType"] = content_type
 
         s3_client.upload_fileobj(file_to_upload, bucket, filename, ExtraArgs=extra_args if extra_args else None)
         return f"/{bucket}/{filename}"
@@ -439,7 +482,6 @@ async def async_create_and_upload_thumbnail(
     Returns:
         Tuple of (thumbnail_object_key, width, height)
     """
-    import asyncio
 
     # Process image and create thumbnail in shared thread pool
     executor = _get_executor()
@@ -453,9 +495,9 @@ async def async_create_and_upload_thumbnail(
         quality,
     )
 
-    # Upload thumbnail asynchronously
+    # Upload thumbnail asynchronously with proper Content-Type
     thumbnail_object_key = generate_thumbnail_object_key(object_key)
-    await async_upload_fileobj(thumbnail_bytes, thumbnail_object_key)
+    await async_upload_fileobj(thumbnail_bytes, thumbnail_object_key, content_type="image/jpeg")
 
     return thumbnail_object_key, width, height
 
@@ -475,27 +517,24 @@ async def async_process_and_upload_image(
     Returns:
         Tuple of (object_key, thumbnail_object_key, width, height)
     """
-    import asyncio
 
     # Process image and create thumbnail (gets dimensions as side effect)
     # Upload original and thumbnail concurrently
     # Use return_exceptions to handle thumbnail errors gracefully
     results = await asyncio.gather(
-        async_upload_fileobj(image_bytes, object_key, None),
+        async_upload_fileobj(image_bytes, object_key, None, content_type="image/jpeg"),
         async_create_and_upload_thumbnail(image_bytes, object_key),
         return_exceptions=True,
     )
 
-    # Check results
     original_result, thumbnail_result = results
 
-    # If original upload failed, raise the exception
     if isinstance(original_result, Exception):
         logger.error(f"Failed to upload original for {object_key}: {original_result}")
         raise original_result
 
     # If thumbnail creation failed, use original as thumbnail
-    if isinstance(thumbnail_result, Exception):
+    if isinstance(thumbnail_result, BaseException):
         logger.warning(f"Thumbnail creation failed for {object_key}, using original as thumbnail")
         thumbnail_object_key = object_key
         width, height = None, None

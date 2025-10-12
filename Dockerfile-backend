@@ -7,7 +7,7 @@ COPY pyproject.toml uv.lock ./
 COPY src/ src/
 COPY README.md ./
 
-RUN pip install --no-cache-dir uv==0.8.13 && uv sync --frozen
+RUN pip install --no-cache-dir uv==0.8.24 && uv sync --frozen
 
 
 EXPOSE 8000

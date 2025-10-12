@@ -1,5 +1,5 @@
+import logging
 import uuid
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -13,6 +13,7 @@ from viewport.schemas.photo import PhotoResponse
 from viewport.schemas.sharelink import ShareLinkResponse
 
 router = APIRouter(prefix="/galleries", tags=["galleries"])
+logger = logging.getLogger(__name__)
 
 
 def get_gallery_repository(db: Session = Depends(get_db)) -> GalleryRepository:
@@ -61,20 +62,45 @@ def list_galleries(
 
 
 @router.get("/{gallery_id}", response_model=GalleryDetailResponse)
-def get_gallery(
-    gallery_id: str,
+async def get_gallery_detail(
+    gallery_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
+    limit: int | None = Query(None, ge=1, le=1000, description="Limit number of photos returned (for pagination)"),
+    offset: int = Query(0, ge=0, description="Offset for photo pagination"),
 ) -> GalleryDetailResponse:
-    try:
-        gallery_uuid = uuid.UUID(gallery_id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid gallery ID format") from e
+    import time
 
-    gallery = repo.get_gallery_by_id_and_owner(gallery_uuid, current_user.id)
+    start_time = time.monotonic()
+
+    db_start = time.monotonic()
+    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    db_time = time.monotonic() - db_start
 
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
+
+    photo_count = len(gallery.photos)
+
+    # Apply pagination if limit is provided
+    photos_to_process = gallery.photos
+    if limit is not None:
+        photos_to_process = gallery.photos[offset : offset + limit]
+        logger.info(f"Gallery {gallery_id}: DB query took {db_time:.3f}s, total photos: {photo_count}, returning: {len(photos_to_process)} (offset={offset}, limit={limit})")
+    else:
+        logger.info(f"Gallery {gallery_id}: DB query took {db_time:.3f}s, photos count: {photo_count}")
+
+    # Use batch method for faster photo URL generation
+    url_start = time.monotonic()
+    photo_responses = await PhotoResponse.from_db_photos_batch(photos_to_process)
+    url_time = time.monotonic() - url_start
+
+    # Calculate URLs per second
+    urls_generated = len(photos_to_process) * 2
+    urls_per_second = urls_generated / url_time if url_time > 0 else 0
+
+    total_time = time.monotonic() - start_time
+    logger.info(f"Gallery {gallery_id}: URL generation took {url_time:.3f}s ({urls_generated} URLs, {urls_per_second:.0f} URLs/s), total time: {total_time:.3f}s")
 
     return GalleryDetailResponse(
         id=str(gallery.id),
@@ -82,26 +108,19 @@ def get_gallery(
         name=gallery.name,
         created_at=gallery.created_at,
         cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
-        photos=[PhotoResponse.from_db_photo(photo) for photo in gallery.photos],
+        photos=photo_responses,
         share_links=[ShareLinkResponse.model_validate(link) for link in gallery.share_links],
     )
 
 
 @router.post("/{gallery_id}/cover/{photo_id}", response_model=GalleryResponse)
 def set_cover_photo(
-    gallery_id: str,
-    photo_id: str,
+    gallery_id: uuid.UUID,
+    photo_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> GalleryResponse:
-    # Validate UUIDs
-    try:
-        gallery_uuid = uuid.UUID(gallery_id)
-        photo_uuid = uuid.UUID(photo_id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid ID format") from e
-
-    gallery = repo.set_cover_photo(gallery_uuid, photo_uuid, current_user.id)
+    gallery = repo.set_cover_photo(gallery_id, photo_id, current_user.id)
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery or photo not found")
 
@@ -116,49 +135,33 @@ def set_cover_photo(
 
 @router.delete("/{gallery_id}/cover", status_code=status.HTTP_204_NO_CONTENT)
 def clear_cover_photo(
-    gallery_id: str,
+    gallery_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    try:
-        gallery_uuid = uuid.UUID(gallery_id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid ID format") from e
-    gallery = repo.clear_cover_photo(gallery_uuid, current_user.id)
+    gallery = repo.clear_cover_photo(gallery_id, current_user.id)
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
 
 
 @router.delete("/{gallery_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_gallery(
-    gallery_id: str,
+    gallery_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    # Convert string to UUID
-    try:
-        gallery_uuid = UUID(gallery_id)
-    except ValueError:
-        raise HTTPException(status_code=422, detail="Invalid gallery ID format") from None
-
-    if not repo.delete_gallery(gallery_uuid, current_user.id):
+    if not repo.delete_gallery(gallery_id, current_user.id):
         raise HTTPException(status_code=404, detail="Gallery not found")
 
 
 @router.patch("/{gallery_id}", response_model=GalleryResponse)
 def update_gallery(
-    gallery_id: str,
+    gallery_id: uuid.UUID,
     request: GalleryUpdateRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> GalleryResponse:
-    # Validate UUID
-    try:
-        gallery_uuid = uuid.UUID(gallery_id)
-    except ValueError as err:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid gallery ID format") from err
-    # Update gallery
-    gallery = repo.update_gallery_name(gallery_uuid, current_user.id, request.name)
+    gallery = repo.update_gallery_name(gallery_id, current_user.id, request.name)
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
     return GalleryResponse(

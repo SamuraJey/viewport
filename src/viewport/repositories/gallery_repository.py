@@ -1,11 +1,15 @@
+import logging
+import time
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, insert, select
 
 from src.viewport.models.gallery import Gallery, Photo
 from src.viewport.models.sharelink import ShareLink
 from src.viewport.repositories.base_repository import BaseRepository
+
+logger = logging.getLogger(__name__)
 
 
 class GalleryRepository(BaseRepository):
@@ -108,21 +112,33 @@ class GalleryRepository(BaseRepository):
         Returns:
             List of created Photo objects
         """
-        from datetime import UTC, datetime
+
+        start_time = time.time()
 
         # Add timestamps to all records
         now = datetime.now(UTC)
         for data in photos_data:
             data["uploaded_at"] = now
 
-        # Bulk insert
-        self.db.bulk_insert_mappings(Photo, photos_data)
-        self.db.commit()
+        logger.info(f"Starting batch INSERT of {len(photos_data)} photos")
+        insert_start = time.time()
 
-        # Fetch the inserted photos (can't use RETURNING with bulk_insert_mappings easily)
-        # We'll query by gallery_id and uploaded_at timestamp
-        stmt = select(Photo).where(Photo.gallery_id == photos_data[0]["gallery_id"], Photo.uploaded_at == now)
-        return list(self.db.execute(stmt).scalars().all())
+        # Single INSERT with RETURNING - much faster than bulk_insert_mappings + SELECT
+        stmt = insert(Photo).values(photos_data).returning(Photo)
+        result = self.db.execute(stmt)
+        photos = list(result.scalars().all())
+
+        insert_duration = time.time() - insert_start
+        logger.info(f"INSERT completed in {insert_duration:.2f}s")
+
+        commit_start = time.time()
+        self.db.commit()
+        commit_duration = time.time() - commit_start
+
+        total_duration = time.time() - start_time
+        logger.info(f"Batch INSERT total: {total_duration:.2f}s (INSERT: {insert_duration:.2f}s, COMMIT: {commit_duration:.2f}s)")
+
+        return photos
 
     def delete_photo(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> bool:
         from src.viewport.minio_utils import delete_object

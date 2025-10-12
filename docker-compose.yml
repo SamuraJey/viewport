@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   app:
     build:
@@ -21,10 +19,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.50'
+          cpus: "0.50"
           memory: 1G
         reservations:
-          cpus: '0.25'
+          cpus: "0.25"
           memory: 256M
 
   postgres:
@@ -35,6 +33,9 @@ services:
       POSTGRES_DB: viewport
       POSTGRES_USER: viewport
       POSTGRES_PASSWORD: viewport
+      # Increase max connections for concurrent Celery tasks
+      POSTGRES_MAX_CONNECTIONS: 100
+    command: postgres -c max_connections=100 -c shared_buffers=256MB
     ports:
       - "5432:5432"
     volumes:
@@ -44,10 +45,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.50'
-          memory: 1G
+          cpus: "0.50"
+          memory: 512M
         reservations:
-          cpus: '0.25'
+          cpus: "0.25"
           memory: 512M
 
   minio:
@@ -68,10 +69,59 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.50'
+          cpus: "0.50"
           memory: 1G
         reservations:
-          cpus: '0.50'
+          cpus: "0.25"
+          memory: 512M
+
+  redis:
+    image: valkey/valkey:8-alpine
+    container_name: viewport_redis
+    restart: always
+    command: >
+      valkey-server
+      --maxclients 10000
+      --tcp-backlog 511
+      --timeout 0
+      --tcp-keepalive 300
+    ports:
+      - "6379:6379"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+        reservations:
+          cpus: "0.10"
+          memory: 128M
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile-backend
+    container_name: viewport_celery_worker
+    command: uv run celery -A src.viewport.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=50
+    env_file:
+      - .env.prod
+    depends_on:
+      - redis
+      - postgres
+      - minio
+    networks:
+      - backend
+    volumes:
+      - ./src:/app/src
+      - ./config:/app/config
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+        reservations:
+          cpus: "0.50"
           memory: 512M
 
 volumes:

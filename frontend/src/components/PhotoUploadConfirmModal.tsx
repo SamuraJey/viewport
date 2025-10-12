@@ -18,6 +18,8 @@ interface UploadProgress {
     total: number
     percentage: number
     currentFile: string
+    currentBatch?: number
+    totalBatches?: number
 }
 
 export const PhotoUploadConfirmModal = ({
@@ -30,7 +32,6 @@ export const PhotoUploadConfirmModal = ({
     const [isUploading, setIsUploading] = useState(false)
     const [progress, setProgress] = useState<UploadProgress | null>(null)
     const [result, setResult] = useState<PhotoUploadResponse | null>(null)
-    const [filePreviews, setFilePreviews] = useState<{ [key: string]: string }>({})
     const [showModal, setShowModal] = useState(false)
     const [showCancelWarning, setShowCancelWarning] = useState(false)
     const uploadButtonRef = useRef<HTMLButtonElement>(null)
@@ -38,43 +39,18 @@ export const PhotoUploadConfirmModal = ({
     // Create image previews when files change
     useEffect(() => {
         if (!files.length) {
-            setFilePreviews({})
             return
         }
 
-        const previews: { [key: string]: string } = {}
-        const loadPreviews = async () => {
-            for (const file of files) {
-                if (file.type.startsWith('image/')) {
-                    try {
-                        const preview = URL.createObjectURL(file)
-                        previews[file.name] = preview
-                    } catch (error) {
-                        console.warn('Failed to create preview for', file.name, error)
-                    }
-                }
-            }
-            setFilePreviews(previews)
-        }
-
-        loadPreviews()
-
-        // Cleanup function to revoke object URLs
-        return () => {
-            Object.values(previews).forEach(url => {
-                if (url) URL.revokeObjectURL(url)
-            })
-        }
+        // No previews needed - removed to save memory
     }, [files])
 
     // Cleanup previews when component unmounts
     useEffect(() => {
         return () => {
-            Object.values(filePreviews).forEach(url => {
-                if (url) URL.revokeObjectURL(url)
-            })
+            // No cleanup needed since no previews are created
         }
-    }, [filePreviews])
+    }, [])
 
     // Handle modal animation
     useEffect(() => {
@@ -152,8 +128,6 @@ export const PhotoUploadConfirmModal = ({
     // Force close modal (used after warning confirmation)
     const handleForceClose = () => {
         // Clean up file previews
-        Object.values(filePreviews).forEach(url => URL.revokeObjectURL(url))
-        setFilePreviews({})
         setProgress(null)
         setResult(null)
         setIsUploading(false)
@@ -267,7 +241,6 @@ export const PhotoUploadConfirmModal = ({
                                     const isLarge = file.size > 15 * 1024 * 1024
                                     const isInvalid = !['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)
                                     const hasError = isLarge || isInvalid
-                                    const preview = filePreviews[file.name]
 
                                     return (
                                         <div
@@ -277,19 +250,11 @@ export const PhotoUploadConfirmModal = ({
                                                 : 'bg-surface-foreground dark:bg-surface'
                                                 }`}
                                         >
-                                            {/* Image Preview */}
+                                            {/* Image Preview - Removed to save memory */}
                                             <div className="w-20 h-20 flex-shrink-0">
-                                                {preview ? (
-                                                    <img
-                                                        src={preview}
-                                                        alt={file.name}
-                                                        className="w-20 h-20 object-cover rounded-lg border border-border"
-                                                    />
-                                                ) : (
-                                                    <div className="w-20 h-20 bg-surface-foreground dark:bg-surface rounded-lg flex items-center justify-center">
-                                                        <FileImage className={`w-8 h-8 ${hasError ? 'text-red-500' : 'text-text-muted dark:text-text'}`} />
-                                                    </div>
-                                                )}
+                                                <div className="w-20 h-20 bg-surface-foreground dark:bg-surface rounded-lg flex items-center justify-center">
+                                                    <FileImage className={`w-8 h-8 ${hasError ? 'text-red-500' : 'text-text-muted dark:text-text'}`} />
+                                                </div>
                                             </div>
 
                                             {/* File Info */}
@@ -319,7 +284,12 @@ export const PhotoUploadConfirmModal = ({
                         <div className="space-y-4">
                             <div className="flex items-center gap-3">
                                 <Upload className="w-5 h-5 text-blue-500 animate-pulse" />
-                                <span className="text-text">Uploading {progress.currentFile}...</span>
+                                <span className="text-text">
+                                    {progress.currentBatch && progress.totalBatches
+                                        ? `Uploading batch ${progress.currentBatch}/${progress.totalBatches}: ${progress.currentFile}...`
+                                        : `Uploading ${progress.currentFile}...`
+                                    }
+                                </span>
                             </div>
 
                             <div className="space-y-2">
@@ -333,6 +303,11 @@ export const PhotoUploadConfirmModal = ({
                                         style={{ width: `${progress.percentage}%` }}
                                     />
                                 </div>
+                                {progress.currentBatch && progress.totalBatches && (
+                                    <div className="text-xs text-text-muted">
+                                        Batch {progress.currentBatch} of {progress.totalBatches}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

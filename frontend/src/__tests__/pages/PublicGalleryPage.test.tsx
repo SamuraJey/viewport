@@ -147,7 +147,9 @@ describe('PublicGalleryPage', () => {
         const btn = screen.getByRole('button', { name: /download all photos/i })
         await userEvent.click(btn)
 
-        expect(openSpy).toHaveBeenCalledWith('http://localhost:8000/s/abc123/download/all', '_blank')
+        // Should use VITE_API_URL from environment, or fallback to localhost:8000
+        const expectedUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/s/abc123/download/all`
+        expect(openSpy).toHaveBeenCalledWith(expectedUrl, '_blank')
         openSpy.mockRestore()
     })
 })

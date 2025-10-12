@@ -1,14 +1,4 @@
-"""
-Caching utilities for photo endpoints
-"""
-
-import functools
-from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any
-
-from fastapi import Response, status
-from fastapi.responses import JSONResponse, StreamingResponse
 
 # In-memory cache for presigned URLs
 _url_cache: dict[str, dict[str, str | datetime]] = {}
@@ -43,80 +33,37 @@ def clear_presigned_url_cache(photo_id: str) -> None:
         del _url_cache[photo_id]
 
 
-def url_cache(max_age: int = 3600):
-    """
-    Decorator to add HTTP caching headers for presigned URL endpoints.
-
-    Args:
-        max_age: Cache duration in seconds (default: 1 hour)
-    """
-
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
-            # Call the original function
-            result = func(*args, **kwargs)
-
-            # Add caching headers to the response
-            if isinstance(result, dict):
-                # Create JSONResponse with cache headers
-                cache_control = f"public, max-age={max_age}" if max_age > 3600 else f"private, max-age={max_age}"
-                headers = {"Cache-Control": cache_control}
-
-                # Only add Vary header for private content
-                if "private" in cache_control:
-                    headers["Vary"] = "Authorization"
-
-                return JSONResponse(content=result, headers=headers)
-            elif isinstance(result, Response):
-                cache_control = f"public, max-age={max_age}" if max_age > 3600 else f"private, max-age={max_age}"
-                result.headers["Cache-Control"] = cache_control
-
-                if "private" in cache_control:
-                    result.headers["Vary"] = "Authorization"
-
-            return result
-
-        return wrapper
-
-    return decorator
+def clear_presigned_urls_batch(photo_ids: list[str]) -> None:
+    """Clear cached presigned URLs for multiple photos (batch operation)"""
+    for photo_id in photo_ids:
+        if photo_id in _url_cache:
+            del _url_cache[photo_id]
 
 
-def photo_cache(max_age: int = 3600, public: bool = True):
-    """
-    Decorator to add HTTP caching headers to photo endpoints.
+def clear_presigned_urls_by_prefix(prefix: str) -> None:
+    """Clear all cached presigned URLs that start with a prefix (e.g., 'gallery_id/')"""
+    keys_to_delete = [key for key in _url_cache if key.startswith(prefix)]
+    for key in keys_to_delete:
+        del _url_cache[key]
 
-    Args:
-        max_age: Cache duration in seconds (default: 1 hour)
-        public: Whether cache is public or private (default: True)
-    """
 
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
-            # Extract request and photo_id from kwargs
-            request = kwargs.get("request")
-            photo_id = kwargs.get("photo_id")
+def get_cache_stats() -> dict:
+    """Get cache statistics for monitoring"""
+    total_entries = len(_url_cache)
+    expired_entries = 0
+    valid_entries = 0
 
-            # Handle conditional GET via ETag if photo_id is available
-            if photo_id and request and hasattr(request, "headers"):
-                etag = f'"{photo_id}"'
-                if request.headers.get("if-none-match") == etag:
-                    return Response(status_code=status.HTTP_304_NOT_MODIFIED)
+    now = datetime.now()
+    for cached in _url_cache.values():
+        expires_at = cached["expires_at"]
+        if isinstance(expires_at, datetime):
+            if expires_at > now:
+                valid_entries += 1
+            else:
+                expired_entries += 1
 
-            # Call the original function
-            result = func(*args, **kwargs)
-
-            # Add caching headers to the response
-            if isinstance(result, StreamingResponse | Response):
-                cache_control = f"{'public' if public else 'private'}, max-age={max_age}"
-                result.headers["Cache-Control"] = cache_control
-
-                if photo_id:
-                    result.headers["ETag"] = f'"{photo_id}"'
-
-            return result
-
-        return wrapper
-
-    return decorator
+    return {
+        "total_entries": total_entries,
+        "valid_entries": valid_entries,
+        "expired_entries": expired_entries,
+    }
