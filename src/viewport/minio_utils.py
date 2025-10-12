@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from functools import cache
 from typing import cast
@@ -6,6 +7,8 @@ import boto3
 from botocore.client import BaseClient, Config
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from src.viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
 
 # Configure logging - set botocore to WARNING level to reduce noise
 logging.getLogger("botocore").setLevel(logging.WARNING)
@@ -111,7 +114,7 @@ def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:  # T
         cache_presigned_url(object_key, url, expires_in)
 
         return cast(str, url)
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         logger.error(f"Failed to generate presigned URL for {object_key}: {e}")
         raise
 
@@ -126,9 +129,6 @@ async def async_generate_presigned_urls_batch(object_keys: list[str], expires_in
     Returns:
         Dict mapping object_key to presigned URL
     """
-    import asyncio
-
-    from src.viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
 
     # Check cache first
     result = {}

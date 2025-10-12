@@ -49,4 +49,4 @@ test:
 	$(VENV)/bin/pytest -n 4 ./tests
 
 test-cov:
-	$(VENV)/bin/pytest -n 4 ./tests --cov=$(PROJECT_NAME) --cov=./tests --cov-report term-missing --cov-fail-under=85
+	$(VENV)/bin/pytest -n 4 ./tests --cov=$(PROJECT_NAME) --cov=. --cov-branch --cov-fail-under=85
