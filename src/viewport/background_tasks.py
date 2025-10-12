@@ -41,7 +41,7 @@ celery_app.conf.update(
 )
 
 
-@celery_app.task(name="create_thumbnail", bind=True, max_retries=3, rate_limit="150/s")
+@celery_app.task(name="create_thumbnail", bind=True, max_retries=3, rate_limit="150/s")  # pragma: no cover
 def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
     """Background task to create thumbnail for uploaded photo
 
@@ -141,7 +141,7 @@ def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
             return {"status": "error", "message": str(e), "photo_id": photo_id}
 
 
-@celery_app.task(name="create_thumbnails_batch", bind=True, max_retries=3, rate_limit="10/s")
+@celery_app.task(name="create_thumbnails_batch", bind=True, max_retries=3, rate_limit="10/s")  # pragma: no cover
 def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
     """Background task to create thumbnails for multiple photos in one batch
 

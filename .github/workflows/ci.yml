@@ -46,7 +46,7 @@ jobs:
         env:
           JWT_SECRET_KEY: supersecretkey
         run: |
-          uv run pytest -n auto --cov=. --cov-branch --cov-report=xml --cov-fail-under=80
+          uv run pytest -n auto --cov=src --cov-branch --cov-report=xml --cov-fail-under=80
 
       - name: Comment coverage on PR
         uses: py-cov-action/python-coverage-comment-action@v3

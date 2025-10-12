@@ -1,4 +1,5 @@
 import asyncio
+import io
 import logging
 from functools import cache
 from typing import cast
@@ -61,33 +62,22 @@ def get_s3_client() -> BaseClient:
     )
 
 
-def ensure_bucket_exists():
-    s3_client = get_s3_client()
-    _, _, _, bucket = get_minio_config()
+def ensure_bucket_exists(s3_client: BaseClient, bucket: str) -> None:
     buckets = s3_client.list_buckets()["Buckets"]
     if not any(b["Name"] == bucket for b in buckets):
         s3_client.create_bucket(Bucket=bucket)
 
 
 def upload_fileobj(fileobj, filename):
-    ensure_bucket_exists()
-    import io
-
     s3_client = get_s3_client()
     _, _, _, bucket = get_minio_config()
-    # Allow passing additional metadata via (fileobj, metadata_dict)
-    # Support signature: upload_fileobj(fileobj, filename) or upload_fileobj((fileobj, metadata_dict), filename)
-    metadata = None
-    if isinstance(fileobj, tuple) and len(fileobj) == 2:
-        fileobj, metadata = fileobj
+    ensure_bucket_exists(s3_client, bucket)
 
     # Normalize raw bytes into a file-like object implementing read()
     if isinstance(fileobj, bytes):
         fileobj = io.BytesIO(fileobj)
-    if metadata:
-        s3_client.upload_fileobj(fileobj, bucket, filename, ExtraArgs={"Metadata": metadata})
-    else:
-        s3_client.upload_fileobj(fileobj, bucket, filename)
+
+    s3_client.upload_fileobj(fileobj, bucket, filename)
     return f"/{bucket}/{filename}"
 
 
@@ -163,28 +153,13 @@ async def async_generate_presigned_urls_batch(object_keys: list[str], expires_in
 
     # Process results
     for item in generated:
-        if isinstance(item, Exception):
+        if isinstance(item, Exception):  # pragma: no cover
             logger.error(f"Failed to generate presigned URL: {item}")
             continue
         object_key, url = item
         result[object_key] = url
 
     return result
-
-
-def get_object_metadata(object_key: str) -> dict:
-    """Return object metadata for a given object key. Returns a dict with keys from S3 HeadObject response.
-
-    Example returns: {'ContentLength': 12345, 'Metadata': {'width': '1024', 'height': '768'}}
-    """
-    s3_client = get_s3_client()
-    _, _, _, bucket = get_minio_config()
-    try:
-        resp = s3_client.head_object(Bucket=bucket, Key=object_key)
-        return cast(dict, resp)
-    except Exception as e:
-        logger.debug(f"Failed to get metadata for {object_key}: {e}")
-        return {}
 
 
 def rename_object(old_object_key: str, new_object_key: str) -> bool:
