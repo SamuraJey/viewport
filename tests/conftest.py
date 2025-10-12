@@ -48,7 +48,7 @@ def engine(postgres_container: PostgresContainer) -> Generator[Engine]:
     from src.viewport.db import Base
     from src.viewport.models import Gallery, Photo, ShareLink, User  # noqa: F401
 
-    db_url = postgres_container.get_connection_url()
+    db_url = postgres_container.get_connection_url(driver="psycopg")
     engine = create_engine(db_url)
     # Create all tables once at session startup
     Base.metadata.create_all(engine)

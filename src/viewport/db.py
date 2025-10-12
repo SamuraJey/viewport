@@ -24,7 +24,7 @@ class DatabaseSettings(BaseSettings):
 
     @property
     def database_url(self) -> str:  # pragma: no cover
-        return f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"
+        return f"postgresql+psycopg://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_prefix="POSTGRES_", extra="ignore")
 
