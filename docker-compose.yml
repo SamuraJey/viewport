@@ -46,7 +46,7 @@ services:
       resources:
         limits:
           cpus: "0.50"
-          memory: 1G
+          memory: 512M
         reservations:
           cpus: "0.25"
           memory: 512M
@@ -72,7 +72,7 @@ services:
           cpus: "0.50"
           memory: 1G
         reservations:
-          cpus: "0.50"
+          cpus: "0.25"
           memory: 512M
 
   redis:
