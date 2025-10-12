@@ -51,12 +51,6 @@ vi.mock('../../services/shareLinkService', () => ({
   }
 }))
 
-// Mock PresignedImage to avoid network requests
-vi.mock('../../components/PresignedImage', () => ({
-  PresignedImage: ({ alt, ...props }: any) => (
-    <img alt={alt} data-testid="presigned-image" {...props} />
-  ),
-}))
 
 // Mock Layout to avoid router context issues
 vi.mock('../../components/Layout', () => ({

@@ -112,60 +112,6 @@ def get_photos_by_sharelink(
     )
 
 
-@router.get("/{share_id}/photos/{photo_id}/url")
-@url_cache(max_age=1800)  # Cache presigned URLs for 30 minutes
-def get_public_photo_presigned_url(share_id: UUID, photo_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
-    """Get presigned URL for a photo from public gallery"""
-    photo = repo.get_photo_by_id_and_gallery(photo_id, sharelink.gallery_id)
-    if not photo:
-        raise HTTPException(status_code=404, detail="Photo not found")
-
-    logger.log_event("view_photo", share_id=share_id, extra={"photo_id": str(photo_id)})
-
-    # Generate presigned URL
-    presigned_url = generate_presigned_url(photo.object_key)
-    return {"url": presigned_url}
-
-
-@router.get("/{share_id}/photos/{photo_id}")
-def get_photo_by_sharelink(share_id: UUID, photo_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
-    """Stream a photo from public gallery with proper caching headers"""
-    photo = repo.get_photo_by_id_and_gallery(photo_id, sharelink.gallery_id)
-    if not photo:
-        raise HTTPException(status_code=404, detail="Photo not found")
-
-    logger.log_event("view_photo", share_id=share_id, extra={"photo_id": str(photo_id)})
-
-    # Stream photo directly from S3
-    _, _, _, bucket = get_minio_config()
-    s3_client = get_s3_client()
-
-    try:
-        obj = s3_client.get_object(Bucket=bucket, Key=photo.object_key)
-    except Exception as e:
-        raise HTTPException(status_code=404, detail="File not found") from e
-
-    # Determine MIME type
-    import mimetypes
-
-    mime_type, _ = mimetypes.guess_type(photo.object_key)
-    if not mime_type:
-        mime_type = obj.get("ContentType", "image/jpeg")
-
-    # Create response with aggressive caching headers for public content
-    response = StreamingResponse(
-        obj["Body"],
-        media_type=mime_type,
-        headers={
-            "Cache-Control": "public, max-age=86400, immutable",  # 24 hours cache
-            "ETag": f'"{photo_id}"',
-            "Expires": "Thu, 31 Dec 2037 23:55:55 GMT",  # Far future expires
-        },
-    )
-
-    return response
-
-
 @router.get("/{share_id}/download/all")
 def download_all_photos_zip(share_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)

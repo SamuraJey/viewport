@@ -6,9 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from src.viewport.auth_utils import get_current_user
-from src.viewport.cache_utils import url_cache
 from src.viewport.db import get_db
-from src.viewport.minio_utils import generate_presigned_url
 from src.viewport.repositories.gallery_repository import GalleryRepository
 from src.viewport.schemas.photo import PhotoRenameRequest, PhotoResponse, PhotoUploadResponse, PhotoUploadResult
 
@@ -42,30 +40,6 @@ async def get_all_photo_urls_for_gallery(
     photo_responses = await PhotoResponse.from_db_photos_batch(photos)
 
     return photo_responses
-
-
-# GET /galleries/{gallery_id}/photos/{photo_id}/url - Get presigned URL for photo in gallery
-@router.get("/{gallery_id}/photos/{photo_id}/url")
-@url_cache(max_age=3600)
-def get_photo_url(gallery_id: UUID, photo_id: UUID, repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
-    """Get a presigned URL for a photo for authenticated users who own the gallery"""
-    logger.debug("Generating presigned URL for photo %s in gallery %s", photo_id, gallery_id)
-    # First, verify gallery ownership
-    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
-    if not gallery:
-        raise HTTPException(status_code=404, detail="Gallery not found")
-
-    # Then, verify photo belongs to that gallery
-    photo = repo.get_photo_by_id_and_gallery(photo_id, gallery_id)
-    if not photo:
-        raise HTTPException(status_code=404, detail="Photo not found")
-
-    # Generate presigned URL
-    try:
-        url = generate_presigned_url(photo.object_key, expires_in=3600)  # 1 hour expiration
-        return {"url": url, "expires_in": 3600}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to generate photo URL") from e
 
 
 @router.post("/{gallery_id}/photos/batch", response_model=PhotoUploadResponse)
