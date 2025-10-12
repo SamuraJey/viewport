@@ -103,7 +103,7 @@ services:
       context: .
       dockerfile: Dockerfile-backend
     container_name: viewport_celery_worker
-    command: uv run celery -A src.viewport.celery_app worker --loglevel=info --concurrency=4 --max-tasks-per-child=50
+    command: uv run celery -A src.viewport.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=50
     env_file:
       - .env.prod
     depends_on:
@@ -118,8 +118,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1.0"
-          memory: 1G
+          cpus: "0.50"
+          memory: 512M
         reservations:
           cpus: "0.50"
           memory: 512M
