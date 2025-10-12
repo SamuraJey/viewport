@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from src.viewport.db import get_db
 from src.viewport.logger import logger
-from src.viewport.minio_utils import async_generate_presigned_urls_batch, generate_presigned_url, get_minio_config, get_s3_client
+from src.viewport.minio_utils import async_generate_presigned_urls_batch, get_minio_config, get_s3_client
 from src.viewport.models.gallery import Gallery
 from src.viewport.models.sharelink import ShareLink
 from src.viewport.repositories.sharelink_repository import ShareLinkRepository
@@ -88,7 +88,7 @@ async def get_photos_by_sharelink(
         cover_url = None
         if cover_photo_obj:
             cover_filename = cover_photo_obj.object_key.split("/", 1)[1] if "/" in cover_photo_obj.object_key else cover_photo_obj.object_key
-            cover_url = generate_presigned_url(cover_photo_obj.object_key)
+            cover_url = url_map.get(cover_photo_obj.object_key)
 
         if cover_url:
             cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_url, filename=cover_filename)

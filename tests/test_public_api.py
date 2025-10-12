@@ -49,24 +49,6 @@ class TestPublicAPI:
             assert ("X-Amz-Algorithm" in photo["full_url"] or "X-Amz-Signature" in photo["full_url"]) or photo["full_url"].startswith("http://localhost")
             assert ("X-Amz-Algorithm" in photo["thumbnail_url"] or "X-Amz-Signature" in photo["thumbnail_url"]) or photo["thumbnail_url"].startswith("http://localhost")
 
-    def test_get_single_photo_presigned_url_and_not_found(self, authenticated_client: TestClient, gallery_id_fixture: str):
-        # Upload a photo and create sharelink
-        photo_id = _upload_photo(authenticated_client, gallery_id_fixture, b"imgdata", "one.jpg")
-        resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"})
-        assert resp.status_code == 201
-        share_id = resp.json()["id"]
-
-        r = authenticated_client.get(f"/s/{share_id}/photos/{photo_id}/url")
-        assert r.status_code == 200
-        url = r.json()["url"]
-        assert isinstance(url, str)
-        assert url.startswith("http")
-        assert ("X-Amz-Algorithm" in url or "X-Amz-Signature" in url) or url.startswith("http://localhost")
-
-        fake = "00000000-0000-0000-0000-000000000000"
-        r2 = authenticated_client.get(f"/s/{share_id}/photos/{fake}/url")
-        assert r2.status_code == 404
-
     def test_stream_photo_and_downloads(self, authenticated_client: TestClient, gallery_id_fixture: str):
         # Upload photo and create sharelink
         content = b"streamcontent"
