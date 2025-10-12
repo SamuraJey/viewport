@@ -116,68 +116,60 @@ def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:  # T
         raise
 
 
-def generate_presigned_urls_batch(object_keys: list[str], expires_in: int = 3600) -> list[str]:
-    """Generate presigned URLs for multiple objects efficiently
-
-    This function is optimized for bulk URL generation:
-    1. Checks cache first for each key
-    2. Generates remaining URLs in parallel using ThreadPoolExecutor
-    3. Caches all newly generated URLs
+async def async_generate_presigned_urls_batch(object_keys: list[str], expires_in: int = 3600) -> dict[str, str]:
+    """Generate presigned URLs for multiple objects concurrently
 
     Args:
         object_keys: List of S3 object keys
         expires_in: URL expiration time in seconds
 
     Returns:
-        List of presigned URLs in the same order as object_keys
+        Dict mapping object_key to presigned URL
     """
-    from concurrent.futures import ThreadPoolExecutor
+    import asyncio
 
     from src.viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
 
-    if not object_keys:
-        return []
+    # Check cache first
+    result = {}
+    uncached_keys = []
 
-    # Check cache first for all keys
-    results = [None] * len(object_keys)
-    keys_to_generate = []
-    indices_to_generate = []
-
-    for i, key in enumerate(object_keys):
-        cached_url = get_cached_presigned_url(key)
+    for object_key in object_keys:
+        cached_url = get_cached_presigned_url(object_key)
         if cached_url:
-            results[i] = cached_url
+            result[object_key] = cached_url
         else:
-            keys_to_generate.append(key)
-            indices_to_generate.append(i)
+            uncached_keys.append(object_key)
 
-    # If all URLs were cached, return immediately
-    if not keys_to_generate:
-        return results
+    # If all URLs are cached, return immediately
+    if not uncached_keys:
+        return result
 
-    # Generate remaining URLs in parallel
-    s3_client = get_s3_client()
-    _, _, _, bucket = get_minio_config()
+    # Generate presigned URLs for uncached keys concurrently
+    executor = _get_executor()
+    loop = asyncio.get_event_loop()
 
-    def generate_one_url(key: str) -> str:
-        try:
-            url = s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=expires_in)
-            # Cache immediately
-            cache_presigned_url(key, url, expires_in)
-            return url
-        except Exception as e:
-            logger.error(f"Failed to generate presigned URL for {key}: {e}")
-            raise
+    def _generate_url(object_key: str) -> tuple[str, str]:
+        """Generate single presigned URL (runs in thread pool)"""
+        s3_client = get_s3_client()
+        _, _, _, bucket = get_minio_config()
+        url = s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": object_key}, ExpiresIn=expires_in)
+        cache_presigned_url(object_key, url, expires_in)
+        return object_key, cast(str, url)
 
-    # Use 50 workers to match S3 client max_pool_connections
-    with ThreadPoolExecutor(max_workers=50) as executor:
-        generated_urls = list(executor.map(generate_one_url, keys_to_generate))
+    # Generate URLs concurrently
+    tasks = [loop.run_in_executor(executor, _generate_url, key) for key in uncached_keys]
+    generated = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # Insert generated URLs into results
-    for idx, url in zip(indices_to_generate, generated_urls, strict=True):
-        results[idx] = url
+    # Process results
+    for item in generated:
+        if isinstance(item, Exception):
+            logger.error(f"Failed to generate presigned URL: {item}")
+            continue
+        object_key, url = item
+        result[object_key] = url
 
-    return results
+    return result
 
 
 def get_object_metadata(object_key: str) -> dict:
@@ -446,14 +438,13 @@ async def async_ensure_bucket_exists():
         await loop.run_in_executor(executor, _sync_ensure_bucket)
 
 
-async def async_upload_fileobj(fileobj, filename: str, metadata: dict | None = None, content_type: str | None = None):
+async def async_upload_fileobj(fileobj, filename: str, metadata: dict | None = None):
     """Async version of upload_fileobj using sync boto3 in executor (faster than aioboto3)
 
     Args:
         fileobj: File-like object or bytes to upload
         filename: S3 object key
         metadata: Optional metadata dict to attach to the object
-        content_type: Optional Content-Type to set for the S3 object
 
     Returns:
         S3 object path
@@ -480,9 +471,6 @@ async def async_upload_fileobj(fileobj, filename: str, metadata: dict | None = N
         extra_args = {}
         if metadata:
             extra_args["Metadata"] = metadata
-        if content_type:
-            extra_args["ContentType"] = content_type
-            logger.debug(f"Uploading {filename} with ContentType: {content_type}")
 
         s3_client.upload_fileobj(file_to_upload, bucket, filename, ExtraArgs=extra_args if extra_args else None)
         return f"/{bucket}/{filename}"
@@ -522,9 +510,8 @@ async def async_create_and_upload_thumbnail(
     )
 
     # Upload thumbnail asynchronously
-    # Thumbnails are always JPEG format
     thumbnail_object_key = generate_thumbnail_object_key(object_key)
-    await async_upload_fileobj(thumbnail_bytes, thumbnail_object_key, content_type="image/jpeg")
+    await async_upload_fileobj(thumbnail_bytes, thumbnail_object_key)
 
     return thumbnail_object_key, width, height
 
@@ -533,7 +520,6 @@ async def async_process_and_upload_image(
     image_bytes: bytes,
     object_key: str,
     extract_dimensions: bool = True,
-    content_type: str | None = None,
 ) -> tuple[str, str, int | None, int | None]:
     """Process image, create thumbnail, and upload both concurrently
 
@@ -541,7 +527,6 @@ async def async_process_and_upload_image(
         image_bytes: Image bytes to process
         object_key: S3 object key for the original image
         extract_dimensions: Whether to extract image dimensions (always True for optimization)
-        content_type: MIME type of the original image (e.g., 'image/jpeg', 'image/png')
 
     Returns:
         Tuple of (object_key, thumbnail_object_key, width, height)
@@ -552,7 +537,7 @@ async def async_process_and_upload_image(
     # Upload original and thumbnail concurrently
     # Use return_exceptions to handle thumbnail errors gracefully
     results = await asyncio.gather(
-        async_upload_fileobj(image_bytes, object_key, None, content_type),
+        async_upload_fileobj(image_bytes, object_key, None),
         async_create_and_upload_thumbnail(image_bytes, object_key),
         return_exceptions=True,
     )
