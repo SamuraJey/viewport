@@ -1,14 +1,4 @@
-"""
-Caching utilities for photo endpoints
-"""
-
-import functools
-from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any
-
-from fastapi import Response
-from fastapi.responses import JSONResponse
 
 # In-memory cache for presigned URLs
 _url_cache: dict[str, dict[str, str | datetime]] = {}
@@ -41,42 +31,3 @@ def clear_presigned_url_cache(photo_id: str) -> None:
     """Clear cached presigned URL for a specific photo"""
     if photo_id in _url_cache:
         del _url_cache[photo_id]
-
-
-def url_cache(max_age: int = 3600):
-    """
-    Decorator to add HTTP caching headers for presigned URL endpoints.
-
-    Args:
-        max_age: Cache duration in seconds (default: 1 hour)
-    """
-
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
-            # Call the original function
-            result = func(*args, **kwargs)
-
-            # Add caching headers to the response
-            if isinstance(result, dict):
-                # Create JSONResponse with cache headers
-                cache_control = f"public, max-age={max_age}" if max_age > 3600 else f"private, max-age={max_age}"
-                headers = {"Cache-Control": cache_control}
-
-                # Only add Vary header for private content
-                if "private" in cache_control:
-                    headers["Vary"] = "Authorization"
-
-                return JSONResponse(content=result, headers=headers)
-            elif isinstance(result, Response):
-                cache_control = f"public, max-age={max_age}" if max_age > 3600 else f"private, max-age={max_age}"
-                result.headers["Cache-Control"] = cache_control
-
-                if "private" in cache_control:
-                    result.headers["Vary"] = "Authorization"
-
-            return result
-
-        return wrapper
-
-    return decorator
