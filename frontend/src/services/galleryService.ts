@@ -27,8 +27,13 @@ const getGalleries = async (page = 1, size = 10): Promise<GalleryListResponse> =
   return response.data
 }
 
-const getGallery = async (id: string): Promise<GalleryDetail> => {
-  const response = await api.get<GalleryDetail>(`/galleries/${id}`)
+const getGallery = async (id: string, options?: { limit?: number; offset?: number }): Promise<GalleryDetail> => {
+  const params = new URLSearchParams()
+  if (options?.limit) params.append('limit', options.limit.toString())
+  if (options?.offset) params.append('offset', options.offset.toString())
+
+  const url = `/galleries/${id}${params.toString() ? `?${params.toString()}` : ''}`
+  const response = await api.get<GalleryDetail>(url)
   return response.data
 }
 

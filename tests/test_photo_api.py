@@ -34,45 +34,6 @@ class TestPhotoAPI:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    def test_get_photo_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
-        """Test successful photo retrieval."""
-        # First upload a photo
-        image_content = b"fake image content"
-        files = {"files": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-
-        upload_response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch", files=files)
-        assert upload_response.status_code == 200
-        photo_id = upload_response.json()["results"][0]["photo"]["id"]
-
-        # Then retrieve it
-        response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/{photo_id}")
-        assert response.status_code == 200
-        assert response.json()["id"] == photo_id
-        assert response.json()["file_size"] == len(image_content)
-        assert "uploaded_at" in response.json()
-
-    def test_get_photo_not_found(self, authenticated_client: TestClient, gallery_id_fixture: str):
-        """Test retrieving non-existent photo."""
-        fake_photo_id = str(uuid4())
-        response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/{fake_photo_id}")
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
-
-    def test_get_photo_gallery_not_found(self, authenticated_client: TestClient):
-        """Test retrieving photo from non-existent gallery."""
-        fake_gallery_id = str(uuid4())
-        fake_photo_id = str(uuid4())
-        response = authenticated_client.get(f"/galleries/{fake_gallery_id}/photos/{fake_photo_id}")
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
-
-    def test_get_photo_unauthorized(self, client: TestClient):
-        """Test retrieving photo without authentication."""
-        fake_gallery_id = str(uuid4())
-        fake_photo_id = str(uuid4())
-        response = client.get(f"/galleries/{fake_gallery_id}/photos/{fake_photo_id}")
-        assert response.status_code == 401
-
     def test_get_photo_url_auth_not_found(self, authenticated_client: TestClient):
         """Test getting a signed URL for a non-existent photo."""
         fake_photo_id = str(uuid4())

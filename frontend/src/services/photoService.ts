@@ -67,23 +67,24 @@ const getPhotoUrlDirect = async (photoId: string): Promise<PhotoUrlResponse> => 
 const uploadPhotos = async (
   galleryId: string,
   files: File[],
-  onProgress?: (progress: { loaded: number; total: number; percentage: number; currentFile: string; currentBatch: number; totalBatches: number }) => void
+  onProgress?: (progress: { loaded: number; total: number; percentage: number; currentFile: string }) => void
 ): Promise<PhotoUploadResponse> => {
-  const BATCH_SIZE = 100
+  const BATCH_SIZE = 50
   const totalFiles = files.length
-  const totalBatches = Math.ceil(totalFiles / BATCH_SIZE)
+  let totalLoaded = 0
+  const totalSize = files.reduce((sum, file) => sum + file.size, 0)
 
-  let allResults: PhotoUploadResult[] = []
-  let totalSuccessful = 0
-  let totalFailed = 0
+  const allResults: PhotoUploadResult[] = []
+  let successfulUploads = 0
+  let failedUploads = 0
 
-  for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-    const startIndex = batchIndex * BATCH_SIZE
-    const endIndex = Math.min(startIndex + BATCH_SIZE, totalFiles)
-    const batchFiles = files.slice(startIndex, endIndex)
+  // Split files into batches of 50
+  for (let i = 0; i < files.length; i += BATCH_SIZE) {
+    const batch = files.slice(i, i + BATCH_SIZE)
+    const batchSize = batch.reduce((sum, file) => sum + file.size, 0)
 
     const formData = new FormData()
-    batchFiles.forEach(file => {
+    batch.forEach(file => {
       formData.append('files', file)
     })
 
@@ -97,48 +98,49 @@ const uploadPhotos = async (
           },
           onUploadProgress: (progressEvent) => {
             if (onProgress && progressEvent.total) {
-              // Calculate overall progress across all batches
-              const batchProgress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-              const overallProgress = Math.round(((batchIndex * 100) + batchProgress) / totalBatches)
+              // Calculate progress for current batch within overall progress
+              const batchLoaded = progressEvent.loaded
+              const currentTotalLoaded = totalLoaded + batchLoaded
+              const percentage = Math.round((currentTotalLoaded * 100) / totalSize)
 
               onProgress({
-                loaded: progressEvent.loaded + (batchIndex * progressEvent.total),
-                total: totalFiles * (progressEvent.total / batchFiles.length), // Approximate total
-                percentage: overallProgress,
-                currentFile: batchFiles[0]?.name || 'Uploading...',
-                currentBatch: batchIndex + 1,
-                totalBatches
+                loaded: currentTotalLoaded,
+                total: totalSize,
+                percentage,
+                currentFile: `Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(totalFiles / BATCH_SIZE)}: ${batch[0]?.name || 'Uploading...'}`
               })
             }
           }
         }
       )
 
-      // Accumulate results from this batch
-      allResults = allResults.concat(response.data.results)
-      totalSuccessful += response.data.successful_uploads
-      totalFailed += response.data.failed_uploads
+      // Add batch size to total loaded after successful upload
+      totalLoaded += batchSize
+
+      // Accumulate results
+      allResults.push(...response.data.results)
+      successfulUploads += response.data.successful_uploads
+      failedUploads += response.data.failed_uploads
 
     } catch (error) {
-      console.error(`Batch ${batchIndex + 1} failed:`, error)
-
-      // Add failed results for this batch
-      const failedResults = batchFiles.map(file => ({
+      // If batch fails, mark all files in batch as failed
+      const failedResults: PhotoUploadResult[] = batch.map(file => ({
         filename: file.name,
         success: false,
-        error: 'Batch upload failed'
+        error: error instanceof Error ? error.message : 'Upload failed'
       }))
 
-      allResults = allResults.concat(failedResults)
-      totalFailed += batchFiles.length
+      allResults.push(...failedResults)
+      failedUploads += batch.length
+      totalLoaded += batchSize
     }
   }
 
   return {
     results: allResults,
     total_files: totalFiles,
-    successful_uploads: totalSuccessful,
-    failed_uploads: totalFailed
+    successful_uploads: successfulUploads,
+    failed_uploads: failedUploads
   }
 }
 

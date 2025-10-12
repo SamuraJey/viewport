@@ -249,6 +249,9 @@ class TestPhotoSchemas:
         mock_photo.file_size = 1024
         mock_photo.uploaded_at = datetime.now(UTC)
         mock_photo.object_key = f"{mock_photo.gallery_id}/test.jpg"
+        mock_photo.thumbnail_object_key = f"{mock_photo.gallery_id}/thumbnails/test.jpg"
+        mock_photo.width = 800
+        mock_photo.height = 600
 
         expected_url = f"https://example.com/presigned-url/{mock_photo.id}"
         with patch("src.viewport.schemas.photo.generate_presigned_url", return_value=expected_url):

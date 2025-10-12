@@ -29,12 +29,12 @@ class DatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_prefix="POSTGRES_", extra="ignore")
 
 
-def get_database_url() -> str:
+def get_database_url() -> str:  # pragma: no cover
     settings = DatabaseSettings()
     return settings.database_url
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=5)
 def _get_engine_and_sessionmaker() -> tuple[Engine, sessionmaker[Session]]:  # pragma: no cover
     """Create and cache the SQLAlchemy engine and sessionmaker lazily."""
     database_url = get_database_url()

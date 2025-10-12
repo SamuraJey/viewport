@@ -61,7 +61,7 @@ describe('authService', () => {
       const mockRequest = {
         email: 'newuser@example.com',
         password: 'password123',
-        invite_code: 'invite123'
+        invite_code: 'INVITE123',
       }
 
       const mockResponse = {
@@ -83,7 +83,7 @@ describe('authService', () => {
       const mockRequest = {
         email: 'existing@example.com',
         password: 'password123',
-        invite_code: 'invite123'
+        invite_code: 'INVITE123',
       }
 
       const mockError = new Error('Email already exists')

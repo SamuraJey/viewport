@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 
 class StructuredLogger:
@@ -17,7 +17,7 @@ class StructuredLogger:
 
         logger.log_event("view_photo", share_id=..., extra={...})
         """
-        payload = {"timestamp": datetime.utcnow().isoformat() + "Z", "event": event}
+        payload = {"timestamp": datetime.now(UTC).isoformat() + "Z", "event": event}
 
         # Merge kwargs into payload. If `extra` is provided and is a dict,
         # merge its keys at top-level to match existing expectations.

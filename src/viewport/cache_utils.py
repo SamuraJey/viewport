@@ -1,7 +1,3 @@
-"""
-Caching utilities for presigned URLs
-"""
-
 from datetime import datetime, timedelta
 
 # In-memory cache for presigned URLs

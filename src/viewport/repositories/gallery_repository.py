@@ -1,11 +1,15 @@
+import logging
+import time
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, insert, select
 
 from src.viewport.models.gallery import Gallery, Photo
 from src.viewport.models.sharelink import ShareLink
 from src.viewport.repositories.base_repository import BaseRepository
+
+logger = logging.getLogger(__name__)
 
 
 class GalleryRepository(BaseRepository):
@@ -108,13 +112,7 @@ class GalleryRepository(BaseRepository):
         Returns:
             List of created Photo objects
         """
-        import logging
-        import time
-        from datetime import UTC, datetime
 
-        from sqlalchemy import insert
-
-        logger = logging.getLogger(__name__)
         start_time = time.time()
 
         # Add timestamps to all records
