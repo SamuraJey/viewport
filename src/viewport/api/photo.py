@@ -87,10 +87,21 @@ async def upload_photos_batch(
                 # Generate object key
                 object_key = f"{gallery_id}/{file.filename}"
 
+                # Determine content type from filename or default to image/jpeg
+                content_type = file.content_type or "image/jpeg"
+                if content_type.startswith("image/"):
+                    # Normalize image content types
+                    if "jpg" in file.filename.lower() or "jpeg" in file.filename.lower():
+                        content_type = "image/jpeg"
+                    elif "png" in file.filename.lower():
+                        content_type = "image/png"
+                    elif "webp" in file.filename.lower():
+                        content_type = "image/webp"
+
                 # Upload only the original image to S3 (no thumbnail yet)
                 from src.viewport.minio_utils import async_upload_fileobj
 
-                await async_upload_fileobj(contents, object_key)
+                await async_upload_fileobj(contents, object_key, content_type=content_type)
 
                 # Return data for batch DB insert (thumbnail will be created later)
                 return PhotoUploadResult(

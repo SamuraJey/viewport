@@ -68,7 +68,17 @@ def ensure_bucket_exists(s3_client: BaseClient, bucket: str) -> None:
         s3_client.create_bucket(Bucket=bucket)
 
 
-def upload_fileobj(fileobj, filename):
+def upload_fileobj(fileobj, filename, content_type: str | None = None):
+    """Upload file object to MinIO/S3
+
+    Args:
+        fileobj: File-like object or bytes to upload
+        filename: S3 object key
+        content_type: Optional Content-Type header (e.g., 'image/jpeg')
+
+    Returns:
+        S3 object path
+    """
     s3_client = get_s3_client()
     _, _, _, bucket = get_minio_config()
     ensure_bucket_exists(s3_client, bucket)
@@ -77,7 +87,11 @@ def upload_fileobj(fileobj, filename):
     if isinstance(fileobj, bytes):
         fileobj = io.BytesIO(fileobj)
 
-    s3_client.upload_fileobj(fileobj, bucket, filename)
+    extra_args = {}
+    if content_type:
+        extra_args["ContentType"] = content_type
+
+    s3_client.upload_fileobj(fileobj, bucket, filename, ExtraArgs=extra_args if extra_args else None)
     return f"/{bucket}/{filename}"
 
 
@@ -164,6 +178,8 @@ async def async_generate_presigned_urls_batch(object_keys: list[str], expires_in
 
 def rename_object(old_object_key: str, new_object_key: str) -> bool:
     """Rename an object in MinIO by copying it to a new key and deleting the old one"""
+    from src.viewport.cache_utils import clear_presigned_url_cache
+
     s3_client = get_s3_client()
     _, _, _, bucket = get_minio_config()
 
@@ -172,6 +188,10 @@ def rename_object(old_object_key: str, new_object_key: str) -> bool:
         s3_client.copy_object(CopySource=copy_source, Bucket=bucket, Key=new_object_key)
 
         s3_client.delete_object(Bucket=bucket, Key=old_object_key)
+
+        # Invalidate cache for both old and new keys
+        clear_presigned_url_cache(old_object_key)
+        clear_presigned_url_cache(new_object_key)
 
         logger.info(f"Successfully renamed object from {old_object_key} to {new_object_key}")
         return True
@@ -182,11 +202,17 @@ def rename_object(old_object_key: str, new_object_key: str) -> bool:
 
 def delete_object(object_key: str) -> bool:
     """Delete an object from MinIO"""
+    from src.viewport.cache_utils import clear_presigned_url_cache
+
     s3_client = get_s3_client()
     _, _, _, bucket = get_minio_config()
 
     try:
         s3_client.delete_object(Bucket=bucket, Key=object_key)
+
+        # Invalidate cache for deleted object
+        clear_presigned_url_cache(object_key)
+
         logger.info(f"Successfully deleted object {object_key}")
         return True
     except Exception as e:
@@ -203,6 +229,8 @@ def delete_folder(prefix: str) -> bool:
     Returns:
         True if deletion was successful, False otherwise
     """
+    from src.viewport.cache_utils import clear_presigned_urls_by_prefix
+
     s3_client = get_s3_client()
     _, _, _, bucket = get_minio_config()
 
@@ -224,6 +252,9 @@ def delete_folder(prefix: str) -> bool:
                 s3_client.delete_objects(Bucket=bucket, Delete={"Objects": batch})
 
             logger.info(f"Successfully deleted {len(objects_to_delete)} objects with prefix {prefix}")
+
+            # Invalidate cache for all deleted objects (by prefix)
+            clear_presigned_urls_by_prefix(prefix)
         else:
             logger.info(f"No objects found with prefix {prefix}")
 
@@ -406,13 +437,14 @@ async def async_ensure_bucket_exists():
         await loop.run_in_executor(executor, _sync_ensure_bucket)
 
 
-async def async_upload_fileobj(fileobj, filename: str, metadata: dict | None = None):
+async def async_upload_fileobj(fileobj, filename: str, metadata: dict | None = None, content_type: str | None = None):
     """Async version of upload_fileobj using sync boto3 in executor (faster than aioboto3)
 
     Args:
         fileobj: File-like object or bytes to upload
         filename: S3 object key
         metadata: Optional metadata dict to attach to the object
+        content_type: Optional Content-Type header (e.g., 'image/jpeg')
 
     Returns:
         S3 object path
@@ -439,6 +471,8 @@ async def async_upload_fileobj(fileobj, filename: str, metadata: dict | None = N
         extra_args = {}
         if metadata:
             extra_args["Metadata"] = metadata
+        if content_type:
+            extra_args["ContentType"] = content_type
 
         s3_client.upload_fileobj(file_to_upload, bucket, filename, ExtraArgs=extra_args if extra_args else None)
         return f"/{bucket}/{filename}"
@@ -477,9 +511,9 @@ async def async_create_and_upload_thumbnail(
         quality,
     )
 
-    # Upload thumbnail asynchronously
+    # Upload thumbnail asynchronously with proper Content-Type
     thumbnail_object_key = generate_thumbnail_object_key(object_key)
-    await async_upload_fileobj(thumbnail_bytes, thumbnail_object_key)
+    await async_upload_fileobj(thumbnail_bytes, thumbnail_object_key, content_type="image/jpeg")
 
     return thumbnail_object_key, width, height
 
@@ -505,7 +539,7 @@ async def async_process_and_upload_image(
     # Upload original and thumbnail concurrently
     # Use return_exceptions to handle thumbnail errors gracefully
     results = await asyncio.gather(
-        async_upload_fileobj(image_bytes, object_key, None),
+        async_upload_fileobj(image_bytes, object_key, None, content_type="image/jpeg"),
         async_create_and_upload_thumbnail(image_bytes, object_key),
         return_exceptions=True,
     )

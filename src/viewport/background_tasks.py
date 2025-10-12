@@ -98,8 +98,8 @@ def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
         # Generate thumbnail object key
         thumbnail_object_key = generate_thumbnail_object_key(object_key)
 
-        # Upload thumbnail to S3
-        upload_fileobj(thumbnail_bytes, thumbnail_object_key)
+        # Upload thumbnail to S3 with proper Content-Type
+        upload_fileobj(thumbnail_bytes, thumbnail_object_key, content_type="image/jpeg")
 
         # Update database with thumbnail info using direct UPDATE query (faster, no row lock)
         # Note: width and height are already extracted during upload, so we only update thumbnail_object_key
@@ -213,8 +213,8 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
 
             thumbnail_object_key = generate_thumbnail_object_key(object_key)
 
-            # Upload thumbnail to S3
-            upload_fileobj(thumbnail_bytes, thumbnail_object_key)
+            # Upload thumbnail to S3 with proper Content-Type
+            upload_fileobj(thumbnail_bytes, thumbnail_object_key, content_type="image/jpeg")
 
             # Free thumbnail memory
             del thumbnail_bytes

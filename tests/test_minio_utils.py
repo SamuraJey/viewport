@@ -176,6 +176,26 @@ class TestFileOperations:
     @patch("src.viewport.minio_utils.ensure_bucket_exists")
     @patch("src.viewport.minio_utils.get_s3_client")
     @patch("src.viewport.minio_utils.get_minio_config")
+    def test_upload_fileobj_with_content_type(self, mock_get_config, mock_get_client, mock_ensure_bucket):
+        """Test uploading with Content-Type."""
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+
+        file_content = b"image data"
+        filename = "test.jpg"
+
+        result = upload_fileobj(file_content, filename, content_type="image/jpeg")
+
+        # Should call upload_fileobj with ExtraArgs containing ContentType
+        mock_client.upload_fileobj.assert_called_once()
+        call_args = mock_client.upload_fileobj.call_args
+        assert call_args[1]["ExtraArgs"]["ContentType"] == "image/jpeg"
+        assert result == "/test-bucket/test.jpg"
+
+    @patch("src.viewport.minio_utils.ensure_bucket_exists")
+    @patch("src.viewport.minio_utils.get_s3_client")
+    @patch("src.viewport.minio_utils.get_minio_config")
     def test_upload_fileobj_with_fileobj(self, mock_get_config, mock_get_client, mock_ensure_bucket):
         """Test uploading file-like object."""
         mock_client = Mock()
