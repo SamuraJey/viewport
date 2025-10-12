@@ -66,7 +66,7 @@ async def upload_photos_batch(
     failed_uploads = 0
 
     # Semaphore to limit concurrent uploads to S3
-    semaphore = asyncio.Semaphore(10)  # Reduced from 25 to save memory
+    semaphore = asyncio.Semaphore(10)
 
     async def process_single_file(file: UploadFile) -> PhotoUploadResult:
         """Process a single file: validate and upload original to S3"""
@@ -83,20 +83,6 @@ async def upload_photos_batch(
                         success=False,
                         error=f"File too large (max 15MB), got {file_size / (1024 * 1024):.1f}MB",
                     )
-
-                # Extract dimensions early (before uploading to S3)
-                # This avoids downloading the image again in Celery task
-                import io
-
-                from PIL import Image
-
-                width, height = None, None
-                try:
-                    image = Image.open(io.BytesIO(contents))
-                    width, height = image.size
-                    image.close()
-                except Exception as img_error:
-                    logger.warning(f"Failed to extract dimensions for {file.filename}: {img_error}")
 
                 # Generate object key
                 object_key = f"{gallery_id}/{file.filename}"
@@ -115,8 +101,8 @@ async def upload_photos_batch(
                         "object_key": object_key,
                         "thumbnail_object_key": object_key,  # Use original as placeholder
                         "file_size": file_size,
-                        "width": width,  # Already extracted!
-                        "height": height,  # Already extracted!
+                        "width": None,
+                        "height": None,
                     },
                 )
 

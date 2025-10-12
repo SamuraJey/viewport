@@ -47,6 +47,8 @@ class PhotoResponse(BaseModel):
 
     @classmethod
     async def from_db_photos_batch(cls, photos: list) -> list["PhotoResponse"]:
+        # 2025-10-12 14:57:11 INFO [viewport.api.gallery] Gallery 5549563b-b1f5-48f7-a20c-89178d1e0d2f: URL generation took 7.875s (200 URLs, 25 URLs/s), total time: 7.901s
+        # shit...
         """Create PhotoResponse list from database Photo models with batched presigned URLs
 
         This is much faster than calling from_db_photo for each photo individually,
