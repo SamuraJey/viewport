@@ -39,7 +39,21 @@ def _get_engine_and_sessionmaker() -> tuple[Engine, sessionmaker[Session]]:  # p
     """Create and cache the SQLAlchemy engine and sessionmaker lazily."""
     database_url = get_database_url()
     connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
-    eng = create_engine(database_url, future=True, connect_args=connect_args)
+
+    # Configure connection pool for better concurrency
+    # pool_size: persistent connections (kept alive)
+    # max_overflow: additional temporary connections when pool exhausted
+    # pool_timeout: seconds to wait for connection before raising error
+    # pool_recycle: recycle connections after N seconds (prevents stale connections)
+    pool_config = {
+        "pool_size": 20,  # Base pool size (enough for API + Celery workers)
+        "max_overflow": 30,  # Allow up to 50 total connections (20 + 30)
+        "pool_timeout": 30,  # Wait up to 30 seconds for connection
+        "pool_recycle": 3600,  # Recycle connections every hour
+        "pool_pre_ping": True,  # Verify connection health before using
+    }
+
+    eng = create_engine(database_url, future=True, connect_args=connect_args, **pool_config)
     sess = sessionmaker(bind=eng, future=True)
 
     return eng, sess

@@ -7,7 +7,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from src.viewport.cache_utils import url_cache
 from src.viewport.db import get_db
 from src.viewport.logger import logger
 from src.viewport.minio_utils import generate_presigned_url, get_minio_config, get_s3_client
@@ -31,8 +30,7 @@ def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depends(get_
 
 
 @router.get("/{share_id}", response_model=PublicGalleryResponse)
-@url_cache(max_age=3600)
-def get_photos_by_sharelink(
+async def get_photos_by_sharelink(
     share_id: UUID,
     request: Request,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
@@ -43,12 +41,25 @@ def get_photos_by_sharelink(
     with contextlib.suppress(Exception):
         photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
 
-    logger.error("Generating public gallery view for share %s with %d photos", share_id, len(photos))
+    logger.info("Generating public gallery view for share %s with %d photos", share_id, len(photos))
+
+    # Generate all presigned URLs in batch (much faster!)
+    from src.viewport.minio_utils import async_generate_presigned_urls_batch
+
+    object_keys = []
+    for photo in photos:
+        object_keys.append(photo.object_key)
+        object_keys.append(photo.thumbnail_object_key)
+
+    url_map = await async_generate_presigned_urls_batch(object_keys)
+
+    # Build photo list
     photo_list = []
     for photo in photos:
-        try:
-            presigned_url = generate_presigned_url(photo.object_key)
-            presigned_url_thumb = generate_presigned_url(photo.thumbnail_object_key)
+        presigned_url = url_map.get(photo.object_key, "")
+        presigned_url_thumb = url_map.get(photo.thumbnail_object_key, "")
+
+        if presigned_url and presigned_url_thumb:
             photo_list.append(
                 PublicPhoto(
                     photo_id=str(photo.id),
@@ -59,9 +70,7 @@ def get_photos_by_sharelink(
                     height=getattr(photo, "height", None),
                 )
             )
-        except Exception:
-            logger.error("Failed to generate presigned URL for photo %s in share %s", photo.id, share_id)
-            continue
+
     gallery: Gallery = sharelink.gallery  # lazy-loaded
     cover_id = str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None
     cover = None
@@ -78,7 +87,7 @@ def get_photos_by_sharelink(
         cover_url = None
         if cover_photo_obj:
             cover_filename = cover_photo_obj.object_key.split("/", 1)[1] if "/" in cover_photo_obj.object_key else cover_photo_obj.object_key
-            cover_url = generate_presigned_url(cover_photo_obj.object_key)
+            cover_url = url_map.get(cover_photo_obj.object_key)
 
         if cover_url:
             cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_url, filename=cover_filename)
@@ -105,8 +114,7 @@ def get_photos_by_sharelink(
 
 
 @router.get("/{share_id}/photos/urls", response_model=list[PublicPhoto])
-@url_cache(max_age=1800)  # Cache presigned URLs for 30 minutes
-def get_all_public_photo_urls(
+async def get_all_public_photo_urls(
     share_id: UUID,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
@@ -116,11 +124,22 @@ def get_all_public_photo_urls(
     with contextlib.suppress(Exception):
         photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
 
+    # Generate all presigned URLs in batch
+    from src.viewport.minio_utils import async_generate_presigned_urls_batch
+
+    object_keys = []
+    for photo in photos:
+        object_keys.append(photo.object_key)
+        object_keys.append(photo.thumbnail_object_key)
+
+    url_map = await async_generate_presigned_urls_batch(object_keys)
+
     photo_list = []
     for photo in photos:
-        try:
-            presigned_url = generate_presigned_url(photo.object_key)
-            presigned_url_thumb = generate_presigned_url(photo.thumbnail_object_key)
+        presigned_url = url_map.get(photo.object_key, "")
+        presigned_url_thumb = url_map.get(photo.thumbnail_object_key, "")
+
+        if presigned_url and presigned_url_thumb:
             photo_list.append(
                 PublicPhoto(
                     photo_id=str(photo.id),
@@ -131,16 +150,12 @@ def get_all_public_photo_urls(
                     height=getattr(photo, "height", None),
                 )
             )
-        except Exception:
-            logger.error("Failed to generate presigned URL for photo %s in share %s", photo.id, share_id)
-            continue
 
     logger.log_event("view_gallery_urls", share_id=share_id, extra={"photo_count": len(photo_list)})
     return photo_list
 
 
 @router.get("/{share_id}/photos/{photo_id}/url")
-@url_cache(max_age=1800)  # Cache presigned URLs for 30 minutes
 def get_public_photo_presigned_url(share_id: UUID, photo_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
     """Get presigned URL for a photo from public gallery"""
     photo = repo.get_photo_by_id_and_gallery(photo_id, sharelink.gallery_id)

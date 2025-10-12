@@ -67,34 +67,79 @@ const getPhotoUrlDirect = async (photoId: string): Promise<PhotoUrlResponse> => 
 const uploadPhotos = async (
   galleryId: string,
   files: File[],
-  onProgress?: (progress: { loaded: number; total: number; percentage: number; currentFile: string }) => void
+  onProgress?: (progress: { loaded: number; total: number; percentage: number; currentFile: string; currentBatch: number; totalBatches: number }) => void
 ): Promise<PhotoUploadResponse> => {
-  const formData = new FormData()
-  files.forEach(file => {
-    formData.append('files', file)
-  })
+  const BATCH_SIZE = 100
+  const totalFiles = files.length
+  const totalBatches = Math.ceil(totalFiles / BATCH_SIZE)
 
-  const response = await api.post<PhotoUploadResponse>(
-    `/galleries/${galleryId}/photos/batch`,
-    formData,
-    {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      onUploadProgress: (progressEvent) => {
-        if (onProgress && progressEvent.total) {
-          const percentage = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-          onProgress({
-            loaded: progressEvent.loaded,
-            total: progressEvent.total,
-            percentage,
-            currentFile: files[0]?.name || 'Uploading...'
-          })
+  let allResults: PhotoUploadResult[] = []
+  let totalSuccessful = 0
+  let totalFailed = 0
+
+  for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+    const startIndex = batchIndex * BATCH_SIZE
+    const endIndex = Math.min(startIndex + BATCH_SIZE, totalFiles)
+    const batchFiles = files.slice(startIndex, endIndex)
+
+    const formData = new FormData()
+    batchFiles.forEach(file => {
+      formData.append('files', file)
+    })
+
+    try {
+      const response = await api.post<PhotoUploadResponse>(
+        `/galleries/${galleryId}/photos/batch`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          onUploadProgress: (progressEvent) => {
+            if (onProgress && progressEvent.total) {
+              // Calculate overall progress across all batches
+              const batchProgress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+              const overallProgress = Math.round(((batchIndex * 100) + batchProgress) / totalBatches)
+
+              onProgress({
+                loaded: progressEvent.loaded + (batchIndex * progressEvent.total),
+                total: totalFiles * (progressEvent.total / batchFiles.length), // Approximate total
+                percentage: overallProgress,
+                currentFile: batchFiles[0]?.name || 'Uploading...',
+                currentBatch: batchIndex + 1,
+                totalBatches
+              })
+            }
+          }
         }
-      }
+      )
+
+      // Accumulate results from this batch
+      allResults = allResults.concat(response.data.results)
+      totalSuccessful += response.data.successful_uploads
+      totalFailed += response.data.failed_uploads
+
+    } catch (error) {
+      console.error(`Batch ${batchIndex + 1} failed:`, error)
+
+      // Add failed results for this batch
+      const failedResults = batchFiles.map(file => ({
+        filename: file.name,
+        success: false,
+        error: 'Batch upload failed'
+      }))
+
+      allResults = allResults.concat(failedResults)
+      totalFailed += batchFiles.length
     }
-  )
-  return response.data
+  }
+
+  return {
+    results: allResults,
+    total_files: totalFiles,
+    successful_uploads: totalSuccessful,
+    failed_uploads: totalFailed
+  }
 }
 
 const getAllPhotoUrls = async (galleryId: string): Promise<PhotoResponse[]> => {

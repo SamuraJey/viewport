@@ -116,6 +116,62 @@ def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:  # T
         raise
 
 
+async def async_generate_presigned_urls_batch(object_keys: list[str], expires_in: int = 3600) -> dict[str, str]:
+    """Generate presigned URLs for multiple objects concurrently
+
+    Args:
+        object_keys: List of S3 object keys
+        expires_in: URL expiration time in seconds
+
+    Returns:
+        Dict mapping object_key to presigned URL
+    """
+    import asyncio
+
+    from src.viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
+
+    # Check cache first
+    result = {}
+    uncached_keys = []
+
+    for object_key in object_keys:
+        cached_url = get_cached_presigned_url(object_key)
+        if cached_url:
+            result[object_key] = cached_url
+        else:
+            uncached_keys.append(object_key)
+
+    # If all URLs are cached, return immediately
+    if not uncached_keys:
+        return result
+
+    # Generate presigned URLs for uncached keys concurrently
+    executor = _get_executor()
+    loop = asyncio.get_event_loop()
+
+    def _generate_url(object_key: str) -> tuple[str, str]:
+        """Generate single presigned URL (runs in thread pool)"""
+        s3_client = get_s3_client()
+        _, _, _, bucket = get_minio_config()
+        url = s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": object_key}, ExpiresIn=expires_in)
+        cache_presigned_url(object_key, url, expires_in)
+        return object_key, cast(str, url)
+
+    # Generate URLs concurrently
+    tasks = [loop.run_in_executor(executor, _generate_url, key) for key in uncached_keys]
+    generated = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Process results
+    for item in generated:
+        if isinstance(item, Exception):
+            logger.error(f"Failed to generate presigned URL: {item}")
+            continue
+        object_key, url = item
+        result[object_key] = url
+
+    return result
+
+
 def get_object_metadata(object_key: str) -> dict:
     """Return object metadata for a given object key. Returns a dict with keys from S3 HeadObject response.
 

@@ -61,11 +61,12 @@ def list_galleries(
 
 
 @router.get("/{gallery_id}", response_model=GalleryDetailResponse)
-def get_gallery(
+async def get_gallery_detail(
     gallery_id: str,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> GalleryDetailResponse:
+    # Validate UUID
     try:
         gallery_uuid = uuid.UUID(gallery_id)
     except ValueError as e:
@@ -76,13 +77,16 @@ def get_gallery(
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
 
+    # Use batch method for faster photo URL generation
+    photo_responses = await PhotoResponse.from_db_photos_batch(gallery.photos)
+
     return GalleryDetailResponse(
         id=str(gallery.id),
         owner_id=str(gallery.owner_id),
         name=gallery.name,
         created_at=gallery.created_at,
         cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
-        photos=[PhotoResponse.from_db_photo(photo) for photo in gallery.photos],
+        photos=photo_responses,
         share_links=[ShareLinkResponse.model_validate(link) for link in gallery.share_links],
     )
 
