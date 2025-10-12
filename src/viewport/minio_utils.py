@@ -534,7 +534,7 @@ async def async_process_and_upload_image(
         raise original_result
 
     # If thumbnail creation failed, use original as thumbnail
-    if isinstance(thumbnail_result, Exception):
+    if isinstance(thumbnail_result, BaseException):
         logger.warning(f"Thumbnail creation failed for {object_key}, using original as thumbnail")
         thumbnail_object_key = object_key
         width, height = None, None

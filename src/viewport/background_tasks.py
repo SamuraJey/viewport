@@ -113,8 +113,8 @@ def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
             try:
                 # Use direct UPDATE statement instead of ORM (avoids SELECT + row lock)
                 # Only update thumbnail_object_key since dimensions are already set during upload
-                stmt = update(Photo).where(Photo.id == photo_id).values(thumbnail_object_key=thumbnail_object_key)
-                result = db.execute(stmt)
+                update_stmt = update(Photo).where(Photo.id == photo_id).values(thumbnail_object_key=thumbnail_object_key)
+                result = db.execute(update_stmt)
                 db.commit()
 
                 if result.rowcount == 0:

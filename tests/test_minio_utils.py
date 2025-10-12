@@ -467,7 +467,7 @@ class TestPresignedURLGeneration:
         mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
 
         # Ensure no cached URL exists
-        with patch("src.viewport.cache_utils.get_cached_presigned_url", return_value=None):
+        with patch("src.viewport.minio_utils.get_cached_presigned_url", return_value=None):
             result = generate_presigned_url("test.jpg", expires_in=7200)
 
         mock_client.generate_presigned_url.assert_called_once_with("get_object", Params={"Bucket": "test-bucket", "Key": "test.jpg"}, ExpiresIn=7200)
@@ -483,12 +483,12 @@ class TestPresignedURLGeneration:
         mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
 
         # First call - no cache, should generate URL
-        with patch("src.viewport.cache_utils.get_cached_presigned_url", return_value=None), patch("src.viewport.cache_utils.cache_presigned_url") as mock_cache:
+        with patch("src.viewport.minio_utils.get_cached_presigned_url", return_value=None), patch("src.viewport.minio_utils.cache_presigned_url") as mock_cache:
             result1 = generate_presigned_url("test.jpg")
             mock_cache.assert_called_once()
 
         # Second call - cache hit, should return cached URL
-        with patch("src.viewport.cache_utils.get_cached_presigned_url", return_value="https://cached.url/test.jpg"):
+        with patch("src.viewport.minio_utils.get_cached_presigned_url", return_value="https://cached.url/test.jpg"):
             result2 = generate_presigned_url("test.jpg")
 
         assert result1 == "https://presigned.url/test.jpg"
@@ -506,7 +506,7 @@ class TestPresignedURLGeneration:
         mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
 
         # Ensure no cached URL exists
-        with patch("src.viewport.cache_utils.get_cached_presigned_url", return_value=None), pytest.raises(ClientError):
+        with patch("src.viewport.minio_utils.get_cached_presigned_url", return_value=None), pytest.raises(ClientError):
             generate_presigned_url("test.jpg")
 
     @pytest.mark.asyncio
@@ -523,7 +523,7 @@ class TestPresignedURLGeneration:
         mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
 
         # Mock cache to return None for all keys (no cached URLs)
-        with patch("src.viewport.cache_utils.get_cached_presigned_url", return_value=None), patch("src.viewport.cache_utils.cache_presigned_url"):
+        with patch("src.viewport.minio_utils.get_cached_presigned_url", return_value=None), patch("src.viewport.minio_utils.cache_presigned_url"):
             object_keys = ["key1.jpg", "key2.jpg"]
             result = await async_generate_presigned_urls_batch(object_keys)
             assert len(result) == 2

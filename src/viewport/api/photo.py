@@ -90,7 +90,7 @@ async def upload_photos_batch(
 
                 # Determine content type from filename or default to image/jpeg
                 content_type = file.content_type or "image/jpeg"
-                if content_type.startswith("image/"):
+                if content_type.startswith("image/") and file.filename:
                     # Normalize image content types
                     if "jpg" in file.filename.lower() or "jpeg" in file.filename.lower():
                         content_type = "image/jpeg"
@@ -143,6 +143,7 @@ async def upload_photos_batch(
         photos_data = []
         for result in successful_results:
             metadata = result.metadata_
+            assert metadata is not None  # Since successful_results are filtered
             photos_data.append(
                 {
                     "gallery_id": gallery_id,
@@ -195,7 +196,9 @@ async def upload_photos_batch(
         # Map created photos back to results
         photo_map = {p.object_key: p for p in created_photos}
         for result in successful_results:
-            object_key = result.metadata_["object_key"]
+            metadata = result.metadata_
+            assert metadata is not None
+            object_key = metadata["object_key"]
             if object_key in photo_map:
                 result.photo = PhotoResponse.from_db_photo(photo_map[object_key])
 
