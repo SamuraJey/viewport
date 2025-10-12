@@ -138,7 +138,6 @@ export const GalleryPage = () => {
     setUploadError('')
     if (result.successful_uploads > 0) {
       // Reload gallery to get new photos, but maintain current position
-      // This is acceptable because user just uploaded photos
       fetchData()
     }
     if (result.failed_uploads > 0) {
