@@ -57,9 +57,9 @@ def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
     try:
         logger.info(f"Starting thumbnail creation for photo {photo_id}, object_key: {object_key}")
 
-        from src.viewport.db import get_session_maker
-        from src.viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client, upload_fileobj
-        from src.viewport.models.gallery import Photo
+        from viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client, upload_fileobj
+        from viewport.models.db import get_session_maker
+        from viewport.models.gallery import Photo
 
         # First, check if photo still exists in database (may have been deleted)
         session_maker = get_session_maker()
@@ -74,9 +74,9 @@ def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
                 return {"status": "skipped", "message": "Photo deleted", "photo_id": photo_id}
 
         # Get MinIO config
-        from src.viewport.minio_utils import get_minio_config
+        from viewport.minio_utils import get_minio_config
 
-        _, _, _, bucket = get_minio_config()
+        _, _, _, bucket, _, _ = get_minio_config()
 
         # Download original from S3
         s3_client = get_s3_client()
@@ -105,7 +105,7 @@ def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
         # Note: width and height are already extracted during upload, so we only update thumbnail_object_key
         from sqlalchemy import update
 
-        from src.viewport.cache_utils import clear_presigned_url_cache
+        from viewport.cache_utils import clear_presigned_url_cache
 
         # Use context manager to ensure transaction is always closed properly
         session_maker = get_session_maker()
@@ -168,13 +168,12 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
 
     from sqlalchemy import select, update
 
-    from src.viewport.db import get_session_maker
-
     # Get MinIO config once for all photos
-    from src.viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key, get_minio_config, get_s3_client, upload_fileobj
-    from src.viewport.models.gallery import Photo
+    from viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key, get_minio_config, get_s3_client, upload_fileobj
+    from viewport.models.db import get_session_maker
+    from viewport.models.gallery import Photo
 
-    _, _, _, bucket = get_minio_config()
+    _, _, _, bucket, _, _ = get_minio_config()
 
     s3_client = get_s3_client()
     session_maker = get_session_maker()
@@ -252,7 +251,7 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
                     logger.info(f"Batch updated {len(update_mappings)} photos with thumbnails")
 
                     # Invalidate cache for all updated thumbnails
-                    from src.viewport.cache_utils import clear_presigned_urls_batch
+                    from viewport.cache_utils import clear_presigned_urls_batch
 
                     thumbnail_keys = [r["thumbnail_object_key"] for r in successful_results]
                     clear_presigned_urls_batch(thumbnail_keys)

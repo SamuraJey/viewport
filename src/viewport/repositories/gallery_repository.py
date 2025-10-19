@@ -5,9 +5,9 @@ from datetime import UTC, datetime
 
 from sqlalchemy import func, insert, select
 
-from src.viewport.models.gallery import Gallery, Photo
-from src.viewport.models.sharelink import ShareLink
-from src.viewport.repositories.base_repository import BaseRepository
+from viewport.models.gallery import Gallery, Photo
+from viewport.models.sharelink import ShareLink
+from viewport.repositories.base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class GalleryRepository(BaseRepository):
         return gallery
 
     def delete_gallery(self, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> bool:
-        from src.viewport.minio_utils import delete_folder
+        from viewport.minio_utils import delete_folder
 
         gallery = self.get_gallery_by_id_and_owner(gallery_id, owner_id)
         if not gallery:
@@ -141,7 +141,7 @@ class GalleryRepository(BaseRepository):
         return photos
 
     def delete_photo(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> bool:
-        from src.viewport.minio_utils import delete_object
+        from viewport.minio_utils import delete_object
 
         photo = self.get_photo_by_id_and_owner(photo_id, owner_id)
         if not photo or photo.gallery_id != gallery_id:
@@ -159,8 +159,8 @@ class GalleryRepository(BaseRepository):
 
     def rename_photo(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, new_filename: str) -> Photo | None:
         """Rename a photo by updating its object_key with the new filename"""
-        from src.viewport.cache_utils import clear_presigned_url_cache
-        from src.viewport.minio_utils import rename_object
+        from viewport.cache_utils import clear_presigned_url_cache
+        from viewport.minio_utils import rename_object
 
         photo = self.get_photo_by_id_and_owner(photo_id, owner_id)
         if not photo or photo.gallery_id != gallery_id:

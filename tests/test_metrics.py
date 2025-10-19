@@ -1,14 +1,3 @@
-import pytest
-from fastapi.testclient import TestClient
-
-from src.viewport.main import app
-
-
-@pytest.fixture(scope="function")
-def client():
-    return TestClient(app)
-
-
 class TestMetrics:
     def test_metrics_endpoint_exists(self, client):
         resp = client.get("/metrics")

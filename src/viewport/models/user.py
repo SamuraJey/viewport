@@ -5,7 +5,7 @@ from sqlalchemy import DateTime, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import mapped_column, relationship
 
-from src.viewport.db import Base
+from viewport.models.db import Base
 
 
 class User(Base):

@@ -7,10 +7,10 @@ from unittest.mock import Mock
 import pytest
 from pydantic import ValidationError
 
-from src.viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
-from src.viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse
-from src.viewport.schemas.photo import PhotoCreateRequest, PhotoListResponse, PhotoResponse
-from src.viewport.schemas.sharelink import ShareLinkCreateRequest, ShareLinkResponse
+from viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
+from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse
+from viewport.schemas.photo import PhotoCreateRequest, PhotoListResponse, PhotoResponse
+from viewport.schemas.sharelink import ShareLinkCreateRequest, ShareLinkResponse
 
 
 class TestAuthSchemas:

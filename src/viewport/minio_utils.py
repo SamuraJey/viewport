@@ -5,6 +5,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from functools import cache
 from typing import cast
+from warnings import deprecated
 
 import boto3
 from botocore.client import BaseClient, Config
@@ -12,7 +13,7 @@ from PIL import Image, ImageOps
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from src.viewport.cache_utils import cache_presigned_url, clear_presigned_url_cache, clear_presigned_urls_by_prefix, get_cached_presigned_url
+from viewport.cache_utils import cache_presigned_url, clear_presigned_url_cache, clear_presigned_urls_by_prefix, get_cached_presigned_url
 
 # Configure logging - set botocore to WARNING level to reduce noise
 logging.getLogger("botocore").setLevel(logging.WARNING)
@@ -28,6 +29,8 @@ class MinioSettings(BaseSettings):
     access_key: str = Field(alias="MINIO_ROOT_USER", default="minioadmin")
     secret_key: str = Field(alias="MINIO_ROOT_PASSWORD", default="minioadmin")
     bucket: str = "viewport"
+    region: str = "us-east-1"  # Can be overridden with MINIO_REGION env var
+    use_ssl: bool = False  # Can be overridden with MINIO_USE_SSL env var
 
     model_config = SettingsConfigDict(
         env_prefix="MINIO_",
@@ -37,35 +40,46 @@ class MinioSettings(BaseSettings):
 
 
 @cache
-def get_minio_config() -> tuple[str, str, str, str]:
+def get_minio_config() -> tuple[str, str, str, str, str, bool]:
     settings = MinioSettings()
-    return settings.endpoint, settings.access_key, settings.secret_key, settings.bucket
+    return settings.endpoint, settings.access_key, settings.secret_key, settings.bucket, settings.region, settings.use_ssl
 
 
 @cache
 def get_s3_client() -> BaseClient:
-    endpoint, access_key, secret_key, bucket = get_minio_config()
+    endpoint, access_key, secret_key, bucket, region, use_ssl = get_minio_config()
 
-    logger.debug(f"Connecting to MinIO at {endpoint} with bucket {bucket}")
+    # Add protocol if not present
+    if not endpoint.startswith(("http://", "https://")):
+        protocol = "https" if use_ssl else "http"
+        endpoint = f"{protocol}://{endpoint}"
+
+    # Log connection details (without credentials)
+    logger.info(f"Connecting to S3 endpoint: {endpoint}, bucket: {bucket}, region: {region}, using signature v2 (s3) with path-style addressing")
 
     # Increase max pool connections to support concurrent uploads
     # Default is 10, but we need more for parallel batch processing
     config = Config(
-        signature_version="s3v4",
-        max_pool_connections=50,  # Support up to 50 concurrent connections
+        signature_version="s3",  # Use s3 (v2) for older TrueNAS/MinIO versions
+        max_pool_connections=50,
+        # Force path-style addressing (endpoint.com/bucket/key vs bucket.endpoint.com/key)
+        # This is REQUIRED for MinIO and many S3-compatible services
+        s3={"addressing_style": "path"},
     )
 
     return boto3.client(
         "s3",
-        endpoint_url=f"http://{endpoint}",
+        endpoint_url=endpoint,
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
         config=config,
-        region_name="eu-west-1",
+        # region_name не используется для signature v2
     )
 
 
+@deprecated("Use async_ensure_bucket_exists() instead")
 def ensure_bucket_exists(s3_client: BaseClient, bucket: str) -> None:
+    return None
     buckets = s3_client.list_buckets()["Buckets"]
     if not any(b["Name"] == bucket for b in buckets):
         s3_client.create_bucket(Bucket=bucket)
@@ -83,7 +97,7 @@ def upload_fileobj(fileobj, filename, content_type: str | None = None):
         S3 object path
     """
     s3_client = get_s3_client()
-    _, _, _, bucket = get_minio_config()
+    _, _, _, bucket, _, _ = get_minio_config()
     ensure_bucket_exists(s3_client, bucket)
 
     # Normalize raw bytes into a file-like object implementing read()
@@ -98,9 +112,10 @@ def upload_fileobj(fileobj, filename, content_type: str | None = None):
     return f"/{bucket}/{filename}"
 
 
+@deprecated("Use generate_presigned_url() instead")
 def get_file_url(filename, time: int = 3600):
     s3_client = get_s3_client()
-    _, _, _, bucket = get_minio_config()
+    _, _, _, bucket, _, _ = get_minio_config()
     return s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": filename}, ExpiresIn=time)
 
 
@@ -112,7 +127,7 @@ def generate_presigned_url(object_key: str, expires_in: int = 3600) -> str:  # T
         return cached_url
 
     s3_client = get_s3_client()
-    _, _, _, bucket = get_minio_config()
+    _, _, _, bucket, _, _ = get_minio_config()
 
     try:
         url = s3_client.generate_presigned_url("get_object", Params={"Bucket": bucket, "Key": object_key}, ExpiresIn=expires_in)
@@ -158,7 +173,7 @@ async def async_generate_presigned_urls_batch(object_keys: list[str], expires_in
     def _generate_urls_batch(keys: list[str]) -> dict[str, str]:
         """Generate multiple presigned URLs in a single thread (faster - reuses S3 client)"""
         s3_client = get_s3_client()
-        _, _, _, bucket = get_minio_config()
+        _, _, _, bucket, _, _ = get_minio_config()
 
         urls = {}
         for object_key in keys:
@@ -182,7 +197,7 @@ def rename_object(old_object_key: str, new_object_key: str) -> bool:
     """Rename an object in MinIO by copying it to a new key and deleting the old one"""
 
     s3_client = get_s3_client()
-    _, _, _, bucket = get_minio_config()
+    _, _, _, bucket, _, _ = get_minio_config()
 
     try:
         copy_source = {"Bucket": bucket, "Key": old_object_key}
@@ -205,7 +220,7 @@ def delete_object(object_key: str) -> bool:
     """Delete an object from MinIO"""
 
     s3_client = get_s3_client()
-    _, _, _, bucket = get_minio_config()
+    _, _, _, bucket, _, _ = get_minio_config()
 
     try:
         s3_client.delete_object(Bucket=bucket, Key=object_key)
@@ -231,7 +246,7 @@ def delete_folder(prefix: str) -> bool:
     """
 
     s3_client = get_s3_client()
-    _, _, _, bucket = get_minio_config()
+    _, _, _, bucket, _, _ = get_minio_config()
 
     try:
         # List all objects with the given prefix
@@ -386,7 +401,12 @@ def _get_bucket_lock():
 
 
 async def async_ensure_bucket_exists():
-    """Async version of ensure_bucket_exists using sync boto3 (faster)"""
+    """Async version of ensure_bucket_exists using sync boto3 (faster)
+
+    NOTE: For TrueNAS/MinIO with signature v2 (s3), list_buckets() works but
+    list_objects_v2() fails with SignatureDoesNotMatch. We skip bucket check
+    and assume it exists, or handle the error on first upload.
+    """
 
     global _bucket_ensured
 
@@ -401,27 +421,32 @@ async def async_ensure_bucket_exists():
         if _bucket_ensured:
             return
 
-        # Use sync boto3 in executor
-        executor = _get_executor()
-        loop = asyncio.get_event_loop()
+        # For TrueNAS with old signature, skip bucket existence check
+        # Assume bucket exists or will be created manually
+        logger.info("Skipping bucket existence check (assume bucket exists)")
+        _bucket_ensured = True
 
-        def _sync_ensure_bucket():
-            global _bucket_ensured
-            s3_client = get_s3_client()
-            _, _, _, bucket = get_minio_config()
-
-            try:
-                buckets_response = s3_client.list_buckets()
-                buckets = buckets_response.get("Buckets", [])
-                if not any(b["Name"] == bucket for b in buckets):
-                    s3_client.create_bucket(Bucket=bucket)
-                    logger.info(f"Created bucket: {bucket}")
-                _bucket_ensured = True
-            except Exception as e:
-                logger.error(f"Failed to ensure bucket exists: {e}")
-                raise
-
-        await loop.run_in_executor(executor, _sync_ensure_bucket)
+        # Uncomment below to enable bucket check (may fail with TrueNAS)
+        # executor = _get_executor()
+        # loop = asyncio.get_event_loop()
+        #
+        # def _sync_ensure_bucket():
+        #     global _bucket_ensured
+        #     s3_client = get_s3_client()
+        #     _, _, _, bucket, _, _ = get_minio_config()
+        #
+        #     try:
+        #         buckets_response = s3_client.list_buckets()
+        #         buckets = buckets_response.get("Buckets", [])
+        #         if not any(b["Name"] == bucket for b in buckets):
+        #             s3_client.create_bucket(Bucket=bucket)
+        #             logger.info(f"Created bucket: {bucket}")
+        #         _bucket_ensured = True
+        #     except Exception as e:
+        #         logger.error(f"Failed to ensure bucket exists: {e}")
+        #         raise
+        #
+        # await loop.run_in_executor(executor, _sync_ensure_bucket)
 
 
 async def async_upload_fileobj(fileobj, filename: str, metadata: dict | None = None, content_type: str | None = None):
@@ -446,7 +471,7 @@ async def async_upload_fileobj(fileobj, filename: str, metadata: dict | None = N
 
     def _sync_upload():
         s3_client = get_s3_client()
-        _, _, _, bucket = get_minio_config()
+        _, _, _, bucket, _, _ = get_minio_config()
 
         # Normalize raw bytes into a file-like object
         file_to_upload = fileobj

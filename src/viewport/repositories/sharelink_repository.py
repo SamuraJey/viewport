@@ -3,9 +3,9 @@ from datetime import UTC, datetime
 
 from sqlalchemy import select, update
 
-from src.viewport.models.gallery import Photo
-from src.viewport.models.sharelink import ShareLink
-from src.viewport.repositories.base_repository import BaseRepository
+from viewport.models.gallery import Photo
+from viewport.models.sharelink import ShareLink
+from viewport.repositories.base_repository import BaseRepository
 
 
 class ShareLinkRepository(BaseRepository):  # pragma: no cover # TODO tests

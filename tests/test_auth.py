@@ -7,7 +7,13 @@ import jwt
 import pytest
 from fastapi.testclient import TestClient
 
-from src.viewport.api.auth import authsettings
+
+@pytest.fixture(scope="module", autouse=True)
+def auth_settings():
+    """Fixture providing AuthSettings for tests."""
+    from viewport.auth_utils import AuthSettings
+
+    return AuthSettings()
 
 
 class TestAuthAPI:
@@ -22,7 +28,7 @@ class TestAuthAPI:
             {"email": "user+tag@example.com", "password": "password123", "invite_code": "testinvitecode"},
         ],
     )
-    def test_register_success(self, client: TestClient, user_data):
+    def test_register_success(self, client: TestClient, user_data, auth_settings):
         """Test successful user registration with various valid inputs."""
         response = client.post("/auth/register", json=user_data)
         assert response.status_code == 201
@@ -44,19 +50,19 @@ class TestAuthAPI:
             ({}, 422),  # Empty payload
         ],
     )
-    def test_register_validation_errors(self, client: TestClient, invalid_data, expected_status):
+    def test_register_validation_errors(self, client: TestClient, invalid_data, expected_status, auth_settings):
         """Test registration with various invalid inputs."""
         response = client.post("/auth/register", json=invalid_data)
         assert response.status_code == expected_status
 
-    def test_register_invalid_invite_code(self, client: TestClient):
+    def test_register_invalid_invite_code(self, client: TestClient, auth_settings):
         """Test registration with invalid invite code."""
         user_data = {"email": "test@example.com", "password": "password123", "invite_code": "wrongcode"}
         response = client.post("/auth/register", json=user_data)
         assert response.status_code == 403
         assert response.json()["detail"] == "Invalid invite code"
 
-    def test_register_duplicate_email(self, client: TestClient, test_user_data):
+    def test_register_duplicate_email(self, client: TestClient, test_user_data, auth_settings):
         """Test registration with duplicate email."""
         # First registration should succeed
         response1 = client.post("/auth/register", json=test_user_data)
@@ -67,7 +73,7 @@ class TestAuthAPI:
         assert response2.status_code == 400
         assert response2.json()["detail"] == "Email already registered"
 
-    def test_login_success(self, client: TestClient, test_user_data):
+    def test_login_success(self, client: TestClient, test_user_data, auth_settings):
         """Test successful login."""
         # Register user first
         client.post("/auth/register", json=test_user_data)
@@ -94,7 +100,7 @@ class TestAuthAPI:
             ({}, 422),  # Empty payload
         ],
     )
-    def test_login_various_errors(self, client: TestClient, test_user_data, login_data, expected_status):
+    def test_login_various_errors(self, client: TestClient, test_user_data, login_data, expected_status, auth_settings):
         """Test login with various error scenarios."""
         # Register a valid user first for wrong password test
         if login_data.get("email") == "test@example.com":
@@ -206,11 +212,11 @@ class TestAuthFlow:
         assert response.status_code == 401
         assert "invalid token type" in response.json()["detail"].lower()
 
-    def test_refresh_token_expired(self, client: TestClient):
+    def test_refresh_token_expired(self, client: TestClient, auth_settings):
         """Test refresh with expired token."""
         # Create expired refresh token
         expired_payload = {"sub": "fake_user_id", "exp": datetime.now(UTC) - timedelta(days=1), "type": "refresh"}
-        expired_token = jwt.encode(expired_payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
+        expired_token = jwt.encode(expired_payload, auth_settings.jwt_secret_key, algorithm=auth_settings.jwt_algorithm)
 
         refresh_payload = {"refresh_token": expired_token}
         response = client.post("/auth/refresh", json=refresh_payload)
@@ -218,11 +224,11 @@ class TestAuthFlow:
         assert response.status_code == 401
         assert "expired" in response.json()["detail"].lower()
 
-    def test_refresh_token_nonexistent_user(self, client: TestClient):
+    def test_refresh_token_nonexistent_user(self, client: TestClient, auth_settings):
         """Test refresh with token for non-existent user."""
         # Create refresh token for non-existent user
         fake_payload = {"sub": str(uuid4()), "exp": datetime.now(UTC) + timedelta(days=1), "type": "refresh"}
-        fake_token = jwt.encode(fake_payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
+        fake_token = jwt.encode(fake_payload, auth_settings.jwt_secret_key, algorithm=auth_settings.jwt_algorithm)
 
         refresh_payload = {"refresh_token": fake_token}
         response = client.post("/auth/refresh", json=refresh_payload)
@@ -242,7 +248,7 @@ class TestAuthFlow:
 
     def test_password_hashing_works(self, client: TestClient):
         """Test that passwords are properly hashed and not stored in plaintext."""
-        from src.viewport.api.auth import hash_password, verify_password
+        from viewport.api.auth import hash_password, verify_password
 
         password = "test_password_123"
         hashed = hash_password(password)
@@ -261,7 +267,7 @@ class TestAuthFlow:
         assert hashed != hashed2
         assert verify_password(password, hashed2) is True
 
-    def test_token_contains_correct_user_id(self, client: TestClient, test_user_data):
+    def test_token_contains_correct_user_id(self, client: TestClient, test_user_data, auth_settings):
         """Test that generated tokens contain the correct user ID."""
         # Register and login
         reg_response = client.post("/auth/register", json=test_user_data)
@@ -271,11 +277,11 @@ class TestAuthFlow:
         tokens = login_response.json()["tokens"]
 
         # Decode access token and verify user ID
-        access_payload = jwt.decode(tokens["access_token"], authsettings.jwt_secret_key, algorithms=[authsettings.jwt_algorithm])
+        access_payload = jwt.decode(tokens["access_token"], auth_settings.jwt_secret_key, algorithms=[auth_settings.jwt_algorithm])
         assert access_payload["sub"] == user_id
         assert access_payload["type"] == "access"
 
         # Decode refresh token and verify user ID
-        refresh_payload = jwt.decode(tokens["refresh_token"], authsettings.jwt_secret_key, algorithms=[authsettings.jwt_algorithm])
+        refresh_payload = jwt.decode(tokens["refresh_token"], auth_settings.jwt_secret_key, algorithms=[auth_settings.jwt_algorithm])
         assert refresh_payload["sub"] == user_id
         assert refresh_payload["type"] == "refresh"

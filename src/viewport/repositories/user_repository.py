@@ -3,8 +3,8 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from src.viewport.models.user import User
-from src.viewport.repositories.base_repository import BaseRepository
+from viewport.models.user import User
+from viewport.repositories.base_repository import BaseRepository
 
 
 class UserRepository(BaseRepository):

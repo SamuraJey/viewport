@@ -4,11 +4,11 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from src.viewport.auth_utils import get_current_user
-from src.viewport.db import get_db
-from src.viewport.models.user import User
-from src.viewport.repositories.gallery_repository import GalleryRepository
-from src.viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse, GalleryUpdateRequest
+from viewport.auth_utils import get_current_user
+from viewport.models.db import get_db
+from viewport.models.user import User
+from viewport.repositories.gallery_repository import GalleryRepository
+from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse, GalleryUpdateRequest
 from viewport.schemas.photo import PhotoResponse
 from viewport.schemas.sharelink import ShareLinkResponse
 
@@ -20,7 +20,7 @@ def get_gallery_repository(db: Session = Depends(get_db)) -> GalleryRepository:
     return GalleryRepository(db)
 
 
-@router.post("/", response_model=GalleryResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=GalleryResponse, status_code=status.HTTP_201_CREATED)
 def create_gallery(
     request: GalleryCreateRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
@@ -36,7 +36,7 @@ def create_gallery(
     )
 
 
-@router.get("/", response_model=GalleryListResponse)
+@router.get("", response_model=GalleryListResponse)
 def list_galleries(
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),

@@ -7,8 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.viewport.db import get_db
-from src.viewport.models.user import User
+from viewport.models.db import get_db
+from viewport.models.user import User
 
 
 class AuthSettings(BaseSettings):

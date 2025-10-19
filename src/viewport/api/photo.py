@@ -6,10 +6,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from src.viewport.auth_utils import get_current_user
-from src.viewport.db import get_db
-from src.viewport.repositories.gallery_repository import GalleryRepository
-from src.viewport.schemas.photo import PhotoRenameRequest, PhotoResponse, PhotoUploadResponse, PhotoUploadResult
+from viewport.auth_utils import get_current_user
+from viewport.models.db import get_db
+from viewport.repositories.gallery_repository import GalleryRepository
+from viewport.schemas.photo import PhotoRenameRequest, PhotoResponse, PhotoUploadResponse, PhotoUploadResult
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ async def upload_photos_batch(
                         content_type = "image/webp"
 
                 # Upload only the original image to S3 (no thumbnail yet)
-                from src.viewport.minio_utils import async_upload_fileobj
+                from viewport.minio_utils import async_upload_fileobj
 
                 await async_upload_fileobj(contents, object_key, content_type=content_type)
 
@@ -162,7 +162,7 @@ async def upload_photos_batch(
         logger.info(f"Database batch insert completed in {batch_insert_duration:.2f}s")
 
         # Schedule background tasks for thumbnail creation in batches
-        from src.viewport.background_tasks import create_thumbnails_batch_task
+        from viewport.background_tasks import create_thumbnails_batch_task
 
         celery_schedule_start = time.time()
 

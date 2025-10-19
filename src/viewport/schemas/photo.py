@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.viewport.minio_utils import generate_presigned_url
+from viewport.minio_utils import generate_presigned_url
 
 
 class PhotoCreateRequest(BaseModel):
@@ -52,7 +52,7 @@ class PhotoResponse(BaseModel):
         This is much faster than calling from_db_photo for each photo individually,
         especially for large numbers of photos (e.g., 800 photos: ~5s -> ~0.5s)
         """
-        from src.viewport.minio_utils import async_generate_presigned_urls_batch
+        from viewport.minio_utils import async_generate_presigned_urls_batch
 
         if not photos:
             return []

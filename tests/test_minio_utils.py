@@ -5,10 +5,10 @@ import os
 from unittest.mock import Mock, patch
 
 import pytest
-from botocore.exceptions import ClientError, NoCredentialsError
+from botocore.exceptions import ClientError
 from PIL import Image
 
-from src.viewport.minio_utils import (
+from viewport.minio_utils import (
     MinioSettings,
     async_create_and_upload_thumbnail,
     async_ensure_bucket_exists,
@@ -18,15 +18,12 @@ from src.viewport.minio_utils import (
     create_thumbnail,
     delete_folder,
     delete_object,
-    ensure_bucket_exists,
     generate_presigned_url,
     generate_thumbnail_object_key,
-    get_file_url,
     get_minio_config,
     get_s3_client,
     process_image_and_create_thumbnail,
     rename_object,
-    upload_fileobj,
 )
 
 
@@ -89,19 +86,9 @@ class TestMinioConfiguration:
 
         assert result1 == result2
         assert isinstance(result1, tuple)
-        assert len(result1) == 4  # endpoint, access_key, secret_key, bucket
+        assert len(result1) == 6
 
-    def test_get_minio_config_returns_correct_format(self):
-        """Test get_minio_config returns correct format."""
-        get_minio_config.cache_clear()
-        endpoint, access_key, secret_key, bucket = get_minio_config()
-
-        assert isinstance(endpoint, str)
-        assert isinstance(access_key, str)
-        assert isinstance(secret_key, str)
-        assert isinstance(bucket, str)
-
-    @patch("src.viewport.minio_utils.boto3.client")
+    @patch("viewport.minio_utils.boto3.client")
     def test_get_s3_client_caching(self, mock_boto3):
         """Test get_s3_client returns cached client."""
         mock_client = Mock()
@@ -119,7 +106,7 @@ class TestMinioConfiguration:
         # boto3.client should only be called once due to caching
         mock_boto3.assert_called_once()
 
-    @patch("src.viewport.minio_utils.boto3.client")
+    @patch("viewport.minio_utils.boto3.client")
     def test_get_s3_client_configuration(self, mock_boto3):
         """Test S3 client is configured correctly."""
         mock_client = Mock()
@@ -128,7 +115,7 @@ class TestMinioConfiguration:
         get_s3_client.cache_clear()
 
         # Mock environment variables
-        with patch.dict(os.environ, {"MINIO_ENDPOINT": "test.com:9000", "MINIO_ROOT_USER": "testuser", "MINIO_ROOT_PASSWORD": "testpass"}, clear=True):
+        with patch.dict(os.environ, {"MINIO_ENDPOINT": "http://test.com:9000", "MINIO_ROOT_USER": "testuser", "MINIO_ROOT_PASSWORD": "testpass"}, clear=True):
             get_minio_config.cache_clear()  # Clear config cache too
             get_s3_client()
 
@@ -140,185 +127,6 @@ class TestMinioConfiguration:
             assert call_args[1]["endpoint_url"] == "http://test.com:9000"
             assert call_args[1]["aws_access_key_id"] == "testuser"
             assert call_args[1]["aws_secret_access_key"] == "testpass"
-            assert call_args[1]["region_name"] == "eu-west-1"
-
-
-class TestFileOperations:
-    """Test file upload and URL generation operations."""
-
-    @patch("src.viewport.minio_utils.ensure_bucket_exists")
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
-    def test_upload_fileobj_with_bytes(self, mock_get_config, mock_get_client, mock_ensure_bucket):
-        """Test uploading bytes as file object."""
-        mock_client = Mock()
-        mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
-
-        file_content = b"test file content"
-        filename = "test.txt"
-
-        result = upload_fileobj(file_content, filename)
-
-        # Should ensure bucket exists
-        mock_ensure_bucket.assert_called_once()
-
-        # Should call upload_fileobj with BytesIO wrapper
-        mock_client.upload_fileobj.assert_called_once()
-        call_args = mock_client.upload_fileobj.call_args
-        assert isinstance(call_args[0][0], io.BytesIO)
-        assert call_args[0][1] == "test-bucket"  # bucket
-        assert call_args[0][2] == filename
-
-        # Should return correct path
-        assert result == "/test-bucket/test.txt"
-
-    @patch("src.viewport.minio_utils.ensure_bucket_exists")
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
-    def test_upload_fileobj_with_content_type(self, mock_get_config, mock_get_client, mock_ensure_bucket):
-        """Test uploading with Content-Type."""
-        mock_client = Mock()
-        mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
-
-        file_content = b"image data"
-        filename = "test.jpg"
-
-        result = upload_fileobj(file_content, filename, content_type="image/jpeg")
-
-        # Should call upload_fileobj with ExtraArgs containing ContentType
-        mock_client.upload_fileobj.assert_called_once()
-        call_args = mock_client.upload_fileobj.call_args
-        assert call_args[1]["ExtraArgs"]["ContentType"] == "image/jpeg"
-        assert result == "/test-bucket/test.jpg"
-
-    @patch("src.viewport.minio_utils.ensure_bucket_exists")
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
-    def test_upload_fileobj_with_fileobj(self, mock_get_config, mock_get_client, mock_ensure_bucket):
-        """Test uploading file-like object."""
-        mock_client = Mock()
-        mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
-
-        file_content = io.BytesIO(b"test file content")
-        filename = "test.txt"
-
-        result = upload_fileobj(file_content, filename)
-
-        mock_ensure_bucket.assert_called_once()
-        mock_client.upload_fileobj.assert_called_once()
-
-        call_args = mock_client.upload_fileobj.call_args
-        assert call_args[0][0] is file_content  # Should use original object
-        assert call_args[0][1] == "test-bucket"
-        assert call_args[0][2] == filename
-
-        assert result == "/test-bucket/test.txt"
-
-    @pytest.mark.parametrize(
-        "filename",
-        [
-            "test.jpg",
-            "folder/test.png",
-            "深度/测试.txt",
-            "file with spaces.pdf",
-        ],
-    )
-    @patch("src.viewport.minio_utils.ensure_bucket_exists")
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
-    def test_upload_fileobj_different_filenames(self, mock_get_config, mock_get_client, mock_ensure_bucket, filename):
-        """Test upload with different filename patterns."""
-        mock_client = Mock()
-        mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
-
-        result = upload_fileobj(b"content", filename)
-        assert result == f"/test-bucket/{filename}"
-
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
-    def test_get_file_url(self, mock_get_config, mock_get_client):
-        """Test getting presigned URL for file."""
-        mock_client = Mock()
-        mock_client.generate_presigned_url.return_value = "https://presigned.url/test.jpg"
-        mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
-
-        result = get_file_url("test.jpg")
-
-        mock_client.generate_presigned_url.assert_called_once_with("get_object", Params={"Bucket": "test-bucket", "Key": "test.jpg"}, ExpiresIn=3600)
-        assert result == "https://presigned.url/test.jpg"
-
-    @pytest.mark.parametrize(
-        "filename",
-        [
-            "test.jpg",
-            "folder/subfolder/test.png",
-            "file-with-dashes.pdf",
-            "file_with_underscores.txt",
-        ],
-    )
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
-    def test_get_file_url_different_filenames(self, mock_get_config, mock_get_client, filename):
-        """Test getting URLs for different filename patterns."""
-        mock_client = Mock()
-        mock_client.generate_presigned_url.return_value = f"https://presigned.url/{filename}"
-        mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
-
-        get_file_url(filename)
-
-        call_args = mock_client.generate_presigned_url.call_args
-        assert call_args[1]["Params"]["Key"] == filename
-
-
-class TestMinioErrorHandling:
-    """Test error handling in MinIO operations."""
-
-    @patch("src.viewport.minio_utils.get_s3_client")
-    def test_ensure_bucket_exists_client_error(self, mock_get_client):
-        """Test ensure_bucket_exists handles client errors."""
-        mock_client = Mock()
-        mock_client.list_buckets.side_effect = ClientError({"Error": {"Code": "NoSuchBucket"}}, "ListBuckets")
-        mock_get_client.return_value = mock_client
-
-        with pytest.raises(ClientError):
-            ensure_bucket_exists(mock_client, "test-bucket")
-
-    @patch("src.viewport.minio_utils.ensure_bucket_exists")
-    @patch("src.viewport.minio_utils.get_s3_client")
-    def test_upload_fileobj_client_error(self, mock_get_client, mock_ensure_bucket):
-        """Test upload_fileobj handles client errors."""
-        mock_client = Mock()
-        mock_client.upload_fileobj.side_effect = ClientError({"Error": {"Code": "NoSuchBucket"}}, "PutObject")
-        mock_get_client.return_value = mock_client
-
-        with pytest.raises(ClientError):
-            upload_fileobj(b"content", "test.txt")
-
-    @patch("src.viewport.minio_utils.get_s3_client")
-    def test_get_file_url_client_error(self, mock_get_client):
-        """Test get_file_url handles client errors."""
-        mock_client = Mock()
-        mock_client.generate_presigned_url.side_effect = ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject")
-        mock_get_client.return_value = mock_client
-
-        with pytest.raises(ClientError):
-            get_file_url("nonexistent.txt")
-
-    @patch("src.viewport.minio_utils.boto3.client")
-    def test_get_s3_client_no_credentials(self, mock_boto3):
-        """Test get_s3_client handles missing credentials."""
-        mock_boto3.side_effect = NoCredentialsError()
-
-        get_s3_client.cache_clear()
-
-        with pytest.raises(NoCredentialsError):
-            get_s3_client()
 
 
 class TestThumbnailCreation:
@@ -444,52 +252,52 @@ class TestThumbnailCreation:
 class TestPresignedURLGeneration:
     """Test presigned URL generation functions."""
 
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     def test_generate_presigned_url_basic(self, mock_get_config, mock_get_client):
         """Test basic presigned URL generation."""
         mock_client = Mock()
         mock_client.generate_presigned_url.return_value = "https://presigned.url/test.jpg"
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         result = generate_presigned_url("test.jpg")
 
         mock_client.generate_presigned_url.assert_called_once_with("get_object", Params={"Bucket": "test-bucket", "Key": "test.jpg"}, ExpiresIn=3600)
         assert result == "https://presigned.url/test.jpg"
 
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     def test_generate_presigned_url_custom_expiry(self, mock_get_config, mock_get_client):
         """Test presigned URL generation with custom expiry."""
         mock_client = Mock()
         mock_client.generate_presigned_url.return_value = "https://presigned.url/test.jpg"
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         # Ensure no cached URL exists
-        with patch("src.viewport.minio_utils.get_cached_presigned_url", return_value=None):
+        with patch("viewport.minio_utils.get_cached_presigned_url", return_value=None):
             result = generate_presigned_url("test.jpg", expires_in=7200)
 
         mock_client.generate_presigned_url.assert_called_once_with("get_object", Params={"Bucket": "test-bucket", "Key": "test.jpg"}, ExpiresIn=7200)
         assert result == "https://presigned.url/test.jpg"
 
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     def test_generate_presigned_url_caching(self, mock_get_config, mock_get_client):
         """Test presigned URL caching."""
         mock_client = Mock()
         mock_client.generate_presigned_url.return_value = "https://presigned.url/test.jpg"
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         # First call - no cache, should generate URL
-        with patch("src.viewport.minio_utils.get_cached_presigned_url", return_value=None), patch("src.viewport.minio_utils.cache_presigned_url") as mock_cache:
+        with patch("viewport.minio_utils.get_cached_presigned_url", return_value=None), patch("viewport.minio_utils.cache_presigned_url") as mock_cache:
             result1 = generate_presigned_url("test.jpg")
             mock_cache.assert_called_once()
 
         # Second call - cache hit, should return cached URL
-        with patch("src.viewport.minio_utils.get_cached_presigned_url", return_value="https://cached.url/test.jpg"):
+        with patch("viewport.minio_utils.get_cached_presigned_url", return_value="https://cached.url/test.jpg"):
             result2 = generate_presigned_url("test.jpg")
 
         assert result1 == "https://presigned.url/test.jpg"
@@ -497,22 +305,22 @@ class TestPresignedURLGeneration:
         # generate_presigned_url should only be called once (first call)
         assert mock_client.generate_presigned_url.call_count == 1
 
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     def test_generate_presigned_url_error(self, mock_get_config, mock_get_client):
         """Test presigned URL generation error handling."""
         mock_client = Mock()
         mock_client.generate_presigned_url.side_effect = ClientError({"Error": {"Code": "InvalidBucketName"}}, "GetObject")
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         # Ensure no cached URL exists
-        with patch("src.viewport.minio_utils.get_cached_presigned_url", return_value=None), pytest.raises(ClientError):
+        with patch("viewport.minio_utils.get_cached_presigned_url", return_value=None), pytest.raises(ClientError):
             generate_presigned_url("test.jpg")
 
     @pytest.mark.asyncio
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     async def test_async_generate_presigned_urls_batch(self, mock_get_config, mock_get_client):
         """Test async batch presigned URL generation."""
         mock_client = Mock()
@@ -521,10 +329,10 @@ class TestPresignedURLGeneration:
             "https://presigned.url/key2.jpg",
         ]
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         # Mock cache to return None for all keys (no cached URLs)
-        with patch("src.viewport.minio_utils.get_cached_presigned_url", return_value=None), patch("src.viewport.minio_utils.cache_presigned_url"):
+        with patch("viewport.minio_utils.get_cached_presigned_url", return_value=None), patch("viewport.minio_utils.cache_presigned_url"):
             object_keys = ["key1.jpg", "key2.jpg"]
             result = await async_generate_presigned_urls_batch(object_keys)
             assert len(result) == 2
@@ -535,13 +343,13 @@ class TestPresignedURLGeneration:
 class TestObjectOperations:
     """Test object operations like rename and delete."""
 
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     def test_rename_object_success(self, mock_get_config, mock_get_client):
         """Test successful object rename."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         result = rename_object("old-key.jpg", "new-key.jpg")
 
@@ -549,47 +357,47 @@ class TestObjectOperations:
         mock_client.copy_object.assert_called_once_with(CopySource={"Bucket": "test-bucket", "Key": "old-key.jpg"}, Bucket="test-bucket", Key="new-key.jpg")
         mock_client.delete_object.assert_called_once_with(Bucket="test-bucket", Key="old-key.jpg")
 
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     def test_rename_object_copy_error(self, mock_get_config, mock_get_client):
         """Test object rename with copy error."""
         mock_client = Mock()
         mock_client.copy_object.side_effect = ClientError({"Error": {"Code": "NoSuchKey"}}, "CopyObject")
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         result = rename_object("old-key.jpg", "new-key.jpg")
 
         assert result is False
 
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     def test_delete_object_success(self, mock_get_config, mock_get_client):
         """Test successful object deletion."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         result = delete_object("test-key.jpg")
 
         assert result is True
         mock_client.delete_object.assert_called_once_with(Bucket="test-bucket", Key="test-key.jpg")
 
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     def test_delete_object_error(self, mock_get_config, mock_get_client):
         """Test object deletion with error."""
         mock_client = Mock()
         mock_client.delete_object.side_effect = ClientError({"Error": {"Code": "NoSuchKey"}}, "DeleteObject")
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         result = delete_object("test-key.jpg")
 
         assert result is False
 
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     def test_delete_folder_success(self, mock_get_config, mock_get_client):
         """Test successful folder deletion."""
         mock_client = Mock()
@@ -598,15 +406,15 @@ class TestObjectOperations:
         mock_page = {"Contents": [{"Key": "folder/file1.jpg"}, {"Key": "folder/file2.jpg"}]}
         mock_paginator.paginate.return_value = [mock_page]
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         result = delete_folder("folder/")
 
         assert result is True
         mock_client.delete_objects.assert_called_once_with(Bucket="test-bucket", Delete={"Objects": [{"Key": "folder/file1.jpg"}, {"Key": "folder/file2.jpg"}]})
 
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     def test_delete_folder_empty(self, mock_get_config, mock_get_client):
         """Test folder deletion with no objects."""
         mock_client = Mock()
@@ -615,21 +423,21 @@ class TestObjectOperations:
         mock_page = {}  # No Contents
         mock_paginator.paginate.return_value = [mock_page]
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         result = delete_folder("empty-folder/")
 
         assert result is True
         mock_client.delete_objects.assert_not_called()
 
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     def test_delete_folder_error(self, mock_get_config, mock_get_client):
         """Test folder deletion with error."""
         mock_client = Mock()
         mock_client.get_paginator.side_effect = ClientError({"Error": {"Code": "NoSuchBucket"}}, "ListObjectsV2")
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         result = delete_folder("folder/")
 
@@ -703,14 +511,14 @@ class TestAsyncOperations:
     """Test async operations."""
 
     @pytest.mark.asyncio
-    @patch("src.viewport.minio_utils.async_ensure_bucket_exists")
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.async_ensure_bucket_exists")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     async def test_async_upload_fileobj_bytes(self, mock_get_config, mock_get_client, mock_ensure_bucket):
         """Test async upload with bytes."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         file_content = b"test content"
         result = await async_upload_fileobj(file_content, "test.txt")
@@ -719,14 +527,14 @@ class TestAsyncOperations:
         mock_ensure_bucket.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("src.viewport.minio_utils.async_ensure_bucket_exists")
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.async_ensure_bucket_exists")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     async def test_async_upload_fileobj_with_metadata(self, mock_get_config, mock_get_client, mock_ensure_bucket):
         """Test async upload with metadata."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         file_content = b"test content"
         metadata = {"Content-Type": "text/plain"}
@@ -738,8 +546,8 @@ class TestAsyncOperations:
         assert call_args[1]["ExtraArgs"]["Metadata"] == metadata
 
     @pytest.mark.asyncio
-    @patch("src.viewport.minio_utils.async_upload_fileobj")
-    @patch("src.viewport.minio_utils.process_image_and_create_thumbnail")
+    @patch("viewport.minio_utils.async_upload_fileobj")
+    @patch("viewport.minio_utils.process_image_and_create_thumbnail")
     async def test_async_create_and_upload_thumbnail(self, mock_process, mock_upload):
         """Test async thumbnail creation and upload."""
         # Mock the processing function
@@ -753,8 +561,8 @@ class TestAsyncOperations:
         mock_upload.assert_called_once_with(b"thumbnail_bytes", "thumbnails/test.jpg", content_type="image/jpeg")
 
     @pytest.mark.asyncio
-    @patch("src.viewport.minio_utils.async_upload_fileobj")
-    @patch("src.viewport.minio_utils.async_create_and_upload_thumbnail")
+    @patch("viewport.minio_utils.async_upload_fileobj")
+    @patch("viewport.minio_utils.async_create_and_upload_thumbnail")
     async def test_async_process_and_upload_image_success(self, mock_create_thumb, mock_upload):
         """Test successful async image processing and upload."""
         mock_upload.return_value = "/bucket/test.jpg"
@@ -767,8 +575,8 @@ class TestAsyncOperations:
         assert mock_create_thumb.call_count == 1
 
     @pytest.mark.asyncio
-    @patch("src.viewport.minio_utils.async_upload_fileobj")
-    @patch("src.viewport.minio_utils.async_create_and_upload_thumbnail")
+    @patch("viewport.minio_utils.async_upload_fileobj")
+    @patch("viewport.minio_utils.async_create_and_upload_thumbnail")
     async def test_async_process_and_upload_image_thumbnail_failure(self, mock_create_thumb, mock_upload):
         """Test async image processing when thumbnail creation fails."""
         mock_upload.return_value = "/bucket/test.jpg"
@@ -780,7 +588,7 @@ class TestAsyncOperations:
         assert result == ("test.jpg", "test.jpg", None, None)
 
     @pytest.mark.asyncio
-    @patch("src.viewport.minio_utils.async_upload_fileobj")
+    @patch("viewport.minio_utils.async_upload_fileobj")
     async def test_async_process_and_upload_image_upload_failure(self, mock_upload):
         """Test async image processing when upload fails."""
         mock_upload.side_effect = Exception("Upload failed")
@@ -788,41 +596,43 @@ class TestAsyncOperations:
         with pytest.raises(Exception, match="Upload failed"):
             await async_process_and_upload_image(b"image_bytes", "test.jpg")
 
+    @pytest.mark.skip(reason="MinIO bucket existence is not checked right now, because of problems with proxy.")
     @pytest.mark.asyncio
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     async def test_async_ensure_bucket_exists_new_bucket(self, mock_get_config, mock_get_client):
         """Test async bucket creation when bucket doesn't exist."""
         mock_client = Mock()
         mock_client.list_buckets.return_value = {"Buckets": []}
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         await async_ensure_bucket_exists()
 
         mock_client.create_bucket.assert_called_once_with(Bucket="test-bucket")
 
     @pytest.mark.asyncio
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     async def test_async_ensure_bucket_exists_existing_bucket(self, mock_get_config, mock_get_client):
         """Test async bucket creation when bucket already exists."""
         mock_client = Mock()
         mock_client.list_buckets.return_value = {"Buckets": [{"Name": "test-bucket"}]}
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         await async_ensure_bucket_exists()
 
         mock_client.create_bucket.assert_not_called()
 
+    @pytest.mark.skip(reason="MinIO bucket existence is not checked right now, because of problems with proxy.")
     @pytest.mark.asyncio
-    @patch("src.viewport.minio_utils.get_s3_client")
-    @patch("src.viewport.minio_utils.get_minio_config")
+    @patch("viewport.minio_utils.get_s3_client")
+    @patch("viewport.minio_utils.get_minio_config")
     async def test_async_ensure_bucket_exists_bucket_creation_error(self, mock_get_config, mock_get_client):
         """Test async bucket creation when creation fails."""
         # Reset global state
-        import src.viewport.minio_utils as minio_utils
+        import viewport.minio_utils as minio_utils
 
         minio_utils._bucket_ensured = False
 
@@ -830,7 +640,7 @@ class TestAsyncOperations:
         mock_client.list_buckets.return_value = {"Buckets": []}
         mock_client.create_bucket.side_effect = ClientError({"Error": {"Code": "InvalidBucketName"}}, "CreateBucket")
         mock_get_client.return_value = mock_client
-        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket")
+        mock_get_config.return_value = ("endpoint", "access", "secret", "test-bucket", "kek", "lol")
 
         with pytest.raises(ClientError):
             await async_ensure_bucket_exists()

@@ -25,13 +25,25 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("botocore.auth").setLevel(logging.WARNING)
 logging.getLogger("botocore.endpoint").setLevel(logging.WARNING)
 
-
-app = FastAPI()
+if True:  # TODO add env var check for production
+    app = FastAPI(docs_url=None, redoc_url=None, redirect_slashes=False)
+else:
+    app = FastAPI()
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://192.168.1.50:5173"],  # Frontend URL
+    allow_origins=[
+        "http://localhost:5173",
+        "http://192.168.1.50:5173",
+        "http://192.168.1.15:3000",
+        "http://192.168.1.50:3000",
+        "https://samuraj.su",
+        "https://backend.samuraj.su",
+        "https://backend.samuraj.su:4443",
+        "https://viewport.samuraj.su:4443",
+    ],
+    allow_origin_regex=r"https://.*\.samuraj\.su",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

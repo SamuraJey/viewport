@@ -7,13 +7,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from src.viewport.db import get_db
-from src.viewport.logger import logger
-from src.viewport.minio_utils import async_generate_presigned_urls_batch, get_minio_config, get_s3_client
-from src.viewport.models.gallery import Gallery
-from src.viewport.models.sharelink import ShareLink
-from src.viewport.repositories.sharelink_repository import ShareLinkRepository
-from src.viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto
+from viewport.logger import logger
+from viewport.minio_utils import async_generate_presigned_urls_batch, get_minio_config, get_s3_client
+from viewport.models.db import get_db
+from viewport.models.gallery import Gallery
+from viewport.models.sharelink import ShareLink
+from viewport.repositories.sharelink_repository import ShareLinkRepository
+from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto
 
 router = APIRouter(prefix="/s", tags=["public"])
 
@@ -123,7 +123,7 @@ def download_all_photos_zip(share_id: UUID, repo: ShareLinkRepository = Depends(
     if not photos:
         raise HTTPException(status_code=404, detail="No photos found")
     zip_buffer = io.BytesIO()
-    _, _, _, bucket = get_minio_config()
+    _, _, _, bucket, _, _ = get_minio_config()
     s3_client = get_s3_client()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
         for photo in photos:

@@ -45,8 +45,9 @@ def postgres_container() -> Generator[PostgresContainer]:
 @pytest.fixture(scope="session")
 def engine(postgres_container: PostgresContainer) -> Generator[Engine]:
     """Фикстура движка SQLAlchemy с областью видимости на сессию."""
-    from src.viewport.db import Base
-    from src.viewport.models import Gallery, Photo, ShareLink, User  # noqa: F401
+
+    from viewport.models import Gallery, Photo, ShareLink, User  # noqa: F401
+    from viewport.models.db import Base
 
     db_url = postgres_container.get_connection_url(driver="psycopg")
     engine = create_engine(db_url)
@@ -102,12 +103,6 @@ def minio_container() -> Generator[DockerContainer]:
             }
         )
 
-        # Clear any cached MinIO configurations to force reload
-        from src.viewport.minio_utils import get_minio_config, get_s3_client
-
-        get_minio_config.cache_clear()
-        get_s3_client.cache_clear()
-
         yield minio
 
 
@@ -116,8 +111,8 @@ def client(db_session: Session, minio_container: DockerContainer):
     """Фикстура тестового клиента FastAPI с очисткой состояния между тестами."""
 
     # Override get_db to use the transactional db_session for each test
-    from src.viewport.db import get_db
-    from src.viewport.main import app
+    from viewport.main import app
+    from viewport.models.db import get_db
 
     def override_get_db():
         yield db_session
@@ -126,7 +121,7 @@ def client(db_session: Session, minio_container: DockerContainer):
 
     # Ensure MinIO cache is cleared for each test to pick up fresh configuration
     try:
-        from src.viewport.minio_utils import get_minio_config, get_s3_client
+        from viewport.minio_utils import get_minio_config, get_s3_client
 
         get_minio_config.cache_clear()
         get_s3_client.cache_clear()
@@ -195,7 +190,7 @@ def multiple_users_data() -> list[dict[str, str]]:
 def gallery_id_fixture(authenticated_client: TestClient) -> str:
     """Fixture that creates a gallery and returns its ID."""
     # Create a gallery for tests needing a gallery ID
-    resp = authenticated_client.post("/galleries/", json={})
+    resp = authenticated_client.post("/galleries", json={})
     assert resp.status_code == 201
     return resp.json()["id"]
 
@@ -226,7 +221,7 @@ def expired_auth_headers() -> dict[str, str]:
 
     import jwt
 
-    from src.viewport.api.auth import authsettings
+    from viewport.auth_utils import authsettings
 
     payload = {"sub": str(uuid.uuid4()), "exp": datetime.now(UTC) - timedelta(days=1), "type": "access"}
     token = jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)

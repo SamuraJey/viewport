@@ -2,8 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from src.viewport.schemas.photo import PhotoResponse
-from src.viewport.schemas.sharelink import ShareLinkResponse
+from viewport.schemas.photo import PhotoResponse
+from viewport.schemas.sharelink import ShareLinkResponse
 
 
 class GalleryCreateRequest(BaseModel):
