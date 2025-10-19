@@ -1,4 +1,5 @@
 import os
+import time
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 
@@ -78,7 +79,8 @@ def db_session(engine: Engine) -> Generator[Session]:
 @pytest.fixture(scope="session")
 def minio_container() -> Generator[DockerContainer]:
     """Фикстура контейнера MinIO с областью видимости на сессию."""
-    from testcontainers.core.container import DockerContainer
+    import boto3
+    from botocore.config import Config
 
     container = (
         DockerContainer(MINIO_IMAGE)
@@ -100,8 +102,37 @@ def minio_container() -> Generator[DockerContainer]:
                 "MINIO_SECRET_KEY": MINIO_ROOT_PASSWORD,
                 "MINIO_ROOT_USER": MINIO_ROOT_USER,
                 "MINIO_ROOT_PASSWORD": MINIO_ROOT_PASSWORD,
+                "MINIO_BUCKET": "viewport",
+                "MINIO_REGION": "us-east-1",
             }
         )
+
+        endpoint_url = f"http://{host}:{port}"
+        bucket_name = os.environ["MINIO_BUCKET"]
+
+        # Ensure the test bucket exists before hitting the API
+        config = Config(s3={"addressing_style": "path"})
+        client = boto3.client(
+            "s3",
+            endpoint_url=endpoint_url,
+            aws_access_key_id=MINIO_ROOT_USER,
+            aws_secret_access_key=MINIO_ROOT_PASSWORD,
+            config=config,
+        )
+
+        for _ in range(60):
+            try:
+                client.create_bucket(Bucket=bucket_name)
+                break
+            except client.exceptions.BucketAlreadyOwnedByYou:
+                break
+            except client.exceptions.BucketAlreadyExists:
+                break
+            except Exception:
+                breakpoint()
+                time.sleep(0.1)
+        else:  # pragma: no cover - fail fast if MinIO never becomes ready
+            raise RuntimeError("Failed to create test MinIO bucket")
 
         yield minio
 

@@ -254,7 +254,7 @@ class TestPhotoSchemas:
         mock_photo.height = 600
 
         expected_url = f"https://example.com/presigned-url/{mock_photo.id}"
-        with patch("src.viewport.schemas.photo.generate_presigned_url", return_value=expected_url):
+        with patch("viewport.schemas.photo.generate_presigned_url", return_value=expected_url):
             response = PhotoResponse.from_db_photo(mock_photo)
 
         assert response.id == mock_photo.id
