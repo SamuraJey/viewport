@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def auth_settings():
     """Fixture providing AuthSettings for tests."""
     from viewport.auth_utils import AuthSettings
@@ -28,7 +28,7 @@ class TestAuthAPI:
             {"email": "user+tag@example.com", "password": "password123", "invite_code": "testinvitecode"},
         ],
     )
-    def test_register_success(self, client: TestClient, user_data, auth_settings):
+    def test_register_success(self, client: TestClient, user_data):
         """Test successful user registration with various valid inputs."""
         response = client.post("/auth/register", json=user_data)
         assert response.status_code == 201
@@ -50,19 +50,19 @@ class TestAuthAPI:
             ({}, 422),  # Empty payload
         ],
     )
-    def test_register_validation_errors(self, client: TestClient, invalid_data, expected_status, auth_settings):
+    def test_register_validation_errors(self, client: TestClient, invalid_data, expected_status):
         """Test registration with various invalid inputs."""
         response = client.post("/auth/register", json=invalid_data)
         assert response.status_code == expected_status
 
-    def test_register_invalid_invite_code(self, client: TestClient, auth_settings):
+    def test_register_invalid_invite_code(self, client: TestClient):
         """Test registration with invalid invite code."""
         user_data = {"email": "test@example.com", "password": "password123", "invite_code": "wrongcode"}
         response = client.post("/auth/register", json=user_data)
         assert response.status_code == 403
         assert response.json()["detail"] == "Invalid invite code"
 
-    def test_register_duplicate_email(self, client: TestClient, test_user_data, auth_settings):
+    def test_register_duplicate_email(self, client: TestClient, test_user_data):
         """Test registration with duplicate email."""
         # First registration should succeed
         response1 = client.post("/auth/register", json=test_user_data)

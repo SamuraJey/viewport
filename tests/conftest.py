@@ -15,7 +15,7 @@ from testcontainers.postgres import PostgresContainer
 
 POSTGRES_IMAGE = "postgres:17-alpine"
 
-MINIO_IMAGE = "minio/minio:RELEASE.2025-07-23T15-54-02Z"
+MINIO_IMAGE = "rustfs/rustfs:1.0.0-alpha.64"
 MINIO_ROOT_USER = "minioadmin"
 MINIO_ROOT_PASSWORD = "minioadmin"
 MINIO_PORT = 9000
@@ -84,10 +84,10 @@ def minio_container() -> Generator[DockerContainer]:
 
     container = (
         DockerContainer(MINIO_IMAGE)
-        .with_env("MINIO_ROOT_USER", MINIO_ROOT_USER)
-        .with_env("MINIO_ROOT_PASSWORD", MINIO_ROOT_PASSWORD)
+        .with_env("RUSTFS_ACCESS_KEY", MINIO_ROOT_USER)
+        .with_env("RUSTFS_SECRET_KEY", MINIO_ROOT_PASSWORD)
         .with_exposed_ports(MINIO_PORT)
-        .with_command("server /data --console-address :9001")
+        # .with_command("server /data --console-address :9001")
     )
 
     with container as minio:
@@ -97,18 +97,18 @@ def minio_container() -> Generator[DockerContainer]:
         # Set environment variables
         os.environ.update(
             {
-                "MINIO_ENDPOINT": f"{host}:{port}",
-                "MINIO_ACCESS_KEY": MINIO_ROOT_USER,
-                "MINIO_SECRET_KEY": MINIO_ROOT_PASSWORD,
-                "MINIO_ROOT_USER": MINIO_ROOT_USER,
-                "MINIO_ROOT_PASSWORD": MINIO_ROOT_PASSWORD,
-                "MINIO_BUCKET": "viewport",
-                "MINIO_REGION": "us-east-1",
+                "S3_ENDPOINT": f"{host}:{port}",
+                "S3_ACCESS_KEY": MINIO_ROOT_USER,
+                "S3_SECRET_KEY": MINIO_ROOT_PASSWORD,
+                "S3_ROOT_USER": MINIO_ROOT_USER,
+                "S3_ROOT_PASSWORD": MINIO_ROOT_PASSWORD,
+                "S3_BUCKET": "test-viewport",
+                "S3_REGION": "us-east-1",
             }
         )
 
         endpoint_url = f"http://{host}:{port}"
-        bucket_name = os.environ["MINIO_BUCKET"]
+        bucket_name = os.environ["S3_BUCKET"]
 
         # Ensure the test bucket exists before hitting the API
         config = Config(s3={"addressing_style": "path"})

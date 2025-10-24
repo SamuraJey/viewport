@@ -9,7 +9,7 @@ from botocore.exceptions import ClientError
 from PIL import Image
 
 from viewport.minio_utils import (
-    MinioSettings,
+    S3Settings,
     async_create_and_upload_thumbnail,
     async_ensure_bucket_exists,
     async_generate_presigned_urls_batch,
@@ -34,7 +34,7 @@ class TestMinioSettings:
         """Test MinIO settings with cleared environment."""
         # Clear environment and test defaults
         with patch.dict(os.environ, {}, clear=True):
-            settings = MinioSettings()
+            settings = S3Settings()
             assert settings.endpoint == "localhost:9000"
             assert settings.access_key == "minioadmin"
             assert settings.secret_key == "minioadmin"
@@ -56,7 +56,7 @@ class TestMinioSettings:
     def test_minio_settings_from_environment(self, env_vars, expected):
         """Test MinIO settings from environment variables."""
         with patch.dict(os.environ, env_vars, clear=True):
-            settings = MinioSettings()
+            settings = S3Settings()
             assert settings.endpoint == expected["endpoint"]
             assert settings.access_key == expected["access_key"]
             assert settings.secret_key == expected["secret_key"]
@@ -66,7 +66,7 @@ class TestMinioSettings:
         """Test MinIO settings with alias fields."""
         env_vars = {"MINIO_ROOT_USER": "aliasuser", "MINIO_ROOT_PASSWORD": "aliaspass"}
         with patch.dict(os.environ, env_vars, clear=True):
-            settings = MinioSettings()
+            settings = S3Settings()
             assert settings.access_key == "aliasuser"
             assert settings.secret_key == "aliaspass"
 

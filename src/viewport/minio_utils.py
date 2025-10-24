@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)  # Set our logger to INFO level
 
 
-class MinioSettings(BaseSettings):
+class S3Settings(BaseSettings):
     endpoint: str = "localhost:9000"
     access_key: str = Field(alias="MINIO_ROOT_USER", default="minioadmin")
     secret_key: str = Field(alias="MINIO_ROOT_PASSWORD", default="minioadmin")
@@ -33,7 +33,7 @@ class MinioSettings(BaseSettings):
     use_ssl: bool = False  # Can be overridden with MINIO_USE_SSL env var
 
     model_config = SettingsConfigDict(
-        env_prefix="MINIO_",
+        env_prefix="S3_",
         env_file=".env",
         extra="ignore",
     )  # Ignore extra fields not defined in the model)
@@ -41,7 +41,7 @@ class MinioSettings(BaseSettings):
 
 @cache
 def get_minio_config() -> tuple[str, str, str, str, str, bool]:
-    settings = MinioSettings()
+    settings = S3Settings()
     return settings.endpoint, settings.access_key, settings.secret_key, settings.bucket, settings.region, settings.use_ssl
 
 
