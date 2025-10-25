@@ -6,9 +6,9 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import inspect
 
-from src.viewport.models.gallery import Gallery, Photo
-from src.viewport.models.sharelink import ShareLink
-from src.viewport.models.user import User
+from viewport.models.gallery import Gallery, Photo
+from viewport.models.sharelink import ShareLink
+from viewport.models.user import User
 
 
 @pytest.fixture

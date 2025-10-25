@@ -3,10 +3,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from src.viewport.auth_utils import get_current_user
-from src.viewport.db import get_db
-from src.viewport.repositories.gallery_repository import GalleryRepository
-from src.viewport.schemas.sharelink import ShareLinkCreateRequest, ShareLinkResponse
+from viewport.auth_utils import get_current_user
+from viewport.models.db import get_db
+from viewport.repositories.gallery_repository import GalleryRepository
+from viewport.schemas.sharelink import ShareLinkCreateRequest, ShareLinkResponse
 
 router = APIRouter(prefix="/galleries/{gallery_id}/share-links", tags=["sharelinks"])
 

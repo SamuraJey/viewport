@@ -1,7 +1,5 @@
 import { useEffect } from 'react'
 import { X, ChevronLeft, ChevronRight, Download } from 'lucide-react'
-import { PresignedImage } from './PresignedImage'
-import { PublicBatchImage, PublicBatchImageProvider } from './PublicBatchImage'
 
 interface Photo {
   id?: string
@@ -28,9 +26,7 @@ export const PhotoModal = ({
   onClose,
   onPrevious,
   onNext,
-  onDownload,
-  isPublic = false,
-  shareId
+  onDownload
 }: PhotoModalProps) => {
   // Keyboard navigation
   useEffect(() => {
@@ -62,7 +58,9 @@ export const PhotoModal = ({
 
   const currentPhoto = photos[selectedIndex]
   const photoId = currentPhoto.id || currentPhoto.photo_id || ''
-  const galleryId = currentPhoto.gallery_id
+  // For public galleries, use full_url directly since we already have it from the gallery request
+  // For private galleries, use the url which is already a presigned URL
+  const photoUrl = currentPhoto.full_url || currentPhoto.url || ''
 
   return (
     <div
@@ -97,25 +95,13 @@ export const PhotoModal = ({
 
       {/* Photo container */}
       <div className="w-full h-full flex items-center justify-center p-4" onClick={e => e.stopPropagation()}>
-        {isPublic && shareId ? (
-          <PublicBatchImageProvider shareId={shareId}>
-            <PublicBatchImage
-              shareId={shareId}
-              photoId={photoId}
-              alt={`Photo ${photoId}`}
-              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-              loading="eager"
-            />
-          </PublicBatchImageProvider>
-        ) : (
-          <PresignedImage
-            photoId={photoId}
-            galleryId={galleryId}
-            alt={`Photo ${photoId}`}
-            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-            loading="eager"
-          />
-        )}
+        {/* For both public and private galleries, we now have presigned URLs directly */}
+        <img
+          src={photoUrl}
+          alt={`Photo ${photoId}`}
+          className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+          loading="eager"
+        />
       </div>
 
       {/* Photo info */}

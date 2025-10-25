@@ -7,10 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.viewport.db import get_db
-from src.viewport.repositories.user_repository import UserRepository
-from src.viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
 from viewport.auth_utils import authsettings
+from viewport.models.db import get_db
+from viewport.repositories.user_repository import UserRepository
+from viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

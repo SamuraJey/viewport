@@ -1,4 +1,5 @@
 import os
+import time
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 
@@ -14,7 +15,7 @@ from testcontainers.postgres import PostgresContainer
 
 POSTGRES_IMAGE = "postgres:17-alpine"
 
-MINIO_IMAGE = "minio/minio:RELEASE.2025-07-23T15-54-02Z"
+MINIO_IMAGE = "rustfs/rustfs:1.0.0-alpha.64"
 MINIO_ROOT_USER = "minioadmin"
 MINIO_ROOT_PASSWORD = "minioadmin"
 MINIO_PORT = 9000
@@ -45,10 +46,11 @@ def postgres_container() -> Generator[PostgresContainer]:
 @pytest.fixture(scope="session")
 def engine(postgres_container: PostgresContainer) -> Generator[Engine]:
     """Фикстура движка SQLAlchemy с областью видимости на сессию."""
-    from src.viewport.db import Base
-    from src.viewport.models import Gallery, Photo, ShareLink, User  # noqa: F401
 
-    db_url = postgres_container.get_connection_url()
+    from viewport.models import Gallery, Photo, ShareLink, User  # noqa: F401
+    from viewport.models.db import Base
+
+    db_url = postgres_container.get_connection_url(driver="psycopg")
     engine = create_engine(db_url)
     # Create all tables once at session startup
     Base.metadata.create_all(engine)
@@ -77,14 +79,12 @@ def db_session(engine: Engine) -> Generator[Session]:
 @pytest.fixture(scope="session")
 def minio_container() -> Generator[DockerContainer]:
     """Фикстура контейнера MinIO с областью видимости на сессию."""
-    from testcontainers.core.container import DockerContainer
+    import boto3
+    from botocore.config import Config
 
     container = (
-        DockerContainer(MINIO_IMAGE)
-        .with_env("MINIO_ROOT_USER", MINIO_ROOT_USER)
-        .with_env("MINIO_ROOT_PASSWORD", MINIO_ROOT_PASSWORD)
-        .with_exposed_ports(MINIO_PORT)
-        .with_command("server /data --console-address :9001")
+        DockerContainer(MINIO_IMAGE).with_env("RUSTFS_ACCESS_KEY", MINIO_ROOT_USER).with_env("RUSTFS_SECRET_KEY", MINIO_ROOT_PASSWORD).with_exposed_ports(MINIO_PORT)
+        # .with_command("server /data --console-address :9001")
     )
 
     with container as minio:
@@ -94,19 +94,42 @@ def minio_container() -> Generator[DockerContainer]:
         # Set environment variables
         os.environ.update(
             {
-                "MINIO_ENDPOINT": f"{host}:{port}",
-                "MINIO_ACCESS_KEY": MINIO_ROOT_USER,
-                "MINIO_SECRET_KEY": MINIO_ROOT_PASSWORD,
-                "MINIO_ROOT_USER": MINIO_ROOT_USER,
-                "MINIO_ROOT_PASSWORD": MINIO_ROOT_PASSWORD,
+                "S3_ENDPOINT": f"{host}:{port}",
+                "S3_ACCESS_KEY": MINIO_ROOT_USER,
+                "S3_SECRET_KEY": MINIO_ROOT_PASSWORD,
+                "S3_ROOT_USER": MINIO_ROOT_USER,
+                "S3_ROOT_PASSWORD": MINIO_ROOT_PASSWORD,
+                "S3_BUCKET": "test-viewport",
+                "S3_REGION": "us-east-1",
             }
         )
 
-        # Clear any cached MinIO configurations to force reload
-        from src.viewport.minio_utils import get_minio_config, get_s3_client
+        endpoint_url = f"http://{host}:{port}"
+        bucket_name = os.environ["S3_BUCKET"]
 
-        get_minio_config.cache_clear()
-        get_s3_client.cache_clear()
+        # Ensure the test bucket exists before hitting the API
+        config = Config(s3={"addressing_style": "path"})
+        client = boto3.client(
+            "s3",
+            endpoint_url=endpoint_url,
+            aws_access_key_id=MINIO_ROOT_USER,
+            aws_secret_access_key=MINIO_ROOT_PASSWORD,
+            config=config,
+        )
+
+        for _ in range(60):
+            try:
+                client.create_bucket(Bucket=bucket_name)
+                break
+            except client.exceptions.BucketAlreadyOwnedByYou:
+                break
+            except client.exceptions.BucketAlreadyExists:
+                break
+            except Exception:
+                breakpoint()
+                time.sleep(0.1)
+        else:  # pragma: no cover - fail fast if MinIO never becomes ready
+            raise RuntimeError("Failed to create test MinIO bucket")
 
         yield minio
 
@@ -116,8 +139,8 @@ def client(db_session: Session, minio_container: DockerContainer):
     """Фикстура тестового клиента FastAPI с очисткой состояния между тестами."""
 
     # Override get_db to use the transactional db_session for each test
-    from src.viewport.db import get_db
-    from src.viewport.main import app
+    from viewport.main import app
+    from viewport.models.db import get_db
 
     def override_get_db():
         yield db_session
@@ -126,7 +149,7 @@ def client(db_session: Session, minio_container: DockerContainer):
 
     # Ensure MinIO cache is cleared for each test to pick up fresh configuration
     try:
-        from src.viewport.minio_utils import get_minio_config, get_s3_client
+        from viewport.minio_utils import get_minio_config, get_s3_client
 
         get_minio_config.cache_clear()
         get_s3_client.cache_clear()
@@ -195,7 +218,7 @@ def multiple_users_data() -> list[dict[str, str]]:
 def gallery_id_fixture(authenticated_client: TestClient) -> str:
     """Fixture that creates a gallery and returns its ID."""
     # Create a gallery for tests needing a gallery ID
-    resp = authenticated_client.post("/galleries/", json={})
+    resp = authenticated_client.post("/galleries", json={})
     assert resp.status_code == 201
     return resp.json()["id"]
 
@@ -226,7 +249,7 @@ def expired_auth_headers() -> dict[str, str]:
 
     import jwt
 
-    from src.viewport.api.auth import authsettings
+    from viewport.auth_utils import authsettings
 
     payload = {"sub": str(uuid.uuid4()), "exp": datetime.now(UTC) - timedelta(days=1), "type": "access"}
     token = jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)

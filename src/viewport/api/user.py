@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from src.viewport.api.auth import hash_password, verify_password
-from src.viewport.auth_utils import get_current_user
-from src.viewport.db import get_db
-from src.viewport.models.user import User
-from src.viewport.repositories.user_repository import UserRepository
-from src.viewport.schemas.auth import ChangePasswordRequest, MeResponse, UpdateMeRequest
+from viewport.api.auth import hash_password, verify_password
+from viewport.auth_utils import get_current_user
+from viewport.models.db import get_db
+from viewport.models.user import User
+from viewport.repositories.user_repository import UserRepository
+from viewport.schemas.auth import ChangePasswordRequest, MeResponse, UpdateMeRequest
 
 router = APIRouter(tags=["user"])
 

@@ -12,7 +12,7 @@ class TestGalleryAPI:
 
     def test_create_gallery_success(self, authenticated_client: TestClient):
         """Test successful gallery creation."""
-        response = authenticated_client.post("/galleries/", json={})
+        response = authenticated_client.post("/galleries", json={})
         assert response.status_code == 201
         data = response.json()
         assert "id" in data
@@ -25,18 +25,18 @@ class TestGalleryAPI:
 
     def test_create_gallery_unauthorized(self, client: TestClient):
         """Test gallery creation without authentication."""
-        response = client.post("/galleries/", json={})
+        response = client.post("/galleries", json={})
         assert response.status_code == 401
 
     def test_create_gallery_invalid_token(self, client: TestClient):
         """Test gallery creation with invalid token."""
         client.headers.update({"Authorization": "Bearer invalid_token"})
-        response = client.post("/galleries/", json={})
+        response = client.post("/galleries", json={})
         assert response.status_code == 401
 
     def test_list_galleries_empty(self, authenticated_client: TestClient):
         """Test listing galleries when user has no galleries."""
-        response = authenticated_client.get("/galleries/")
+        response = authenticated_client.get("/galleries")
         assert response.status_code == 200
         data = response.json()
         assert data["galleries"] == []
@@ -49,12 +49,12 @@ class TestGalleryAPI:
         # Create several galleries
         gallery_ids = []
         for _ in range(3):
-            response = authenticated_client.post("/galleries/", json={})
+            response = authenticated_client.post("/galleries", json={})
             assert response.status_code == 201
             gallery_ids.append(response.json()["id"])
 
         # List galleries
-        response = authenticated_client.get("/galleries/")
+        response = authenticated_client.get("/galleries")
         assert response.status_code == 200
         data = response.json()
         assert len(data["galleries"]) == 3
@@ -71,11 +71,11 @@ class TestGalleryAPI:
         """Test gallery listing with pagination."""
         # Create 5 galleries
         for _ in range(5):
-            response = authenticated_client.post("/galleries/", json={})
+            response = authenticated_client.post("/galleries", json={})
             assert response.status_code == 201
 
         # Test first page with size 2
-        response = authenticated_client.get("/galleries/?page=1&size=2")
+        response = authenticated_client.get("/galleries?page=1&size=2")
         assert response.status_code == 200
         data = response.json()
         assert len(data["galleries"]) == 2
@@ -84,7 +84,7 @@ class TestGalleryAPI:
         assert data["size"] == 2
 
         # Test second page
-        response = authenticated_client.get("/galleries/?page=2&size=2")
+        response = authenticated_client.get("/galleries?page=2&size=2")
         assert response.status_code == 200
         data = response.json()
         assert len(data["galleries"]) == 2
@@ -92,7 +92,7 @@ class TestGalleryAPI:
         assert data["size"] == 2
 
         # Test third page (should have 1 gallery)
-        response = authenticated_client.get("/galleries/?page=3&size=2")
+        response = authenticated_client.get("/galleries?page=3&size=2")
         assert response.status_code == 200
         data = response.json()
         assert len(data["galleries"]) == 1
@@ -101,20 +101,20 @@ class TestGalleryAPI:
     def test_list_galleries_invalid_pagination(self, authenticated_client: TestClient):
         """Test gallery listing with invalid pagination parameters."""
         # Invalid page (less than 1)
-        response = authenticated_client.get("/galleries/?page=0")
+        response = authenticated_client.get("/galleries?page=0")
         assert response.status_code == 422
 
         # Invalid size (greater than 100)
-        response = authenticated_client.get("/galleries/?size=101")
+        response = authenticated_client.get("/galleries?size=101")
         assert response.status_code == 422
 
         # Invalid size (less than 1)
-        response = authenticated_client.get("/galleries/?size=0")
+        response = authenticated_client.get("/galleries?size=0")
         assert response.status_code == 422
 
     def test_list_galleries_unauthorized(self, client: TestClient):
         """Test listing galleries without authentication."""
-        response = client.get("/galleries/")
+        response = client.get("/galleries")
         assert response.status_code == 401
 
     def test_get_gallery_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
@@ -140,8 +140,8 @@ class TestGalleryAPI:
     def test_get_gallery_invalid_uuid(self, authenticated_client: TestClient):
         """Test retrieving gallery with invalid UUID format."""
         response = authenticated_client.get("/galleries/invalid-uuid")
-        assert response.status_code == 400
-        assert "invalid gallery id format" in response.json()["detail"].lower()
+        assert response.status_code == 422
+        assert "Input should be a valid UUID" in str(response.json())
 
     def test_get_gallery_unauthorized(self, client: TestClient):
         """Test retrieving gallery without authentication."""
@@ -179,7 +179,7 @@ class TestGalleryAPI:
         """Test deleting gallery with invalid UUID format."""
         response = authenticated_client.delete("/galleries/invalid-uuid")
         assert response.status_code == 422
-        assert "invalid gallery id format" in response.json()["detail"].lower()
+        assert "Input should be a valid UUID" in str(response.json())
 
     def test_delete_gallery_unauthorized(self, client: TestClient):
         """Test deleting gallery without authentication."""
@@ -203,7 +203,7 @@ class TestGalleryAPI:
         user1_token = register_and_login(client, "user1@example.com", "password123", "testinvitecode")
         client.headers.update({"Authorization": f"Bearer {user1_token}"})
 
-        resp1 = client.post("/galleries/", json={})
+        resp1 = client.post("/galleries", json={})
         assert resp1.status_code == 201
         gallery1_id = resp1.json()["id"]
 
@@ -211,12 +211,12 @@ class TestGalleryAPI:
         user2_token = register_and_login(client, "user2@example.com", "password123", "testinvitecode")
         client.headers.update({"Authorization": f"Bearer {user2_token}"})
 
-        resp2 = client.post("/galleries/", json={})
+        resp2 = client.post("/galleries", json={})
         assert resp2.status_code == 201
         gallery2_id = resp2.json()["id"]
 
         # User 2 should only see their gallery
-        resp = client.get("/galleries/")
+        resp = client.get("/galleries")
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["galleries"]) == 1
@@ -230,7 +230,7 @@ class TestGalleryAPI:
         client.headers.update({"Authorization": f"Bearer {user1_token}"})
 
         # User 1 should only see their gallery
-        resp = client.get("/galleries/")
+        resp = client.get("/galleries")
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["galleries"]) == 1
@@ -243,7 +243,7 @@ class TestGalleryAPI:
     def test_create_gallery_with_name(self, authenticated_client: TestClient):
         """Test creating a gallery with a custom name."""
         name = "Holiday Pics"
-        response = authenticated_client.post("/galleries/", json={"name": name})
+        response = authenticated_client.post("/galleries", json={"name": name})
         assert response.status_code == 201
         data = response.json()
         assert "name" in data
@@ -252,8 +252,8 @@ class TestGalleryAPI:
     def test_list_galleries_with_name(self, authenticated_client: TestClient):
         """Test listing galleries returns the correct names."""
         # Create galleries with names
-        entries = [(authenticated_client.post("/galleries/", json={"name": n}).json()["id"], n) for n in ["One", "Two"]]
-        response = authenticated_client.get("/galleries/")
+        entries = [(authenticated_client.post("/galleries", json={"name": n}).json()["id"], n) for n in ["One", "Two"]]
+        response = authenticated_client.get("/galleries")
         assert response.status_code == 200
         data = response.json()
         name_map = {g["id"]: g["name"] for g in data["galleries"]}
@@ -264,7 +264,7 @@ class TestGalleryAPI:
     def test_get_gallery_name(self, authenticated_client: TestClient):
         """Test getting gallery detail returns the name."""
         name = "Event Album"
-        resp = authenticated_client.post("/galleries/", json={"name": name})
+        resp = authenticated_client.post("/galleries", json={"name": name})
         gid = resp.json()["id"]
         response = authenticated_client.get(f"/galleries/{gid}")
         assert response.status_code == 200
@@ -284,8 +284,8 @@ class TestGalleryAPI:
     def test_update_gallery_invalid_uuid(self, authenticated_client: TestClient):
         """Test renaming with invalid UUID format."""
         response = authenticated_client.patch("/galleries/invalid-uuid", json={"name": "Name"})
-        assert response.status_code == 400
-        assert "invalid gallery id format" in response.json()["detail"].lower()
+        assert response.status_code == 422
+        assert "Input should be a valid UUID" in str(response.json())
 
     def test_update_gallery_not_found(self, authenticated_client: TestClient):
         """Test renaming non-existent gallery."""

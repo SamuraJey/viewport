@@ -2,15 +2,15 @@
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from pydantic import ValidationError
 
-from src.viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
-from src.viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse
-from src.viewport.schemas.photo import PhotoCreateRequest, PhotoListResponse, PhotoResponse
-from src.viewport.schemas.sharelink import ShareLinkCreateRequest, ShareLinkResponse
+from viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
+from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse
+from viewport.schemas.photo import PhotoCreateRequest, PhotoListResponse, PhotoResponse
+from viewport.schemas.sharelink import ShareLinkCreateRequest, ShareLinkResponse
 
 
 class TestAuthSchemas:
@@ -241,18 +241,22 @@ class TestPhotoSchemas:
 
     def test_photo_response_from_db_photo(self):
         """Test creating PhotoResponse from database photo."""
-        from unittest.mock import patch
-
         mock_photo = Mock()
         mock_photo.id = uuid.uuid4()
         mock_photo.gallery_id = uuid.uuid4()
         mock_photo.file_size = 1024
         mock_photo.uploaded_at = datetime.now(UTC)
         mock_photo.object_key = f"{mock_photo.gallery_id}/test.jpg"
+        mock_photo.thumbnail_object_key = f"{mock_photo.gallery_id}/thumbnails/test.jpg"
+        mock_photo.width = 800
+        mock_photo.height = 600
 
+        # Mock s3_client
+        mock_s3_client = MagicMock()
         expected_url = f"https://example.com/presigned-url/{mock_photo.id}"
-        with patch("src.viewport.schemas.photo.generate_presigned_url", return_value=expected_url):
-            response = PhotoResponse.from_db_photo(mock_photo)
+        mock_s3_client.generate_presigned_url.return_value = expected_url
+
+        response = PhotoResponse.from_db_photo(mock_photo, mock_s3_client)
 
         assert response.id == mock_photo.id
         assert response.gallery_id == mock_photo.gallery_id

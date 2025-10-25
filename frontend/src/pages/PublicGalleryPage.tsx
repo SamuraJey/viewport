@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { Download, Loader2, ImageOff, AlertCircle } from 'lucide-react'
 import { useTheme } from '../hooks/useTheme'
@@ -6,7 +6,9 @@ import { PhotoModal } from '../components/PhotoModal'
 import { ThemeSwitch } from '../components/ThemeSwitch'
 import { LazyImage } from '../components/LazyImage'
 import { shareLinkService } from '../services/shareLinkService'
-import { useRef } from 'react'
+
+// Get API base URL from environment variables
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:8000')
 
 interface PublicPhoto {
   photo_id: string
@@ -29,45 +31,108 @@ interface PublicGalleryData {
 export const PublicGalleryPage = () => {
   const { shareId } = useParams<{ shareId: string }>()
   const [gallery, setGallery] = useState<PublicGalleryData | null>(null)
+  const [photos, setPhotos] = useState<PublicPhoto[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState<string>('')
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null)
   const { theme } = useTheme()
   const gridRef = useRef<HTMLDivElement | null>(null)
+  const observerTarget = useRef<HTMLDivElement>(null)
   const computeSpansDebounceRef = useRef<number | null>(null)
 
-  useEffect(() => {
-    const fetchGallery = async () => {
-      if (!shareId) {
-        setError('Invalid share link')
-        setIsLoading(false)
-        return
-      }
+  // Pagination settings
+  const PHOTOS_PER_PAGE = 100
 
-      try {
-        const data = await shareLinkService.getSharedGallery(shareId)
-        // Sort photos by filename on the client to ensure consistent ordering
-        if (data && data.photos && Array.isArray(data.photos)) {
-          // Use localeCompare with numeric option for natural numeric sorting
-          data.photos.sort((a: any, b: any) => (a.filename || '').localeCompare(b.filename || '', undefined, { numeric: true, sensitivity: 'base' }))
-        }
-        setGallery(data)
-        // After gallery is set, schedule masonry spans computation
-        requestAnimationFrame(() => {
-          // debounce a bit to wait for images to start loading
-          if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current)
-          computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100)
-        })
-      } catch (err) {
-        console.error('Failed to fetch shared gallery:', err)
-        setError('Gallery not found or link has expired')
-      } finally {
-        setIsLoading(false)
-      }
+  const fetchGalleryData = useCallback(async () => {
+    if (!shareId) {
+      setError('Invalid share link')
+      setIsLoading(false)
+      return
     }
 
-    fetchGallery()
-  }, [shareId])
+    try {
+      // Fetch gallery metadata and first batch of photos
+      const data = await shareLinkService.getSharedGallery(shareId, {
+        limit: PHOTOS_PER_PAGE,
+        offset: 0
+      })
+
+      setGallery(data)
+      setPhotos(data.photos || [])
+
+      // Check if there are more photos to load
+      setHasMore(data.photos.length === PHOTOS_PER_PAGE)
+
+      // After gallery is set, schedule masonry spans computation
+      requestAnimationFrame(() => {
+        if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current)
+        computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100)
+      })
+    } catch (err) {
+      console.error('Failed to fetch shared gallery:', err)
+      setError('Gallery not found or link has expired')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [shareId, PHOTOS_PER_PAGE])
+
+  const loadMorePhotos = useCallback(async () => {
+    if (isLoadingMore || !hasMore || !shareId) return
+
+    setIsLoadingMore(true)
+    try {
+      const currentOffset = photos.length
+      const moreData = await shareLinkService.getSharedGallery(shareId, {
+        limit: PHOTOS_PER_PAGE,
+        offset: currentOffset
+      })
+
+      const newPhotos = moreData.photos || []
+      setPhotos(prev => [...prev, ...newPhotos])
+
+      // Check if there are more photos to load
+      setHasMore(newPhotos.length === PHOTOS_PER_PAGE)
+
+      // Recompute masonry layout after loading new photos
+      requestAnimationFrame(() => {
+        if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current)
+        computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100)
+      })
+    } catch (err) {
+      console.error('Failed to load more photos:', err)
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [shareId, photos.length, isLoadingMore, hasMore, PHOTOS_PER_PAGE])
+
+  useEffect(() => {
+    fetchGalleryData()
+  }, [fetchGalleryData])
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+          loadMorePhotos()
+        }
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '400px'
+      }
+    )
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current)
+    }
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [hasMore, isLoadingMore, loadMorePhotos])
 
   // Masonry span computation
   const computeSpans = () => {
@@ -104,16 +169,37 @@ export const PublicGalleryPage = () => {
         computeSpansDebounceRef.current = null
       }
     }
-  }, [gallery])
+  }, [photos])
 
   const handleDownloadAll = () => {
     if (!shareId) return
-    window.open(`http://localhost:8000/s/${shareId}/download/all`, '_blank')
+    window.open(`${API_BASE_URL}/s/${shareId}/download/all`, '_blank')
   }
 
-  const handleDownloadPhoto = (photoId: string) => {
-    if (!shareId) return
-    window.open(`http://localhost:8000/s/${shareId}/download/${photoId}`, '_blank')
+  const handleDownloadPhoto = async (photoId: string) => {
+    // Find the photo in our photos array to get the presigned URL
+    const photo = photos.find(p => p.photo_id === photoId)
+    if (!photo || !photo.full_url) return
+
+    try {
+      // Fetch the image using the existing presigned URL
+      const response = await fetch(photo.full_url)
+      const blob = await response.blob()
+
+      // Create a download link from the blob
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = photo.filename || `photo-${photoId}.jpg`
+      document.body.appendChild(link)
+      link.click()
+
+      // Cleanup
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to download photo:', error)
+    }
   }
 
   // Photo modal handlers
@@ -126,15 +212,15 @@ export const PublicGalleryPage = () => {
   }
 
   const goToPrevPhoto = () => {
-    if (selectedPhotoIndex !== null && gallery?.photos) {
-      const newIndex = selectedPhotoIndex > 0 ? selectedPhotoIndex - 1 : gallery.photos.length - 1
+    if (selectedPhotoIndex !== null && photos.length > 0) {
+      const newIndex = selectedPhotoIndex > 0 ? selectedPhotoIndex - 1 : photos.length - 1
       setSelectedPhotoIndex(newIndex)
     }
   }
 
   const goToNextPhoto = () => {
-    if (selectedPhotoIndex !== null && gallery?.photos) {
-      const newIndex = selectedPhotoIndex < gallery.photos.length - 1 ? selectedPhotoIndex + 1 : 0
+    if (selectedPhotoIndex !== null && photos.length > 0) {
+      const newIndex = selectedPhotoIndex < photos.length - 1 ? selectedPhotoIndex + 1 : 0
       setSelectedPhotoIndex(newIndex)
     }
   }
@@ -242,7 +328,7 @@ export const PublicGalleryPage = () => {
       {/* Main Content Area */}
       <div id="gallery-content" className="w-full px-4 sm:px-6 lg:px-10 py-16">
         {/* Gallery Actions */}
-        {gallery && gallery.photos.length > 0 && (
+        {photos.length > 0 && (
           <div className="mb-8 text-center">
             <button
               onClick={handleDownloadAll}
@@ -258,33 +344,48 @@ export const PublicGalleryPage = () => {
         <div className="bg-surface-foreground/5 backdrop-blur-sm rounded-2xl p-6 border border-border">
           <div className="mb-6">
             <h2 className="text-2xl font-semibold text-text dark:text-accent-foreground mb-2">
-              Photos ({gallery?.photos.length || 0})
+              Photos ({photos.length})
             </h2>
           </div>
 
-          {gallery && gallery.photos.length > 0 ? (
-            <div className="pg-grid" ref={gridRef}>
-              {gallery.photos.map((photo, index) => (
-                <div key={photo.photo_id} className="pg-card relative group">
-                  <button
-                    onClick={() => openPhoto(index)}
-                    className="w-full p-0 border-0 bg-transparent cursor-pointer block"
-                    aria-label={`Photo ${photo.photo_id}`}
-                  >
-                    <LazyImage
-                      src={photo.full_url}
-                      alt={`Photo ${photo.photo_id}`}
-                      className="w-full"
-                      width={photo.width}
-                      height={photo.height}
-                    />
-                  </button>
-                  {/* Removed hover overlay for public gallery items.
-                      Downloads are available via the Download All button and inside the photo modal.
-                      This prevents any hover-centered upload/click affordance on public galleries. */}
+          {photos.length > 0 ? (
+            <>
+              <div className="pg-grid" ref={gridRef}>
+                {photos.map((photo, index) => (
+                  <div key={photo.photo_id} className="pg-card relative group">
+                    <button
+                      onClick={() => openPhoto(index)}
+                      className="w-full p-0 border-0 bg-transparent cursor-pointer block"
+                      aria-label={`Photo ${photo.photo_id}`}
+                    >
+                      <LazyImage
+                        src={photo.thumbnail_url}
+                        alt={`Photo ${photo.photo_id}`}
+                        className="w-full"
+                        width={photo.width}
+                        height={photo.height}
+                      />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Infinite scroll sentinel and loading indicator */}
+              <div ref={observerTarget} className="h-4 mt-4" />
+
+              {isLoadingMore && (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-accent" />
+                  <span className="ml-2 text-muted">Loading more photos...</span>
                 </div>
-              ))}
-            </div>
+              )}
+
+              {!hasMore && photos.length > PHOTOS_PER_PAGE && (
+                <div className="text-center py-8 text-muted text-sm">
+                  All photos loaded ({photos.length} total)
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center py-16 border-2 border-dashed border-border dark:border-border/10 rounded-lg">
               <ImageOff className="mx-auto h-12 w-12 text-muted" />
@@ -301,7 +402,7 @@ export const PublicGalleryPage = () => {
 
         {/* Photo Modal */}
         <PhotoModal
-          photos={gallery?.photos || []}
+          photos={photos}
           selectedIndex={selectedPhotoIndex}
           onClose={closePhoto}
           onPrevious={goToPrevPhoto}

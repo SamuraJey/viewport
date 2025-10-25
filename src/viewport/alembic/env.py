@@ -3,12 +3,12 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from src.viewport.db import Base
+from viewport.models.db import Base
 # Ensure all model modules are imported so that Base.metadata is populated for autogenerate
 try:
     # Importing the package will import individual model modules via models/__init__.py
     import importlib
-    importlib.import_module('src.viewport.models')
+    importlib.import_module('viewport.models')
 except Exception:
     # If model import fails, we still set target_metadata; autogenerate will be incomplete
     pass

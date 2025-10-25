@@ -16,6 +16,14 @@ services:
     volumes:
       - ./src:/app/src
       - ./config:/app/config
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
 
   postgres:
     image: postgres:17-alpine
@@ -25,21 +33,34 @@ services:
       POSTGRES_DB: viewport
       POSTGRES_USER: viewport
       POSTGRES_PASSWORD: viewport
+      # Increase max connections for concurrent Celery tasks
+      POSTGRES_MAX_CONNECTIONS: 100
+    command: postgres -c max_connections=100 -c shared_buffers=256MB
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 512M
 
   minio:
-    image: minio/minio:RELEASE.2025-07-23T15-54-02Z
+    image: rustfs/rustfs:1.0.0-alpha.64
     container_name: viewport_minio
     restart: always
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    command: server /data --console-address ":9001"
+      # RUSTFS_ADDRESS: ':9000'
+      RUSTFS_ACCESS_KEY: minioadmin
+      RUSTFS_SECRET_KEY: minioadmin
+      RUSTFS_CONSOLE_ENABLE: true
+    # command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -47,6 +68,65 @@ services:
       - minio_data:/data
     networks:
       - backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 512M
+
+  redis:
+    image: valkey/valkey:8-alpine
+    container_name: viewport_redis
+    restart: always
+    command: >
+      valkey-server
+      --maxclients 10000
+      --tcp-backlog 511
+      --timeout 0
+      --tcp-keepalive 300
+    ports:
+      - "6379:6379"
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+        reservations:
+          cpus: "0.10"
+          memory: 128M
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile-backend
+    container_name: viewport_celery_worker
+    command: uv run -- celery -A src.viewport.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=50
+    env_file:
+      - .env.prod
+    depends_on:
+      - redis
+      - postgres
+      - minio
+    networks:
+      - backend
+    environment:
+      - S3_ENDPOINT=minio:9000
+    volumes:
+      - ./src:/app/src
+      - ./config:/app/config
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+        reservations:
+          cpus: "0.50"
+          memory: 512M
 
 volumes:
   postgres_data:
