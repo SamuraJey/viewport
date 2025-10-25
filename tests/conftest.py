@@ -83,10 +83,7 @@ def minio_container() -> Generator[DockerContainer]:
     from botocore.config import Config
 
     container = (
-        DockerContainer(MINIO_IMAGE)
-        .with_env("RUSTFS_ACCESS_KEY", MINIO_ROOT_USER)
-        .with_env("RUSTFS_SECRET_KEY", MINIO_ROOT_PASSWORD)
-        .with_exposed_ports(MINIO_PORT)
+        DockerContainer(MINIO_IMAGE).with_env("RUSTFS_ACCESS_KEY", MINIO_ROOT_USER).with_env("RUSTFS_SECRET_KEY", MINIO_ROOT_PASSWORD).with_exposed_ports(MINIO_PORT)
         # .with_command("server /data --console-address :9001")
     )
 

@@ -1,19 +1,13 @@
-import asyncio
 import io
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from typing import cast
 
-from mypy_boto3_s3 import S3Client
-from viewport.cache_utils import get_cached_presigned_url, cache_presigned_url
-
 import boto3
-from botocore.client import BaseClient, Config
+from botocore.client import Config
+from mypy_boto3_s3 import S3Client
 from PIL import Image, ImageOps
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
 
 # Configure logging - set botocore to WARNING level to reduce noise
 logging.getLogger("botocore").setLevel(logging.WARNING)
@@ -39,9 +33,7 @@ class S3Settings(BaseSettings):
         env_file=".env",
         extra="ignore",
     )
-if __name__ == "__main__":
-    # For testing purposes
-    settings = S3Settings()
+
 
 def get_s3_client() -> S3Client:
     """Get a boto3 S3 client configured for MinIO (sync client).
@@ -49,7 +41,6 @@ def get_s3_client() -> S3Client:
     Used for operations that don't need async, like thumbnail uploads in Celery tasks.
     """
     settings = S3Settings()
-    
 
     # Add protocol if not present
     endpoint = settings.endpoint
