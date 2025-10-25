@@ -1,0 +1,340 @@
+"""
+Asynchronous S3 Client Service
+
+This module provides an async-first S3/MinIO client that uses aioboto3 for
+non-blocking S3 operations. The client is designed to be used as an application
+singleton via dependency injection.
+"""
+
+import io
+import logging
+from typing import BinaryIO
+
+import aioboto3
+
+from viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
+from viewport.minio_utils import S3Settings
+
+logger = logging.getLogger(__name__)
+
+
+class AsyncS3Client:
+    """Asynchronous S3 Client
+
+    This client maintains a shared aioboto3.Session that is created once and
+    reused for all operations. Individual S3 clients are created per operation
+    using context managers to ensure proper resource cleanup.
+
+    All methods are async-first and do not block the event loop.
+    """
+
+    def __init__(self):
+        """Initialize the AsyncS3Client with configuration from environment."""
+        self.settings = S3Settings()
+        self._session: aioboto3.Session | None = None
+        self._endpoint_url = self._get_endpoint_url()
+        logger.info(f"AsyncS3Client initialized: endpoint={self._endpoint_url}, bucket={self.settings.bucket}, region={self.settings.region}")
+
+    def _get_endpoint_url(self) -> str | None:
+        """Get the endpoint URL with protocol if needed."""
+        # The endpoint is already set in S3Settings, just add protocol if missing
+        endpoint = self.settings.endpoint
+        use_ssl = getattr(self.settings, "use_ssl", False)
+        if not endpoint.startswith(("http://", "https://")):
+            protocol = "https" if use_ssl else "http"
+            return f"{protocol}://{endpoint}"
+        return endpoint
+
+    @property
+    def session(self) -> aioboto3.Session:
+        """Get or create the shared aioboto3 session.
+
+        The session is created once and reused for all operations.
+        """
+        if self._session is None:
+            self._session = aioboto3.Session(
+                aws_access_key_id=self.settings.access_key,
+                aws_secret_access_key=self.settings.secret_key,
+                region_name=self.settings.region,
+            )
+        return self._session
+
+    async def upload_fileobj(
+        self,
+        file_obj: BinaryIO | bytes,
+        key: str,
+        content_type: str | None = None,
+        metadata: dict[str, str] | None = None,
+    ) -> str:
+        """Upload a file object to S3.
+
+        Args:
+            file_obj: File-like object or bytes to upload
+            key: S3 object key
+            content_type: Optional Content-Type header (e.g., 'image/jpeg')
+            metadata: Optional metadata to attach to the object
+
+        Returns:
+            S3 object path
+
+        Raises:
+            Exception: If upload fails
+        """
+        # Normalize bytes to file-like object
+        if isinstance(file_obj, bytes):
+            file_obj = io.BytesIO(file_obj)
+
+        extra_args: dict[str, str | dict[str, str]] = {}
+        if content_type:
+            extra_args["ContentType"] = content_type
+        if metadata:
+            extra_args["Metadata"] = metadata
+
+        try:
+            async with self.session.client("s3", endpoint_url=self._endpoint_url) as s3:
+                await s3.upload_fileobj(
+                    file_obj,
+                    self.settings.bucket,
+                    key,
+                    ExtraArgs=extra_args if extra_args else None,
+                )
+            logger.info(f"Successfully uploaded object: {key}")
+            return f"/{self.settings.bucket}/{key}"
+        except Exception as e:
+            logger.error(f"Failed to upload object {key}: {e}")
+            raise
+
+    async def download_fileobj(self, key: str) -> bytes:
+        """Download a file from S3.
+
+        Args:
+            key: S3 object key
+
+        Returns:
+            File contents as bytes
+
+        Raises:
+            Exception: If download fails
+        """
+        try:
+            async with self.session.client("s3", endpoint_url=self._endpoint_url) as s3:
+                response = await s3.get_object(Bucket=self.settings.bucket, Key=key)
+                # Read the body stream
+                body = response.get("Body")
+                if body is None:
+                    raise ValueError(f"No body in response for key {key}")
+                content: bytes = await body.read()
+            logger.info(f"Successfully downloaded object: {key}")
+            return content
+        except Exception as e:
+            logger.error(f"Failed to download object {key}: {e}")
+            raise
+
+    async def delete_file(self, key: str) -> None:
+        """Delete a file from S3.
+
+        Args:
+            key: S3 object key
+
+        Raises:
+            Exception: If deletion fails
+        """
+        try:
+            async with self.session.client("s3", endpoint_url=self._endpoint_url) as s3:
+                await s3.delete_object(Bucket=self.settings.bucket, Key=key)
+            logger.info(f"Successfully deleted object: {key}")
+        except Exception as e:
+            logger.error(f"Failed to delete object {key}: {e}")
+            raise
+
+    async def file_exists(self, key: str) -> bool:
+        """Check if a file exists in S3.
+
+        Args:
+            key: S3 object key
+
+        Returns:
+            True if file exists, False otherwise
+        """
+        try:
+            async with self.session.client("s3", endpoint_url=self._endpoint_url) as s3:
+                await s3.head_object(Bucket=self.settings.bucket, Key=key)
+            return True
+        except Exception as e:
+            # Check if it's a NoSuchKey error by checking the exception code
+            error_code = getattr(e.response, "Error", {}).get("Code") if hasattr(e, "response") else None
+            if error_code == "404" or "NoSuchKey" in str(type(e).__name__):
+                return False
+            logger.error(f"Failed to check if object exists {key}: {e}")
+            raise
+
+    async def rename_file(self, old_key: str, new_key: str) -> None:
+        """Rename a file in S3 by copying to new key and deleting old key.
+
+        Args:
+            old_key: Current S3 object key
+            new_key: New S3 object key
+
+        Raises:
+            Exception: If rename fails
+        """
+        try:
+            async with self.session.client("s3", endpoint_url=self._endpoint_url) as s3:
+                # Copy object to new key
+                copy_source = {"Bucket": self.settings.bucket, "Key": old_key}
+                await s3.copy_object(
+                    CopySource=copy_source,
+                    Bucket=self.settings.bucket,
+                    Key=new_key,
+                )
+                # Delete old object
+                await s3.delete_object(Bucket=self.settings.bucket, Key=old_key)
+            logger.info(f"Successfully renamed object from {old_key} to {new_key}")
+        except Exception as e:
+            logger.error(f"Failed to rename object from {old_key} to {new_key}: {e}")
+            raise
+
+    async def delete_folder(self, prefix: str) -> None:
+        """Delete all objects with a given prefix (folder) from S3.
+
+        Args:
+            prefix: The folder prefix to delete (e.g., 'gallery_id/')
+
+        Raises:
+            Exception: If deletion fails
+        """
+        try:
+            async with self.session.client("s3", endpoint_url=self._endpoint_url) as s3:
+                # List all objects with the given prefix
+                objects_to_delete = []
+                continuation_token = None
+
+                while True:
+                    # Build list parameters
+                    list_params: dict = {
+                        "Bucket": self.settings.bucket,
+                        "Prefix": prefix,
+                    }
+                    if continuation_token:
+                        list_params["ContinuationToken"] = continuation_token
+
+                    # List objects
+                    response = await s3.list_objects_v2(**list_params)
+
+                    # Collect objects
+                    if "Contents" in response:
+                        objects_to_delete.extend([{"Key": obj["Key"]} for obj in response["Contents"]])
+
+                    # Check if there are more pages
+                    if not response.get("IsTruncated"):
+                        break
+
+                    continuation_token = response.get("NextContinuationToken")
+
+                # Delete all objects if any were found
+                if objects_to_delete:
+                    # S3 delete_objects can handle up to 1000 objects at a time
+                    for i in range(0, len(objects_to_delete), 1000):
+                        batch = objects_to_delete[i : i + 1000]
+                        await s3.delete_objects(Bucket=self.settings.bucket, Delete={"Objects": batch})
+
+                    logger.info(f"Successfully deleted {len(objects_to_delete)} objects with prefix {prefix}")
+                else:
+                    logger.info(f"No objects found with prefix {prefix}")
+        except Exception as e:
+            logger.error(f"Failed to delete folder with prefix {prefix}: {e}")
+            raise
+
+    async def close(self) -> None:
+        """Close the session and clean up resources."""
+        if self._session is not None:
+            logger.info("Closing AsyncS3Client session")
+            # Note: aioboto3 sessions don't need explicit closing in newer versions
+            self._session = None
+
+    def generate_presigned_url(self, key: str, expires_in: int = 7200) -> str:
+        """Generate a presigned URL for direct S3 access to an object.
+
+        Args:
+            key: S3 object key
+            expires_in: URL expiration time in seconds (default: 2 hours)
+
+        Returns:
+            Presigned URL string
+
+        Raises:
+            Exception: If URL generation fails
+        """
+        # Check cache first
+        cached = get_cached_presigned_url(key)
+        if cached:
+            logger.debug(f"Using cached presigned URL for: {key}")
+            return cached
+
+        import boto3
+
+        try:
+            # Create a sync boto3 client for presigned URL generation
+            # (presigned URLs are sync operation, no need for async)
+            s3_client = boto3.client(
+                "s3",
+                endpoint_url=self._endpoint_url,
+                aws_access_key_id=self.settings.access_key,
+                aws_secret_access_key=self.settings.secret_key,
+                region_name=self.settings.region,
+            )
+            url = s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": self.settings.bucket, "Key": key},
+                ExpiresIn=expires_in,
+            )
+            # Cache the presigned URL (with some buffer inside cache function)
+            try:
+                cache_presigned_url(key, str(url), expires_in)
+            except Exception:
+                logger.warning("Failed to cache presigned URL for key %s", key)
+
+            logger.info(f"Generated presigned URL for: {key}")
+            return str(url)
+        except Exception as e:
+            logger.error(f"Failed to generate presigned URL for {key}: {e}")
+            raise
+
+    async def generate_presigned_urls_batch(self, keys: list[str], expires_in: int = 7200) -> dict[str, str]:
+        """Generate presigned URLs for multiple objects concurrently.
+
+        Args:
+            keys: List of S3 object keys
+            expires_in: URL expiration time in seconds (default: 2 hours)
+
+        Returns:
+            Dict mapping object_key to presigned URL
+
+        Raises:
+            Exception: If URL generation fails
+        """
+        urls: dict[str, str] = {}
+
+        # First consult cache to skip already cached keys
+        to_generate: list[str] = []
+        for key in keys:
+            cached = get_cached_presigned_url(key)
+            if cached:
+                urls[key] = cached
+            else:
+                to_generate.append(key)
+
+        if to_generate:
+            logger.debug(f"Generating {len(to_generate)} presigned URLs, {len(urls)} from cache")
+        else:
+            logger.debug(f"All {len(urls)} presigned URLs from cache")
+
+        # Generate presigned URLs for uncached keys
+        for key in to_generate:
+            try:
+                url = self.generate_presigned_url(key, expires_in)
+                urls[key] = url
+            except Exception as e:
+                logger.warning(f"Failed to generate presigned URL for {key}: {e}")
+
+        return urls
