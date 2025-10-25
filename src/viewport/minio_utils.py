@@ -1,10 +1,9 @@
 import io
 import logging
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import boto3
 from botocore.client import Config
-from mypy_boto3_s3 import S3Client
 from PIL import Image, ImageOps
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,6 +15,9 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
 
 class S3Settings(BaseSettings):
