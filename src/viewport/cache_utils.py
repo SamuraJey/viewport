@@ -8,7 +8,7 @@ def cache_presigned_url(photo_id: str, url: str, expires_in: int) -> None:
     """Cache a presigned URL with expiration time"""
     _url_cache[photo_id] = {
         "url": url,
-        "expires_at": datetime.now() + timedelta(seconds=expires_in - 300),  # 5 min buffer
+        "expires_at": datetime.now() + timedelta(seconds=expires_in - 600),  # 10 min buffer for 2h URLs
     }
 
 

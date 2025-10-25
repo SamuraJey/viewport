@@ -33,9 +33,9 @@ class PhotoResponse(BaseModel):
         Returns:
             PhotoResponse with presigned URLs
         """
-        # Generate presigned URL directly for S3 access
-        presigned_url = s3_client.generate_presigned_url(photo.object_key, expires_in=3600)  # 1 hour expiration
-        thumbnail_url = s3_client.generate_presigned_url(photo.thumbnail_object_key, expires_in=3600)  # 1 hour expiration
+        # Generate presigned URL directly for S3 access (2 hour expiration)
+        presigned_url = s3_client.generate_presigned_url(photo.object_key, expires_in=7200)
+        thumbnail_url = s3_client.generate_presigned_url(photo.thumbnail_object_key, expires_in=7200)
         # Extract filename from object_key (format: gallery_id/filename)
         filename = photo.object_key.split("/", 1)[1] if "/" in photo.object_key else photo.object_key
 
@@ -74,8 +74,8 @@ class PhotoResponse(BaseModel):
             object_keys.append(photo.object_key)
             object_keys.append(photo.thumbnail_object_key)
 
-        # Generate all presigned URLs concurrently (in batches if needed)
-        url_map = await s3_client.generate_presigned_urls_batch(object_keys, expires_in=3600)
+        # Generate all presigned URLs concurrently (in batches if needed, 2 hour expiration)
+        url_map = await s3_client.generate_presigned_urls_batch(object_keys, expires_in=7200)
 
         # Build PhotoResponse objects
         results = []
