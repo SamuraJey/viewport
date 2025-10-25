@@ -7,8 +7,10 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from viewport.auth_utils import get_current_user
+from viewport.dependencies import get_s3_client
 from viewport.models.db import get_db
 from viewport.repositories.gallery_repository import GalleryRepository
+from viewport.s3_service import AsyncS3Client
 from viewport.schemas.photo import PhotoRenameRequest, PhotoResponse, PhotoUploadResponse, PhotoUploadResult
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,7 @@ async def get_all_photo_urls_for_gallery(
     gallery_id: UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user=Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> list[PhotoResponse]:
     """Get presigned URLs for all photos in a gallery for the owner."""
     # First, verify gallery ownership
@@ -38,7 +41,7 @@ async def get_all_photo_urls_for_gallery(
     # Get all photos for the gallery
     photos = repo.get_photos_by_gallery_id(gallery_id)
 
-    photo_responses = await PhotoResponse.from_db_photos_batch(photos)
+    photo_responses = await PhotoResponse.from_db_photos_batch(photos, s3_client)
 
     return photo_responses
 
@@ -49,6 +52,7 @@ async def upload_photos_batch(
     files: Annotated[list[UploadFile], File()],
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user=Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ):
     """Upload multiple photos to a gallery - fast upload, deferred thumbnail generation"""
     import asyncio
@@ -100,9 +104,7 @@ async def upload_photos_batch(
                         content_type = "image/webp"
 
                 # Upload only the original image to S3 (no thumbnail yet)
-                from viewport.minio_utils import async_upload_fileobj
-
-                await async_upload_fileobj(contents, object_key, content_type=content_type)
+                await s3_client.upload_fileobj(contents, object_key, content_type=content_type)
 
                 # Return data for batch DB insert (thumbnail will be created later)
                 return PhotoUploadResult(
@@ -200,7 +202,7 @@ async def upload_photos_batch(
             assert metadata is not None
             object_key = metadata["object_key"]
             if object_key in photo_map:
-                result.photo = PhotoResponse.from_db_photo(photo_map[object_key])
+                result.photo = PhotoResponse.from_db_photo(photo_map[object_key], s3_client)
 
         successful_uploads = len(successful_results)
 
@@ -215,14 +217,27 @@ async def upload_photos_batch(
 
 
 @router.delete("/{gallery_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_photo(gallery_id: UUID, photo_id: UUID, repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
-    if not repo.delete_photo(photo_id, gallery_id, current_user.id):
+async def delete_photo(
+    gallery_id: UUID,
+    photo_id: UUID,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user=Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
+):
+    if not await repo.delete_photo_async(photo_id, gallery_id, current_user.id, s3_client):
         raise HTTPException(status_code=404, detail="Photo not found")
     return
 
 
 @router.patch("/{gallery_id}/photos/{photo_id}/rename", response_model=PhotoResponse)
-def rename_photo(gallery_id: UUID, photo_id: UUID, request: PhotoRenameRequest, repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)) -> PhotoResponse:
+async def rename_photo(
+    gallery_id: UUID,
+    photo_id: UUID,
+    request: PhotoRenameRequest,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user=Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
+) -> PhotoResponse:
     """Rename a photo in a gallery"""
     # First, verify gallery ownership
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
@@ -230,8 +245,8 @@ def rename_photo(gallery_id: UUID, photo_id: UUID, request: PhotoRenameRequest, 
         raise HTTPException(status_code=404, detail="Gallery not found")
 
     # Then, verify photo belongs to that gallery and rename it
-    photo = repo.rename_photo(photo_id, gallery_id, current_user.id, request.filename)
+    photo = await repo.rename_photo_async(photo_id, gallery_id, current_user.id, request.filename, s3_client)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
 
-    return PhotoResponse.from_db_photo(photo)
+    return PhotoResponse.from_db_photo(photo, s3_client)

@@ -7,12 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.logger import logger
-from viewport.minio_utils import async_generate_presigned_urls_batch, get_minio_config, get_s3_client
+from viewport.minio_utils import S3Settings, get_s3_client
 from viewport.models.db import get_db
 from viewport.models.gallery import Gallery
 from viewport.models.sharelink import ShareLink
 from viewport.repositories.sharelink_repository import ShareLinkRepository
+from viewport.s3_service import AsyncS3Client
 from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto
 
 router = APIRouter(prefix="/s", tags=["public"])
@@ -37,6 +39,7 @@ async def get_photos_by_sharelink(
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
+    s3_client: AsyncS3Client = Depends(get_async_s3_client),
 ) -> PublicGalleryResponse:
     # Photos - ensure deterministic ordering by filename (case-insensitive)
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
@@ -53,7 +56,7 @@ async def get_photos_by_sharelink(
         object_keys.append(photo.object_key)
         object_keys.append(photo.thumbnail_object_key)
 
-    url_map = await async_generate_presigned_urls_batch(object_keys)
+    url_map = await s3_client.generate_presigned_urls_batch(object_keys)
 
     photo_list = []
     for photo in photos_to_process:
@@ -123,13 +126,13 @@ def download_all_photos_zip(share_id: UUID, repo: ShareLinkRepository = Depends(
     if not photos:
         raise HTTPException(status_code=404, detail="No photos found")
     zip_buffer = io.BytesIO()
-    _, _, _, bucket, _, _ = get_minio_config()
+    settings = S3Settings()
     s3_client = get_s3_client()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
         for photo in photos:
             # Object key is stored directly
             file_key = photo.object_key
-            obj = s3_client.get_object(Bucket=bucket, Key=file_key)
+            obj = s3_client.get_object(Bucket=settings.bucket, Key=file_key)
             zipf.writestr(file_key, obj["Body"].read())
     zip_buffer.seek(0)
     repo.increment_zip_downloads(share_id)

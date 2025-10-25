@@ -8,6 +8,7 @@ from sqlalchemy import func, insert, select
 from viewport.models.gallery import Gallery, Photo
 from viewport.models.sharelink import ShareLink
 from viewport.repositories.base_repository import BaseRepository
+from viewport.s3_service import AsyncS3Client
 
 logger = logging.getLogger(__name__)
 
@@ -44,15 +45,25 @@ class GalleryRepository(BaseRepository):
         self.db.refresh(gallery)
         return gallery
 
-    def delete_gallery(self, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> bool:
-        from viewport.minio_utils import delete_folder
-
+    def delete_gallery(self, gallery_id: uuid.UUID, owner_id: uuid.UUID, s3_client: "AsyncS3Client") -> bool:  # type: ignore
         gallery = self.get_gallery_by_id_and_owner(gallery_id, owner_id)
         if not gallery:
             return False
 
-        # Delete the entire gallery folder from MinIO (including all photos and thumbnails)
-        delete_folder(f"{gallery_id}/")
+        # Note: S3 deletion is done asynchronously in a background task
+        # This method only deletes from database
+        self.db.delete(gallery)
+        self.db.commit()
+        return True
+
+    async def delete_gallery_async(self, gallery_id: uuid.UUID, owner_id: uuid.UUID, s3_client: "AsyncS3Client") -> bool:  # type: ignore
+        """Delete gallery with S3 cleanup"""
+        gallery = self.get_gallery_by_id_and_owner(gallery_id, owner_id)
+        if not gallery:
+            return False
+
+        # Delete the entire gallery folder from S3 (including all photos and thumbnails)
+        await s3_client.delete_folder(f"{gallery_id}/")
 
         self.db.delete(gallery)
         self.db.commit()
@@ -140,27 +151,46 @@ class GalleryRepository(BaseRepository):
 
         return photos
 
-    def delete_photo(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> bool:
-        from viewport.minio_utils import delete_object
-
+    def delete_photo(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, s3_client: "AsyncS3Client") -> bool:  # type: ignore
         photo = self.get_photo_by_id_and_owner(photo_id, owner_id)
         if not photo or photo.gallery_id != gallery_id:
             return False
 
-        # Delete both original and thumbnail from MinIO
-        delete_object(photo.object_key)  # We don't fail if MinIO deletion fails
+        # Note: S3 deletion is done asynchronously in a background task
+        # This method only deletes from database
+        self.db.delete(photo)
+        self.db.commit()
+        return True
+
+    async def delete_photo_async(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, s3_client: "AsyncS3Client") -> bool:  # type: ignore
+        """Delete photo with S3 cleanup"""
+        photo = self.get_photo_by_id_and_owner(photo_id, owner_id)
+        if not photo or photo.gallery_id != gallery_id:
+            return False
+
+        # Delete both original and thumbnail from S3
+        try:
+            await s3_client.delete_file(photo.object_key)
+        except Exception as e:
+            logger.warning(f"Failed to delete original photo {photo.object_key}: {e}")
+
         if photo.thumbnail_object_key != photo.object_key:  # Only delete if different
-            delete_object(photo.thumbnail_object_key)
+            try:
+                await s3_client.delete_file(photo.thumbnail_object_key)
+            except Exception as e:
+                logger.warning(f"Failed to delete thumbnail {photo.thumbnail_object_key}: {e}")
 
         # Delete from database
         self.db.delete(photo)
         self.db.commit()
         return True
 
-    def rename_photo(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, new_filename: str) -> Photo | None:
-        """Rename a photo by updating its object_key with the new filename"""
+    def rename_photo(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, new_filename: str, s3_client: "AsyncS3Client") -> Photo | None:  # type: ignore
+        """Rename a photo by updating its object_key with the new filename
+
+        Note: This is synchronous and doesn't perform S3 rename. Use rename_photo_async for full functionality.
+        """
         from viewport.cache_utils import clear_presigned_url_cache
-        from viewport.minio_utils import rename_object
 
         photo = self.get_photo_by_id_and_owner(photo_id, owner_id)
         if not photo or photo.gallery_id != gallery_id:
@@ -175,15 +205,44 @@ class GalleryRepository(BaseRepository):
             # Fallback if object_key doesn't have the expected format
             new_object_key = f"{gallery_id}/{new_filename}"
 
-        # Rename the file in MinIO first
-        if not rename_object(photo.object_key, new_object_key):
-            return None  # Return None if MinIO operation fails
+        # Clear cached presigned URL for old object key
+        clear_presigned_url_cache(photo.object_key)
 
-        # Clear cached presigned URL for both old and new object keys
+        # Update the database
+        photo.object_key = new_object_key
+        self.db.commit()
+        self.db.refresh(photo)
+        return photo
+
+    async def rename_photo_async(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, new_filename: str, s3_client: "AsyncS3Client") -> Photo | None:  # type: ignore
+        """Rename a photo with S3 rename operation"""
+        from viewport.cache_utils import clear_presigned_url_cache
+
+        photo = self.get_photo_by_id_and_owner(photo_id, owner_id)
+        if not photo or photo.gallery_id != gallery_id:
+            return None
+
+        # Extract the gallery_id from the object_key and replace filename
+        # object_key format: "gallery_id/filename"
+        if "/" in photo.object_key:
+            gallery_prefix = photo.object_key.split("/", 1)[0]
+            new_object_key = f"{gallery_prefix}/{new_filename}"
+        else:
+            # Fallback if object_key doesn't have the expected format
+            new_object_key = f"{gallery_id}/{new_filename}"
+
+        # Rename the file in S3 first
+        try:
+            await s3_client.rename_file(photo.object_key, new_object_key)
+        except Exception as e:
+            logger.error(f"Failed to rename object in S3: {e}")
+            return None
+
+        # Clear cached presigned URLs for both old and new object keys
         clear_presigned_url_cache(photo.object_key)
         clear_presigned_url_cache(new_object_key)
 
-        # Update the database only if MinIO operation succeeded
+        # Update the database only if S3 operation succeeded
         photo.object_key = new_object_key
         self.db.commit()
         self.db.refresh(photo)

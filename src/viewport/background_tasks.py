@@ -1,3 +1,4 @@
+import io
 import logging
 
 from celery import Celery
@@ -57,7 +58,7 @@ def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
     try:
         logger.info(f"Starting thumbnail creation for photo {photo_id}, object_key: {object_key}")
 
-        from viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client, upload_fileobj
+        from viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client
         from viewport.models.db import get_session_maker
         from viewport.models.gallery import Photo
 
@@ -73,15 +74,15 @@ def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
                 logger.info(f"Photo {photo_id} no longer exists in database, skipping thumbnail creation")
                 return {"status": "skipped", "message": "Photo deleted", "photo_id": photo_id}
 
-        # Get MinIO config
-        from viewport.minio_utils import get_minio_config
+        # Get settings
+        from viewport.minio_utils import S3Settings
 
-        _, _, _, bucket, _, _ = get_minio_config()
+        settings = S3Settings()
 
         # Download original from S3
         s3_client = get_s3_client()
         try:
-            response = s3_client.get_object(Bucket=bucket, Key=object_key)
+            response = s3_client.get_object(Bucket=settings.bucket, Key=object_key)
             image_bytes = response["Body"].read()
         except Exception as s3_error:
             # If file doesn't exist in S3 (NoSuchKey), don't retry - photo was likely deleted
@@ -98,8 +99,9 @@ def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
         # Generate thumbnail object key
         thumbnail_object_key = generate_thumbnail_object_key(object_key)
 
-        # Upload thumbnail to S3 with proper Content-Type
-        upload_fileobj(thumbnail_bytes, thumbnail_object_key, content_type="image/jpeg")
+        # Upload thumbnail to S3 with proper Content-Type using the shared client
+        thumbnail_io = io.BytesIO(thumbnail_bytes)
+        s3_client.upload_fileobj(thumbnail_io, settings.bucket, thumbnail_object_key, ExtraArgs={"ContentType": "image/jpeg"})
 
         # Update database with thumbnail info using direct UPDATE query (faster, no row lock)
         # Note: width and height are already extracted during upload, so we only update thumbnail_object_key
@@ -168,12 +170,13 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
 
     from sqlalchemy import select, update
 
-    # Get MinIO config once for all photos
-    from viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key, get_minio_config, get_s3_client, upload_fileobj
+    # Get settings once for all photos
+    from viewport.minio_utils import S3Settings, create_thumbnail, generate_thumbnail_object_key, get_s3_client
     from viewport.models.db import get_session_maker
     from viewport.models.gallery import Photo
 
-    _, _, _, bucket, _, _ = get_minio_config()
+    settings = S3Settings()
+    bucket = settings.bucket
 
     s3_client = get_s3_client()
     session_maker = get_session_maker()
@@ -217,8 +220,9 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
 
             thumbnail_object_key = generate_thumbnail_object_key(object_key)
 
-            # Upload thumbnail to S3 with proper Content-Type
-            upload_fileobj(thumbnail_bytes, thumbnail_object_key, content_type="image/jpeg")
+            # Upload thumbnail to S3 with proper Content-Type using the shared client
+            thumbnail_io = io.BytesIO(thumbnail_bytes)
+            s3_client.upload_fileobj(thumbnail_io, bucket, thumbnail_object_key, ExtraArgs={"ContentType": "image/jpeg"})
 
             # Free thumbnail memory
             del thumbnail_bytes

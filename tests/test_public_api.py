@@ -56,11 +56,15 @@ class TestPublicAPI:
         resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"})
         share_id = resp.json()["id"]
 
-        # Mock minio config and s3 client get_object to return a file-like body
+        # Mock s3 client and settings for zip download
         fake_bucket = "test-bucket"
         fake_obj = {"Body": io.BytesIO(content), "ContentType": "image/jpeg"}
 
-        with patch("viewport.api.public.get_minio_config", return_value=(None, None, None, fake_bucket, 'lol', 'kek')), patch("viewport.api.public.get_s3_client") as mock_get_s3:
+        with patch("viewport.api.public.S3Settings") as mock_settings_class, patch("viewport.api.public.get_s3_client") as mock_get_s3:
+            mock_settings = MagicMock()
+            mock_settings.bucket = fake_bucket
+            mock_settings_class.return_value = mock_settings
+
             mock_client = MagicMock()
             mock_client.get_object.return_value = fake_obj
             mock_get_s3.return_value = mock_client

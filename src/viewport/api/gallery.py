@@ -5,9 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from viewport.auth_utils import get_current_user
+from viewport.dependencies import get_s3_client
 from viewport.models.db import get_db
 from viewport.models.user import User
 from viewport.repositories.gallery_repository import GalleryRepository
+from viewport.s3_service import AsyncS3Client
 from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse, GalleryUpdateRequest
 from viewport.schemas.photo import PhotoResponse
 from viewport.schemas.sharelink import ShareLinkResponse
@@ -66,6 +68,7 @@ async def get_gallery_detail(
     gallery_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
     limit: int | None = Query(None, ge=1, le=1000, description="Limit number of photos returned (for pagination)"),
     offset: int = Query(0, ge=0, description="Offset for photo pagination"),
 ) -> GalleryDetailResponse:
@@ -92,7 +95,7 @@ async def get_gallery_detail(
 
     # Use batch method for faster photo URL generation
     url_start = time.monotonic()
-    photo_responses = await PhotoResponse.from_db_photos_batch(photos_to_process)
+    photo_responses = await PhotoResponse.from_db_photos_batch(photos_to_process, s3_client)
     url_time = time.monotonic() - url_start
 
     # Calculate URLs per second
@@ -145,12 +148,13 @@ def clear_cover_photo(
 
 
 @router.delete("/{gallery_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_gallery(
+async def delete_gallery(
     gallery_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> None:
-    if not repo.delete_gallery(gallery_id, current_user.id):
+    if not await repo.delete_gallery_async(gallery_id, current_user.id, s3_client):
         raise HTTPException(status_code=404, detail="Gallery not found")
 
 
