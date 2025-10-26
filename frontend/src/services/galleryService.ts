@@ -13,6 +13,7 @@ export interface Gallery {
 export interface GalleryDetail extends Gallery {
   photos: PhotoResponse[]
   share_links: ShareLink[]
+  total_photos: number
 }
 
 export interface GalleryListResponse {

@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { useParams, Link, useSearchParams } from 'react-router-dom'
 import { galleryService, type GalleryDetail } from '../services/galleryService'
 import { photoService, type PhotoResponse } from '../services/photoService'
 import type { PhotoUploadResponse } from '../services/photoService'
@@ -18,18 +18,21 @@ import {
   ArrowLeft,
   ImageOff,
   Star,
-  StarOff
+  StarOff,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 import { PhotoUploader } from '../components/PhotoUploader'
 
 export const GalleryPage = () => {
   const { id } = useParams<{ id: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [gallery, setGallery] = useState<GalleryDetail | null>(null)
   const [photoUrls, setPhotoUrls] = useState<PhotoResponse[]>([])
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(true)
+  const [isInitialLoading, setIsInitialLoading] = useState(true) // First time loading
+  const [isLoadingPhotos, setIsLoadingPhotos] = useState(false) // Loading photos only
+  const [totalPhotos, setTotalPhotos] = useState(0)
 
   const [uploadError, setUploadError] = useState('')
   const [isCreatingLink, setIsCreatingLink] = useState(false)
@@ -45,100 +48,138 @@ export const GalleryPage = () => {
 
   // Pagination settings
   const PHOTOS_PER_PAGE = 100
+  const currentPage = parseInt(searchParams.get('page') || '1', 10)
 
-  // Intersection Observer ref for infinite scroll
-  const observerTarget = useRef<HTMLDivElement>(null)
-
-  const fetchGalleryDetails = useCallback(async () => {
+  const fetchGalleryDetails = useCallback(async (page: number, isInitial = false) => {
+    if (isInitial) {
+      setIsInitialLoading(true)
+    } else {
+      setIsLoadingPhotos(true)
+    }
+    setError('')
     try {
-      // Fetch gallery metadata and first batch of photos
-      const galleryData = await galleryService.getGallery(galleryId, { limit: PHOTOS_PER_PAGE, offset: 0 })
+      const offset = (page - 1) * PHOTOS_PER_PAGE
+      const galleryData = await galleryService.getGallery(galleryId, { limit: PHOTOS_PER_PAGE, offset })
       setGallery(galleryData)
       setPhotoUrls(galleryData.photos || [])
       setShareLinks(galleryData.share_links || [])
-
-      // Check if there are more photos to load
-      setHasMore(galleryData.photos.length === PHOTOS_PER_PAGE)
+      setTotalPhotos(galleryData.total_photos)
     } catch (err) {
       setError('Failed to load gallery data. Please try again.')
       console.error(err)
-    }
-  }, [galleryId])
-
-  const loadMorePhotos = useCallback(async () => {
-    if (isLoadingMore || !hasMore) return
-
-    setIsLoadingMore(true)
-    try {
-      const currentOffset = photoUrls.length
-      const moreData = await galleryService.getGallery(galleryId, {
-        limit: PHOTOS_PER_PAGE,
-        offset: currentOffset
-      })
-
-      const newPhotos = moreData.photos || []
-      setPhotoUrls(prev => [...prev, ...newPhotos])
-
-      // Check if there are more photos to load
-      setHasMore(newPhotos.length === PHOTOS_PER_PAGE)
-    } catch (err) {
-      console.error('Failed to load more photos:', err)
     } finally {
-      setIsLoadingMore(false)
-    }
-  }, [galleryId, photoUrls.length, isLoadingMore, hasMore])
-
-  const fetchShareLinksOnly = useCallback(async () => {
-    try {
-      // Fetch only share links without affecting photos
-      const galleryData = await galleryService.getGallery(galleryId, { limit: 1, offset: 0 })
-      setShareLinks(galleryData.share_links || [])
-    } catch (err) {
-      console.error('Failed to load share links:', err)
+      if (isInitial) {
+        setIsInitialLoading(false)
+      } else {
+        setIsLoadingPhotos(false)
+      }
     }
   }, [galleryId])
 
-  const fetchData = useCallback(async () => {
-    setIsLoading(true)
-    setError('')
-    await fetchGalleryDetails()
-    setIsLoading(false)
-  }, [fetchGalleryDetails])
-
   useEffect(() => {
-    fetchData()
-  }, [fetchData])
+    // On first mount or when galleryId changes, do initial load
+    if (gallery === null) {
+      fetchGalleryDetails(currentPage, true)
+    } else {
+      // Gallery already loaded, just fetch photos
+      fetchGalleryDetails(currentPage, false)
+    }
+  }, [currentPage]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Intersection Observer for infinite scroll
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // When the sentinel element becomes visible, load more photos
-        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
-          loadMorePhotos()
-        }
-      },
-      {
-        threshold: 0.1, // Trigger when 10% visible
-        rootMargin: '400px' // Start loading 400px before sentinel enters viewport
+  // Navigate to a specific page
+  const goToPage = (page: number) => {
+    setSearchParams({ page: page.toString() })
+    // Smooth scroll to top of photos section after a tiny delay to let state update
+    setTimeout(() => {
+      const photosSection = document.querySelector('[data-photos-section]')
+      if (photosSection) {
+        photosSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
       }
+    }, 100)
+  }
+
+  // Pagination component (reusable)
+  const PaginationControls = () => {
+    if (totalPhotos <= PHOTOS_PER_PAGE) return null
+
+    const totalPages = Math.ceil(totalPhotos / PHOTOS_PER_PAGE)
+
+    return (
+      <div className="flex flex-col items-center gap-4 py-6">
+        {/* Page info */}
+        <div className="flex flex-col items-center gap-1">
+          <span className="text-base font-medium text-text">
+            Page {currentPage} of {totalPages}
+          </span>
+          <span className="text-sm text-muted">
+            Showing {((currentPage - 1) * PHOTOS_PER_PAGE) + 1}-{Math.min(currentPage * PHOTOS_PER_PAGE, totalPhotos)} of {totalPhotos} photo{totalPhotos !== 1 ? 's' : ''}
+          </span>
+        </div>
+
+        {/* Navigation buttons */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => goToPage(currentPage - 1)}
+            disabled={currentPage === 1 || isLoadingPhotos}
+            className="flex items-center gap-2 px-5 py-2.5 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm border border-accent/20 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+          >
+            {isLoadingPhotos ? <Loader2 className="w-5 h-5 animate-spin" /> : <ChevronLeft className="w-5 h-5" />}
+            Previous
+          </button>
+
+          {/* Page numbers */}
+          <div className="flex items-center gap-1">
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNum: number
+
+              // Show first pages, current page context, or last pages
+              if (totalPages <= 5) {
+                pageNum = i + 1
+              } else if (currentPage <= 3) {
+                pageNum = i + 1
+              } else if (currentPage >= totalPages - 2) {
+                pageNum = totalPages - 4 + i
+              } else {
+                pageNum = currentPage - 2 + i
+              }
+
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => goToPage(pageNum)}
+                  disabled={pageNum === currentPage || isLoadingPhotos}
+                  className={`px-3 py-1.5 min-w-[40px] rounded-lg font-medium transition-all duration-200 ${pageNum === currentPage
+                      ? 'bg-accent text-accent-foreground shadow-sm'
+                      : 'bg-surface-1 dark:bg-surface-dark-1 text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40'
+                    } ${isLoadingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {pageNum}
+                </button>
+              )
+            })}
+          </div>
+
+          <button
+            onClick={() => goToPage(currentPage + 1)}
+            disabled={currentPage >= totalPages || isLoadingPhotos}
+            className="flex items-center gap-2 px-5 py-2.5 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm border border-accent/20 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+          >
+            Next
+            {isLoadingPhotos ? <Loader2 className="w-5 h-5 animate-spin" /> : <ChevronRight className="w-5 h-5" />}
+          </button>
+        </div>
+      </div>
     )
-
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current)
-    }
-
-    return () => {
-      observer.disconnect()
-    }
-  }, [hasMore, isLoadingMore, loadMorePhotos])
+  }
 
   // Handler for photo upload completion
   const handleUploadComplete = (result: PhotoUploadResponse) => {
     setUploadError('')
     if (result.successful_uploads > 0) {
-      // Reload gallery to get new photos, but maintain current position
-      fetchData()
+      // Reload current page to show new photos (don't show as initial load)
+      fetchGalleryDetails(currentPage, false)
     }
     if (result.failed_uploads > 0) {
       setUploadError(`${result.failed_uploads} of ${result.total_files} photos failed to upload`)
@@ -207,7 +248,9 @@ export const GalleryPage = () => {
     setError('')
     try {
       await shareLinkService.createShareLink(galleryId)
-      await fetchShareLinksOnly() // Only refresh share links, not photos
+      // Refresh only share links without reloading photos
+      const galleryData = await galleryService.getGallery(galleryId, { limit: 1, offset: 0 })
+      setShareLinks(galleryData.share_links || [])
     } catch (err) {
       setError('Failed to create share link. Please try again.')
       console.error(err)
@@ -221,7 +264,9 @@ export const GalleryPage = () => {
     if (window.confirm('Are you sure you want to delete this share link?')) {
       try {
         await shareLinkService.deleteShareLink(galleryId, linkId)
-        await fetchShareLinksOnly() // Only refresh share links, not photos
+        // Refresh only share links without reloading photos
+        const galleryData = await galleryService.getGallery(galleryId, { limit: 1, offset: 0 })
+        setShareLinks(galleryData.share_links || [])
       } catch (err) {
         setError('Failed to delete share link. Please try again.')
         console.error(err)
@@ -281,8 +326,8 @@ export const GalleryPage = () => {
     }
   }
 
-  if (isLoading) {
-    // ... (keep existing loading state)
+  if (isInitialLoading) {
+    // Initial loading state - show full page loader
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -296,7 +341,7 @@ export const GalleryPage = () => {
   }
 
   if (error && !gallery) {
-    // ... (keep existing error state)
+    // Error state when gallery failed to load initially
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -304,7 +349,7 @@ export const GalleryPage = () => {
             <div className="text-danger text-lg font-medium">Failed to load gallery</div>
             <div className="text-muted dark:text-muted-dark">{error}</div>
             <button
-              onClick={fetchData}
+              onClick={() => fetchGalleryDetails(currentPage, true)}
               className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-sm border border-accent/20 transition-colors"
             >
               Try Again
@@ -351,7 +396,15 @@ export const GalleryPage = () => {
                 <h1 className="text-4xl font-bold text-text">
                   {gallery.name || `Gallery #${gallery.id}`}
                 </h1>
-                <p className="mt-2 text-lg text-muted">Created on {formatDate(gallery.created_at)}</p>
+                <div className="mt-2 flex items-center gap-3 text-lg text-muted">
+                  <span>Created on {formatDate(gallery.created_at)}</span>
+                  {totalPhotos > 0 && (
+                    <>
+                      <span className="text-muted/40">•</span>
+                      <span>{totalPhotos} photo{totalPhotos !== 1 ? 's' : ''}</span>
+                    </>
+                  )}
+                </div>
               </div>
               <button
                 onClick={handleDeleteGallery}
@@ -367,9 +420,23 @@ export const GalleryPage = () => {
         </div>
 
         {/* Photo Section */}
-        <div className="bg-surface dark:bg-surface-foreground/5 backdrop-blur-sm rounded-2xl p-4 lg:p-6 xl:p-8 border border-border dark:border-border/10">
+        <div className="bg-surface dark:bg-surface-foreground/5 backdrop-blur-sm rounded-2xl p-4 lg:p-6 xl:p-8 border border-border dark:border-border/10" data-photos-section>
           <div className="mb-6">
-            <h2 className="text-2xl font-semibold text-text mb-2">Photos ({photoUrls.length})</h2>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-2xl font-semibold text-text">
+                Photos
+                {totalPhotos > 0 && (
+                  <span className="ml-2 text-lg text-muted font-normal">
+                    ({photoUrls.length} of {totalPhotos})
+                  </span>
+                )}
+              </h2>
+              {totalPhotos > PHOTOS_PER_PAGE && (
+                <span className="text-sm text-muted">
+                  Page {currentPage} of {Math.ceil(totalPhotos / PHOTOS_PER_PAGE)}
+                </span>
+              )}
+            </div>
             <PhotoUploader galleryId={galleryId} onUploadComplete={handleUploadComplete} />
             {uploadError && (
               <div className="mt-2 text-danger bg-danger/10 dark:bg-danger/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
@@ -384,8 +451,23 @@ export const GalleryPage = () => {
               </div>
             )}
           </div>
-          {photoUrls.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8">
+
+          {/* Top Pagination */}
+          {totalPhotos > PHOTOS_PER_PAGE && (
+            <div className="border-b border-border dark:border-border/40 mb-6">
+              <PaginationControls />
+            </div>
+          )}
+
+          {/* Photos Grid or Loading State */}
+          {isLoadingPhotos ? (
+            <div className="flex flex-col items-center justify-center py-20 min-h-[400px]">
+              <Loader2 className="w-12 h-12 animate-spin text-accent mb-4" />
+              <span className="text-lg text-muted">Loading photos...</span>
+              <span className="text-sm text-muted/70 mt-1">Page {currentPage}</span>
+            </div>
+          ) : photoUrls.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8 animate-in fade-in duration-300">
               {photoUrls.map((photo, index) => (
                 <div key={photo.id} className="group bg-surface dark:bg-surface-foreground rounded-lg flex flex-col">
                   {/* Image area */}
@@ -522,27 +604,11 @@ export const GalleryPage = () => {
             </div>
           )}
 
-          {/* Infinite scroll sentinel and loading indicator */}
-          {photoUrls.length > 0 && (
-            <>
-              {/* Sentinel element for Intersection Observer */}
-              <div ref={observerTarget} className="h-4" />
-
-              {/* Loading indicator */}
-              {isLoadingMore && (
-                <div className="flex justify-center items-center py-8">
-                  <Loader2 className="w-8 h-8 animate-spin text-accent" />
-                  <span className="ml-2 text-muted">Loading more photos...</span>
-                </div>
-              )}
-
-              {/* End of photos indicator */}
-              {!hasMore && photoUrls.length > PHOTOS_PER_PAGE && (
-                <div className="text-center py-8 text-muted text-sm">
-                  All photos loaded ({photoUrls.length} total)
-                </div>
-              )}
-            </>
+          {/* Bottom Pagination */}
+          {totalPhotos > PHOTOS_PER_PAGE && (
+            <div className="mt-8 border-t border-border dark:border-border/40">
+              <PaginationControls />
+            </div>
           )}
         </div>
 
