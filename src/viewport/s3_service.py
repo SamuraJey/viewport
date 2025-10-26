@@ -42,6 +42,8 @@ class AsyncS3Client:
             s3={"addressing_style": "path"},
         )
         logger.info(f"AsyncS3Client initialized: endpoint={self._endpoint_url}, bucket={self.settings.bucket}, region={self.settings.region}")
+        logger.error(f"self.settings={self.settings}")
+        logger.error(f"AsyncS3Client config: {self._config}")
 
     def _get_endpoint_url(self) -> str | None:
         """Get the endpoint URL with protocol if needed."""
@@ -52,9 +54,6 @@ class AsyncS3Client:
             protocol = "https" if use_ssl else "http"
             return f"{protocol}://{endpoint}"
         return endpoint
-
-    def _get_s3_client() -> "S3Client":
-        pass
 
     @property
     def session(self) -> aioboto3.Session:
@@ -249,7 +248,7 @@ class AsyncS3Client:
 
                     # Collect objects
                     if "Contents" in response:
-                        objects_to_delete.extend([{"Key": obj["Key"]} for obj in response["Contents"]])
+                        objects_to_delete.extend([obj["Key"] for obj in response["Contents"]])
 
                     # Check if there are more pages
                     if not response.get("IsTruncated"):
@@ -259,12 +258,17 @@ class AsyncS3Client:
 
                 # Delete all objects if any were found
                 if objects_to_delete:
-                    # S3 delete_objects can handle up to 1000 objects at a time
-                    for i in range(0, len(objects_to_delete), 1000):
-                        batch = objects_to_delete[i : i + 1000]
-                        await s3.delete_objects(Bucket=self.settings.bucket, Delete={"Objects": batch})
+                    # Delete objects individually to avoid signature issues with batch delete
+                    deleted_count = 0
+                    for key in objects_to_delete:
+                        try:
+                            await s3.delete_object(Bucket=self.settings.bucket, Key=key)
+                            deleted_count += 1
+                        except Exception as e:
+                            logger.warning(f"Failed to delete object {key}: {e}")
+                            # Continue deleting other objects even if one fails
 
-                    logger.info(f"Successfully deleted {len(objects_to_delete)} objects with prefix {prefix}")
+                    logger.info(f"Successfully deleted {deleted_count}/{len(objects_to_delete)} objects with prefix {prefix}")
                 else:
                     logger.info(f"No objects found with prefix {prefix}")
         except Exception as e:

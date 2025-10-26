@@ -24,11 +24,11 @@ class S3Settings(BaseSettings):
     """Configuration for S3/MinIO client"""
 
     endpoint: str = "localhost:9000"
-    access_key: str = Field(alias="MINIO_ROOT_USER", default="minioadmin")
-    secret_key: str = Field(alias="MINIO_ROOT_PASSWORD", default="minioadmin")
+    access_key: str = "rustfsadmin"
+    secret_key: str = "rustfsadmin"
     bucket: str = "viewport"
-    region: str = "us-east-1"  # Can be overridden with MINIO_REGION env var
-    use_ssl: bool = False  # Can be overridden with MINIO_USE_SSL env var
+    region: str = "us-east-1"
+    use_ssl: bool = False
     signature_version: str = "s3v4"
 
     model_config = SettingsConfigDict(
@@ -59,6 +59,8 @@ def get_s3_client() -> "S3Client":
         max_pool_connections=50,
         s3={"addressing_style": "path"},
     )
+    logger.info(f"Created sync S3 client config: {config}")
+    logger.info(f"S3 Client settings: {settings}")
 
     return boto3.client(
         "s3",

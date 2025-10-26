@@ -76,7 +76,7 @@ app.add_middleware(
         "https://backend.samuraj.su:4443",
         "https://viewport.samuraj.su:4443",
     ],
-    allow_origin_regex=r"https://.*\.samuraj\.su",
+    allow_origin_regex=r"https://.*\.samuraj\.su(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
