@@ -53,12 +53,12 @@ services:
 
   s3_service:
     image: rustfs/rustfs:1.0.0-alpha.65
-    container_name: viewport_minio
+    container_name: viewport_s3
     restart: always
     environment:
       # RUSTFS_ADDRESS: ':9000'
-      RUSTFS_ACCESS_KEY: abracadabra
-      RUSTFS_SECRET_KEY: sFVKdW8Z
+      RUSTFS_ACCESS_KEY: rustfsadmin
+      RUSTFS_SECRET_KEY: rustfsadmin
       RUSTFS_CONSOLE_ENABLE: true
       RUSTFS_CORS_ALLOWED_ORIGINS: "*"
 
@@ -117,7 +117,11 @@ services:
     networks:
       - backend
     environment:
-      - S3_ENDPOINT=s3_service:9000
+      - S3_ENDPOINT=http://s3_service:9000
+      - S3_USE_SSL=false
+      - S3_ACCESS_KEY=rustfsadmin
+      - S3_SECRET_KEY=rustfsadmin
+      - S3_BUCKET=viewport
     volumes:
       - ./src:/app/src
       - ./config:/app/config
