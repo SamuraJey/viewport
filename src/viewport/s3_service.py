@@ -11,6 +11,7 @@ import logging
 from typing import TYPE_CHECKING, BinaryIO
 
 import aioboto3
+from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
 
 from viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
@@ -43,6 +44,12 @@ class AsyncS3Client:
             s3={"addressing_style": "path"},
         )
         self._presign_client = None
+        self._transfer_config = TransferConfig(
+            multipart_threshold=8 * 1024 * 1024,  # 8MB threshold before multipart kicks in
+            multipart_chunksize=4 * 1024 * 1024,  # 4MB chunks (reduced from 8MB for better parallelism)
+            max_concurrency=20,  # Increased from 10 for faster uploads
+            use_threads=True,
+        )
         logger.info(f"AsyncS3Client initialized: endpoint={self._endpoint_url}, bucket={self.settings.bucket}, region={self.settings.region}")
         logger.error(f"self.settings={self.settings}")
         logger.error(f"AsyncS3Client config: {self._config}")
@@ -117,6 +124,10 @@ class AsyncS3Client:
         # Normalize bytes to file-like object
         if isinstance(file_obj, bytes):
             file_obj = io.BytesIO(file_obj)
+        else:
+            # Ensure file pointer is at the beginning for streaming uploads
+            if hasattr(file_obj, "seek"):
+                file_obj.seek(0)
 
         extra_args: dict[str, str | dict[str, str]] = {}
         if content_type:
@@ -132,6 +143,7 @@ class AsyncS3Client:
                     self.settings.bucket,
                     key,
                     ExtraArgs=extra_args if extra_args else None,
+                    Config=self._transfer_config,
                 )
             logger.info(f"Successfully uploaded object: {key}")
             return f"/{self.settings.bucket}/{key}"
