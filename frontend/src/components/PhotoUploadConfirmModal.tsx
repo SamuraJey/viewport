@@ -172,7 +172,7 @@ export const PhotoUploadConfirmModal = ({
                     {!isUploading && result && (
                         <button
                             onClick={handleClose}
-                            className="text-text-muted hover:text-text dark:text-text dark:hover:text-accent-foreground"
+                            className="text-text-muted hover:text-text dark:text-text dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110"
                         >
                             <X className="w-6 h-6" />
                         </button>
@@ -197,13 +197,13 @@ export const PhotoUploadConfirmModal = ({
                         <div className="flex gap-2">
                             <button
                                 onClick={handleForceClose}
-                                className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                                className="px-3 py-1 bg-red-600 text-white text-sm rounded shadow-sm hover:shadow-md hover:bg-red-700 transition-all duration-200"
                             >
                                 {isUploading ? 'Yes, Cancel' : 'Yes, Close'}
                             </button>
                             <button
                                 onClick={() => setShowCancelWarning(false)}
-                                className="px-3 py-1 bg-surface-foreground dark:bg-surface text-text dark:text-text text-sm rounded hover:bg-surface transition-colors"
+                                className="px-3 py-1 bg-surface-foreground dark:bg-surface text-text dark:text-text text-sm rounded shadow-sm hover:shadow-md hover:bg-surface transition-all duration-200"
                             >
                                 {isUploading ? 'Continue Upload' : 'Stay Here'}
                             </button>
@@ -357,7 +357,7 @@ export const PhotoUploadConfirmModal = ({
                     {result && (
                         <button
                             onClick={handleClose}
-                            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                         >
                             Close
                         </button>
@@ -366,7 +366,7 @@ export const PhotoUploadConfirmModal = ({
                         <>
                             <button
                                 onClick={() => onClose()}
-                                className="px-4 py-2 text-text-muted dark:text-text hover:bg-surface dark:hover:bg-surface-foreground rounded-lg transition-colors"
+                                className="px-4 py-2 text-text-muted dark:text-text hover:bg-surface dark:hover:bg-surface-foreground rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
                             >
                                 Cancel
                             </button>
@@ -374,7 +374,7 @@ export const PhotoUploadConfirmModal = ({
                                 ref={uploadButtonRef}
                                 onClick={handleUpload}
                                 disabled={files.length === 0}
-                                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-surface-foreground disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center gap-2"
+                                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-surface-foreground disabled:cursor-not-allowed text-white rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 disabled:transform-none disabled:shadow-none flex items-center gap-2"
                             >
                                 <Upload className="w-4 h-4" />
                                 Upload {files.length} Photo{files.length > 1 ? 's' : ''}

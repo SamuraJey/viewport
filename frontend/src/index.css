@@ -2,6 +2,112 @@
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Cuprum:wght@400;500;700&family=PT+Sans:wght@400;700&display=swap');
 @import "tailwindcss";
 
+/* ===== THEME TRANSITION ANIMATIONS ===== */
+/* View Transitions API for smooth theme switching */
+
+/* Smooth crossfade transition */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.4s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+::view-transition-old(root) {
+  animation-name: theme-fade-out;
+}
+
+::view-transition-new(root) {
+  animation-name: theme-fade-in;
+}
+
+/* Ensure smooth layering */
+::view-transition-group(root) {
+  animation-duration: 0.4s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Animation keyframes */
+@keyframes theme-fade-out {
+  0% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes theme-fade-in {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Theme button icon animation */
+@keyframes spin-once {
+  0% {
+    transform: rotate(0deg);
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+
+  100% {
+    transform: rotate(180deg);
+    opacity: 1;
+  }
+}
+
+.animate-spin-once {
+  animation: spin-once 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Fallback smooth transitions for browsers without View Transitions API */
+/* Only apply transitions to root elements, not to all children to avoid flickering */
+html {
+  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body {
+  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Add smooth transitions to common theme-dependent elements */
+header,
+main,
+nav,
+footer {
+  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Prevent transition conflicts with Tailwind utility classes */
+.transition-none {
+  transition: none !important;
+}
+
+/* Performance optimization for smooth animations */
+/* Use GPU acceleration for better performance */
+button,
+a,
+[role="button"] {
+  will-change: auto;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Optimize theme transitions - only animate opacity and background */
+* {
+  /* Prevent unnecessary repaints during theme change */
+  will-change: auto;
+}
+
 html,
 body {
   font-family: 'Cuprum', 'PT Sans', sans-serif;

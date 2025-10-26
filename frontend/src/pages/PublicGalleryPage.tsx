@@ -332,7 +332,7 @@ export const PublicGalleryPage = () => {
           <div className="mb-8 text-center">
             <button
               onClick={handleDownloadAll}
-              className="bg-accent hover:bg-accent/90 text-accent-foreground px-6 py-3 rounded-lg font-medium transition-colors inline-flex items-center gap-2"
+              className="bg-accent hover:bg-accent/90 text-accent-foreground px-6 py-3 rounded-lg font-medium shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 inline-flex items-center gap-2"
             >
               <Download className="w-5 h-5" />
               Download All Photos

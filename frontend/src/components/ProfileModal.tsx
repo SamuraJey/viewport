@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { X, User, Eye, EyeOff } from 'lucide-react'
+import { X, User, Eye, EyeOff, Mail, UserCircle, Lock, LogOut, Trash2, AlertTriangle, Loader2 } from 'lucide-react'
 import { authService } from '../services/authService'
 import { useAuthStore } from '../stores/authStore'
 import { useNavigate } from 'react-router-dom'
@@ -171,200 +171,340 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
       role="dialog"
       aria-modal="true"
       aria-labelledby="profile-modal-title"
-      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center overflow-y-auto bg-black/50 py-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      onClick={onClose}
     >
-      <div className="bg-surface text-text dark:bg-surface-dark rounded-lg w-full max-w-md mx-4 md:mx-0 p-4 md:p-6 relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          className="absolute top-4 right-4 text-muted hover:text-text"
-        >
-          <X />
-        </button>
-        <h2 id="profile-modal-title" className="text-2xl font-semibold mb-4">Account Settings</h2>
-        {error && <div className="text-danger mb-4">{error}</div>}
-        {/* Avatar stub section */}
-        <section className="flex flex-col items-center mb-6">
-          <div className="w-24 h-24 bg-muted/30 dark:bg-muted-dark/30 rounded-full flex items-center justify-center mb-2">
-            <User className="w-12 h-12 text-muted dark:text-muted-dark" />
+      <div
+        className="bg-surface dark:bg-surface-dark rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto border border-border dark:border-border/40"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-surface dark:bg-surface-dark border-b border-border dark:border-border/40 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-accent/10 rounded-full flex items-center justify-center">
+              <User className="w-5 h-5 text-accent" />
+            </div>
+            <h2 id="profile-modal-title" className="text-2xl font-bold text-text">Account Settings</h2>
           </div>
-          <button disabled className="text-sm text-muted dark:text-muted-dark">Change Avatar (coming soon)</button>
-        </section>
-        {/* Profile info section */}
-        <section className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg mb-6">
-          <h3 className="text-lg font-medium mb-2">Profile Information</h3>
-          <form onSubmit={e => { e.preventDefault(); handleProfileSave() }} className="space-y-4">
-            <label htmlFor="email" className="block text-sm font-medium">Email</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              readOnly
-              className="w-full mb-4 mt-1 p-2 border border-border rounded bg-muted/10 dark:bg-muted-dark/10 text-muted dark:text-muted-dark cursor-not-allowed opacity-70"
-            />
-            <label htmlFor="displayName" className="block text-sm font-medium">Display Name</label>
-            <input
-              id="displayName"
-              type="text"
-              ref={firstFieldRef}
-              value={displayName}
-              onChange={e => setDisplayName(e.target.value)}
-              className="w-full mb-4 mt-1 p-2 border border-border rounded bg-transparent"
-            />
-            <button
-              type="submit"
-              disabled={savingProfile}
-              className="px-4 py-2 bg-accent text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-accent/90 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
-            >
-              {savingProfile ? 'Saving...' : 'Save'}
-            </button>
-          </form>
-        </section>
-        <hr className="border-border my-4" />
-        {/* Password change section */}
-        <section className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg mb-6">
-          <h3 className="text-lg font-medium mb-2">Change Password</h3>
-          <form onSubmit={e => { e.preventDefault(); handlePasswordChange() }}>
-            <label htmlFor="currentPassword" className="block text-sm font-medium">Current Password</label>
-            <div className="relative">
-              <input
-                id="currentPassword"
-                type={showCurrentPassword ? 'text' : 'password'}
-                value={currentPassword}
-                onChange={e => setCurrentPassword(e.target.value)}
-                className="w-full mb-4 mt-1 p-2 pr-10 border border-border rounded bg-transparent"
-              />
-              <button
-                type="button"
-                aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}
-                onClick={() => setShowCurrentPassword(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text "
-              >
-                {showCurrentPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="p-2 hover:bg-surface-1 dark:hover:bg-surface-dark-1 rounded-lg transition-all duration-200 hover:scale-105"
+          >
+            <X className="w-5 h-5 text-muted hover:text-text transition-colors" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Error Alert */}
+          {error && (
+            <div className="bg-danger/10 border border-danger/20 rounded-lg p-4 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-danger flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-danger font-medium">Error</p>
+                <p className="text-danger/80 text-sm mt-1">{error}</p>
+              </div>
             </div>
-            <label htmlFor="newPassword" className="block text-sm font-medium">New Password</label>
-            <div className="relative">
-              <input
-                id="newPassword"
-                type={showNewPassword ? 'text' : 'password'}
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                className="w-full mb-4 mt-1 p-2 pr-10 border border-border rounded bg-transparent"
-              />
-              <button
-                type="button"
-                aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
-                onClick={() => setShowNewPassword(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text "
-              >
-                {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
+          )}
+
+          {/* Profile Section */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-3 mb-4">
+              <UserCircle className="w-5 h-5 text-accent" />
+              <h3 className="text-lg font-semibold text-text">Profile Information</h3>
             </div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium">Confirm Password</label>
-            <div className="relative">
-              <input
-                id="confirmPassword"
-                type={showConfirmPassword ? 'text' : 'password'}
-                ref={confirmPassRef}
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                className="w-full mb-4 mt-1 p-2 pr-10 border border-border rounded bg-transparent"
-              />
+
+            <div className="bg-surface-1 dark:bg-surface-dark-1 rounded-xl p-6 space-y-4 border border-border/40">
+              {/* Email (read-only) */}
+              <div>
+                <label htmlFor="email" className="flex items-center gap-2 text-sm font-medium text-muted mb-2">
+                  <Mail className="w-4 h-4" />
+                  Email Address
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  readOnly
+                  className="w-full px-4 py-2.5 border border-border/60 rounded-lg bg-muted/20 dark:bg-muted-dark/30 text-muted cursor-not-allowed focus:outline-none"
+                  title="Email cannot be changed"
+                />
+                <p className="text-xs text-muted/70 mt-1">Email address cannot be changed</p>
+              </div>
+
+              {/* Display Name */}
+              <div>
+                <label htmlFor="displayName" className="flex items-center gap-2 text-sm font-medium text-text mb-2">
+                  <User className="w-4 h-4" />
+                  Display Name
+                </label>
+                <input
+                  id="displayName"
+                  type="text"
+                  ref={firstFieldRef}
+                  value={displayName}
+                  onChange={e => setDisplayName(e.target.value)}
+                  placeholder="Enter your display name"
+                  className="w-full px-4 py-2.5 border border-border rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
+                />
+              </div>
+
               <button
-                type="button"
-                aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
-                onClick={() => setShowConfirmPassword(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text "
+                onClick={handleProfileSave}
+                disabled={savingProfile}
+                className="w-full px-4 py-2.5 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
               >
-                {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
-            </div>
-            <button
-              type="submit"
-              disabled={changingPassword}
-              className="px-4 py-2 bg-success text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-success-600 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
-            >
-              {changingPassword ? 'Changing...' : 'Change Password'}
-            </button>
-          </form>
-        </section>
-        <hr className="border-border my-4" />
-        {/* Actions / Delete Confirmation Sections */}
-        {deleteStep === 'initial' && (
-          <section className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg flex justify-between w-full">
-            <button
-              onClick={startDelete}
-              className="px-4 py-2 bg-danger text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-danger-600 focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-1"
-            >
-              Delete Account
-            </button>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-muted text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-muted-600 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
-            >
-              Logout
-            </button>
-          </section>
-        )}
-        {deleteStep === 'password' && (
-          <section className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg space-y-4">
-            <p className="text-sm">Please enter your current password to proceed with account deletion.</p>
-            <div className="relative">
-              <input
-                type={showDeletePassword ? 'text' : 'password'}
-                placeholder="Current Password"
-                value={deletePassword}
-                onChange={e => setDeletePassword(e.target.value)}
-                className="w-full p-2 pr-10 border border-border rounded bg-transparent"
-              />
-              <button
-                type="button"
-                aria-label={showDeletePassword ? 'Hide password' : 'Show password'}
-                onClick={() => setShowDeletePassword(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text "
-              >
-                {showDeletePassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-              </button>
-            </div>
-            {deleteError && <div className="text-danger text-sm">{deleteError}</div>}
-            <div className="flex justify-between">
-              <button
-                onClick={cancelDelete}
-                className="px-4 py-2 bg-muted text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-muted-600 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={verifyDeletePassword}
-                className="px-4 py-2 bg-yellow-600 text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
-              >
-                Next
+                {savingProfile ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Profile'
+                )}
               </button>
             </div>
           </section>
-        )}
-        {deleteStep === 'confirm' && (
-          <section className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg space-y-4">
-            <p className="text-danger font-medium">Are you sure you want to delete your account? This action cannot be undone.</p>
-            {deleteError && <div className="text-danger text-sm">{deleteError}</div>}
-            <div className="flex justify-between">
+
+          {/* Password Section */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-3 mb-4">
+              <Lock className="w-5 h-5 text-accent" />
+              <h3 className="text-lg font-semibold text-text">Change Password</h3>
+            </div>
+
+            <div className="bg-surface-1 dark:bg-surface-dark-1 rounded-xl p-6 space-y-4 border border-border/40">
+              {/* Current Password */}
+              <div>
+                <label htmlFor="currentPassword" className="block text-sm font-medium text-text mb-2">
+                  Current Password
+                </label>
+                <div className="relative">
+                  <input
+                    id="currentPassword"
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    value={currentPassword}
+                    onChange={e => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password"
+                    className="w-full px-4 py-2.5 pr-12 border border-border rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
+                  />
+                  <button
+                    type="button"
+                    aria-label={showCurrentPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowCurrentPassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded transition-all duration-200 hover:scale-110"
+                  >
+                    {showCurrentPassword ? <EyeOff className="h-5 w-5 text-muted" /> : <Eye className="h-5 w-5 text-muted" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* New Password */}
+              <div>
+                <label htmlFor="newPassword" className="block text-sm font-medium text-text mb-2">
+                  New Password
+                </label>
+                <div className="relative">
+                  <input
+                    id="newPassword"
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    className="w-full px-4 py-2.5 pr-12 border border-border rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
+                  />
+                  <button
+                    type="button"
+                    aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowNewPassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded transition-all duration-200 hover:scale-110"
+                  >
+                    {showNewPassword ? <EyeOff className="h-5 w-5 text-muted" /> : <Eye className="h-5 w-5 text-muted" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-text mb-2">
+                  Confirm New Password
+                </label>
+                <div className="relative">
+                  <input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    ref={confirmPassRef}
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    className="w-full px-4 py-2.5 pr-12 border border-border rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
+                  />
+                  <button
+                    type="button"
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowConfirmPassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded transition-all duration-200 hover:scale-110"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-5 w-5 text-muted" /> : <Eye className="h-5 w-5 text-muted" />}
+                  </button>
+                </div>
+              </div>
+
               <button
-                onClick={cancelDelete}
-                className="px-4 py-2 bg-muted text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-muted-600 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1"
+                onClick={handlePasswordChange}
+                disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
+                className="w-full px-4 py-2.5 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
               >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                disabled={deletingAccount}
-                className="px-4 py-2 bg-danger text-accent-foreground font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-danger-600 focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-1"
-              >
-                {deletingAccount ? 'Deleting...' : 'Confirm Delete'}
+                {changingPassword ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Changing Password...
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    Change Password
+                  </>
+                )}
               </button>
             </div>
           </section>
-        )}
+
+          {/* Danger Zone */}
+          {deleteStep === 'initial' && (
+            <section className="space-y-4">
+              <div className="flex items-center gap-3 mb-4">
+                <AlertTriangle className="w-5 h-5 text-danger" />
+                <h3 className="text-lg font-semibold text-text">Danger Zone</h3>
+              </div>
+
+              <div className="bg-danger/5 border border-danger/20 rounded-xl p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <button
+                    onClick={handleLogout}
+                    className="px-4 py-2.5 bg-surface-1 dark:bg-surface-dark-1 border border-border hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-text font-medium rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Logout
+                  </button>
+
+                  <button
+                    onClick={startDelete}
+                    className="px-4 py-2.5 bg-danger hover:bg-danger/90 text-white font-medium rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Account
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Delete Password Step */}
+          {deleteStep === 'password' && (
+            <section className="space-y-4">
+              <div className="flex items-center gap-3 mb-4">
+                <AlertTriangle className="w-5 h-5 text-danger" />
+                <h3 className="text-lg font-semibold text-danger">Confirm Account Deletion</h3>
+              </div>
+
+              <div className="bg-danger/10 border border-danger/20 rounded-xl p-6 space-y-4">
+                <p className="text-text">Please enter your current password to proceed with account deletion.</p>
+
+                <div className="relative">
+                  <input
+                    type={showDeletePassword ? 'text' : 'password'}
+                    placeholder="Current Password"
+                    value={deletePassword}
+                    onChange={e => setDeletePassword(e.target.value)}
+                    className="w-full px-4 py-2.5 pr-12 border border-danger/30 rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-danger focus:border-transparent transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowDeletePassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded transition-all duration-200 hover:scale-110"
+                  >
+                    {showDeletePassword ? <EyeOff className="h-5 w-5 text-muted" /> : <Eye className="h-5 w-5 text-muted" />}
+                  </button>
+                </div>
+
+                {deleteError && <p className="text-danger text-sm">{deleteError}</p>}
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={cancelDelete}
+                    className="flex-1 px-4 py-2.5 bg-surface-1 dark:bg-surface-dark-1 border border-border hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-text font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={verifyDeletePassword}
+                    disabled={!deletePassword}
+                    className="flex-1 px-4 py-2.5 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Delete Confirmation Step */}
+          {deleteStep === 'confirm' && (
+            <section className="space-y-4">
+              <div className="flex items-center gap-3 mb-4">
+                <AlertTriangle className="w-5 h-5 text-danger" />
+                <h3 className="text-lg font-semibold text-danger">Final Confirmation</h3>
+              </div>
+
+              <div className="bg-danger/10 border border-danger/20 rounded-xl p-6 space-y-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-6 h-6 text-danger flex-shrink-0 mt-1" />
+                  <div>
+                    <p className="text-danger font-bold text-lg mb-2">This action cannot be undone!</p>
+                    <p className="text-text">
+                      Deleting your account will permanently remove:
+                    </p>
+                    <ul className="list-disc list-inside text-muted mt-2 space-y-1">
+                      <li>All your galleries</li>
+                      <li>All your photos</li>
+                      <li>All share links</li>
+                      <li>Your account data</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {deleteError && <p className="text-danger text-sm">{deleteError}</p>}
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={cancelDelete}
+                    className="flex-1 px-4 py-2.5 bg-surface-1 dark:bg-surface-dark-1 border border-border hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-text font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    disabled={deletingAccount}
+                    className="flex-1 px-4 py-2.5 bg-danger hover:bg-danger/90 text-white font-bold rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2"
+                  >
+                    {deletingAccount ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        Yes, Delete My Account
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -70,7 +70,7 @@ export const PhotoModal = ({
       {/* Close button */}
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 z-10 flex items-center justify-center w-10 h-10 p-2 bg-surface-foreground/10 hover:bg-surface-foreground/20 text-white rounded-full transition-all duration-200"
+        className="absolute top-4 right-4 z-10 flex items-center justify-center w-10 h-10 p-2 bg-surface-foreground/10 hover:bg-surface-foreground/20 text-white rounded-full transition-all duration-200 hover:scale-110"
       >
         <X className="w-6 h-6" />
       </button>
@@ -80,13 +80,13 @@ export const PhotoModal = ({
         <>
           <button
             onClick={e => { e.stopPropagation(); onPrevious(); }}
-            className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-surface-foreground/10 hover:bg-surface-foreground/20 text-white rounded-full transition-all duration-200"
+            className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-surface-foreground/10 hover:bg-surface-foreground/20 text-white rounded-full transition-all duration-200 hover:scale-110"
           >
             <ChevronLeft className="w-8 h-8" />
           </button>
           <button
             onClick={e => { e.stopPropagation(); onNext(); }}
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-surface-foreground/10 hover:bg-surface-foreground/20 text-white rounded-full transition-all duration-200"
+            className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-surface-foreground/10 hover:bg-surface-foreground/20 text-white rounded-full transition-all duration-200 hover:scale-110"
           >
             <ChevronRight className="w-8 h-8" />
           </button>
@@ -112,7 +112,7 @@ export const PhotoModal = ({
         {onDownload && (
           <button
             onClick={() => onDownload(photoId)}
-            className="flex items-center gap-1 px-3 py-1 bg-surface-foreground/20 hover:bg-surface-foreground/30 rounded text-sm"
+            className="flex items-center gap-1 px-3 py-1 bg-surface-foreground/20 hover:bg-surface-foreground/30 rounded text-sm transition-all duration-200 hover:scale-105"
           >
             <Download className="w-4 h-4" />
             Download

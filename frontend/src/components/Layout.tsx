@@ -46,23 +46,23 @@ export const Layout = ({ children }: LayoutProps) => {
           <nav className="flex items-center gap-4">
             {user ? (
               <>
-                <div className="flex items-center gap-2 text-text-muted">
-                  <User className="h-5 w-5" />
-                  <span>{user.display_name || user.email}</span>
+                <div className="hidden sm:flex items-center gap-2 text-text dark:text-text-muted px-3 py-2 bg-surface-1 dark:bg-surface-dark-1 rounded-lg border border-border/40">
+                  <User className="h-4 w-4" />
+                  <span className="text-sm font-medium">{user.display_name || user.email}</span>
                 </div>
                 <button
                   onClick={openProfile}
                   aria-label="Account Settings"
-                  className="flex items-center justify-center p-2 text-text-muted dark:text-text border border-border dark:border-border hover:border-accent hover:text-accent hover:bg-surface/50 dark:hover:bg-surface-foreground/50 hover:-translate-y-0.5 hover:shadow-lg rounded-lg cursor-pointer"
+                  className="flex items-center justify-center p-2.5 bg-surface-1 dark:bg-surface-dark-1 text-text dark:text-text border border-border hover:border-accent hover:text-accent hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer transition-all duration-200"
                 >
                   <Settings className="h-5 w-5" />
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-2 text-sm px-4 py-2 bg-transparent border-2 border-border dark:border-border text-text-muted dark:text-text hover:border-accent hover:text-accent rounded-lg hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/20"
+                  className="flex items-center gap-2 text-sm px-4 py-2.5 bg-surface-1 dark:bg-surface-dark-1 border border-border text-text dark:text-text hover:border-danger hover:text-danger hover:bg-danger/5 dark:hover:bg-danger/10 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                 >
-                  <LogOut className="h-5 w-5" />
-                  <span>Sign Out</span>
+                  <LogOut className="h-4 w-4" />
+                  <span className="hidden sm:inline">Sign Out</span>
                 </button>
               </>
             ) : null}

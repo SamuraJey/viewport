@@ -11,21 +11,58 @@ interface ThemeState {
   setHydrated: (hydrated: boolean) => void
 }
 
-// Helper function to apply theme to DOM
+// Helper function to apply theme to DOM with smooth transition
 const applyTheme = (theme: Theme) => {
   if (typeof window === 'undefined') return
-  
+
   console.log('🎨 Applying theme:', theme)
-  
-  // Remove any existing theme classes first
-  document.documentElement.classList.remove('dark', 'light')
-  
-  // Add the new theme class
-  document.documentElement.classList.add(theme)
-  
-  console.log('🎨 Current classList after applying theme:', document.documentElement.classList.toString())
-  console.log('🎨 Document element has dark class:', document.documentElement.classList.contains('dark'))
-  console.log('🎨 Document element has light class:', document.documentElement.classList.contains('light'))
+
+  const updateTheme = () => {
+    // Remove any existing theme classes first
+    document.documentElement.classList.remove('dark', 'light')
+
+    // Add the new theme class
+    document.documentElement.classList.add(theme)
+
+    console.log('🎨 Current classList after applying theme:', document.documentElement.classList.toString())
+    console.log('🎨 Document element has dark class:', document.documentElement.classList.contains('dark'))
+    console.log('🎨 Document element has light class:', document.documentElement.classList.contains('light'))
+  }
+
+  // Check if View Transitions API is supported
+  // View Transitions API provides smooth animated transitions between states
+  // It's supported in Chrome 111+, Edge 111+, and other modern browsers
+  // @ts-ignore - View Transitions API
+  const supportsViewTransitions = 'startViewTransition' in document
+
+  if (supportsViewTransitions) {
+    // Use View Transitions API for smooth animated transition
+    // This creates a beautiful crossfade effect defined in index.css
+    // The animation duration and style can be customized in CSS using ::view-transition pseudo-elements
+    try {
+      // @ts-ignore
+      const transition = document.startViewTransition(() => {
+        updateTheme()
+      })
+
+      // Wait for the transition to be ready
+      // @ts-ignore
+      transition.ready.then(() => {
+        console.log('🎨 View transition started')
+      }).catch((err: Error) => {
+        console.warn('🎨 View transition failed:', err)
+        updateTheme() // Fallback to immediate update
+      })
+    } catch (err) {
+      console.warn('🎨 View transition API error:', err)
+      updateTheme() // Fallback to immediate update
+    }
+  } else {
+    // Fallback: CSS transitions will still provide smooth color changes
+    // Even without View Transitions API, colors will smoothly fade thanks to CSS transitions
+    console.log('🎨 View Transitions API not supported, using CSS transitions fallback')
+    updateTheme()
+  }
 }
 
 export const useThemeStore = create<ThemeState>()(
@@ -53,7 +90,7 @@ export const useThemeStore = create<ThemeState>()(
       name: 'theme-storage',
       onRehydrateStorage: () => (state) => {
         console.log('💧 onRehydrateStorage called with state:', state)
-        
+
         if (state) {
           console.log('💧 Applying rehydrated theme:', state.theme)
           applyTheme(state.theme)

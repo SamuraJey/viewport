@@ -36,7 +36,7 @@ export const ErrorDisplay = ({
             {onRetry && (
               <button
                 onClick={onRetry}
-                className="inline-flex items-center gap-2 bg-red-100 dark:bg-red-500/20 hover:bg-red-200 dark:hover:bg-red-500/30 text-red-700 dark:text-red-300 px-4 py-2 rounded-lg transition-colors"
+                className="inline-flex items-center gap-2 bg-red-100 dark:bg-red-500/20 hover:bg-red-200 dark:hover:bg-red-500/30 text-red-700 dark:text-red-300 px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
               >
                 <RefreshCw className="w-4 h-4" />
                 Try Again
@@ -45,7 +45,7 @@ export const ErrorDisplay = ({
             {onDismiss && (
               <button
                 onClick={onDismiss}
-                className="inline-flex items-center gap-2 bg-surface-foreground dark:bg-surface hover:bg-surface transition-colors text-text dark:text-text px-4 py-2 rounded-lg"
+                className="inline-flex items-center gap-2 bg-surface-foreground dark:bg-surface hover:bg-surface text-text dark:text-text px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
               >
                 <X className="w-4 h-4" />
                 Dismiss
@@ -63,7 +63,7 @@ export const ErrorDisplay = ({
             {onDismiss && (
               <button
                 onClick={onDismiss}
-                className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors text-sm"
+                className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all duration-200 hover:scale-105 text-sm"
               >
                 Dismiss
               </button>
@@ -71,7 +71,7 @@ export const ErrorDisplay = ({
             {onRetry && (
               <button
                 onClick={onRetry}
-                className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all duration-200 hover:scale-110"
                 title="Retry"
               >
                 <RefreshCw className="h-4 w-4" />

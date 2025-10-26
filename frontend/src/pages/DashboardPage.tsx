@@ -140,7 +140,7 @@ export const DashboardPage = () => {
       <button
         onClick={handleOpenModal}
         disabled={isCreating}
-        className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm border border-accent/20 hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+        className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 border border-accent/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
       >
         {isCreating ? (
           <div className="w-5 h-5 border-2 border-border/20 border-t-accent rounded-full animate-spin"></div>
@@ -185,7 +185,7 @@ export const DashboardPage = () => {
                         disabled={isRenaming || !renameInput.trim()}
                         title="Confirm Rename"
                         aria-label="Confirm rename"
-                        className="p-2 rounded-md flex items-center justify-center cursor-pointer hover:bg-surface-foreground/10 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent"
+                        className="p-2 rounded-md flex items-center justify-center cursor-pointer hover:bg-surface-foreground/10 transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent"
                       >
                         {isRenaming ? (
                           <div className="w-4 h-4 border-2 border-border/20 border-t-accent rounded-full animate-spin" />
@@ -197,7 +197,7 @@ export const DashboardPage = () => {
                         onClick={cancelInlineRename}
                         title="Cancel Rename"
                         aria-label="Cancel rename"
-                        className="p-2 rounded-md flex items-center justify-center cursor-pointer hover:bg-surface-foreground/10 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger"
+                        className="p-2 rounded-md flex items-center justify-center cursor-pointer hover:bg-surface-foreground/10 transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger"
                       >
                         <X className="w-5 h-5 text-red-500" />
                       </button>
@@ -217,7 +217,7 @@ export const DashboardPage = () => {
               <div className="flex gap-2">
                 <button
                   onClick={() => beginInlineRename(gallery)}
-                  className="p-2 bg-warning/80 hover:bg-warning text-text dark:text-accent-foreground rounded-full  border border-border shadow-sm hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:ring-offset-1"
+                  className="p-2 bg-warning/80 hover:bg-warning text-text dark:text-accent-foreground rounded-full border border-border shadow-sm hover:shadow-md hover:scale-110 transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:ring-offset-1"
                   title="Rename Gallery"
                   aria-label={`Rename ${gallery.name || `Gallery #${gallery.id}`}`}
                 >
@@ -225,7 +225,7 @@ export const DashboardPage = () => {
                 </button>
                 <button
                   onClick={() => handleDeleteGallery(gallery.id)}
-                  className="p-2 bg-danger/80 hover:bg-danger text-text dark:text-accent-foreground rounded-full border border-border shadow-sm hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger/20 focus:ring-offset-1"
+                  className="p-2 bg-danger/80 hover:bg-danger text-text dark:text-accent-foreground rounded-full border border-border shadow-sm hover:shadow-md hover:scale-110 transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger/20 focus:ring-offset-1"
                   title="Delete Gallery"
                   aria-label={`Delete ${gallery.name || `Gallery #${gallery.id}`}`}
                 >
@@ -262,14 +262,14 @@ export const DashboardPage = () => {
           <button
             onClick={() => fetchGalleries(page - 1)}
             disabled={page <= 1 || isLoading}
-            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark"
+            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark disabled:shadow-none"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
           <button
             onClick={() => fetchGalleries(page + 1)}
             disabled={page >= totalPages || isLoading}
-            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark"
+            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark disabled:shadow-none"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
@@ -291,7 +291,7 @@ export const DashboardPage = () => {
           <button
             onClick={handleOpenModal}
             disabled={isCreating}
-            className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm border border-accent/20  hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+            className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 border border-accent/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
           >
             {isCreating ? (
               <div className="w-5 h-5 border-2 border-border dark:border-border/40 rounded-full animate-spin"></div>
@@ -336,14 +336,14 @@ export const DashboardPage = () => {
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 bg-surface-1 dark:bg-surface-dark-1 rounded-lg text-text dark:text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2"
+                  className="px-4 py-2 bg-surface-1 dark:bg-surface-dark-1 rounded-lg text-text dark:text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 shadow-sm hover:shadow-md transition-all duration-200"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmCreate}
                   disabled={isCreating || !newGalleryName.trim()}
-                  className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-md  hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
                 >
                   {isCreating ? (
                     <div className="w-5 h-5 border-2 border-accent/20 border-t-accent rounded-full animate-spin"></div>

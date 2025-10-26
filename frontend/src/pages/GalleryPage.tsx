@@ -64,7 +64,7 @@ export const GalleryPage = () => {
       setPhotoUrls(galleryData.photos || [])
       setShareLinks(galleryData.share_links || [])
       setTotalPhotos(galleryData.total_photos)
-    } catch (err) {
+    } catch (err: any) {
       setError('Failed to load gallery data. Please try again.')
       console.error(err)
     } finally {
@@ -89,15 +89,6 @@ export const GalleryPage = () => {
   // Navigate to a specific page
   const goToPage = (page: number) => {
     setSearchParams({ page: page.toString() })
-    // Smooth scroll to top of photos section after a tiny delay to let state update
-    setTimeout(() => {
-      const photosSection = document.querySelector('[data-photos-section]')
-      if (photosSection) {
-        photosSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      } else {
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-      }
-    }, 100)
   }
 
   // Pagination component (reusable)
@@ -331,9 +322,9 @@ export const GalleryPage = () => {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="flex items-center">
-            <Loader2 className="w-8 h-8 animate-spin text-muted" />
-            <span className="ml-3 text-lg text-muted dark:text-muted-dark">Loading gallery...</span>
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-16 h-16 animate-spin text-accent" />
+            <p className="text-lg text-muted">Loading gallery...</p>
           </div>
         </div>
       </Layout>
@@ -345,12 +336,12 @@ export const GalleryPage = () => {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center space-y-4">
+          <div className="flex flex-col items-center gap-4">
             <div className="text-danger text-lg font-medium">Failed to load gallery</div>
             <div className="text-muted dark:text-muted-dark">{error}</div>
             <button
               onClick={() => fetchGalleryDetails(currentPage, true)}
-              className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-sm border border-accent/20 transition-colors"
+              className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border border-accent/20"
             >
               Try Again
             </button>
@@ -396,19 +387,11 @@ export const GalleryPage = () => {
                 <h1 className="text-4xl font-bold text-text">
                   {gallery.name || `Gallery #${gallery.id}`}
                 </h1>
-                <div className="mt-2 flex items-center gap-3 text-lg text-muted">
-                  <span>Created on {formatDate(gallery.created_at)}</span>
-                  {totalPhotos > 0 && (
-                    <>
-                      <span className="text-muted/40">•</span>
-                      <span>{totalPhotos} photo{totalPhotos !== 1 ? 's' : ''}</span>
-                    </>
-                  )}
-                </div>
+                <p className="mt-2 text-lg text-muted">Created on {formatDate(gallery.created_at)}</p>
               </div>
               <button
                 onClick={handleDeleteGallery}
-                className="flex items-center gap-2 px-4 py-2 bg-danger/10 dark:bg-danger/20 hover:bg-danger/20 text-danger border border-danger/20 rounded-lg  shadow-sm cursor-pointer hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-1 active:scale-95"
+                className="flex items-center gap-2 px-4 py-2 bg-danger/10 dark:bg-danger/20 hover:bg-danger/20 text-danger border border-danger/20 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-1 active:scale-95"
                 title="Delete Gallery"
                 aria-label="Delete gallery"
               >
@@ -441,13 +424,13 @@ export const GalleryPage = () => {
             {uploadError && (
               <div className="mt-2 text-danger bg-danger/10 dark:bg-danger/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
                 {uploadError}
-                <button onClick={() => setUploadError('')} className="ml-2 text-xs text-accent-foreground bg-danger/80 px-2 py-1 rounded">Dismiss</button>
+                <button onClick={() => setUploadError('')} className="ml-2 text-xs text-accent-foreground bg-danger/80 hover:bg-danger px-2 py-1 rounded shadow-sm hover:shadow-md transition-all duration-200">Dismiss</button>
               </div>
             )}
             {error && (
               <div className="mt-2 text-danger bg-danger/10 dark:bg-danger/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
                 {error}
-                <button onClick={() => setError('')} className="ml-2 text-xs text-accent-foreground bg-danger/80 px-2 py-1 rounded">Dismiss</button>
+                <button onClick={() => setError('')} className="ml-2 text-xs text-accent-foreground bg-danger/80 hover:bg-danger px-2 py-1 rounded shadow-sm hover:shadow-md transition-all duration-200">Dismiss</button>
               </div>
             )}
           </div>
@@ -611,8 +594,6 @@ export const GalleryPage = () => {
             </div>
           )}
         </div>
-
-        {/* ... (keep existing share links section) */}
         <div className="bg-surface-1 dark:bg-surface-dark-1 backdrop-blur-sm rounded-2xl p-6 border border-border dark:border-border/40">
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-4">
@@ -620,7 +601,7 @@ export const GalleryPage = () => {
               <button
                 onClick={handleCreateShareLink}
                 disabled={isCreatingLink}
-                className="flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm border border-accent/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed gallery-create__btn cursor-pointer hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 active:scale-95"
+                className="flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border border-accent/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none gallery-create__btn cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 active:scale-95"
                 id="gallery-create-btn"
                 aria-label="Create new share link"
               >

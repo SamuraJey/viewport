@@ -90,7 +90,7 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = ({
                         </div>
                         <h2 className="text-lg font-semibold text-text dark:text-white">Rename Photo</h2>
                     </div>
-                    <button onClick={handleCancel} disabled={isRenaming} className="p-1 text-text-muted hover:text-text dark:hover:text-text transition-colors disabled:opacity-50">
+                    <button onClick={handleCancel} disabled={isRenaming} className="p-1 text-text-muted hover:text-text dark:hover:text-text transition-all duration-200 hover:scale-110 disabled:opacity-50">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
@@ -120,13 +120,13 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = ({
                 </div>
 
                 <div className="flex items-center justify-end gap-3 p-6 border-t border-border">
-                    <button onClick={handleCancel} disabled={isRenaming} className="px-4 py-2 text-text dark:text-text-muted hover:bg-surface dark:hover:bg-surface-foreground rounded-lg transition-colors disabled:opacity-50">
+                    <button onClick={handleCancel} disabled={isRenaming} className="px-4 py-2 text-text dark:text-text-muted hover:bg-surface dark:hover:bg-surface-foreground rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50">
                         Cancel
                     </button>
                     <button
                         onClick={handleRename}
                         disabled={isRenaming || !filename.trim() || filename === currentFilename}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
                     >
                         {isRenaming ? (
                             <>
