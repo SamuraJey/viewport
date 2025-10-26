@@ -30,6 +30,7 @@ class GalleryDetailResponse(BaseModel):
     cover_photo_id: str | None = Field(None, description="Optional cover photo id")
     photos: list[PhotoResponse]
     share_links: list[ShareLinkResponse]
+    total_photos: int = Field(..., description="Total number of photos in the gallery")
 
 
 class GalleryListResponse(BaseModel):

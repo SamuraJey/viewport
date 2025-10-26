@@ -5,13 +5,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.logger import logger
 from viewport.minio_utils import S3Settings, get_s3_client
 from viewport.models.db import get_db
-from viewport.models.gallery import Gallery
+from viewport.models.gallery import Gallery, Photo
 from viewport.models.sharelink import ShareLink
 from viewport.repositories.sharelink_repository import ShareLinkRepository
 from viewport.s3_service import AsyncS3Client
@@ -78,14 +79,21 @@ async def get_photos_by_sharelink(
     gallery: Gallery = sharelink.gallery  # lazy-loaded
     cover_id = str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None
     cover = None
+
+    logger.info(f"Public gallery {gallery.id}: cover_photo_id={cover_id}")
+
     if cover_id:
-        # Try to obtain filename from gallery.cover_photo_id via gallery relationship
+        # Explicitly fetch the cover photo from database instead of relying on viewonly relationship
+        # This ensures we get the most up-to-date cover_photo even after it's just been set
         cover_photo_obj = None
-        try:
-            # gallery.cover_photo is viewonly relationship to Photo
-            cover_photo_obj = getattr(gallery, "cover_photo", None)
-        except Exception:
-            cover_photo_obj = None
+        if gallery.cover_photo_id:
+            stmt = select(Photo).where(Photo.id == gallery.cover_photo_id)
+            cover_photo_obj = repo.db.execute(stmt).scalar_one_or_none()
+
+            if cover_photo_obj:
+                logger.info(f"Found cover photo: {cover_photo_obj.object_key}")
+            else:
+                logger.warning(f"Cover photo {cover_id} not found in database")
 
         cover_filename = None
         cover_url = None
@@ -95,6 +103,9 @@ async def get_photos_by_sharelink(
 
         if cover_url:
             cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_url, filename=cover_filename)
+            logger.info(f"Cover set successfully: {cover_filename}")
+        else:
+            logger.warning(f"Cover URL not generated for photo {cover_id}")
 
     photographer = getattr(gallery.owner, "display_name", None) or ""
     gallery_name = getattr(gallery, "name", "")
