@@ -39,8 +39,10 @@ class AsyncS3Client:
         self._endpoint_url = self._get_endpoint_url()
         self._config = Config(
             signature_version=self.settings.signature_version,
+            max_pool_connections=50,  # Match sync client to avoid connection pool exhaustion
             s3={"addressing_style": "path"},
         )
+        self._presign_client = None
         logger.info(f"AsyncS3Client initialized: endpoint={self._endpoint_url}, bucket={self.settings.bucket}, region={self.settings.region}")
         logger.error(f"self.settings={self.settings}")
         logger.error(f"AsyncS3Client config: {self._config}")
@@ -76,6 +78,20 @@ class AsyncS3Client:
         Usage: async with self._get_s3_client() as s3:
         """
         return self.session.client("s3", endpoint_url=self._endpoint_url, config=self._config)
+
+    def _get_presign_client(self):
+        import boto3
+
+        if self._presign_client is None:
+            self._presign_client = boto3.client(
+                "s3",
+                endpoint_url=self._endpoint_url,
+                aws_access_key_id=self.settings.access_key,
+                aws_secret_access_key=self.settings.secret_key,
+                region_name=self.settings.region,
+                config=self._config,
+            )
+        return self._presign_client
 
     async def upload_fileobj(
         self,
@@ -301,18 +317,10 @@ class AsyncS3Client:
             logger.debug(f"Using cached presigned URL for: {key}")
             return cached
 
-        import boto3
-
         try:
             # Create a sync boto3 client for presigned URL generation
             # (presigned URLs are sync operation, no need for async)
-            s3_client = boto3.client(
-                "s3",
-                endpoint_url=self._endpoint_url,
-                aws_access_key_id=self.settings.access_key,
-                aws_secret_access_key=self.settings.secret_key,
-                region_name=self.settings.region,
-            )
+            s3_client = self._get_presign_client()
             url = s3_client.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": self.settings.bucket, "Key": key},

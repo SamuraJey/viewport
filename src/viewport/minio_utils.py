@@ -5,13 +5,12 @@ from typing import TYPE_CHECKING, cast
 import boto3
 from botocore.client import Config
 from PIL import Image, ImageOps
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Configure logging - set botocore to WARNING level to reduce noise
-logging.getLogger("botocore").setLevel(logging.WARNING)
-logging.getLogger("boto3").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("botocore").setLevel(logging.DEBUG)
+logging.getLogger("boto3").setLevel(logging.DEBUG)
+logging.getLogger("urllib3").setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -55,7 +54,7 @@ def get_s3_client() -> "S3Client":
 
     # Increase max pool connections to support concurrent uploads
     config = Config(
-        signature_version=settings.signature_version,
+        signature_version="s3",
         max_pool_connections=50,
         s3={"addressing_style": "path"},
     )
@@ -65,6 +64,7 @@ def get_s3_client() -> "S3Client":
     return boto3.client(
         "s3",
         endpoint_url=endpoint,
+        region_name=settings.region,
         aws_access_key_id=settings.access_key,
         aws_secret_access_key=settings.secret_key,
         config=config,
