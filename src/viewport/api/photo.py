@@ -195,14 +195,17 @@ async def upload_photos_batch(
         celery_schedule_duration = time.time() - celery_schedule_start
         logger.info(f"Scheduled {scheduled_batches} batch tasks ({len(photos_for_celery)} photos in batches of {batch_size}) in {celery_schedule_duration:.2f}s ({failed_count} failed)")
 
-        # Map created photos back to results
-        photo_map = {p.object_key: p for p in created_photos}
+        photo_responses = await PhotoResponse.from_db_photos_batch(created_photos, s3_client)
+
+        # Map responses back to results by object_key
+        response_map = {photo.filename: photo for photo in photo_responses}
         for result in successful_results:
             metadata = result.metadata_
             assert metadata is not None
-            object_key = metadata["object_key"]
-            if object_key in photo_map:
-                result.photo = PhotoResponse.from_db_photo(photo_map[object_key], s3_client)
+            # Extract filename from object_key (format: gallery_id/filename)
+            filename = metadata["object_key"].split("/", 1)[1] if "/" in metadata["object_key"] else metadata["object_key"]
+            if filename in response_map:
+                result.photo = response_map[filename]
 
         successful_uploads = len(successful_results)
 
