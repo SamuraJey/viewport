@@ -8,16 +8,18 @@ singleton via dependency injection.
 
 import io
 import logging
-from typing import BinaryIO
+from typing import TYPE_CHECKING, BinaryIO
 
 import aioboto3
 from botocore.config import Config
-from mypy_boto3_s3 import S3Client
 
 from viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
 from viewport.minio_utils import S3Settings
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
 
 class AsyncS3Client:
@@ -37,8 +39,7 @@ class AsyncS3Client:
         self._endpoint_url = self._get_endpoint_url()
         self._config = Config(
             signature_version=self.settings.signature_version,
-            request_checksum_calculation="when_required",
-            response_checksum_validation="when_required",
+            s3={"addressing_style": "path"},
         )
         logger.info(f"AsyncS3Client initialized: endpoint={self._endpoint_url}, bucket={self.settings.bucket}, region={self.settings.region}")
 
@@ -52,7 +53,7 @@ class AsyncS3Client:
             return f"{protocol}://{endpoint}"
         return endpoint
 
-    def _get_s3_client() -> S3Client:
+    def _get_s3_client() -> "S3Client":
         pass
 
     @property
@@ -69,7 +70,7 @@ class AsyncS3Client:
             )
         return self._session
 
-    def _get_s3_client(self) -> S3Client:
+    def _get_s3_client(self) -> "S3Client":
         """Get configured S3 client context manager.
 
         This is a helper to avoid repeating the client configuration everywhere.
@@ -110,7 +111,7 @@ class AsyncS3Client:
 
         try:
             async with self._get_s3_client() as s3:
-                s3: S3Client
+                s3: "S3Client"
                 await s3.upload_fileobj(
                     file_obj,
                     self.settings.bucket,
@@ -137,7 +138,8 @@ class AsyncS3Client:
         """
         try:
             async with self._get_s3_client() as s3:
-                s3: S3Client
+                s3: "S3Client"
+
                 response = await s3.get_object(Bucket=self.settings.bucket, Key=key)
                 # Read the body stream
                 body = response.get("Body")
@@ -161,7 +163,7 @@ class AsyncS3Client:
         """
         try:
             async with self._get_s3_client() as s3:
-                s3: S3Client
+                s3: "S3Client"
                 await s3.delete_object(Bucket=self.settings.bucket, Key=key)
             logger.info(f"Successfully deleted object: {key}")
         except Exception as e:
@@ -179,7 +181,7 @@ class AsyncS3Client:
         """
         try:
             async with self._get_s3_client() as s3:
-                s3: S3Client
+                s3: "S3Client"
                 await s3.head_object(Bucket=self.settings.bucket, Key=key)
             return True
         except Exception as e:
@@ -202,7 +204,7 @@ class AsyncS3Client:
         """
         try:
             async with self._get_s3_client() as s3:
-                s3: S3Client
+                s3: "S3Client"
                 # Copy object to new key
                 copy_source = {"Bucket": self.settings.bucket, "Key": old_key}
                 await s3.copy_object(
@@ -228,7 +230,7 @@ class AsyncS3Client:
         """
         try:
             async with self._get_s3_client() as s3:
-                s3: S3Client
+                s3: "S3Client"
                 # List all objects with the given prefix
                 objects_to_delete = []
                 continuation_token = None

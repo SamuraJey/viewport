@@ -29,7 +29,7 @@ class S3Settings(BaseSettings):
     bucket: str = "viewport"
     region: str = "us-east-1"  # Can be overridden with MINIO_REGION env var
     use_ssl: bool = False  # Can be overridden with MINIO_USE_SSL env var
-    signature_version: str = "s3"
+    signature_version: str = "s3v4"
 
     model_config = SettingsConfigDict(
         env_prefix="S3_",
@@ -58,8 +58,6 @@ def get_s3_client() -> "S3Client":
         signature_version=settings.signature_version,
         max_pool_connections=50,
         s3={"addressing_style": "path"},
-        request_checksum_calculation="when_required",
-        response_checksum_validation="when_required",
     )
 
     return boto3.client(
