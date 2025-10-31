@@ -164,10 +164,10 @@ export const DashboardPage = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   {renameGalleryId === gallery.id ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <input
                         ref={renameInputRef}
-                        className="flex-1 p-2 border border-border rounded min-w-0 text-base bg-surface-foreground/5 text-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+                        className="flex-1 px-3 py-2 border-2 border-accent/50 dark:border-accent/40 rounded-lg min-w-0 text-base bg-surface-1 dark:bg-surface-dark-1 text-text dark:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-sm transition-all duration-200"
                         value={renameInput}
                         onChange={(e) => setRenameInput(e.target.value)}
                         onKeyDown={(e) => {
@@ -179,27 +179,28 @@ export const DashboardPage = () => {
                             cancelInlineRename();
                           }
                         }}
+                        placeholder="Gallery name..."
                       />
                       <button
                         onClick={handleConfirmRename}
                         disabled={isRenaming || !renameInput.trim()}
-                        title="Confirm Rename"
+                        title="Save (Enter)"
                         aria-label="Confirm rename"
-                        className="p-2 rounded-md flex items-center justify-center cursor-pointer hover:bg-surface-foreground/10 transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent"
+                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-green-500/90 hover:bg-green-500 border border-green-600/50 text-white shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-500/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                       >
                         {isRenaming ? (
                           <div className="w-4 h-4 border-2 border-border/20 border-t-accent rounded-full animate-spin" />
                         ) : (
-                          <Check className="w-5 h-5 text-green-500" />
+                          <Check className="w-4 h-4" />
                         )}
                       </button>
                       <button
                         onClick={cancelInlineRename}
-                        title="Cancel Rename"
+                        title="Cancel (Esc)"
                         aria-label="Cancel rename"
-                        className="p-2 rounded-md flex items-center justify-center cursor-pointer hover:bg-surface-foreground/10 transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger"
+                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger"
                       >
-                        <X className="w-5 h-5 text-red-500" />
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
                   ) : (
@@ -214,24 +215,26 @@ export const DashboardPage = () => {
                   )}
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => beginInlineRename(gallery)}
-                  className="p-2 bg-warning/80 hover:bg-warning text-text dark:text-accent-foreground rounded-full border border-border shadow-sm hover:shadow-md hover:scale-110 transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:ring-offset-1"
-                  title="Rename Gallery"
-                  aria-label={`Rename ${gallery.name || `Gallery #${gallery.id}`}`}
-                >
-                  <Edit3 className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => handleDeleteGallery(gallery.id)}
-                  className="p-2 bg-danger/80 hover:bg-danger text-text dark:text-accent-foreground rounded-full border border-border shadow-sm hover:shadow-md hover:scale-110 transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger/20 focus:ring-offset-1"
-                  title="Delete Gallery"
-                  aria-label={`Delete ${gallery.name || `Gallery #${gallery.id}`}`}
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
-              </div>
+              {renameGalleryId !== gallery.id && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => beginInlineRename(gallery)}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/20 hover:bg-accent/30 border border-accent/40 text-accent shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent/50"
+                    title="Rename Gallery"
+                    aria-label={`Rename ${gallery.name || `Gallery #${gallery.id}`}`}
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteGallery(gallery.id)}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger/50"
+                    title="Delete Gallery"
+                    aria-label={`Delete ${gallery.name || `Gallery #${gallery.id}`}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
             <div>
               <Link
