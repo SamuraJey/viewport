@@ -142,8 +142,8 @@ export const GalleryPage = () => {
                   onClick={() => goToPage(pageNum)}
                   disabled={pageNum === currentPage || isLoadingPhotos}
                   className={`px-3 py-1.5 min-w-[40px] rounded-lg font-medium transition-all duration-200 ${pageNum === currentPage
-                      ? 'bg-accent text-accent-foreground shadow-sm'
-                      : 'bg-surface-1 dark:bg-surface-dark-1 text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40'
+                    ? 'bg-accent text-accent-foreground shadow-sm'
+                    : 'bg-surface-1 dark:bg-surface-dark-1 text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40'
                     } ${isLoadingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {pageNum}
