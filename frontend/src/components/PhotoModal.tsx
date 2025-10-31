@@ -113,7 +113,7 @@ export const PhotoModal = ({
             {selectedIndex + 1} of {photos.length}
           </span>
           <div className="w-48 h-1 bg-white/20 rounded-full overflow-hidden">
-            <div 
+            <div
               className="h-full bg-white/60 transition-all duration-300"
               style={{ width: `${((selectedIndex + 1) / photos.length) * 100}%` }}
             />
