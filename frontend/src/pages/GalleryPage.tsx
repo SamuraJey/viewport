@@ -18,7 +18,6 @@ import {
   Eye,
   Download,
   DownloadCloud,
-  FileDown,
   ArrowLeft,
   ImageOff,
   Star,
@@ -380,13 +379,11 @@ export const GalleryPage = () => {
 
   const totalViews = shareLinks.reduce((sum, link) => sum + (link.views ?? 0), 0)
   const totalZipDownloads = shareLinks.reduce((sum, link) => sum + (link.zip_downloads ?? 0), 0)
-  const totalSingleDownloads = shareLinks.reduce((sum, link) => sum + (link.single_downloads ?? 0), 0)
-  const totalDownloads = totalZipDownloads + totalSingleDownloads
+  const totalDownloads = shareLinks.reduce((sum, link) => sum + (link.zip_downloads ?? 0) + (link.single_downloads ?? 0), 0)
 
   const summaryMetrics = [
     { label: 'Total Views', value: totalViews, icon: Eye },
     { label: 'ZIP Downloads', value: totalZipDownloads, icon: DownloadCloud },
-    { label: 'Single Downloads', value: totalSingleDownloads, icon: FileDown },
     { label: 'Total Downloads', value: totalDownloads, icon: Download }
   ]
 
@@ -658,12 +655,10 @@ export const GalleryPage = () => {
                 {shareLinks.map(link => {
                   const fullUrl = `${window.location.origin}/share/${link.id}`
                   const zipDownloads = link.zip_downloads ?? 0
-                  const singleDownloads = link.single_downloads ?? 0
-                  const totalLinkDownloads = zipDownloads + singleDownloads
+                  const totalLinkDownloads = zipDownloads + (link.single_downloads ?? 0)
                   const linkMetrics = [
                     { label: 'Views', value: link.views ?? 0, icon: Eye },
-                    { label: 'ZIP', value: zipDownloads, icon: DownloadCloud },
-                    { label: 'Single', value: singleDownloads, icon: FileDown },
+                    { label: 'ZIP', value: zipDownloads, icon: DownloadCloud }, // Single downloads removed
                     { label: 'Total', value: totalLinkDownloads, icon: Download }
                   ]
                   return (
@@ -677,19 +672,25 @@ export const GalleryPage = () => {
                         </div>
                         <div
                           data-testid={`share-link-${link.id}-metrics`}
-                          className="flex flex-wrap gap-2 text-xs sm:text-sm"
+                          className="grid w-full gap-2 text-xs sm:text-sm min-[420px]:grid-cols-2 lg:flex lg:flex-wrap lg:w-auto lg:items-center"
                         >
                           {linkMetrics.map(metric => {
                             const Icon = metric.icon
                             return (
-                              <span
+                              <div
                                 key={metric.label}
-                                className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-surface-1/80 px-2 py-1 text-left leading-tight dark:border-border/50 dark:bg-surface-dark-2/70"
+                                className="flex items-center justify-between gap-2 rounded-md border border-border/70 bg-surface-1/80 px-2.5 py-1.5 leading-tight dark:border-border/50 dark:bg-surface-dark-2/70"
                               >
-                                <Icon className="h-3.5 w-3.5 text-text/70 dark:text-accent-foreground/80" aria-hidden="true" />
-                                <span className="text-[0.7rem] font-medium text-text/70 dark:text-accent-foreground/75">{metric.label}:</span>
-                                <span className="text-sm font-semibold text-text dark:text-accent-foreground">{numberFormatter.format(metric.value)}</span>
-                              </span>
+                                <span className="flex items-center gap-1.5">
+                                  <Icon className="h-3.5 w-3.5 text-text/70 dark:text-accent-foreground/80" aria-hidden="true" />
+                                  <span className="text-[0.7rem] font-semibold uppercase tracking-wide text-text/70 dark:text-accent-foreground/75">
+                                    {metric.label}
+                                  </span>
+                                </span>
+                                <span className="text-sm font-semibold text-text dark:text-accent-foreground">
+                                  {numberFormatter.format(metric.value)}
+                                </span>
+                              </div>
                             )
                           })}
                         </div>
