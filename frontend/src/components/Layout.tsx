@@ -30,7 +30,7 @@ export const Layout = ({ children }: LayoutProps) => {
   return (
     <div className={`min-h-screen text-text dark:text-accent-foreground ${theme === 'dark' ? 'bg-surface-foreground' : 'bg-surface'}`}>
       <header className={`sticky top-0 z-40 backdrop-blur-lg border-b py-3 sm:py-4 ${theme === 'dark' ? 'bg-surface-foreground/95 border-border' : 'bg-surface/95 border-border'}`}>
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 px-3 sm:px-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 px-3 py-1 sm:px-4 sm:py-1.5">
           <Link
             to="/"
             className="flex min-w-0 items-center gap-2 text-text dark:text-accent-foreground hover:opacity-80 transition-opacity font-oswald text-lg font-bold uppercase tracking-wide sm:gap-3 sm:text-xl sm:tracking-wider"
@@ -46,7 +46,7 @@ export const Layout = ({ children }: LayoutProps) => {
                 <button
                   onClick={openProfile}
                   aria-label="Account Settings"
-                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center bg-surface-1 dark:bg-surface-dark-1 text-text dark:text-text border border-border hover:border-accent hover:text-accent hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer transition-all duration-200"
+                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center bg-surface-1 dark:bg-surface-dark-1 text-text dark:text-text border border-border hover:border-accent hover:text-accent hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
                 >
                   <Settings className="h-5 w-5" />
                 </button>
