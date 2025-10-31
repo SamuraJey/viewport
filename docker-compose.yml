@@ -10,7 +10,7 @@ services:
       - "8000:8000"
     depends_on:
       - postgres
-      - s3_service
+      - s3-service
     networks:
       - backend
     volumes:
@@ -51,7 +51,7 @@ services:
           cpus: "0.25"
           memory: 512M
 
-  s3_service:
+  s3-service:
     image: rustfs/rustfs:1.0.0-alpha.65
     container_name: viewport_s3
     restart: always
@@ -113,11 +113,11 @@ services:
     depends_on:
       - redis
       - postgres
-      - s3_service
+      - s3-service
     networks:
       - backend
     environment:
-      - S3_ENDPOINT=http://s3_service:9000
+      - S3_ENDPOINT=http://s3-service:9000
       - S3_USE_SSL=false
       - S3_ACCESS_KEY=rustfsadmin
       - S3_SECRET_KEY=rustfsadmin
