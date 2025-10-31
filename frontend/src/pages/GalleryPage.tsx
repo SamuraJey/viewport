@@ -15,6 +15,10 @@ import {
   Link as LinkIcon,
   Copy,
   Check,
+  Eye,
+  Download,
+  DownloadCloud,
+  FileDown,
   ArrowLeft,
   ImageOff,
   Star,
@@ -23,6 +27,8 @@ import {
   ChevronRight
 } from 'lucide-react'
 import { PhotoUploader } from '../components/PhotoUploader'
+
+const numberFormatter = new Intl.NumberFormat()
 
 export const GalleryPage = () => {
   const { id } = useParams<{ id: string }>()
@@ -372,6 +378,18 @@ export const GalleryPage = () => {
     )
   }
 
+  const totalViews = shareLinks.reduce((sum, link) => sum + (link.views ?? 0), 0)
+  const totalZipDownloads = shareLinks.reduce((sum, link) => sum + (link.zip_downloads ?? 0), 0)
+  const totalSingleDownloads = shareLinks.reduce((sum, link) => sum + (link.single_downloads ?? 0), 0)
+  const totalDownloads = totalZipDownloads + totalSingleDownloads
+
+  const summaryMetrics = [
+    { label: 'Total Views', value: totalViews, icon: Eye },
+    { label: 'ZIP Downloads', value: totalZipDownloads, icon: DownloadCloud },
+    { label: 'Single Downloads', value: totalSingleDownloads, icon: FileDown },
+    { label: 'Total Downloads', value: totalDownloads, icon: Download }
+  ]
+
   return (
     <Layout>
       <div className="space-y-8">
@@ -616,38 +634,88 @@ export const GalleryPage = () => {
           </div>
 
           {shareLinks.length > 0 ? (
-            <ul className="space-y-3">
-              {shareLinks.map(link => {
-                const fullUrl = `${window.location.origin}/share/${link.id}`
-                return (
-                  <li key={link.id} className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg flex items-center justify-between border border-border">
-                    <div className="flex items-center gap-4">
-                      <LinkIcon className="w-5 h-5 text-accent gallery-link__icon" />
-                      <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline truncate gallery-link__anchor">
-                        {fullUrl}
-                      </a>
+            <>
+              <div data-testid="share-link-stats-summary" className="grid gap-2.5 mb-4 sm:grid-cols-2 xl:grid-cols-4">
+                {summaryMetrics.map(metric => {
+                  const Icon = metric.icon
+                  return (
+                    <div
+                      key={metric.label}
+                      className="flex items-center gap-2.5 rounded-lg border border-border/70 dark:border-border/50 bg-surface-1/80 dark:bg-surface-dark-2/70 p-2.5 sm:p-3"
+                    >
+                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent/15 text-accent">
+                        <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+                      </div>
+                      <div className="space-y-0.5 leading-none">
+                        <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-text/75 dark:text-accent-foreground/90">{metric.label}</p>
+                        <p className="text-sm font-semibold text-text dark:text-accent-foreground">{numberFormatter.format(metric.value)}</p>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => copyToClipboard(fullUrl)}
-                        className="flex items-center justify-center w-8 h-8 p-1 bg-success/20 hover:bg-success/30 text-success rounded-lg transition-all duration-200 border border-border gallery-copy__btn cursor-pointer hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 active:scale-95"
-                        title="Copy link"
-                        aria-label="Copy link"
-                      >
-                        {copiedLink === fullUrl ? (
-                          <Check className="w-4 h-4 text-success" />
-                        ) : (
-                          <Copy className="w-4 h-4 text-success" />
-                        )}
-                      </button>
-                      <button onClick={() => handleDeleteShareLink(link.id)} className="flex items-center justify-center w-8 h-8 p-1 bg-danger/20 hover:bg-danger/30 text-danger rounded-lg transition-all duration-200 border border-border cursor-pointer hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 active:scale-95" aria-label="Delete share link">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
+                  )
+                })}
+              </div>
+              <ul className="space-y-3">
+                {shareLinks.map(link => {
+                  const fullUrl = `${window.location.origin}/share/${link.id}`
+                  const zipDownloads = link.zip_downloads ?? 0
+                  const singleDownloads = link.single_downloads ?? 0
+                  const totalLinkDownloads = zipDownloads + singleDownloads
+                  const linkMetrics = [
+                    { label: 'Views', value: link.views ?? 0, icon: Eye },
+                    { label: 'ZIP', value: zipDownloads, icon: DownloadCloud },
+                    { label: 'Single', value: singleDownloads, icon: FileDown },
+                    { label: 'Total', value: totalLinkDownloads, icon: Download }
+                  ]
+                  return (
+                    <li key={link.id} className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg border border-border dark:border-border flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6 flex-1 min-w-0">
+                        <div className="flex items-center gap-4 min-w-0">
+                          <LinkIcon className="w-5 h-5 text-accent gallery-link__icon" />
+                          <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline truncate gallery-link__anchor">
+                            {fullUrl}
+                          </a>
+                        </div>
+                        <div
+                          data-testid={`share-link-${link.id}-metrics`}
+                          className="flex flex-wrap gap-2 text-xs sm:text-sm"
+                        >
+                          {linkMetrics.map(metric => {
+                            const Icon = metric.icon
+                            return (
+                              <span
+                                key={metric.label}
+                                className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-surface-1/80 px-2 py-1 text-left leading-tight dark:border-border/50 dark:bg-surface-dark-2/70"
+                              >
+                                <Icon className="h-3.5 w-3.5 text-text/70 dark:text-accent-foreground/80" aria-hidden="true" />
+                                <span className="text-[0.7rem] font-medium text-text/70 dark:text-accent-foreground/75">{metric.label}:</span>
+                                <span className="text-sm font-semibold text-text dark:text-accent-foreground">{numberFormatter.format(metric.value)}</span>
+                              </span>
+                            )
+                          })}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => copyToClipboard(fullUrl)}
+                          className="flex items-center justify-center w-8 h-8 p-1 bg-success/20 hover:bg-success/30 text-success rounded-lg transition-all duration-200 border border-border gallery-copy__btn cursor-pointer hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 active:scale-95"
+                          title="Copy link"
+                          aria-label="Copy link"
+                        >
+                          {copiedLink === fullUrl ? (
+                            <Check className="w-4 h-4 text-success" />
+                          ) : (
+                            <Copy className="w-4 h-4 text-success" />
+                          )}
+                        </button>
+                        <button onClick={() => handleDeleteShareLink(link.id)} className="flex items-center justify-center w-8 h-8 p-1 bg-danger/20 hover:bg-danger/30 text-danger rounded-lg transition-all duration-200 border border-border cursor-pointer hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 active:scale-95" aria-label="Delete share link">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
           ) : (
             <div className="text-center py-12 border-2 border-dashed border-border dark:border-border/40 rounded-lg">
               <Share2 className="mx-auto h-12 w-12 text-muted" />

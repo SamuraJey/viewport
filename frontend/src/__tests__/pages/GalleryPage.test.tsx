@@ -15,7 +15,8 @@ const mockGalleryData = {
     { id: 'photo2', url: '/api/photos/photo2.jpg', thumbnail_url: '/api/photos/photo2_thumb.jpg', gallery_id: '1', filename: 'photo2.jpg', created_at: '2024-01-01T10:00:00Z', file_size: 12345, uploaded_at: '2024-01-01T10:00:00Z' },
     { id: 'photo3', url: '/api/photos/photo3.jpg', thumbnail_url: '/api/photos/photo3_thumb.jpg', gallery_id: '1', filename: 'photo3.jpg', created_at: '2024-01-01T10:00:00Z', file_size: 12345, uploaded_at: '2024-01-01T10:00:00Z' }
   ],
-  share_links: []
+  share_links: [],
+  total_photos: 3
 }
 
 const mockShareLink = {
@@ -23,9 +24,9 @@ const mockShareLink = {
   gallery_id: '1',
   created_at: '2024-01-01T10:00:00Z',
   expires_at: null,
-  views: 0,
-  zip_downloads: 0,
-  single_downloads: 0
+  views: 128,
+  zip_downloads: 7,
+  single_downloads: 19
 }
 
 // Mock services
@@ -112,7 +113,7 @@ describe('GalleryPage', () => {
       expect(screen.getByText('Gallery #1')).toBeInTheDocument()
     })
 
-    expect(screen.getByText('Photos (3)')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Photos (3 of 3)' })).toBeInTheDocument()
     expect(screen.getByText('Share Links')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /delete gallery/i })).toBeInTheDocument()
     expect(screen.getAllByRole('img')).toHaveLength(3)
@@ -145,7 +146,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />)
 
       await waitFor(() => {
-        expect(screen.getByText('Photos (3)')).toBeInTheDocument()
+        expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Photos (3 of 3)')
       })
 
       // Find photo images and their parent buttons
@@ -167,7 +168,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />)
 
       await waitFor(() => {
-        expect(screen.getByText('Photos (3)')).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: 'Photos (3 of 3)' })).toBeInTheDocument()
       })
 
       // Open modal
@@ -192,7 +193,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />)
 
       await waitFor(() => {
-        expect(screen.getByText('Photos (3)')).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: 'Photos (3 of 3)' })).toBeInTheDocument()
       })
 
       // Open modal on first photo
@@ -217,7 +218,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />)
 
       await waitFor(() => {
-        expect(screen.getByText('Photos (3)')).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: 'Photos (3 of 3)' })).toBeInTheDocument()
       })
 
       // Open modal on second photo
@@ -242,7 +243,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />)
 
       await waitFor(() => {
-        expect(screen.getByText('Photos (3)')).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: 'Photos (3 of 3)' })).toBeInTheDocument()
       })
 
       // Open modal on first photo and go to previous (should wrap to last)
@@ -271,7 +272,8 @@ describe('GalleryPage', () => {
     it('should not show navigation buttons for single photo', async () => {
       const singlePhotoGallery = {
         ...mockGalleryData,
-        photos: [mockGalleryData.photos[0]]
+        photos: [mockGalleryData.photos[0]],
+        total_photos: 1
       }
 
       const { galleryService } = await import('../../services/galleryService')
@@ -282,7 +284,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />)
 
       await waitFor(() => {
-        expect(screen.getByText('Photos (1)')).toBeInTheDocument()
+        expect(screen.getByText('Photos (1 of 1)')).toBeInTheDocument()
       })
 
       // Open modal
@@ -308,7 +310,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />)
 
       await waitFor(() => {
-        expect(screen.getByText('Photos (3)')).toBeInTheDocument()
+        expect(screen.getByText('Photos (3 of 3)')).toBeInTheDocument()
       })
 
       // Find the first photo container and get its delete button
@@ -351,7 +353,8 @@ describe('GalleryPage', () => {
     it('should show empty state when no photos', async () => {
       const emptyGallery = {
         ...mockGalleryData,
-        photos: []
+        photos: [],
+        total_photos: 0
       }
 
       const { galleryService } = await import('../../services/galleryService')
