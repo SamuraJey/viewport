@@ -19,3 +19,8 @@ example_of_styles/
 
 .coverage
 .vendored
+
+nginx.conf
+DOCUMENTATION*.md
+temporary/
+docker-compose-true-nas-deploy.yml
