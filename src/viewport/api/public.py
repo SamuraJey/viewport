@@ -1,8 +1,7 @@
 import contextlib
-import io
-import zipfile
 from uuid import UUID
 
+import zipstream
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
@@ -130,22 +129,36 @@ async def get_photos_by_sharelink(
 
 
 @router.get("/{share_id}/download/all")
-def download_all_photos_zip(share_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
+async def download_all_photos_zip(
+    share_id: UUID,
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    sharelink: ShareLink = Depends(get_valid_sharelink),
+) -> StreamingResponse:
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
     with contextlib.suppress(Exception):
         photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
     if not photos:
         raise HTTPException(status_code=404, detail="No photos found")
-    zip_buffer = io.BytesIO()
+
     settings = S3Settings()
-    s3_client = get_s3_client()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-        for photo in photos:
-            # Object key is stored directly
-            file_key = photo.object_key
-            obj = s3_client.get_object(Bucket=settings.bucket, Key=file_key)
-            zipf.writestr(file_key, obj["Body"].read())
-    zip_buffer.seek(0)
+
+    # Потоковый zip
+    z = zipstream.ZipStream()
+
+    for photo in photos:
+        key = photo.object_key
+        filename = key.split("/")[-1]
+
+        def file_generator():
+            client = get_s3_client()
+            obj = client.get_object(Bucket=settings.bucket, Key=key)
+            yield from iter(lambda: obj["Body"].read(1024 * 1024), b"")
+
+        z.add(arcname=filename, data=file_generator())
+
     repo.increment_zip_downloads(share_id)
     logger.log_event("download_zip", share_id=str(sharelink.id), extra={"photo_count": len(photos)})
-    return StreamingResponse(zip_buffer, media_type="application/zip", headers={"Content-Disposition": "attachment; filename=gallery.zip"})
+
+    headers = {"Content-Disposition": f'attachment; filename="gallery_{share_id}.zip"'}
+
+    return StreamingResponse(z, media_type="application/zip", headers=headers)
