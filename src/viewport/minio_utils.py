@@ -8,9 +8,9 @@ from PIL import Image, ImageOps
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Configure logging - set botocore to WARNING level to reduce noise
-logging.getLogger("botocore").setLevel(logging.DEBUG)
-logging.getLogger("boto3").setLevel(logging.DEBUG)
-logging.getLogger("urllib3").setLevel(logging.DEBUG)
+logging.getLogger("botocore").setLevel(logging.INFO)
+logging.getLogger("boto3").setLevel(logging.INFO)
+logging.getLogger("urllib3").setLevel(logging.INFO)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -115,12 +115,16 @@ def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800),
         image = image.convert("RGB")
         image.thumbnail(max_size, Image.Resampling.LANCZOS)
 
+        # Store width and height BEFORE closing the image
+        width = image.width
+        height = image.height
+
         thumbnail_io = io.BytesIO()
         image.save(thumbnail_io, format="JPEG", quality=quality, optimize=True)
         image.close()
         thumbnail_io.seek(0)
 
-        return thumbnail_io.read(), image.width, image.height
+        return thumbnail_io.read(), width, height
     except Exception as e:
         logger.error(f"Failed to create thumbnail: {e}")
         raise
