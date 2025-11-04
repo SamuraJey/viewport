@@ -388,3 +388,25 @@ class AsyncS3Client:
                 logger.warning(f"Failed to generate presigned URL for {key}: {e}")
 
         return urls
+
+    async def get_object(self, key: str) -> dict:
+        """Get an object from S3.
+
+        Args:
+            key: S3 object key
+
+        Returns:
+            S3 get_object response dict
+
+        Raises:
+            Exception: If get fails
+        """
+        try:
+            async with self._get_s3_client() as s3:
+                s3: "S3Client"
+                response = await s3.get_object(Bucket=self.settings.bucket, Key=key)
+            logger.info(f"Successfully got object: {key}")
+            return response
+        except Exception as e:
+            logger.error(f"Failed to get object {key}: {e}")
+            raise
