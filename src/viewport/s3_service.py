@@ -40,7 +40,7 @@ class AsyncS3Client:
         self._endpoint_url = self._get_endpoint_url()
         self._config = Config(
             signature_version=self.settings.signature_version,
-            max_pool_connections=50,  # Match sync client to avoid connection pool exhaustion
+            max_pool_connections=100,
             s3={"addressing_style": "path"},
         )
         self._presign_client = None

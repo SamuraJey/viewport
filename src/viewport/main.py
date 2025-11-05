@@ -27,6 +27,7 @@ logging.getLogger("boto3").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("botocore.auth").setLevel(logging.WARNING)
 logging.getLogger("botocore.endpoint").setLevel(logging.WARNING)
+logging.getLogger("botocore.retryhandler").setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 

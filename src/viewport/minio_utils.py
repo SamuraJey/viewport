@@ -55,7 +55,7 @@ def get_s3_client() -> "S3Client":
     # Increase max pool connections to support concurrent uploads
     config = Config(
         signature_version="s3",
-        max_pool_connections=50,
+        max_pool_connections=100,
         s3={"addressing_style": "path"},
     )
     logger.info(f"Created sync S3 client config: {config}")

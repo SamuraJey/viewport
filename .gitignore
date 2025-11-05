@@ -21,6 +21,7 @@ example_of_styles/
 .vendored
 
 nginx.conf
+nginx.conf.2
 DOCUMENTATION*.md
 temporary/
 docker-compose-true-nas-deploy.yml

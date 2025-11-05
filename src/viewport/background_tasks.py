@@ -1,5 +1,6 @@
 import io
 import logging
+from typing import TYPE_CHECKING
 
 from celery import Celery
 from pydantic import Field
@@ -7,6 +8,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from mypy_boto3_s3.client import S3Client
 
 class CelerySettings(BaseSettings):
     broker_url: str = Field(default="redis://localhost:6379/0", alias="CELERY_BROKER_URL")
@@ -178,7 +181,7 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
     settings = S3Settings()
     bucket = settings.bucket
 
-    s3_client = get_s3_client()
+    s3_client: "S3Client" = get_s3_client()
     session_maker = get_session_maker()
 
     # First pass: Check which photos still exist in database
