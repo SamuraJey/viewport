@@ -54,8 +54,11 @@ def get_s3_client() -> "S3Client":
 
     # Increase max pool connections to support concurrent uploads
     config = Config(
-        signature_version="s3",
-        max_pool_connections=100,
+        signature_version=settings.signature_version,
+        max_pool_connections=200,  # Increased to handle concurrent batch uploads
+        retries={"max_attempts": 3, "mode": "standard"},
+        connect_timeout=10,
+        read_timeout=60,
         s3={"addressing_style": "path"},
     )
     logger.info(f"Created sync S3 client config: {config}")

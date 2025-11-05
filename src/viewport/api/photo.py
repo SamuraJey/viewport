@@ -93,8 +93,6 @@ async def upload_photos_batch(
     successful_uploads = 0
     failed_uploads = 0
 
-    # Balanced semaphore for safe parallelism without overwhelming connections
-    # 35 is a sweet spot: improves performance vs 30 but avoids connection pool issues
     semaphore = asyncio.Semaphore(35)
 
     async def process_single_file(file: UploadFile) -> PhotoUploadResult:

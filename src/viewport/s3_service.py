@@ -40,20 +40,20 @@ class AsyncS3Client:
         self._endpoint_url = self._get_endpoint_url()
         self._config = Config(
             signature_version=self.settings.signature_version,
-            max_pool_connections=100,
+            max_pool_connections=200,  # Increased to handle more concurrent uploads
+            retries={"max_attempts": 3, "mode": "standard"},  # Retry failed requests
+            connect_timeout=10,  # Connection timeout in seconds
+            read_timeout=60,  # Read timeout in seconds
             s3={"addressing_style": "path"},
         )
         self._presign_client = None
         self._transfer_config = TransferConfig(
             multipart_threshold=8 * 1024 * 1024,  # 8MB threshold before multipart kicks in
-            multipart_chunksize=4 * 1024 * 1024,  # 4MB chunks (reduced from 8MB for better parallelism)
-            max_concurrency=20,  # Increased from 10 for faster uploads
+            multipart_chunksize=4 * 1024 * 1024,  # 4MB chunks for better performance
+            max_concurrency=20,
             use_threads=True,
         )
         logger.info(f"AsyncS3Client initialized: endpoint={self._endpoint_url}, bucket={self.settings.bucket}, region={self.settings.region}")
-        logger.error(f"self.settings={self.settings}")
-        logger.error(f"AsyncS3Client config: {self._config}")
-
     def _get_endpoint_url(self) -> str | None:
         """Get the endpoint URL with protocol if needed."""
         # The endpoint is already set in S3Settings, just add protocol if missing
@@ -286,15 +286,27 @@ class AsyncS3Client:
 
                 # Delete all objects if any were found
                 if objects_to_delete:
-                    # Delete objects individually to avoid signature issues with batch delete
                     deleted_count = 0
-                    for key in objects_to_delete:
+                    # Delete objects in batches (S3 API allows up to 1000 objects per delete_objects call)
+                    batch_size = 1000
+                    for i in range(0, len(objects_to_delete), batch_size):
+                        batch = objects_to_delete[i : i + batch_size]
                         try:
-                            await s3.delete_object(Bucket=self.settings.bucket, Key=key)
-                            deleted_count += 1
-                        except Exception as e:
-                            logger.warning(f"Failed to delete object {key}: {e}")
-                            # Continue deleting other objects even if one fails
+                            # Prepare delete request for batch
+                            delete_request = {"Objects": [{"Key": key} for key in batch]}
+                            response = await s3.delete_objects(Bucket=self.settings.bucket, Delete=delete_request)
+
+                            # Count successfully deleted objects
+                            if "Deleted" in response:
+                                deleted_count += len(response["Deleted"])
+
+                            # Log any errors that occurred during batch delete
+                            if "Errors" in response:
+                                for error in response["Errors"]:
+                                    logger.warning(f"Failed to delete object {error['Key']}: {error['Message']}")
+                        except Exception:
+                            logger.exception("Failed to delete batch of objects")
+                            # Continue with next batch even if one fails
 
                     logger.info(f"Successfully deleted {deleted_count}/{len(objects_to_delete)} objects with prefix {prefix}")
                 else:
