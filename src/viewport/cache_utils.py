@@ -39,31 +39,3 @@ def clear_presigned_urls_batch(photo_ids: list[str]) -> None:
         if photo_id in _url_cache:
             del _url_cache[photo_id]
 
-
-def clear_presigned_urls_by_prefix(prefix: str) -> None:
-    """Clear all cached presigned URLs that start with a prefix (e.g., 'gallery_id/')"""
-    keys_to_delete = [key for key in _url_cache if key.startswith(prefix)]
-    for key in keys_to_delete:
-        del _url_cache[key]
-
-
-def get_cache_stats() -> dict:
-    """Get cache statistics for monitoring"""
-    total_entries = len(_url_cache)
-    expired_entries = 0
-    valid_entries = 0
-
-    now = datetime.now()
-    for cached in _url_cache.values():
-        expires_at = cached["expires_at"]
-        if isinstance(expires_at, datetime):
-            if expires_at > now:
-                valid_entries += 1
-            else:
-                expired_entries += 1
-
-    return {
-        "total_entries": total_entries,
-        "valid_entries": valid_entries,
-        "expired_entries": expired_entries,
-    }
