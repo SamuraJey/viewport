@@ -145,7 +145,7 @@ class AsyncS3Client:
                     ExtraArgs=extra_args if extra_args else None,
                     Config=self._transfer_config,
                 )
-            logger.info(f"Successfully uploaded object: {key}")
+            logger.debug(f"Successfully uploaded object: {key}")
             return f"/{self.settings.bucket}/{key}"
         except Exception as e:
             logger.error(f"Failed to upload object {key}: {e}")
@@ -308,11 +308,11 @@ class AsyncS3Client:
                             logger.exception("Failed to delete batch of objects")
                             # Continue with next batch even if one fails
 
-                    logger.info(f"Successfully deleted {deleted_count}/{len(objects_to_delete)} objects with prefix {prefix}")
+                    logger.info("Successfully deleted %d/%d objects with prefix %s", deleted_count, len(objects_to_delete), prefix)
                 else:
-                    logger.info(f"No objects found with prefix {prefix}")
+                    logger.info("No objects found with prefix %s", prefix)
         except Exception as e:
-            logger.error(f"Failed to delete folder with prefix {prefix}: {e}")
+            logger.error("Failed to delete folder with prefix %s: %s", prefix, e)
             raise
 
     async def close(self) -> None:
@@ -338,7 +338,7 @@ class AsyncS3Client:
         # Check cache first
         cached = get_cached_presigned_url(key)
         if cached:
-            logger.debug(f"Using cached presigned URL for: {key}")
+            logger.debug("Using cached presigned URL for: %s", key)
             return cached
 
         try:
@@ -356,10 +356,10 @@ class AsyncS3Client:
             except Exception:
                 logger.warning("Failed to cache presigned URL for key %s", key)
 
-            logger.info(f"Generated presigned URL for: {key}")
+            logger.debug("Generated presigned URL for: %s", key)
             return str(url)
         except Exception as e:
-            logger.error(f"Failed to generate presigned URL for {key}: {e}")
+            logger.error("Failed to generate presigned URL for %s: %s", key, e)
             raise
 
     async def generate_presigned_urls_batch(self, keys: list[str], expires_in: int = 7200) -> dict[str, str]:
