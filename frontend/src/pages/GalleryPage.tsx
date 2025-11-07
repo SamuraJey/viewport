@@ -170,13 +170,26 @@ export const GalleryPage = () => {
     )
   }
 
-  // Handler for photo upload completion
-  const handleUploadComplete = (result: PhotoUploadResponse) => {
+  // Handler for photo upload completion - refresh photos without full page reload
+  const handleUploadComplete = async (result: PhotoUploadResponse) => {
     setUploadError('')
+
+    // Fetch only the first page of photos to get the newly uploaded ones
     if (result.successful_uploads > 0) {
-      // Reload current page to show new photos (don't show as initial load)
-      fetchGalleryDetails(currentPage, false)
+      try {
+        setIsLoadingPhotos(true)
+        const offset = (currentPage - 1) * PHOTOS_PER_PAGE
+        const galleryData = await galleryService.getGallery(galleryId, { limit: PHOTOS_PER_PAGE, offset })
+        setPhotoUrls(galleryData.photos || [])
+        setTotalPhotos(galleryData.total_photos)
+      } catch (err) {
+        setError('Failed to refresh photos. Please try again.')
+        console.error(err)
+      } finally {
+        setIsLoadingPhotos(false)
+      }
     }
+
     if (result.failed_uploads > 0) {
       setUploadError(`${result.failed_uploads} of ${result.total_files} photos failed to upload`)
     }

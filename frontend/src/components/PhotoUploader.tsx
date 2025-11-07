@@ -81,11 +81,13 @@ export const PhotoUploader = ({ galleryId, onUploadComplete }: PhotoUploaderProp
   }
 
   const handleUploadComplete = (result: PhotoUploadResponse) => {
+    // Close modal and clear files
     setShowConfirmModal(false)
     setFiles([])
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+    // Call parent handler with result
     onUploadComplete(result)
   }
 
@@ -96,6 +98,11 @@ export const PhotoUploader = ({ galleryId, onUploadComplete }: PhotoUploaderProp
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+  }
+
+  const handleFilesChange = (newFiles: File[]) => {
+    const validated = validateFiles(newFiles)
+    setFiles(validated)
   }
 
   return (
@@ -141,6 +148,7 @@ export const PhotoUploader = ({ galleryId, onUploadComplete }: PhotoUploaderProp
         files={files.filter(f => !f.error).map(f => f.file)}
         galleryId={galleryId}
         onUploadComplete={handleUploadComplete}
+        onFilesChange={handleFilesChange}
       />
     </div>
   )
