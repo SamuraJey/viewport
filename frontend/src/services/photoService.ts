@@ -76,8 +76,8 @@ const uploadPhotos = async (
     totalBatches?: number
   }) => void
 ): Promise<PhotoUploadResponse> => {
-  const BATCH_SIZE = 20
-  const MAX_CONCURRENCY = 4
+  const BATCH_SIZE = 30
+  const MAX_CONCURRENCY = 2
 
   if (files.length === 0) {
     return {
