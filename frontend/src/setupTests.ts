@@ -1,5 +1,5 @@
-import '@testing-library/jest-dom'
-import { vi } from 'vitest'
+import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 
 // Mock IntersectionObserver
 Object.defineProperty(window, 'IntersectionObserver', {
@@ -9,19 +9,21 @@ Object.defineProperty(window, 'IntersectionObserver', {
     observe() {}
     unobserve() {}
     disconnect() {}
-    takeRecords() { return [] }
+    takeRecords() {
+      return [];
+    }
   },
-})
+});
 
 // Mock URL methods
 Object.defineProperty(URL, 'createObjectURL', {
   writable: true,
   value: vi.fn(() => 'blob:mock-url'),
-})
+});
 Object.defineProperty(URL, 'revokeObjectURL', {
   writable: true,
   value: vi.fn(),
-})
+});
 
 // Mock localStorage and sessionStorage
 Object.defineProperty(window, 'localStorage', {
@@ -32,7 +34,7 @@ Object.defineProperty(window, 'localStorage', {
     removeItem: vi.fn(),
     clear: vi.fn(),
   },
-})
+});
 Object.defineProperty(window, 'sessionStorage', {
   writable: true,
   value: {
@@ -41,21 +43,23 @@ Object.defineProperty(window, 'sessionStorage', {
     removeItem: vi.fn(),
     clear: vi.fn(),
   },
-})
+});
 
 // Mock window.location
-delete (window as any).location
-window.location = {
-  assign: vi.fn(),
-  href: '',
-  pathname: '/',
-  search: '',
-  hash: '',
-  reload: vi.fn(),
-} as any
+Object.defineProperty(window, 'location', {
+  writable: true,
+  value: {
+    assign: vi.fn(),
+    href: '',
+    pathname: '/',
+    search: '',
+    hash: '',
+    reload: vi.fn(),
+  },
+});
 
 // Mock window.confirm
 Object.defineProperty(window, 'confirm', {
   writable: true,
   value: vi.fn(() => true),
-})
+});

@@ -10,7 +10,7 @@ services:
       - "8000:8000"
     depends_on:
       - postgres
-      - minio
+      - s3-service
     networks:
       - backend
     volumes:
@@ -51,21 +51,23 @@ services:
           cpus: "0.25"
           memory: 512M
 
-  minio:
-    image: rustfs/rustfs:1.0.0-alpha.64
-    container_name: viewport_minio
+  s3-service:
+    image: rustfs/rustfs:1.0.0-alpha.65
+    container_name: viewport_s3
     restart: always
     environment:
       # RUSTFS_ADDRESS: ':9000'
-      RUSTFS_ACCESS_KEY: minioadmin
-      RUSTFS_SECRET_KEY: minioadmin
+      RUSTFS_ACCESS_KEY: rustfsadmin
+      RUSTFS_SECRET_KEY: rustfsadmin
       RUSTFS_CONSOLE_ENABLE: true
+      RUSTFS_CORS_ALLOWED_ORIGINS: "*"
+
     # command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - minio_data:/data
+      - s3_data:/data
     networks:
       - backend
     deploy:
@@ -111,11 +113,15 @@ services:
     depends_on:
       - redis
       - postgres
-      - minio
+      - s3-service
     networks:
       - backend
     environment:
-      - S3_ENDPOINT=minio:9000
+      - S3_ENDPOINT=http://s3-service:9000
+      - S3_USE_SSL=false
+      - S3_ACCESS_KEY=rustfsadmin
+      - S3_SECRET_KEY=rustfsadmin
+      - S3_BUCKET=viewport
     volumes:
       - ./src:/app/src
       - ./config:/app/config
@@ -130,7 +136,7 @@ services:
 
 volumes:
   postgres_data:
-  minio_data:
+  s3_data:
 
 networks:
   backend:

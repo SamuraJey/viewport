@@ -1,17 +1,17 @@
 import contextlib
-import io
-import zipfile
 from uuid import UUID
 
+import zipstream
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.logger import logger
 from viewport.minio_utils import S3Settings, get_s3_client
 from viewport.models.db import get_db
-from viewport.models.gallery import Gallery
+from viewport.models.gallery import Gallery, Photo
 from viewport.models.sharelink import ShareLink
 from viewport.repositories.sharelink_repository import ShareLinkRepository
 from viewport.s3_service import AsyncS3Client
@@ -78,14 +78,21 @@ async def get_photos_by_sharelink(
     gallery: Gallery = sharelink.gallery  # lazy-loaded
     cover_id = str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None
     cover = None
+
+    logger.info(f"Public gallery {gallery.id}: cover_photo_id={cover_id}")
+
     if cover_id:
-        # Try to obtain filename from gallery.cover_photo_id via gallery relationship
+        # Explicitly fetch the cover photo from database instead of relying on viewonly relationship
+        # This ensures we get the most up-to-date cover_photo even after it's just been set
         cover_photo_obj = None
-        try:
-            # gallery.cover_photo is viewonly relationship to Photo
-            cover_photo_obj = getattr(gallery, "cover_photo", None)
-        except Exception:
-            cover_photo_obj = None
+        if gallery.cover_photo_id:
+            stmt = select(Photo).where(Photo.id == gallery.cover_photo_id)
+            cover_photo_obj = repo.db.execute(stmt).scalar_one_or_none()
+
+            if cover_photo_obj:
+                logger.info(f"Found cover photo: {cover_photo_obj.object_key}")
+            else:
+                logger.warning(f"Cover photo {cover_id} not found in database")
 
         cover_filename = None
         cover_url = None
@@ -95,6 +102,9 @@ async def get_photos_by_sharelink(
 
         if cover_url:
             cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_url, filename=cover_filename)
+            logger.info(f"Cover set successfully: {cover_filename}")
+        else:
+            logger.warning(f"Cover URL not generated for photo {cover_id}")
 
     photographer = getattr(gallery.owner, "display_name", None) or ""
     gallery_name = getattr(gallery, "name", "")
@@ -119,22 +129,36 @@ async def get_photos_by_sharelink(
 
 
 @router.get("/{share_id}/download/all")
-def download_all_photos_zip(share_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository), sharelink: ShareLink = Depends(get_valid_sharelink)):
+async def download_all_photos_zip(
+    share_id: UUID,
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    sharelink: ShareLink = Depends(get_valid_sharelink),
+) -> StreamingResponse:
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
     with contextlib.suppress(Exception):
         photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
     if not photos:
         raise HTTPException(status_code=404, detail="No photos found")
-    zip_buffer = io.BytesIO()
+
     settings = S3Settings()
-    s3_client = get_s3_client()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-        for photo in photos:
-            # Object key is stored directly
-            file_key = photo.object_key
-            obj = s3_client.get_object(Bucket=settings.bucket, Key=file_key)
-            zipf.writestr(file_key, obj["Body"].read())
-    zip_buffer.seek(0)
+
+    # Потоковый zip
+    z = zipstream.ZipStream()
+
+    for photo in photos:
+        key = photo.object_key
+        filename = key.split("/")[-1]
+
+        def file_generator():
+            client = get_s3_client()
+            obj = client.get_object(Bucket=settings.bucket, Key=key)
+            yield from iter(lambda: obj["Body"].read(1024 * 1024), b"")
+
+        z.add(arcname=filename, data=file_generator())
+
     repo.increment_zip_downloads(share_id)
     logger.log_event("download_zip", share_id=str(sharelink.id), extra={"photo_count": len(photos)})
-    return StreamingResponse(zip_buffer, media_type="application/zip", headers={"Content-Disposition": "attachment; filename=gallery.zip"})
+
+    headers = {"Content-Disposition": f'attachment; filename="gallery_{share_id}.zip"'}
+
+    return StreamingResponse(z, media_type="application/zip", headers=headers)

@@ -1,5 +1,6 @@
 import io
 import logging
+from typing import TYPE_CHECKING
 
 from celery import Celery
 from pydantic import Field
@@ -7,6 +8,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from mypy_boto3_s3.client import S3Client
 
 class CelerySettings(BaseSettings):
     broker_url: str = Field(default="redis://localhost:6379/0", alias="CELERY_BROKER_URL")
@@ -42,7 +45,7 @@ celery_app.conf.update(
 )
 
 
-@celery_app.task(name="create_thumbnail", bind=True, max_retries=3, rate_limit="150/s")  # pragma: no cover
+@celery_app.task(name="create_thumbnail", bind=True, max_retries=3, rate_limit="50/s")  # pragma: no cover
 def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
     """Background task to create thumbnail for uploaded photo
 
@@ -148,7 +151,7 @@ def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
             return {"status": "error", "message": str(e), "photo_id": photo_id}
 
 
-@celery_app.task(name="create_thumbnails_batch", bind=True, max_retries=3, rate_limit="100/s")  # pragma: no cover
+@celery_app.task(name="create_thumbnails_batch", bind=True, max_retries=3, rate_limit="50/s")  # pragma: no cover
 def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
     """Background task to create thumbnails for multiple photos in one batch
 
@@ -178,7 +181,7 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
     settings = S3Settings()
     bucket = settings.bucket
 
-    s3_client = get_s3_client()
+    s3_client: "S3Client" = get_s3_client()
     session_maker = get_session_maker()
 
     # First pass: Check which photos still exist in database
@@ -228,11 +231,12 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
             del thumbnail_bytes
 
             # Store for batch UPDATE
+            logger.info(f"Successfully created thumbnail for photo {photo_id}: width={width}, height={height}, thumbnail_key={thumbnail_object_key}")
             results.append({"photo_id": photo_id, "status": "success", "thumbnail_object_key": thumbnail_object_key, "width": width, "height": height})
             successful += 1
 
         except Exception as e:
-            logger.error(f"Failed to create thumbnail for photo {photo_id}: {e}")
+            logger.error(f"Failed to create thumbnail for photo {photo_id}: {e}", exc_info=True)
             results.append({"photo_id": photo_id, "status": "error", "message": str(e)})
             failed += 1
 
@@ -248,11 +252,13 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
                     # Build list of mappings for executemany
                     update_mappings = [{"id": r["photo_id"], "thumbnail_object_key": r["thumbnail_object_key"], "width": r["width"], "height": r["height"]} for r in successful_results]
 
+                    logger.info(f"Preparing to batch update {len(update_mappings)} photos with mappings: {update_mappings}")
+
                     # Execute batch UPDATE using modern executemany pattern
                     db.execute(update(Photo), update_mappings)
                     db.commit()
 
-                    logger.info(f"Batch updated {len(update_mappings)} photos with thumbnails")
+                    logger.info(f"Batch updated {len(update_mappings)} photos with thumbnails and dimensions")
 
                     # Invalidate cache for all updated thumbnails
                     from viewport.cache_utils import clear_presigned_urls_batch

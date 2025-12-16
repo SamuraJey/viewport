@@ -1,129 +1,150 @@
-import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
-import { galleryService, type Gallery } from '../services/galleryService'
-import { formatDate } from '../lib/utils'
-import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, Edit3, Check, X } from 'lucide-react'
-import { Layout } from '../components/Layout'
-import { ErrorDisplay } from '../components/ErrorDisplay'
-import { useErrorHandler } from '../hooks/useErrorHandler'
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { galleryService, type Gallery } from '../services/galleryService';
+import { formatDate } from '../lib/utils';
+import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, Edit3, Check, X } from 'lucide-react';
+import { Layout } from '../components/Layout';
+import { ErrorDisplay } from '../components/ErrorDisplay';
+import { useErrorHandler } from '../hooks/useErrorHandler';
 
 export const DashboardPage = () => {
-  const [galleries, setGalleries] = useState<Gallery[]>([])
-  const [isCreating, setIsCreating] = useState(false)
-  const [showModal, setShowModal] = useState(false)
-  const [newGalleryName, setNewGalleryName] = useState('')
-  const newGalleryInputRef = useRef<HTMLInputElement>(null)
-  const renameInputRef = useRef<HTMLInputElement>(null)
+  const [galleries, setGalleries] = useState<Gallery[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [newGalleryName, setNewGalleryName] = useState('');
+  const newGalleryInputRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
   // Inline rename state
-  const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null)
-  const [renameInput, setRenameInput] = useState('')
-  const [isRenaming, setIsRenaming] = useState(false)
-  const [page, setPage] = useState(1)
-  const [total, setTotal] = useState(0)
-  const pageSize = 9
+  const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null);
+  const [renameInput, setRenameInput] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
+  // Delete confirmation state
+  const [galleryToDelete, setGalleryToDelete] = useState<Gallery | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 9;
 
-  const { error, clearError, handleError, isLoading, setLoading } = useErrorHandler()
+  const { error, clearError, handleError, isLoading, setLoading } = useErrorHandler();
 
-  const fetchGalleries = async (pageNum = 1) => {
-    setLoading(true)
-    try {
-      clearError()
-      const response = await galleryService.getGalleries(pageNum, pageSize)
-      setGalleries(response.galleries)
-      setTotal(response.total)
-      setPage(pageNum)
-    } catch (err: any) {
-      handleError(err)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const fetchGalleries = useCallback(
+    async (pageNum = 1) => {
+      setLoading(true);
+      try {
+        clearError();
+        const response = await galleryService.getGalleries(pageNum, pageSize);
+        setGalleries(response.galleries);
+        setTotal(response.total);
+        setPage(pageNum);
+      } catch (err: unknown) {
+        handleError(err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [clearError, handleError, setLoading],
+  );
 
   useEffect(() => {
-    fetchGalleries()
-  }, [])
+    fetchGalleries();
+  }, [fetchGalleries]);
   // Focus input when create modal opens
   useEffect(() => {
     if (showModal) {
-      newGalleryInputRef.current?.focus()
+      newGalleryInputRef.current?.focus();
     }
-  }, [showModal])
+  }, [showModal]);
   // Focus input when inline rename begins
   useEffect(() => {
     if (renameGalleryId) {
-      renameInputRef.current?.focus()
+      renameInputRef.current?.focus();
     }
-  }, [renameGalleryId])
+  }, [renameGalleryId]);
 
   // Open modal to enter gallery name
   const handleOpenModal = () => {
-    setNewGalleryName('')
-    clearError()
-    setShowModal(true)
-  }
+    setNewGalleryName('');
+    clearError();
+    setShowModal(true);
+  };
 
   // Confirm creation with entered name
   const handleConfirmCreate = async () => {
     try {
-      setIsCreating(true)
-      await galleryService.createGallery(newGalleryName.trim())
-      setShowModal(false)
-      await fetchGalleries(1)
-    } catch (err: any) {
-      handleError(err)
+      setIsCreating(true);
+      await galleryService.createGallery(newGalleryName.trim());
+      setShowModal(false);
+      await fetchGalleries(1);
+    } catch (err: unknown) {
+      handleError(err);
     } finally {
-      setIsCreating(false)
+      setIsCreating(false);
     }
-  }
+  };
 
   // Handler for deleting a gallery
   const handleDeleteGallery = async (galleryId: string) => {
-    if (window.confirm('Are you sure you want to delete this gallery and all its contents?')) {
-      try {
-        await galleryService.deleteGallery(galleryId)
-        await fetchGalleries(page)
-      } catch (err) {
-        handleError(err)
-      }
+    const gallery = galleries.find((g) => g.id === galleryId);
+    if (gallery) {
+      setGalleryToDelete(gallery);
     }
-  }
+  };
+
+  // Confirm deletion
+  const handleConfirmDelete = async () => {
+    if (!galleryToDelete) return;
+    try {
+      setIsDeleting(true);
+      await galleryService.deleteGallery(galleryToDelete.id);
+      setGalleryToDelete(null);
+      await fetchGalleries(page);
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Cancel deletion
+  const cancelDelete = () => {
+    setGalleryToDelete(null);
+  };
 
   // Begin inline rename for a gallery
   const beginInlineRename = (gallery: Gallery) => {
-    clearError()
-    setRenameGalleryId(gallery.id)
-    setRenameInput(gallery.name)
-  }
+    clearError();
+    setRenameGalleryId(gallery.id);
+    setRenameInput(gallery.name);
+  };
 
   // Cancel inline rename
   const cancelInlineRename = () => {
-    setRenameGalleryId(null)
-    setRenameInput('')
-  }
+    setRenameGalleryId(null);
+    setRenameInput('');
+  };
 
   // Confirm inline rename
   const handleConfirmRename = async () => {
-    if (!renameGalleryId) return
+    if (!renameGalleryId) return;
     try {
-      setIsRenaming(true)
-      await galleryService.updateGallery(renameGalleryId, renameInput.trim())
-      setRenameGalleryId(null)
-      await fetchGalleries(page)
-    } catch (err: any) {
-      handleError(err)
+      setIsRenaming(true);
+      await galleryService.updateGallery(renameGalleryId, renameInput.trim());
+      setRenameGalleryId(null);
+      await fetchGalleries(page);
+    } catch (err: unknown) {
+      handleError(err);
     } finally {
-      setIsRenaming(false)
+      setIsRenaming(false);
     }
-  }
+  };
 
-
-  const totalPages = Math.ceil(total / pageSize)
+  const totalPages = Math.ceil(total / pageSize);
 
   const renderLoading = () => (
     <div className="flex items-center justify-center h-96">
       <div className="w-12 h-12 border-4 border-muted/60 dark:border-muted-dark/60 border-t-accent rounded-full animate-spin"></div>
     </div>
-  )
+  );
 
   const renderError = () => (
     <ErrorDisplay
@@ -132,7 +153,7 @@ export const DashboardPage = () => {
       onDismiss={clearError}
       variant="banner"
     />
-  )
+  );
   const renderEmptyState = () => (
     <div className="flex flex-col items-center justify-center h-96">
       <p className="text-muted text-lg mb-4">No galleries yet</p>
@@ -140,7 +161,7 @@ export const DashboardPage = () => {
       <button
         onClick={handleOpenModal}
         disabled={isCreating}
-        className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm border border-accent/20 hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+        className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 border border-accent/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
       >
         {isCreating ? (
           <div className="w-5 h-5 border-2 border-border/20 border-t-accent rounded-full animate-spin"></div>
@@ -150,13 +171,16 @@ export const DashboardPage = () => {
         Create First Gallery
       </button>
     </div>
-  )
+  );
 
   const renderGalleries = () => (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {galleries.map((gallery) => (
-          <div key={gallery.id} className="bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-8 border border-border dark:border-border/10 hover:transform hover:scale-101 hover:shadow-2xl ">
+          <div
+            key={gallery.id}
+            className="bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-8 border border-border dark:border-border/10 hover:transform hover:scale-101 hover:shadow-2xl "
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <div className="bg-accent/20 p-2 rounded-lg flex-shrink-0 border border-accent/10">
@@ -164,10 +188,10 @@ export const DashboardPage = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   {renameGalleryId === gallery.id ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <input
                         ref={renameInputRef}
-                        className="flex-1 p-2 border border-border rounded min-w-0 text-base bg-surface-foreground/5 text-text focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent"
+                        className="flex-1 px-3 py-2 border-2 border-accent/50 dark:border-accent/40 rounded-lg min-w-0 text-base bg-surface-1 dark:bg-surface-dark-1 text-text dark:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-sm transition-all duration-200"
                         value={renameInput}
                         onChange={(e) => setRenameInput(e.target.value)}
                         onKeyDown={(e) => {
@@ -179,27 +203,28 @@ export const DashboardPage = () => {
                             cancelInlineRename();
                           }
                         }}
+                        placeholder="Gallery name..."
                       />
                       <button
                         onClick={handleConfirmRename}
                         disabled={isRenaming || !renameInput.trim()}
-                        title="Confirm Rename"
+                        title="Save (Enter)"
                         aria-label="Confirm rename"
-                        className="p-2 rounded-md flex items-center justify-center cursor-pointer hover:bg-surface-foreground/10 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent"
+                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-green-500/90 hover:bg-green-500 border border-green-600/50 text-white shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-500/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                       >
                         {isRenaming ? (
                           <div className="w-4 h-4 border-2 border-border/20 border-t-accent rounded-full animate-spin" />
                         ) : (
-                          <Check className="w-5 h-5 text-green-500" />
+                          <Check className="w-4 h-4" />
                         )}
                       </button>
                       <button
                         onClick={cancelInlineRename}
-                        title="Cancel Rename"
+                        title="Cancel (Esc)"
                         aria-label="Cancel rename"
-                        className="p-2 rounded-md flex items-center justify-center cursor-pointer hover:bg-surface-foreground/10 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger"
+                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger"
                       >
-                        <X className="w-5 h-5 text-red-500" />
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
                   ) : (
@@ -214,24 +239,26 @@ export const DashboardPage = () => {
                   )}
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => beginInlineRename(gallery)}
-                  className="p-2 bg-warning/80 hover:bg-warning text-text dark:text-accent-foreground rounded-full  border border-border shadow-sm hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:ring-offset-1"
-                  title="Rename Gallery"
-                  aria-label={`Rename ${gallery.name || `Gallery #${gallery.id}`}`}
-                >
-                  <Edit3 className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => handleDeleteGallery(gallery.id)}
-                  className="p-2 bg-danger/80 hover:bg-danger text-text dark:text-accent-foreground rounded-full border border-border shadow-sm hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger/20 focus:ring-offset-1"
-                  title="Delete Gallery"
-                  aria-label={`Delete ${gallery.name || `Gallery #${gallery.id}`}`}
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
-              </div>
+              {renameGalleryId !== gallery.id && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => beginInlineRename(gallery)}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/20 hover:bg-accent/30 border border-accent/40 text-accent shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent/50"
+                    title="Rename Gallery"
+                    aria-label={`Rename ${gallery.name || `Gallery #${gallery.id}`}`}
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteGallery(gallery.id)}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger/50"
+                    title="Delete Gallery"
+                    aria-label={`Delete ${gallery.name || `Gallery #${gallery.id}`}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
             <div>
               <Link
@@ -246,44 +273,47 @@ export const DashboardPage = () => {
       </div>
       {renderPagination()}
     </>
-  )
+  );
 
   const renderPagination = () => {
-    if (totalPages <= 1) return null
+    if (totalPages <= 1) return null;
 
     return (
       <div className="flex items-center justify-between text-sm text-muted dark:text-muted-dark mt-8">
         <div>
           <p>
-            Page <span className="font-bold text-text">{page}</span> of <span className="font-bold text-text">{totalPages}</span>
+            Page <span className="font-bold text-text">{page}</span> of{' '}
+            <span className="font-bold text-text">{totalPages}</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => fetchGalleries(page - 1)}
             disabled={page <= 1 || isLoading}
-            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark"
+            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark disabled:shadow-none"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
           <button
             onClick={() => fetchGalleries(page + 1)}
             disabled={page >= totalPages || isLoading}
-            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark"
+            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark disabled:shadow-none"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
         </div>
       </div>
-    )
-  }
+    );
+  };
 
   return (
     <Layout>
       <div className="flex flex-col gap-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">My Galleries</h1>
+            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">
+              My Galleries
+            </h1>
             <p className="text-muted font-cuprum text-lg">
               Your personal space to organize and share moments.
             </p>
@@ -291,7 +321,7 @@ export const DashboardPage = () => {
           <button
             onClick={handleOpenModal}
             disabled={isCreating}
-            className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm border border-accent/20  hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+            className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 border border-accent/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
           >
             {isCreating ? (
               <div className="w-5 h-5 border-2 border-border dark:border-border/40 rounded-full animate-spin"></div>
@@ -304,18 +334,24 @@ export const DashboardPage = () => {
 
         {error && renderError()}
 
-        {isLoading ? renderLoading() : (
-          galleries.length === 0 ? renderEmptyState() : renderGalleries()
-        )}
+        {isLoading
+          ? renderLoading()
+          : galleries.length === 0
+            ? renderEmptyState()
+            : renderGalleries()}
 
         {/* Modal for entering new gallery name */}
         {showModal && (
-          <div className="fixed inset-0 flex items-center justify-center z-50">
-            <div className="bg-surface dark:bg-surface-dark rounded-lg shadow-lg p-6 max-w-sm w-full">
+          <div
+            className="fixed inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm"
+            onClick={() => setShowModal(false)}
+          >
+            <div
+              className="bg-surface dark:bg-surface-dark rounded-lg shadow-lg p-6 max-w-sm w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
               <h2 className="text-xl font-semibold mb-4 text-text">New Gallery</h2>
-              <p className="text-muted mb-4">
-                Enter a name for your new gallery.
-              </p>
+              <p className="text-muted mb-4">Enter a name for your new gallery.</p>
               <input
                 ref={newGalleryInputRef}
                 type="text"
@@ -323,11 +359,11 @@ export const DashboardPage = () => {
                 onChange={(e) => setNewGalleryName(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    e.preventDefault()
-                    handleConfirmCreate()
+                    e.preventDefault();
+                    handleConfirmCreate();
                   } else if (e.key === 'Escape') {
-                    e.preventDefault()
-                    setShowModal(false)
+                    e.preventDefault();
+                    setShowModal(false);
                   }
                 }}
                 className="w-full p-3 border border-border dark:border-border/40 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent bg-transparent text-text"
@@ -336,14 +372,14 @@ export const DashboardPage = () => {
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 bg-surface-1 dark:bg-surface-dark-1 rounded-lg text-text dark:text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2"
+                  className="px-4 py-2 bg-surface-1 dark:bg-surface-dark-1 rounded-lg text-text dark:text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 shadow-sm hover:shadow-md transition-all duration-200"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmCreate}
                   disabled={isCreating || !newGalleryName.trim()}
-                  className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-md  hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
                 >
                   {isCreating ? (
                     <div className="w-5 h-5 border-2 border-accent/20 border-t-accent rounded-full animate-spin"></div>
@@ -356,7 +392,47 @@ export const DashboardPage = () => {
           </div>
         )}
 
+        {/* Modal for delete confirmation */}
+        {galleryToDelete && (
+          <div
+            className="fixed inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm"
+            onClick={cancelDelete}
+          >
+            <div
+              className="bg-surface dark:bg-surface-dark rounded-lg shadow-lg p-6 max-w-sm w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-xl font-semibold mb-2 text-text">Delete Gallery?</h2>
+              <p className="text-muted mb-6">
+                Are you sure you want to delete{' '}
+                <span className="font-semibold text-text">
+                  "{galleryToDelete.name || `Gallery #${galleryToDelete.id}`}"
+                </span>{' '}
+                and all its contents? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={cancelDelete}
+                  className="px-4 py-2.5 bg-surface-1 dark:bg-surface-dark-1 rounded-lg text-text dark:text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 shadow-sm hover:shadow-md transition-all duration-200 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                  className="px-4 py-2.5 bg-danger hover:bg-danger/90 text-accent-foreground rounded-lg shadow-sm hover:shadow-lg transition-all duration-200 font-medium disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-danger"
+                >
+                  {isDeleting ? (
+                    <div className="w-5 h-5 border-2 border-accent-foreground/30 border-t-accent-foreground rounded-full animate-spin"></div>
+                  ) : (
+                    'Delete'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
-  )
-}
+  );
+};

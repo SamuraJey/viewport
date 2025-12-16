@@ -48,7 +48,8 @@ jobs:
         run: |
           uv run pytest -n auto --cov=src --cov-branch --cov-report=xml --cov-fail-under=75 tests/
 
-      - name: Comment coverage on PR
+      - name: Comment coverage on PR (non-blocking)
+        continue-on-error: true
         uses: py-cov-action/python-coverage-comment-action@v3
         with:
           GITHUB_TOKEN: ${{ github.token }}

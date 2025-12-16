@@ -8,14 +8,19 @@ singleton via dependency injection.
 
 import io
 import logging
-from typing import BinaryIO
+from typing import TYPE_CHECKING, BinaryIO
 
 import aioboto3
+from boto3.s3.transfer import TransferConfig
+from botocore.config import Config
 
 from viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
 from viewport.minio_utils import S3Settings
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
 
 class AsyncS3Client:
@@ -33,8 +38,22 @@ class AsyncS3Client:
         self.settings = S3Settings()
         self._session: aioboto3.Session | None = None
         self._endpoint_url = self._get_endpoint_url()
+        self._config = Config(
+            signature_version=self.settings.signature_version,
+            max_pool_connections=200,  # Increased to handle more concurrent uploads
+            retries={"max_attempts": 3, "mode": "standard"},  # Retry failed requests
+            connect_timeout=10,  # Connection timeout in seconds
+            read_timeout=60,  # Read timeout in seconds
+            s3={"addressing_style": "path"},
+        )
+        self._presign_client = None
+        self._transfer_config = TransferConfig(
+            multipart_threshold=8 * 1024 * 1024,  # 8MB threshold before multipart kicks in
+            multipart_chunksize=4 * 1024 * 1024,  # 4MB chunks for better performance
+            max_concurrency=20,
+            use_threads=True,
+        )
         logger.info(f"AsyncS3Client initialized: endpoint={self._endpoint_url}, bucket={self.settings.bucket}, region={self.settings.region}")
-
     def _get_endpoint_url(self) -> str | None:
         """Get the endpoint URL with protocol if needed."""
         # The endpoint is already set in S3Settings, just add protocol if missing
@@ -58,6 +77,28 @@ class AsyncS3Client:
                 region_name=self.settings.region,
             )
         return self._session
+
+    def _get_s3_client(self) -> "S3Client":
+        """Get configured S3 client context manager.
+
+        This is a helper to avoid repeating the client configuration everywhere.
+        Usage: async with self._get_s3_client() as s3:
+        """
+        return self.session.client("s3", endpoint_url=self._endpoint_url, config=self._config)
+
+    def _get_presign_client(self):
+        import boto3
+
+        if self._presign_client is None:
+            self._presign_client = boto3.client(
+                "s3",
+                endpoint_url=self._endpoint_url,
+                aws_access_key_id=self.settings.access_key,
+                aws_secret_access_key=self.settings.secret_key,
+                region_name=self.settings.region,
+                config=self._config,
+            )
+        return self._presign_client
 
     async def upload_fileobj(
         self,
@@ -83,6 +124,10 @@ class AsyncS3Client:
         # Normalize bytes to file-like object
         if isinstance(file_obj, bytes):
             file_obj = io.BytesIO(file_obj)
+        else:
+            # Ensure file pointer is at the beginning for streaming uploads
+            if hasattr(file_obj, "seek"):
+                file_obj.seek(0)
 
         extra_args: dict[str, str | dict[str, str]] = {}
         if content_type:
@@ -91,14 +136,16 @@ class AsyncS3Client:
             extra_args["Metadata"] = metadata
 
         try:
-            async with self.session.client("s3", endpoint_url=self._endpoint_url) as s3:
+            async with self._get_s3_client() as s3:
+                s3: "S3Client"
                 await s3.upload_fileobj(
                     file_obj,
                     self.settings.bucket,
                     key,
                     ExtraArgs=extra_args if extra_args else None,
+                    Config=self._transfer_config,
                 )
-            logger.info(f"Successfully uploaded object: {key}")
+            logger.debug(f"Successfully uploaded object: {key}")
             return f"/{self.settings.bucket}/{key}"
         except Exception as e:
             logger.error(f"Failed to upload object {key}: {e}")
@@ -117,7 +164,9 @@ class AsyncS3Client:
             Exception: If download fails
         """
         try:
-            async with self.session.client("s3", endpoint_url=self._endpoint_url) as s3:
+            async with self._get_s3_client() as s3:
+                s3: "S3Client"
+
                 response = await s3.get_object(Bucket=self.settings.bucket, Key=key)
                 # Read the body stream
                 body = response.get("Body")
@@ -140,7 +189,8 @@ class AsyncS3Client:
             Exception: If deletion fails
         """
         try:
-            async with self.session.client("s3", endpoint_url=self._endpoint_url) as s3:
+            async with self._get_s3_client() as s3:
+                s3: "S3Client"
                 await s3.delete_object(Bucket=self.settings.bucket, Key=key)
             logger.info(f"Successfully deleted object: {key}")
         except Exception as e:
@@ -157,7 +207,8 @@ class AsyncS3Client:
             True if file exists, False otherwise
         """
         try:
-            async with self.session.client("s3", endpoint_url=self._endpoint_url) as s3:
+            async with self._get_s3_client() as s3:
+                s3: "S3Client"
                 await s3.head_object(Bucket=self.settings.bucket, Key=key)
             return True
         except Exception as e:
@@ -179,7 +230,8 @@ class AsyncS3Client:
             Exception: If rename fails
         """
         try:
-            async with self.session.client("s3", endpoint_url=self._endpoint_url) as s3:
+            async with self._get_s3_client() as s3:
+                s3: "S3Client"
                 # Copy object to new key
                 copy_source = {"Bucket": self.settings.bucket, "Key": old_key}
                 await s3.copy_object(
@@ -204,7 +256,8 @@ class AsyncS3Client:
             Exception: If deletion fails
         """
         try:
-            async with self.session.client("s3", endpoint_url=self._endpoint_url) as s3:
+            async with self._get_s3_client() as s3:
+                s3: "S3Client"
                 # List all objects with the given prefix
                 objects_to_delete = []
                 continuation_token = None
@@ -223,7 +276,7 @@ class AsyncS3Client:
 
                     # Collect objects
                     if "Contents" in response:
-                        objects_to_delete.extend([{"Key": obj["Key"]} for obj in response["Contents"]])
+                        objects_to_delete.extend([obj["Key"] for obj in response["Contents"]])
 
                     # Check if there are more pages
                     if not response.get("IsTruncated"):
@@ -233,16 +286,33 @@ class AsyncS3Client:
 
                 # Delete all objects if any were found
                 if objects_to_delete:
-                    # S3 delete_objects can handle up to 1000 objects at a time
-                    for i in range(0, len(objects_to_delete), 1000):
-                        batch = objects_to_delete[i : i + 1000]
-                        await s3.delete_objects(Bucket=self.settings.bucket, Delete={"Objects": batch})
+                    deleted_count = 0
+                    # Delete objects in batches (S3 API allows up to 1000 objects per delete_objects call)
+                    batch_size = 1000
+                    for i in range(0, len(objects_to_delete), batch_size):
+                        batch = objects_to_delete[i : i + batch_size]
+                        try:
+                            # Prepare delete request for batch
+                            delete_request = {"Objects": [{"Key": key} for key in batch]}
+                            response = await s3.delete_objects(Bucket=self.settings.bucket, Delete=delete_request)
 
-                    logger.info(f"Successfully deleted {len(objects_to_delete)} objects with prefix {prefix}")
+                            # Count successfully deleted objects
+                            if "Deleted" in response:
+                                deleted_count += len(response["Deleted"])
+
+                            # Log any errors that occurred during batch delete
+                            if "Errors" in response:
+                                for error in response["Errors"]:
+                                    logger.warning(f"Failed to delete object {error['Key']}: {error['Message']}")
+                        except Exception:
+                            logger.exception("Failed to delete batch of objects")
+                            # Continue with next batch even if one fails
+
+                    logger.info("Successfully deleted %d/%d objects with prefix %s", deleted_count, len(objects_to_delete), prefix)
                 else:
-                    logger.info(f"No objects found with prefix {prefix}")
+                    logger.info("No objects found with prefix %s", prefix)
         except Exception as e:
-            logger.error(f"Failed to delete folder with prefix {prefix}: {e}")
+            logger.error("Failed to delete folder with prefix %s: %s", prefix, e)
             raise
 
     async def close(self) -> None:
@@ -268,21 +338,13 @@ class AsyncS3Client:
         # Check cache first
         cached = get_cached_presigned_url(key)
         if cached:
-            logger.debug(f"Using cached presigned URL for: {key}")
+            logger.debug("Using cached presigned URL for: %s", key)
             return cached
-
-        import boto3
 
         try:
             # Create a sync boto3 client for presigned URL generation
             # (presigned URLs are sync operation, no need for async)
-            s3_client = boto3.client(
-                "s3",
-                endpoint_url=self._endpoint_url,
-                aws_access_key_id=self.settings.access_key,
-                aws_secret_access_key=self.settings.secret_key,
-                region_name=self.settings.region,
-            )
+            s3_client = self._get_presign_client()
             url = s3_client.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": self.settings.bucket, "Key": key},
@@ -294,10 +356,10 @@ class AsyncS3Client:
             except Exception:
                 logger.warning("Failed to cache presigned URL for key %s", key)
 
-            logger.info(f"Generated presigned URL for: {key}")
+            logger.debug("Generated presigned URL for: %s", key)
             return str(url)
         except Exception as e:
-            logger.error(f"Failed to generate presigned URL for {key}: {e}")
+            logger.error("Failed to generate presigned URL for %s: %s", key, e)
             raise
 
     async def generate_presigned_urls_batch(self, keys: list[str], expires_in: int = 7200) -> dict[str, str]:
@@ -338,3 +400,25 @@ class AsyncS3Client:
                 logger.warning(f"Failed to generate presigned URL for {key}: {e}")
 
         return urls
+
+    async def get_object(self, key: str) -> dict:
+        """Get an object from S3.
+
+        Args:
+            key: S3 object key
+
+        Returns:
+            S3 get_object response dict
+
+        Raises:
+            Exception: If get fails
+        """
+        try:
+            async with self._get_s3_client() as s3:
+                s3: "S3Client"
+                response = await s3.get_object(Bucket=self.settings.bucket, Key=key)
+            logger.info(f"Successfully got object: {key}")
+            return response
+        except Exception as e:
+            logger.error(f"Failed to get object {key}: {e}")
+            raise

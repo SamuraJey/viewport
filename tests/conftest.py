@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 from collections.abc import Generator
@@ -15,10 +16,12 @@ from testcontainers.postgres import PostgresContainer
 
 POSTGRES_IMAGE = "postgres:17-alpine"
 
-MINIO_IMAGE = "rustfs/rustfs:1.0.0-alpha.64"
-MINIO_ROOT_USER = "minioadmin"
-MINIO_ROOT_PASSWORD = "minioadmin"
-MINIO_PORT = 9000
+S3_IMAGE = "rustfs/rustfs:1.0.0-alpha.64"
+S3_ROOT_ACCESS_KEY = "minioadmin"
+S3_ROOT_SECRET_KEY = "minioadmin"
+S3_PORT = 9000
+
+logger = logging.getLogger(__name__)
 
 os.environ.update({"JWT_SECRET_KEY": "supersecretkey", "INVITE_CODE": "testinvitecode"})
 
@@ -77,65 +80,92 @@ def db_session(engine: Engine) -> Generator[Session]:
 
 
 @pytest.fixture(scope="session")
-def minio_container() -> Generator[DockerContainer]:
-    """Фикстура контейнера MinIO с областью видимости на сессию."""
+def s3_container() -> Generator[DockerContainer]:
+    """Фикстура контейнера S3 с областью видимости на сессию."""
     import boto3
     from botocore.config import Config
 
     container = (
-        DockerContainer(MINIO_IMAGE).with_env("RUSTFS_ACCESS_KEY", MINIO_ROOT_USER).with_env("RUSTFS_SECRET_KEY", MINIO_ROOT_PASSWORD).with_exposed_ports(MINIO_PORT)
+        DockerContainer(S3_IMAGE).with_env("RUSTFS_ACCESS_KEY", S3_ROOT_ACCESS_KEY).with_env("RUSTFS_SECRET_KEY", S3_ROOT_SECRET_KEY).with_exposed_ports(S3_PORT)
         # .with_command("server /data --console-address :9001")
     )
 
-    with container as minio:
-        host = minio.get_container_host_ip()
-        port = minio.get_exposed_port(MINIO_PORT)
+    with container as s3_test_container:
+        host = s3_test_container.get_container_host_ip()
+        port = s3_test_container.get_exposed_port(S3_PORT)
 
         # Set environment variables
         os.environ.update(
             {
-                "S3_ENDPOINT": f"{host}:{port}",
-                "S3_ACCESS_KEY": MINIO_ROOT_USER,
-                "S3_SECRET_KEY": MINIO_ROOT_PASSWORD,
-                "S3_ROOT_USER": MINIO_ROOT_USER,
-                "S3_ROOT_PASSWORD": MINIO_ROOT_PASSWORD,
+                "S3_ENDPOINT": f"http://{host}:{port}",
+                "S3_ACCESS_KEY": S3_ROOT_ACCESS_KEY,
+                "S3_SECRET_KEY": S3_ROOT_SECRET_KEY,
                 "S3_BUCKET": "test-viewport",
                 "S3_REGION": "us-east-1",
+                "S3_USE_SSL": "false",
+                "S3_SIGNATURE_VERSION": "s3v4",
             }
         )
 
         endpoint_url = f"http://{host}:{port}"
         bucket_name = os.environ["S3_BUCKET"]
 
-        # Ensure the test bucket exists before hitting the API
-        config = Config(s3={"addressing_style": "path"})
-        client = boto3.client(
-            "s3",
-            endpoint_url=endpoint_url,
-            aws_access_key_id=MINIO_ROOT_USER,
-            aws_secret_access_key=MINIO_ROOT_PASSWORD,
-            config=config,
-        )
+        # Ensure the bucket directory exists inside the container (fallback for signature issues)
+        # exit_code, output = s3_test_container.exec(["mkdir", "-p", f"/data/{bucket_name}"])
+        # if exit_code != 0:
+        #     raise RuntimeError(f"Failed to create bucket directory: {output.decode(errors='ignore')}")
 
-        for _ in range(60):
-            try:
-                client.create_bucket(Bucket=bucket_name)
-                break
-            except client.exceptions.BucketAlreadyOwnedByYou:
-                break
-            except client.exceptions.BucketAlreadyExists:
-                break
-            except Exception:
-                breakpoint()
-                time.sleep(0.1)
-        else:  # pragma: no cover - fail fast if MinIO never becomes ready
-            raise RuntimeError("Failed to create test MinIO bucket")
+        # Try to create the bucket via S3 API as well (preferred path)
+        def _make_config(signature: str) -> Config:
+            return Config(
+                s3={"addressing_style": "path"},
+                signature_version=signature,
+                request_checksum_calculation="when_required",
+                response_checksum_validation="when_required",
+            )
 
-        yield minio
+        def _try_create_bucket(signature: str) -> bool:
+            client = boto3.client(
+                "s3",
+                endpoint_url=endpoint_url,
+                aws_access_key_id=S3_ROOT_ACCESS_KEY,
+                aws_secret_access_key=S3_ROOT_SECRET_KEY,
+                region_name=os.environ.get("S3_REGION", "us-east-1"),
+                config=_make_config(signature),
+            )
+
+            for _ in range(60):
+                try:
+                    client.create_bucket(Bucket=bucket_name)
+                    return True
+                except client.exceptions.BucketAlreadyOwnedByYou:
+                    return True
+                except client.exceptions.BucketAlreadyExists:
+                    return True
+                except Exception as exc:  # noqa: BLE001 - log for debugging signature mismatch
+                    logger.warning("Error creating S3 bucket via API (sig=%s): %s", signature, exc)
+                    time.sleep(0.1)
+            return False
+
+        signature_version = os.environ["S3_SIGNATURE_VERSION"]
+        bucket_ready = _try_create_bucket(signature_version)
+
+        if not bucket_ready and signature_version != "s3v4":
+            os.environ["S3_SIGNATURE_VERSION"] = "s3v4"
+            logger.info("Retrying S3 bucket setup with signature v4 due to previous failures")
+            bucket_ready = _try_create_bucket("s3v4")
+
+        # if not bucket_ready:
+        #     logger.info(
+        #         "Proceeding with filesystem-created bucket for tests (signature=%s)",
+        #         os.environ["S3_SIGNATURE_VERSION"],
+        #     )
+
+        yield s3_test_container
 
 
 @pytest.fixture(scope="function")
-def client(db_session: Session, minio_container: DockerContainer):
+def client(db_session: Session, s3_container: DockerContainer):
     """Фикстура тестового клиента FastAPI с очисткой состояния между тестами."""
 
     # Override get_db to use the transactional db_session for each test

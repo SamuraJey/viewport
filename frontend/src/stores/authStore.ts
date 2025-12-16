@@ -1,25 +1,25 @@
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export interface User {
-  id: string
-  email: string
-  display_name?: string | null
+  id: string;
+  email: string;
+  display_name?: string | null;
 }
 
 export interface AuthTokens {
-  access_token: string
-  refresh_token: string
-  token_type: string
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
 }
 
 interface AuthState {
-  user: User | null
-  tokens: AuthTokens | null
-  isAuthenticated: boolean
-  login: (user: User, tokens: AuthTokens) => void
-  logout: () => void
-  updateTokens: (tokens: AuthTokens) => void
+  user: User | null;
+  tokens: AuthTokens | null;
+  isAuthenticated: boolean;
+  login: (user: User, tokens: AuthTokens) => void;
+  logout: () => void;
+  updateTokens: (tokens: AuthTokens) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -32,18 +32,18 @@ export const useAuthStore = create<AuthState>()(
         set({
           user,
           tokens,
-          isAuthenticated: true
+          isAuthenticated: true,
         }),
       logout: () =>
         set({
           user: null,
           tokens: null,
-          isAuthenticated: false
+          isAuthenticated: false,
         }),
       updateTokens: (tokens) =>
         set((state) => ({
           ...state,
-          tokens
+          tokens,
         })),
     }),
     {
@@ -53,6 +53,6 @@ export const useAuthStore = create<AuthState>()(
         tokens: state.tokens,
         isAuthenticated: state.isAuthenticated,
       }),
-    }
-  )
-)
+    },
+  ),
+);

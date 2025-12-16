@@ -1,48 +1,53 @@
-import { useEffect, useState } from 'react'
-import { api } from '../lib/api'
+import { useEffect, useState } from 'react';
+import { api } from '../lib/api';
 
 interface AuthenticatedImageProps {
-  src: string
-  alt: string
-  className?: string
-  loading?: 'lazy' | 'eager'
+  src: string;
+  alt: string;
+  className?: string;
+  loading?: 'lazy' | 'eager';
 }
 
-export const AuthenticatedImage = ({ src, alt, className, loading = 'lazy' }: AuthenticatedImageProps) => {
-  const [imageSrc, setImageSrc] = useState<string>('')
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string>('')
+export const AuthenticatedImage = ({
+  src,
+  alt,
+  className,
+  loading = 'lazy',
+}: AuthenticatedImageProps) => {
+  const [imageSrc, setImageSrc] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string>('');
 
   useEffect(() => {
-    let activeUrl: string | null = null
+    let activeUrl: string | null = null;
     const loadImage = async () => {
       if (!src) {
-        setIsLoading(false)
-        return
+        setIsLoading(false);
+        return;
       }
-      setIsLoading(true)
-      setError('')
+      setIsLoading(true);
+      setError('');
       try {
-        const response = await api.get(src, { responseType: 'blob' })
-        const blob = response.data
-        const objectUrl = URL.createObjectURL(blob)
-        activeUrl = objectUrl
-        setImageSrc(objectUrl)
-      } catch (err: any) {
-        console.error('Failed to load authenticated image:', err)
-        setError('Failed to load')
+        const response = await api.get(src, { responseType: 'blob' });
+        const blob = response.data;
+        const objectUrl = URL.createObjectURL(blob);
+        activeUrl = objectUrl;
+        setImageSrc(objectUrl);
+      } catch (err: unknown) {
+        console.error('Failed to load authenticated image:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load');
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
+    };
 
-    loadImage()
+    loadImage();
     return () => {
       if (activeUrl) {
-        URL.revokeObjectURL(activeUrl)
+        URL.revokeObjectURL(activeUrl);
       }
-    }
-  }, [src])
+    };
+  }, [src]);
 
   if (isLoading) {
     return (
@@ -51,21 +56,12 @@ export const AuthenticatedImage = ({ src, alt, className, loading = 'lazy' }: Au
           <div className="text-text-muted">Loading...</div>
         </div>
       </div>
-    )
+    );
   }
 
   if (error) {
-    return (
-      <div className={`bg-red-100 text-red-500 text-sm p-2 ${className}`}>{error}</div>
-    )
+    return <div className={`bg-red-100 text-red-500 text-sm p-2 ${className}`}>{error}</div>;
   }
 
-  return (
-    <img
-      src={imageSrc}
-      alt={alt}
-      className={className}
-      loading={loading}
-    />
-  )
-}
+  return <img src={imageSrc} alt={alt} className={className} loading={loading} />;
+};

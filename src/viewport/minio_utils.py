@@ -1,32 +1,34 @@
 import io
 import logging
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import boto3
 from botocore.client import Config
-from mypy_boto3_s3 import S3Client
 from PIL import Image, ImageOps
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Configure logging - set botocore to WARNING level to reduce noise
-logging.getLogger("botocore").setLevel(logging.WARNING)
-logging.getLogger("boto3").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("botocore").setLevel(logging.INFO)
+logging.getLogger("boto3").setLevel(logging.INFO)
+logging.getLogger("urllib3").setLevel(logging.INFO)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+if TYPE_CHECKING:
+    from mypy_boto3_s3 import S3Client
 
 
 class S3Settings(BaseSettings):
     """Configuration for S3/MinIO client"""
 
     endpoint: str = "localhost:9000"
-    access_key: str = Field(alias="MINIO_ROOT_USER", default="minioadmin")
-    secret_key: str = Field(alias="MINIO_ROOT_PASSWORD", default="minioadmin")
+    access_key: str = "rustfsadmin"
+    secret_key: str = "rustfsadmin"
     bucket: str = "viewport"
-    region: str = "us-east-1"  # Can be overridden with MINIO_REGION env var
-    use_ssl: bool = False  # Can be overridden with MINIO_USE_SSL env var
+    region: str = "us-east-1"
+    use_ssl: bool = False
+    signature_version: str = "s3v4"
 
     model_config = SettingsConfigDict(
         env_prefix="S3_",
@@ -35,7 +37,7 @@ class S3Settings(BaseSettings):
     )
 
 
-def get_s3_client() -> S3Client:
+def get_s3_client() -> "S3Client":
     """Get a boto3 S3 client configured for MinIO (sync client).
 
     Used for operations that don't need async, like thumbnail uploads in Celery tasks.
@@ -52,14 +54,20 @@ def get_s3_client() -> S3Client:
 
     # Increase max pool connections to support concurrent uploads
     config = Config(
-        signature_version="s3",
-        max_pool_connections=50,
+        signature_version=settings.signature_version,
+        max_pool_connections=200,  # Increased to handle concurrent batch uploads
+        retries={"max_attempts": 3, "mode": "standard"},
+        connect_timeout=10,
+        read_timeout=60,
         s3={"addressing_style": "path"},
     )
+    logger.info(f"Created sync S3 client config: {config}")
+    logger.info(f"S3 Client settings: {settings}")
 
     return boto3.client(
         "s3",
         endpoint_url=endpoint,
+        region_name=settings.region,
         aws_access_key_id=settings.access_key,
         aws_secret_access_key=settings.secret_key,
         config=config,
@@ -110,12 +118,16 @@ def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800),
         image = image.convert("RGB")
         image.thumbnail(max_size, Image.Resampling.LANCZOS)
 
+        # Store width and height BEFORE closing the image
+        width = image.width
+        height = image.height
+
         thumbnail_io = io.BytesIO()
         image.save(thumbnail_io, format="JPEG", quality=quality, optimize=True)
         image.close()
         thumbnail_io.seek(0)
 
-        return thumbnail_io.read(), image.width, image.height
+        return thumbnail_io.read(), width, height
     except Exception as e:
         logger.error(f"Failed to create thumbnail: {e}")
         raise

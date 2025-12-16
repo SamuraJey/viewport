@@ -113,6 +113,7 @@ async def get_gallery_detail(
         cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
         photos=photo_responses,
         share_links=[ShareLinkResponse.model_validate(link) for link in gallery.share_links],
+        total_photos=photo_count,
     )
 
 
@@ -123,9 +124,14 @@ def set_cover_photo(
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> GalleryResponse:
+    logger.info(f"Setting cover photo for gallery {gallery_id}, photo {photo_id}, user {current_user.id}")
+
     gallery = repo.set_cover_photo(gallery_id, photo_id, current_user.id)
     if not gallery:
+        logger.warning(f"Gallery {gallery_id} or photo {photo_id} not found")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery or photo not found")
+
+    logger.info(f"Cover photo set successfully: gallery {gallery_id}, cover_photo_id={gallery.cover_photo_id}")
 
     return GalleryResponse(
         id=str(gallery.id),
