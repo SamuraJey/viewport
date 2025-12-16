@@ -10,13 +10,22 @@ export interface ShareLink {
   created_at: string;
 }
 
-export interface PublicPhotoResponse {
+export interface PublicPhoto {
   photo_id: string;
   thumbnail_url: string;
   full_url: string;
   filename?: string | null;
   width?: number | null;
   height?: number | null;
+}
+
+export interface SharedGallery {
+  photos: PublicPhoto[];
+  cover?: { photo_id: string; full_url: string; thumbnail_url: string } | null;
+  photographer?: string;
+  gallery_name?: string;
+  date?: string;
+  site_url?: string;
 }
 
 const getShareLinks = async (galleryId: string): Promise<ShareLink[]> => {
@@ -35,13 +44,6 @@ const createShareLink = async (galleryId: string): Promise<ShareLink> => {
 const deleteShareLink = async (galleryId: string, shareLinkId: string): Promise<void> => {
   await api.delete(`/galleries/${galleryId}/share-links/${shareLinkId}`);
 };
-
-interface SharedGallery {
-  id: string;
-  name: string;
-  photos: unknown[];
-  total_photos: number;
-}
 
 const getSharedGallery = async (
   shareId: string,
@@ -70,7 +72,7 @@ const getPublicPhotoUrl = async (
   return response.data;
 };
 
-const getAllPublicPhotoUrls = async (shareId: string): Promise<PublicPhotoResponse[]> => {
+const getAllPublicPhotoUrls = async (shareId: string): Promise<PublicPhoto[]> => {
   const response = await api.get(`/s/${shareId}/photos/urls`);
   return response.data;
 };

@@ -5,33 +5,19 @@ import { useTheme } from '../hooks/useTheme';
 import { PhotoModal } from '../components/PhotoModal';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { LazyImage } from '../components/LazyImage';
-import { shareLinkService } from '../services/shareLinkService';
+import {
+  shareLinkService,
+  type PublicPhoto,
+  type SharedGallery,
+} from '../services/shareLinkService';
 
 // Get API base URL from environment variables
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:8000');
 
-interface PublicPhoto {
-  photo_id: string;
-  thumbnail_url: string;
-  full_url: string;
-  filename?: string;
-  width?: number;
-  height?: number;
-}
-
-interface PublicGalleryData {
-  photos: PublicPhoto[];
-  cover?: { photo_id: string; full_url: string; thumbnail_url: string } | null;
-  photographer?: string;
-  gallery_name?: string;
-  date?: string;
-  site_url?: string;
-}
-
 export const PublicGalleryPage = () => {
   const { shareId } = useParams<{ shareId: string }>();
-  const [gallery, setGallery] = useState<PublicGalleryData | null>(null);
+  const [gallery, setGallery] = useState<SharedGallery | null>(null);
   const [photos, setPhotos] = useState<PublicPhoto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);

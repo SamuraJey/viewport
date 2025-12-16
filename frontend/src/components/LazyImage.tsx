@@ -5,8 +5,8 @@ interface LazyImageProps {
   alt: string;
   className?: string;
   style?: React.CSSProperties;
-  width?: number;
-  height?: number;
+  width?: number | null;
+  height?: number | null;
 }
 
 export const LazyImage = ({ src, alt, className, style, width, height }: LazyImageProps) => {
