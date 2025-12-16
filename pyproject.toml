@@ -3,14 +3,14 @@ name = "viewport"
 version = "0.1.0"
 description = "Portal for sharing photos with friends"
 readme = "README.md"
-requires-python = ">=3.13, <3.14"
+requires-python = ">=3.14, <3.15"
 dependencies = [
     "alembic>=1.16.4,<2.0.0",
     "bcrypt>=4.3.0,<5.0.0",
     "boto3>=1.39.9,<1.40.0",
     "botocore>=1.39.9,<1.40.0",
     "celery>=5.4.0,<6.0.0",
-    "Pillow>=10.0.0,<11.0.0",
+    "Pillow>=11.0.0,<12.0.0",
     "fastapi>=0.116.1,<0.119.0",
     "httpx>=0.28.1,<0.29.0",
     "prometheus-fastapi-instrumentator>=7.1.0, <8.0.0",
