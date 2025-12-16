@@ -1,6 +1,6 @@
 /* Import Google Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Cuprum:wght@400;500;700&family=PT+Sans:wght@400;700&display=swap');
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* ===== THEME TRANSITION ANIMATIONS ===== */
 /* View Transitions API for smooth theme switching */
@@ -83,7 +83,8 @@ header,
 main,
 nav,
 footer {
-  transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+  transition:
+    background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
     border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -96,7 +97,7 @@ footer {
 /* Use GPU acceleration for better performance */
 button,
 a,
-[role="button"] {
+[role='button'] {
   will-change: auto;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
@@ -315,7 +316,9 @@ html.dark {
   padding: 0.25rem;
   border-radius: 0.5rem;
   /* rounded-lg */
-  transition: background-color 160ms ease, transform 120ms ease;
+  transition:
+    background-color 160ms ease,
+    transform 120ms ease;
   box-shadow: 0 1px 2px rgba(2, 6, 23, 0.06);
   border: 1px solid rgba(0, 0, 0, 0.06);
   cursor: pointer;
@@ -377,7 +380,6 @@ html.dark {
 .popup-action--danger:focus-visible {
   box-shadow: 0 0 0 3px rgb(239 68 68 / 0.08);
 }
-
 
 /* Popup container: use semantic neutral tokens so the popup adapts to
    light/dark themes via the variables defined in :root / :root.dark.
@@ -441,23 +443,23 @@ h2 {
 /* Classes containing slashes are hard to author in plain CSS selectors
    (Tailwind escapes them). Use attribute selectors to match class names
    emitted in markup like `bg-danger/10` or `border-danger/20`. */
-[class*="bg-danger/10"] {
-  background-color: rgba(239, 68, 68, 0.10) !important;
+[class*='bg-danger/10'] {
+  background-color: rgba(239, 68, 68, 0.1) !important;
 }
 
-[class*="bg-danger/20"] {
-  background-color: rgba(239, 68, 68, 0.20) !important;
+[class*='bg-danger/20'] {
+  background-color: rgba(239, 68, 68, 0.2) !important;
 }
 
-[class*="border-danger/20"] {
-  border-color: rgba(239, 68, 68, 0.20) !important;
+[class*='border-danger/20'] {
+  border-color: rgba(239, 68, 68, 0.2) !important;
 }
 
 /* Ensure small danger-bg buttons that use bg-danger/80 or /80 variants
    still show a visible red background when used (used on small dismiss
    buttons). */
-[class*="bg-danger/80"] {
-  background-color: rgba(239, 68, 68, 0.80) !important;
+[class*='bg-danger/80'] {
+  background-color: rgba(239, 68, 68, 0.8) !important;
   color: #ffffff !important;
 }
 
@@ -494,7 +496,7 @@ body.dark .text-danger {
 .gallery-copy__btn {
   color: rgb(16 185 129);
   /* green-500 */
-  border-color: rgba(16, 185, 129, 0.20);
+  border-color: rgba(16, 185, 129, 0.2);
 }
 
 /* Scope copy-button accent to the share-links container used in GalleryPage
@@ -505,7 +507,7 @@ body.dark .text-danger {
 .bg-surface-1 .gallery-copy__btn svg,
 .bg-surface-1 .gallery-copy__btn * {
   color: rgb(16 185 129) !important;
-  border-color: rgba(16, 185, 129, 0.20) !important;
+  border-color: rgba(16, 185, 129, 0.2) !important;
 }
 
 /* Ensure SVG stroke/fill uses success color inside the copy button */
@@ -539,7 +541,7 @@ body.dark .bg-surface-1 .gallery-copy__btn {
 .gallery-create__btn {
   background-color: var(--color-primary-500);
   /* fallback border color for browsers that don't support color-mix */
-  border-color: rgba(31, 144, 255, 0.20);
+  border-color: rgba(31, 144, 255, 0.2);
   color: var(--color-white);
 }
 
@@ -553,9 +555,9 @@ body.dark .gallery-create__btn,
   color: var(--color-white);
 }
 
-.dark [class*="bg-danger/10"],
-html.dark [class*="bg-danger/10"],
-body.dark [class*="bg-danger/10"] {
+.dark [class*='bg-danger/10'],
+html.dark [class*='bg-danger/10'],
+body.dark [class*='bg-danger/10'] {
   background-color: rgba(239, 68, 68, 0.12) !important;
 }
 
@@ -684,7 +686,9 @@ body.dark .bg-surface-dark,
 }
 
 .pg-card {
-  transition: transform 220ms cubic-bezier(.2, .9, .3, 1), box-shadow 220ms;
+  transition:
+    transform 220ms cubic-bezier(0.2, 0.9, 0.3, 1),
+    box-shadow 220ms;
   will-change: transform;
   border-radius: 0.75rem;
   overflow: hidden;
@@ -741,7 +745,7 @@ body.dark .bg-surface-dark,
 }
 
 /* Ensure cards behave correctly inside CSS columns (masonry) */
-.pg-columns>.pg-card {
+.pg-columns > .pg-card {
   display: inline-block;
   width: 100%;
   break-inside: avoid;
@@ -756,16 +760,16 @@ body.dark .bg-surface-dark,
 /* Ensure the clickable button and image fill the reserved card area so
    the layout doesn't jump when the image src is applied. Use object-fit
    to preserve aspect and crop as needed. */
-.pg-columns>.pg-card>button {
+.pg-columns > .pg-card > button {
   display: block;
   width: 100%;
   height: 100%;
   padding: 0;
 }
 
-.pg-columns>.pg-card img,
-.pg-columns>.pg-card>button>img,
-.pg-columns>.pg-card .animate-pulse {
+.pg-columns > .pg-card img,
+.pg-columns > .pg-card > button > img,
+.pg-columns > .pg-card .animate-pulse {
   display: block;
   width: 100%;
   height: 100%;
@@ -774,26 +778,26 @@ body.dark .bg-surface-dark,
 
 /* Aspect-specific helpers: wide images should be shown contained and centered
    to avoid very short heights distorting masonry; tall images keep cover. */
-.pg-columns>.pg-card img.photo--wide,
-.pg-columns>.pg-card>button>img.photo--wide {
+.pg-columns > .pg-card img.photo--wide,
+.pg-columns > .pg-card > button > img.photo--wide {
   object-fit: contain;
   background-color: rgb(var(--color-neutral-50-rgb));
 }
 
-.dark .pg-columns>.pg-card img.photo--wide,
-.dark .pg-columns>.pg-card>button>img.photo--wide,
-html.dark .pg-columns>.pg-card img.photo--wide,
-html.dark .pg-columns>.pg-card>button>img.photo--wide {
+.dark .pg-columns > .pg-card img.photo--wide,
+.dark .pg-columns > .pg-card > button > img.photo--wide,
+html.dark .pg-columns > .pg-card img.photo--wide,
+html.dark .pg-columns > .pg-card > button > img.photo--wide {
   background-color: rgb(24, 24, 27);
 }
 
-.pg-columns>.pg-card img.photo--tall,
-.pg-columns>.pg-card>button>img.photo--tall {
+.pg-columns > .pg-card img.photo--tall,
+.pg-columns > .pg-card > button > img.photo--tall {
   object-fit: cover;
 }
 
-.pg-columns>.pg-card img.photo--square,
-.pg-columns>.pg-card>button>img.photo--square {
+.pg-columns > .pg-card img.photo--square,
+.pg-columns > .pg-card > button > img.photo--square {
   object-fit: cover;
 }
 
@@ -889,10 +893,22 @@ body.dark .popup-container,
 }
 
 /* Fix for popup action buttons inside popups - only override neutral ones, preserve accent colors */
-.dark .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(.popup-action--success):not(.popup-action--danger),
-html.dark .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(.popup-action--success):not(.popup-action--danger),
-body.dark .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(.popup-action--success):not(.popup-action--danger),
-:root.dark .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(.popup-action--success):not(.popup-action--danger) {
+.dark
+  .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(
+    .popup-action--success
+  ):not(.popup-action--danger),
+html.dark
+  .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(
+    .popup-action--success
+  ):not(.popup-action--danger),
+body.dark
+  .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(
+    .popup-action--success
+  ):not(.popup-action--danger),
+:root.dark
+  .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(
+    .popup-action--success
+  ):not(.popup-action--danger) {
   background-color: rgb(63, 63, 70) !important;
   color: rgb(244, 244, 245) !important;
   border-color: rgb(82, 82, 91) !important;
@@ -978,45 +994,45 @@ body.dark .popup-action--danger,
 }
 
 /* Fix for input fields in dark mode - add visible borders */
-.dark input[type="email"],
-.dark input[type="text"],
-.dark input[type="password"],
-html.dark input[type="email"],
-html.dark input[type="text"],
-html.dark input[type="password"],
-body.dark input[type="email"],
-body.dark input[type="text"],
-body.dark input[type="password"] {
+.dark input[type='email'],
+.dark input[type='text'],
+.dark input[type='password'],
+html.dark input[type='email'],
+html.dark input[type='text'],
+html.dark input[type='password'],
+body.dark input[type='email'],
+body.dark input[type='text'],
+body.dark input[type='password'] {
   border-color: rgb(82, 82, 91) !important;
   background-color: transparent !important;
   color: rgb(244, 244, 245) !important;
 }
 
 /* Focus state for input fields in dark mode */
-.dark input[type="email"]:focus,
-.dark input[type="text"]:focus,
-.dark input[type="password"]:focus,
-html.dark input[type="email"]:focus,
-html.dark input[type="text"]:focus,
-html.dark input[type="password"]:focus,
-body.dark input[type="email"]:focus,
-body.dark input[type="text"]:focus,
-body.dark input[type="password"]:focus {
+.dark input[type='email']:focus,
+.dark input[type='text']:focus,
+.dark input[type='password']:focus,
+html.dark input[type='email']:focus,
+html.dark input[type='text']:focus,
+html.dark input[type='password']:focus,
+body.dark input[type='email']:focus,
+body.dark input[type='text']:focus,
+body.dark input[type='password']:focus {
   border-color: rgb(96, 165, 250) !important;
   outline: none !important;
   box-shadow: 0 0 0 1px rgb(96, 165, 250) !important;
 }
 
 /* Disabled input fields in dark mode */
-.dark input[type="email"]:disabled,
-.dark input[type="text"]:disabled,
-.dark input[type="password"]:disabled,
-html.dark input[type="email"]:disabled,
-html.dark input[type="text"]:disabled,
-html.dark input[type="password"]:disabled,
-body.dark input[type="email"]:disabled,
-body.dark input[type="text"]:disabled,
-body.dark input[type="password"]:disabled {
+.dark input[type='email']:disabled,
+.dark input[type='text']:disabled,
+.dark input[type='password']:disabled,
+html.dark input[type='email']:disabled,
+html.dark input[type='text']:disabled,
+html.dark input[type='password']:disabled,
+body.dark input[type='email']:disabled,
+body.dark input[type='text']:disabled,
+body.dark input[type='password']:disabled {
   border-color: rgb(63, 63, 70) !important;
   background-color: rgb(39, 39, 42) !important;
   color: rgb(161, 161, 170) !important;

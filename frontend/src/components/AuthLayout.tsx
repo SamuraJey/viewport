@@ -1,17 +1,16 @@
-
-import type { ReactNode } from 'react'
-import { ThemeSwitch } from './ThemeSwitch'
-import { useTheme } from '../hooks/useTheme'
+import type { ReactNode } from 'react';
+import { ThemeSwitch } from './ThemeSwitch';
+import { useTheme } from '../hooks/useTheme';
 
 // No React state needed; direct DOM toggling
 // Removed unused imports for React hooks and lucide icons
 
 interface AuthLayoutProps {
-  children: ReactNode
+  children: ReactNode;
 }
 
 export const AuthLayout = ({ children }: AuthLayoutProps) => {
-  const { theme } = useTheme()
+  const { theme } = useTheme();
 
   return (
     <div
@@ -22,5 +21,5 @@ export const AuthLayout = ({ children }: AuthLayoutProps) => {
 
       {children}
     </div>
-  )
-}
+  );
+};

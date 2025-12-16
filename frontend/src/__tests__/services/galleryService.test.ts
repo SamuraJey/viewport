@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { galleryService } from '../../services/galleryService'
-import { api } from '../../lib/api'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { galleryService } from '../../services/galleryService';
+import { api } from '../../lib/api';
 
 // Mock the api module
 vi.mock('../../lib/api', () => ({
@@ -10,12 +10,12 @@ vi.mock('../../lib/api', () => ({
     delete: vi.fn(),
     patch: vi.fn(),
   },
-}))
+}));
 
 describe('galleryService', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-  })
+    vi.clearAllMocks();
+  });
 
   describe('getGalleries', () => {
     it('should make GET request to /galleries with default pagination', async () => {
@@ -32,15 +32,15 @@ describe('galleryService', () => {
           page: 1,
           size: 10,
         },
-      }
+      };
 
-      vi.mocked(api.get).mockResolvedValue(mockResponse)
+      vi.mocked(api.get).mockResolvedValue(mockResponse);
 
-      const result = await galleryService.getGalleries()
+      const result = await galleryService.getGalleries();
 
-      expect(api.get).toHaveBeenCalledWith('/galleries?page=1&size=10')
-      expect(result).toEqual(mockResponse.data)
-    })
+      expect(api.get).toHaveBeenCalledWith('/galleries?page=1&size=10');
+      expect(result).toEqual(mockResponse.data);
+    });
 
     it('should make GET request with custom pagination', async () => {
       const mockResponse = {
@@ -50,27 +50,27 @@ describe('galleryService', () => {
           page: 2,
           size: 5,
         },
-      }
+      };
 
-      vi.mocked(api.get).mockResolvedValue(mockResponse)
+      vi.mocked(api.get).mockResolvedValue(mockResponse);
 
-      const result = await galleryService.getGalleries(2, 5)
+      const result = await galleryService.getGalleries(2, 5);
 
-      expect(api.get).toHaveBeenCalledWith('/galleries?page=2&size=5')
-      expect(result).toEqual(mockResponse.data)
-    })
+      expect(api.get).toHaveBeenCalledWith('/galleries?page=2&size=5');
+      expect(result).toEqual(mockResponse.data);
+    });
 
     it('should handle getGalleries errors', async () => {
-      const mockError = new Error('Failed to fetch galleries')
-      vi.mocked(api.get).mockRejectedValue(mockError)
+      const mockError = new Error('Failed to fetch galleries');
+      vi.mocked(api.get).mockRejectedValue(mockError);
 
-      await expect(galleryService.getGalleries()).rejects.toThrow('Failed to fetch galleries')
-    })
-  })
+      await expect(galleryService.getGalleries()).rejects.toThrow('Failed to fetch galleries');
+    });
+  });
 
   describe('getGallery', () => {
     it('should make GET request to /galleries/:id', async () => {
-      const galleryId = 'gallery-123'
+      const galleryId = 'gallery-123';
       const mockResponse = {
         data: {
           id: galleryId,
@@ -94,80 +94,80 @@ describe('galleryService', () => {
             },
           ],
         },
-      }
+      };
 
-      vi.mocked(api.get).mockResolvedValue(mockResponse)
+      vi.mocked(api.get).mockResolvedValue(mockResponse);
 
-      const result = await galleryService.getGallery(galleryId)
+      const result = await galleryService.getGallery(galleryId);
 
-      expect(api.get).toHaveBeenCalledWith(`/galleries/${galleryId}`)
-      expect(result).toEqual(mockResponse.data)
-    })
+      expect(api.get).toHaveBeenCalledWith(`/galleries/${galleryId}`);
+      expect(result).toEqual(mockResponse.data);
+    });
 
     it('should handle getGallery errors', async () => {
-      const galleryId = 'non-existent'
-      const mockError = new Error('Gallery not found')
-      vi.mocked(api.get).mockRejectedValue(mockError)
+      const galleryId = 'non-existent';
+      const mockError = new Error('Gallery not found');
+      vi.mocked(api.get).mockRejectedValue(mockError);
 
-      await expect(galleryService.getGallery(galleryId)).rejects.toThrow('Gallery not found')
-      expect(api.get).toHaveBeenCalledWith(`/galleries/${galleryId}`)
-    })
-  })
+      await expect(galleryService.getGallery(galleryId)).rejects.toThrow('Gallery not found');
+      expect(api.get).toHaveBeenCalledWith(`/galleries/${galleryId}`);
+    });
+  });
 
   describe('createGallery', () => {
     it('should make POST request to /galleries with provided name', async () => {
-      const name = 'My Gallery'
+      const name = 'My Gallery';
       const mockResponse = {
         data: {
           id: 'new-gallery-123',
           owner_id: 'user1',
           created_at: '2025-01-01T00:00:00Z',
         },
-      }
+      };
 
-      vi.mocked(api.post).mockResolvedValue(mockResponse)
+      vi.mocked(api.post).mockResolvedValue(mockResponse);
 
-      const result = await galleryService.createGallery(name)
+      const result = await galleryService.createGallery(name);
 
-      expect(api.post).toHaveBeenCalledWith('/galleries', { name })
-      expect(result).toEqual(mockResponse.data)
-    })
+      expect(api.post).toHaveBeenCalledWith('/galleries', { name });
+      expect(result).toEqual(mockResponse.data);
+    });
 
     it('should handle createGallery errors', async () => {
-      const name = 'Error Gallery'
-      const mockError = new Error('Failed to create gallery')
-      vi.mocked(api.post).mockRejectedValue(mockError)
+      const name = 'Error Gallery';
+      const mockError = new Error('Failed to create gallery');
+      vi.mocked(api.post).mockRejectedValue(mockError);
 
-      await expect(galleryService.createGallery(name)).rejects.toThrow('Failed to create gallery')
-      expect(api.post).toHaveBeenCalledWith('/galleries', { name })
-    })
-  })
+      await expect(galleryService.createGallery(name)).rejects.toThrow('Failed to create gallery');
+      expect(api.post).toHaveBeenCalledWith('/galleries', { name });
+    });
+  });
 
   describe('deleteGallery', () => {
     it('should make DELETE request to /galleries/:id', async () => {
-      const galleryId = 'gallery-to-delete'
+      const galleryId = 'gallery-to-delete';
 
-      vi.mocked(api.delete).mockResolvedValue({} as any)
+      vi.mocked(api.delete).mockResolvedValue({} as any);
 
-      await galleryService.deleteGallery(galleryId)
+      await galleryService.deleteGallery(galleryId);
 
-      expect(api.delete).toHaveBeenCalledWith(`/galleries/${galleryId}`)
-    })
+      expect(api.delete).toHaveBeenCalledWith(`/galleries/${galleryId}`);
+    });
 
     it('should handle deleteGallery errors', async () => {
-      const galleryId = 'non-existent'
-      const mockError = new Error('Gallery not found')
-      vi.mocked(api.delete).mockRejectedValue(mockError)
+      const galleryId = 'non-existent';
+      const mockError = new Error('Gallery not found');
+      vi.mocked(api.delete).mockRejectedValue(mockError);
 
-      await expect(galleryService.deleteGallery(galleryId)).rejects.toThrow('Gallery not found')
-      expect(api.delete).toHaveBeenCalledWith(`/galleries/${galleryId}`)
-    })
-  })
+      await expect(galleryService.deleteGallery(galleryId)).rejects.toThrow('Gallery not found');
+      expect(api.delete).toHaveBeenCalledWith(`/galleries/${galleryId}`);
+    });
+  });
 
   describe('updateGallery', () => {
     it('should make PATCH request to /galleries/:id with name', async () => {
-      const galleryId = 'gallery-1'
-      const newName = 'Updated'
+      const galleryId = 'gallery-1';
+      const newName = 'Updated';
       const mockResponse = {
         data: {
           id: galleryId,
@@ -175,34 +175,36 @@ describe('galleryService', () => {
           name: newName,
           created_at: '2025-01-01T00:00:00Z',
         },
-      }
+      };
 
-      vi.mocked(api.patch).mockResolvedValue(mockResponse)
+      vi.mocked(api.patch).mockResolvedValue(mockResponse);
 
-      const result = await galleryService.updateGallery(galleryId, newName)
+      const result = await galleryService.updateGallery(galleryId, newName);
 
-      expect(api.patch).toHaveBeenCalledWith(`/galleries/${galleryId}`, { name: newName })
-      expect(result).toEqual(mockResponse.data)
-    })
+      expect(api.patch).toHaveBeenCalledWith(`/galleries/${galleryId}`, { name: newName });
+      expect(result).toEqual(mockResponse.data);
+    });
 
     it('should handle updateGallery errors', async () => {
-      const galleryId = 'gallery-error'
-      const newName = 'Name'
-      const mockError = new Error('Update failed')
-      vi.mocked(api.patch).mockRejectedValue(mockError)
+      const galleryId = 'gallery-error';
+      const newName = 'Name';
+      const mockError = new Error('Update failed');
+      vi.mocked(api.patch).mockRejectedValue(mockError);
 
-      await expect(galleryService.updateGallery(galleryId, newName)).rejects.toThrow('Update failed')
-      expect(api.patch).toHaveBeenCalledWith(`/galleries/${galleryId}`, { name: newName })
-    })
-  })
+      await expect(galleryService.updateGallery(galleryId, newName)).rejects.toThrow(
+        'Update failed',
+      );
+      expect(api.patch).toHaveBeenCalledWith(`/galleries/${galleryId}`, { name: newName });
+    });
+  });
 
   describe('service methods', () => {
     it('should have all required methods', () => {
-      expect(typeof galleryService.getGalleries).toBe('function')
-      expect(typeof galleryService.getGallery).toBe('function')
-      expect(typeof galleryService.createGallery).toBe('function')
-      expect(typeof galleryService.deleteGallery).toBe('function')
-      expect(typeof galleryService.updateGallery).toBe('function')
-    })
-  })
-})
+      expect(typeof galleryService.getGalleries).toBe('function');
+      expect(typeof galleryService.getGallery).toBe('function');
+      expect(typeof galleryService.createGallery).toBe('function');
+      expect(typeof galleryService.deleteGallery).toBe('function');
+      expect(typeof galleryService.updateGallery).toBe('function');
+    });
+  });
+});

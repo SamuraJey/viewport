@@ -1,229 +1,230 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams } from 'react-router-dom'
-import { Download, Loader2, ImageOff, AlertCircle } from 'lucide-react'
-import { useTheme } from '../hooks/useTheme'
-import { PhotoModal } from '../components/PhotoModal'
-import { ThemeSwitch } from '../components/ThemeSwitch'
-import { LazyImage } from '../components/LazyImage'
-import { shareLinkService } from '../services/shareLinkService'
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams } from 'react-router-dom';
+import { Download, Loader2, ImageOff, AlertCircle } from 'lucide-react';
+import { useTheme } from '../hooks/useTheme';
+import { PhotoModal } from '../components/PhotoModal';
+import { ThemeSwitch } from '../components/ThemeSwitch';
+import { LazyImage } from '../components/LazyImage';
+import { shareLinkService } from '../services/shareLinkService';
 
 // Get API base URL from environment variables
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:8000')
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:8000');
 
 interface PublicPhoto {
-  photo_id: string
-  thumbnail_url: string
-  full_url: string
-  filename?: string
-  width?: number
-  height?: number
+  photo_id: string;
+  thumbnail_url: string;
+  full_url: string;
+  filename?: string;
+  width?: number;
+  height?: number;
 }
 
 interface PublicGalleryData {
-  photos: PublicPhoto[]
-  cover?: { photo_id: string; full_url: string; thumbnail_url: string } | null
-  photographer?: string
-  gallery_name?: string
-  date?: string
-  site_url?: string
+  photos: PublicPhoto[];
+  cover?: { photo_id: string; full_url: string; thumbnail_url: string } | null;
+  photographer?: string;
+  gallery_name?: string;
+  date?: string;
+  site_url?: string;
 }
 
 export const PublicGalleryPage = () => {
-  const { shareId } = useParams<{ shareId: string }>()
-  const [gallery, setGallery] = useState<PublicGalleryData | null>(null)
-  const [photos, setPhotos] = useState<PublicPhoto[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(true)
-  const [error, setError] = useState<string>('')
-  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null)
-  const { theme } = useTheme()
-  const gridRef = useRef<HTMLDivElement | null>(null)
-  const observerTarget = useRef<HTMLDivElement>(null)
-  const computeSpansDebounceRef = useRef<number | null>(null)
+  const { shareId } = useParams<{ shareId: string }>();
+  const [gallery, setGallery] = useState<PublicGalleryData | null>(null);
+  const [photos, setPhotos] = useState<PublicPhoto[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [error, setError] = useState<string>('');
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
+  const { theme } = useTheme();
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const observerTarget = useRef<HTMLDivElement>(null);
+  const computeSpansDebounceRef = useRef<number | null>(null);
 
   // Pagination settings
-  const PHOTOS_PER_PAGE = 100
+  const PHOTOS_PER_PAGE = 100;
 
   const fetchGalleryData = useCallback(async () => {
     if (!shareId) {
-      setError('Invalid share link')
-      setIsLoading(false)
-      return
+      setError('Invalid share link');
+      setIsLoading(false);
+      return;
     }
 
     try {
       // Fetch gallery metadata and first batch of photos
       const data = await shareLinkService.getSharedGallery(shareId, {
         limit: PHOTOS_PER_PAGE,
-        offset: 0
-      })
+        offset: 0,
+      });
 
-      setGallery(data)
-      setPhotos(data.photos || [])
+      setGallery(data);
+      setPhotos(data.photos || []);
 
       // Check if there are more photos to load
-      setHasMore(data.photos.length === PHOTOS_PER_PAGE)
+      setHasMore(data.photos.length === PHOTOS_PER_PAGE);
 
       // After gallery is set, schedule masonry spans computation
       requestAnimationFrame(() => {
-        if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current)
-        computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100)
-      })
+        if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
+        computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100);
+      });
     } catch (err) {
-      console.error('Failed to fetch shared gallery:', err)
-      setError('Gallery not found or link has expired')
+      console.error('Failed to fetch shared gallery:', err);
+      setError('Gallery not found or link has expired');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [shareId, PHOTOS_PER_PAGE])
+  }, [shareId, PHOTOS_PER_PAGE]);
 
   const loadMorePhotos = useCallback(async () => {
-    if (isLoadingMore || !hasMore || !shareId) return
+    if (isLoadingMore || !hasMore || !shareId) return;
 
-    setIsLoadingMore(true)
+    setIsLoadingMore(true);
     try {
-      const currentOffset = photos.length
+      const currentOffset = photos.length;
       const moreData = await shareLinkService.getSharedGallery(shareId, {
         limit: PHOTOS_PER_PAGE,
-        offset: currentOffset
-      })
+        offset: currentOffset,
+      });
 
-      const newPhotos = moreData.photos || []
-      setPhotos(prev => [...prev, ...newPhotos])
+      const newPhotos = moreData.photos || [];
+      setPhotos((prev) => [...prev, ...newPhotos]);
 
       // Check if there are more photos to load
-      setHasMore(newPhotos.length === PHOTOS_PER_PAGE)
+      setHasMore(newPhotos.length === PHOTOS_PER_PAGE);
 
       // Recompute masonry layout after loading new photos
       requestAnimationFrame(() => {
-        if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current)
-        computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100)
-      })
+        if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
+        computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100);
+      });
     } catch (err) {
-      console.error('Failed to load more photos:', err)
+      console.error('Failed to load more photos:', err);
     } finally {
-      setIsLoadingMore(false)
+      setIsLoadingMore(false);
     }
-  }, [shareId, photos.length, isLoadingMore, hasMore, PHOTOS_PER_PAGE])
+  }, [shareId, photos.length, isLoadingMore, hasMore, PHOTOS_PER_PAGE]);
 
   useEffect(() => {
-    fetchGalleryData()
-  }, [fetchGalleryData])
+    fetchGalleryData();
+  }, [fetchGalleryData]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
-          loadMorePhotos()
+          loadMorePhotos();
         }
       },
       {
         threshold: 0.1,
-        rootMargin: '400px'
-      }
-    )
+        rootMargin: '400px',
+      },
+    );
 
     if (observerTarget.current) {
-      observer.observe(observerTarget.current)
+      observer.observe(observerTarget.current);
     }
 
     return () => {
-      observer.disconnect()
-    }
-  }, [hasMore, isLoadingMore, loadMorePhotos])
+      observer.disconnect();
+    };
+  }, [hasMore, isLoadingMore, loadMorePhotos]);
 
   // Masonry span computation
   const computeSpans = () => {
-    const grid = gridRef.current
-    if (!grid) return
-    const cs = getComputedStyle(grid)
-    const rowHeight = parseFloat(cs.getPropertyValue('grid-auto-rows')) || 8
-    const rowGap = parseFloat(cs.getPropertyValue('gap')) || 20
-    const items = Array.from(grid.children) as HTMLElement[]
-    items.forEach(item => {
-      const el = item as HTMLElement
-      const height = el.getBoundingClientRect().height
-      const span = Math.ceil((height + rowGap) / (rowHeight + rowGap))
-      el.style.gridRowEnd = `span ${span}`
-    })
-  }
+    const grid = gridRef.current;
+    if (!grid) return;
+    const cs = getComputedStyle(grid);
+    const rowHeight = parseFloat(cs.getPropertyValue('grid-auto-rows')) || 8;
+    const rowGap = parseFloat(cs.getPropertyValue('gap')) || 20;
+    const items = Array.from(grid.children) as HTMLElement[];
+    items.forEach((item) => {
+      const el = item as HTMLElement;
+      const height = el.getBoundingClientRect().height;
+      const span = Math.ceil((height + rowGap) / (rowHeight + rowGap));
+      el.style.gridRowEnd = `span ${span}`;
+    });
+  };
 
   // Observe resize to reflow masonry
   useEffect(() => {
-    const grid = gridRef.current
-    if (!grid) return
+    const grid = gridRef.current;
+    if (!grid) return;
     const schedule = () => {
-      if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current)
-      computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 80)
-    }
-    const ro = new ResizeObserver(() => schedule())
+      if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
+      computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 80);
+    };
+    const ro = new ResizeObserver(() => schedule());
     // observe the grid itself and images inside so we recalc when content changes
-    ro.observe(grid)
-    grid.querySelectorAll('img').forEach(img => ro.observe(img))
+    ro.observe(grid);
+    grid.querySelectorAll('img').forEach((img) => ro.observe(img));
     return () => {
-      ro.disconnect()
+      ro.disconnect();
       if (computeSpansDebounceRef.current) {
-        window.clearTimeout(computeSpansDebounceRef.current)
-        computeSpansDebounceRef.current = null
+        window.clearTimeout(computeSpansDebounceRef.current);
+        computeSpansDebounceRef.current = null;
       }
-    }
-  }, [photos])
+    };
+  }, [photos]);
 
   const handleDownloadAll = () => {
-    if (!shareId) return
-    window.open(`${API_BASE_URL}/s/${shareId}/download/all`, '_blank')
-  }
+    if (!shareId) return;
+    window.open(`${API_BASE_URL}/s/${shareId}/download/all`, '_blank');
+  };
 
   const handleDownloadPhoto = async (photoId: string) => {
     // Find the photo in our photos array to get the presigned URL
-    const photo = photos.find(p => p.photo_id === photoId)
-    if (!photo || !photo.full_url) return
+    const photo = photos.find((p) => p.photo_id === photoId);
+    if (!photo || !photo.full_url) return;
 
     try {
       // Fetch the image using the existing presigned URL
-      const response = await fetch(photo.full_url)
-      const blob = await response.blob()
+      const response = await fetch(photo.full_url);
+      const blob = await response.blob();
 
       // Create a download link from the blob
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = photo.filename || `photo-${photoId}.jpg`
-      document.body.appendChild(link)
-      link.click()
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = photo.filename || `photo-${photoId}.jpg`;
+      document.body.appendChild(link);
+      link.click();
 
       // Cleanup
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Failed to download photo:', error)
+      console.error('Failed to download photo:', error);
     }
-  }
+  };
 
   // Photo modal handlers
   const openPhoto = (index: number) => {
-    setSelectedPhotoIndex(index)
-  }
+    setSelectedPhotoIndex(index);
+  };
 
   const closePhoto = () => {
-    setSelectedPhotoIndex(null)
-  }
+    setSelectedPhotoIndex(null);
+  };
 
   const goToPrevPhoto = () => {
     if (selectedPhotoIndex !== null && photos.length > 0) {
-      const newIndex = selectedPhotoIndex > 0 ? selectedPhotoIndex - 1 : photos.length - 1
-      setSelectedPhotoIndex(newIndex)
+      const newIndex = selectedPhotoIndex > 0 ? selectedPhotoIndex - 1 : photos.length - 1;
+      setSelectedPhotoIndex(newIndex);
     }
-  }
+  };
 
   const goToNextPhoto = () => {
     if (selectedPhotoIndex !== null && photos.length > 0) {
-      const newIndex = selectedPhotoIndex < photos.length - 1 ? selectedPhotoIndex + 1 : 0
-      setSelectedPhotoIndex(newIndex)
+      const newIndex = selectedPhotoIndex < photos.length - 1 ? selectedPhotoIndex + 1 : 0;
+      setSelectedPhotoIndex(newIndex);
     }
-  }
+  };
 
   if (isLoading) {
     return (
@@ -237,7 +238,7 @@ export const PublicGalleryPage = () => {
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   if (error) {
@@ -247,17 +248,21 @@ export const PublicGalleryPage = () => {
           <div className="flex items-center justify-center min-h-[60vh]">
             <div className="text-center">
               <AlertCircle className="w-16 h-16 text-danger mx-auto mb-4" />
-              <h1 className="text-2xl font-bold text-text dark:text-accent-foreground mb-2">Gallery Not Available</h1>
+              <h1 className="text-2xl font-bold text-text dark:text-accent-foreground mb-2">
+                Gallery Not Available
+              </h1>
               <p className="text-muted dark:text-text">{error}</p>
             </div>
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
-    <div className={`min-h-screen bg-surface dark:bg-surface-foreground/5 ${theme === 'dark' ? 'text-accent-foreground' : 'text-text'}`}>
+    <div
+      className={`min-h-screen bg-surface dark:bg-surface-foreground/5 ${theme === 'dark' ? 'text-accent-foreground' : 'text-text'}`}
+    >
       {/* Theme switch button */}
       <div className="fixed top-6 right-6 z-30">
         <ThemeSwitch />
@@ -276,9 +281,7 @@ export const PublicGalleryPage = () => {
 
           {/* Centered Content */}
           <div className="relative z-10 p-6">
-            {gallery.date && (
-              <p className="text-sm pg-hero__meta mb-2">{gallery.date}</p>
-            )}
+            {gallery.date && <p className="text-sm pg-hero__meta mb-2">{gallery.date}</p>}
             <h1 className="pg-hero__title font-bold drop-shadow-lg">
               {gallery.gallery_name || 'Shared Gallery'}
             </h1>
@@ -309,7 +312,14 @@ export const PublicGalleryPage = () => {
                 document.getElementById('gallery-content')?.scrollIntoView({ behavior: 'smooth' });
               }}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="w-5 h-5"
+              >
                 <path d="M6 9l6 6 6-6" />
               </svg>
             </a>
@@ -318,7 +328,9 @@ export const PublicGalleryPage = () => {
       ) : (
         // Fallback for no cover photo
         <div className="text-center py-16">
-          <h1 className="text-4xl font-bold text-text dark:text-accent-foreground mb-2">{gallery?.gallery_name || 'Shared Gallery'}</h1>
+          <h1 className="text-4xl font-bold text-text dark:text-accent-foreground mb-2">
+            {gallery?.gallery_name || 'Shared Gallery'}
+          </h1>
           {gallery?.photographer && (
             <p className="text-muted dark:text-text text-lg">By {gallery.photographer}</p>
           )}
@@ -389,7 +401,9 @@ export const PublicGalleryPage = () => {
           ) : (
             <div className="text-center py-16 border-2 border-dashed border-border dark:border-border/10 rounded-lg">
               <ImageOff className="mx-auto h-12 w-12 text-muted" />
-              <h3 className="mt-4 text-lg font-medium text-muted dark:text-muted-foreground">No photos in this gallery</h3>
+              <h3 className="mt-4 text-lg font-medium text-muted dark:text-muted-foreground">
+                No photos in this gallery
+              </h3>
               <p className="mt-2 text-sm text-muted">This gallery appears to be empty.</p>
             </div>
           )}
@@ -413,5 +427,5 @@ export const PublicGalleryPage = () => {
         />
       </div>
     </div>
-  )
-}
+  );
+};

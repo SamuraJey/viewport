@@ -1,148 +1,150 @@
-import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
-import { galleryService, type Gallery } from '../services/galleryService'
-import { formatDate } from '../lib/utils'
-import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, Edit3, Check, X } from 'lucide-react'
-import { Layout } from '../components/Layout'
-import { ErrorDisplay } from '../components/ErrorDisplay'
-import { useErrorHandler } from '../hooks/useErrorHandler'
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { galleryService, type Gallery } from '../services/galleryService';
+import { formatDate } from '../lib/utils';
+import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, Edit3, Check, X } from 'lucide-react';
+import { Layout } from '../components/Layout';
+import { ErrorDisplay } from '../components/ErrorDisplay';
+import { useErrorHandler } from '../hooks/useErrorHandler';
 
 export const DashboardPage = () => {
-  const [galleries, setGalleries] = useState<Gallery[]>([])
-  const [isCreating, setIsCreating] = useState(false)
-  const [showModal, setShowModal] = useState(false)
-  const [newGalleryName, setNewGalleryName] = useState('')
-  const newGalleryInputRef = useRef<HTMLInputElement>(null)
-  const renameInputRef = useRef<HTMLInputElement>(null)
+  const [galleries, setGalleries] = useState<Gallery[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [newGalleryName, setNewGalleryName] = useState('');
+  const newGalleryInputRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
   // Inline rename state
-  const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null)
-  const [renameInput, setRenameInput] = useState('')
-  const [isRenaming, setIsRenaming] = useState(false)
+  const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null);
+  const [renameInput, setRenameInput] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
   // Delete confirmation state
-  const [galleryToDelete, setGalleryToDelete] = useState<Gallery | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [page, setPage] = useState(1)
-  const [total, setTotal] = useState(0)
-  const pageSize = 9
+  const [galleryToDelete, setGalleryToDelete] = useState<Gallery | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 9;
 
-  const { error, clearError, handleError, isLoading, setLoading } = useErrorHandler()
+  const { error, clearError, handleError, isLoading, setLoading } = useErrorHandler();
 
-  const fetchGalleries = async (pageNum = 1) => {
-    setLoading(true)
-    try {
-      clearError()
-      const response = await galleryService.getGalleries(pageNum, pageSize)
-      setGalleries(response.galleries)
-      setTotal(response.total)
-      setPage(pageNum)
-    } catch (err: any) {
-      handleError(err)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const fetchGalleries = useCallback(
+    async (pageNum = 1) => {
+      setLoading(true);
+      try {
+        clearError();
+        const response = await galleryService.getGalleries(pageNum, pageSize);
+        setGalleries(response.galleries);
+        setTotal(response.total);
+        setPage(pageNum);
+      } catch (err: unknown) {
+        handleError(err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [clearError, handleError, setLoading],
+  );
 
   useEffect(() => {
-    fetchGalleries()
-  }, [])
+    fetchGalleries();
+  }, [fetchGalleries]);
   // Focus input when create modal opens
   useEffect(() => {
     if (showModal) {
-      newGalleryInputRef.current?.focus()
+      newGalleryInputRef.current?.focus();
     }
-  }, [showModal])
+  }, [showModal]);
   // Focus input when inline rename begins
   useEffect(() => {
     if (renameGalleryId) {
-      renameInputRef.current?.focus()
+      renameInputRef.current?.focus();
     }
-  }, [renameGalleryId])
+  }, [renameGalleryId]);
 
   // Open modal to enter gallery name
   const handleOpenModal = () => {
-    setNewGalleryName('')
-    clearError()
-    setShowModal(true)
-  }
+    setNewGalleryName('');
+    clearError();
+    setShowModal(true);
+  };
 
   // Confirm creation with entered name
   const handleConfirmCreate = async () => {
     try {
-      setIsCreating(true)
-      await galleryService.createGallery(newGalleryName.trim())
-      setShowModal(false)
-      await fetchGalleries(1)
-    } catch (err: any) {
-      handleError(err)
+      setIsCreating(true);
+      await galleryService.createGallery(newGalleryName.trim());
+      setShowModal(false);
+      await fetchGalleries(1);
+    } catch (err: unknown) {
+      handleError(err);
     } finally {
-      setIsCreating(false)
+      setIsCreating(false);
     }
-  }
+  };
 
   // Handler for deleting a gallery
   const handleDeleteGallery = async (galleryId: string) => {
-    const gallery = galleries.find(g => g.id === galleryId)
+    const gallery = galleries.find((g) => g.id === galleryId);
     if (gallery) {
-      setGalleryToDelete(gallery)
+      setGalleryToDelete(gallery);
     }
-  }
+  };
 
   // Confirm deletion
   const handleConfirmDelete = async () => {
-    if (!galleryToDelete) return
+    if (!galleryToDelete) return;
     try {
-      setIsDeleting(true)
-      await galleryService.deleteGallery(galleryToDelete.id)
-      setGalleryToDelete(null)
-      await fetchGalleries(page)
+      setIsDeleting(true);
+      await galleryService.deleteGallery(galleryToDelete.id);
+      setGalleryToDelete(null);
+      await fetchGalleries(page);
     } catch (err) {
-      handleError(err)
+      handleError(err);
     } finally {
-      setIsDeleting(false)
+      setIsDeleting(false);
     }
-  }
+  };
 
   // Cancel deletion
   const cancelDelete = () => {
-    setGalleryToDelete(null)
-  }
+    setGalleryToDelete(null);
+  };
 
   // Begin inline rename for a gallery
   const beginInlineRename = (gallery: Gallery) => {
-    clearError()
-    setRenameGalleryId(gallery.id)
-    setRenameInput(gallery.name)
-  }
+    clearError();
+    setRenameGalleryId(gallery.id);
+    setRenameInput(gallery.name);
+  };
 
   // Cancel inline rename
   const cancelInlineRename = () => {
-    setRenameGalleryId(null)
-    setRenameInput('')
-  }
+    setRenameGalleryId(null);
+    setRenameInput('');
+  };
 
   // Confirm inline rename
   const handleConfirmRename = async () => {
-    if (!renameGalleryId) return
+    if (!renameGalleryId) return;
     try {
-      setIsRenaming(true)
-      await galleryService.updateGallery(renameGalleryId, renameInput.trim())
-      setRenameGalleryId(null)
-      await fetchGalleries(page)
-    } catch (err: any) {
-      handleError(err)
+      setIsRenaming(true);
+      await galleryService.updateGallery(renameGalleryId, renameInput.trim());
+      setRenameGalleryId(null);
+      await fetchGalleries(page);
+    } catch (err: unknown) {
+      handleError(err);
     } finally {
-      setIsRenaming(false)
+      setIsRenaming(false);
     }
-  }
+  };
 
-
-  const totalPages = Math.ceil(total / pageSize)
+  const totalPages = Math.ceil(total / pageSize);
 
   const renderLoading = () => (
     <div className="flex items-center justify-center h-96">
       <div className="w-12 h-12 border-4 border-muted/60 dark:border-muted-dark/60 border-t-accent rounded-full animate-spin"></div>
     </div>
-  )
+  );
 
   const renderError = () => (
     <ErrorDisplay
@@ -151,7 +153,7 @@ export const DashboardPage = () => {
       onDismiss={clearError}
       variant="banner"
     />
-  )
+  );
   const renderEmptyState = () => (
     <div className="flex flex-col items-center justify-center h-96">
       <p className="text-muted text-lg mb-4">No galleries yet</p>
@@ -169,13 +171,16 @@ export const DashboardPage = () => {
         Create First Gallery
       </button>
     </div>
-  )
+  );
 
   const renderGalleries = () => (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {galleries.map((gallery) => (
-          <div key={gallery.id} className="bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-8 border border-border dark:border-border/10 hover:transform hover:scale-101 hover:shadow-2xl ">
+          <div
+            key={gallery.id}
+            className="bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-8 border border-border dark:border-border/10 hover:transform hover:scale-101 hover:shadow-2xl "
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <div className="bg-accent/20 p-2 rounded-lg flex-shrink-0 border border-accent/10">
@@ -268,16 +273,17 @@ export const DashboardPage = () => {
       </div>
       {renderPagination()}
     </>
-  )
+  );
 
   const renderPagination = () => {
-    if (totalPages <= 1) return null
+    if (totalPages <= 1) return null;
 
     return (
       <div className="flex items-center justify-between text-sm text-muted dark:text-muted-dark mt-8">
         <div>
           <p>
-            Page <span className="font-bold text-text">{page}</span> of <span className="font-bold text-text">{totalPages}</span>
+            Page <span className="font-bold text-text">{page}</span> of{' '}
+            <span className="font-bold text-text">{totalPages}</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -297,15 +303,17 @@ export const DashboardPage = () => {
           </button>
         </div>
       </div>
-    )
-  }
+    );
+  };
 
   return (
     <Layout>
       <div className="flex flex-col gap-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">My Galleries</h1>
+            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">
+              My Galleries
+            </h1>
             <p className="text-muted font-cuprum text-lg">
               Your personal space to organize and share moments.
             </p>
@@ -326,18 +334,24 @@ export const DashboardPage = () => {
 
         {error && renderError()}
 
-        {isLoading ? renderLoading() : (
-          galleries.length === 0 ? renderEmptyState() : renderGalleries()
-        )}
+        {isLoading
+          ? renderLoading()
+          : galleries.length === 0
+            ? renderEmptyState()
+            : renderGalleries()}
 
         {/* Modal for entering new gallery name */}
         {showModal && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm" onClick={() => setShowModal(false)}>
-            <div className="bg-surface dark:bg-surface-dark rounded-lg shadow-lg p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="fixed inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm"
+            onClick={() => setShowModal(false)}
+          >
+            <div
+              className="bg-surface dark:bg-surface-dark rounded-lg shadow-lg p-6 max-w-sm w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
               <h2 className="text-xl font-semibold mb-4 text-text">New Gallery</h2>
-              <p className="text-muted mb-4">
-                Enter a name for your new gallery.
-              </p>
+              <p className="text-muted mb-4">Enter a name for your new gallery.</p>
               <input
                 ref={newGalleryInputRef}
                 type="text"
@@ -345,11 +359,11 @@ export const DashboardPage = () => {
                 onChange={(e) => setNewGalleryName(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    e.preventDefault()
-                    handleConfirmCreate()
+                    e.preventDefault();
+                    handleConfirmCreate();
                   } else if (e.key === 'Escape') {
-                    e.preventDefault()
-                    setShowModal(false)
+                    e.preventDefault();
+                    setShowModal(false);
                   }
                 }}
                 className="w-full p-3 border border-border dark:border-border/40 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent bg-transparent text-text"
@@ -380,11 +394,21 @@ export const DashboardPage = () => {
 
         {/* Modal for delete confirmation */}
         {galleryToDelete && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm" onClick={cancelDelete}>
-            <div className="bg-surface dark:bg-surface-dark rounded-lg shadow-lg p-6 max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="fixed inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm"
+            onClick={cancelDelete}
+          >
+            <div
+              className="bg-surface dark:bg-surface-dark rounded-lg shadow-lg p-6 max-w-sm w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
               <h2 className="text-xl font-semibold mb-2 text-text">Delete Gallery?</h2>
               <p className="text-muted mb-6">
-                Are you sure you want to delete <span className="font-semibold text-text">"{galleryToDelete.name || `Gallery #${galleryToDelete.id}`}"</span> and all its contents? This action cannot be undone.
+                Are you sure you want to delete{' '}
+                <span className="font-semibold text-text">
+                  "{galleryToDelete.name || `Gallery #${galleryToDelete.id}`}"
+                </span>{' '}
+                and all its contents? This action cannot be undone.
               </p>
               <div className="flex justify-end gap-3">
                 <button
@@ -410,5 +434,5 @@ export const DashboardPage = () => {
         )}
       </div>
     </Layout>
-  )
-}
+  );
+};

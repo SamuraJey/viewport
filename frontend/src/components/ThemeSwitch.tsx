@@ -1,28 +1,30 @@
-import { useTheme } from '../hooks/useTheme'
-import { Sun, Moon } from 'lucide-react'
-import { useState } from 'react'
+import { useTheme } from '../hooks/useTheme';
+import { Sun, Moon } from 'lucide-react';
+import { useState } from 'react';
 
-type ThemeSwitchVariant = 'floating' | 'inline'
+type ThemeSwitchVariant = 'floating' | 'inline';
 
 interface ThemeSwitchProps {
-  className?: string
-  variant?: ThemeSwitchVariant
+  className?: string;
+  variant?: ThemeSwitchVariant;
 }
 
 export const ThemeSwitch = ({ className = '', variant = 'floating' }: ThemeSwitchProps) => {
-  const { theme, toggleTheme } = useTheme()
-  const [isAnimating, setIsAnimating] = useState(false)
+  const { theme, toggleTheme } = useTheme();
+  const [isAnimating, setIsAnimating] = useState(false);
 
   const handleToggle = () => {
-    setIsAnimating(true)
-    toggleTheme()
-    setTimeout(() => setIsAnimating(false), 400) // Синхронизировано с длительностью анимации темы
-  }
+    setIsAnimating(true);
+    toggleTheme();
+    setTimeout(() => setIsAnimating(false), 400); // Синхронизировано с длительностью анимации темы
+  };
 
-  const baseClasses = 'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-border dark:border-border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2'
-  const variantClasses = variant === 'floating'
-    ? 'fixed top-4 right-4 z-50 bg-surface dark:bg-surface shadow-lg hover:shadow-xl hover:scale-110'
-    : 'relative z-auto bg-surface-1 dark:bg-surface-dark-1 shadow-sm hover:shadow-md hover:-translate-y-0.5'
+  const baseClasses =
+    'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-border dark:border-border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2';
+  const variantClasses =
+    variant === 'floating'
+      ? 'fixed top-4 right-4 z-50 bg-surface dark:bg-surface shadow-lg hover:shadow-xl hover:scale-110'
+      : 'relative z-auto bg-surface-1 dark:bg-surface-dark-1 shadow-sm hover:shadow-md hover:-translate-y-0.5';
 
   return (
     <button
@@ -38,5 +40,5 @@ export const ThemeSwitch = ({ className = '', variant = 'floating' }: ThemeSwitc
         )}
       </div>
     </button>
-  )
-}
+  );
+};

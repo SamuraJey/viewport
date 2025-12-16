@@ -1,170 +1,188 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { X, User, Eye, EyeOff, Mail, UserCircle, Lock, LogOut, Trash2, AlertTriangle, Loader2 } from 'lucide-react'
-import { authService } from '../services/authService'
-import { useAuthStore } from '../stores/authStore'
-import { useNavigate } from 'react-router-dom'
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import {
+  X,
+  User,
+  Eye,
+  EyeOff,
+  Mail,
+  UserCircle,
+  Lock,
+  LogOut,
+  Trash2,
+  AlertTriangle,
+  Loader2,
+} from 'lucide-react';
+import { authService } from '../services/authService';
+import { useAuthStore } from '../stores/authStore';
+import { useNavigate } from 'react-router-dom';
 
 export interface ProfileModalProps {
-  isOpen: boolean
-  onClose: () => void
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
-  const [email, setEmail] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
-  const [showNewPassword, setShowNewPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [savingProfile, setSavingProfile] = useState(false)
-  const [changingPassword, setChangingPassword] = useState(false)
-  const firstFieldRef = useRef<HTMLInputElement>(null)
-  const confirmPassRef = useRef<HTMLInputElement>(null)
-  const navigate = useNavigate()
-  const logout = useAuthStore(state => state.logout)
-  const tokens = useAuthStore(state => state.tokens)
-  const login = useAuthStore(state => state.login)
+  const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const firstFieldRef = useRef<HTMLInputElement>(null);
+  const confirmPassRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+  const logout = useAuthStore((state) => state.logout);
+  const tokens = useAuthStore((state) => state.tokens);
+  const login = useAuthStore((state) => state.login);
 
-  // Fetch profile on open
-  useEffect(() => {
-    if (!isOpen) return
-    setError(null)
-    authService.getCurrentUser()
-      .then(user => {
-        setEmail(user.email)
-        setDisplayName(user.display_name || '')
-        setTimeout(() => firstFieldRef.current?.focus(), 0)
-      })
-      .catch(err => {
-        if (err.response?.status === 401) {
-          logout()
-          navigate('/auth/login')
-        } else {
-          setError('Failed to load profile')
-        }
-      })
-  }, [isOpen])
-
-  // Keyboard events
-  useEffect(() => {
-    if (!isOpen) return
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose()
-      }
-      if (e.key === 'Enter') {
-        if (document.activeElement === confirmPassRef.current) {
-          handlePasswordChange()
-        } else {
-          handleProfileSave()
-        }
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, displayName, currentPassword, newPassword, confirmPassword])
-
-  const handleProfileSave = async () => {
-    setError(null)
-    setSavingProfile(true)
+  const handleProfileSave = useCallback(async () => {
+    setError(null);
+    setSavingProfile(true);
     try {
-      const updated = await authService.updateProfile({ display_name: displayName })
+      const updated = await authService.updateProfile({ display_name: displayName });
       if (tokens) {
         // Update auth store including display_name
-        login({ id: updated.id, email: updated.email, display_name: updated.display_name }, tokens)
+        login({ id: updated.id, email: updated.email, display_name: updated.display_name }, tokens);
       }
-      onClose()
-    } catch (err: any) {
-      if (err.response?.status === 401) {
-        logout()
-        navigate('/auth/login')
+      onClose();
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        logout();
+        navigate('/auth/login');
       } else {
-        setError('Failed to update profile')
+        setError('Failed to update profile');
       }
     } finally {
-      setSavingProfile(false)
+      setSavingProfile(false);
     }
-  }
+  }, [displayName, tokens, login, onClose, logout, navigate]);
 
-  const handlePasswordChange = async () => {
-    setError(null)
+  const handlePasswordChange = useCallback(async () => {
+    setError(null);
     if (newPassword !== confirmPassword) {
-      setError('New password and confirmation do not match')
-      return
+      setError('New password and confirmation do not match');
+      return;
     }
-    setChangingPassword(true)
+    setChangingPassword(true);
     try {
       await authService.changePassword({
         current_password: currentPassword,
         new_password: newPassword,
-        confirm_password: confirmPassword
-      })
-      onClose()
-    } catch (err: any) {
-      if (err.response?.status === 401) {
-        logout()
-        navigate('/auth/login')
+        confirm_password: confirmPassword,
+      });
+      onClose();
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        logout();
+        navigate('/auth/login');
       } else {
-        setError(err.response?.data?.detail || 'Failed to change password')
+        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data
+          ?.detail;
+        setError(detail || 'Failed to change password');
       }
     } finally {
-      setChangingPassword(false)
+      setChangingPassword(false);
     }
-  }
+  }, [currentPassword, newPassword, confirmPassword, onClose, logout, navigate]);
+
+  // Fetch profile on open
+  useEffect(() => {
+    if (!isOpen) return;
+    setError(null);
+    authService
+      .getCurrentUser()
+      .then((user) => {
+        setEmail(user.email);
+        setDisplayName(user.display_name || '');
+        setTimeout(() => firstFieldRef.current?.focus(), 0);
+      })
+      .catch((err: unknown) => {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 401) {
+          logout();
+          navigate('/auth/login');
+        } else {
+          setError('Failed to load profile');
+        }
+      });
+  }, [isOpen, logout, navigate]);
+
+  // Keyboard events
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+      if (e.key === 'Enter') {
+        if (document.activeElement === confirmPassRef.current) {
+          handlePasswordChange();
+        } else {
+          handleProfileSave();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose, handlePasswordChange, handleProfileSave]);
 
   const handleLogout = () => {
-    logout()
-    onClose()
-    navigate('/auth/login')
-  }
+    logout();
+    onClose();
+    navigate('/auth/login');
+  };
 
   // In-modal two-step delete flow
-  const [deleteStep, setDeleteStep] = useState<'initial' | 'password' | 'confirm'>('initial')
-  const [deletePassword, setDeletePassword] = useState('')
-  const [showDeletePassword, setShowDeletePassword] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deletingAccount, setDeletingAccount] = useState(false)
+  const [deleteStep, setDeleteStep] = useState<'initial' | 'password' | 'confirm'>('initial');
+  const [deletePassword, setDeletePassword] = useState('');
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const startDelete = () => {
-    setDeleteError(null)
-    setDeletePassword('')
-    setDeleteStep('password')
-  }
+    setDeleteError(null);
+    setDeletePassword('');
+    setDeleteStep('password');
+  };
   const verifyDeletePassword = () => {
     if (!deletePassword) {
-      setDeleteError('Please enter your current password')
-      return
+      setDeleteError('Please enter your current password');
+      return;
     }
     // TODO: verify password via API
-    setDeleteError(null)
-    setDeleteStep('confirm')
-  }
-  const cancelDelete = () => setDeleteStep('initial')
+    setDeleteError(null);
+    setDeleteStep('confirm');
+  };
+  const cancelDelete = () => setDeleteStep('initial');
   const confirmDelete = async () => {
-    setDeletingAccount(true)
+    setDeletingAccount(true);
     try {
       // TODO: call delete endpoint with deletePassword
-      alert('Account deletion is not implemented yet.')
-      onClose()
-    } catch (err) {
-      setDeleteError('Failed to delete account')
+      alert('Account deletion is not implemented yet.');
+      onClose();
+    } catch {
+      setDeleteError('Failed to delete account');
     } finally {
-      setDeletingAccount(false)
+      setDeletingAccount(false);
     }
-  }
+  };
 
   // Reset delete flow when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setDeleteStep('initial')
-      setDeletePassword('')
-      setDeleteError(null)
-      setDeletingAccount(false)
+      setDeleteStep('initial');
+      setDeletePassword('');
+      setDeleteError(null);
+      setDeletingAccount(false);
     }
-  }, [isOpen])
-  if (!isOpen) return null
+  }, [isOpen]);
+  if (!isOpen) return null;
 
   return (
     <div
@@ -176,7 +194,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
     >
       <div
         className="bg-surface dark:bg-surface-dark rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto border border-border dark:border-border/40"
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="sticky top-0 bg-surface dark:bg-surface-dark border-b border-border dark:border-border/40 px-6 py-4 flex items-center justify-between rounded-t-2xl">
@@ -184,7 +202,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
             <div className="w-10 h-10 bg-accent/10 rounded-full flex items-center justify-center">
               <User className="w-5 h-5 text-accent" />
             </div>
-            <h2 id="profile-modal-title" className="text-2xl font-bold text-text">Account Settings</h2>
+            <h2 id="profile-modal-title" className="text-2xl font-bold text-text">
+              Account Settings
+            </h2>
           </div>
           <button
             onClick={onClose}
@@ -217,7 +237,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
             <div className="bg-surface-1 dark:bg-surface-dark-1 rounded-xl p-6 space-y-4 border border-border/40">
               {/* Email (read-only) */}
               <div>
-                <label htmlFor="email" className="flex items-center gap-2 text-sm font-medium text-muted mb-2">
+                <label
+                  htmlFor="email"
+                  className="flex items-center gap-2 text-sm font-medium text-muted mb-2"
+                >
                   <Mail className="w-4 h-4" />
                   Email Address
                 </label>
@@ -234,7 +257,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
 
               {/* Display Name */}
               <div>
-                <label htmlFor="displayName" className="flex items-center gap-2 text-sm font-medium text-text mb-2">
+                <label
+                  htmlFor="displayName"
+                  className="flex items-center gap-2 text-sm font-medium text-text mb-2"
+                >
                   <User className="w-4 h-4" />
                   Display Name
                 </label>
@@ -243,7 +269,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                   type="text"
                   ref={firstFieldRef}
                   value={displayName}
-                  onChange={e => setDisplayName(e.target.value)}
+                  onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="Enter your display name"
                   className="w-full px-4 py-2.5 border border-border rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
                 />
@@ -276,7 +302,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
             <div className="bg-surface-1 dark:bg-surface-dark-1 rounded-xl p-6 space-y-4 border border-border/40">
               {/* Current Password */}
               <div>
-                <label htmlFor="currentPassword" className="block text-sm font-medium text-text mb-2">
+                <label
+                  htmlFor="currentPassword"
+                  className="block text-sm font-medium text-text mb-2"
+                >
                   Current Password
                 </label>
                 <div className="relative">
@@ -284,17 +313,21 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                     id="currentPassword"
                     type={showCurrentPassword ? 'text' : 'password'}
                     value={currentPassword}
-                    onChange={e => setCurrentPassword(e.target.value)}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
                     placeholder="Enter current password"
                     className="w-full px-4 py-2.5 pr-12 border border-border rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
                   />
                   <button
                     type="button"
                     aria-label={showCurrentPassword ? 'Hide password' : 'Show password'}
-                    onClick={() => setShowCurrentPassword(v => !v)}
+                    onClick={() => setShowCurrentPassword((v) => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded transition-all duration-200 hover:scale-110"
                   >
-                    {showCurrentPassword ? <EyeOff className="h-5 w-5 text-muted" /> : <Eye className="h-5 w-5 text-muted" />}
+                    {showCurrentPassword ? (
+                      <EyeOff className="h-5 w-5 text-muted" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-muted" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -309,24 +342,31 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                     id="newPassword"
                     type={showNewPassword ? 'text' : 'password'}
                     value={newPassword}
-                    onChange={e => setNewPassword(e.target.value)}
+                    onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Enter new password"
                     className="w-full px-4 py-2.5 pr-12 border border-border rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
                   />
                   <button
                     type="button"
                     aria-label={showNewPassword ? 'Hide password' : 'Show password'}
-                    onClick={() => setShowNewPassword(v => !v)}
+                    onClick={() => setShowNewPassword((v) => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded transition-all duration-200 hover:scale-110"
                   >
-                    {showNewPassword ? <EyeOff className="h-5 w-5 text-muted" /> : <Eye className="h-5 w-5 text-muted" />}
+                    {showNewPassword ? (
+                      <EyeOff className="h-5 w-5 text-muted" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-muted" />
+                    )}
                   </button>
                 </div>
               </div>
 
               {/* Confirm Password */}
               <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-text mb-2">
+                <label
+                  htmlFor="confirmPassword"
+                  className="block text-sm font-medium text-text mb-2"
+                >
                   Confirm New Password
                 </label>
                 <div className="relative">
@@ -335,17 +375,21 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                     type={showConfirmPassword ? 'text' : 'password'}
                     ref={confirmPassRef}
                     value={confirmPassword}
-                    onChange={e => setConfirmPassword(e.target.value)}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Confirm new password"
                     className="w-full px-4 py-2.5 pr-12 border border-border rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
                   />
                   <button
                     type="button"
                     aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                    onClick={() => setShowConfirmPassword(v => !v)}
+                    onClick={() => setShowConfirmPassword((v) => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded transition-all duration-200 hover:scale-110"
                   >
-                    {showConfirmPassword ? <EyeOff className="h-5 w-5 text-muted" /> : <Eye className="h-5 w-5 text-muted" />}
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-5 w-5 text-muted" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-muted" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -409,22 +453,28 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
               </div>
 
               <div className="bg-danger/10 border border-danger/20 rounded-xl p-6 space-y-4">
-                <p className="text-text">Please enter your current password to proceed with account deletion.</p>
+                <p className="text-text">
+                  Please enter your current password to proceed with account deletion.
+                </p>
 
                 <div className="relative">
                   <input
                     type={showDeletePassword ? 'text' : 'password'}
                     placeholder="Current Password"
                     value={deletePassword}
-                    onChange={e => setDeletePassword(e.target.value)}
+                    onChange={(e) => setDeletePassword(e.target.value)}
                     className="w-full px-4 py-2.5 pr-12 border border-danger/30 rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-danger focus:border-transparent transition-all"
                   />
                   <button
                     type="button"
-                    onClick={() => setShowDeletePassword(v => !v)}
+                    onClick={() => setShowDeletePassword((v) => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded transition-all duration-200 hover:scale-110"
                   >
-                    {showDeletePassword ? <EyeOff className="h-5 w-5 text-muted" /> : <Eye className="h-5 w-5 text-muted" />}
+                    {showDeletePassword ? (
+                      <EyeOff className="h-5 w-5 text-muted" />
+                    ) : (
+                      <Eye className="h-5 w-5 text-muted" />
+                    )}
                   </button>
                 </div>
 
@@ -461,10 +511,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="w-6 h-6 text-danger flex-shrink-0 mt-1" />
                   <div>
-                    <p className="text-danger font-bold text-lg mb-2">This action cannot be undone!</p>
-                    <p className="text-text">
-                      Deleting your account will permanently remove:
+                    <p className="text-danger font-bold text-lg mb-2">
+                      This action cannot be undone!
                     </p>
+                    <p className="text-text">Deleting your account will permanently remove:</p>
                     <ul className="list-disc list-inside text-muted mt-2 space-y-1">
                       <li>All your galleries</li>
                       <li>All your photos</li>
@@ -507,5 +557,5 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
         </div>
       </div>
     </div>
-  )
-}
+  );
+};

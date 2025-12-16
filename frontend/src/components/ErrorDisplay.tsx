@@ -1,11 +1,11 @@
-import { AlertCircle, RefreshCw, X } from 'lucide-react'
+import { AlertCircle, RefreshCw, X } from 'lucide-react';
 
 interface ErrorDisplayProps {
-  error: string
-  onRetry?: () => void
-  onDismiss?: () => void
-  variant?: 'inline' | 'banner' | 'card'
-  className?: string
+  error: string;
+  onRetry?: () => void;
+  onDismiss?: () => void;
+  variant?: 'inline' | 'banner' | 'card';
+  className?: string;
 }
 
 export const ErrorDisplay = ({
@@ -13,15 +13,16 @@ export const ErrorDisplay = ({
   onRetry,
   onDismiss,
   variant = 'inline',
-  className = ''
+  className = '',
 }: ErrorDisplayProps) => {
-  const baseClasses = 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 rounded-lg'
+  const baseClasses =
+    'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 rounded-lg';
 
   const variantClasses = {
     inline: 'px-4 py-3 flex items-center justify-between',
     banner: 'px-6 py-4 flex items-center justify-between',
-    card: 'p-6 text-center'
-  }
+    card: 'p-6 text-center',
+  };
 
   return (
     <div className={`${baseClasses} ${variantClasses[variant]} ${className}`}>
@@ -81,19 +82,19 @@ export const ErrorDisplay = ({
         </>
       )}
     </div>
-  )
-}
+  );
+};
 
 // Network status component
 export const NetworkStatus = () => {
-  const isOnline = navigator.onLine
+  const isOnline = navigator.onLine;
 
-  if (isOnline) return null
+  if (isOnline) return null;
 
   return (
     <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 text-yellow-700 dark:text-yellow-400 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
       <AlertCircle className="w-4 h-4" />
       You're currently offline. Some features may not work properly.
     </div>
-  )
-}
+  );
+};

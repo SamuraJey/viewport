@@ -1,64 +1,65 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { authService } from '../services/authService'
-import { validateEmail, validatePassword } from '../lib/utils'
-import { Eye, EyeOff, UserPlus, Mail, CheckCircle, Camera } from 'lucide-react'
-import { AuthLayout } from '../components/AuthLayout'
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { authService } from '../services/authService';
+import { validateEmail, validatePassword } from '../lib/utils';
+import { Eye, EyeOff, UserPlus, Mail, CheckCircle, Camera } from 'lucide-react';
+import { AuthLayout } from '../components/AuthLayout';
 
 export const RegisterPage = () => {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [inviteCode, setInviteCode] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
 
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
+    e.preventDefault();
+    setError('');
 
     if (!validateEmail(email)) {
-      setError('Please enter a valid email address.')
-      return
+      setError('Please enter a valid email address.');
+      return;
     }
 
-    const passwordValidation = validatePassword(password)
+    const passwordValidation = validatePassword(password);
     if (!passwordValidation.isValid) {
-      setError(passwordValidation.errors[0])
-      return
+      setError(passwordValidation.errors[0]);
+      return;
     }
 
     if (password !== confirmPassword) {
-      setError('Passwords do not match.')
-      return
+      setError('Passwords do not match.');
+      return;
     }
 
     if (!inviteCode.trim()) {
-      setError('Invite code is required.')
-      return
+      setError('Invite code is required.');
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
 
     try {
-      await authService.register({ email, password, invite_code: inviteCode })
-      setSuccess(true)
+      await authService.register({ email, password, invite_code: inviteCode });
+      setSuccess(true);
       setTimeout(() => {
         navigate('/auth/login', {
-          state: { message: 'Registration successful! Please sign in.' }
-        })
-      }, 2000)
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Registration failed. Please try again.')
+          state: { message: 'Registration successful! Please sign in.' },
+        });
+      }, 2000);
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(detail || 'Registration failed. Please try again.');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const renderForm = () => (
     <div className="bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-border dark:border-border/10">
@@ -75,7 +76,12 @@ export const RegisterPage = () => {
       </div>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label htmlFor="email" className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide">Email Address</label>
+          <label
+            htmlFor="email"
+            className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide"
+          >
+            Email Address
+          </label>
           <div className="relative">
             <input
               id="email"
@@ -92,7 +98,12 @@ export const RegisterPage = () => {
           </div>
         </div>
         <div>
-          <label htmlFor="inviteCode" className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide">Invite Code</label>
+          <label
+            htmlFor="inviteCode"
+            className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide"
+          >
+            Invite Code
+          </label>
           <div className="relative">
             <input
               id="inviteCode"
@@ -108,7 +119,12 @@ export const RegisterPage = () => {
           </div>
         </div>
         <div>
-          <label htmlFor="password" className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide">Password</label>
+          <label
+            htmlFor="password"
+            className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide"
+          >
+            Password
+          </label>
           <div className="relative">
             <input
               id="password"
@@ -126,12 +142,17 @@ export const RegisterPage = () => {
               className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110"
               onClick={() => setShowPassword(!showPassword)}
             >
-              {showPassword ? (<EyeOff className="h-5 w-5" />) : (<Eye className="h-5 w-5" />)}
+              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
           </div>
         </div>
         <div>
-          <label htmlFor="confirmPassword" className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide">Confirm Password</label>
+          <label
+            htmlFor="confirmPassword"
+            className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide"
+          >
+            Confirm Password
+          </label>
           <div className="relative">
             <input
               id="confirmPassword"
@@ -149,12 +170,18 @@ export const RegisterPage = () => {
               className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
             >
-              {showConfirmPassword ? (<EyeOff className="h-5 w-5" />) : (<Eye className="h-5 w-5" />)}
+              {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
           </div>
-          <p className="text-xs text-text-muted dark:text-text mt-2">Password must be at least 8 characters long.</p>
+          <p className="text-xs text-text-muted dark:text-text mt-2">
+            Password must be at least 8 characters long.
+          </p>
         </div>
-        {error && (<div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-center text-sm">{error}</div>)}
+        {error && (
+          <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-center text-sm">
+            {error}
+          </div>
+        )}
         <button
           type="submit"
           disabled={isLoading}
@@ -177,7 +204,9 @@ export const RegisterPage = () => {
             <div className="w-full border-t border-border dark:border-border"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-4 bg-surface dark:bg-surface-foreground text-text-muted dark:text-text">Already have an account?</span>
+            <span className="px-4 bg-surface dark:bg-surface-foreground text-text-muted dark:text-text">
+              Already have an account?
+            </span>
           </div>
         </div>
         <div className="text-center">
@@ -190,25 +219,19 @@ export const RegisterPage = () => {
         </div>
       </form>
     </div>
-  )
+  );
 
   const renderSuccess = () => (
     <div className="relative z-10 w-full max-w-md p-8 flex flex-col gap-6 bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-xl border border-border dark:border-white/10 text-center">
       <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
-      <h2 className="text-3xl font-bold text-text dark:text-white">
-        Registration Successful!
-      </h2>
-      <p className="text-lg text-text-muted dark:text-text">
-        Redirecting you to sign in...
-      </p>
+      <h2 className="text-3xl font-bold text-text dark:text-white">Registration Successful!</h2>
+      <p className="text-lg text-text-muted dark:text-text">Redirecting you to sign in...</p>
     </div>
-  )
+  );
 
   return (
     <AuthLayout>
-      <div className="relative w-full max-w-md">
-        {success ? renderSuccess() : renderForm()}
-      </div>
+      <div className="relative w-full max-w-md">{success ? renderSuccess() : renderForm()}</div>
     </AuthLayout>
-  )
-}
+  );
+};

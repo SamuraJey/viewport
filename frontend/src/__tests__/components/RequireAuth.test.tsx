@@ -1,42 +1,38 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render } from '@testing-library/react'
-import { RequireAuth } from '../../components/RequireAuth'
-import { useAuthStore } from '../../stores/authStore'
-import { BrowserRouter } from 'react-router-dom'
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render } from '@testing-library/react';
+import { RequireAuth } from '../../components/RequireAuth';
+import { useAuthStore } from '../../stores/authStore';
+import { BrowserRouter } from 'react-router-dom';
 
 // Mock the auth store
 vi.mock('../../stores/authStore', () => ({
   useAuthStore: vi.fn(),
-}))
+}));
 
 // Mock react-router-dom Navigate component
-const mockNavigate = vi.fn()
+const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom')
+  const actual = await vi.importActual('react-router-dom');
   return {
     ...actual,
     Navigate: ({ to, state, replace }: any) => {
-      mockNavigate(to, { state, replace })
-      return <div data-testid="navigate" />
+      mockNavigate(to, { state, replace });
+      return <div data-testid="navigate" />;
     },
     useLocation: () => ({ pathname: '/protected', search: '' }),
-  }
-})
+  };
+});
 
-const mockUseAuthStore = vi.mocked(useAuthStore)
+const mockUseAuthStore = vi.mocked(useAuthStore);
 
 describe('RequireAuth', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-  })
+    vi.clearAllMocks();
+  });
 
   const renderWithRouter = (children: React.ReactNode) => {
-    return render(
-      <BrowserRouter>
-        {children}
-      </BrowserRouter>
-    )
-  }
+    return render(<BrowserRouter>{children}</BrowserRouter>);
+  };
 
   it('should render children when user is authenticated', () => {
     mockUseAuthStore.mockReturnValue({
@@ -46,16 +42,16 @@ describe('RequireAuth', () => {
       login: vi.fn(),
       logout: vi.fn(),
       updateTokens: vi.fn(),
-    })
+    });
 
     const { getByText } = renderWithRouter(
       <RequireAuth>
         <div>Protected Content</div>
-      </RequireAuth>
-    )
+      </RequireAuth>,
+    );
 
-    expect(getByText('Protected Content')).toBeInTheDocument()
-  })
+    expect(getByText('Protected Content')).toBeInTheDocument();
+  });
 
   it('should redirect to login when user is not authenticated', () => {
     mockUseAuthStore.mockReturnValue({
@@ -65,35 +61,35 @@ describe('RequireAuth', () => {
       login: vi.fn(),
       logout: vi.fn(),
       updateTokens: vi.fn(),
-    })
+    });
 
     const { queryByText, getByTestId } = renderWithRouter(
       <RequireAuth>
         <div>Protected Content</div>
-      </RequireAuth>
-    )
+      </RequireAuth>,
+    );
 
-    expect(queryByText('Protected Content')).not.toBeInTheDocument()
-    expect(getByTestId('navigate')).toBeInTheDocument()
+    expect(queryByText('Protected Content')).not.toBeInTheDocument();
+    expect(getByTestId('navigate')).toBeInTheDocument();
     expect(mockNavigate).toHaveBeenCalledWith('/auth/login', {
       state: { from: { pathname: '/protected', search: '' } },
-      replace: true
-    })
-  })
+      replace: true,
+    });
+  });
 
   it('should preserve current location in state for redirect after login', () => {
     // Mock different location
     vi.doMock('react-router-dom', async () => {
-      const actual = await vi.importActual('react-router-dom')
+      const actual = await vi.importActual('react-router-dom');
       return {
         ...actual,
         Navigate: ({ to, state, replace }: any) => {
-          mockNavigate(to, { state, replace })
-          return <div data-testid="navigate" />
+          mockNavigate(to, { state, replace });
+          return <div data-testid="navigate" />;
         },
         useLocation: () => ({ pathname: '/protected-page', search: '?param=value' }),
-      }
-    })
+      };
+    });
 
     mockUseAuthStore.mockReturnValue({
       isAuthenticated: false,
@@ -102,19 +98,19 @@ describe('RequireAuth', () => {
       login: vi.fn(),
       logout: vi.fn(),
       updateTokens: vi.fn(),
-    })
+    });
 
     renderWithRouter(
       <RequireAuth>
         <div>Protected Content</div>
-      </RequireAuth>
-    )
+      </RequireAuth>,
+    );
 
-    expect(mockNavigate).toHaveBeenCalledWith('/auth/login', { 
+    expect(mockNavigate).toHaveBeenCalledWith('/auth/login', {
       state: { from: { pathname: '/protected', search: '' } },
-      replace: true
-    })
-  })
+      replace: true,
+    });
+  });
 
   it('should handle authentication state change', () => {
     // First render with unauthenticated state
@@ -125,16 +121,16 @@ describe('RequireAuth', () => {
       login: vi.fn(),
       logout: vi.fn(),
       updateTokens: vi.fn(),
-    })
+    });
 
     const { rerender, queryByText, queryByTestId } = renderWithRouter(
       <RequireAuth>
         <div>Protected Content</div>
-      </RequireAuth>
-    )
+      </RequireAuth>,
+    );
 
-    expect(queryByText('Protected Content')).not.toBeInTheDocument()
-    expect(queryByTestId('navigate')).toBeInTheDocument()
+    expect(queryByText('Protected Content')).not.toBeInTheDocument();
+    expect(queryByTestId('navigate')).toBeInTheDocument();
 
     // Re-render with authenticated state
     mockUseAuthStore.mockReturnValue({
@@ -144,19 +140,19 @@ describe('RequireAuth', () => {
       login: vi.fn(),
       logout: vi.fn(),
       updateTokens: vi.fn(),
-    })
+    });
 
     rerender(
       <BrowserRouter>
         <RequireAuth>
           <div>Protected Content</div>
         </RequireAuth>
-      </BrowserRouter>
-    )
+      </BrowserRouter>,
+    );
 
-    expect(queryByText('Protected Content')).toBeInTheDocument()
-    expect(queryByTestId('navigate')).not.toBeInTheDocument()
-  })
+    expect(queryByText('Protected Content')).toBeInTheDocument();
+    expect(queryByTestId('navigate')).not.toBeInTheDocument();
+  });
 
   it('should work with different children components', () => {
     mockUseAuthStore.mockReturnValue({
@@ -166,7 +162,7 @@ describe('RequireAuth', () => {
       login: vi.fn(),
       logout: vi.fn(),
       updateTokens: vi.fn(),
-    })
+    });
 
     const { getByText } = renderWithRouter(
       <RequireAuth>
@@ -174,10 +170,10 @@ describe('RequireAuth', () => {
           <h1>Dashboard</h1>
           <p>Welcome to your dashboard</p>
         </div>
-      </RequireAuth>
-    )
+      </RequireAuth>,
+    );
 
-    expect(getByText('Dashboard')).toBeInTheDocument()
-    expect(getByText('Welcome to your dashboard')).toBeInTheDocument()
-  })
-})
+    expect(getByText('Dashboard')).toBeInTheDocument();
+    expect(getByText('Welcome to your dashboard')).toBeInTheDocument();
+  });
+});

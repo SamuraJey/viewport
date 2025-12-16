@@ -1,53 +1,51 @@
-import { useState } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { authService } from '../services/authService'
-import { useAuthStore } from '../stores/authStore'
-import { validateEmail } from '../lib/utils'
-import { Eye, EyeOff, Camera, Mail, LogIn, UserPlus } from 'lucide-react'
-import { AuthLayout } from '../components/AuthLayout'
+import { useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { authService } from '../services/authService';
+import { useAuthStore } from '../stores/authStore';
+import { validateEmail } from '../lib/utils';
+import { Eye, EyeOff, Camera, Mail, LogIn, UserPlus } from 'lucide-react';
+import { AuthLayout } from '../components/AuthLayout';
 
 export const LoginPage = () => {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const navigate = useNavigate()
-  const location = useLocation()
-  const { login } = useAuthStore()
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuthStore();
 
-  const from = location.state?.from?.pathname || '/'
+  const from = location.state?.from?.pathname || '/';
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
+    e.preventDefault();
+    setError('');
 
     if (!validateEmail(email)) {
-      setError('Please enter a valid email address')
-      return
+      setError('Please enter a valid email address');
+      return;
     }
 
     if (!password) {
-      setError('Password is required')
-      return
+      setError('Password is required');
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
 
     try {
-      const response = await authService.login({ email, password })
-      login(
-        { id: response.id, email: response.email },
-        response.tokens
-      )
-      navigate(from, { replace: true })
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Login failed. Please try again.')
+      const response = await authService.login({ email, password });
+      login({ id: response.id, email: response.email }, response.tokens);
+      navigate(from, { replace: true });
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(detail || 'Login failed. Please try again.');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <AuthLayout>
@@ -70,7 +68,10 @@ export const LoginPage = () => {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide">
+              <label
+                htmlFor="email"
+                className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide"
+              >
                 Email address
               </label>
               <div className="relative">
@@ -91,7 +92,10 @@ export const LoginPage = () => {
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide">
+              <label
+                htmlFor="password"
+                className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide"
+              >
                 Password
               </label>
               <div className="relative">
@@ -111,11 +115,7 @@ export const LoginPage = () => {
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110"
                   onClick={() => setShowPassword(!showPassword)}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
             </div>
@@ -152,7 +152,9 @@ export const LoginPage = () => {
                 <div className="w-full border-t border-border dark:border-border"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-surface dark:bg-surface-foreground text-text-muted dark:text-text">New to Viewport?</span>
+                <span className="px-4 bg-surface dark:bg-surface-foreground text-text-muted dark:text-text">
+                  New to Viewport?
+                </span>
               </div>
             </div>
 
@@ -170,5 +172,5 @@ export const LoginPage = () => {
         </div>
       </div>
     </AuthLayout>
-  )
-}
+  );
+};
