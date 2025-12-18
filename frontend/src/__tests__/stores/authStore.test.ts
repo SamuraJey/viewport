@@ -1,6 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAuthStore, type User, type AuthTokens } from '../../stores/authStore';
 
+// Helper to create mock user with defaults
+const createMockUser = (overrides: Partial<User> = {}): User => ({
+  id: '123',
+  email: 'test@example.com',
+  display_name: null,
+  storage_used: 0,
+  storage_quota: 1073741824,
+  ...overrides,
+});
+
 // Mock localStorage for zustand persist
 const localStorageMock = {
   getItem: vi.fn(),
@@ -36,10 +46,7 @@ describe('authStore', () => {
 
   describe('login', () => {
     it('should set user, tokens, and authentication state', () => {
-      const mockUser: User = {
-        id: '123',
-        email: 'test@example.com',
-      };
+      const mockUser = createMockUser();
 
       const mockTokens: AuthTokens = {
         access_token: 'access-token',
@@ -57,10 +64,10 @@ describe('authStore', () => {
     });
 
     it('should handle state persistence (basic test)', async () => {
-      const mockUser: User = {
+      const mockUser = createMockUser({
         id: '456',
         email: 'user@test.com',
-      };
+      });
 
       const mockTokens: AuthTokens = {
         access_token: 'new-access-token',
@@ -82,10 +89,7 @@ describe('authStore', () => {
   describe('logout', () => {
     it('should clear user, tokens, and authentication state', () => {
       // First set some state
-      const mockUser: User = {
-        id: '123',
-        email: 'test@example.com',
-      };
+      const mockUser = createMockUser();
 
       const mockTokens: AuthTokens = {
         access_token: 'access-token',
@@ -112,10 +116,7 @@ describe('authStore', () => {
 
     it('should handle state clear properly', async () => {
       // First login to have something to clear
-      const mockUser: User = {
-        id: '123',
-        email: 'test@example.com',
-      };
+      const mockUser = createMockUser();
 
       const mockTokens: AuthTokens = {
         access_token: 'access-token',
@@ -144,10 +145,7 @@ describe('authStore', () => {
   describe('updateTokens', () => {
     it('should update tokens while preserving user and authentication state', () => {
       // First login
-      const mockUser: User = {
-        id: '123',
-        email: 'test@example.com',
-      };
+      const mockUser = createMockUser();
 
       const mockTokens: AuthTokens = {
         access_token: 'old-access-token',
@@ -207,10 +205,7 @@ describe('authStore', () => {
       // Subscribe to store changes
       const unsubscribe = useAuthStore.subscribe(mockListener);
 
-      const mockUser: User = {
-        id: '123',
-        email: 'test@example.com',
-      };
+      const mockUser = createMockUser();
 
       const mockTokens: AuthTokens = {
         access_token: 'access-token',

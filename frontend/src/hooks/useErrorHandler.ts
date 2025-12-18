@@ -1,11 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  handleApiError,
-  shouldShowErrorPage,
-  formatErrorMessage,
-  ApiError,
-} from '../lib/errorHandling';
+import { handleApiError, shouldShowErrorPage, formatErrorMessage } from '../lib/errorHandling';
 
 interface UseErrorHandlerResult {
   error: string | null;
@@ -58,44 +53,6 @@ export const useErrorHandler = (): UseErrorHandlerResult => {
     handleError,
     isLoading,
     setLoading,
-  };
-};
-
-// Specialized hook for async operations
-export const useAsyncOperation = () => {
-  const errorHandler = useErrorHandler();
-
-  const executeAsync = useCallback(
-    async <T>(
-      operation: () => Promise<T>,
-      onSuccess?: (result: T) => void,
-      onError?: (error: ApiError) => void,
-    ): Promise<T | null> => {
-      try {
-        errorHandler.setLoading(true);
-        const result = await operation();
-        onSuccess?.(result);
-        return result;
-      } catch (error) {
-        const apiError = handleApiError(error);
-
-        if (onError) {
-          onError(apiError);
-        } else {
-          errorHandler.handleError(error);
-        }
-
-        return null;
-      } finally {
-        errorHandler.setLoading(false);
-      }
-    },
-    [errorHandler],
-  );
-
-  return {
-    ...errorHandler,
-    executeAsync,
   };
 };
 

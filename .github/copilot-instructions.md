@@ -25,10 +25,20 @@
   - Avoid generating presigned URLs during batch upload; fetch URLs separately via `/photos/urls` endpoints.
 
 ## Frontend conventions (React)
-- API calls live in `frontend/src/services/*Service.ts` and use the shared Axios instance `frontend/src/lib/api.ts`.
-  - Auth header is injected from Zustand (`frontend/src/stores/authStore.ts`), and 401 triggers refresh via `/auth/refresh`.
-- Dev API routing: Vite proxy rewrites `VITE_DEV_API_PREFIX` (default `/api`) to the backend (see `frontend/vite.config.ts`).
-- Pages are in `frontend/src/pages/` and tend to manage pagination/UI state locally (example: `frontend/src/pages/GalleryPage.tsx`).
+- **Type system**: Centralized in `frontend/src/types/` (common.ts, gallery.ts, photo.ts, sharelink.ts, auth.ts).
+  - Services re-export types for backward compatibility but new code should import from `types/`.
+  - Use `PaginatedResponse<T>`, `ApiError`, `AsyncState<T>` for consistent patterns.
+- **Custom hooks** in `frontend/src/hooks/`:
+  - `usePagination`: URL-synced pagination state (page, pageSize, total) with goToPage/nextPage/previousPage methods. **Don't include the whole pagination object in dependency arrays**—use specific values (pagination.page, pagination.setTotal) to avoid infinite loops.
+  - `useSelection`: Multi-select state with Shift+click range selection (selectedIds Set, toggle/selectRange/selectAll methods).
+  - `useModal`: Generic modal state (isOpen, data, open/close methods).
+  - `useErrorHandler`: Centralized error handling (error, clearError, handleError).
+- **State management**: Zustand stores in `frontend/src/stores/` (authStore, themeStore).
+  - Theme uses **themeStore only** (ThemeContext was removed). Access via `useThemeStore()` hook.
+  - Auth header is injected from `authStore`, and 401 triggers refresh via `/auth/refresh`.
+- **API calls**: Live in `frontend/src/services/*Service.ts` and use shared Axios instance `frontend/src/lib/api.ts`.
+- **Dev API routing**: Vite proxy rewrites `VITE_DEV_API_PREFIX` (default `/api`) to the backend (see `frontend/vite.config.ts`).
+- **Pages**: In `frontend/src/pages/`, use custom hooks for pagination/selection/modals instead of manual state (see DashboardPage.tsx, GalleryPage.tsx for examples).
 
 ## Migrations / tests / lint
 - Alembic: config `alembic.ini`, migrations in `src/viewport/alembic/`. Create revisions with `alembic revision --autogenerate -m "..."`.

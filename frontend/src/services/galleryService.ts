@@ -1,27 +1,8 @@
 import { api } from '../lib/api';
-import type { PhotoResponse } from './photoService';
-import type { ShareLink } from './shareLinkService';
+import type { Gallery, GalleryDetail, GalleryListResponse } from '../types';
 
-export interface Gallery {
-  id: string;
-  owner_id: string;
-  name: string;
-  created_at: string;
-  cover_photo_id?: string | null;
-}
-
-export interface GalleryDetail extends Gallery {
-  photos: PhotoResponse[];
-  share_links: ShareLink[];
-  total_photos: number;
-}
-
-export interface GalleryListResponse {
-  galleries: Gallery[];
-  total: number;
-  page: number;
-  size: number;
-}
+// Re-export types for backward compatibility
+export type { Gallery, GalleryDetail, GalleryListResponse };
 
 const getGalleries = async (page = 1, size = 10): Promise<GalleryListResponse> => {
   const response = await api.get(`/galleries?page=${page}&size=${size}`);

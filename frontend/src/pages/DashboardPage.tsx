@@ -5,54 +5,54 @@ import { formatDate } from '../lib/utils';
 import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, Edit3, Check, X } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { ErrorDisplay } from '../components/ErrorDisplay';
-import { useErrorHandler } from '../hooks/useErrorHandler';
-import { useConfirmation } from '../hooks/useConfirmation';
+import { useErrorHandler, useConfirmation, usePagination, useModal } from '../hooks';
 
 export const DashboardPage = () => {
   const [galleries, setGalleries] = useState<Gallery[]>([]);
   const [isCreating, setIsCreating] = useState(false);
-  const [showModal, setShowModal] = useState(false);
   const [newGalleryName, setNewGalleryName] = useState('');
   const newGalleryInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+
   // Inline rename state
   const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const pageSize = 9;
 
+  // Use new hooks
+  const pagination = usePagination({ pageSize: 9 });
+  const createModal = useModal();
   const { error, clearError, handleError, isLoading, setLoading } = useErrorHandler();
   const { openConfirm, ConfirmModal } = useConfirmation();
 
   const fetchGalleries = useCallback(
-    async (pageNum = 1) => {
+    async (pageNum = pagination.page) => {
       setLoading(true);
       try {
         clearError();
-        const response = await galleryService.getGalleries(pageNum, pageSize);
+        const response = await galleryService.getGalleries(pageNum, pagination.pageSize);
         setGalleries(response.galleries);
-        setTotal(response.total);
-        setPage(pageNum);
+        pagination.setTotal(response.total);
       } catch (err: unknown) {
         handleError(err);
       } finally {
         setLoading(false);
       }
     },
-    [clearError, handleError, setLoading],
+    [clearError, handleError, setLoading, pagination.page, pagination.pageSize, pagination.setTotal],
   );
 
   useEffect(() => {
-    fetchGalleries();
+    fetchGalleries(pagination.page);
   }, [fetchGalleries]);
+
   // Focus input when create modal opens
   useEffect(() => {
-    if (showModal) {
+    if (createModal.isOpen) {
       newGalleryInputRef.current?.focus();
     }
-  }, [showModal]);
+  }, [createModal.isOpen]);
+
   // Focus input when inline rename begins
   useEffect(() => {
     if (renameGalleryId) {
@@ -64,15 +64,18 @@ export const DashboardPage = () => {
   const handleOpenModal = () => {
     setNewGalleryName('');
     clearError();
-    setShowModal(true);
+    createModal.open();
   };
 
   // Confirm creation with entered name
   const handleConfirmCreate = async () => {
+    if (!newGalleryName.trim()) return;
+
     try {
       setIsCreating(true);
       await galleryService.createGallery(newGalleryName.trim());
-      setShowModal(false);
+      createModal.close();
+      pagination.firstPage();
       await fetchGalleries(1);
     } catch (err: unknown) {
       handleError(err);
@@ -91,7 +94,7 @@ export const DashboardPage = () => {
       onConfirm: async () => {
         try {
           await galleryService.deleteGallery(gallery.id);
-          await fetchGalleries(page);
+          await fetchGalleries(pagination.page);
         } catch (err) {
           handleError(err);
           throw err;
@@ -120,15 +123,13 @@ export const DashboardPage = () => {
       setIsRenaming(true);
       await galleryService.updateGallery(renameGalleryId, renameInput.trim());
       setRenameGalleryId(null);
-      await fetchGalleries(page);
+      await fetchGalleries(pagination.page);
     } catch (err: unknown) {
       handleError(err);
     } finally {
       setIsRenaming(false);
     }
   };
-
-  const totalPages = Math.ceil(total / pageSize);
 
   const renderLoading = () => (
     <div className="flex items-center justify-center h-96">
@@ -139,7 +140,7 @@ export const DashboardPage = () => {
   const renderError = () => (
     <ErrorDisplay
       error={error!}
-      onRetry={() => fetchGalleries(page)}
+      onRetry={() => fetchGalleries(pagination.page)}
       onDismiss={clearError}
       variant="banner"
     />
@@ -266,27 +267,33 @@ export const DashboardPage = () => {
   );
 
   const renderPagination = () => {
-    if (totalPages <= 1) return null;
+    if (pagination.totalPages <= 1) return null;
 
     return (
       <div className="flex items-center justify-between text-sm text-muted dark:text-muted-dark mt-8">
         <div>
           <p>
-            Page <span className="font-bold text-text">{page}</span> of{' '}
-            <span className="font-bold text-text">{totalPages}</span>
+            Page <span className="font-bold text-text">{pagination.page}</span> of{' '}
+            <span className="font-bold text-text">{pagination.totalPages}</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => fetchGalleries(page - 1)}
-            disabled={page <= 1 || isLoading}
+            onClick={() => {
+              pagination.previousPage();
+              fetchGalleries(pagination.page - 1);
+            }}
+            disabled={pagination.isFirstPage || isLoading}
             className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark disabled:shadow-none"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
           <button
-            onClick={() => fetchGalleries(page + 1)}
-            disabled={page >= totalPages || isLoading}
+            onClick={() => {
+              pagination.nextPage();
+              fetchGalleries(pagination.page + 1);
+            }}
+            disabled={pagination.isLastPage || isLoading}
             className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark disabled:shadow-none"
           >
             <ChevronRight className="h-5 w-5" />
@@ -331,10 +338,10 @@ export const DashboardPage = () => {
             : renderGalleries()}
 
         {/* Modal for entering new gallery name */}
-        {showModal && (
+        {createModal.isOpen && (
           <div
             className="fixed inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm"
-            onClick={() => setShowModal(false)}
+            onClick={createModal.close}
           >
             <div
               className="bg-surface dark:bg-surface-dark rounded-lg shadow-lg p-6 max-w-sm w-full"
@@ -353,7 +360,7 @@ export const DashboardPage = () => {
                     handleConfirmCreate();
                   } else if (e.key === 'Escape') {
                     e.preventDefault();
-                    setShowModal(false);
+                    createModal.close();
                   }
                 }}
                 className="w-full p-3 border border-border dark:border-border/40 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent bg-transparent text-text"
@@ -361,7 +368,7 @@ export const DashboardPage = () => {
               />
               <div className="flex justify-end gap-2">
                 <button
-                  onClick={() => setShowModal(false)}
+                  onClick={createModal.close}
                   className="px-4 py-2 bg-surface-1 dark:bg-surface-dark-1 rounded-lg text-text dark:text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 shadow-sm hover:shadow-md transition-all duration-200"
                 >
                   Cancel

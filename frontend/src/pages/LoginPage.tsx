@@ -37,7 +37,16 @@ export const LoginPage = () => {
 
     try {
       const response = await authService.login({ email, password });
-      login({ id: response.id, email: response.email }, response.tokens);
+      login(
+        {
+          id: response.id,
+          email: response.email,
+          display_name: response.display_name,
+          storage_used: response.storage_used,
+          storage_quota: response.storage_quota,
+        },
+        response.tokens,
+      );
       navigate(from, { replace: true });
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;

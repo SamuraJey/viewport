@@ -144,6 +144,9 @@ describe('LoginPage', () => {
     const mockLoginResponse = {
       id: '123',
       email: 'test@example.com',
+      display_name: null,
+      storage_used: 0,
+      storage_quota: 1073741824,
       tokens: { access_token: 'token123', refresh_token: 'refresh123', token_type: 'Bearer' },
     };
 
@@ -180,6 +183,9 @@ describe('LoginPage', () => {
     const mockLoginResponse = {
       id: '123',
       email: 'test@example.com',
+      display_name: null,
+      storage_used: 0,
+      storage_quota: 1073741824,
       tokens: { access_token: 'token123', refresh_token: 'refresh123', token_type: 'Bearer' },
     };
 

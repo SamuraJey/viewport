@@ -47,7 +47,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
       const updated = await authService.updateProfile({ display_name: displayName });
       if (tokens) {
         // Update auth store including display_name
-        login({ id: updated.id, email: updated.email, display_name: updated.display_name }, tokens);
+        login(
+          {
+            id: updated.id,
+            email: updated.email,
+            display_name: updated.display_name,
+            storage_used: updated.storage_used,
+            storage_quota: updated.storage_quota,
+          },
+          tokens,
+        );
       }
       onClose();
     } catch (err: unknown) {
