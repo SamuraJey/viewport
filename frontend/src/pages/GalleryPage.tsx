@@ -28,7 +28,7 @@ import {
   Square,
 } from 'lucide-react';
 import { PhotoUploader } from '../components/PhotoUploader';
-import { ConfirmationModal } from '../components/ConfirmationModal';
+import { useConfirmation } from '../hooks/useConfirmation';
 
 const numberFormatter = new Intl.NumberFormat();
 
@@ -57,19 +57,8 @@ export const GalleryPage = () => {
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [photoToRename, setPhotoToRename] = useState<{ id: string; filename: string } | null>(null);
 
-  // Confirmation Modal State
-  const [confirmModal, setConfirmModal] = useState<{
-    isOpen: boolean;
-    type: 'delete_photo' | 'delete_multiple' | 'delete_gallery' | 'delete_share_link' | null;
-    title: string;
-    message: string;
-    data?: unknown;
-  }>({
-    isOpen: false,
-    type: null,
-    title: '',
-    message: '',
-  });
+  // Confirmation hook
+  const { openConfirm, ConfirmModal } = useConfirmation();
 
   const galleryId = id!;
 
@@ -263,49 +252,23 @@ export const GalleryPage = () => {
     setPhotoToRename(null);
   };
 
-  // Handler for executing the confirmed action
-  const handleConfirmAction = async () => {
-    if (!confirmModal.type) return;
-    // TODO THIS IS VERY BAD. Sorry.
-    try {
-      if (confirmModal.type === 'delete_photo') {
-        const photoId = confirmModal.data as string;
-        await photoService.deletePhoto(galleryId, photoId);
-        setPhotoUrls((prev) => prev.filter((photo) => photo.id !== photoId));
-      } else if (confirmModal.type === 'delete_multiple') {
-        await Promise.all(
-          Array.from(selectedPhotoIds).map((photoId) =>
-            photoService.deletePhoto(galleryId, photoId),
-          ),
-        );
-        setPhotoUrls((prev) => prev.filter((photo) => !selectedPhotoIds.has(photo.id)));
-        setSelectedPhotoIds(new Set());
-        setIsSelectionMode(false);
-      } else if (confirmModal.type === 'delete_gallery') {
-        await galleryService.deleteGallery(galleryId);
-        window.location.href = '/';
-      } else if (confirmModal.type === 'delete_share_link') {
-        const linkId = confirmModal.data as string;
-        await shareLinkService.deleteShareLink(galleryId, linkId);
-        // Refresh only share links without reloading photos
-        const galleryData = await galleryService.getGallery(galleryId, { limit: 1, offset: 0 });
-        setShareLinks(galleryData.share_links || []);
-      }
-    } catch (err) {
-      console.error('Action failed:', err);
-      setError('Action failed. Please try again.');
-      throw err;
-    }
-  };
-
   // Handler for deleting a photo
   const handleDeletePhoto = (photoId: string) => {
-    setConfirmModal({
-      isOpen: true,
-      type: 'delete_photo',
+    openConfirm({
       title: 'Delete Photo',
       message: 'Are you sure you want to delete this photo? This action cannot be undone.',
-      data: photoId,
+      isDangerous: true,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        try {
+          await photoService.deletePhoto(galleryId, photoId);
+          setPhotoUrls((prev) => prev.filter((photo) => photo.id !== photoId));
+        } catch (err) {
+          console.error('Action failed:', err);
+          setError('Failed to delete photo. Please try again.');
+          throw err;
+        }
+      },
     });
   };
 
@@ -366,22 +329,48 @@ export const GalleryPage = () => {
   const handleDeleteMultiplePhotos = () => {
     if (selectedPhotoIds.size === 0) return;
 
-    setConfirmModal({
-      isOpen: true,
-      type: 'delete_multiple',
+    openConfirm({
       title: 'Delete Photos',
       message: `Are you sure you want to delete ${selectedPhotoIds.size} photo${selectedPhotoIds.size > 1 ? 's' : ''}? This action cannot be undone.`,
+      isDangerous: true,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        try {
+          await Promise.all(
+            Array.from(selectedPhotoIds).map((photoId) =>
+              photoService.deletePhoto(galleryId, photoId),
+            ),
+          );
+          setPhotoUrls((prev) => prev.filter((photo) => !selectedPhotoIds.has(photo.id)));
+          setSelectedPhotoIds(new Set());
+          setIsSelectionMode(false);
+        } catch (err) {
+          console.error('Action failed:', err);
+          setError('Failed to delete photos. Please try again.');
+          throw err;
+        }
+      },
     });
   };
 
   // Handler for deleting the gallery from detail page
   const handleDeleteGallery = () => {
-    setConfirmModal({
-      isOpen: true,
-      type: 'delete_gallery',
+    openConfirm({
       title: 'Delete Gallery',
       message:
         'Are you sure you want to delete this gallery and all its contents? This action cannot be undone.',
+      isDangerous: true,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        try {
+          await galleryService.deleteGallery(galleryId);
+          window.location.href = '/';
+        } catch (err) {
+          console.error('Action failed:', err);
+          setError('Failed to delete gallery. Please try again.');
+          throw err;
+        }
+      },
     });
   };
 
@@ -404,12 +393,23 @@ export const GalleryPage = () => {
 
   // Handler for deleting a share link
   const handleDeleteShareLink = (linkId: string) => {
-    setConfirmModal({
-      isOpen: true,
-      type: 'delete_share_link',
+    openConfirm({
       title: 'Delete Share Link',
       message: 'Are you sure you want to delete this share link?',
-      data: linkId,
+      isDangerous: true,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        try {
+          await shareLinkService.deleteShareLink(galleryId, linkId);
+          // Refresh only share links without reloading photos
+          const galleryData = await galleryService.getGallery(galleryId, { limit: 1, offset: 0 });
+          setShareLinks(galleryData.share_links || []);
+        } catch (err) {
+          console.error('Action failed:', err);
+          setError('Failed to delete share link. Please try again.');
+          throw err;
+        }
+      },
     });
   };
 
@@ -1064,15 +1064,7 @@ export const GalleryPage = () => {
       />
 
       {/* Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
-        onConfirm={handleConfirmAction}
-        title={confirmModal.title}
-        message={confirmModal.message}
-        confirmText="Delete"
-        isDangerous={true}
-      />
+      {ConfirmModal}
     </Layout>
   );
 };

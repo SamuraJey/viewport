@@ -6,6 +6,7 @@ import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, Edit3, Check, X } fr
 import { Layout } from '../components/Layout';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { useErrorHandler } from '../hooks/useErrorHandler';
+import { useConfirmation } from '../hooks/useConfirmation';
 
 export const DashboardPage = () => {
   const [galleries, setGalleries] = useState<Gallery[]>([]);
@@ -18,14 +19,12 @@ export const DashboardPage = () => {
   const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
-  // Delete confirmation state
-  const [galleryToDelete, setGalleryToDelete] = useState<Gallery | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const pageSize = 9;
 
   const { error, clearError, handleError, isLoading, setLoading } = useErrorHandler();
+  const { openConfirm, ConfirmModal } = useConfirmation();
 
   const fetchGalleries = useCallback(
     async (pageNum = 1) => {
@@ -83,31 +82,22 @@ export const DashboardPage = () => {
   };
 
   // Handler for deleting a gallery
-  const handleDeleteGallery = async (galleryId: string) => {
-    const gallery = galleries.find((g) => g.id === galleryId);
-    if (gallery) {
-      setGalleryToDelete(gallery);
-    }
-  };
-
-  // Confirm deletion
-  const handleConfirmDelete = async () => {
-    if (!galleryToDelete) return;
-    try {
-      setIsDeleting(true);
-      await galleryService.deleteGallery(galleryToDelete.id);
-      setGalleryToDelete(null);
-      await fetchGalleries(page);
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  // Cancel deletion
-  const cancelDelete = () => {
-    setGalleryToDelete(null);
+  const handleDeleteGallery = async (gallery: Gallery) => {
+    openConfirm({
+      title: 'Delete Gallery?',
+      message: `Are you sure you want to delete "${gallery.name || `Gallery #${gallery.id}`}" and all its contents? This action cannot be undone.`,
+      isDangerous: true,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        try {
+          await galleryService.deleteGallery(gallery.id);
+          await fetchGalleries(page);
+        } catch (err) {
+          handleError(err);
+          throw err;
+        }
+      },
+    });
   };
 
   // Begin inline rename for a gallery
@@ -250,7 +240,7 @@ export const DashboardPage = () => {
                     <Edit3 className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => handleDeleteGallery(gallery.id)}
+                    onClick={() => handleDeleteGallery(gallery)}
                     className="flex h-9 w-9 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger/50"
                     title="Delete Gallery"
                     aria-label={`Delete ${gallery.name || `Gallery #${gallery.id}`}`}
@@ -392,46 +382,8 @@ export const DashboardPage = () => {
           </div>
         )}
 
-        {/* Modal for delete confirmation */}
-        {galleryToDelete && (
-          <div
-            className="fixed inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm"
-            onClick={cancelDelete}
-          >
-            <div
-              className="bg-surface dark:bg-surface-dark rounded-lg shadow-lg p-6 max-w-sm w-full"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-xl font-semibold mb-2 text-text">Delete Gallery?</h2>
-              <p className="text-muted mb-6">
-                Are you sure you want to delete{' '}
-                <span className="font-semibold text-text">
-                  "{galleryToDelete.name || `Gallery #${galleryToDelete.id}`}"
-                </span>{' '}
-                and all its contents? This action cannot be undone.
-              </p>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={cancelDelete}
-                  className="px-4 py-2.5 bg-surface-1 dark:bg-surface-dark-1 rounded-lg text-text dark:text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 shadow-sm hover:shadow-md transition-all duration-200 font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmDelete}
-                  disabled={isDeleting}
-                  className="px-4 py-2.5 bg-danger hover:bg-danger/90 text-accent-foreground rounded-lg shadow-sm hover:shadow-lg transition-all duration-200 font-medium disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-danger"
-                >
-                  {isDeleting ? (
-                    <div className="w-5 h-5 border-2 border-accent-foreground/30 border-t-accent-foreground rounded-full animate-spin"></div>
-                  ) : (
-                    'Delete'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Confirmation Modal */}
+        {ConfirmModal}
       </div>
     </Layout>
   );
