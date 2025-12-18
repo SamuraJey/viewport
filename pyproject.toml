@@ -3,14 +3,14 @@ name = "viewport"
 version = "0.1.0"
 description = "Portal for sharing photos with friends"
 readme = "README.md"
-requires-python = ">=3.13, <3.14"
+requires-python = ">=3.14, <3.15"
 dependencies = [
     "alembic>=1.16.4,<2.0.0",
     "bcrypt>=4.3.0,<5.0.0",
     "boto3>=1.39.9,<1.40.0",
     "botocore>=1.39.9,<1.40.0",
     "celery>=5.4.0,<6.0.0",
-    "Pillow>=10.0.0,<11.0.0",
+    "Pillow>=11.0.0,<12.0.0",
     "fastapi>=0.116.1,<0.119.0",
     "httpx>=0.28.1,<0.29.0",
     "prometheus-fastapi-instrumentator>=7.1.0, <8.0.0",
@@ -24,7 +24,7 @@ dependencies = [
     "uvicorn>=0.35.0,<0.37.0",
     "psycopg[binary]>=3.2.10,<4.0.0",
     "aioboto3>=15.1.0,<16.0.0",
-    "zipstream-ng>=1.9.0,<2.0.0",
+    "zipstream-ng>=1.9.0,<2.0.0"
 ]
 
 [dependency-groups]
@@ -38,11 +38,12 @@ dev = [
     "testcontainers>=4.10.0,<5.0.0",
     "pytest-mock>=3.15.0, <4.0.0",
     "pytest-asyncio>=1.2.0",
-    "boto3-stubs[s3]>=1.39.9,<1.40.0",
+    "boto3-stubs[s3]>=1.42.0,<1.43.0",
+    "pip"
 ]
 
 [build-system]
-requires = ["uv_build>=0.8.1,<0.9.0"]
+requires = ["uv_build>=0.9.0,<0.10.0"]
 build-backend = "uv_build"
 
 [tool.setuptools.packages.find]
