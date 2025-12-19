@@ -10,6 +10,7 @@ const mockGalleryData = {
   name: 'Gallery #1',
   created_at: '2024-01-01T10:00:00Z',
   owner_id: 'user1',
+  shooting_date: '2024-01-01',
   photos: [
     {
       id: 'photo1',
