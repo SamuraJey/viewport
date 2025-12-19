@@ -125,13 +125,15 @@ class TestGallerySchemas:
         gallery_id = str(uuid.uuid4())
         owner_id = str(uuid.uuid4())
         created_at = datetime.now(UTC)
+        shooting_date = created_at.date()
 
-        data = {"id": gallery_id, "owner_id": owner_id, "created_at": created_at}
+        data = {"id": gallery_id, "owner_id": owner_id, "created_at": created_at, "shooting_date": shooting_date}
         response = GalleryResponse(**data)
 
         assert response.id == gallery_id
         assert response.owner_id == owner_id
         assert response.created_at == created_at
+        assert response.shooting_date == shooting_date
 
     # what the hell this test even is. i need to review llm suggestions more carefully.
     @pytest.mark.skip(reason="This test seems redundant")
@@ -140,16 +142,18 @@ class TestGallerySchemas:
         gallery_id = str(uuid.uuid4())
         owner_id = str(uuid.uuid4())
         created_at = datetime.now(UTC)
+        shooting_date = created_at.date()
 
         photos = []
         share_links = []
 
-        data = {"id": gallery_id, "owner_id": owner_id, "created_at": created_at, "photos": photos, "share_links": share_links, "total_photos": 0}
+        data = {"id": gallery_id, "owner_id": owner_id, "created_at": created_at, "shooting_date": shooting_date, "photos": photos, "share_links": share_links, "total_photos": 0}
         response = GalleryDetailResponse(**data)
 
         assert response.id == gallery_id
         assert response.owner_id == owner_id
         assert response.created_at == created_at
+        assert response.shooting_date == shooting_date
         assert response.photos == []
         assert response.share_links == []
 
@@ -160,14 +164,16 @@ class TestGallerySchemas:
         gallery_id = str(uuid.uuid4())
         owner_id = str(uuid.uuid4())
         created_at = datetime.now(UTC)
+        shooting_date = created_at.date()
 
-        galleries = [{"id": gallery_id, "owner_id": owner_id, "created_at": created_at}]
+        galleries = [{"id": gallery_id, "owner_id": owner_id, "created_at": created_at, "shooting_date": shooting_date}]
 
         data = {"galleries": galleries, "total": 1, "page": 1, "size": 10}
         response = GalleryListResponse(**data)
 
         assert len(response.galleries) == 1
         assert response.galleries[0].id == gallery_id
+        assert response.galleries[0].shooting_date == shooting_date
         assert response.total == 1
         assert response.page == 1
         assert response.size == 10

@@ -38,4 +38,3 @@ def clear_presigned_urls_batch(photo_ids: list[str]) -> None:
     for photo_id in photo_ids:
         if photo_id in _url_cache:
             del _url_cache[photo_id]
-

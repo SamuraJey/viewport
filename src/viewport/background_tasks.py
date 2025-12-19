@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from mypy_boto3_s3.client import S3Client
 
+
 class CelerySettings(BaseSettings):
     broker_url: str = Field(default="redis://localhost:6379/0", alias="CELERY_BROKER_URL")
     result_backend: str = Field(default="redis://localhost:6379/0", alias="CELERY_RESULT_BACKEND")

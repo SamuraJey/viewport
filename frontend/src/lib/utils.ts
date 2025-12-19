@@ -14,6 +14,14 @@ export function formatDate(date: string | Date): string {
   }).format(new Date(date));
 }
 
+export function formatDateOnly(date: string | Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(new Date(date));
+}
+
 export function validateEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);

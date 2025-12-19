@@ -11,12 +11,14 @@ const mockGalleries = [
     owner_id: 'user1',
     name: 'Gallery 1',
     created_at: '2024-01-01T00:00:00Z',
+    shooting_date: '2024-01-01',
   },
   {
     id: '2',
     owner_id: 'user1',
     name: 'Gallery 2',
     created_at: '2024-01-02T00:00:00Z',
+    shooting_date: '2024-01-02',
   },
 ];
 
@@ -99,6 +101,7 @@ describe('DashboardPage', () => {
       owner_id: 'user1',
       name: 'Test Gallery',
       created_at: new Date().toISOString(),
+      shooting_date: '2024-01-01',
     });
 
     render(<DashboardPageWrapper />);
@@ -112,7 +115,9 @@ describe('DashboardPage', () => {
     const modalCreate = screen.getByRole('button', { name: 'Create Gallery' });
     await userEvent.click(modalCreate);
 
-    expect(galleryService.createGallery).toHaveBeenCalledWith('Test Gallery');
+    expect(galleryService.createGallery).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Test Gallery' }),
+    );
   });
 
   // it('should handle error when loading galleries', async () => {

@@ -28,12 +28,13 @@ def create_gallery(
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> GalleryResponse:
-    gallery = repo.create_gallery(current_user.id, request.name)
+    gallery = repo.create_gallery(current_user.id, request.name, request.shooting_date)
     return GalleryResponse(
         id=str(gallery.id),
         owner_id=str(gallery.owner_id),
         name=gallery.name,
         created_at=gallery.created_at,
+        shooting_date=gallery.shooting_date,
         cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
     )
 
@@ -53,6 +54,7 @@ def list_galleries(
                 owner_id=str(g.owner_id),
                 name=g.name,
                 created_at=g.created_at,
+                shooting_date=g.shooting_date,
                 cover_photo_id=str(g.cover_photo_id) if g.cover_photo_id else None,
             )
             for g in galleries
@@ -110,6 +112,7 @@ async def get_gallery_detail(
         owner_id=str(gallery.owner_id),
         name=gallery.name,
         created_at=gallery.created_at,
+        shooting_date=gallery.shooting_date,
         cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
         photos=photo_responses,
         share_links=[ShareLinkResponse.model_validate(link) for link in gallery.share_links],
@@ -138,6 +141,7 @@ def set_cover_photo(
         owner_id=str(gallery.owner_id),
         name=gallery.name,
         created_at=gallery.created_at,
+        shooting_date=gallery.shooting_date,
         cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
     )
 
@@ -171,7 +175,7 @@ def update_gallery(
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> GalleryResponse:
-    gallery = repo.update_gallery_name(gallery_id, current_user.id, request.name)
+    gallery = repo.update_gallery(gallery_id, current_user.id, name=request.name, shooting_date=request.shooting_date)
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
     return GalleryResponse(
@@ -179,5 +183,6 @@ def update_gallery(
         owner_id=str(gallery.owner_id),
         name=gallery.name,
         created_at=gallery.created_at,
+        shooting_date=gallery.shooting_date,
         cover_photo_id=str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None,
     )

@@ -7,7 +7,7 @@ import { shareLinkService, type ShareLink } from '../services/shareLinkService';
 import { Layout } from '../components/Layout';
 import { PhotoModal } from '../components/PhotoModal';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
-import { formatDate } from '../lib/utils';
+import { formatDateOnly } from '../lib/utils';
 import {
   Loader2,
   Trash2,
@@ -46,6 +46,8 @@ export const GalleryPage = () => {
   const [isCreatingLink, setIsCreatingLink] = useState(false);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
+  const [shootingDateInput, setShootingDateInput] = useState('');
+  const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
 
   // Use new hooks
   const pagination = usePagination({ pageSize: 100, syncWithUrl: true });
@@ -77,6 +79,8 @@ export const GalleryPage = () => {
         setPhotoUrls(galleryData.photos || []);
         setShareLinks(galleryData.share_links || []);
         pagination.setTotal(galleryData.total_photos);
+        const fallbackDate = galleryData.shooting_date || galleryData.created_at || '';
+        setShootingDateInput(fallbackDate.slice(0, 10));
       } catch (err) {
         handleError(err);
       } finally {
@@ -205,6 +209,24 @@ export const GalleryPage = () => {
 
     if (result.failed_uploads > 0) {
       setUploadError(`${result.failed_uploads} of ${result.total_files} photos failed to upload`);
+    }
+  };
+
+  const handleSaveShootingDate = async () => {
+    if (!shootingDateInput) return;
+
+    setIsSavingShootingDate(true);
+    clearError();
+    try {
+      const updated = await galleryService.updateGallery(galleryId, {
+        shooting_date: shootingDateInput,
+      });
+      setGallery((prev) => (prev ? { ...prev, shooting_date: updated.shooting_date } : prev));
+      setShootingDateInput(updated.shooting_date?.slice(0, 10) ?? shootingDateInput);
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setIsSavingShootingDate(false);
     }
   };
 
@@ -492,9 +514,36 @@ export const GalleryPage = () => {
                 <h1 className="text-4xl font-bold text-text">
                   {gallery.name || `Gallery #${gallery.id}`}
                 </h1>
-                <p className="mt-2 text-lg text-muted">
-                  Created on {formatDate(gallery.created_at)}
-                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted">
+                  <label className="text-xs uppercase tracking-wide text-muted font-semibold">
+                    Shooting date
+                  </label>
+                  <input
+                    type="date"
+                    value={shootingDateInput}
+                    onChange={(e) => setShootingDateInput(e.target.value)}
+                    className="rounded-lg border border-border dark:border-border/40 bg-transparent px-3 py-2 text-text shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+                  />
+                  <button
+                    onClick={handleSaveShootingDate}
+                    disabled={
+                      isSavingShootingDate ||
+                      !shootingDateInput ||
+                      shootingDateInput === gallery.shooting_date?.slice(0, 10)
+                    }
+                    className="inline-flex items-center gap-2 rounded-lg border border-accent bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm disabled:hover:translate-y-0"
+                  >
+                    {isSavingShootingDate ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Check className="w-4 h-4" />
+                    )}
+                    Save date
+                  </button>
+                  <span className="text-xs text-muted">
+                    Created on {formatDateOnly(gallery.created_at)}
+                  </span>
+                </div>
               </div>
               <button
                 onClick={handleDeleteGallery}

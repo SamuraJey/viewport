@@ -8,29 +8,29 @@
 import { useState, useCallback } from 'react';
 
 export interface UseModalOptions<TData = unknown> {
-    /** Initial open state */
-    initialOpen?: boolean;
-    /** Initial data */
-    initialData?: TData | null;
-    /** Callback when modal opens */
-    onOpen?: (data: TData) => void;
-    /** Callback when modal closes */
-    onClose?: () => void;
+  /** Initial open state */
+  initialOpen?: boolean;
+  /** Initial data */
+  initialData?: TData | null;
+  /** Callback when modal opens */
+  onOpen?: (data: TData) => void;
+  /** Callback when modal closes */
+  onClose?: () => void;
 }
 
 export interface UseModalReturn<TData = unknown> {
-    /** Whether modal is currently open */
-    isOpen: boolean;
-    /** Data associated with the modal */
-    data: TData | null;
-    /** Open modal with optional data */
-    open: (data?: TData) => void;
-    /** Close modal and clear data */
-    close: () => void;
-    /** Toggle modal state */
-    toggle: () => void;
-    /** Update modal data without closing */
-    setData: (data: TData | null) => void;
+  /** Whether modal is currently open */
+  isOpen: boolean;
+  /** Data associated with the modal */
+  data: TData | null;
+  /** Open modal with optional data */
+  open: (data?: TData) => void;
+  /** Close modal and clear data */
+  close: () => void;
+  /** Toggle modal state */
+  toggle: () => void;
+  /** Update modal data without closing */
+  setData: (data: TData | null) => void;
 }
 
 /**
@@ -61,45 +61,45 @@ export interface UseModalReturn<TData = unknown> {
  * });
  */
 export function useModal<TData = unknown>(
-    options: UseModalOptions<TData> = {},
+  options: UseModalOptions<TData> = {},
 ): UseModalReturn<TData> {
-    const { initialOpen = false, initialData = null, onOpen, onClose } = options;
+  const { initialOpen = false, initialData = null, onOpen, onClose } = options;
 
-    const [isOpen, setIsOpen] = useState(initialOpen);
-    const [data, setData] = useState<TData | null>(initialData);
+  const [isOpen, setIsOpen] = useState(initialOpen);
+  const [data, setData] = useState<TData | null>(initialData);
 
-    const open = useCallback(
-        (modalData?: TData) => {
-            const finalData = modalData !== undefined ? modalData : null;
-            setData(finalData as TData | null);
-            setIsOpen(true);
-            if (onOpen && finalData !== null) {
-                onOpen(finalData as TData);
-            }
-        },
-        [onOpen],
-    );
+  const open = useCallback(
+    (modalData?: TData) => {
+      const finalData = modalData !== undefined ? modalData : null;
+      setData(finalData as TData | null);
+      setIsOpen(true);
+      if (onOpen && finalData !== null) {
+        onOpen(finalData as TData);
+      }
+    },
+    [onOpen],
+  );
 
-    const close = useCallback(() => {
-        setIsOpen(false);
-        setData(null);
-        onClose?.();
-    }, [onClose]);
+  const close = useCallback(() => {
+    setIsOpen(false);
+    setData(null);
+    onClose?.();
+  }, [onClose]);
 
-    const toggle = useCallback(() => {
-        if (isOpen) {
-            close();
-        } else {
-            open();
-        }
-    }, [isOpen, open, close]);
+  const toggle = useCallback(() => {
+    if (isOpen) {
+      close();
+    } else {
+      open();
+    }
+  }, [isOpen, open, close]);
 
-    return {
-        isOpen,
-        data,
-        open,
-        close,
-        toggle,
-        setData,
-    };
+  return {
+    isOpen,
+    data,
+    open,
+    close,
+    toggle,
+    setData,
+  };
 }

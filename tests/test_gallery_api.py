@@ -1,5 +1,6 @@
 """Tests for gallery API endpoints."""
 
+from datetime import date
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -18,6 +19,7 @@ class TestGalleryAPI:
         assert "id" in data
         assert "owner_id" in data
         assert "created_at" in data
+        assert "shooting_date" in data
         # Verify the ID is a valid UUID format
         import uuid
 
@@ -125,6 +127,7 @@ class TestGalleryAPI:
         assert data["id"] == gallery_id_fixture
         assert "owner_id" in data
         assert "created_at" in data
+        assert "shooting_date" in data
         assert "photos" in data
         assert "share_links" in data
         assert isinstance(data["photos"], list)
@@ -249,6 +252,13 @@ class TestGalleryAPI:
         assert "name" in data
         assert data["name"] == name
 
+    def test_create_gallery_with_shooting_date(self, authenticated_client: TestClient):
+        shooting_date = date(2023, 7, 15)
+        response = authenticated_client.post("/galleries", json={"shooting_date": shooting_date.isoformat()})
+        assert response.status_code == 201
+        payload = response.json()
+        assert payload["shooting_date"] == shooting_date.isoformat()
+
     def test_list_galleries_with_name(self, authenticated_client: TestClient):
         """Test listing galleries returns the correct names."""
         # Create galleries with names
@@ -280,6 +290,18 @@ class TestGalleryAPI:
         data = response.json()
         assert data["id"] == gallery_id_fixture
         assert data["name"] == new_name
+
+    def test_update_gallery_shooting_date(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        new_date = date(2024, 5, 12)
+        response = authenticated_client.patch(f"/galleries/{gallery_id_fixture}", json={"shooting_date": new_date.isoformat()})
+        assert response.status_code == 200
+        detail = response.json()
+        assert detail["shooting_date"] == new_date.isoformat()
+
+        # Fetch detail to ensure persistence
+        fetched = authenticated_client.get(f"/galleries/{gallery_id_fixture}")
+        assert fetched.status_code == 200
+        assert fetched.json()["shooting_date"] == new_date.isoformat()
 
     def test_update_gallery_invalid_uuid(self, authenticated_client: TestClient):
         """Test renaming with invalid UUID format."""

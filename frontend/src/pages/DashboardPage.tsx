@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { galleryService, type Gallery } from '../services/galleryService';
-import { formatDate } from '../lib/utils';
+import { formatDateOnly } from '../lib/utils';
 import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, Edit3, Check, X } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { ErrorDisplay } from '../components/ErrorDisplay';
@@ -11,6 +11,7 @@ export const DashboardPage = () => {
   const [galleries, setGalleries] = useState<Gallery[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newGalleryName, setNewGalleryName] = useState('');
+  const [newGalleryShootingDate, setNewGalleryShootingDate] = useState('');
   const newGalleryInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
@@ -39,12 +40,19 @@ export const DashboardPage = () => {
         setLoading(false);
       }
     },
-    [clearError, handleError, setLoading, pagination.page, pagination.pageSize, pagination.setTotal],
+    [
+      clearError,
+      handleError,
+      setLoading,
+      pagination.page,
+      pagination.pageSize,
+      pagination.setTotal,
+    ],
   );
 
   useEffect(() => {
     fetchGalleries(pagination.page);
-  }, [fetchGalleries]);
+  }, [fetchGalleries, pagination.page]);
 
   // Focus input when create modal opens
   useEffect(() => {
@@ -63,6 +71,7 @@ export const DashboardPage = () => {
   // Open modal to enter gallery name
   const handleOpenModal = () => {
     setNewGalleryName('');
+    setNewGalleryShootingDate(new Date().toISOString().slice(0, 10));
     clearError();
     createModal.open();
   };
@@ -73,7 +82,10 @@ export const DashboardPage = () => {
 
     try {
       setIsCreating(true);
-      await galleryService.createGallery(newGalleryName.trim());
+      await galleryService.createGallery({
+        name: newGalleryName.trim(),
+        shooting_date: newGalleryShootingDate || undefined,
+      });
       createModal.close();
       pagination.firstPage();
       await fetchGalleries(1);
@@ -224,7 +236,7 @@ export const DashboardPage = () => {
                         {gallery.name || `Gallery #${gallery.id}`}
                       </h3>
                       <p className="text-text-muted text-sm font-cuprum">
-                        {formatDate(gallery.created_at)}
+                        {formatDateOnly(gallery.shooting_date || gallery.created_at)}
                       </p>
                     </>
                   )}
@@ -365,6 +377,19 @@ export const DashboardPage = () => {
                 }}
                 className="w-full p-3 border border-border dark:border-border/40 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent bg-transparent text-text"
                 placeholder="Gallery name"
+              />
+              <label
+                className="text-sm font-medium text-text mb-2 block"
+                htmlFor="shooting-date-input"
+              >
+                Shooting date
+              </label>
+              <input
+                id="shooting-date-input"
+                type="date"
+                value={newGalleryShootingDate}
+                onChange={(e) => setNewGalleryShootingDate(e.target.value)}
+                className="w-full p-3 border border-border dark:border-border/40 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent bg-transparent text-text"
               />
               <div className="flex justify-end gap-2">
                 <button

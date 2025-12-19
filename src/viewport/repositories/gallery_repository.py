@@ -1,7 +1,7 @@
 import logging
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import func, insert, select
 
@@ -14,8 +14,13 @@ logger = logging.getLogger(__name__)
 
 
 class GalleryRepository(BaseRepository):
-    def create_gallery(self, owner_id: uuid.UUID, name: str) -> Gallery:
-        gallery = Gallery(id=uuid.uuid4(), owner_id=owner_id, name=name)
+    def create_gallery(self, owner_id: uuid.UUID, name: str, shooting_date: date | None = None) -> Gallery:
+        gallery = Gallery(
+            id=uuid.uuid4(),
+            owner_id=owner_id,
+            name=name,
+            shooting_date=shooting_date or datetime.now(UTC).date(),
+        )
         self.db.add(gallery)
         self.db.commit()
         self.db.refresh(gallery)
@@ -36,13 +41,22 @@ class GalleryRepository(BaseRepository):
         stmt = select(Gallery).where(Gallery.id == gallery_id, Gallery.owner_id == owner_id)
         return self.db.execute(stmt).scalar_one_or_none()
 
-    def update_gallery_name(self, gallery_id: uuid.UUID, owner_id: uuid.UUID, name: str) -> Gallery | None:
+    def update_gallery(self, gallery_id: uuid.UUID, owner_id: uuid.UUID, name: str | None = None, shooting_date: date | None = None) -> Gallery | None:
         gallery = self.get_gallery_by_id_and_owner(gallery_id, owner_id)
         if not gallery:
             return None
-        gallery.name = name
-        self.db.commit()
-        self.db.refresh(gallery)
+
+        updated = False
+        if name is not None:
+            gallery.name = name
+            updated = True
+        if shooting_date is not None:
+            gallery.shooting_date = shooting_date
+            updated = True
+
+        if updated:
+            self.db.commit()
+            self.db.refresh(gallery)
         return gallery
 
     def delete_gallery(self, gallery_id: uuid.UUID, owner_id: uuid.UUID, s3_client: "AsyncS3Client") -> bool:  # type: ignore
