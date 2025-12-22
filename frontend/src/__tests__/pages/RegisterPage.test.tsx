@@ -133,11 +133,13 @@ describe('RegisterPage', () => {
     const emailInput = screen.getByLabelText('Email Address');
     const passwordInput = screen.getByLabelText(/^Password$/);
     const confirmPasswordInput = screen.getByLabelText('Confirm Password');
+    const inviteCodeInput = screen.getByLabelText('Invite Code');
     const submitButton = screen.getByRole('button', { name: 'Create Account' });
 
     await userEvent.type(emailInput, 'test@example.com');
     await userEvent.type(passwordInput, 'password123');
     await userEvent.type(confirmPasswordInput, 'differentpassword');
+    await userEvent.type(inviteCodeInput, 'INVITE123');
     await userEvent.click(submitButton);
 
     expect(screen.getByText('Passwords do not match.')).toBeInTheDocument();
@@ -154,16 +156,19 @@ describe('RegisterPage', () => {
     const emailInput = screen.getByLabelText('Email Address');
     const passwordInput = screen.getByLabelText(/^Password$/);
     const confirmPasswordInput = screen.getByLabelText('Confirm Password');
+    const inviteCodeInput = screen.getByLabelText('Invite Code');
     const submitButton = screen.getByRole('button', { name: 'Create Account' });
 
     await userEvent.type(emailInput, 'test@example.com');
     await userEvent.type(passwordInput, 'password123');
     await userEvent.type(confirmPasswordInput, 'password123');
+    await userEvent.type(inviteCodeInput, 'INVITE123');
     await userEvent.click(submitButton);
 
     expect(mockRegister).toHaveBeenCalledWith({
       email: 'test@example.com',
       password: 'password123',
+      invite_code: 'INVITE123',
     });
 
     await waitFor(() => {
@@ -190,10 +195,12 @@ describe('RegisterPage', () => {
     const passwordInput = screen.getByLabelText(/^Password$/);
     const confirmPasswordInput = screen.getByLabelText('Confirm Password');
     const submitButton = screen.getByRole('button', { name: /create account/i });
+    const inviteCodeInput = screen.getByLabelText('Invite Code');
 
     await user.type(emailInput, 'test@example.com');
     await user.type(passwordInput, 'Password123!');
     await user.type(confirmPasswordInput, 'Password123!');
+    await user.type(inviteCodeInput, 'INVITE123');
     await user.click(submitButton);
 
     await waitFor(() => {

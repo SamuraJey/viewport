@@ -3,12 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Polyfill ResizeObserver for jsdom environment used by Vitest
 if (!(global as any).ResizeObserver) {
   (global as any).ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+    observe() { }
+    unobserve() { }
+    disconnect() { }
   };
 }
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 let PublicGalleryPage: any;
@@ -126,7 +126,7 @@ describe('PublicGalleryPage', () => {
     await waitFor(() => expect(screen.getByText('Photos (2)')).toBeInTheDocument());
 
     const first = screen.getAllByTestId('public-batch')[0];
-    const button = first.closest('button') || first;
+    const button = within(first).getByRole('button');
     await userEvent.click(button);
 
     await waitFor(() => expect(screen.getByTestId('photo-modal')).toBeInTheDocument());

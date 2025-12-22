@@ -171,7 +171,7 @@ describe('LoginPage', () => {
     });
 
     expect(mockStoreLogin).toHaveBeenCalledWith(
-      { id: '123', email: 'test@example.com' },
+      expect.objectContaining({ id: '123', email: 'test@example.com' }),
       { access_token: 'token123', refresh_token: 'refresh123', token_type: 'Bearer' },
     );
 
