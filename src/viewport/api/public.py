@@ -142,7 +142,6 @@ async def download_all_photos_zip(
 
     settings = S3Settings()
 
-    # Потоковый zip
     z = zipstream.ZipStream()
 
     for photo in photos:
