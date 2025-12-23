@@ -27,7 +27,7 @@ export const DashboardPage = () => {
   const { openConfirm, ConfirmModal } = useConfirmation();
 
   const fetchGalleries = useCallback(
-    async (pageNum = pagination.page) => {
+    async (pageNum: number) => {
       setLoading(true);
       try {
         clearError();
@@ -40,14 +40,8 @@ export const DashboardPage = () => {
         setLoading(false);
       }
     },
-    [
-      clearError,
-      handleError,
-      setLoading,
-      pagination.page,
-      pagination.pageSize,
-      pagination.setTotal,
-    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [clearError, handleError, setLoading, pagination.pageSize, pagination.setTotal],
   );
 
   useEffect(() => {
@@ -186,7 +180,7 @@ export const DashboardPage = () => {
           >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="bg-accent/20 p-2 rounded-lg flex-shrink-0 border border-accent/10">
+                <div className="bg-accent/20 p-2 rounded-lg shrink-0 border border-accent/10">
                   <Calendar className="h-6 w-6 text-accent" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -213,7 +207,7 @@ export const DashboardPage = () => {
                         disabled={isRenaming || !renameInput.trim()}
                         title="Save (Enter)"
                         aria-label="Confirm rename"
-                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-green-500/90 hover:bg-green-500 border border-green-600/50 text-white shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-500/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-500/90 hover:bg-green-500 border border-green-600/50 text-white shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-500/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                       >
                         {isRenaming ? (
                           <div className="w-4 h-4 border-2 border-border/20 border-t-accent rounded-full animate-spin" />
@@ -225,14 +219,14 @@ export const DashboardPage = () => {
                         onClick={cancelInlineRename}
                         title="Cancel (Esc)"
                         aria-label="Cancel rename"
-                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger"
                       >
                         <X className="w-4 h-4" />
                       </button>
                     </div>
                   ) : (
                     <>
-                      <h3 className="font-oswald text-base font-bold uppercase tracking-wide text-text break-words">
+                      <h3 className="font-oswald text-base font-bold uppercase tracking-wide text-text wrap-break-word">
                         {gallery.name || `Gallery #${gallery.id}`}
                       </h3>
                       <p className="text-text-muted text-sm font-cuprum">

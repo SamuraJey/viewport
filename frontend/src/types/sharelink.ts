@@ -28,4 +28,5 @@ export interface SharedGallery {
   gallery_name?: string;
   date?: string;
   site_url?: string;
+  total_photos?: number;
 }

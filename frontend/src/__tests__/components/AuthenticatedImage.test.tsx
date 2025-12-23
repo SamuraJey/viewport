@@ -23,7 +23,10 @@ describe('AuthenticatedImage', () => {
     vi.clearAllMocks();
   });
 
-  it('should show loading state initially', () => {
+  it('should show loading state initially', async () => {
+    // Mock api.get to resolve to avoid error in console
+    vi.mocked(api.get).mockResolvedValue({ data: new Blob() });
+
     render(<AuthenticatedImage src="/test-image.jpg" alt="test" className="test-class" />);
 
     expect(screen.getByText('Loading...')).toBeInTheDocument();
@@ -31,6 +34,11 @@ describe('AuthenticatedImage', () => {
     const loadingContainer = screen.getByText('Loading...').closest('div')
       ?.parentElement?.parentElement;
     expect(loadingContainer).toHaveClass('bg-surface-foreground', 'animate-pulse', 'test-class');
+
+    // Wait for loading to finish to avoid act() warning
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
   });
 
   it('should load and display image successfully', async () => {
@@ -56,7 +64,7 @@ describe('AuthenticatedImage', () => {
   });
 
   it('should show error state when image fails to load', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     vi.mocked(api.get).mockRejectedValue(new Error('Network error'));
 

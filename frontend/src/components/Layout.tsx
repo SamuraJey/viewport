@@ -50,19 +50,19 @@ export const Layout = ({ children }: LayoutProps) => {
                 <button
                   onClick={openProfile}
                   aria-label="Account Settings"
-                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center bg-surface-1 dark:bg-surface-dark-1 text-text dark:text-text border border-border hover:border-accent hover:text-accent hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center bg-surface-1 dark:bg-surface-dark-1 text-text dark:text-text border border-border hover:border-accent hover:text-accent hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
                 >
                   <Settings className="h-5 w-5" />
                 </button>
                 <div className="hidden sm:flex items-center gap-2 rounded-lg border border-border/40 bg-surface-1 px-3 py-2 text-text dark:border-border/60 dark:bg-surface-dark-1 dark:text-text-muted">
                   <User className="h-4 w-4" />
-                  <span className="text-sm font-medium max-w-[160px] truncate">
+                  <span className="text-sm font-medium max-w-40 truncate">
                     {user.display_name || user.email}
                   </span>
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center text-sm bg-surface-1 dark:bg-surface-dark-1 border border-border text-text dark:text-text hover:border-danger hover:text-danger hover:bg-danger/5 dark:hover:bg-danger/10 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 sm:w-auto sm:px-3.5 sm:gap-2"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center text-sm bg-surface-1 dark:bg-surface-dark-1 border border-border text-text dark:text-text hover:border-danger hover:text-danger hover:bg-danger/5 dark:hover:bg-danger/10 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 sm:w-auto sm:px-3.5 sm:gap-2"
                 >
                   <LogOut className="h-4 w-4" />
                   <span className="hidden sm:inline">Sign Out</span>
@@ -72,7 +72,7 @@ export const Layout = ({ children }: LayoutProps) => {
           </nav>
         </div>
       </header>
-      <main className="max-w-7xl xl:max-w-[95rem] 2xl:max-w-[120rem] mx-auto px-4 xl:px-6 2xl:px-8 py-8">
+      <main className="max-w-7xl xl:max-w-380 2xl:max-w-480 mx-auto px-4 xl:px-6 2xl:px-8 py-8">
         {children}
       </main>
       <ProfileModal isOpen={isProfileOpen} onClose={closeProfile} />

@@ -126,7 +126,7 @@ export const GalleryPage = () => {
           <button
             onClick={pagination.previousPage}
             disabled={pagination.isFirstPage || isLoadingPhotos}
-            className="flex items-center gap-2 px-5 py-2.5 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm border border-accent/20 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+            className="flex items-center gap-2 px-5 py-2.5 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm border border-accent/20 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md transition-shadow duration-200"
           >
             {isLoadingPhotos ? (
               <Loader2 className="w-5 h-5 animate-spin" />
@@ -157,10 +157,11 @@ export const GalleryPage = () => {
                   key={pageNum}
                   onClick={() => pagination.goToPage(pageNum)}
                   disabled={pageNum === pagination.page || isLoadingPhotos}
-                  className={`px-3 py-1.5 min-w-[40px] rounded-lg font-medium transition-all duration-200 ${pageNum === pagination.page
+                  className={`px-3 py-1.5 min-w-10 rounded-lg font-medium transition-colors duration-200 ${
+                    pageNum === pagination.page
                       ? 'bg-accent text-accent-foreground shadow-sm'
                       : 'bg-surface-1 dark:bg-surface-dark-1 text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40'
-                    } ${isLoadingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  } ${isLoadingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {pageNum}
                 </button>
@@ -171,7 +172,7 @@ export const GalleryPage = () => {
           <button
             onClick={pagination.nextPage}
             disabled={pagination.isLastPage || isLoadingPhotos}
-            className="flex items-center gap-2 px-5 py-2.5 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm border border-accent/20 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
+            className="flex items-center gap-2 px-5 py-2.5 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm border border-accent/20 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md transition-shadow duration-200"
           >
             Next
             {isLoadingPhotos ? (
@@ -560,7 +561,7 @@ export const GalleryPage = () => {
 
         {/* Photo Section */}
         <div
-          className="bg-surface dark:bg-surface-foreground/5 backdrop-blur-sm rounded-2xl p-4 lg:p-6 xl:p-8 border border-border dark:border-border/10"
+          className="bg-surface dark:bg-surface-foreground/5 rounded-2xl p-4 lg:p-6 xl:p-8 border border-border dark:border-border/10"
           data-photos-section
         >
           <div className="mb-6">
@@ -581,10 +582,11 @@ export const GalleryPage = () => {
                         selection.clear();
                       }
                     }}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 ${isSelectionMode
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 ${
+                      isSelectionMode
                         ? 'bg-blue-500 text-white hover:bg-blue-600'
                         : 'bg-surface-foreground dark:bg-surface text-text hover:bg-surface-foreground/80 dark:hover:bg-surface/80 border border-border'
-                      }`}
+                    }`}
                     title="Toggle multi-select mode"
                   >
                     <CheckSquare className="w-4 h-4" />
@@ -680,17 +682,17 @@ export const GalleryPage = () => {
 
           {/* Photos Grid or Loading State */}
           {isLoadingPhotos ? (
-            <div className="flex flex-col items-center justify-center py-20 min-h-[400px]">
+            <div className="flex flex-col items-center justify-center py-20 min-h-100">
               <Loader2 className="w-12 h-12 animate-spin text-accent mb-4" />
               <span className="text-lg text-muted">Loading photos...</span>
               <span className="text-sm text-muted/70 mt-1">Page {pagination.page}</span>
             </div>
           ) : photoUrls.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8 animate-in fade-in duration-300">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8 pt-14">
               {photoUrls.map((photo, index) => (
                 <div
                   key={photo.id}
-                  className="group bg-surface dark:bg-surface-foreground rounded-lg flex flex-col relative"
+                  className="group bg-surface dark:bg-surface-foreground rounded-lg flex flex-col relative overflow-visible"
                 >
                   {/* Selection checkbox */}
                   {isSelectionMode && (
@@ -699,10 +701,11 @@ export const GalleryPage = () => {
                         e.stopPropagation();
                         handleTogglePhotoSelection(photo.id, e.shiftKey);
                       }}
-                      className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-all duration-200 ${selection.isSelected(photo.id)
+                      className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-colors duration-200 ${
+                        selection.isSelected(photo.id)
                           ? 'bg-blue-500 text-white'
                           : 'bg-white/90 dark:bg-black/50 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-black/70'
-                        }`}
+                      }`}
                       title={selection.isSelected(photo.id) ? 'Deselect' : 'Select'}
                     >
                       {selection.isSelected(photo.id) ? (
@@ -716,7 +719,7 @@ export const GalleryPage = () => {
                   {/* Image area */}
                   <div className="relative h-80">
                     {/* Action Panel - floating pop-up above container */}
-                    <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 z-20 popup-container opacity-0 group-hover:opacity-100 transition-all duration-300">
+                    <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 z-20 popup-container opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                       {/* Pop-up arrow */}
                       <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent popup-arrow"></div>
 
@@ -884,7 +887,7 @@ export const GalleryPage = () => {
             </div>
           )}
         </div>
-        <div className="bg-surface-1 dark:bg-surface-dark-1 backdrop-blur-sm rounded-2xl p-6 border border-border dark:border-border/40">
+        <div className="bg-surface-1 dark:bg-surface-dark-1 rounded-2xl p-6 border border-border dark:border-border/40">
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-4">
               <h2 className="text-2xl font-semibold text-text">Share Links</h2>

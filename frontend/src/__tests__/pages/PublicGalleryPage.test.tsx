@@ -3,9 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Polyfill ResizeObserver for jsdom environment used by Vitest
 if (!(global as any).ResizeObserver) {
   (global as any).ResizeObserver = class {
-    observe() { }
-    unobserve() { }
-    disconnect() { }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
   };
 }
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -34,6 +34,7 @@ const mockPublicGallery = {
   gallery_name: 'Public Gallery',
   date: '2025-09-21',
   site_url: 'https://example.com',
+  total_photos: 2,
 };
 
 const mockEmptyGallery = {
@@ -41,6 +42,7 @@ const mockEmptyGallery = {
   cover: null,
   photographer: undefined,
   gallery_name: 'Empty Gallery',
+  total_photos: 0,
 };
 
 // Mock shareLinkService
@@ -100,9 +102,15 @@ describe('PublicGalleryPage', () => {
     PublicGalleryPage = (await import('../../pages/PublicGalleryPage')).PublicGalleryPage;
   });
 
-  it('shows loading indicator initially', () => {
-    render(wrapper());
-    expect(screen.getByText('Loading gallery...')).toBeInTheDocument();
+  it('shows loading indicator initially', async () => {
+    const { container } = render(wrapper());
+    // Skeleton loading shows placeholder grid with animated elements
+    expect(container.querySelector('[data-testid="skeleton-loader"]')).toBeInTheDocument();
+
+    // Wait for loading to finish to avoid act() warning
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="skeleton-loader"]')).not.toBeInTheDocument();
+    });
   });
 
   it('renders gallery with cover, meta and photos', async () => {

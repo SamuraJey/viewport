@@ -108,7 +108,6 @@ async def get_photos_by_sharelink(
 
     photographer = getattr(gallery.owner, "display_name", None) or ""
     gallery_name = getattr(gallery, "name", "")
-    # Format date as DD.MM.YYYY similar to wfolio sample
     dt = getattr(gallery, "shooting_date", None) or getattr(gallery, "created_at", None) or getattr(sharelink, "created_at", None)
     date_str = dt.strftime("%d.%m.%Y") if dt else ""
     # Build site URL base
@@ -125,6 +124,7 @@ async def get_photos_by_sharelink(
         gallery_name=gallery_name,
         date=date_str,
         site_url=site_url,
+        total_photos=len(photos),
     )
 
 
@@ -142,7 +142,6 @@ async def download_all_photos_zip(
 
     settings = S3Settings()
 
-    # Потоковый zip
     z = zipstream.ZipStream()
 
     for photo in photos:

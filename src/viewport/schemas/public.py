@@ -26,3 +26,4 @@ class PublicGalleryResponse(BaseModel):
     gallery_name: str = ""
     date: str = ""
     site_url: str = ""
+    total_photos: int = 0
