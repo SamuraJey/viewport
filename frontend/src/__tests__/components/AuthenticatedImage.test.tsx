@@ -64,7 +64,7 @@ describe('AuthenticatedImage', () => {
   });
 
   it('should show error state when image fails to load', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     vi.mocked(api.get).mockRejectedValue(new Error('Network error'));
 
