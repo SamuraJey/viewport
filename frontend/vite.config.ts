@@ -29,20 +29,20 @@ export default defineConfig(({ mode }) => {
 
   const proxyConfig: Record<string, ProxyOptions> | undefined = enableProxy
     ? {
-        [apiProxyKey]: {
-          target: backendUrl,
-          changeOrigin: true,
-          rewrite: (path) => path.replace(apiRewritePattern, ''),
-        },
-        '^/photos/.*': {
-          target: backendUrl,
-          changeOrigin: true,
-        },
-        '^/s/.*': {
-          target: backendUrl,
-          changeOrigin: true,
-        },
-      }
+      [apiProxyKey]: {
+        target: backendUrl,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(apiRewritePattern, ''),
+      },
+      '^/photos/.*': {
+        target: backendUrl,
+        changeOrigin: true,
+      },
+      '^/s/.*': {
+        target: backendUrl,
+        changeOrigin: true,
+      },
+    }
     : undefined;
 
   return {
@@ -67,6 +67,30 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: './src/setupTests.ts',
       css: true,
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'lcov', 'html'],
+        reportsDirectory: './coverage',
+        include: ['src/**/*.{ts,tsx}'],
+        exclude: [
+          'src/__tests__/**',
+          '**/*.d.ts',
+          'src/types/**',
+          'src/main.tsx',
+          'src/App.tsx',
+          'src/pages/GalleryPage.tsx',
+          'src/pages/DashboardPage.tsx',
+          'src/components/PublicBatchImage.tsx',
+          'src/components/PublicImage.tsx',
+          'src/components/PhotoModal.tsx',
+          'src/components/PhotoRenameModal.tsx',
+          'src/components/PhotoUploadConfirmModal.tsx',
+          'src/components/ProfileModal.tsx',
+          'src/lib/api.ts',
+          'src/hooks/index.ts',
+          'src/hooks/useTheme.ts',
+        ],
+      },
     },
     esbuild: {
       drop: mode === 'production' ? ['console', 'debugger'] : [],

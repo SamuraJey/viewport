@@ -100,3 +100,5 @@ venv/
 
 # VS Code
 .vscode/
+
+frontend/coverage
