@@ -12,8 +12,7 @@ import {
 } from '../services/shareLinkService';
 
 // Get API base URL from environment variables
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:8000');
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export const PublicGalleryPage = () => {
   const { shareId } = useParams<{ shareId: string }>();
