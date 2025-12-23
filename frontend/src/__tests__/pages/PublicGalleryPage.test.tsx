@@ -3,9 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Polyfill ResizeObserver for jsdom environment used by Vitest
 if (!(global as any).ResizeObserver) {
   (global as any).ResizeObserver = class {
-    observe() { }
-    unobserve() { }
-    disconnect() { }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
   };
 }
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -100,9 +100,14 @@ describe('PublicGalleryPage', () => {
     PublicGalleryPage = (await import('../../pages/PublicGalleryPage')).PublicGalleryPage;
   });
 
-  it('shows loading indicator initially', () => {
+  it('shows loading indicator initially', async () => {
     render(wrapper());
     expect(screen.getByText('Loading gallery...')).toBeInTheDocument();
+
+    // Wait for loading to finish to avoid act() warning
+    await waitFor(() => {
+      expect(screen.queryByText('Loading gallery...')).not.toBeInTheDocument();
+    });
   });
 
   it('renders gallery with cover, meta and photos', async () => {

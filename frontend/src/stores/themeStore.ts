@@ -12,10 +12,8 @@ interface ThemeState {
 }
 
 // Helper function to apply theme to DOM with smooth transition
-const applyTheme = (theme: Theme) => {
+const applyTheme = (theme: Theme, smooth = true) => {
   if (typeof window === 'undefined') return;
-
-  console.log('🎨 Applying theme:', theme);
 
   const updateTheme = () => {
     // Remove any existing theme classes first
@@ -24,49 +22,31 @@ const applyTheme = (theme: Theme) => {
     // Add the new theme class
     document.documentElement.classList.add(theme);
 
-    console.log(
-      '🎨 Current classList after applying theme:',
-      document.documentElement.classList.toString(),
-    );
-    console.log(
-      '🎨 Document element has dark class:',
-      document.documentElement.classList.contains('dark'),
-    );
-    console.log(
-      '🎨 Document element has light class:',
-      document.documentElement.classList.contains('light'),
-    );
+    // Sync with localStorage for the index.html script
+    localStorage.setItem('theme', theme);
   };
 
   // Check if View Transitions API is supported
-  // View Transitions API provides smooth animated transitions between states
-  // It's supported in Chrome 111+, Edge 111+, and other modern browsers
   const supportsViewTransitions = 'startViewTransition' in document;
 
-  if (supportsViewTransitions) {
-    // Use View Transitions API for smooth animated transition
-    // This creates a beautiful crossfade effect defined in index.css
-    // The animation duration and style can be customized in CSS using ::view-transition pseudo-elements
+  if (smooth && supportsViewTransitions) {
     try {
-      const startViewTransitionFn = (
-        document as unknown as {
-          startViewTransition?: (callback: () => void) => { ready: Promise<void> };
-        }
-      ).startViewTransition;
-
-      if (typeof startViewTransitionFn === 'function') {
-        const transition = startViewTransitionFn(() => {
+      // TODO fix maybe later
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const doc = document as any;
+      if (typeof doc.startViewTransition === 'function') {
+        const transition = doc.startViewTransition(() => {
           updateTheme();
         });
 
         // Wait for the transition to be ready
         transition.ready
-          .then(() => {
-            console.log('🎨 View transition started');
-          })
+          .then(() => {})
           .catch((err: Error) => {
-            console.warn('🎨 View transition failed:', err);
-            updateTheme(); // Fallback to immediate update
+            // AbortError is expected if another transition starts
+            if (err.name !== 'AbortError') {
+              console.warn('🎨 View transition failed:', err);
+            }
           });
       } else {
         updateTheme();
@@ -76,9 +56,7 @@ const applyTheme = (theme: Theme) => {
       updateTheme(); // Fallback to immediate update
     }
   } else {
-    // Fallback: CSS transitions will still provide smooth color changes
-    // Even without View Transitions API, colors will smoothly fade thanks to CSS transitions
-    console.log('🎨 View Transitions API not supported, using CSS transitions fallback');
+    // Fallback or immediate update
     updateTheme();
   }
 };
@@ -89,40 +67,39 @@ export const useThemeStore = create<ThemeState>()(
       theme: 'dark', // Default to dark theme
       isHydrated: false,
       setTheme: (theme: Theme) => {
-        console.log('🔄 setTheme called with:', theme);
+        const currentTheme = get().theme;
+        if (currentTheme === theme && get().isHydrated) return;
         set({ theme });
-        applyTheme(theme);
+        applyTheme(theme, true);
       },
       toggleTheme: () => {
         const currentTheme = get().theme;
         const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-        console.log('🔄 toggleTheme called - current:', currentTheme, '-> new:', newTheme);
         get().setTheme(newTheme);
       },
       setHydrated: (hydrated: boolean) => {
-        console.log('💧 Setting hydrated to:', hydrated);
         set({ isHydrated: hydrated });
       },
     }),
     {
       name: 'theme-storage',
       onRehydrateStorage: () => (state) => {
-        console.log('💧 onRehydrateStorage called with state:', state);
-
         if (state) {
-          console.log('💧 Applying rehydrated theme:', state.theme);
-          applyTheme(state.theme);
+          applyTheme(state.theme, false);
         } else {
-          console.log('💧 No stored state, applying default dark theme');
-          applyTheme('dark');
+          applyTheme('dark', false);
         }
       },
     },
   ),
 );
 
-// Apply default theme immediately for initial load
+// Apply default theme immediately for initial load without animation
 if (typeof window !== 'undefined') {
-  console.log('🚀 Applying default dark theme immediately on module load');
-  applyTheme('dark');
+  const savedTheme = localStorage.getItem('theme') as Theme | null;
+  const systemTheme =
+    window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light';
+  applyTheme(savedTheme || systemTheme, false);
 }

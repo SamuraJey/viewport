@@ -146,29 +146,32 @@ describe('GalleryPage', () => {
     expect(screen.getAllByRole('img')).toHaveLength(3);
   });
 
-  it('should display loading state initially', () => {
+  it('should display loading state initially', async () => {
     render(<GalleryPageWrapper />);
 
     expect(screen.getByText('Loading gallery...')).toBeInTheDocument();
+
+    // Wait for loading to finish to avoid act() warning
+    await waitFor(() => {
+      expect(screen.queryByText('Loading gallery...')).not.toBeInTheDocument();
+    });
   });
 
   it('should handle gallery loading error', async () => {
     const { galleryService } = await import('../../services/galleryService');
-    vi.mocked(galleryService.getGallery).mockRejectedValue(new Error('Network error'));
+    const { ApiError } = await import('../../lib/errorHandling');
+
+    // Use 400 error to avoid redirect to error page and show inline error instead
+    vi.mocked(galleryService.getGallery).mockRejectedValue(new ApiError(400, 'Invalid request'));
 
     render(<GalleryPageWrapper />);
 
-    // When gallery loading fails, component stays in loading state due to !gallery check
-    // This is a design issue but testing current behavior
-    await waitFor(
-      () => {
-        expect(screen.getByText('Loading gallery...')).toBeInTheDocument();
-      },
-      { timeout: 1000 },
-    );
+    await waitFor(() => {
+      expect(screen.getByText('Failed to load gallery')).toBeInTheDocument();
+    });
 
-    // Error state is not properly handled for gallery loading failures
-    // Component should be improved to show error state instead of infinite loading
+    expect(screen.getByText(/Invalid request/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
   });
 
   describe('Photo Modal Features', () => {
@@ -176,7 +179,9 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(/Photos.*3.*of.*3/);
+        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(
+          /Photos.*3.*of.*3/,
+        );
       });
 
       // Find photo images and their parent buttons
@@ -314,7 +319,9 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(/Photos.*1.*of.*1/);
+        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(
+          /Photos.*1.*of.*1/,
+        );
       });
 
       // Open modal
@@ -339,7 +346,9 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(/Photos.*3.*of.*3/);
+        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(
+          /Photos.*3.*of.*3/,
+        );
       });
 
       // Find the first photo container and get its delete button
@@ -367,7 +376,14 @@ describe('GalleryPage', () => {
       const confirmButton = screen.getByRole('button', { name: 'Delete' });
       await userEvent.click(confirmButton);
 
-      expect(photoService.deletePhoto).toHaveBeenCalledWith('1', 'photo1');
+      await waitFor(() => {
+        expect(photoService.deletePhoto).toHaveBeenCalledWith('1', 'photo1');
+      });
+
+      // Wait for the photo to be removed from the UI to avoid act() warning
+      await waitFor(() => {
+        expect(screen.queryByAltText('Photo photo1')).not.toBeInTheDocument();
+      });
     });
   });
 
@@ -377,14 +393,24 @@ describe('GalleryPage', () => {
 
       render(<GalleryPageWrapper />);
 
+      // Wait for initial load to complete
       await waitFor(() => {
-        expect(screen.getByText('Share Links')).toBeInTheDocument();
+        expect(screen.getByText(/\(3.*of.*3\)/)).toBeInTheDocument();
       });
 
       const createLinkButton = screen.getByRole('button', { name: /create new share link/i });
       await userEvent.click(createLinkButton);
 
-      expect(shareLinkService.createShareLink).toHaveBeenCalledWith('1');
+      await waitFor(() => {
+        expect(shareLinkService.createShareLink).toHaveBeenCalledWith('1');
+      });
+
+      // Wait for the new link to appear in the UI to avoid act() warning
+      // Since mockShareLink.id is 'link1' and it's already there, we check for the call
+      // and then wait for the button to be enabled again (meaning loading finished)
+      await waitFor(() => {
+        expect(createLinkButton).not.toBeDisabled();
+      });
     });
   });
 

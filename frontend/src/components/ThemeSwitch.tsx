@@ -14,13 +14,14 @@ export const ThemeSwitch = ({ className = '', variant = 'floating' }: ThemeSwitc
   const [isAnimating, setIsAnimating] = useState(false);
 
   const handleToggle = () => {
+    if (isAnimating) return;
     setIsAnimating(true);
     toggleTheme();
     setTimeout(() => setIsAnimating(false), 400); // Синхронизировано с длительностью анимации темы
   };
 
   const baseClasses =
-    'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-border dark:border-border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2';
+    'flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-border dark:border-border transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
   const variantClasses =
     variant === 'floating'
       ? 'fixed top-4 right-4 z-50 bg-surface dark:bg-surface shadow-lg hover:shadow-xl hover:scale-110'
@@ -29,6 +30,7 @@ export const ThemeSwitch = ({ className = '', variant = 'floating' }: ThemeSwitc
   return (
     <button
       onClick={handleToggle}
+      disabled={isAnimating}
       className={`${baseClasses} ${variantClasses} ${className}`}
       aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
     >

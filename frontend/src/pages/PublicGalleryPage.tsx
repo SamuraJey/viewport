@@ -350,7 +350,11 @@ export const PublicGalleryPage = () => {
             <>
               <div className="pg-grid" ref={gridRef}>
                 {photos.map((photo, index) => (
-                  <div key={photo.photo_id} className="pg-card relative group" data-testid="public-batch">
+                  <div
+                    key={photo.photo_id}
+                    className="pg-card relative group"
+                    data-testid="public-batch"
+                  >
                     <button
                       onClick={() => openPhoto(index)}
                       className="w-full p-0 border-0 bg-transparent cursor-pointer block"

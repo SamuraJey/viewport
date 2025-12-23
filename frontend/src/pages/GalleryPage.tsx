@@ -157,10 +157,11 @@ export const GalleryPage = () => {
                   key={pageNum}
                   onClick={() => pagination.goToPage(pageNum)}
                   disabled={pageNum === pagination.page || isLoadingPhotos}
-                  className={`px-3 py-1.5 min-w-[40px] rounded-lg font-medium transition-all duration-200 ${pageNum === pagination.page
+                  className={`px-3 py-1.5 min-w-[40px] rounded-lg font-medium transition-all duration-200 ${
+                    pageNum === pagination.page
                       ? 'bg-accent text-accent-foreground shadow-sm'
                       : 'bg-surface-1 dark:bg-surface-dark-1 text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40'
-                    } ${isLoadingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  } ${isLoadingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {pageNum}
                 </button>
@@ -581,10 +582,11 @@ export const GalleryPage = () => {
                         selection.clear();
                       }
                     }}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 ${isSelectionMode
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 ${
+                      isSelectionMode
                         ? 'bg-blue-500 text-white hover:bg-blue-600'
                         : 'bg-surface-foreground dark:bg-surface text-text hover:bg-surface-foreground/80 dark:hover:bg-surface/80 border border-border'
-                      }`}
+                    }`}
                     title="Toggle multi-select mode"
                   >
                     <CheckSquare className="w-4 h-4" />
@@ -699,10 +701,11 @@ export const GalleryPage = () => {
                         e.stopPropagation();
                         handleTogglePhotoSelection(photo.id, e.shiftKey);
                       }}
-                      className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-all duration-200 ${selection.isSelected(photo.id)
+                      className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-all duration-200 ${
+                        selection.isSelected(photo.id)
                           ? 'bg-blue-500 text-white'
                           : 'bg-white/90 dark:bg-black/50 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-black/70'
-                        }`}
+                      }`}
                       title={selection.isSelected(photo.id) ? 'Deselect' : 'Select'}
                     >
                       {selection.isSelected(photo.id) ? (
