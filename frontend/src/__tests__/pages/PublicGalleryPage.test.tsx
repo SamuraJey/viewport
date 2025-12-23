@@ -3,9 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Polyfill ResizeObserver for jsdom environment used by Vitest
 if (!(global as any).ResizeObserver) {
   (global as any).ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+    observe() { }
+    unobserve() { }
+    disconnect() { }
   };
 }
 import { render, screen, waitFor, within } from '@testing-library/react';
