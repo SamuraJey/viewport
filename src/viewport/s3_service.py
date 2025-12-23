@@ -54,6 +54,7 @@ class AsyncS3Client:
             use_threads=True,
         )
         logger.info(f"AsyncS3Client initialized: endpoint={self._endpoint_url}, bucket={self.settings.bucket}, region={self.settings.region}")
+
     def _get_endpoint_url(self) -> str | None:
         """Get the endpoint URL with protocol if needed."""
         # The endpoint is already set in S3Settings, just add protocol if missing

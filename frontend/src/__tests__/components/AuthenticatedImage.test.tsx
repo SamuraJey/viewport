@@ -56,14 +56,14 @@ describe('AuthenticatedImage', () => {
   });
 
   it('should show error state when image fails to load', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
 
     vi.mocked(api.get).mockRejectedValue(new Error('Network error'));
 
     render(<AuthenticatedImage src="/test-image.jpg" alt="Test image" className="test-class" />);
 
     await waitFor(() => {
-      expect(screen.getByText('Failed to load')).toBeInTheDocument();
+      expect(screen.getByText('Network error')).toBeInTheDocument();
     });
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(

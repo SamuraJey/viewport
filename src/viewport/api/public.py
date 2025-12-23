@@ -109,7 +109,7 @@ async def get_photos_by_sharelink(
     photographer = getattr(gallery.owner, "display_name", None) or ""
     gallery_name = getattr(gallery, "name", "")
     # Format date as DD.MM.YYYY similar to wfolio sample
-    dt = getattr(gallery, "created_at", None) or getattr(sharelink, "created_at", None)
+    dt = getattr(gallery, "shooting_date", None) or getattr(gallery, "created_at", None) or getattr(sharelink, "created_at", None)
     date_str = dt.strftime("%d.%m.%Y") if dt else ""
     # Build site URL base
     site_url = str(request.base_url).rstrip("/")
@@ -149,9 +149,9 @@ async def download_all_photos_zip(
         key = photo.object_key
         filename = key.split("/")[-1]
 
-        def file_generator():
+        def file_generator(object_key: str = key):
             client = get_s3_client()
-            obj = client.get_object(Bucket=settings.bucket, Key=key)
+            obj = client.get_object(Bucket=settings.bucket, Key=object_key)
             yield from iter(lambda: obj["Body"].read(1024 * 1024), b"")
 
         z.add(arcname=filename, data=file_generator())

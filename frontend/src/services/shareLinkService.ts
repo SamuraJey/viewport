@@ -1,32 +1,8 @@
 import { api } from '../lib/api';
+import type { ShareLink, PublicPhoto, SharedGallery } from '../types';
 
-export interface ShareLink {
-  id: string;
-  gallery_id: string;
-  expires_at: string | null;
-  views: number;
-  zip_downloads: number;
-  single_downloads: number;
-  created_at: string;
-}
-
-export interface PublicPhoto {
-  photo_id: string;
-  thumbnail_url: string;
-  full_url: string;
-  filename?: string | null;
-  width?: number | null;
-  height?: number | null;
-}
-
-export interface SharedGallery {
-  photos: PublicPhoto[];
-  cover?: { photo_id: string; full_url: string; thumbnail_url: string } | null;
-  photographer?: string;
-  gallery_name?: string;
-  date?: string;
-  site_url?: string;
-}
+// Re-export types for backward compatibility
+export type { ShareLink, PublicPhoto, SharedGallery };
 
 const getShareLinks = async (galleryId: string): Promise<ShareLink[]> => {
   const response = await api.get<ShareLink[]>(`/galleries/${galleryId}/share-links`);

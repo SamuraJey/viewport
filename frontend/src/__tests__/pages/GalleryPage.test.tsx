@@ -10,6 +10,7 @@ const mockGalleryData = {
   name: 'Gallery #1',
   created_at: '2024-01-01T10:00:00Z',
   owner_id: 'user1',
+  shooting_date: '2024-01-01',
   photos: [
     {
       id: 'photo1',
@@ -175,7 +176,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Photos (3 of 3)');
+        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(/Photos.*3.*of.*3/);
       });
 
       // Find photo images and their parent buttons
@@ -313,7 +314,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByText('Photos (1 of 1)')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(/Photos.*1.*of.*1/);
       });
 
       // Open modal
@@ -333,13 +334,12 @@ describe('GalleryPage', () => {
 
   describe('Photo Actions', () => {
     it('should handle photo deletion', async () => {
-      const confirmSpy = vi.mocked(window.confirm);
       const { photoService } = await import('../../services/photoService');
 
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByText('Photos (3 of 3)')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(/Photos.*3.*of.*3/);
       });
 
       // Find the first photo container and get its delete button
@@ -356,9 +356,17 @@ describe('GalleryPage', () => {
         ?.closest('button');
       expect(deleteButton).toBeInTheDocument();
 
+      await userEvent.hover(photoContainer!);
       await userEvent.click(deleteButton!);
 
-      expect(confirmSpy).toHaveBeenCalledWith('Are you sure you want to delete this photo?');
+      // Expect confirmation modal to appear
+      expect(screen.getByText('Delete Photo')).toBeInTheDocument();
+      expect(screen.getByText(/Are you sure you want to delete this photo/)).toBeInTheDocument();
+
+      // Click confirm button in modal
+      const confirmButton = screen.getByRole('button', { name: 'Delete' });
+      await userEvent.click(confirmButton);
+
       expect(photoService.deletePhoto).toHaveBeenCalledWith('1', 'photo1');
     });
   });

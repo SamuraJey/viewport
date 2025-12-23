@@ -49,6 +49,21 @@ class TestPublicAPI:
             assert ("X-Amz-Algorithm" in photo["full_url"] or "X-Amz-Signature" in photo["full_url"]) or photo["full_url"].startswith("http://localhost")
             assert ("X-Amz-Algorithm" in photo["thumbnail_url"] or "X-Amz-Signature" in photo["thumbnail_url"]) or photo["thumbnail_url"].startswith("http://localhost")
 
+    def test_public_gallery_uses_shooting_date(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        # Set shooting date
+        resp = authenticated_client.patch(f"/galleries/{gallery_id_fixture}", json={"shooting_date": "2024-06-10"})
+        assert resp.status_code == 200
+
+        # Create sharelink for gallery
+        share_resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"})
+        assert share_resp.status_code == 201
+        share_id = share_resp.json()["id"]
+
+        public_resp = authenticated_client.get(f"/s/{share_id}")
+        assert public_resp.status_code == 200
+        data = public_resp.json()
+        assert data.get("date") == "10.06.2024"
+
     def test_stream_photo_and_downloads(self, authenticated_client: TestClient, gallery_id_fixture: str):
         # Upload photo and create sharelink
         content = b"streamcontent"

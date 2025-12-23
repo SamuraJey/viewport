@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { galleryService, type GalleryDetail } from '../services/galleryService';
 import { photoService, type PhotoResponse } from '../services/photoService';
 import type { PhotoUploadResponse } from '../services/photoService';
@@ -7,7 +7,7 @@ import { shareLinkService, type ShareLink } from '../services/shareLinkService';
 import { Layout } from '../components/Layout';
 import { PhotoModal } from '../components/PhotoModal';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
-import { formatDate } from '../lib/utils';
+import { formatDateOnly } from '../lib/utils';
 import {
   Loader2,
   Trash2,
@@ -28,54 +28,38 @@ import {
   Square,
 } from 'lucide-react';
 import { PhotoUploader } from '../components/PhotoUploader';
-import { ConfirmationModal } from '../components/ConfirmationModal';
+import { useConfirmation, usePagination, useSelection, useModal, useErrorHandler } from '../hooks';
 
 const numberFormatter = new Intl.NumberFormat();
 
 export const GalleryPage = () => {
   const { id } = useParams<{ id: string }>();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const galleryId = id!;
+
+  // State
   const [gallery, setGallery] = useState<GalleryDetail | null>(null);
   const [photoUrls, setPhotoUrls] = useState<PhotoResponse[]>([]);
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
-  const [isInitialLoading, setIsInitialLoading] = useState(true); // First time loading
-  const [isLoadingPhotos, setIsLoadingPhotos] = useState(false); // Loading photos only
-  const [totalPhotos, setTotalPhotos] = useState(0);
-
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const [isCreatingLink, setIsCreatingLink] = useState(false);
-  const [error, setError] = useState('');
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
+  const [shootingDateInput, setShootingDateInput] = useState('');
+  const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
 
-  // Multi-select states
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
-  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  // Use new hooks
+  const pagination = usePagination({ pageSize: 100, syncWithUrl: true });
+  const selection = useSelection<string>();
+  const renameModal = useModal<{ id: string; filename: string }>();
+  const { error, clearError, handleError } = useErrorHandler();
+  const { openConfirm, ConfirmModal } = useConfirmation();
 
-  // Rename modal states
-  const [showRenameModal, setShowRenameModal] = useState(false);
-  const [photoToRename, setPhotoToRename] = useState<{ id: string; filename: string } | null>(null);
-
-  // Confirmation Modal State
-  const [confirmModal, setConfirmModal] = useState<{
-    isOpen: boolean;
-    type: 'delete_photo' | 'delete_multiple' | 'delete_gallery' | 'delete_share_link' | null;
-    title: string;
-    message: string;
-    data?: unknown;
-  }>({
-    isOpen: false,
-    type: null,
-    title: '',
-    message: '',
-  });
-
-  const galleryId = id!;
-
-  // Pagination settings
-  const PHOTOS_PER_PAGE = 100;
-  const currentPage = parseInt(searchParams.get('page') || '1', 10);
+  // Derived state
+  const isSelectionMode = selection.hasSelection;
+  const areAllOnPageSelected =
+    photoUrls.length > 0 && photoUrls.every((p) => selection.isSelected(p.id));
 
   const fetchGalleryDetails = useCallback(
     async (page: number, isInitial = false) => {
@@ -84,20 +68,21 @@ export const GalleryPage = () => {
       } else {
         setIsLoadingPhotos(true);
       }
-      setError('');
+      clearError();
       try {
-        const offset = (page - 1) * PHOTOS_PER_PAGE;
+        const offset = (page - 1) * pagination.pageSize;
         const galleryData = await galleryService.getGallery(galleryId, {
-          limit: PHOTOS_PER_PAGE,
+          limit: pagination.pageSize,
           offset,
         });
         setGallery(galleryData);
         setPhotoUrls(galleryData.photos || []);
         setShareLinks(galleryData.share_links || []);
-        setTotalPhotos(galleryData.total_photos);
+        pagination.setTotal(galleryData.total_photos);
+        const fallbackDate = galleryData.shooting_date || galleryData.created_at || '';
+        setShootingDateInput(fallbackDate.slice(0, 10));
       } catch (err) {
-        setError('Failed to load gallery data. Please try again.');
-        console.error(err);
+        handleError(err);
       } finally {
         if (isInitial) {
           setIsInitialLoading(false);
@@ -106,49 +91,41 @@ export const GalleryPage = () => {
         }
       }
     },
-    [galleryId],
+    // Note: Don't include pagination object itself to avoid infinite loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [galleryId, pagination.pageSize, pagination.setTotal, clearError, handleError],
   );
 
   useEffect(() => {
-    // On first mount or when galleryId changes, do initial load
-    if (gallery === null) {
-      fetchGalleryDetails(currentPage, true);
-    } else {
-      // Gallery already loaded, just fetch photos
-      fetchGalleryDetails(currentPage, false);
-    }
-  }, [currentPage]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Navigate to a specific page
-  const goToPage = (page: number) => {
-    setSearchParams({ page: page.toString() });
-  };
+    const isInitial = gallery === null;
+    fetchGalleryDetails(pagination.page, isInitial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.page, galleryId]);
 
   // Pagination component (reusable)
   const PaginationControls = () => {
-    if (totalPhotos <= PHOTOS_PER_PAGE) return null;
-
-    const totalPages = Math.ceil(totalPhotos / PHOTOS_PER_PAGE);
+    if (pagination.totalPages <= 1) return null;
 
     return (
       <div className="flex flex-col items-center gap-4 py-6">
         {/* Page info */}
         <div className="flex flex-col items-center gap-1">
           <span className="text-base font-medium text-text">
-            Page {currentPage} of {totalPages}
+            Page {pagination.page} of {pagination.totalPages}
           </span>
           <span className="text-sm text-muted">
-            Showing {(currentPage - 1) * PHOTOS_PER_PAGE + 1}-
-            {Math.min(currentPage * PHOTOS_PER_PAGE, totalPhotos)} of {totalPhotos} photo
-            {totalPhotos !== 1 ? 's' : ''}
+            Showing {(pagination.page - 1) * pagination.pageSize + 1}-
+            {Math.min(pagination.page * pagination.pageSize, pagination.total)} of{' '}
+            {pagination.total} photo
+            {pagination.total !== 1 ? 's' : ''}
           </span>
         </div>
 
         {/* Navigation buttons */}
         <div className="flex items-center gap-3">
           <button
-            onClick={() => goToPage(currentPage - 1)}
-            disabled={currentPage === 1 || isLoadingPhotos}
+            onClick={pagination.previousPage}
+            disabled={pagination.isFirstPage || isLoadingPhotos}
             className="flex items-center gap-2 px-5 py-2.5 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm border border-accent/20 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
           >
             {isLoadingPhotos ? (
@@ -161,30 +138,29 @@ export const GalleryPage = () => {
 
           {/* Page numbers */}
           <div className="flex items-center gap-1">
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
               let pageNum: number;
 
               // Show first pages, current page context, or last pages
-              if (totalPages <= 5) {
+              if (pagination.totalPages <= 5) {
                 pageNum = i + 1;
-              } else if (currentPage <= 3) {
+              } else if (pagination.page <= 3) {
                 pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
+              } else if (pagination.page >= pagination.totalPages - 2) {
+                pageNum = pagination.totalPages - 4 + i;
               } else {
-                pageNum = currentPage - 2 + i;
+                pageNum = pagination.page - 2 + i;
               }
 
               return (
                 <button
                   key={pageNum}
-                  onClick={() => goToPage(pageNum)}
-                  disabled={pageNum === currentPage || isLoadingPhotos}
-                  className={`px-3 py-1.5 min-w-[40px] rounded-lg font-medium transition-all duration-200 ${
-                    pageNum === currentPage
+                  onClick={() => pagination.goToPage(pageNum)}
+                  disabled={pageNum === pagination.page || isLoadingPhotos}
+                  className={`px-3 py-1.5 min-w-[40px] rounded-lg font-medium transition-all duration-200 ${pageNum === pagination.page
                       ? 'bg-accent text-accent-foreground shadow-sm'
                       : 'bg-surface-1 dark:bg-surface-dark-1 text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40'
-                  } ${isLoadingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    } ${isLoadingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {pageNum}
                 </button>
@@ -193,8 +169,8 @@ export const GalleryPage = () => {
           </div>
 
           <button
-            onClick={() => goToPage(currentPage + 1)}
-            disabled={currentPage >= totalPages || isLoadingPhotos}
+            onClick={pagination.nextPage}
+            disabled={pagination.isLastPage || isLoadingPhotos}
             className="flex items-center gap-2 px-5 py-2.5 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm border border-accent/20 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 active:scale-95"
           >
             Next
@@ -217,16 +193,15 @@ export const GalleryPage = () => {
     if (result.successful_uploads > 0) {
       try {
         setIsLoadingPhotos(true);
-        const offset = (currentPage - 1) * PHOTOS_PER_PAGE;
+        const offset = (pagination.page - 1) * pagination.pageSize;
         const galleryData = await galleryService.getGallery(galleryId, {
-          limit: PHOTOS_PER_PAGE,
+          limit: pagination.pageSize,
           offset,
         });
         setPhotoUrls(galleryData.photos || []);
-        setTotalPhotos(galleryData.total_photos);
+        pagination.setTotal(galleryData.total_photos);
       } catch (err) {
-        setError('Failed to refresh photos. Please try again.');
-        console.error(err);
+        handleError(err);
       } finally {
         setIsLoadingPhotos(false);
       }
@@ -237,166 +212,146 @@ export const GalleryPage = () => {
     }
   };
 
+  const handleSaveShootingDate = async () => {
+    if (!shootingDateInput) return;
+
+    setIsSavingShootingDate(true);
+    clearError();
+    try {
+      const updated = await galleryService.updateGallery(galleryId, {
+        shooting_date: shootingDateInput,
+      });
+      setGallery((prev) => (prev ? { ...prev, shooting_date: updated.shooting_date } : prev));
+      setShootingDateInput(updated.shooting_date?.slice(0, 10) ?? shootingDateInput);
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setIsSavingShootingDate(false);
+    }
+  };
+
   // Handler for renaming a photo
   // Handler for opening rename modal
   const handleRenamePhoto = (photoId: string, currentFilename: string) => {
-    setPhotoToRename({ id: photoId, filename: currentFilename });
-    setShowRenameModal(true);
+    renameModal.open({ id: photoId, filename: currentFilename });
   };
 
   // Handler for actual rename operation
   const handleRenameConfirm = async (newFilename: string) => {
-    if (!photoToRename) return;
+    if (!renameModal.data) return;
 
-    await photoService.renamePhoto(galleryId, photoToRename.id, newFilename);
+    await photoService.renamePhoto(galleryId, renameModal.data.id, newFilename);
     // Update filename locally without reloading all photos
     setPhotoUrls((prev) =>
       prev.map((photo) =>
-        photo.id === photoToRename.id ? { ...photo, filename: newFilename } : photo,
+        photo.id === renameModal.data!.id ? { ...photo, filename: newFilename } : photo,
       ),
     );
   };
 
   // Handler for closing rename modal
   const handleCloseRenameModal = () => {
-    setShowRenameModal(false);
-    setPhotoToRename(null);
-  };
-
-  // Handler for executing the confirmed action
-  const handleConfirmAction = async () => {
-    if (!confirmModal.type) return;
-    // TODO THIS IS VERY BAD. Sorry.
-    try {
-      if (confirmModal.type === 'delete_photo') {
-        const photoId = confirmModal.data as string;
-        await photoService.deletePhoto(galleryId, photoId);
-        setPhotoUrls((prev) => prev.filter((photo) => photo.id !== photoId));
-      } else if (confirmModal.type === 'delete_multiple') {
-        await Promise.all(
-          Array.from(selectedPhotoIds).map((photoId) =>
-            photoService.deletePhoto(galleryId, photoId),
-          ),
-        );
-        setPhotoUrls((prev) => prev.filter((photo) => !selectedPhotoIds.has(photo.id)));
-        setSelectedPhotoIds(new Set());
-        setIsSelectionMode(false);
-      } else if (confirmModal.type === 'delete_gallery') {
-        await galleryService.deleteGallery(galleryId);
-        window.location.href = '/';
-      } else if (confirmModal.type === 'delete_share_link') {
-        const linkId = confirmModal.data as string;
-        await shareLinkService.deleteShareLink(galleryId, linkId);
-        // Refresh only share links without reloading photos
-        const galleryData = await galleryService.getGallery(galleryId, { limit: 1, offset: 0 });
-        setShareLinks(galleryData.share_links || []);
-      }
-    } catch (err) {
-      console.error('Action failed:', err);
-      setError('Action failed. Please try again.');
-      throw err;
-    }
+    renameModal.close();
   };
 
   // Handler for deleting a photo
   const handleDeletePhoto = (photoId: string) => {
-    setConfirmModal({
-      isOpen: true,
-      type: 'delete_photo',
+    openConfirm({
       title: 'Delete Photo',
       message: 'Are you sure you want to delete this photo? This action cannot be undone.',
-      data: photoId,
+      isDangerous: true,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        try {
+          await photoService.deletePhoto(galleryId, photoId);
+          setPhotoUrls((prev) => prev.filter((photo) => photo.id !== photoId));
+        } catch (err) {
+          handleError(err);
+          throw err;
+        }
+      },
     });
   };
 
   // Handler for toggling photo selection
   const handleTogglePhotoSelection = (photoId: string, isShiftKey: boolean = false) => {
-    setSelectedPhotoIds((prev) => {
-      const newSet = new Set(prev);
-
-      if (isShiftKey && lastSelectedId) {
-        const lastIndex = photoUrls.findIndex((p) => p.id === lastSelectedId);
-        const currentIndex = photoUrls.findIndex((p) => p.id === photoId);
-
-        if (lastIndex !== -1 && currentIndex !== -1) {
-          const start = Math.min(lastIndex, currentIndex);
-          const end = Math.max(lastIndex, currentIndex);
-
-          const photosInRange = photoUrls.slice(start, end + 1);
-          photosInRange.forEach((p) => newSet.add(p.id));
-        } else {
-          if (newSet.has(photoId)) {
-            newSet.delete(photoId);
-          } else {
-            newSet.add(photoId);
-          }
-        }
-      } else {
-        if (newSet.has(photoId)) {
-          newSet.delete(photoId);
-        } else {
-          newSet.add(photoId);
-        }
-      }
-      return newSet;
-    });
-    setLastSelectedId(photoId);
+    if (isShiftKey) {
+      const photoIds = photoUrls.map((p) => p.id);
+      selection.selectRange(photoId, photoIds);
+    } else {
+      selection.toggle(photoId);
+    }
   };
-
-  // Check if all photos on current page are selected
-  const areAllOnPageSelected =
-    photoUrls.length > 0 && photoUrls.every((p) => selectedPhotoIds.has(p.id));
 
   // Handler for selecting all photos on current page
   const handleSelectAllPhotos = () => {
-    setSelectedPhotoIds((prev) => {
-      const newSet = new Set(prev);
-      if (areAllOnPageSelected) {
-        // Deselect all on this page
-        photoUrls.forEach((p) => newSet.delete(p.id));
-      } else {
-        // Select all on this page
-        photoUrls.forEach((p) => newSet.add(p.id));
-      }
-      return newSet;
-    });
+    if (areAllOnPageSelected) {
+      // Deselect all on this page
+      const pagePhotoIds = photoUrls.map((p) => p.id);
+      pagePhotoIds.forEach((id) => selection.deselect(id));
+    } else {
+      // Select all on this page
+      selection.selectMultiple(photoUrls.map((p) => p.id));
+    }
   };
 
   // Handler for deleting multiple photos
   const handleDeleteMultiplePhotos = () => {
-    if (selectedPhotoIds.size === 0) return;
+    if (!selection.hasSelection) return;
 
-    setConfirmModal({
-      isOpen: true,
-      type: 'delete_multiple',
+    openConfirm({
       title: 'Delete Photos',
-      message: `Are you sure you want to delete ${selectedPhotoIds.size} photo${selectedPhotoIds.size > 1 ? 's' : ''}? This action cannot be undone.`,
+      message: `Are you sure you want to delete ${selection.count} photo${selection.count > 1 ? 's' : ''}? This action cannot be undone.`,
+      isDangerous: true,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        try {
+          await Promise.all(
+            Array.from(selection.selectedIds).map((photoId) =>
+              photoService.deletePhoto(galleryId, photoId),
+            ),
+          );
+          setPhotoUrls((prev) => prev.filter((photo) => !selection.isSelected(photo.id)));
+          selection.clear();
+        } catch (err) {
+          handleError(err);
+          throw err;
+        }
+      },
     });
   };
 
   // Handler for deleting the gallery from detail page
   const handleDeleteGallery = () => {
-    setConfirmModal({
-      isOpen: true,
-      type: 'delete_gallery',
+    openConfirm({
       title: 'Delete Gallery',
       message:
         'Are you sure you want to delete this gallery and all its contents? This action cannot be undone.',
+      isDangerous: true,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        try {
+          await galleryService.deleteGallery(galleryId);
+          window.location.href = '/';
+        } catch (err) {
+          handleError(err);
+          throw err;
+        }
+      },
     });
   };
 
   // Handler for creating a share link
   const handleCreateShareLink = async () => {
     setIsCreatingLink(true);
-    setError('');
+    clearError();
     try {
       await shareLinkService.createShareLink(galleryId);
       // Refresh only share links without reloading photos
       const galleryData = await galleryService.getGallery(galleryId, { limit: 1, offset: 0 });
       setShareLinks(galleryData.share_links || []);
     } catch (err) {
-      setError('Failed to create share link. Please try again.');
-      console.error(err);
+      handleError(err);
     } finally {
       setIsCreatingLink(false);
     }
@@ -404,12 +359,22 @@ export const GalleryPage = () => {
 
   // Handler for deleting a share link
   const handleDeleteShareLink = (linkId: string) => {
-    setConfirmModal({
-      isOpen: true,
-      type: 'delete_share_link',
+    openConfirm({
       title: 'Delete Share Link',
       message: 'Are you sure you want to delete this share link?',
-      data: linkId,
+      isDangerous: true,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        try {
+          await shareLinkService.deleteShareLink(galleryId, linkId);
+          // Refresh only share links without reloading photos
+          const galleryData = await galleryService.getGallery(galleryId, { limit: 1, offset: 0 });
+          setShareLinks(galleryData.share_links || []);
+        } catch (err) {
+          handleError(err);
+          throw err;
+        }
+      },
     });
   };
 
@@ -449,8 +414,7 @@ export const GalleryPage = () => {
       // Update cover photo locally without reloading all photos
       setGallery((prev) => (prev ? { ...prev, cover_photo_id: photoId } : null));
     } catch (err) {
-      setError('Failed to set cover photo. Please try again.');
-      console.error(err);
+      handleError(err);
     }
   };
 
@@ -460,8 +424,7 @@ export const GalleryPage = () => {
       // Update cover photo locally without reloading all photos
       setGallery((prev) => (prev ? { ...prev, cover_photo_id: null } : null));
     } catch (err) {
-      setError('Failed to clear cover photo. Please try again.');
-      console.error(err);
+      handleError(err);
     }
   };
 
@@ -488,7 +451,7 @@ export const GalleryPage = () => {
             <div className="text-danger text-lg font-medium">Failed to load gallery</div>
             <div className="text-muted dark:text-muted-dark">{error}</div>
             <button
-              onClick={() => fetchGalleryDetails(currentPage, true)}
+              onClick={() => fetchGalleryDetails(pagination.page, true)}
               className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border border-accent/20"
             >
               Try Again
@@ -551,9 +514,36 @@ export const GalleryPage = () => {
                 <h1 className="text-4xl font-bold text-text">
                   {gallery.name || `Gallery #${gallery.id}`}
                 </h1>
-                <p className="mt-2 text-lg text-muted">
-                  Created on {formatDate(gallery.created_at)}
-                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted">
+                  <label className="text-xs uppercase tracking-wide text-muted font-semibold">
+                    Shooting date
+                  </label>
+                  <input
+                    type="date"
+                    value={shootingDateInput}
+                    onChange={(e) => setShootingDateInput(e.target.value)}
+                    className="rounded-lg border border-border dark:border-border/40 bg-transparent px-3 py-2 text-text shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+                  />
+                  <button
+                    onClick={handleSaveShootingDate}
+                    disabled={
+                      isSavingShootingDate ||
+                      !shootingDateInput ||
+                      shootingDateInput === gallery.shooting_date?.slice(0, 10)
+                    }
+                    className="inline-flex items-center gap-2 rounded-lg border border-accent bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm disabled:hover:translate-y-0"
+                  >
+                    {isSavingShootingDate ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Check className="w-4 h-4" />
+                    )}
+                    Save date
+                  </button>
+                  <span className="text-xs text-muted">
+                    Created on {formatDateOnly(gallery.created_at)}
+                  </span>
+                </div>
               </div>
               <button
                 onClick={handleDeleteGallery}
@@ -577,9 +567,9 @@ export const GalleryPage = () => {
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-2xl font-semibold text-text">
                 Photos
-                {totalPhotos > 0 && (
+                {pagination.total > 0 && (
                   <span className="ml-2 text-lg text-muted font-normal">
-                    ({photoUrls.length} of {totalPhotos})
+                    ({photoUrls.length} of {pagination.total})
                   </span>
                 )}
               </h2>
@@ -587,23 +577,23 @@ export const GalleryPage = () => {
                 {photoUrls.length > 0 && (
                   <button
                     onClick={() => {
-                      setIsSelectionMode(!isSelectionMode);
-                      setSelectedPhotoIds(new Set());
+                      if (isSelectionMode) {
+                        selection.clear();
+                      }
                     }}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 ${
-                      isSelectionMode
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 ${isSelectionMode
                         ? 'bg-blue-500 text-white hover:bg-blue-600'
                         : 'bg-surface-foreground dark:bg-surface text-text hover:bg-surface-foreground/80 dark:hover:bg-surface/80 border border-border'
-                    }`}
+                      }`}
                     title="Toggle multi-select mode"
                   >
                     <CheckSquare className="w-4 h-4" />
                     <span className="text-sm font-medium">Select</span>
                   </button>
                 )}
-                {totalPhotos > PHOTOS_PER_PAGE && (
+                {pagination.totalPages > 1 && (
                   <span className="text-sm text-muted">
-                    Page {currentPage} of {Math.ceil(totalPhotos / PHOTOS_PER_PAGE)}
+                    Page {pagination.page} of {pagination.totalPages}
                   </span>
                 )}
               </div>
@@ -624,7 +614,7 @@ export const GalleryPage = () => {
               <div className="mt-2 text-danger bg-danger/10 dark:bg-danger/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
                 {error}
                 <button
-                  onClick={() => setError('')}
+                  onClick={clearError}
                   className="ml-2 text-xs text-accent-foreground bg-danger/80 hover:bg-danger px-2 py-1 rounded shadow-sm hover:shadow-md transition-all duration-200"
                 >
                   Dismiss
@@ -634,14 +624,14 @@ export const GalleryPage = () => {
           </div>
 
           {/* Top Pagination */}
-          {totalPhotos > PHOTOS_PER_PAGE && (
+          {pagination.totalPages > 1 && (
             <div className="border-b border-border dark:border-border/40 mb-6">
               <PaginationControls />
             </div>
           )}
 
           {/* Selection Toolbar */}
-          {(isSelectionMode || selectedPhotoIds.size > 0) && (
+          {(isSelectionMode || selection.hasSelection) && (
             <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <button
@@ -666,26 +656,23 @@ export const GalleryPage = () => {
                   )}
                 </button>
                 <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
-                  {selectedPhotoIds.size} selected
+                  {selection.count} selected
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {
-                    setIsSelectionMode(false);
-                    setSelectedPhotoIds(new Set());
-                  }}
+                  onClick={selection.clear}
                   className="px-3 py-2 bg-white dark:bg-surface hover:bg-gray-100 dark:hover:bg-surface-foreground text-gray-700 dark:text-text rounded-lg text-sm font-medium transition-all duration-200"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleDeleteMultiplePhotos}
-                  disabled={selectedPhotoIds.size === 0}
+                  disabled={!selection.hasSelection}
                   className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md active:scale-95"
                 >
                   <Trash2 className="w-4 h-4" />
-                  Delete {selectedPhotoIds.size > 0 ? `(${selectedPhotoIds.size})` : ''}
+                  Delete {selection.count > 0 ? `(${selection.count})` : ''}
                 </button>
               </div>
             </div>
@@ -696,7 +683,7 @@ export const GalleryPage = () => {
             <div className="flex flex-col items-center justify-center py-20 min-h-[400px]">
               <Loader2 className="w-12 h-12 animate-spin text-accent mb-4" />
               <span className="text-lg text-muted">Loading photos...</span>
-              <span className="text-sm text-muted/70 mt-1">Page {currentPage}</span>
+              <span className="text-sm text-muted/70 mt-1">Page {pagination.page}</span>
             </div>
           ) : photoUrls.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8 animate-in fade-in duration-300">
@@ -712,14 +699,13 @@ export const GalleryPage = () => {
                         e.stopPropagation();
                         handleTogglePhotoSelection(photo.id, e.shiftKey);
                       }}
-                      className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-all duration-200 ${
-                        selectedPhotoIds.has(photo.id)
+                      className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-all duration-200 ${selection.isSelected(photo.id)
                           ? 'bg-blue-500 text-white'
                           : 'bg-white/90 dark:bg-black/50 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-black/70'
-                      }`}
-                      title={selectedPhotoIds.has(photo.id) ? 'Deselect' : 'Select'}
+                        }`}
+                      title={selection.isSelected(photo.id) ? 'Deselect' : 'Select'}
                     >
-                      {selectedPhotoIds.has(photo.id) ? (
+                      {selection.isSelected(photo.id) ? (
                         <CheckSquare className="w-5 h-5" />
                       ) : (
                         <Square className="w-5 h-5" />
@@ -892,7 +878,7 @@ export const GalleryPage = () => {
           )}
 
           {/* Bottom Pagination */}
-          {totalPhotos > PHOTOS_PER_PAGE && (
+          {pagination.totalPages > 1 && (
             <div className="mt-8 border-t border-border dark:border-border/40">
               <PaginationControls />
             </div>
@@ -1057,22 +1043,14 @@ export const GalleryPage = () => {
 
       {/* Photo Rename Modal */}
       <PhotoRenameModal
-        isOpen={showRenameModal}
+        isOpen={renameModal.isOpen}
         onClose={handleCloseRenameModal}
-        currentFilename={photoToRename?.filename || ''}
+        currentFilename={renameModal.data?.filename || ''}
         onRename={handleRenameConfirm}
       />
 
       {/* Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
-        onConfirm={handleConfirmAction}
-        title={confirmModal.title}
-        message={confirmModal.message}
-        confirmText="Delete"
-        isDangerous={true}
-      />
+      {ConfirmModal}
     </Layout>
   );
 };

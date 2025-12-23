@@ -26,6 +26,7 @@ describe('galleryService', () => {
               id: '1',
               owner_id: 'user1',
               created_at: '2025-01-01T00:00:00Z',
+              shooting_date: '2025-01-01',
             },
           ],
           total: 1,
@@ -76,6 +77,7 @@ describe('galleryService', () => {
           id: galleryId,
           owner_id: 'user1',
           created_at: '2025-01-01T00:00:00Z',
+          shooting_date: '2025-01-01',
           photos: [
             {
               id: 'photo1',
@@ -122,6 +124,7 @@ describe('galleryService', () => {
           id: 'new-gallery-123',
           owner_id: 'user1',
           created_at: '2025-01-01T00:00:00Z',
+          shooting_date: '2025-01-01',
         },
       };
 
@@ -140,6 +143,24 @@ describe('galleryService', () => {
 
       await expect(galleryService.createGallery(name)).rejects.toThrow('Failed to create gallery');
       expect(api.post).toHaveBeenCalledWith('/galleries', { name });
+    });
+
+    it('should send shooting_date when provided', async () => {
+      const payload = { name: 'With Date', shooting_date: '2024-05-12' };
+      const mockResponse = {
+        data: {
+          id: 'with-date',
+          owner_id: 'user1',
+          created_at: '2024-01-01T00:00:00Z',
+          shooting_date: payload.shooting_date,
+        },
+      };
+      vi.mocked(api.post).mockResolvedValue(mockResponse as any);
+
+      const result = await galleryService.createGallery(payload);
+
+      expect(api.post).toHaveBeenCalledWith('/galleries', payload);
+      expect(result).toEqual(mockResponse.data);
     });
   });
 
@@ -174,6 +195,7 @@ describe('galleryService', () => {
           owner_id: 'user1',
           name: newName,
           created_at: '2025-01-01T00:00:00Z',
+          shooting_date: '2025-01-02',
         },
       };
 
@@ -195,6 +217,27 @@ describe('galleryService', () => {
         'Update failed',
       );
       expect(api.patch).toHaveBeenCalledWith(`/galleries/${galleryId}`, { name: newName });
+    });
+
+    it('should send shooting_date when provided', async () => {
+      const galleryId = 'gallery-2';
+      const payload = { shooting_date: '2024-06-10' };
+      const mockResponse = {
+        data: {
+          id: galleryId,
+          owner_id: 'user1',
+          name: 'Name',
+          created_at: '2024-01-01T00:00:00Z',
+          shooting_date: payload.shooting_date,
+        },
+      };
+
+      vi.mocked(api.patch).mockResolvedValue(mockResponse as any);
+
+      const result = await galleryService.updateGallery(galleryId, payload);
+
+      expect(api.patch).toHaveBeenCalledWith(`/galleries/${galleryId}`, payload);
+      expect(result).toEqual(mockResponse.data);
     });
   });
 

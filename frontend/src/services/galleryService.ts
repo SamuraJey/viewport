@@ -1,27 +1,8 @@
 import { api } from '../lib/api';
-import type { PhotoResponse } from './photoService';
-import type { ShareLink } from './shareLinkService';
+import type { Gallery, GalleryDetail, GalleryListResponse } from '../types';
 
-export interface Gallery {
-  id: string;
-  owner_id: string;
-  name: string;
-  created_at: string;
-  cover_photo_id?: string | null;
-}
-
-export interface GalleryDetail extends Gallery {
-  photos: PhotoResponse[];
-  share_links: ShareLink[];
-  total_photos: number;
-}
-
-export interface GalleryListResponse {
-  galleries: Gallery[];
-  total: number;
-  page: number;
-  size: number;
-}
+// Re-export types for backward compatibility
+export type { Gallery, GalleryDetail, GalleryListResponse };
 
 const getGalleries = async (page = 1, size = 10): Promise<GalleryListResponse> => {
   const response = await api.get(`/galleries?page=${page}&size=${size}`);
@@ -41,8 +22,11 @@ const getGallery = async (
   return response.data;
 };
 
-const createGallery = async (name: string): Promise<Gallery> => {
-  const response = await api.post<Gallery>('/galleries', { name });
+type CreateGalleryPayload = string | { name?: string; shooting_date?: string | null };
+
+const createGallery = async (payload: CreateGalleryPayload): Promise<Gallery> => {
+  const body = typeof payload === 'string' ? { name: payload } : payload;
+  const response = await api.post<Gallery>('/galleries', body ?? {});
   return response.data;
 };
 
@@ -50,8 +34,11 @@ const deleteGallery = async (id: string): Promise<void> => {
   await api.delete(`/galleries/${id}`);
 };
 
-const updateGallery = async (id: string, name: string): Promise<Gallery> => {
-  const response = await api.patch<Gallery>(`/galleries/${id}`, { name });
+type UpdateGalleryPayload = string | { name?: string; shooting_date?: string | null };
+
+const updateGallery = async (id: string, payload: UpdateGalleryPayload): Promise<Gallery> => {
+  const body = typeof payload === 'string' ? { name: payload } : payload;
+  const response = await api.patch<Gallery>(`/galleries/${id}`, body ?? {});
   return response.data;
 };
 

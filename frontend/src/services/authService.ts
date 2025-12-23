@@ -1,27 +1,15 @@
 import { api } from '../lib/api';
-import type { User, AuthTokens } from '../stores/authStore';
+import type {
+  User,
+  AuthTokens,
+  LoginRequest,
+  RegisterRequest,
+  LoginResponse,
+  RegisterResponse,
+} from '../types';
 
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface RegisterRequest {
-  email: string;
-  password: string;
-  invite_code: string;
-}
-
-export interface LoginResponse {
-  id: string;
-  email: string;
-  tokens: AuthTokens;
-}
-
-export interface RegisterResponse {
-  id: string;
-  email: string;
-}
+// Re-export types for backward compatibility
+export type { User, AuthTokens, LoginRequest, RegisterRequest, LoginResponse, RegisterResponse };
 
 export const authService = {
   login: async (data: LoginRequest): Promise<LoginResponse> => {
