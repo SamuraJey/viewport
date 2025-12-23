@@ -200,26 +200,62 @@ export const PublicGalleryPage = () => {
 
   const goToPrevPhoto = () => {
     if (selectedPhotoIndex !== null && photos.length > 0) {
-      const newIndex = selectedPhotoIndex > 0 ? selectedPhotoIndex - 1 : photos.length - 1;
-      setSelectedPhotoIndex(newIndex);
+      // Only allow wrapping to last photo if all photos are loaded
+      if (selectedPhotoIndex > 0) {
+        setSelectedPhotoIndex(selectedPhotoIndex - 1);
+      } else if (!hasMore) {
+        // All photos loaded, allow wrapping to the end
+        setSelectedPhotoIndex(photos.length - 1);
+      }
+      // If at start and hasMore=true, stay at first photo
     }
   };
 
-  const goToNextPhoto = () => {
+  const goToNextPhoto = useCallback(() => {
     if (selectedPhotoIndex !== null && photos.length > 0) {
-      const newIndex = selectedPhotoIndex < photos.length - 1 ? selectedPhotoIndex + 1 : 0;
-      setSelectedPhotoIndex(newIndex);
+      // Check if we're near the end and should load more
+      const threshold = 10; // Load more when within 10 photos of the end
+      if (hasMore && !isLoadingMore && selectedPhotoIndex >= photos.length - threshold) {
+        loadMorePhotos();
+      }
+
+      // Navigate to next photo, but don't loop back if there are more to load
+      if (selectedPhotoIndex < photos.length - 1) {
+        setSelectedPhotoIndex(selectedPhotoIndex + 1);
+      } else if (!hasMore) {
+        // Only loop back to start if all photos are loaded
+        setSelectedPhotoIndex(0);
+      }
+      // If at the end and still hasMore, stay at current photo until more load
     }
-  };
+  }, [selectedPhotoIndex, photos.length, hasMore, isLoadingMore, loadMorePhotos]);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-surface dark:bg-surface-foreground/5">
-        <div className="container mx-auto px-4 py-16">
-          <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="flex items-center">
-              <Loader2 className="w-8 h-8 animate-spin text-text-muted" />
-              <span className="ml-3 text-lg text-text-muted">Loading gallery...</span>
+      <div
+        className="min-h-screen bg-surface dark:bg-surface-foreground/5"
+        data-testid="skeleton-loader"
+      >
+        {/* Skeleton Hero */}
+        <div className="h-screen bg-surface-foreground/10 dark:bg-surface/10 animate-pulse flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <div className="h-4 w-32 bg-surface-foreground/20 dark:bg-surface/20 rounded mx-auto" />
+            <div className="h-12 w-80 bg-surface-foreground/20 dark:bg-surface/20 rounded mx-auto" />
+            <div className="h-4 w-48 bg-surface-foreground/20 dark:bg-surface/20 rounded mx-auto" />
+          </div>
+        </div>
+        {/* Skeleton Grid */}
+        <div className="w-full px-4 sm:px-6 lg:px-10 py-16">
+          <div className="bg-surface-foreground/5 rounded-2xl p-6 border border-border">
+            <div className="h-8 w-40 bg-surface-foreground/20 dark:bg-surface/20 rounded mb-6 animate-pulse" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="aspect-4/3 bg-surface-foreground/10 dark:bg-surface/10 rounded-xl animate-pulse"
+                  style={{ animationDelay: `${i * 100}ms` }}
+                />
+              ))}
             </div>
           </div>
         </div>
@@ -292,7 +328,7 @@ export const PublicGalleryPage = () => {
             <a
               href="#gallery-content"
               aria-label="Scroll to photos"
-              className="w-10 h-10 border-2 border-white/70 rounded-full flex items-center justify-center animate-bounce"
+              className="w-10 h-10 border-2 border-white/70 rounded-full flex items-center justify-center animate-pulse hover:bg-white/20 transition-colors duration-200"
               onClick={(e) => {
                 e.preventDefault();
                 document.getElementById('gallery-content')?.scrollIntoView({ behavior: 'smooth' });
@@ -339,10 +375,10 @@ export const PublicGalleryPage = () => {
         )}
 
         {/* Photos Grid */}
-        <div className="bg-surface-foreground/5 backdrop-blur-sm rounded-2xl p-6 border border-border">
+        <div className="bg-surface-foreground/5 rounded-2xl p-6 border border-border">
           <div className="mb-6">
             <h2 className="text-2xl font-semibold text-text dark:text-accent-foreground mb-2">
-              Photos ({photos.length})
+              Photos ({gallery?.total_photos ?? photos.length})
             </h2>
           </div>
 
@@ -352,7 +388,8 @@ export const PublicGalleryPage = () => {
                 {photos.map((photo, index) => (
                   <div
                     key={photo.photo_id}
-                    className="pg-card relative group"
+                    className="pg-card pg-card-animate relative group"
+                    style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
                     data-testid="public-batch"
                   >
                     <button
@@ -414,6 +451,9 @@ export const PublicGalleryPage = () => {
           onDownload={handleDownloadPhoto}
           isPublic={true}
           shareId={shareId}
+          isLoadingMore={isLoadingMore}
+          hasMore={hasMore}
+          totalPhotos={gallery?.total_photos}
         />
       </div>
     </div>

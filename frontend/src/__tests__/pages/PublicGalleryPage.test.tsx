@@ -34,6 +34,7 @@ const mockPublicGallery = {
   gallery_name: 'Public Gallery',
   date: '2025-09-21',
   site_url: 'https://example.com',
+  total_photos: 2,
 };
 
 const mockEmptyGallery = {
@@ -41,6 +42,7 @@ const mockEmptyGallery = {
   cover: null,
   photographer: undefined,
   gallery_name: 'Empty Gallery',
+  total_photos: 0,
 };
 
 // Mock shareLinkService
@@ -101,12 +103,13 @@ describe('PublicGalleryPage', () => {
   });
 
   it('shows loading indicator initially', async () => {
-    render(wrapper());
-    expect(screen.getByText('Loading gallery...')).toBeInTheDocument();
+    const { container } = render(wrapper());
+    // Skeleton loading shows placeholder grid with animated elements
+    expect(container.querySelector('[data-testid="skeleton-loader"]')).toBeInTheDocument();
 
     // Wait for loading to finish to avoid act() warning
     await waitFor(() => {
-      expect(screen.queryByText('Loading gallery...')).not.toBeInTheDocument();
+      expect(container.querySelector('[data-testid="skeleton-loader"]')).not.toBeInTheDocument();
     });
   });
 
