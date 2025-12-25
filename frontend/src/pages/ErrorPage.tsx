@@ -166,14 +166,27 @@ const ErrorPageContent = ({
         {/* Additional Info */}
         <div className="mt-12 text-sm text-text-muted">
           <p>Error Code: {errorStatus}</p>
-          {error && import.meta.env.DEV && typeof error === 'object' && error !== null ? (
+          {error ? (
             <details className="mt-4 text-left bg-surface-foreground/10 rounded-lg p-4">
               <summary className="cursor-pointer text-text-muted mb-2">
-                Debug Information (Development Only)
+                Debug Information
               </summary>
-              <pre className="text-xs text-text-muted overflow-auto">
-                {JSON.stringify(error, null, 2)}
-              </pre>
+              <div className="text-xs text-text-muted overflow-auto space-y-2">
+                {error instanceof Error ? (
+                  <>
+                    <p className="font-bold text-red-400">{error.name}: {error.message}</p>
+                    {error.stack && (
+                      <pre className="mt-2 p-2 bg-black/20 rounded whitespace-pre-wrap break-all">
+                        {error.stack}
+                      </pre>
+                    )}
+                  </>
+                ) : (
+                  <pre className="whitespace-pre-wrap break-all">
+                    {JSON.stringify(error, null, 2)}
+                  </pre>
+                )}
+              </div>
             </details>
           ) : null}
         </div>

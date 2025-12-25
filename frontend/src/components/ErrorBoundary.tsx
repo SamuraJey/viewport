@@ -44,6 +44,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           title="Application Error"
           message="Something went wrong while rendering this page"
           onRetry={this.handleRetry}
+          error={this.state.error}
         />
       );
     }

@@ -98,7 +98,7 @@ const usePinchZoom = () => {
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 2 && initialDistance.current !== null) {
-      e.preventDefault();
+      if (e.cancelable) e.preventDefault();
       const currentDistance = getDistance(e.touches);
       const newScale = Math.min(
         Math.max(initialScale.current * (currentDistance / initialDistance.current), 1),
@@ -109,9 +109,10 @@ const usePinchZoom = () => {
       // Handle panning when zoomed
       if (lastCenter.current && newScale > 1) {
         const currentCenter = getCenter(e.touches);
+        const prevCenter = lastCenter.current;
         setTranslate((prev) => ({
-          x: prev.x + (currentCenter.x - lastCenter.current!.x),
-          y: prev.y + (currentCenter.y - lastCenter.current!.y),
+          x: prev.x + (currentCenter.x - prevCenter.x),
+          y: prev.y + (currentCenter.y - prevCenter.y),
         }));
         lastCenter.current = currentCenter;
       }
