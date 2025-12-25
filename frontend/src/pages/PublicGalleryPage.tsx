@@ -143,9 +143,8 @@ export const PublicGalleryPage = () => {
     const grid = gridRef.current;
     if (!grid) return;
     const ro = new ResizeObserver(() => scheduleComputeSpans());
-    // observe the grid itself and images inside so we recalc when content changes
+    // observe only the grid itself to avoid thrashing while images load
     ro.observe(grid);
-    grid.querySelectorAll('img').forEach((img) => ro.observe(img));
     return () => {
       ro.disconnect();
       if (computeSpansDebounceRef.current) {
@@ -433,8 +432,8 @@ export const PublicGalleryPage = () => {
                 type="button"
                 onClick={() => setIsCompactGrid(false)}
                 className={`px-3 py-1.5 rounded-md transition-colors duration-150 ${isCompactGrid
-                    ? 'text-muted'
-                    : 'bg-accent text-accent-foreground shadow-sm hover:bg-accent/90'
+                  ? 'text-muted'
+                  : 'bg-accent text-accent-foreground shadow-sm hover:bg-accent/90'
                   }`}
                 aria-pressed={!isCompactGrid}
               >
@@ -444,8 +443,8 @@ export const PublicGalleryPage = () => {
                 type="button"
                 onClick={() => setIsCompactGrid(true)}
                 className={`px-3 py-1.5 rounded-md transition-colors duration-150 ${isCompactGrid
-                    ? 'bg-accent text-accent-foreground shadow-sm hover:bg-accent/90'
-                    : 'text-muted'
+                  ? 'bg-accent text-accent-foreground shadow-sm hover:bg-accent/90'
+                  : 'text-muted'
                   }`}
                 aria-pressed={isCompactGrid}
               >
