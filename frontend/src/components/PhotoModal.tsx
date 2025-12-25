@@ -242,15 +242,6 @@ export const PhotoModal = ({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEndCombined}
     >
-      {/* Close button */}
-      <button
-        onClick={onClose}
-        title="Close (Esc)"
-        className="absolute top-6 right-6 z-10 flex items-center justify-center w-10 h-10 p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors duration-200 border border-white/20"
-      >
-        <X className="w-6 h-6" />
-      </button>
-
       {/* Navigation buttons - hide on touch devices when zoomed */}
       {photos.length > 1 && !isZoomed && (
         <>
@@ -262,9 +253,9 @@ export const PhotoModal = ({
                 if (!isAnimating) onPrevious();
               }}
               title="Previous (←)"
-              className="absolute left-6 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors duration-200 border border-white/20"
+              className="absolute left-2 sm:left-6 top-1/2 transform -translate-y-1/2 z-50 flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-all duration-200 border border-white/10 shadow-lg"
             >
-              <ChevronLeft className="w-8 h-8" />
+              <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
             </button>
           )}
           {/* Next button - always show if not on last photo, or on last but can loop back (all loaded) */}
@@ -275,9 +266,9 @@ export const PhotoModal = ({
                 if (!isAnimating) onNext();
               }}
               title="Next (→)"
-              className="absolute right-6 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors duration-200 border border-white/20"
+              className="absolute right-2 sm:right-6 top-1/2 transform -translate-y-1/2 z-50 flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-all duration-200 border border-white/10 shadow-lg"
             >
-              <ChevronRight className="w-8 h-8" />
+              <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
             </button>
           )}
         </>
@@ -303,7 +294,7 @@ export const PhotoModal = ({
       </div>
 
       {/* Photo info and controls */}
-      <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 via-black/40 to-transparent p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 via-black/40 to-transparent p-6 flex flex-col sm:flex-row items-center justify-between gap-4 z-40">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium text-white/90">
@@ -333,6 +324,19 @@ export const PhotoModal = ({
           </button>
         )}
       </div>
+
+      {/* Close button - Must be last to render on top */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        title="Close (Esc)"
+        className="absolute right-4 z-50 flex items-center justify-center w-12 h-12 p-3 bg-black/70 hover:bg-black/90 active:bg-black text-white rounded-full backdrop-blur-sm transition-all duration-200 border-2 border-white/40 shadow-2xl active:scale-95"
+        style={{ top: 'max(1rem, env(safe-area-inset-top) + 0.5rem)' }}
+      >
+        <X className="w-6 h-6" />
+      </button>
     </div>
   );
 };
