@@ -15,7 +15,7 @@ describe('PublicPresignedImage', () => {
   });
 
   it('fetches and renders an image', async () => {
-    shareLinkService.getPublicPhotoUrl.mockResolvedValue({ url: '/image.jpg', expires_in: 120 });
+    vi.mocked(shareLinkService.getPublicPhotoUrl).mockResolvedValue({ url: '/image.jpg', expires_in: 120 });
 
     render(<PublicPresignedImage shareId="s1" photoId="p1" alt="Photo" className="img" />);
 
@@ -26,7 +26,7 @@ describe('PublicPresignedImage', () => {
   });
 
   it('shows error state when fetch fails', async () => {
-    shareLinkService.getPublicPhotoUrl.mockRejectedValue(new Error('fail'));
+    vi.mocked(shareLinkService.getPublicPhotoUrl).mockRejectedValue(new Error('fail'));
 
     render(<PublicPresignedImage shareId="s1" photoId="p2" alt="Broken" />);
 

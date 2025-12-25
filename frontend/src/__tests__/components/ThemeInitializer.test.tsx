@@ -10,8 +10,7 @@ vi.mock('../../stores/themeStore', () => ({
 describe('ThemeInitializer', () => {
   it('marks theme store as hydrated on mount', () => {
     const setHydrated = vi.fn();
-    const mockedUseThemeStore = useThemeStore as unknown as vi.Mock;
-    mockedUseThemeStore.mockReturnValue({ setHydrated });
+    vi.mocked(useThemeStore).mockReturnValue({ setHydrated } as any);
 
     render(<ThemeInitializer />);
 
