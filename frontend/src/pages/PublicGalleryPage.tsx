@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type TouchEvent } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, type TouchEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { Download, Loader2, ImageOff, AlertCircle } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
@@ -50,10 +50,17 @@ export const PublicGalleryPage = () => {
     });
   }, []);
 
-  const scheduleComputeSpans = useCallback(() => {
-    if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
-    computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 80);
-  }, [computeSpans]);
+  const scheduleComputeSpans = useCallback(
+    (immediate = false) => {
+      if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
+      if (immediate) {
+        computeSpans();
+      } else {
+        computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 80);
+      }
+    },
+    [computeSpans],
+  );
 
   const fetchGalleryData = useCallback(async () => {
     if (!shareId) {
@@ -195,9 +202,10 @@ export const PublicGalleryPage = () => {
     }
   };
 
-  useEffect(() => {
-    // Recompute masonry spans when density changes so layout stays tight
-    requestAnimationFrame(() => scheduleComputeSpans());
+  useLayoutEffect(() => {
+    // Recompute masonry spans immediately when density changes or photos are added
+    // Use immediate=true to avoid visual jump
+    scheduleComputeSpans(true);
   }, [isCompactGrid, photos.length, scheduleComputeSpans]);
 
   const handleDownloadAll = () => {
