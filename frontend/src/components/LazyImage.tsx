@@ -7,9 +7,18 @@ interface LazyImageProps {
   style?: React.CSSProperties;
   width?: number | null;
   height?: number | null;
+  onLoadComplete?: () => void;
 }
 
-export const LazyImage = ({ src, alt, className, style, width, height }: LazyImageProps) => {
+export const LazyImage = ({
+  src,
+  alt,
+  className,
+  style,
+  width,
+  height,
+  onLoadComplete,
+}: LazyImageProps) => {
   const [imageSrc, setImageSrc] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -51,11 +60,13 @@ export const LazyImage = ({ src, alt, className, style, width, height }: LazyIma
 
   const handleLoad = () => {
     setIsLoading(false);
+    onLoadComplete?.();
   };
 
   const handleError = () => {
     setIsLoading(false);
     setError(true);
+    onLoadComplete?.();
   };
 
   if (error) {
@@ -85,7 +96,7 @@ export const LazyImage = ({ src, alt, className, style, width, height }: LazyIma
         <div
           ref={imgRef}
           className="w-full bg-surface-foreground dark:bg-surface animate-pulse flex items-center justify-center"
-          style={{ aspectRatio, minHeight: '200px' }}
+          style={{ aspectRatio, minHeight: '140px' }}
         >
           <div className="text-text-muted text-sm">Loading...</div>
         </div>

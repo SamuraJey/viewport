@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type TouchEvent } from 'react';
 import { useParams } from 'react-router-dom';
 import { Download, Loader2, ImageOff, AlertCircle } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
@@ -23,13 +23,37 @@ export const PublicGalleryPage = () => {
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string>('');
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
+  const [isCompactGrid, setIsCompactGrid] = useState(false);
   const { theme } = useTheme();
   const gridRef = useRef<HTMLDivElement | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
   const computeSpansDebounceRef = useRef<number | null>(null);
+  const pinchStartDistanceRef = useRef<number | null>(null);
+  const pinchHandledRef = useRef(false);
 
   // Pagination settings
   const PHOTOS_PER_PAGE = 100;
+
+  // Masonry span computation
+  const computeSpans = useCallback(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const cs = getComputedStyle(grid);
+    const rowHeight = parseFloat(cs.getPropertyValue('grid-auto-rows')) || 8;
+    const rowGap = parseFloat(cs.getPropertyValue('gap')) || 20;
+    const items = Array.from(grid.children) as HTMLElement[];
+    items.forEach((item) => {
+      const el = item as HTMLElement;
+      const height = el.getBoundingClientRect().height;
+      const span = Math.ceil((height + rowGap) / (rowHeight + rowGap));
+      el.style.gridRowEnd = `span ${span}`;
+    });
+  }, []);
+
+  const scheduleComputeSpans = useCallback(() => {
+    if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
+    computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 80);
+  }, [computeSpans]);
 
   const fetchGalleryData = useCallback(async () => {
     if (!shareId) {
@@ -52,17 +76,14 @@ export const PublicGalleryPage = () => {
       setHasMore(data.photos.length === PHOTOS_PER_PAGE);
 
       // After gallery is set, schedule masonry spans computation
-      requestAnimationFrame(() => {
-        if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
-        computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100);
-      });
+      requestAnimationFrame(() => scheduleComputeSpans());
     } catch (err) {
       console.error('Failed to fetch shared gallery:', err);
       setError('Gallery not found or link has expired');
     } finally {
       setIsLoading(false);
     }
-  }, [shareId, PHOTOS_PER_PAGE]);
+  }, [shareId, PHOTOS_PER_PAGE, scheduleComputeSpans]);
 
   const loadMorePhotos = useCallback(async () => {
     if (isLoadingMore || !hasMore || !shareId) return;
@@ -82,16 +103,13 @@ export const PublicGalleryPage = () => {
       setHasMore(newPhotos.length === PHOTOS_PER_PAGE);
 
       // Recompute masonry layout after loading new photos
-      requestAnimationFrame(() => {
-        if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
-        computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100);
-      });
+      requestAnimationFrame(() => scheduleComputeSpans());
     } catch (err) {
       console.error('Failed to load more photos:', err);
     } finally {
       setIsLoadingMore(false);
     }
-  }, [shareId, photos.length, isLoadingMore, hasMore, PHOTOS_PER_PAGE]);
+  }, [shareId, photos.length, isLoadingMore, hasMore, PHOTOS_PER_PAGE, scheduleComputeSpans]);
 
   useEffect(() => {
     fetchGalleryData();
@@ -120,31 +138,11 @@ export const PublicGalleryPage = () => {
     };
   }, [hasMore, isLoadingMore, loadMorePhotos]);
 
-  // Masonry span computation
-  const computeSpans = () => {
-    const grid = gridRef.current;
-    if (!grid) return;
-    const cs = getComputedStyle(grid);
-    const rowHeight = parseFloat(cs.getPropertyValue('grid-auto-rows')) || 8;
-    const rowGap = parseFloat(cs.getPropertyValue('gap')) || 20;
-    const items = Array.from(grid.children) as HTMLElement[];
-    items.forEach((item) => {
-      const el = item as HTMLElement;
-      const height = el.getBoundingClientRect().height;
-      const span = Math.ceil((height + rowGap) / (rowHeight + rowGap));
-      el.style.gridRowEnd = `span ${span}`;
-    });
-  };
-
   // Observe resize to reflow masonry
   useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
-    const schedule = () => {
-      if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
-      computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 80);
-    };
-    const ro = new ResizeObserver(() => schedule());
+    const ro = new ResizeObserver(() => scheduleComputeSpans());
     // observe the grid itself and images inside so we recalc when content changes
     ro.observe(grid);
     grid.querySelectorAll('img').forEach((img) => ro.observe(img));
@@ -155,11 +153,61 @@ export const PublicGalleryPage = () => {
         computeSpansDebounceRef.current = null;
       }
     };
-  }, [photos]);
+  }, [photos, scheduleComputeSpans]);
+
+  const getTouchDistance = (touches: TouchList) => {
+    const [first, second] = [touches[0], touches[1]];
+    const dx = first.clientX - second.clientX;
+    const dy = first.clientY - second.clientY;
+    return Math.hypot(dx, dy);
+  };
+
+  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length === 2) {
+      pinchStartDistanceRef.current = getTouchDistance(event.touches);
+      pinchHandledRef.current = false;
+    }
+  };
+
+  const handleTouchMove = (event: TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length !== 2) return;
+    const startDistance = pinchStartDistanceRef.current;
+    if (!startDistance || pinchHandledRef.current) return;
+
+    const currentDistance = getTouchDistance(event.touches);
+    const scale = currentDistance / startDistance;
+
+    if (scale <= 0.88 && !isCompactGrid) {
+      setIsCompactGrid(true);
+      pinchHandledRef.current = true;
+    } else if (scale >= 1.12 && isCompactGrid) {
+      setIsCompactGrid(false);
+      pinchHandledRef.current = true;
+    }
+
+    if (event.cancelable) event.preventDefault();
+  };
+
+  const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length < 2) {
+      pinchStartDistanceRef.current = null;
+      pinchHandledRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    // Recompute masonry spans when density changes so layout stays tight
+    requestAnimationFrame(() => scheduleComputeSpans());
+  }, [isCompactGrid, photos.length, scheduleComputeSpans]);
 
   const handleDownloadAll = () => {
     if (!shareId) return;
     window.open(`${API_BASE_URL}/s/${shareId}/download/all`, '_blank');
+  };
+
+  const handleImageSettled = () => {
+    // Recompute after an image finishes loading or fails to load
+    requestAnimationFrame(() => scheduleComputeSpans());
   };
 
   const handleDownloadPhoto = async (photoId: string) => {
@@ -375,15 +423,46 @@ export const PublicGalleryPage = () => {
 
         {/* Photos Grid */}
         <div className="bg-surface-foreground/5 rounded-2xl p-6 border border-border">
-          <div className="mb-6">
-            <h2 className="text-2xl font-semibold text-text dark:text-accent-foreground mb-2">
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-2xl font-semibold text-text dark:text-accent-foreground">
               Photos ({gallery?.total_photos ?? photos.length})
             </h2>
+
+            <div className="inline-flex items-center gap-px rounded-lg border border-border bg-surface-foreground/5 p-1 text-sm">
+              <button
+                type="button"
+                onClick={() => setIsCompactGrid(false)}
+                className={`px-3 py-1.5 rounded-md transition-colors duration-150 ${isCompactGrid
+                    ? 'text-muted'
+                    : 'bg-accent text-accent-foreground shadow-sm hover:bg-accent/90'
+                  }`}
+                aria-pressed={!isCompactGrid}
+              >
+                Large
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsCompactGrid(true)}
+                className={`px-3 py-1.5 rounded-md transition-colors duration-150 ${isCompactGrid
+                    ? 'bg-accent text-accent-foreground shadow-sm hover:bg-accent/90'
+                    : 'text-muted'
+                  }`}
+                aria-pressed={isCompactGrid}
+              >
+                Compact
+              </button>
+            </div>
           </div>
 
           {photos.length > 0 ? (
             <>
-              <div className="pg-grid" ref={gridRef}>
+              <div
+                className={`pg-grid ${isCompactGrid ? 'pg-grid--compact' : ''}`}
+                ref={gridRef}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+              >
                 {photos.map((photo, index) => (
                   <div
                     key={photo.photo_id}
@@ -402,6 +481,7 @@ export const PublicGalleryPage = () => {
                         className="w-full"
                         width={photo.width}
                         height={photo.height}
+                        onLoadComplete={handleImageSettled}
                       />
                     </button>
                   </div>
