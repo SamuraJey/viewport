@@ -154,8 +154,9 @@ export const PublicGalleryPage = () => {
     };
   }, [photos, scheduleComputeSpans]);
 
-  const getTouchDistance = (touches: TouchList) => {
-    const [first, second] = [touches[0], touches[1]];
+  const getTouchDistance = (touches: TouchEvent['touches']) => {
+    const first = touches[0];
+    const second = touches[1];
     const dx = first.clientX - second.clientX;
     const dy = first.clientY - second.clientY;
     return Math.hypot(dx, dy);
