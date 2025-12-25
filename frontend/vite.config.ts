@@ -29,20 +29,20 @@ export default defineConfig(({ mode }) => {
 
   const proxyConfig: Record<string, ProxyOptions> | undefined = enableProxy
     ? {
-      [apiProxyKey]: {
-        target: backendUrl,
-        changeOrigin: true,
-        rewrite: (path) => path.replace(apiRewritePattern, ''),
-      },
-      '^/photos/.*': {
-        target: backendUrl,
-        changeOrigin: true,
-      },
-      '^/s/.*': {
-        target: backendUrl,
-        changeOrigin: true,
-      },
-    }
+        [apiProxyKey]: {
+          target: backendUrl,
+          changeOrigin: true,
+          rewrite: (path) => path.replace(apiRewritePattern, ''),
+        },
+        '^/photos/.*': {
+          target: backendUrl,
+          changeOrigin: true,
+        },
+        '^/s/.*': {
+          target: backendUrl,
+          changeOrigin: true,
+        },
+      }
     : undefined;
 
   return {

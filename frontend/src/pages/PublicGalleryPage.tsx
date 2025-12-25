@@ -432,10 +432,11 @@ export const PublicGalleryPage = () => {
               <button
                 type="button"
                 onClick={() => setIsCompactGrid(false)}
-                className={`px-3 py-1.5 rounded-md transition-colors duration-150 ${isCompactGrid
-                  ? 'text-muted'
-                  : 'bg-accent text-accent-foreground shadow-sm hover:bg-accent/90'
-                  }`}
+                className={`px-3 py-1.5 rounded-md transition-colors duration-150 ${
+                  isCompactGrid
+                    ? 'text-muted'
+                    : 'bg-accent text-accent-foreground shadow-sm hover:bg-accent/90'
+                }`}
                 aria-pressed={!isCompactGrid}
               >
                 Large
@@ -443,10 +444,11 @@ export const PublicGalleryPage = () => {
               <button
                 type="button"
                 onClick={() => setIsCompactGrid(true)}
-                className={`px-3 py-1.5 rounded-md transition-colors duration-150 ${isCompactGrid
-                  ? 'bg-accent text-accent-foreground shadow-sm hover:bg-accent/90'
-                  : 'text-muted'
-                  }`}
+                className={`px-3 py-1.5 rounded-md transition-colors duration-150 ${
+                  isCompactGrid
+                    ? 'bg-accent text-accent-foreground shadow-sm hover:bg-accent/90'
+                    : 'text-muted'
+                }`}
                 aria-pressed={isCompactGrid}
               >
                 Compact

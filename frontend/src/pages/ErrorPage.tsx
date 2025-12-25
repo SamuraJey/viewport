@@ -168,13 +168,13 @@ const ErrorPageContent = ({
           <p>Error Code: {errorStatus}</p>
           {error ? (
             <details className="mt-4 text-left bg-surface-foreground/10 rounded-lg p-4">
-              <summary className="cursor-pointer text-text-muted mb-2">
-                Debug Information
-              </summary>
+              <summary className="cursor-pointer text-text-muted mb-2">Debug Information</summary>
               <div className="text-xs text-text-muted overflow-auto space-y-2">
                 {error instanceof Error ? (
                   <>
-                    <p className="font-bold text-red-400">{error.name}: {error.message}</p>
+                    <p className="font-bold text-red-400">
+                      {error.name}: {error.message}
+                    </p>
                     {error.stack && (
                       <pre className="mt-2 p-2 bg-black/20 rounded whitespace-pre-wrap break-all">
                         {error.stack}
