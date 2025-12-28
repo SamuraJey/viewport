@@ -99,10 +99,9 @@ describe('photoService', () => {
 
       const response = await photoService.renamePhoto(galleryId, photoId, filename);
 
-      expect(api.patch).toHaveBeenCalledWith(
-        `/galleries/${galleryId}/photos/${photoId}/rename`,
-        { filename },
-      );
+      expect(api.patch).toHaveBeenCalledWith(`/galleries/${galleryId}/photos/${photoId}/rename`, {
+        filename,
+      });
       expect(response).toEqual({ id: photoId, filename });
     });
 
@@ -122,10 +121,7 @@ describe('photoService', () => {
       const direct = await photoService.getPhotoUrlDirect(photoId);
       const all = await photoService.getAllPhotoUrls(galleryId);
 
-      expect(api.get).toHaveBeenNthCalledWith(
-        1,
-        `/galleries/${galleryId}/photos/${photoId}/url`,
-      );
+      expect(api.get).toHaveBeenNthCalledWith(1, `/galleries/${galleryId}/photos/${photoId}/url`);
       expect(api.get).toHaveBeenNthCalledWith(2, `/photos/auth/${photoId}/url`);
       expect(api.get).toHaveBeenNthCalledWith(3, `/galleries/${galleryId}/photos/urls`);
       expect(url).toEqual(urlResponse.data);
