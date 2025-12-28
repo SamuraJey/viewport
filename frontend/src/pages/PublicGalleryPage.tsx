@@ -4,6 +4,7 @@ import {
   useCallback,
   useRef,
   type TouchEvent as ReactTouchEvent,
+  type TouchList as ReactTouchList,
 } from 'react';
 import { useParams } from 'react-router-dom';
 import { Download, Loader2, ImageOff, AlertCircle, Maximize2, Minimize2 } from 'lucide-react';
@@ -178,7 +179,7 @@ export const PublicGalleryPage = () => {
     setGridDensity((prev) => (prev === mode ? prev : mode));
   }, []);
 
-  const calculateTouchDistance = (touches: TouchList) => {
+  const calculateTouchDistance = (touches: ReactTouchList) => {
     if (touches.length < 2) return 0;
     const first = touches.item(0);
     const second = touches.item(1);
