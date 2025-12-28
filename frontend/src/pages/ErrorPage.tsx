@@ -1,4 +1,5 @@
 import { useRouteError, isRouteErrorResponse, Link } from 'react-router-dom';
+import type { ErrorInfo } from 'react';
 import {
   AlertTriangle,
   Home,
@@ -17,6 +18,7 @@ interface ErrorPageProps {
   showBackButton?: boolean;
   onRetry?: () => void;
   error?: unknown;
+  errorInfo?: ErrorInfo;
 }
 
 // Internal component that handles the actual error display
@@ -27,6 +29,7 @@ const ErrorPageContent = ({
   showBackButton = true,
   onRetry,
   error,
+  errorInfo,
 }: ErrorPageProps) => {
   // Extract error info from router error if no props provided
   let errorStatus = statusCode;
@@ -110,6 +113,16 @@ const ErrorPageContent = ({
 
   const errorDetails = getErrorDetails(errorStatus);
 
+  const stackTrace = (() => {
+    if (error && typeof error === 'object' && 'stack' in error && typeof error.stack === 'string') {
+      return error.stack;
+    }
+    if (errorInfo?.componentStack) {
+      return errorInfo.componentStack;
+    }
+    return null;
+  })();
+
   return (
     <div
       className={`min-h-screen bg-gradient-to-br ${errorDetails.bgGradient} flex items-center justify-center p-4`}
@@ -166,10 +179,18 @@ const ErrorPageContent = ({
         {/* Additional Info */}
         <div className="mt-12 text-sm text-text-muted">
           <p>Error Code: {errorStatus}</p>
+          {stackTrace ? (
+            <details className="mt-4 text-left bg-surface-foreground/10 rounded-lg p-4">
+              <summary className="cursor-pointer text-text-muted mb-2">Stack Trace</summary>
+              <pre className="text-xs text-text-muted overflow-auto whitespace-pre-wrap">
+                {stackTrace}
+              </pre>
+            </details>
+          ) : null}
           {error && import.meta.env.DEV && typeof error === 'object' && error !== null ? (
             <details className="mt-4 text-left bg-surface-foreground/10 rounded-lg p-4">
               <summary className="cursor-pointer text-text-muted mb-2">
-                Debug Information (Development Only)
+                Debug Information (JSON)
               </summary>
               <pre className="text-xs text-text-muted overflow-auto">
                 {JSON.stringify(error, null, 2)}

@@ -1,6 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type TouchEvent as ReactTouchEvent,
+} from 'react';
 import { useParams } from 'react-router-dom';
-import { Download, Loader2, ImageOff, AlertCircle } from 'lucide-react';
+import { Download, Loader2, ImageOff, AlertCircle, Maximize2, Minimize2 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
 import { PhotoModal } from '../components/PhotoModal';
 import { ThemeSwitch } from '../components/ThemeSwitch';
@@ -23,10 +29,13 @@ export const PublicGalleryPage = () => {
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string>('');
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
+  const [gridDensity, setGridDensity] = useState<'large' | 'compact'>('large');
   const { theme } = useTheme();
   const gridRef = useRef<HTMLDivElement | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
   const computeSpansDebounceRef = useRef<number | null>(null);
+  const pinchStartDistanceRef = useRef<number | null>(null);
+  const pinchHandledRef = useRef(false);
 
   // Pagination settings
   const PHOTOS_PER_PAGE = 100;
@@ -157,6 +166,65 @@ export const PublicGalleryPage = () => {
     };
   }, [photos]);
 
+  // Recompute masonry when grid density changes
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
+      computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 80);
+    });
+  }, [gridDensity, photos.length]);
+
+  const setGridMode = useCallback((mode: 'large' | 'compact') => {
+    setGridDensity((prev) => (prev === mode ? prev : mode));
+  }, []);
+
+  const calculateTouchDistance = (touches: TouchList) => {
+    if (touches.length < 2) return 0;
+    const first = touches.item(0);
+    const second = touches.item(1);
+    if (!first || !second) return 0;
+    return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+  };
+
+  const handleTouchStart = (event: ReactTouchEvent) => {
+    if (window.innerWidth > 900) return;
+    if (event.touches.length === 2) {
+      event.preventDefault();
+      pinchStartDistanceRef.current = calculateTouchDistance(event.touches);
+      pinchHandledRef.current = false;
+    }
+  };
+
+  const handleTouchMove = (event: ReactTouchEvent) => {
+    if (window.innerWidth > 900) return;
+    if (event.touches.length < 2 || pinchStartDistanceRef.current === null) return;
+
+    // Block browser zoom on mobile so pinch exclusively switches grid density
+    event.preventDefault();
+
+    const currentDistance = calculateTouchDistance(event.touches);
+    const delta = currentDistance - pinchStartDistanceRef.current;
+    const threshold = 32;
+
+    if (!pinchHandledRef.current && Math.abs(delta) > threshold) {
+      setGridMode(delta < 0 ? 'compact' : 'large');
+      pinchHandledRef.current = true;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    pinchStartDistanceRef.current = null;
+    pinchHandledRef.current = false;
+  };
+
+  const handleDensityToggle = () => {
+    setGridMode(gridDensity === 'large' ? 'compact' : 'large');
+  };
+
+  const handleDensitySlider = (value: number) => {
+    setGridMode(value > 0 ? 'large' : 'compact');
+  };
+
   const handleDownloadAll = () => {
     if (!shareId) return;
     window.open(`${API_BASE_URL}/s/${shareId}/download/all`, '_blank');
@@ -228,6 +296,12 @@ export const PublicGalleryPage = () => {
       // If at the end and still hasMore, stay at current photo until more load
     }
   }, [selectedPhotoIndex, photos.length, hasMore, isLoadingMore, loadMorePhotos]);
+
+  const gridClassNames = [
+    'pg-grid',
+    gridDensity === 'compact' ? 'pg-grid--compact' : 'pg-grid--large',
+    'pg-gesture-surface',
+  ].join(' ');
 
   if (isLoading) {
     return (
@@ -358,6 +432,43 @@ export const PublicGalleryPage = () => {
         </div>
       )}
 
+      {/* Desktop floating grid slider */}
+      <div className="hidden lg:flex fixed right-6 top-1/2 -translate-y-1/2 z-20">
+        <div className="bg-surface/95 dark:bg-surface-foreground/95 backdrop-blur rounded-xl border border-border shadow-lg p-3 w-56">
+          <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">
+            <span>Grid size</span>
+            <button
+              type="button"
+              onClick={handleDensityToggle}
+              className="text-[11px] font-medium text-accent hover:text-accent/80"
+            >
+              Toggle
+            </button>
+          </div>
+          <div className="flex items-center gap-3">
+            <Minimize2
+              className={`w-4 h-4 ${gridDensity === 'compact' ? 'text-accent' : 'text-muted'}`}
+            />
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={1}
+              value={gridDensity === 'compact' ? 0 : 1}
+              onChange={(e) => handleDensitySlider(Number(e.target.value))}
+              aria-label="Adjust grid size"
+              className="w-full cursor-pointer"
+            />
+            <Maximize2
+              className={`w-4 h-4 ${gridDensity === 'large' ? 'text-accent' : 'text-muted'}`}
+            />
+          </div>
+          <p className="text-[11px] text-muted mt-2 leading-snug">
+            Use this slider to quickly switch between large previews and dense thumbnails.
+          </p>
+        </div>
+      </div>
+
       {/* Main Content Area */}
       <div id="gallery-content" className="w-full px-4 sm:px-6 lg:px-10 py-16">
         {/* Gallery Actions */}
@@ -374,16 +485,53 @@ export const PublicGalleryPage = () => {
         )}
 
         {/* Photos Grid */}
-        <div className="bg-surface-foreground/5 rounded-2xl p-6 border border-border">
-          <div className="mb-6">
-            <h2 className="text-2xl font-semibold text-text dark:text-accent-foreground mb-2">
+        <div
+          className="bg-surface-foreground/5 rounded-2xl p-6 border border-border"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
+          style={{ touchAction: 'pan-y' }}
+        >
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-2xl font-semibold text-text dark:text-accent-foreground">
               Photos ({gallery?.total_photos ?? photos.length})
             </h2>
+
+            <div className="hidden md:flex items-center gap-2" aria-label="Grid density controls">
+              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+                Grid size
+              </span>
+              <div className="inline-flex rounded-lg border border-border overflow-hidden shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setGridMode('large')}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors ${gridDensity === 'large' ? 'bg-accent text-accent-foreground' : 'bg-transparent text-text/80 dark:text-accent-foreground/80 hover:bg-surface-foreground/40'}`}
+                  aria-pressed={gridDensity === 'large'}
+                >
+                  <Maximize2 className="w-4 h-4" />
+                  Large
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGridMode('compact')}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors border-l border-border ${gridDensity === 'compact' ? 'bg-accent text-accent-foreground' : 'bg-transparent text-text/80 dark:text-accent-foreground/80 hover:bg-surface-foreground/40'}`}
+                  aria-pressed={gridDensity === 'compact'}
+                >
+                  <Minimize2 className="w-4 h-4" />
+                  Compact
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="md:hidden text-xs text-muted mb-4">
+            Pinch with two fingers to switch between large and compact grids.
           </div>
 
           {photos.length > 0 ? (
             <>
-              <div className="pg-grid" ref={gridRef}>
+              <div className={gridClassNames} ref={gridRef}>
                 {photos.map((photo, index) => (
                   <div
                     key={photo.photo_id}
