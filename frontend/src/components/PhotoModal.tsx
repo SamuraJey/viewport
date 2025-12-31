@@ -34,6 +34,7 @@ const useSwipeGesture = (
   const touchStartY = useRef<number | null>(null);
   const [swipeOffset, setSwipeOffset] = useState({ x: 0, y: 0 });
   const [opacity, setOpacity] = useState(1);
+  const [scale, setScale] = useState(1);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -53,6 +54,7 @@ const useSwipeGesture = (
         setSwipeOffset({ x: 0, y: -clampedY });
         // Fade out as user swipes up
         setOpacity(Math.max(1 - clampedY / 200, 0.3));
+        setScale(Math.max(1 - clampedY / 400, 0.5));
       }
     },
     [enabled],
@@ -98,9 +100,10 @@ const useSwipeGesture = (
   const resetSwipe = useCallback(() => {
     setSwipeOffset({ x: 0, y: 0 });
     setOpacity(1);
+    setScale(1);
   }, []);
 
-  return { handleTouchStart, handleTouchMove, handleTouchEnd, swipeOffset, opacity, resetSwipe };
+  return { handleTouchStart, handleTouchMove, handleTouchEnd, swipeOffset, opacity, scale, resetSwipe };
 };
 
 // Pinch-to-zoom hook
@@ -211,6 +214,7 @@ export const PhotoModal = ({
     handleTouchEnd: handleSwipeEnd,
     swipeOffset,
     opacity: swipeOpacity,
+    scale: swipeScale,
     resetSwipe,
   } = useSwipeGesture(onNext, onPrevious, onClose, !isZoomed);
 
@@ -324,7 +328,7 @@ export const PhotoModal = ({
 
   return (
     <div
-      className="fixed inset-0 z-1060 flex items-center justify-center bg-black/95 touch-none transition-opacity duration-200"
+      className="fixed inset-0 z-1060 flex items-center justify-center bg-black/95 touch-none transition-opacity duration-300 ease-out"
       style={{ opacity: swipeOpacity }}
       onClick={onClose}
       onTouchStart={handleTouchStartCombined}
@@ -403,11 +407,10 @@ export const PhotoModal = ({
         </>
       )}
 
-      {/* Photo container with zoom and swipe support */}
       <div
-        className="w-full h-full flex items-center justify-center p-4 sm:p-6 overflow-hidden transition-transform duration-200"
+        className="w-full h-full flex items-center justify-center p-4 sm:p-6 overflow-hidden transition-transform duration-300 ease-out"
         style={{
-          transform: `translateY(${swipeOffset.y}px)`,
+          transform: `translateY(${swipeOffset.y}px) scale(${swipeScale})`,
         }}
       >
         <img
