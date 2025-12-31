@@ -335,7 +335,14 @@ export const PhotoModal = ({
       <button
         onClick={onClose}
         title="Close (Esc)"
-        className="absolute top-6 right-6 z-10 flex items-center justify-center w-10 h-10 p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors duration-200 border border-white/20"
+        className="absolute top-6 right-6 z-10 text-white/50 hover:text-white/80 transition-colors duration-200 sm:hidden"
+      >
+        <X className="w-8 h-8" />
+      </button>
+      <button
+        onClick={onClose}
+        title="Close (Esc)"
+        className="hidden sm:flex absolute top-6 right-6 z-10 items-center justify-center w-12 h-12 p-3 bg-white/5 hover:bg-white/15 active:bg-white/20 text-white rounded-full transition-all duration-200 border border-white/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white/50"
       >
         <X className="w-6 h-6" />
       </button>
@@ -345,29 +352,53 @@ export const PhotoModal = ({
         <>
           {/* Previous button - hide if at start and more photos can be loaded */}
           {(selectedIndex > 0 || !hasMore) && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!isAnimating) onPrevious();
-              }}
-              title="Previous (←)"
-              className="absolute left-6 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors duration-200 border border-white/20"
-            >
-              <ChevronLeft className="w-8 h-8" />
-            </button>
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isAnimating) onPrevious();
+                }}
+                title="Previous (←)"
+                className="absolute left-6 top-1/2 transform -translate-y-1/2 z-10 text-white/50 hover:text-white/80 transition-colors duration-200 sm:hidden"
+              >
+                <ChevronLeft className="w-10 h-10" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isAnimating) onPrevious();
+                }}
+                title="Previous (←)"
+                className="hidden sm:flex absolute left-6 top-1/2 transform -translate-y-1/2 z-10 items-center justify-center w-14 h-14 p-3 bg-white/5 hover:bg-white/15 active:bg-white/20 text-white rounded-full transition-all duration-200 border border-white/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white/50"
+              >
+                <ChevronLeft className="w-8 h-8" />
+              </button>
+            </>
           )}
           {/* Next button - always show if not on last photo, or on last but can loop back (all loaded) */}
           {(selectedIndex < photos.length - 1 || !hasMore) && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!isAnimating) onNext();
-              }}
-              title="Next (→)"
-              className="absolute right-6 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center w-12 h-12 p-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors duration-200 border border-white/20"
-            >
-              <ChevronRight className="w-8 h-8" />
-            </button>
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isAnimating) onNext();
+                }}
+                title="Next (→)"
+                className="absolute right-6 top-1/2 transform -translate-y-1/2 z-10 text-white/50 hover:text-white/80 transition-colors duration-200 sm:hidden"
+              >
+                <ChevronRight className="w-10 h-10" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isAnimating) onNext();
+                }}
+                title="Next (→)"
+                className="hidden sm:flex absolute right-6 top-1/2 transform -translate-y-1/2 z-10 items-center justify-center w-14 h-14 p-3 bg-white/5 hover:bg-white/15 active:bg-white/20 text-white rounded-full transition-all duration-200 border border-white/20 backdrop-blur-sm shadow-md hover:shadow-lg hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white/50"
+              >
+                <ChevronRight className="w-8 h-8" />
+              </button>
+            </>
           )}
         </>
       )}
