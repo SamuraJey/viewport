@@ -218,14 +218,6 @@ export const PublicGalleryPage = () => {
     pinchHandledRef.current = false;
   };
 
-  const handleDensityToggle = () => {
-    setGridMode(gridDensity === 'large' ? 'compact' : 'large');
-  };
-
-  const handleDensitySlider = (value: number) => {
-    setGridMode(value > 0 ? 'large' : 'compact');
-  };
-
   const handleDownloadAll = () => {
     if (!shareId) return;
     window.open(`${API_BASE_URL}/s/${shareId}/download/all`, '_blank');
@@ -432,43 +424,6 @@ export const PublicGalleryPage = () => {
           )}
         </div>
       )}
-
-      {/* Desktop floating grid slider */}
-      <div className="hidden lg:flex fixed right-6 top-1/2 -translate-y-1/2 z-20">
-        <div className="bg-surface/95 dark:bg-surface-foreground/95 backdrop-blur rounded-xl border border-border shadow-lg p-3 w-56">
-          <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">
-            <span>Grid size</span>
-            <button
-              type="button"
-              onClick={handleDensityToggle}
-              className="text-[11px] font-medium text-accent hover:text-accent/80"
-            >
-              Toggle
-            </button>
-          </div>
-          <div className="flex items-center gap-3">
-            <Minimize2
-              className={`w-4 h-4 ${gridDensity === 'compact' ? 'text-accent' : 'text-muted'}`}
-            />
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={1}
-              value={gridDensity === 'compact' ? 0 : 1}
-              onChange={(e) => handleDensitySlider(Number(e.target.value))}
-              aria-label="Adjust grid size"
-              className="w-full cursor-pointer"
-            />
-            <Maximize2
-              className={`w-4 h-4 ${gridDensity === 'large' ? 'text-accent' : 'text-muted'}`}
-            />
-          </div>
-          <p className="text-[11px] text-muted mt-2 leading-snug">
-            Use this slider to quickly switch between large previews and dense thumbnails.
-          </p>
-        </div>
-      </div>
 
       {/* Main Content Area */}
       <div id="gallery-content" className="w-full px-4 sm:px-6 lg:px-10 py-16">
