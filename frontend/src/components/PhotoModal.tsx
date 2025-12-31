@@ -378,12 +378,12 @@ export const PhotoModal = ({
         style={{
           transform: `translateY(${swipeOffset.y}px)`,
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         <img
           key={imageKey}
           src={photoUrl}
           alt={`Photo ${photoId}`}
+          onClick={(e) => e.stopPropagation()}
           className="max-w-full max-h-[calc(100vh-120px)] object-contain select-none animate-photo-fade-in"
           style={{
             transform: `scale(${scale}) translate(${translate.x / scale}px, ${translate.y / scale}px)`,
