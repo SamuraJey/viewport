@@ -23,32 +23,62 @@ interface PhotoModalProps {
   totalPhotos?: number;
 }
 
-// Touch/swipe handling hook
+// Touch/swipe handling hook with support for horizontal navigation and vertical close
 const useSwipeGesture = (
   onSwipeLeft: () => void,
   onSwipeRight: () => void,
+  onSwipeUp: () => void,
   enabled: boolean = true,
 ) => {
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState({ x: 0, y: 0 });
+  const [opacity, setOpacity] = useState(1);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
   }, []);
 
-  const handleTouchEnd = useCallback(
+  const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
       if (!enabled || touchStartX.current === null || touchStartY.current === null) return;
+
+      const touchCurrentY = e.touches[0].clientY;
+      const diffY = touchStartY.current - touchCurrentY;
+
+      // Only track upward swipe for visual feedback (positive diffY = swipe up)
+      if (diffY > 0) {
+        const clampedY = Math.min(diffY, 200);
+        setSwipeOffset({ x: 0, y: -clampedY });
+        // Fade out as user swipes up
+        setOpacity(Math.max(1 - clampedY / 200, 0.3));
+      }
+    },
+    [enabled],
+  );
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (!enabled || touchStartX.current === null || touchStartY.current === null) {
+        setSwipeOffset({ x: 0, y: 0 });
+        setOpacity(1);
+        return;
+      }
 
       const touchEndX = e.changedTouches[0].clientX;
       const touchEndY = e.changedTouches[0].clientY;
       const diffX = touchStartX.current - touchEndX;
-      const diffY = Math.abs(touchStartY.current - touchEndY);
+      const diffY = touchStartY.current - touchEndY;
 
-      // Minimum swipe distance and ensure horizontal swipe (not vertical)
       const minSwipeDistance = 50;
-      if (Math.abs(diffX) > minSwipeDistance && Math.abs(diffX) > diffY) {
+      const minVerticalSwipeDistance = 100;
+
+      // Check for vertical swipe up first (positive diffY = swipe up)
+      if (diffY > minVerticalSwipeDistance && Math.abs(diffY) > Math.abs(diffX)) {
+        onSwipeUp(); // Swipe up = close
+      } else if (Math.abs(diffX) > minSwipeDistance && Math.abs(diffX) > Math.abs(diffY)) {
+        // Horizontal swipe for navigation
         if (diffX > 0) {
           onSwipeLeft(); // Swipe left = next
         } else {
@@ -56,13 +86,21 @@ const useSwipeGesture = (
         }
       }
 
+      // Reset visual state
+      setSwipeOffset({ x: 0, y: 0 });
+      setOpacity(1);
       touchStartX.current = null;
       touchStartY.current = null;
     },
-    [enabled, onSwipeLeft, onSwipeRight],
+    [enabled, onSwipeLeft, onSwipeRight, onSwipeUp],
   );
 
-  return { handleTouchStart, handleTouchEnd };
+  const resetSwipe = useCallback(() => {
+    setSwipeOffset({ x: 0, y: 0 });
+    setOpacity(1);
+  }, []);
+
+  return { handleTouchStart, handleTouchMove, handleTouchEnd, swipeOffset, opacity, resetSwipe };
 };
 
 // Pinch-to-zoom hook
@@ -167,20 +205,59 @@ export const PhotoModal = ({
     resetZoom,
     isZoomed,
   } = usePinchZoom();
-  const { handleTouchStart: handleSwipeStart, handleTouchEnd: handleSwipeEnd } = useSwipeGesture(
-    onNext,
-    onPrevious,
-    !isZoomed,
-  );
+  const {
+    handleTouchStart: handleSwipeStart,
+    handleTouchMove: handleSwipeMove,
+    handleTouchEnd: handleSwipeEnd,
+    swipeOffset,
+    opacity: swipeOpacity,
+    resetSwipe,
+  } = useSwipeGesture(onNext, onPrevious, onClose, !isZoomed);
 
-  // Reset zoom and trigger animation when changing photos
+  // Reset zoom and swipe state, trigger animation when changing photos
   useEffect(() => {
     resetZoom();
+    resetSwipe();
     setImageKey((prev) => prev + 1);
     setIsAnimating(true);
     const timer = setTimeout(() => setIsAnimating(false), 180);
     return () => clearTimeout(timer);
-  }, [selectedIndex, resetZoom]);
+  }, [selectedIndex, resetZoom, resetSwipe]);
+
+  // Handle browser back button to close modal instead of navigating away
+  // Track if modal is open to avoid re-pushing history on every selectedIndex change
+  const isModalOpen = selectedIndex !== null;
+  const hasAddedHistoryState = useRef(false);
+
+  useEffect(() => {
+    if (!isModalOpen) {
+      // Modal closed - clean up history state if we added one
+      if (hasAddedHistoryState.current && window.history.state?.photoModal) {
+        window.history.back();
+        hasAddedHistoryState.current = false;
+      }
+      return;
+    }
+
+    // Modal just opened - push history state only once
+    if (!hasAddedHistoryState.current) {
+      const modalState = { photoModal: true };
+      window.history.pushState(modalState, '');
+      hasAddedHistoryState.current = true;
+    }
+
+    const handlePopState = () => {
+      // Back button pressed - close the modal
+      hasAddedHistoryState.current = false;
+      onClose();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isModalOpen, onClose]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -218,6 +295,17 @@ export const PhotoModal = ({
     [handlePinchStart, handleSwipeStart],
   );
 
+  const handleTouchMoveCombined = useCallback(
+    (e: React.TouchEvent) => {
+      if (e.touches.length === 2) {
+        handleTouchMove(e);
+      } else if (e.touches.length === 1) {
+        handleSwipeMove(e);
+      }
+    },
+    [handleTouchMove, handleSwipeMove],
+  );
+
   const handleTouchEndCombined = useCallback(
     (e: React.TouchEvent) => {
       handlePinchEnd();
@@ -236,10 +324,11 @@ export const PhotoModal = ({
 
   return (
     <div
-      className="fixed inset-0 z-1060 flex items-center justify-center bg-black/95 touch-none"
+      className="fixed inset-0 z-1060 flex items-center justify-center bg-black/95 touch-none transition-opacity duration-200"
+      style={{ opacity: swipeOpacity }}
       onClick={onClose}
       onTouchStart={handleTouchStartCombined}
-      onTouchMove={handleTouchMove}
+      onTouchMove={handleTouchMoveCombined}
       onTouchEnd={handleTouchEndCombined}
     >
       {/* Close button */}
@@ -283,9 +372,12 @@ export const PhotoModal = ({
         </>
       )}
 
-      {/* Photo container with zoom support */}
+      {/* Photo container with zoom and swipe support */}
       <div
-        className="w-full h-full flex items-center justify-center p-4 sm:p-6 overflow-hidden"
+        className="w-full h-full flex items-center justify-center p-4 sm:p-6 overflow-hidden transition-transform duration-200"
+        style={{
+          transform: `translateY(${swipeOffset.y}px)`,
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <img
