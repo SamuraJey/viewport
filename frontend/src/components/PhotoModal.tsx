@@ -107,11 +107,12 @@ const usePinchZoom = () => {
       setScale(newScale);
 
       // Handle panning when zoomed
-      if (lastCenter.current && newScale > 1) {
+      if (newScale > 1) {
+        const previousCenter = lastCenter.current || getCenter(e.touches);
         const currentCenter = getCenter(e.touches);
         setTranslate((prev) => ({
-          x: prev.x + (currentCenter.x - lastCenter.current!.x),
-          y: prev.y + (currentCenter.y - lastCenter.current!.y),
+          x: prev.x + (currentCenter.x - previousCenter.x),
+          y: prev.y + (currentCenter.y - previousCenter.y),
         }));
         lastCenter.current = currentCenter;
       }
