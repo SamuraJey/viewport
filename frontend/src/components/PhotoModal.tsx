@@ -103,7 +103,15 @@ const useSwipeGesture = (
     setScale(1);
   }, []);
 
-  return { handleTouchStart, handleTouchMove, handleTouchEnd, swipeOffset, opacity, scale, resetSwipe };
+  return {
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+    swipeOffset,
+    opacity,
+    scale,
+    resetSwipe,
+  };
 };
 
 // Pinch-to-zoom hook
