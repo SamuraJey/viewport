@@ -27,6 +27,7 @@ import Lightbox from 'yet-another-react-lightbox';
 import Thumbnails from 'yet-another-react-lightbox/plugins/thumbnails';
 import Fullscreen from 'yet-another-react-lightbox/plugins/fullscreen';
 import Download from 'yet-another-react-lightbox/plugins/download';
+import Zoom from 'yet-another-react-lightbox/plugins/zoom';
 import 'yet-another-react-lightbox/styles.css';
 import 'yet-another-react-lightbox/plugins/thumbnails.css';
 
@@ -50,7 +51,11 @@ export const PublicGalleryPage = () => {
   const computeSpansDebounceRef = useRef<number | null>(null);
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchHandledRef = useRef(false);
-  const thumbnailsRef = useRef<any>(null);
+  const thumbnailsRef = useRef<{
+    visible: boolean;
+    show: () => void;
+    hide: () => void;
+  } | null>(null);
 
   // Pagination settings
   const PHOTOS_PER_PAGE = 100;
@@ -526,10 +531,11 @@ export const PublicGalleryPage = () => {
         close={() => setLightboxOpen(false)}
         index={lightboxIndex}
         slides={lightboxSlides}
-        plugins={[Thumbnails, Fullscreen, Download]}
+        plugins={[Thumbnails, Fullscreen, Download, Zoom]}
         controller={{
           closeOnPullDown: true,
           closeOnPullUp: true,
+          closeOnBackdropClick: true,
         }}
         thumbnails={{
           ref: thumbnailsRef,
@@ -543,6 +549,32 @@ export const PublicGalleryPage = () => {
         }}
         carousel={{
           finite: !hasMore,
+          padding: '0px', // Remove padding for maximum photo size
+          spacing: '5%', // Minimal spacing = much bigger photos
+          imageFit: 'contain',
+        }}
+        zoom={{
+          maxZoomPixelRatio: 3, // Allow zooming up to 3x the original resolution
+          scrollToZoom: true, // Enable mouse wheel zoom
+        }}
+        styles={{
+          container: { backgroundColor: 'rgba(0, 0, 0, 0.85)' },
+          slide: {
+            padding: '8px', // Small internal padding
+          },
+        }}
+        download={{
+          download: async ({ slide, saveAs }) => {
+            // Fetch the image and trigger download dialog
+            const response = await fetch(slide.src);
+            const blob = await response.blob();
+            // Extract filename from download prop or use default
+            const filename =
+              typeof slide.download === 'object'
+                ? slide.download.filename
+                : slide.alt || 'photo.jpg';
+            saveAs(blob, filename);
+          },
         }}
         on={{
           entered: () => {

@@ -1208,3 +1208,27 @@ html.dark .auth-layout a:hover,
 body.dark .auth-layout a:hover {
   color: rgb(var(--color-primary-400-rgb)) !important;
 }
+
+/* ===== LIGHTBOX CUSTOMIZATION ===== */
+/* Maximize image size on large screens - only for main slides, not thumbnails */
+.yarl__slide .yarl__slide_image {
+  max-width: min(2400px, 95vw) !important;
+  max-height: min(1600px, 95vh) !important;
+}
+
+/* Ensure slides use available space */
+.yarl__slide {
+  padding: 12px !important;
+}
+
+/* Fix zoom wrapper to allow large images */
+.yarl__slide .yarl__zoom_wrapper {
+  max-width: 100% !important;
+  max-height: 100% !important;
+}
+
+/* Ensure zoomed images can be large */
+.yarl__slide .yarl__zoom_wrapper img {
+  max-width: min(2400px, 95vw) !important;
+  max-height: min(1600px, 95vh) !important;
+}
