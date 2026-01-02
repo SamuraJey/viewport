@@ -251,13 +251,14 @@ class TestAsyncS3ClientUploadBytes:
 
         s3_client._get_s3_client = MagicMock(return_value=mock_context)
 
+        # Test that exceptions are propagated (consistent with existing test patterns)
         with pytest.raises(Exception, match="Upload failed"):  # noqa: B017
             await s3_client.upload_bytes(file_content, "test-key.txt")
 
     @pytest.mark.asyncio
     async def test_upload_bytes_at_5mb_boundary(self, s3_client):
         """Test behavior at exactly 5MB boundary."""
-        # Create file at exactly 5MB (should use upload_fileobj due to >= 5MB)
+        # Create file at exactly 5MB (should use upload_fileobj since condition is < 5MB)
         file_content = b"x" * (5 * 1024 * 1024)
 
         mock_s3_client = AsyncMock()
@@ -270,7 +271,7 @@ class TestAsyncS3ClientUploadBytes:
         result = await s3_client.upload_bytes(file_content, "5mb-file.bin")
 
         assert result == "/test-bucket/5mb-file.bin"
-        # At exactly 5MB, condition is "< 5MB" so it falls back to upload_fileobj
+        # At exactly 5MB, the check "< 5MB" is False, so uses upload_fileobj
         mock_s3_client.upload_fileobj.assert_called_once()
         mock_s3_client.put_object.assert_not_called()
 
