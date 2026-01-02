@@ -32,7 +32,6 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
-    # Handle missing authentication header with consistent 401 status
     if not credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
