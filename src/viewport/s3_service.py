@@ -6,6 +6,7 @@ non-blocking S3 operations. The client is designed to be used as an application
 singleton via dependency injection.
 """
 
+import asyncio
 import io
 import logging
 from typing import TYPE_CHECKING, BinaryIO
@@ -13,6 +14,7 @@ from typing import TYPE_CHECKING, BinaryIO
 import aioboto3
 from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 from viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
 from viewport.minio_utils import S3Settings
@@ -26,9 +28,10 @@ if TYPE_CHECKING:
 class AsyncS3Client:
     """Asynchronous S3 Client
 
-    This client maintains a shared aioboto3.Session that is created once and
-    reused for all operations. Individual S3 clients are created per operation
-    using context managers to ensure proper resource cleanup.
+    This client maintains a shared aioboto3.Session for memory efficiency.
+    Uses small connection pool with aggressive connection reuse timeout
+    and exponential backoff retry logic to handle transient errors under
+    high concurrency without memory leaks.
 
     All methods are async-first and do not block the event loop.
     """
@@ -38,26 +41,29 @@ class AsyncS3Client:
         self.settings = S3Settings()
         self._session: aioboto3.Session | None = None
         self._endpoint_url = self._get_endpoint_url()
+        # Use aggressive connection pooling configuration:
+        # - Small pool size (10 connections max)
+        # - Read timeout forces connections to close after idle period
+        # - Standard retries with exponential backoff for transient errors
         self._config = Config(
             signature_version=self.settings.signature_version,
-            max_pool_connections=200,  # Increased to handle more concurrent uploads
-            retries={"max_attempts": 3, "mode": "standard"},  # Retry failed requests
-            connect_timeout=10,  # Connection timeout in seconds
-            read_timeout=60,  # Read timeout in seconds
+            max_pool_connections=10,  # Small pool to avoid memory bloat
+            retries={"max_attempts": 3, "mode": "standard"},
+            connect_timeout=10,
+            read_timeout=30,  # Shorter timeout to close idle connections faster
             s3={"addressing_style": "path"},
         )
         self._presign_client = None
         self._transfer_config = TransferConfig(
-            multipart_threshold=8 * 1024 * 1024,  # 8MB threshold before multipart kicks in
-            multipart_chunksize=4 * 1024 * 1024,  # 4MB chunks for better performance
-            max_concurrency=20,
-            use_threads=True,
+            multipart_threshold=8 * 1024 * 1024,
+            multipart_chunksize=4 * 1024 * 1024,
+            max_concurrency=10,  # Reduced concurrency per upload
+            use_threads=False,  # Use asyncio instead of threads to avoid overhead
         )
         logger.info(f"AsyncS3Client initialized: endpoint={self._endpoint_url}, bucket={self.settings.bucket}, region={self.settings.region}")
 
     def _get_endpoint_url(self) -> str | None:
         """Get the endpoint URL with protocol if needed."""
-        # The endpoint is already set in S3Settings, just add protocol if missing
         endpoint = self.settings.endpoint
         use_ssl = getattr(self.settings, "use_ssl", False)
         if not endpoint.startswith(("http://", "https://")):
@@ -70,6 +76,7 @@ class AsyncS3Client:
         """Get or create the shared aioboto3 session.
 
         The session is created once and reused for all operations.
+        Memory is managed through connection pooling limits and timeouts.
         """
         if self._session is None:
             self._session = aioboto3.Session(
@@ -80,9 +87,11 @@ class AsyncS3Client:
         return self._session
 
     def _get_s3_client(self) -> "S3Client":
-        """Get configured S3 client context manager.
+        """Get configured S3 client context manager from shared session.
 
-        This is a helper to avoid repeating the client configuration everywhere.
+        Uses the shared session but creates a new client for each operation.
+        Context manager ensures proper resource cleanup.
+
         Usage: async with self._get_s3_client() as s3:
         """
         return self.session.client("s3", endpoint_url=self._endpoint_url, config=self._config)
@@ -120,7 +129,7 @@ class AsyncS3Client:
             S3 object path
 
         Raises:
-            Exception: If upload fails
+            Exception: If upload fails after retries
         """
         # Normalize bytes to file-like object
         if isinstance(file_obj, bytes):
@@ -136,21 +145,47 @@ class AsyncS3Client:
         if metadata:
             extra_args["Metadata"] = metadata
 
-        try:
-            async with self._get_s3_client() as s3:
-                s3: "S3Client"
-                await s3.upload_fileobj(
-                    file_obj,
-                    self.settings.bucket,
-                    key,
-                    ExtraArgs=extra_args if extra_args else None,
-                    Config=self._transfer_config,
-                )
-            logger.debug(f"Successfully uploaded object: {key}")
-            return f"/{self.settings.bucket}/{key}"
-        except Exception as e:
-            logger.error(f"Failed to upload object {key}: {e}")
-            raise
+        # Retry with exponential backoff for transient errors
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Reset file pointer for retry
+                if hasattr(file_obj, "seek"):
+                    file_obj.seek(0)
+
+                async with self._get_s3_client() as s3:
+                    s3: "S3Client"
+                    await s3.upload_fileobj(
+                        file_obj,
+                        self.settings.bucket,
+                        key,
+                        ExtraArgs=extra_args if extra_args else None,
+                        Config=self._transfer_config,
+                    )
+                logger.debug(f"Successfully uploaded object: {key}")
+                return f"/{self.settings.bucket}/{key}"
+            except ClientError as e:
+                error_code = e.response.get("Error", {}).get("Code", "")
+
+                # Retry on transient errors (UnauthorizedAccess, ServiceUnavailable, etc.)
+                is_transient = error_code in [
+                    "UnauthorizedAccess",
+                    "ServiceUnavailable",
+                    "RequestTimeout",
+                    "SlowDown",
+                ]
+
+                if is_transient and attempt < max_retries - 1:
+                    wait_time = 0.5 * (2**attempt)  # Exponential backoff: 0.5s, 1s, 2s
+                    logger.warning(f"Transient error uploading {key} (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {wait_time}s...")
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(f"Failed to upload object {key}: {e}")
+                    raise
+            except Exception as e:
+                logger.error(f"Failed to upload object {key}: {e}")
+                raise
 
     async def download_fileobj(self, key: str) -> bytes:
         """Download a file from S3.
@@ -320,8 +355,11 @@ class AsyncS3Client:
         """Close the session and clean up resources."""
         if self._session is not None:
             logger.info("Closing AsyncS3Client session")
-            # Note: aioboto3 sessions don't need explicit closing in newer versions
+            # aioboto3 sessions are cleaned up automatically but we can help
             self._session = None
+        if self._presign_client is not None:
+            self._presign_client.close()
+            self._presign_client = None
 
     def generate_presigned_url(self, key: str, expires_in: int = 7200) -> str:
         """Generate a presigned URL for direct S3 access to an object.
