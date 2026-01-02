@@ -1,5 +1,4 @@
 import logging
-import os
 import time
 from typing import Annotated
 from uuid import UUID
@@ -93,17 +92,16 @@ async def upload_photos_batch(
     successful_uploads = 0
     failed_uploads = 0
 
-    semaphore = asyncio.Semaphore(35)
+    semaphore = asyncio.Semaphore(50)  # Higher concurrency - S3 can handle it
 
     async def process_single_file(file: UploadFile) -> PhotoUploadResult:
         """Process a single file: validate and upload original to S3"""
         async with semaphore:
             try:
-                # Determine file size without loading entire content into memory
-                # Note: This requires two seeks but is necessary for validation before upload
-                file.file.seek(0, os.SEEK_END)
-                file_size = file.file.tell()
-                file.file.seek(0)
+                # Read file content into memory once - faster than multiple seeks
+                # This works well for photos which are typically <15MB
+                content = await file.read()
+                file_size = len(content)
 
                 # Validate file size
                 if file_size > MAX_FILE_SIZE:
@@ -119,8 +117,8 @@ async def upload_photos_batch(
                 # Fast content type determination using pre-computed mapping
                 content_type = get_content_type_from_filename(file.filename)
 
-                # Upload only the original image to S3 (no thumbnail yet)
-                await s3_client.upload_fileobj(file.file, object_key, content_type=content_type)
+                # Upload bytes directly - uses put_object for small files (fastest)
+                await s3_client.upload_bytes(content, object_key, content_type=content_type)
 
                 # Return data for batch DB insert (thumbnail will be created later)
                 return PhotoUploadResult(

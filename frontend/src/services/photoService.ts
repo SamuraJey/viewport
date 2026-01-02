@@ -60,8 +60,11 @@ const uploadPhotos = async (
     totalBatches?: number;
   }) => void,
 ): Promise<PhotoUploadResponse> => {
-  const BATCH_SIZE = 30;
-  const MAX_CONCURRENCY = 2;
+  // Optimized batch settings for faster uploads:
+  // - Smaller batches = faster individual requests, better parallelism
+  // - Higher concurrency = more parallel uploads to backend
+  const BATCH_SIZE = 15; // Smaller batches for faster response times
+  const MAX_CONCURRENCY = 4; // More parallel batch uploads
 
   if (files.length === 0) {
     return {
@@ -135,6 +138,7 @@ const uploadPhotos = async (
           headers: {
             'Content-Type': 'multipart/form-data',
           },
+          timeout: 120000, // 2 minute timeout for uploads
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total) {
               updateProgress(batch.index, progressEvent.loaded);

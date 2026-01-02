@@ -54,11 +54,20 @@ class AsyncS3Client:
             s3={"addressing_style": "path"},
         )
         self._presign_client = None
+        # Optimized transfer config for faster uploads:
+        # - Lower threshold to start multipart sooner (5MB vs 8MB)
+        # - Larger chunk size for fewer round trips (8MB)
+        # - Higher concurrency for parallel part uploads
         self._transfer_config = TransferConfig(
-            multipart_threshold=8 * 1024 * 1024,
-            multipart_chunksize=4 * 1024 * 1024,
-            max_concurrency=10,  # Reduced concurrency per upload
+            multipart_threshold=5 * 1024 * 1024,  # 5MB - start multipart earlier
+            multipart_chunksize=8 * 1024 * 1024,  # 8MB chunks for fewer round trips
+            max_concurrency=20,  # Higher concurrency for parallel part uploads
             use_threads=False,  # Use asyncio instead of threads to avoid overhead
+        )
+        # Small file config - skip multipart overhead for small files
+        self._small_transfer_config = TransferConfig(
+            multipart_threshold=50 * 1024 * 1024,  # 50MB threshold ensures small files (<5MB) never use multipart, even with overhead
+            use_threads=False,
         )
         logger.info(f"AsyncS3Client initialized: endpoint={self._endpoint_url}, bucket={self.settings.bucket}, region={self.settings.region}")
 
@@ -116,6 +125,7 @@ class AsyncS3Client:
         key: str,
         content_type: str | None = None,
         metadata: dict[str, str] | None = None,
+        file_size: int | None = None,
     ) -> str:
         """Upload a file object to S3.
 
@@ -124,6 +134,7 @@ class AsyncS3Client:
             key: S3 object key
             content_type: Optional Content-Type header (e.g., 'image/jpeg')
             metadata: Optional metadata to attach to the object
+            file_size: Optional file size hint for transfer config optimization
 
         Returns:
             S3 object path
@@ -145,6 +156,10 @@ class AsyncS3Client:
         if metadata:
             extra_args["Metadata"] = metadata
 
+        # Choose transfer config based on file size
+        # Small files (<5MB) skip multipart overhead entirely
+        transfer_config = self._small_transfer_config if (file_size and file_size < 5 * 1024 * 1024) else self._transfer_config
+
         # Retry with exponential backoff for transient errors
         max_retries = 3
         for attempt in range(max_retries):
@@ -160,7 +175,7 @@ class AsyncS3Client:
                         self.settings.bucket,
                         key,
                         ExtraArgs=extra_args if extra_args else None,
-                        Config=self._transfer_config,
+                        Config=transfer_config,
                     )
                 logger.debug(f"Successfully uploaded object: {key}")
                 return f"/{self.settings.bucket}/{key}"
@@ -186,6 +201,57 @@ class AsyncS3Client:
             except Exception as e:
                 logger.error(f"Failed to upload object {key}: {e}")
                 raise
+
+    async def upload_bytes(
+        self,
+        data: bytes,
+        key: str,
+        content_type: str | None = None,
+        metadata: dict[str, str] | None = None,
+    ) -> str:
+        """Upload bytes directly to S3 - optimized for small files.
+
+        This is faster than upload_fileobj for small files as it:
+        - Avoids SpooledTemporaryFile overhead
+        - Uses put_object for small files (single request)
+        - Falls back to upload_fileobj for large files
+
+        Args:
+            data: Bytes to upload
+            key: S3 object key
+            content_type: Optional Content-Type header
+            metadata: Optional metadata to attach
+
+        Returns:
+            S3 object path
+        """
+        file_size = len(data)
+
+        # For small files (<5MB), use put_object directly - single request, fastest
+        if file_size < 5 * 1024 * 1024:
+            extra_args: dict[str, str | dict[str, str]] = {}
+            if content_type:
+                extra_args["ContentType"] = content_type
+            if metadata:
+                extra_args["Metadata"] = metadata
+
+            try:
+                async with self._get_s3_client() as s3:
+                    s3: "S3Client"
+                    await s3.put_object(
+                        Bucket=self.settings.bucket,
+                        Key=key,
+                        Body=data,
+                        **extra_args,
+                    )
+                logger.debug(f"Successfully uploaded object via put_object: {key}")
+                return f"/{self.settings.bucket}/{key}"
+            except Exception as e:
+                logger.error(f"Failed to upload object {key}: {e}")
+                raise
+
+        # For larger files, use the streaming upload
+        return await self.upload_fileobj(data, key, content_type, metadata, file_size)
 
     async def download_fileobj(self, key: str) -> bytes:
         """Download a file from S3.
