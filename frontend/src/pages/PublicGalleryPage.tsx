@@ -50,6 +50,7 @@ export const PublicGalleryPage = () => {
   const computeSpansDebounceRef = useRef<number | null>(null);
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchHandledRef = useRef(false);
+  const thumbnailsRef = useRef<any>(null);
 
   // Pagination settings
   const PHOTOS_PER_PAGE = 100;
@@ -241,6 +242,18 @@ export const PublicGalleryPage = () => {
     setLightboxIndex(index);
     setLightboxOpen(true);
   };
+
+  // Handle thumbnails visibility on mobile
+  const handleThumbnailsVisibility = useCallback(() => {
+    if (!thumbnailsRef.current) return;
+
+    const isMobile = window.innerWidth < 768; // 768px - typical mobile breakpoint
+    if (isMobile) {
+      thumbnailsRef.current?.hide();
+    } else {
+      thumbnailsRef.current?.show();
+    }
+  }, []);
 
   // Prepare slides for lightbox
   const lightboxSlides = photos.map((photo) => ({
@@ -519,6 +532,7 @@ export const PublicGalleryPage = () => {
           closeOnPullUp: true,
         }}
         thumbnails={{
+          ref: thumbnailsRef,
           position: 'bottom',
           width: 120,
           height: 80,
@@ -531,6 +545,10 @@ export const PublicGalleryPage = () => {
           finite: !hasMore,
         }}
         on={{
+          entered: () => {
+            // Hide thumbnails on mobile after lightbox is fully opened
+            handleThumbnailsVisibility();
+          },
           view: ({ index }) => {
             // Load more photos when viewing near the end
             const threshold = 10;
