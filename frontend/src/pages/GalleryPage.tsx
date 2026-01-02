@@ -6,13 +6,7 @@ import type { PhotoUploadResponse } from '../services/photoService';
 import { shareLinkService, type ShareLink } from '../services/shareLinkService';
 import { Layout } from '../components/Layout';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
-import Lightbox from 'yet-another-react-lightbox';
-import Thumbnails from 'yet-another-react-lightbox/plugins/thumbnails';
-import Fullscreen from 'yet-another-react-lightbox/plugins/fullscreen';
-import LightboxDownload from 'yet-another-react-lightbox/plugins/download';
-import Zoom from 'yet-another-react-lightbox/plugins/zoom';
-import 'yet-another-react-lightbox/styles.css';
-import 'yet-another-react-lightbox/plugins/thumbnails.css';
+import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import { formatDateOnly } from '../lib/utils';
 import {
   Loader2,
@@ -51,18 +45,16 @@ export const GalleryPage = () => {
   const [uploadError, setUploadError] = useState('');
   const [isCreatingLink, setIsCreatingLink] = useState(false);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [lightboxIndex, setLightboxIndex] = useState(0);
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
 
   // Refs
-  const thumbnailsRef = useRef<{
-    visible: boolean;
-    show: () => void;
-    hide: () => void;
-  } | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
+
+  const { openLightbox, renderLightbox } = usePhotoLightbox({
+    photoCardSelector: '[data-photo-card]',
+    gridRef,
+  });
 
   // Use new hooks
   const pagination = usePagination({ pageSize: 100, syncWithUrl: true });
@@ -403,34 +395,8 @@ export const GalleryPage = () => {
 
   // Photo modal handlers
   const openPhoto = (index: number) => {
-    setLightboxIndex(index);
-    setLightboxOpen(true);
+    openLightbox(index);
   };
-
-  // Handle thumbnails visibility on mobile
-  const handleThumbnailsVisibility = useCallback(() => {
-    if (!thumbnailsRef.current) return;
-
-    const isMobile = window.innerWidth < 768;
-    if (isMobile) {
-      thumbnailsRef.current?.hide();
-    } else {
-      thumbnailsRef.current?.show();
-    }
-  }, []);
-
-  // Scroll to photo in grid when lightbox closes
-  const handleLightboxExited = useCallback(() => {
-    const photoCards = gridRef.current?.querySelectorAll('[data-photo-card]');
-    if (photoCards && photoCards[lightboxIndex]) {
-      const photoElement = photoCards[lightboxIndex] as HTMLElement;
-      photoElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-        inline: 'nearest',
-      });
-    }
-  }, [lightboxIndex]);
 
   const handleSetCover = async (photoId: string) => {
     try {
@@ -1057,68 +1023,14 @@ export const GalleryPage = () => {
       </div>
 
       {/* Lightbox */}
-      <Lightbox
-        open={lightboxOpen}
-        close={() => setLightboxOpen(false)}
-        index={lightboxIndex}
-        slides={photoUrls.map((photo) => ({
+      {renderLightbox(
+        photoUrls.map((photo) => ({
           src: photo.url,
           alt: photo.filename,
           download: photo.url,
           downloadFilename: photo.filename,
-        }))}
-        plugins={[Thumbnails, Fullscreen, LightboxDownload, Zoom]}
-        controller={{
-          closeOnPullDown: true,
-          closeOnPullUp: true,
-          closeOnBackdropClick: true,
-        }}
-        thumbnails={{
-          ref: thumbnailsRef,
-          position: 'bottom',
-          width: 120,
-          height: 80,
-          border: 0,
-          borderRadius: 4,
-          padding: 4,
-          gap: 8,
-        }}
-        carousel={{
-          finite: true,
-          padding: '0px',
-          spacing: 0,
-          imageFit: 'contain',
-        }}
-        zoom={{
-          maxZoomPixelRatio: 3,
-          scrollToZoom: true,
-        }}
-        styles={{
-          container: { backgroundColor: 'rgba(0, 0, 0, 0.85)' },
-        }}
-        download={{
-          download: async ({ slide, saveAs }) => {
-            const response = await fetch(slide.src);
-            const blob = await response.blob();
-            const filename =
-              typeof slide.download === 'object'
-                ? slide.download.filename
-                : slide.alt || 'photo.jpg';
-            saveAs(blob, filename);
-          },
-        }}
-        on={{
-          entered: () => {
-            handleThumbnailsVisibility();
-          },
-          view: ({ index }) => {
-            setLightboxIndex(index);
-          },
-          exited: () => {
-            handleLightboxExited();
-          },
-        }}
-      />
+        })),
+      )}
 
       {/* Photo Rename Modal */}
       <PhotoRenameModal

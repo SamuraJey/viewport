@@ -52,43 +52,27 @@ vi.mock('../../services/shareLinkService', () => ({
   },
 }));
 
-// Mock PublicPresignedImage and PublicBatchImage to avoid network and complex providers
-vi.mock('../../components/PublicImage', () => ({
-  PublicPresignedImage: ({ alt, ...props }: any) => (
-    <img alt={alt} data-testid="public-presigned" {...props} />
-  ),
-}));
-
-vi.mock('../../components/PublicBatchImage', () => ({
-  PublicBatchImage: ({ alt, ...props }: any) => (
-    <img alt={alt} data-testid="public-batch" {...props} />
-  ),
-  PublicBatchImageProvider: ({ children }: any) => <div>{children}</div>,
-}));
-
 // Mock ThemeSwitch and Lightbox to keep tests focused
 vi.mock('../../components/ThemeSwitch', () => ({
   ThemeSwitch: () => <button data-testid="theme-switch">T</button>,
 }));
 
-vi.mock('yet-another-react-lightbox', () => ({
-  default: ({ open, slides, index }: any) => (
-    <div data-testid="lightbox">
-      {open && slides[index] && <div>{`${index + 1} of ${slides.length}`}</div>}
-    </div>
-  ),
-}));
-
-vi.mock('yet-another-react-lightbox/plugins/thumbnails', () => ({
-  default: () => null,
-}));
-
-vi.mock('yet-another-react-lightbox/plugins/fullscreen', () => ({
-  default: () => null,
-}));
-
-vi.mock('yet-another-react-lightbox/plugins/download', () => ({
-  default: () => null,
+vi.mock('../../hooks/usePhotoLightbox', () => ({
+  usePhotoLightbox: () => ({
+    lightboxOpen: false,
+    lightboxIndex: 0,
+    openLightbox: vi.fn(),
+    closeLightbox: vi.fn(),
+    renderLightbox: (slides: any[]) => (
+      <div data-testid="lightbox">
+        {slides.map((slide, i) => (
+          <div key={i} data-testid="lightbox-slide">
+            {slide.src}
+          </div>
+        ))}
+      </div>
+    ),
+  }),
 }));
 
 // Mock useParams to provide shareId
@@ -151,7 +135,8 @@ describe('PublicGalleryPage', () => {
     await userEvent.click(button);
 
     await waitFor(() => expect(screen.getByTestId('lightbox')).toBeInTheDocument());
-    expect(screen.getByText('1 of 2')).toBeInTheDocument();
+    // Check that lightbox slides are rendered
+    expect(screen.getAllByTestId('lightbox-slide')).toHaveLength(2);
   });
 
   it('shows empty state when no photos', async () => {

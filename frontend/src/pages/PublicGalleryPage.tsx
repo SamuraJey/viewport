@@ -18,18 +18,12 @@ import {
 import { useTheme } from '../hooks/useTheme';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { LazyImage } from '../components/LazyImage';
+import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import {
   shareLinkService,
   type PublicPhoto,
   type SharedGallery,
 } from '../services/shareLinkService';
-import Lightbox from 'yet-another-react-lightbox';
-import Thumbnails from 'yet-another-react-lightbox/plugins/thumbnails';
-import Fullscreen from 'yet-another-react-lightbox/plugins/fullscreen';
-import Download from 'yet-another-react-lightbox/plugins/download';
-import Zoom from 'yet-another-react-lightbox/plugins/zoom';
-import 'yet-another-react-lightbox/styles.css';
-import 'yet-another-react-lightbox/plugins/thumbnails.css';
 
 // Get API base URL from environment variables
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -42,8 +36,6 @@ export const PublicGalleryPage = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string>('');
-  const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [lightboxIndex, setLightboxIndex] = useState(0);
   const [gridDensity, setGridDensity] = useState<'large' | 'compact'>('large');
   const { theme } = useTheme();
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -51,14 +43,21 @@ export const PublicGalleryPage = () => {
   const computeSpansDebounceRef = useRef<number | null>(null);
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchHandledRef = useRef(false);
-  const thumbnailsRef = useRef<{
-    visible: boolean;
-    show: () => void;
-    hide: () => void;
-  } | null>(null);
 
   // Pagination settings
   const PHOTOS_PER_PAGE = 100;
+
+  // Load more photos callback (will be used by lightbox hook)
+  const loadMorePhotosRef = useRef<(() => void) | undefined>(undefined);
+
+  const { openLightbox, renderLightbox } = usePhotoLightbox({
+    photoCardSelector: '.pg-card',
+    gridRef,
+    onLoadMore: () => loadMorePhotosRef.current?.(),
+    hasMore,
+    isLoadingMore,
+    loadMoreThreshold: 10,
+  });
 
   const fetchGalleryData = useCallback(async () => {
     if (!shareId) {
@@ -121,6 +120,11 @@ export const PublicGalleryPage = () => {
       setIsLoadingMore(false);
     }
   }, [shareId, photos.length, isLoadingMore, hasMore, PHOTOS_PER_PAGE]);
+
+  // Update ref when loadMorePhotos changes
+  useEffect(() => {
+    loadMorePhotosRef.current = loadMorePhotos;
+  }, [loadMorePhotos]);
 
   useEffect(() => {
     fetchGalleryData();
@@ -244,37 +248,8 @@ export const PublicGalleryPage = () => {
 
   // Open lightbox at specific photo index
   const openPhoto = (index: number) => {
-    setLightboxIndex(index);
-    setLightboxOpen(true);
+    openLightbox(index);
   };
-
-  // Handle thumbnails visibility on mobile
-  const handleThumbnailsVisibility = useCallback(() => {
-    if (!thumbnailsRef.current) return;
-
-    const isMobile = window.innerWidth < 768; // 768px - typical mobile breakpoint
-    if (isMobile) {
-      thumbnailsRef.current?.hide();
-    } else {
-      thumbnailsRef.current?.show();
-    }
-  }, []);
-
-  // Scroll to photo in grid when lightbox closes
-  const handleLightboxExited = useCallback(() => {
-    // Find the photo card element by index
-    const photoCards = gridRef.current?.querySelectorAll('.pg-card');
-    if (photoCards && photoCards[lightboxIndex]) {
-      const photoElement = photoCards[lightboxIndex] as HTMLElement;
-
-      // Scroll to the photo with smooth animation
-      photoElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-        inline: 'nearest',
-      });
-    }
-  }, [lightboxIndex]);
 
   // Prepare slides for lightbox
   const lightboxSlides = photos.map((photo) => ({
@@ -542,77 +517,7 @@ export const PublicGalleryPage = () => {
       </div>
 
       {/* Lightbox */}
-      <Lightbox
-        open={lightboxOpen}
-        close={() => setLightboxOpen(false)}
-        index={lightboxIndex}
-        slides={lightboxSlides}
-        plugins={[Thumbnails, Fullscreen, Download, Zoom]}
-        controller={{
-          closeOnPullDown: true,
-          closeOnPullUp: true,
-          closeOnBackdropClick: true,
-        }}
-        thumbnails={{
-          ref: thumbnailsRef,
-          position: 'bottom',
-          width: 120,
-          height: 80,
-          border: 0,
-          borderRadius: 4,
-          padding: 4,
-          gap: 8,
-        }}
-        carousel={{
-          finite: !hasMore,
-          padding: '0px', // Remove padding for maximum photo size
-          spacing: '5%', // Minimal spacing = much bigger photos
-          imageFit: 'contain',
-        }}
-        zoom={{
-          maxZoomPixelRatio: 3, // Allow zooming up to 3x the original resolution
-          scrollToZoom: true, // Enable mouse wheel zoom
-        }}
-        styles={{
-          container: { backgroundColor: 'rgba(0, 0, 0, 0.85)' },
-          slide: {
-            padding: '8px', // Small internal padding
-          },
-        }}
-        download={{
-          download: async ({ slide, saveAs }) => {
-            // Fetch the image and trigger download dialog
-            const response = await fetch(slide.src);
-            const blob = await response.blob();
-            // Extract filename from download prop or use default
-            const filename =
-              typeof slide.download === 'object'
-                ? slide.download.filename
-                : slide.alt || 'photo.jpg';
-            saveAs(blob, filename);
-          },
-        }}
-        on={{
-          entered: () => {
-            // Hide thumbnails on mobile after lightbox is fully opened
-            handleThumbnailsVisibility();
-          },
-          view: ({ index }) => {
-            // Update current index as user navigates through photos
-            setLightboxIndex(index);
-
-            // Load more photos when viewing near the end
-            const threshold = 10;
-            if (hasMore && !isLoadingMore && index >= photos.length - threshold) {
-              loadMorePhotos();
-            }
-          },
-          exited: () => {
-            // Scroll to the current photo position when lightbox closes
-            handleLightboxExited();
-          },
-        }}
-      />
+      {renderLightbox(lightboxSlides, photos.length)}
     </div>
   );
 };

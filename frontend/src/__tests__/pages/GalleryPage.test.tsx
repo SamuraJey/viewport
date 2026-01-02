@@ -4,30 +4,23 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { GalleryPage } from '../../pages/GalleryPage';
 
-// Mock yet-another-react-lightbox
-vi.mock('yet-another-react-lightbox', () => ({
-  default: ({ open, slides, index }: any) =>
-    open ? (
+// Mock usePhotoLightbox hook
+vi.mock('../../hooks/usePhotoLightbox', () => ({
+  usePhotoLightbox: () => ({
+    lightboxOpen: false,
+    lightboxIndex: 0,
+    openLightbox: vi.fn(),
+    closeLightbox: vi.fn(),
+    renderLightbox: (slides: any[]) => (
       <div data-testid="lightbox">
-        <div data-testid="lightbox-slide">{slides[index]?.src}</div>
+        {slides.map((slide, i) => (
+          <div key={i} data-testid="lightbox-slide">
+            {slide.src}
+          </div>
+        ))}
       </div>
-    ) : null,
-}));
-
-vi.mock('yet-another-react-lightbox/plugins/thumbnails', () => ({
-  default: () => null,
-}));
-
-vi.mock('yet-another-react-lightbox/plugins/fullscreen', () => ({
-  default: () => null,
-}));
-
-vi.mock('yet-another-react-lightbox/plugins/download', () => ({
-  default: () => null,
-}));
-
-vi.mock('yet-another-react-lightbox/plugins/zoom', () => ({
-  default: () => null,
+    ),
+  }),
 }));
 
 // Mock data
