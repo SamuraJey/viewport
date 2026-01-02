@@ -107,7 +107,7 @@ services:
       context: .
       dockerfile: Dockerfile-backend
     container_name: viewport_celery_worker
-    command: uv run -- celery -A src.viewport.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=50
+    command: celery -A src.viewport.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=50
     env_file:
       - .env.prod
     depends_on:
