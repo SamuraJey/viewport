@@ -232,11 +232,13 @@ export const PhotoModal = ({
   // Track if modal is open to avoid re-pushing history on every selectedIndex change
   const isModalOpen = selectedIndex !== null;
   const hasAddedHistoryState = useRef(false);
+  const ignoreNextPop = useRef(false); // skip pop handler when we programmatically go back
 
   useEffect(() => {
     if (!isModalOpen) {
-      // Modal closed - clean up history state if we added one
+      // If we added history state, pop it once without re-triggering onClose
       if (hasAddedHistoryState.current && window.history.state?.photoModal) {
+        ignoreNextPop.current = true;
         window.history.back();
         hasAddedHistoryState.current = false;
       }
@@ -251,6 +253,10 @@ export const PhotoModal = ({
     }
 
     const handlePopState = () => {
+      if (ignoreNextPop.current) {
+        ignoreNextPop.current = false;
+        return;
+      }
       // Back button pressed - close the modal
       hasAddedHistoryState.current = false;
       onClose();
