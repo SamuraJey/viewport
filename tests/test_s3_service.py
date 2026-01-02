@@ -130,6 +130,151 @@ class TestAsyncS3ClientUploadFileobj:
             await s3_client.upload_fileobj(file_content, "test-key.txt")
 
 
+class TestAsyncS3ClientUploadBytes:
+    """Tests for upload_bytes method."""
+
+    @pytest.mark.asyncio
+    async def test_upload_bytes_small_file_uses_put_object(self, s3_client):
+        """Test that small files (<5MB) use put_object directly."""
+        # Create a small file (1MB)
+        file_content = b"x" * (1 * 1024 * 1024)
+
+        mock_s3_client = AsyncMock()
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        result = await s3_client.upload_bytes(file_content, "small-file.bin")
+
+        assert result == "/test-bucket/small-file.bin"
+        # Verify put_object was called, not upload_fileobj
+        mock_s3_client.put_object.assert_called_once()
+        mock_s3_client.upload_fileobj.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_upload_bytes_large_file_uses_upload_fileobj(self, s3_client):
+        """Test that large files (≥5MB) fall back to upload_fileobj."""
+        # Create a large file (6MB)
+        file_content = b"x" * (6 * 1024 * 1024)
+
+        mock_s3_client = AsyncMock()
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        result = await s3_client.upload_bytes(file_content, "large-file.bin")
+
+        assert result == "/test-bucket/large-file.bin"
+        # Verify upload_fileobj was called, not put_object
+        mock_s3_client.upload_fileobj.assert_called_once()
+        mock_s3_client.put_object.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_upload_bytes_with_content_type(self, s3_client):
+        """Test uploading small file with content type."""
+        file_content = b"test image content"
+
+        mock_s3_client = AsyncMock()
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        result = await s3_client.upload_bytes(file_content, "test-image.jpg", content_type="image/jpeg")
+
+        assert result == "/test-bucket/test-image.jpg"
+        # Verify that content type was passed
+        call_args = mock_s3_client.put_object.call_args
+        assert call_args.kwargs.get("ContentType") == "image/jpeg"
+
+    @pytest.mark.asyncio
+    async def test_upload_bytes_with_metadata(self, s3_client):
+        """Test uploading small file with metadata."""
+        file_content = b"test file content"
+        metadata = {"user-id": "123", "upload-time": "2024-01-01"}
+
+        mock_s3_client = AsyncMock()
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        result = await s3_client.upload_bytes(file_content, "test-file.txt", metadata=metadata)
+
+        assert result == "/test-bucket/test-file.txt"
+        # Verify that metadata was passed
+        call_args = mock_s3_client.put_object.call_args
+        assert call_args.kwargs.get("Metadata") == metadata
+
+    @pytest.mark.asyncio
+    async def test_upload_bytes_with_content_type_and_metadata(self, s3_client):
+        """Test uploading small file with both content type and metadata."""
+        file_content = b"test image content"
+        metadata = {"user-id": "456"}
+
+        mock_s3_client = AsyncMock()
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        result = await s3_client.upload_bytes(
+            file_content,
+            "test-image.png",
+            content_type="image/png",
+            metadata=metadata,
+        )
+
+        assert result == "/test-bucket/test-image.png"
+        # Verify both content type and metadata were passed
+        call_args = mock_s3_client.put_object.call_args
+        assert call_args.kwargs.get("ContentType") == "image/png"
+        assert call_args.kwargs.get("Metadata") == metadata
+
+    @pytest.mark.asyncio
+    async def test_upload_bytes_raises_on_error(self, s3_client):
+        """Test that upload_bytes raises exception on error."""
+        file_content = b"test file content"
+
+        mock_s3_client = AsyncMock()
+        mock_s3_client.put_object.side_effect = Exception("Upload failed")
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        with pytest.raises(Exception, match="Upload failed"):  # noqa: B017
+            await s3_client.upload_bytes(file_content, "test-key.txt")
+
+    @pytest.mark.asyncio
+    async def test_upload_bytes_at_5mb_boundary(self, s3_client):
+        """Test behavior at exactly 5MB boundary."""
+        # Create file at exactly 5MB (should use upload_fileobj due to >= 5MB)
+        file_content = b"x" * (5 * 1024 * 1024)
+
+        mock_s3_client = AsyncMock()
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        result = await s3_client.upload_bytes(file_content, "5mb-file.bin")
+
+        assert result == "/test-bucket/5mb-file.bin"
+        # At exactly 5MB, condition is "< 5MB" so it falls back to upload_fileobj
+        mock_s3_client.upload_fileobj.assert_called_once()
+        mock_s3_client.put_object.assert_not_called()
+
+
 class TestAsyncS3ClientDownloadFileobj:
     """Tests for download_fileobj method."""
 
