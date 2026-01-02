@@ -52,30 +52,27 @@ vi.mock('../../services/shareLinkService', () => ({
   },
 }));
 
-// Mock PublicPresignedImage and PublicBatchImage to avoid network and complex providers
-vi.mock('../../components/PublicImage', () => ({
-  PublicPresignedImage: ({ alt, ...props }: any) => (
-    <img alt={alt} data-testid="public-presigned" {...props} />
-  ),
-}));
-
-vi.mock('../../components/PublicBatchImage', () => ({
-  PublicBatchImage: ({ alt, ...props }: any) => (
-    <img alt={alt} data-testid="public-batch" {...props} />
-  ),
-  PublicBatchImageProvider: ({ children }: any) => <div>{children}</div>,
-}));
-
-// Mock ThemeSwitch and PhotoModal to keep tests focused
+// Mock ThemeSwitch and Lightbox to keep tests focused
 vi.mock('../../components/ThemeSwitch', () => ({
   ThemeSwitch: () => <button data-testid="theme-switch">T</button>,
 }));
-vi.mock('../../components/PhotoModal', () => ({
-  PhotoModal: ({ photos, selectedIndex }: any) => (
-    <div data-testid="photo-modal">
-      {selectedIndex !== null && <div>{`${selectedIndex! + 1} of ${photos.length}`}</div>}
-    </div>
-  ),
+
+vi.mock('../../hooks/usePhotoLightbox', () => ({
+  usePhotoLightbox: () => ({
+    lightboxOpen: false,
+    lightboxIndex: 0,
+    openLightbox: vi.fn(),
+    closeLightbox: vi.fn(),
+    renderLightbox: (slides: any[]) => (
+      <div data-testid="lightbox">
+        {slides.map((slide, i) => (
+          <div key={i} data-testid="lightbox-slide">
+            {slide.src}
+          </div>
+        ))}
+      </div>
+    ),
+  }),
 }));
 
 // Mock useParams to provide shareId
@@ -128,7 +125,7 @@ describe('PublicGalleryPage', () => {
     expect(thumbs).toHaveLength(2);
   });
 
-  it('opens photo modal when clicking a photo', async () => {
+  it('opens photo lightbox when clicking a photo', async () => {
     render(wrapper());
 
     await waitFor(() => expect(screen.getByText('Photos (2)')).toBeInTheDocument());
@@ -137,8 +134,9 @@ describe('PublicGalleryPage', () => {
     const button = within(first).getByRole('button');
     await userEvent.click(button);
 
-    await waitFor(() => expect(screen.getByTestId('photo-modal')).toBeInTheDocument());
-    expect(screen.getByText('1 of 2')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('lightbox')).toBeInTheDocument());
+    // Check that lightbox slides are rendered
+    expect(screen.getAllByTestId('lightbox-slide')).toHaveLength(2);
   });
 
   it('shows empty state when no photos', async () => {

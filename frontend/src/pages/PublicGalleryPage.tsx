@@ -7,11 +7,18 @@ import {
   type TouchList as ReactTouchList,
 } from 'react';
 import { useParams } from 'react-router-dom';
-import { Download, Loader2, ImageOff, AlertCircle, Maximize2, Minimize2 } from 'lucide-react';
+import {
+  Download as DownloadIcon,
+  Loader2,
+  ImageOff,
+  AlertCircle,
+  Maximize2,
+  Minimize2,
+} from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
-import { PhotoModal } from '../components/PhotoModal';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { LazyImage } from '../components/LazyImage';
+import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import {
   shareLinkService,
   type PublicPhoto,
@@ -29,7 +36,6 @@ export const PublicGalleryPage = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string>('');
-  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
   const [gridDensity, setGridDensity] = useState<'large' | 'compact'>('large');
   const { theme } = useTheme();
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -40,6 +46,18 @@ export const PublicGalleryPage = () => {
 
   // Pagination settings
   const PHOTOS_PER_PAGE = 100;
+
+  // Load more photos callback (will be used by lightbox hook)
+  const loadMorePhotosRef = useRef<(() => void) | undefined>(undefined);
+
+  const { openLightbox, renderLightbox } = usePhotoLightbox({
+    photoCardSelector: '.pg-card',
+    gridRef,
+    onLoadMore: () => loadMorePhotosRef.current?.(),
+    hasMore,
+    isLoadingMore,
+    loadMoreThreshold: 10,
+  });
 
   const fetchGalleryData = useCallback(async () => {
     if (!shareId) {
@@ -102,6 +120,11 @@ export const PublicGalleryPage = () => {
       setIsLoadingMore(false);
     }
   }, [shareId, photos.length, isLoadingMore, hasMore, PHOTOS_PER_PAGE]);
+
+  // Update ref when loadMorePhotos changes
+  useEffect(() => {
+    loadMorePhotosRef.current = loadMorePhotos;
+  }, [loadMorePhotos]);
 
   useEffect(() => {
     fetchGalleryData();
@@ -223,72 +246,20 @@ export const PublicGalleryPage = () => {
     window.open(`${API_BASE_URL}/s/${shareId}/download/all`, '_blank');
   };
 
-  const handleDownloadPhoto = async (photoId: string) => {
-    // Find the photo in our photos array to get the presigned URL
-    const photo = photos.find((p) => p.photo_id === photoId);
-    if (!photo || !photo.full_url) return;
-
-    try {
-      // Fetch the image using the existing presigned URL
-      const response = await fetch(photo.full_url);
-      const blob = await response.blob();
-
-      // Create a download link from the blob
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = photo.filename || `photo-${photoId}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-
-      // Cleanup
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Failed to download photo:', error);
-    }
-  };
-
-  // Photo modal handlers
+  // Open lightbox at specific photo index
   const openPhoto = (index: number) => {
-    setSelectedPhotoIndex(index);
+    openLightbox(index);
   };
 
-  const closePhoto = () => {
-    setSelectedPhotoIndex(null);
-  };
-
-  const goToPrevPhoto = () => {
-    if (selectedPhotoIndex !== null && photos.length > 0) {
-      // Only allow wrapping to last photo if all photos are loaded
-      if (selectedPhotoIndex > 0) {
-        setSelectedPhotoIndex(selectedPhotoIndex - 1);
-      } else if (!hasMore) {
-        // All photos loaded, allow wrapping to the end
-        setSelectedPhotoIndex(photos.length - 1);
-      }
-      // If at start and hasMore=true, stay at first photo
-    }
-  };
-
-  const goToNextPhoto = useCallback(() => {
-    if (selectedPhotoIndex !== null && photos.length > 0) {
-      // Check if we're near the end and should load more
-      const threshold = 10; // Load more when within 10 photos of the end
-      if (hasMore && !isLoadingMore && selectedPhotoIndex >= photos.length - threshold) {
-        loadMorePhotos();
-      }
-
-      // Navigate to next photo, but don't loop back if there are more to load
-      if (selectedPhotoIndex < photos.length - 1) {
-        setSelectedPhotoIndex(selectedPhotoIndex + 1);
-      } else if (!hasMore) {
-        // Only loop back to start if all photos are loaded
-        setSelectedPhotoIndex(0);
-      }
-      // If at the end and still hasMore, stay at current photo until more load
-    }
-  }, [selectedPhotoIndex, photos.length, hasMore, isLoadingMore, loadMorePhotos]);
+  // Prepare slides for lightbox
+  const lightboxSlides = photos.map((photo) => ({
+    src: photo.full_url,
+    width: photo.width || undefined,
+    height: photo.height || undefined,
+    alt: photo.filename || `Photo ${photo.photo_id}`,
+    download: photo.full_url,
+    downloadFilename: photo.filename || `photo-${photo.photo_id}.jpg`,
+  }));
 
   const gridClassNames = [
     'pg-grid',
@@ -434,7 +405,7 @@ export const PublicGalleryPage = () => {
               onClick={handleDownloadAll}
               className="bg-accent hover:bg-accent/90 text-accent-foreground px-6 py-3 rounded-lg font-medium shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 inline-flex items-center gap-2"
             >
-              <Download className="w-5 h-5" />
+              <DownloadIcon className="w-5 h-5" />
               Download All Photos
             </button>
           </div>
@@ -543,22 +514,10 @@ export const PublicGalleryPage = () => {
         <div className="text-center mt-12 text-muted dark:text-text text-sm">
           <p>Powered by Viewport - Your Photo Gallery Solution</p>
         </div>
-
-        {/* Photo Modal */}
-        <PhotoModal
-          photos={photos}
-          selectedIndex={selectedPhotoIndex}
-          onClose={closePhoto}
-          onPrevious={goToPrevPhoto}
-          onNext={goToNextPhoto}
-          onDownload={handleDownloadPhoto}
-          isPublic={true}
-          shareId={shareId}
-          isLoadingMore={isLoadingMore}
-          hasMore={hasMore}
-          totalPhotos={gallery?.total_photos}
-        />
       </div>
+
+      {/* Lightbox */}
+      {renderLightbox(lightboxSlides, photos.length)}
     </div>
   );
 };

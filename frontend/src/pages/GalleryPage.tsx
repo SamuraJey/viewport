@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { galleryService, type GalleryDetail } from '../services/galleryService';
 import { photoService, type PhotoResponse } from '../services/photoService';
 import type { PhotoUploadResponse } from '../services/photoService';
 import { shareLinkService, type ShareLink } from '../services/shareLinkService';
 import { Layout } from '../components/Layout';
-import { PhotoModal } from '../components/PhotoModal';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
+import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import { formatDateOnly } from '../lib/utils';
 import {
   Loader2,
@@ -45,9 +45,16 @@ export const GalleryPage = () => {
   const [uploadError, setUploadError] = useState('');
   const [isCreatingLink, setIsCreatingLink] = useState(false);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
-  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
+
+  // Refs
+  const gridRef = useRef<HTMLDivElement | null>(null);
+
+  const { openLightbox, renderLightbox } = usePhotoLightbox({
+    photoCardSelector: '[data-photo-card]',
+    gridRef,
+  });
 
   // Use new hooks
   const pagination = usePagination({ pageSize: 100, syncWithUrl: true });
@@ -388,25 +395,7 @@ export const GalleryPage = () => {
 
   // Photo modal handlers
   const openPhoto = (index: number) => {
-    setSelectedPhotoIndex(index);
-  };
-
-  const closePhoto = () => {
-    setSelectedPhotoIndex(null);
-  };
-
-  const goToPrevPhoto = () => {
-    if (selectedPhotoIndex !== null) {
-      const newIndex = selectedPhotoIndex > 0 ? selectedPhotoIndex - 1 : photoUrls.length - 1;
-      setSelectedPhotoIndex(newIndex);
-    }
-  };
-
-  const goToNextPhoto = () => {
-    if (selectedPhotoIndex !== null) {
-      const newIndex = selectedPhotoIndex < photoUrls.length - 1 ? selectedPhotoIndex + 1 : 0;
-      setSelectedPhotoIndex(newIndex);
-    }
+    openLightbox(index);
   };
 
   const handleSetCover = async (photoId: string) => {
@@ -688,10 +677,14 @@ export const GalleryPage = () => {
               <span className="text-sm text-muted/70 mt-1">Page {pagination.page}</span>
             </div>
           ) : photoUrls.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8 pt-14">
+            <div
+              className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8 pt-14"
+              ref={gridRef}
+            >
               {photoUrls.map((photo, index) => (
                 <div
                   key={photo.id}
+                  data-photo-card
                   className="group bg-surface dark:bg-surface-foreground rounded-lg flex flex-col relative overflow-visible"
                 >
                   {/* Selection checkbox */}
@@ -1029,20 +1022,15 @@ export const GalleryPage = () => {
         </div>
       </div>
 
-      {/* Photo Modal */}
-      <PhotoModal
-        photos={photoUrls.map((p) => ({
-          id: p.id,
-          url: p.url,
-          created_at: '',
-          gallery_id: galleryId,
-        }))}
-        selectedIndex={selectedPhotoIndex}
-        onClose={closePhoto}
-        onPrevious={goToPrevPhoto}
-        onNext={goToNextPhoto}
-        isPublic={false}
-      />
+      {/* Lightbox */}
+      {renderLightbox(
+        photoUrls.map((photo) => ({
+          src: photo.url,
+          alt: photo.filename,
+          download: photo.url,
+          downloadFilename: photo.filename,
+        })),
+      )}
 
       {/* Photo Rename Modal */}
       <PhotoRenameModal
