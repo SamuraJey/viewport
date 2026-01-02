@@ -66,7 +66,7 @@ class AsyncS3Client:
         )
         # Small file config - skip multipart overhead for small files
         self._small_transfer_config = TransferConfig(
-            multipart_threshold=50 * 1024 * 1024,  # 50MB - never use multipart for small files
+            multipart_threshold=50 * 1024 * 1024,  # 50MB threshold ensures small files (<5MB) never use multipart, even with overhead
             use_threads=False,
         )
         logger.info(f"AsyncS3Client initialized: endpoint={self._endpoint_url}, bucket={self.settings.bucket}, region={self.settings.region}")
