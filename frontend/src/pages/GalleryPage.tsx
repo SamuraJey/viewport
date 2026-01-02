@@ -1,12 +1,18 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { galleryService, type GalleryDetail } from '../services/galleryService';
 import { photoService, type PhotoResponse } from '../services/photoService';
 import type { PhotoUploadResponse } from '../services/photoService';
 import { shareLinkService, type ShareLink } from '../services/shareLinkService';
 import { Layout } from '../components/Layout';
-import { PhotoModal } from '../components/PhotoModal';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
+import Lightbox from 'yet-another-react-lightbox';
+import Thumbnails from 'yet-another-react-lightbox/plugins/thumbnails';
+import Fullscreen from 'yet-another-react-lightbox/plugins/fullscreen';
+import LightboxDownload from 'yet-another-react-lightbox/plugins/download';
+import Zoom from 'yet-another-react-lightbox/plugins/zoom';
+import 'yet-another-react-lightbox/styles.css';
+import 'yet-another-react-lightbox/plugins/thumbnails.css';
 import { formatDateOnly } from '../lib/utils';
 import {
   Loader2,
@@ -45,9 +51,18 @@ export const GalleryPage = () => {
   const [uploadError, setUploadError] = useState('');
   const [isCreatingLink, setIsCreatingLink] = useState(false);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
-  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
+
+  // Refs
+  const thumbnailsRef = useRef<{
+    visible: boolean;
+    show: () => void;
+    hide: () => void;
+  } | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
 
   // Use new hooks
   const pagination = usePagination({ pageSize: 100, syncWithUrl: true });
@@ -388,26 +403,34 @@ export const GalleryPage = () => {
 
   // Photo modal handlers
   const openPhoto = (index: number) => {
-    setSelectedPhotoIndex(index);
+    setLightboxIndex(index);
+    setLightboxOpen(true);
   };
 
-  const closePhoto = () => {
-    setSelectedPhotoIndex(null);
-  };
+  // Handle thumbnails visibility on mobile
+  const handleThumbnailsVisibility = useCallback(() => {
+    if (!thumbnailsRef.current) return;
 
-  const goToPrevPhoto = () => {
-    if (selectedPhotoIndex !== null) {
-      const newIndex = selectedPhotoIndex > 0 ? selectedPhotoIndex - 1 : photoUrls.length - 1;
-      setSelectedPhotoIndex(newIndex);
+    const isMobile = window.innerWidth < 768;
+    if (isMobile) {
+      thumbnailsRef.current?.hide();
+    } else {
+      thumbnailsRef.current?.show();
     }
-  };
+  }, []);
 
-  const goToNextPhoto = () => {
-    if (selectedPhotoIndex !== null) {
-      const newIndex = selectedPhotoIndex < photoUrls.length - 1 ? selectedPhotoIndex + 1 : 0;
-      setSelectedPhotoIndex(newIndex);
+  // Scroll to photo in grid when lightbox closes
+  const handleLightboxExited = useCallback(() => {
+    const photoCards = gridRef.current?.querySelectorAll('[data-photo-card]');
+    if (photoCards && photoCards[lightboxIndex]) {
+      const photoElement = photoCards[lightboxIndex] as HTMLElement;
+      photoElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'nearest',
+      });
     }
-  };
+  }, [lightboxIndex]);
 
   const handleSetCover = async (photoId: string) => {
     try {
@@ -688,10 +711,14 @@ export const GalleryPage = () => {
               <span className="text-sm text-muted/70 mt-1">Page {pagination.page}</span>
             </div>
           ) : photoUrls.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8 pt-14">
+            <div
+              className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8 pt-14"
+              ref={gridRef}
+            >
               {photoUrls.map((photo, index) => (
                 <div
                   key={photo.id}
+                  data-photo-card
                   className="group bg-surface dark:bg-surface-foreground rounded-lg flex flex-col relative overflow-visible"
                 >
                   {/* Selection checkbox */}
@@ -1029,19 +1056,68 @@ export const GalleryPage = () => {
         </div>
       </div>
 
-      {/* Photo Modal */}
-      <PhotoModal
-        photos={photoUrls.map((p) => ({
-          id: p.id,
-          url: p.url,
-          created_at: '',
-          gallery_id: galleryId,
+      {/* Lightbox */}
+      <Lightbox
+        open={lightboxOpen}
+        close={() => setLightboxOpen(false)}
+        index={lightboxIndex}
+        slides={photoUrls.map((photo) => ({
+          src: photo.url,
+          alt: photo.filename,
+          download: photo.url,
+          downloadFilename: photo.filename,
         }))}
-        selectedIndex={selectedPhotoIndex}
-        onClose={closePhoto}
-        onPrevious={goToPrevPhoto}
-        onNext={goToNextPhoto}
-        isPublic={false}
+        plugins={[Thumbnails, Fullscreen, LightboxDownload, Zoom]}
+        controller={{
+          closeOnPullDown: true,
+          closeOnPullUp: true,
+          closeOnBackdropClick: true,
+        }}
+        thumbnails={{
+          ref: thumbnailsRef,
+          position: 'bottom',
+          width: 120,
+          height: 80,
+          border: 0,
+          borderRadius: 4,
+          padding: 4,
+          gap: 8,
+        }}
+        carousel={{
+          finite: true,
+          padding: '0px',
+          spacing: 0,
+          imageFit: 'contain',
+        }}
+        zoom={{
+          maxZoomPixelRatio: 3,
+          scrollToZoom: true,
+        }}
+        styles={{
+          container: { backgroundColor: 'rgba(0, 0, 0, 0.85)' },
+        }}
+        download={{
+          download: async ({ slide, saveAs }) => {
+            const response = await fetch(slide.src);
+            const blob = await response.blob();
+            const filename =
+              typeof slide.download === 'object'
+                ? slide.download.filename
+                : slide.alt || 'photo.jpg';
+            saveAs(blob, filename);
+          },
+        }}
+        on={{
+          entered: () => {
+            handleThumbnailsVisibility();
+          },
+          view: ({ index }) => {
+            setLightboxIndex(index);
+          },
+          exited: () => {
+            handleLightboxExited();
+          },
+        }}
       />
 
       {/* Photo Rename Modal */}

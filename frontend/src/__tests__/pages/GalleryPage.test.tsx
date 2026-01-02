@@ -4,6 +4,32 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { GalleryPage } from '../../pages/GalleryPage';
 
+// Mock yet-another-react-lightbox
+vi.mock('yet-another-react-lightbox', () => ({
+  default: ({ open, slides, index }: any) =>
+    open ? (
+      <div data-testid="lightbox">
+        <div data-testid="lightbox-slide">{slides[index]?.src}</div>
+      </div>
+    ) : null,
+}));
+
+vi.mock('yet-another-react-lightbox/plugins/thumbnails', () => ({
+  default: () => null,
+}));
+
+vi.mock('yet-another-react-lightbox/plugins/fullscreen', () => ({
+  default: () => null,
+}));
+
+vi.mock('yet-another-react-lightbox/plugins/download', () => ({
+  default: () => null,
+}));
+
+vi.mock('yet-another-react-lightbox/plugins/zoom', () => ({
+  default: () => null,
+}));
+
 // Mock data
 const mockGalleryData = {
   id: '1',
@@ -193,9 +219,9 @@ describe('GalleryPage', () => {
 
       await userEvent.click(firstPhotoButton!);
 
-      // Modal should be visible
+      // Lightbox should be visible
       await waitFor(() => {
-        expect(screen.getByText('1 of 3')).toBeInTheDocument();
+        expect(screen.getByTestId('lightbox')).toBeInTheDocument();
       });
     });
 
@@ -219,18 +245,14 @@ describe('GalleryPage', () => {
         );
       });
 
-      // Open modal
+      // Open lightbox
       const photoImages = screen.getAllByAltText(/Photo photo/i);
       const photoButton = photoImages[0].closest('button');
       await userEvent.click(photoButton!);
 
       await waitFor(() => {
-        expect(screen.getByText('1 of 1')).toBeInTheDocument();
+        expect(screen.getByTestId('lightbox')).toBeInTheDocument();
       });
-
-      // Navigation buttons should not be present
-      expect(screen.queryByRole('button', { name: /previous/i })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: /next/i })).not.toBeInTheDocument();
     });
   });
 
