@@ -260,6 +260,22 @@ export const PublicGalleryPage = () => {
     }
   }, []);
 
+  // Scroll to photo in grid when lightbox closes
+  const handleLightboxExited = useCallback(() => {
+    // Find the photo card element by index
+    const photoCards = gridRef.current?.querySelectorAll('.pg-card');
+    if (photoCards && photoCards[lightboxIndex]) {
+      const photoElement = photoCards[lightboxIndex] as HTMLElement;
+
+      // Scroll to the photo with smooth animation
+      photoElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'nearest',
+      });
+    }
+  }, [lightboxIndex]);
+
   // Prepare slides for lightbox
   const lightboxSlides = photos.map((photo) => ({
     src: photo.full_url,
@@ -582,11 +598,18 @@ export const PublicGalleryPage = () => {
             handleThumbnailsVisibility();
           },
           view: ({ index }) => {
+            // Update current index as user navigates through photos
+            setLightboxIndex(index);
+
             // Load more photos when viewing near the end
             const threshold = 10;
             if (hasMore && !isLoadingMore && index >= photos.length - threshold) {
               loadMorePhotos();
             }
+          },
+          exited: () => {
+            // Scroll to the current photo position when lightbox closes
+            handleLightboxExited();
           },
         }}
       />
