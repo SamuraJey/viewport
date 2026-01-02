@@ -2,7 +2,9 @@
 Tests for AsyncS3Client
 
 This module contains unit and integration tests for the AsyncS3Client service.
-Tests use mocking for unit tests and testcontainers for integration tests.
+Tests use mocking for unit tests. Each test mocks _get_s3_client() to provide
+fresh context managers for async operations, reflecting the per-operation session
+creation strategy used by AsyncS3Client.
 """
 
 import io
@@ -27,7 +29,11 @@ def mock_settings():
 
 @pytest.fixture
 def s3_client(mock_settings):
-    """Create an AsyncS3Client instance with mocked settings."""
+    """Create an AsyncS3Client instance with mocked settings.
+
+    The client is configured with test settings but actual S3 operations
+    are mocked in individual tests.
+    """
     with patch("viewport.s3_service.S3Settings", return_value=mock_settings):
         client = AsyncS3Client()
         return client
@@ -46,7 +52,7 @@ class TestAsyncS3ClientInit:
         """Test that the session property creates a session once and reuses it."""
         session1 = s3_client.session
         session2 = s3_client.session
-        assert session1 is session2
+        assert session1 is session2  # Shared session for memory efficiency
 
 
 class TestAsyncS3ClientUploadFileobj:
@@ -63,7 +69,7 @@ class TestAsyncS3ClientUploadFileobj:
         mock_context.__aenter__.return_value = mock_s3_client
         mock_context.__aexit__.return_value = None
 
-        s3_client.session.client = MagicMock(return_value=mock_context)
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
 
         result = await s3_client.upload_fileobj(file_obj, "test-key.txt")
 
@@ -80,7 +86,7 @@ class TestAsyncS3ClientUploadFileobj:
         mock_context.__aenter__.return_value = mock_s3_client
         mock_context.__aexit__.return_value = None
 
-        s3_client.session.client = MagicMock(return_value=mock_context)
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
 
         result = await s3_client.upload_fileobj(file_content, "test-key.txt")
 
@@ -97,7 +103,7 @@ class TestAsyncS3ClientUploadFileobj:
         mock_context.__aenter__.return_value = mock_s3_client
         mock_context.__aexit__.return_value = None
 
-        s3_client.session.client = MagicMock(return_value=mock_context)
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
 
         result = await s3_client.upload_fileobj(file_content, "test-image.jpg", content_type="image/jpeg")
 
@@ -118,7 +124,7 @@ class TestAsyncS3ClientUploadFileobj:
         mock_context.__aenter__.return_value = mock_s3_client
         mock_context.__aexit__.return_value = None
 
-        s3_client.session.client = MagicMock(return_value=mock_context)
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
 
         with pytest.raises(Exception, match="Upload failed"):  # noqa: B017
             await s3_client.upload_fileobj(file_content, "test-key.txt")
@@ -141,7 +147,7 @@ class TestAsyncS3ClientDownloadFileobj:
         mock_context.__aenter__.return_value = mock_s3_client
         mock_context.__aexit__.return_value = None
 
-        s3_client.session.client = MagicMock(return_value=mock_context)
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
 
         result = await s3_client.download_fileobj("test-key.txt")
 
@@ -157,7 +163,7 @@ class TestAsyncS3ClientDownloadFileobj:
         mock_context.__aenter__.return_value = mock_s3_client
         mock_context.__aexit__.return_value = None
 
-        s3_client.session.client = MagicMock(return_value=mock_context)
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
 
         with pytest.raises(ValueError, match="No body in response"):
             await s3_client.download_fileobj("test-key.txt")
@@ -171,7 +177,7 @@ class TestAsyncS3ClientDownloadFileobj:
         mock_context.__aenter__.return_value = mock_s3_client
         mock_context.__aexit__.return_value = None
 
-        s3_client.session.client = MagicMock(return_value=mock_context)
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
 
         with pytest.raises(Exception, match="Download failed"):  # noqa: B017
             await s3_client.download_fileobj("test-key.txt")
@@ -188,7 +194,7 @@ class TestAsyncS3ClientDeleteFile:
         mock_context.__aenter__.return_value = mock_s3_client
         mock_context.__aexit__.return_value = None
 
-        s3_client.session.client = MagicMock(return_value=mock_context)
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
 
         await s3_client.delete_file("test-key.txt")
 
@@ -203,7 +209,7 @@ class TestAsyncS3ClientDeleteFile:
         mock_context.__aenter__.return_value = mock_s3_client
         mock_context.__aexit__.return_value = None
 
-        s3_client.session.client = MagicMock(return_value=mock_context)
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
 
         with pytest.raises(Exception, match="Delete failed"):  # noqa: B017
             await s3_client.delete_file("test-key.txt")
@@ -221,7 +227,7 @@ class TestAsyncS3ClientFileExists:
         mock_context.__aenter__.return_value = mock_s3_client
         mock_context.__aexit__.return_value = None
 
-        s3_client.session.client = MagicMock(return_value=mock_context)
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
 
         result = await s3_client.file_exists("test-key.txt")
 
@@ -237,7 +243,7 @@ class TestAsyncS3ClientFileExists:
         mock_context.__aenter__.return_value = mock_s3_client
         mock_context.__aexit__.return_value = None
 
-        s3_client.session.client = MagicMock(return_value=mock_context)
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
 
         with pytest.raises(Exception, match="Connection error"):  # noqa: B017
             await s3_client.file_exists("test-key.txt")
@@ -254,7 +260,7 @@ class TestAsyncS3ClientRenameFile:
         mock_context.__aenter__.return_value = mock_s3_client
         mock_context.__aexit__.return_value = None
 
-        s3_client.session.client = MagicMock(return_value=mock_context)
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
 
         await s3_client.rename_file("old-key.txt", "new-key.txt")
 
@@ -276,10 +282,85 @@ class TestAsyncS3ClientRenameFile:
         mock_context.__aenter__.return_value = mock_s3_client
         mock_context.__aexit__.return_value = None
 
-        s3_client.session.client = MagicMock(return_value=mock_context)
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
 
         with pytest.raises(Exception, match="Rename failed"):  # noqa: B017
             await s3_client.rename_file("old-key.txt", "new-key.txt")
+
+
+class TestAsyncS3ClientRetryLogic:
+    """Tests for retry logic on transient errors."""
+
+    @pytest.mark.asyncio
+    async def test_upload_retries_on_unauthorized_access(self, s3_client):
+        """Test that upload retries on UnauthorizedAccess error."""
+        from botocore.exceptions import ClientError
+
+        file_content = b"test file content"
+
+        # First call fails with UnauthorizedAccess, second succeeds
+        mock_s3_client = AsyncMock()
+        error_response = {"Error": {"Code": "UnauthorizedAccess"}}
+        mock_s3_client.upload_fileobj.side_effect = [
+            ClientError(error_response, "PutObject"),
+            None,  # Success on retry
+        ]
+
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        result = await s3_client.upload_fileobj(file_content, "test-key.txt")
+
+        assert result == "/test-bucket/test-key.txt"
+        # Should be called twice (once fails, once succeeds)
+        assert mock_s3_client.upload_fileobj.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_upload_fails_after_max_retries(self, s3_client):
+        """Test that upload fails after max retries."""
+        from botocore.exceptions import ClientError
+
+        file_content = b"test file content"
+
+        mock_s3_client = AsyncMock()
+        error_response = {"Error": {"Code": "UnauthorizedAccess"}}
+        # All attempts fail
+        mock_s3_client.upload_fileobj.side_effect = ClientError(error_response, "PutObject")
+
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        with pytest.raises(ClientError):
+            await s3_client.upload_fileobj(file_content, "test-key.txt")
+
+        # Should be called 3 times (max retries)
+        assert mock_s3_client.upload_fileobj.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_upload_does_not_retry_non_transient_errors(self, s3_client):
+        """Test that upload does not retry on non-transient errors."""
+        file_content = b"test file content"
+
+        mock_s3_client = AsyncMock()
+        mock_s3_client.upload_fileobj.side_effect = Exception("Invalid bucket")
+
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        with pytest.raises(Exception, match="Invalid bucket"):
+            await s3_client.upload_fileobj(file_content, "test-key.txt")
+
+        # Should only be called once (no retry for non-transient error)
+        assert mock_s3_client.upload_fileobj.call_count == 1
 
 
 class TestAsyncS3ClientClose:
@@ -289,7 +370,11 @@ class TestAsyncS3ClientClose:
     async def test_close(self, s3_client):
         """Test that close sets session to None."""
         s3_client._session = MagicMock()
+        mock_presign = MagicMock()
+        s3_client._presign_client = mock_presign
 
         await s3_client.close()
 
         assert s3_client._session is None
+        mock_presign.close.assert_called_once()
+        assert s3_client._presign_client is None

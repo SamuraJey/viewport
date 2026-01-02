@@ -46,112 +46,6 @@ celery_app.conf.update(
 )
 
 
-@celery_app.task(name="create_thumbnail", bind=True, max_retries=3, rate_limit="50/s")  # pragma: no cover
-def create_thumbnail_task(self, object_key: str, photo_id: str) -> dict:
-    """Background task to create thumbnail for uploaded photo
-
-    Rate limited to 150 tasks per second to avoid overwhelming database
-
-    Args:
-        object_key: S3 object key of the original photo
-        photo_id: Database ID of the photo record
-
-    Returns:
-        dict with status and thumbnail info
-    """
-    try:
-        logger.info(f"Starting thumbnail creation for photo {photo_id}, object_key: {object_key}")
-
-        from viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client
-        from viewport.models.db import get_session_maker
-        from viewport.models.gallery import Photo
-
-        # First, check if photo still exists in database (may have been deleted)
-        session_maker = get_session_maker()
-        with session_maker() as db:
-            from sqlalchemy import select
-
-            stmt = select(Photo).where(Photo.id == photo_id)
-            photo = db.execute(stmt).scalar_one_or_none()
-
-            if not photo:
-                logger.info(f"Photo {photo_id} no longer exists in database, skipping thumbnail creation")
-                return {"status": "skipped", "message": "Photo deleted", "photo_id": photo_id}
-
-        # Get settings
-        from viewport.minio_utils import S3Settings
-
-        settings = S3Settings()
-
-        # Download original from S3
-        s3_client = get_s3_client()
-        try:
-            response = s3_client.get_object(Bucket=settings.bucket, Key=object_key)
-            image_bytes = response["Body"].read()
-        except Exception as s3_error:
-            # If file doesn't exist in S3 (NoSuchKey), don't retry - photo was likely deleted
-            error_code = getattr(s3_error, "response", {}).get("Error", {}).get("Code", "")
-            if error_code == "NoSuchKey":
-                logger.info(f"File {object_key} not found in S3 (photo likely deleted), skipping thumbnail creation")
-                return {"status": "skipped", "message": "File not found in S3", "photo_id": photo_id}
-            # For other S3 errors, re-raise to trigger retry
-            raise
-
-        # Create thumbnail
-        thumbnail_bytes = create_thumbnail(image_bytes)
-
-        # Generate thumbnail object key
-        thumbnail_object_key = generate_thumbnail_object_key(object_key)
-
-        # Upload thumbnail to S3 with proper Content-Type using the shared client
-        thumbnail_io = io.BytesIO(thumbnail_bytes)
-        s3_client.upload_fileobj(thumbnail_io, settings.bucket, thumbnail_object_key, ExtraArgs={"ContentType": "image/jpeg"})
-
-        # Update database with thumbnail info using direct UPDATE query (faster, no row lock)
-        # Note: width and height are already extracted during upload, so we only update thumbnail_object_key
-        from sqlalchemy import update
-
-        from viewport.cache_utils import clear_presigned_url_cache
-
-        # Use context manager to ensure transaction is always closed properly
-        session_maker = get_session_maker()
-        with session_maker() as db:
-            try:
-                # Use direct UPDATE statement instead of ORM (avoids SELECT + row lock)
-                # Only update thumbnail_object_key since dimensions are already set during upload
-                update_stmt = update(Photo).where(Photo.id == photo_id).values(thumbnail_object_key=thumbnail_object_key)
-                result = db.execute(update_stmt)
-                db.commit()
-
-                if result.rowcount == 0:
-                    logger.warning(f"Photo {photo_id} not found in database")
-                    return {"status": "error", "message": "Photo not found"}
-
-                # Invalidate cache for the thumbnail now that it's updated
-                clear_presigned_url_cache(thumbnail_object_key)
-
-                logger.info(f"Successfully created thumbnail for photo {photo_id}")
-            except Exception as db_error:
-                logger.error(f"Database update failed for photo {photo_id}: {db_error}")
-                db.rollback()
-                raise
-
-        return {
-            "status": "success",
-            "photo_id": photo_id,
-            "thumbnail_object_key": thumbnail_object_key,
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to create thumbnail for photo {photo_id}: {e}", exc_info=True)
-        # Retry the task
-        try:
-            raise self.retry(exc=e, countdown=60)  # Retry after 1 minute
-        except self.MaxRetriesExceededError:
-            logger.error(f"Max retries exceeded for photo {photo_id}")
-            return {"status": "error", "message": str(e), "photo_id": photo_id}
-
-
 @celery_app.task(name="create_thumbnails_batch", bind=True, max_retries=3, rate_limit="50/s")  # pragma: no cover
 def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
     """Background task to create thumbnails for multiple photos in one batch
@@ -223,6 +117,19 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
             del image_bytes
 
             thumbnail_object_key = generate_thumbnail_object_key(object_key)
+
+            # CRITICAL: Check again if photo still exists before uploading thumbnail
+            # This prevents race condition where gallery/photo is deleted during thumbnail generation
+            with session_maker() as db_check:
+                photo_check_stmt = select(Photo.id).where(Photo.id == photo_id)
+                photo_still_exists = db_check.execute(photo_check_stmt).scalar_one_or_none()
+
+                if not photo_still_exists:
+                    logger.warning(f"Photo {photo_id} was deleted during thumbnail generation, skipping upload")
+                    results.append({"photo_id": photo_id, "status": "skipped", "message": "Photo deleted during processing"})
+                    skipped += 1
+                    del thumbnail_bytes
+                    continue
 
             # Upload thumbnail to S3 with proper Content-Type using the shared client
             thumbnail_io = io.BytesIO(thumbnail_bytes)
