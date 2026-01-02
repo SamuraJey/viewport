@@ -3,9 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Polyfill ResizeObserver for jsdom environment used by Vitest
 if (!(global as any).ResizeObserver) {
   (global as any).ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+    observe() { }
+    unobserve() { }
+    disconnect() { }
   };
 }
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -66,16 +66,29 @@ vi.mock('../../components/PublicBatchImage', () => ({
   PublicBatchImageProvider: ({ children }: any) => <div>{children}</div>,
 }));
 
-// Mock ThemeSwitch and PhotoModal to keep tests focused
+// Mock ThemeSwitch and Lightbox to keep tests focused
 vi.mock('../../components/ThemeSwitch', () => ({
   ThemeSwitch: () => <button data-testid="theme-switch">T</button>,
 }));
-vi.mock('../../components/PhotoModal', () => ({
-  PhotoModal: ({ photos, selectedIndex }: any) => (
-    <div data-testid="photo-modal">
-      {selectedIndex !== null && <div>{`${selectedIndex! + 1} of ${photos.length}`}</div>}
+
+vi.mock('yet-another-react-lightbox', () => ({
+  default: ({ open, slides, index }: any) => (
+    <div data-testid="lightbox">
+      {open && slides[index] && <div>{`${index + 1} of ${slides.length}`}</div>}
     </div>
   ),
+}));
+
+vi.mock('yet-another-react-lightbox/plugins/thumbnails', () => ({
+  default: () => null,
+}));
+
+vi.mock('yet-another-react-lightbox/plugins/fullscreen', () => ({
+  default: () => null,
+}));
+
+vi.mock('yet-another-react-lightbox/plugins/download', () => ({
+  default: () => null,
 }));
 
 // Mock useParams to provide shareId
@@ -128,7 +141,7 @@ describe('PublicGalleryPage', () => {
     expect(thumbs).toHaveLength(2);
   });
 
-  it('opens photo modal when clicking a photo', async () => {
+  it('opens photo lightbox when clicking a photo', async () => {
     render(wrapper());
 
     await waitFor(() => expect(screen.getByText('Photos (2)')).toBeInTheDocument());
@@ -137,7 +150,7 @@ describe('PublicGalleryPage', () => {
     const button = within(first).getByRole('button');
     await userEvent.click(button);
 
-    await waitFor(() => expect(screen.getByTestId('photo-modal')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('lightbox')).toBeInTheDocument());
     expect(screen.getByText('1 of 2')).toBeInTheDocument();
   });
 
