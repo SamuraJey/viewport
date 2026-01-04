@@ -27,11 +27,8 @@ export const LazyImage = ({
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Calculate aspect ratio from provided dimensions
-  const aspectRatio = objectFit === 'cover'
-    ? width && height
-      ? `${width}/${height}`
-      : '4/3'
-    : undefined;
+  const aspectRatio =
+    objectFit === 'cover' ? (width && height ? `${width}/${height}` : '4/3') : undefined;
 
   useEffect(() => {
     const observer = new IntersectionObserver(
