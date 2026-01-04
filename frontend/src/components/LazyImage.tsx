@@ -4,19 +4,34 @@ interface LazyImageProps {
   src: string;
   alt: string;
   className?: string;
+  imgClassName?: string;
   style?: React.CSSProperties;
   width?: number | null;
   height?: number | null;
+  objectFit?: 'cover' | 'contain';
 }
 
-export const LazyImage = ({ src, alt, className, style, width, height }: LazyImageProps) => {
+export const LazyImage = ({
+  src,
+  alt,
+  className,
+  imgClassName,
+  style,
+  width,
+  height,
+  objectFit = 'cover',
+}: LazyImageProps) => {
   const [imageSrc, setImageSrc] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Calculate aspect ratio from provided dimensions
-  const aspectRatio = width && height ? `${width}/${height}` : '4/3';
+  const aspectRatio = objectFit === 'cover'
+    ? width && height
+      ? `${width}/${height}`
+      : '4/3'
+    : undefined;
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -70,14 +85,14 @@ export const LazyImage = ({ src, alt, className, style, width, height }: LazyIma
   }
 
   return (
-    <div className={className} style={style}>
+    <div className={`relative ${className ?? ''}`} style={style}>
       {imageSrc ? (
         <img
           ref={imgRef}
           src={imageSrc}
           alt={alt}
-          className={`w-full h-auto object-cover ${isLoading ? 'opacity-0' : 'opacity-100 transition-opacity duration-300'}`}
-          style={{ aspectRatio }}
+          className={`w-full h-auto ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${imgClassName ?? ''} ${isLoading ? 'opacity-0' : 'opacity-100 transition-opacity duration-300'}`}
+          style={aspectRatio ? { aspectRatio } : undefined}
           onLoad={handleLoad}
           onError={handleError}
         />
@@ -85,7 +100,7 @@ export const LazyImage = ({ src, alt, className, style, width, height }: LazyIma
         <div
           ref={imgRef}
           className="w-full bg-surface-foreground dark:bg-surface animate-pulse flex items-center justify-center"
-          style={{ aspectRatio }}
+          style={aspectRatio ? { aspectRatio } : undefined}
         >
           <div className="text-text-muted text-sm">Loading...</div>
         </div>

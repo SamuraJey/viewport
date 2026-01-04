@@ -1,6 +1,7 @@
 import {
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
   useRef,
   type TouchEvent as ReactTouchEvent,
@@ -37,6 +38,7 @@ export const PublicGalleryPage = () => {
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string>('');
   const [gridDensity, setGridDensity] = useState<'large' | 'compact'>('large');
+  const [gridLayout, setGridLayout] = useState<'masonry' | 'uniform'>('masonry');
   const { theme } = useTheme();
   const gridRef = useRef<HTMLDivElement | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
@@ -80,10 +82,13 @@ export const PublicGalleryPage = () => {
       setHasMore(data.photos.length === PHOTOS_PER_PAGE);
 
       // After gallery is set, schedule masonry spans computation
-      requestAnimationFrame(() => {
-        if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
-        computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100);
-      });
+      if (gridLayout === 'masonry') {
+        requestAnimationFrame(() => {
+          if (computeSpansDebounceRef.current)
+            window.clearTimeout(computeSpansDebounceRef.current);
+          computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100);
+        });
+      }
     } catch (err) {
       console.error('Failed to fetch shared gallery:', err);
       setError('Gallery not found or link has expired');
@@ -110,16 +115,19 @@ export const PublicGalleryPage = () => {
       setHasMore(newPhotos.length === PHOTOS_PER_PAGE);
 
       // Recompute masonry layout after loading new photos
-      requestAnimationFrame(() => {
-        if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
-        computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100);
-      });
+      if (gridLayout === 'masonry') {
+        requestAnimationFrame(() => {
+          if (computeSpansDebounceRef.current)
+            window.clearTimeout(computeSpansDebounceRef.current);
+          computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100);
+        });
+      }
     } catch (err) {
       console.error('Failed to load more photos:', err);
     } finally {
       setIsLoadingMore(false);
     }
-  }, [shareId, photos.length, isLoadingMore, hasMore, PHOTOS_PER_PAGE]);
+  }, [shareId, photos.length, isLoadingMore, hasMore, PHOTOS_PER_PAGE, gridLayout]);
 
   // Update ref when loadMorePhotos changes
   useEffect(() => {
@@ -155,6 +163,7 @@ export const PublicGalleryPage = () => {
 
   // Masonry span computation
   const computeSpans = () => {
+    if (gridLayout !== 'masonry') return;
     const grid = gridRef.current;
     if (!grid) return;
     const cs = getComputedStyle(grid);
@@ -171,8 +180,9 @@ export const PublicGalleryPage = () => {
 
   // Observe resize to reflow masonry
   useEffect(() => {
+    if (gridLayout !== 'masonry') return undefined;
     const grid = gridRef.current;
-    if (!grid) return;
+    if (!grid) return undefined;
     const schedule = () => {
       if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
       computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 80);
@@ -188,19 +198,57 @@ export const PublicGalleryPage = () => {
         computeSpansDebounceRef.current = null;
       }
     };
-  }, [photos]);
+  }, [photos, gridLayout]);
 
   // Recompute masonry when grid density changes
   useEffect(() => {
+    if (gridLayout !== 'masonry') return;
     requestAnimationFrame(() => {
       if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
       computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 80);
     });
-  }, [gridDensity, photos.length]);
+  }, [gridDensity, photos.length, gridLayout]);
+
+  // When switching into masonry, compute spans immediately (pre-paint) to avoid overlap flash
+  useLayoutEffect(() => {
+    if (gridLayout !== 'masonry') return;
+    computeSpans();
+    requestAnimationFrame(() => {
+      if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
+      computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 60);
+    });
+  }, [gridLayout, photos.length]);
+
+  const clearGridRowSpans = useCallback(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    Array.from(grid.children).forEach((item) => {
+      (item as HTMLElement).style.gridRowEnd = '';
+    });
+  }, []);
+
+  // Clear inline spans when leaving masonry so uniform grid uses natural flow
+  useEffect(() => {
+    if (gridLayout === 'masonry') return;
+    clearGridRowSpans();
+  }, [gridLayout, photos.length, clearGridRowSpans]);
 
   const setGridMode = useCallback((mode: 'large' | 'compact') => {
     setGridDensity((prev) => (prev === mode ? prev : mode));
   }, []);
+
+  const setLayoutMode = useCallback(
+    (mode: 'masonry' | 'uniform') => {
+      setGridLayout((prev) => {
+        if (prev === mode) return prev;
+        if (mode === 'uniform') {
+          clearGridRowSpans(); // avoid transient overlap while spans linger
+        }
+        return mode;
+      });
+    },
+    [clearGridRowSpans],
+  );
 
   const calculateTouchDistance = (touches: ReactTouchList) => {
     if (touches.length < 2) return 0;
@@ -263,7 +311,13 @@ export const PublicGalleryPage = () => {
 
   const gridClassNames = [
     'pg-grid',
-    gridDensity === 'compact' ? 'pg-grid--compact' : 'pg-grid--large',
+    gridLayout === 'masonry'
+      ? gridDensity === 'compact'
+        ? 'pg-grid--compact'
+        : 'pg-grid--large'
+      : gridDensity === 'compact'
+        ? 'pg-grid-uniform--compact'
+        : 'pg-grid-uniform--large',
     'pg-gesture-surface',
   ].join(' ');
 
@@ -425,35 +479,107 @@ export const PublicGalleryPage = () => {
               Photos ({gallery?.total_photos ?? photos.length})
             </h2>
 
-            <div className="hidden md:flex items-center gap-2" aria-label="Grid density controls">
-              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
-                Grid size
-              </span>
-              <div className="inline-flex rounded-lg border border-border overflow-hidden shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setGridMode('large')}
-                  className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors ${gridDensity === 'large' ? 'bg-accent text-accent-foreground' : 'bg-transparent text-text/80 dark:text-accent-foreground/80 hover:bg-surface-foreground/40'}`}
-                  aria-pressed={gridDensity === 'large'}
-                >
-                  <Maximize2 className="w-4 h-4" />
-                  Large
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setGridMode('compact')}
-                  className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors border-l border-border ${gridDensity === 'compact' ? 'bg-accent text-accent-foreground' : 'bg-transparent text-text/80 dark:text-accent-foreground/80 hover:bg-surface-foreground/40'}`}
-                  aria-pressed={gridDensity === 'compact'}
-                >
-                  <Minimize2 className="w-4 h-4" />
-                  Compact
-                </button>
+            <div className="hidden md:flex items-center gap-4" aria-label="Grid controls">
+              <div className="flex items-center gap-2" aria-label="Layout controls">
+                <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+                  Layout
+                </span>
+                <div className="inline-flex rounded-lg border border-border overflow-hidden shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setLayoutMode('masonry')}
+                    className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors ${gridLayout === 'masonry' ? 'bg-accent text-accent-foreground' : 'bg-transparent text-text/80 dark:text-accent-foreground/80 hover:bg-surface-foreground/40'}`}
+                    aria-pressed={gridLayout === 'masonry'}
+                  >
+                    Masonry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLayoutMode('uniform')}
+                    className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors border-l border-border ${gridLayout === 'uniform' ? 'bg-accent text-accent-foreground' : 'bg-transparent text-text/80 dark:text-accent-foreground/80 hover:bg-surface-foreground/40'}`}
+                    aria-pressed={gridLayout === 'uniform'}
+                  >
+                    Uniform
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2" aria-label="Grid density controls">
+                <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+                  Grid size
+                </span>
+                <div className="inline-flex rounded-lg border border-border overflow-hidden shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setGridMode('large')}
+                    className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors ${gridDensity === 'large' ? 'bg-accent text-accent-foreground' : 'bg-transparent text-text/80 dark:text-accent-foreground/80 hover:bg-surface-foreground/40'}`}
+                    aria-pressed={gridDensity === 'large'}
+                  >
+                    <Maximize2 className="w-4 h-4" />
+                    Large
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGridMode('compact')}
+                    className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors border-l border-border ${gridDensity === 'compact' ? 'bg-accent text-accent-foreground' : 'bg-transparent text-text/80 dark:text-accent-foreground/80 hover:bg-surface-foreground/40'}`}
+                    aria-pressed={gridDensity === 'compact'}
+                  >
+                    <Minimize2 className="w-4 h-4" />
+                    Compact
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
           <div className="md:hidden text-xs text-muted mb-4">
-            Pinch with two fingers to switch between large and compact grids.
+            Pinch with two fingers to switch grid size. Use the controls below to change layout.
+          </div>
+
+          <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4" aria-label="Mobile grid controls">
+            <div className="flex items-center gap-2 justify-between rounded-lg border border-border px-3 py-2 bg-surface/60">
+              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">Layout</span>
+              <div className="inline-flex rounded-md border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setLayoutMode('masonry')}
+                  className={`px-2.5 py-1.5 text-xs transition-colors ${gridLayout === 'masonry' ? 'bg-accent text-accent-foreground' : 'bg-transparent text-text/80 dark:text-accent-foreground/80'}`}
+                  aria-pressed={gridLayout === 'masonry'}
+                >
+                  Masonry
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLayoutMode('uniform')}
+                  className={`px-2.5 py-1.5 text-xs border-l border-border transition-colors ${gridLayout === 'uniform' ? 'bg-accent text-accent-foreground' : 'bg-transparent text-text/80 dark:text-accent-foreground/80'}`}
+                  aria-pressed={gridLayout === 'uniform'}
+                >
+                  Uniform
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 justify-between rounded-lg border border-border px-3 py-2 bg-surface/60">
+              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">Grid size</span>
+              <div className="inline-flex rounded-md border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setGridMode('large')}
+                  className={`px-2.5 py-1.5 text-xs transition-colors ${gridDensity === 'large' ? 'bg-accent text-accent-foreground' : 'bg-transparent text-text/80 dark:text-accent-foreground/80'}`}
+                  aria-pressed={gridDensity === 'large'}
+                >
+                  Large
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGridMode('compact')}
+                  className={`px-2.5 py-1.5 text-xs border-l border-border transition-colors ${gridDensity === 'compact' ? 'bg-accent text-accent-foreground' : 'bg-transparent text-text/80 dark:text-accent-foreground/80'}`}
+                  aria-pressed={gridDensity === 'compact'}
+                >
+                  Compact
+                </button>
+              </div>
+            </div>
           </div>
 
           {photos.length > 0 ? (
@@ -462,7 +588,7 @@ export const PublicGalleryPage = () => {
                 {photos.map((photo, index) => (
                   <div
                     key={photo.photo_id}
-                    className="pg-card pg-card-animate relative group"
+                    className={`pg-card pg-card-animate relative group ${gridLayout === 'uniform' ? 'pg-card--uniform' : ''}`}
                     style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
                     data-testid="public-batch"
                   >
@@ -471,13 +597,17 @@ export const PublicGalleryPage = () => {
                       className="w-full p-0 border-0 bg-transparent cursor-pointer block"
                       aria-label={`Photo ${photo.photo_id}`}
                     >
-                      <LazyImage
-                        src={photo.thumbnail_url}
-                        alt={`Photo ${photo.photo_id}`}
-                        className="w-full"
-                        width={photo.width}
-                        height={photo.height}
-                      />
+                      <div className={`pg-card__media ${gridLayout === 'uniform' ? 'pg-card__media--uniform' : ''}`}>
+                        <LazyImage
+                          src={photo.thumbnail_url}
+                          alt={`Photo ${photo.photo_id}`}
+                          className="pg-card__img"
+                          imgClassName="pg-card__img"
+                          objectFit={gridLayout === 'uniform' ? 'contain' : 'cover'}
+                          width={photo.width}
+                          height={photo.height}
+                        />
+                      </div>
                     </button>
                   </div>
                 ))}
