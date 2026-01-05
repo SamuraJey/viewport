@@ -48,7 +48,6 @@ export const PublicGalleryPage = () => {
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchHandledRef = useRef(false);
   const previousGridLayoutRef = useRef(gridLayout);
-  const isSwitchingLayoutType = previousGridLayoutRef.current !== gridLayout;
 
   // Pagination settings
   const PHOTOS_PER_PAGE = 100;
@@ -699,7 +698,7 @@ export const PublicGalleryPage = () => {
               >
                 {photos.map((photo, index) => (
                   <motion.div
-                    layout={isSwitchingLayoutType ? 'position' : true}
+                    layout
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
                     whileHover={{
@@ -721,19 +720,16 @@ export const PublicGalleryPage = () => {
                       className="w-full p-0 border-0 bg-transparent cursor-pointer block"
                       aria-label={`Photo ${photo.photo_id}`}
                     >
-                      <div
+                      <LazyImage
+                        src={photo.thumbnail_url}
+                        alt={`Photo ${photo.photo_id}`}
                         className={`pg-card__media ${gridLayout === 'uniform' ? 'pg-card__media--uniform' : ''}`}
-                      >
-                        <LazyImage
-                          src={photo.thumbnail_url}
-                          alt={`Photo ${photo.photo_id}`}
-                          className="pg-card__img"
-                          imgClassName="pg-card__img"
-                          objectFit={gridLayout === 'uniform' ? 'contain' : 'cover'}
-                          width={photo.width}
-                          height={photo.height}
-                        />
-                      </div>
+                        imgClassName="pg-card__img"
+                        objectFit={gridLayout === 'uniform' ? 'contain' : 'cover'}
+                        width={photo.width}
+                        height={photo.height}
+                        layout
+                      />
                     </button>
                   </motion.div>
                 ))}

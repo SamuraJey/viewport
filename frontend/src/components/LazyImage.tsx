@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
 
 interface LazyImageProps {
   src: string;
@@ -9,6 +10,7 @@ interface LazyImageProps {
   width?: number | null;
   height?: number | null;
   objectFit?: 'cover' | 'contain';
+  layout?: boolean | 'position' | 'size';
 }
 
 export const LazyImage = ({
@@ -20,6 +22,7 @@ export const LazyImage = ({
   width,
   height,
   objectFit = 'cover',
+  layout,
 }: LazyImageProps) => {
   const [imageSrc, setImageSrc] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
@@ -27,8 +30,7 @@ export const LazyImage = ({
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Calculate aspect ratio from provided dimensions
-  const aspectRatio =
-    objectFit === 'cover' ? (width && height ? `${width}/${height}` : '4/3') : undefined;
+  const aspectRatio = width && height ? `${width}/${height}` : '4/3';
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -82,31 +84,42 @@ export const LazyImage = ({
   }
 
   return (
-    <div className={`relative ${className ?? ''}`} style={style}>
+    <motion.div
+      layout={layout}
+      className={`relative flex items-center justify-center overflow-hidden ${className ?? ''}`}
+      style={style}
+      transition={{
+        layout: { duration: 0.3, ease: 'easeInOut' },
+      }}
+    >
       {imageSrc ? (
-        <img
+        <motion.img
+          layout={layout}
           ref={imgRef}
           src={imageSrc}
           alt={alt}
-          className={`w-full h-auto ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${imgClassName ?? ''} ${isLoading ? 'opacity-0' : 'opacity-100 transition-opacity duration-300'}`}
-          style={aspectRatio ? { aspectRatio } : undefined}
+          className={`w-full h-full ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${imgClassName ?? ''} ${isLoading ? 'opacity-0' : 'opacity-100 transition-opacity duration-300'}`}
           onLoad={handleLoad}
           onError={handleError}
+          transition={{
+            layout: { duration: 0.3, ease: 'easeInOut' },
+          }}
         />
       ) : (
-        <div
+        <motion.div
+          layout={layout}
           ref={imgRef}
           className="w-full bg-surface-foreground dark:bg-surface animate-pulse flex items-center justify-center"
-          style={aspectRatio ? { aspectRatio } : undefined}
+          style={{ aspectRatio }}
         >
           <div className="text-text-muted text-sm">Loading...</div>
-        </div>
+        </motion.div>
       )}
       {isLoading && imageSrc && (
         <div className="absolute inset-0 bg-surface-foreground dark:bg-surface animate-pulse flex items-center justify-center">
           <div className="text-text-muted text-sm">Loading...</div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };
