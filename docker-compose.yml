@@ -52,7 +52,7 @@ services:
           memory: 512M
 
   s3-service:
-    image: rustfs/rustfs:1.0.0-alpha.65
+    image: rustfs/rustfs:1.0.0-alpha.78
     container_name: viewport_s3
     restart: always
     environment:

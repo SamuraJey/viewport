@@ -1,15 +1,29 @@
 import { useState, useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
 
 interface LazyImageProps {
   src: string;
   alt: string;
   className?: string;
+  imgClassName?: string;
   style?: React.CSSProperties;
   width?: number | null;
   height?: number | null;
+  objectFit?: 'cover' | 'contain';
+  layout?: boolean | 'position' | 'size';
 }
 
-export const LazyImage = ({ src, alt, className, style, width, height }: LazyImageProps) => {
+export const LazyImage = ({
+  src,
+  alt,
+  className,
+  imgClassName,
+  style,
+  width,
+  height,
+  objectFit = 'cover',
+  layout,
+}: LazyImageProps) => {
   const [imageSrc, setImageSrc] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -32,7 +46,7 @@ export const LazyImage = ({ src, alt, className, style, width, height }: LazyIma
       },
       {
         root: null,
-        rootMargin: '50px', // Start loading 50px before entering viewport
+        rootMargin: '75px', // Start loading 75px before entering viewport
         threshold: 0.1,
       },
     );
@@ -70,31 +84,42 @@ export const LazyImage = ({ src, alt, className, style, width, height }: LazyIma
   }
 
   return (
-    <div className={className} style={style}>
+    <motion.div
+      layout={layout}
+      className={`relative flex items-center justify-center overflow-hidden ${className ?? ''}`}
+      style={style}
+      transition={{
+        layout: { duration: 0.3, ease: 'easeInOut' },
+      }}
+    >
       {imageSrc ? (
-        <img
+        <motion.img
+          layout={layout}
           ref={imgRef}
           src={imageSrc}
           alt={alt}
-          className={`w-full h-auto object-cover ${isLoading ? 'opacity-0' : 'opacity-100 transition-opacity duration-300'}`}
-          style={{ aspectRatio }}
+          className={`w-full h-full ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${imgClassName ?? ''} ${isLoading ? 'opacity-0' : 'opacity-100 transition-opacity duration-300'}`}
           onLoad={handleLoad}
           onError={handleError}
+          transition={{
+            layout: { duration: 0.3, ease: 'easeInOut' },
+          }}
         />
       ) : (
-        <div
+        <motion.div
+          layout={layout}
           ref={imgRef}
           className="w-full bg-surface-foreground dark:bg-surface animate-pulse flex items-center justify-center"
           style={{ aspectRatio }}
         >
           <div className="text-text-muted text-sm">Loading...</div>
-        </div>
+        </motion.div>
       )}
       {isLoading && imageSrc && (
         <div className="absolute inset-0 bg-surface-foreground dark:bg-surface animate-pulse flex items-center justify-center">
           <div className="text-text-muted text-sm">Loading...</div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };

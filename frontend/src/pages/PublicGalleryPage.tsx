@@ -1,12 +1,15 @@
 import {
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
   useRef,
+  startTransition,
   type TouchEvent as ReactTouchEvent,
   type TouchList as ReactTouchList,
 } from 'react';
 import { useParams } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import {
   Download as DownloadIcon,
   Loader2,
@@ -37,12 +40,14 @@ export const PublicGalleryPage = () => {
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string>('');
   const [gridDensity, setGridDensity] = useState<'large' | 'compact'>('large');
+  const [gridLayout, setGridLayout] = useState<'masonry' | 'uniform'>('masonry');
   const { theme } = useTheme();
   const gridRef = useRef<HTMLDivElement | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
   const computeSpansDebounceRef = useRef<number | null>(null);
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchHandledRef = useRef(false);
+  const previousGridLayoutRef = useRef(gridLayout);
 
   // Pagination settings
   const PHOTOS_PER_PAGE = 100;
@@ -58,6 +63,45 @@ export const PublicGalleryPage = () => {
     isLoadingMore,
     loadMoreThreshold: 10,
   });
+
+  // Masonry span computation
+  const computeSpans = useCallback(() => {
+    if (gridLayout !== 'masonry') return;
+    const grid = gridRef.current;
+    if (!grid) return;
+
+    const cs = getComputedStyle(grid);
+    const rowHeight = parseFloat(cs.getPropertyValue('grid-auto-rows')) || 8;
+    const rowGap = parseFloat(cs.getPropertyValue('gap')) || 20;
+
+    // Use a more stable way to calculate spans that doesn't depend on current animated height.
+    // We calculate the target height based on the column width and the photo's aspect ratio.
+    const gridWidth = grid.offsetWidth;
+    const gridColStyle = cs.getPropertyValue('grid-template-columns');
+    // Resolved grid-template-columns usually looks like "400px 400px"
+    const numCols = gridColStyle.split(' ').filter((s) => s.trim() !== '').length || 1;
+    const colWidth = (gridWidth - (numCols - 1) * rowGap) / numCols;
+
+    const items = Array.from(grid.children) as HTMLElement[];
+    items.forEach((item, index) => {
+      const photo = photos[index];
+      if (!photo) return;
+
+      // Use provided dimensions or fallback to 4:3
+      const w = photo.width || 4;
+      const h = photo.height || 3;
+      const ratio = w / h;
+
+      const targetHeight = colWidth / ratio;
+      const span = Math.ceil((targetHeight + rowGap) / (rowHeight + rowGap));
+      const next = `span ${span}`;
+      if (item.style.gridRowEnd !== next) item.style.gridRowEnd = next;
+    });
+  }, [gridLayout, photos]);
+
+  useEffect(() => {
+    previousGridLayoutRef.current = gridLayout;
+  }, [gridLayout]);
 
   const fetchGalleryData = useCallback(async () => {
     if (!shareId) {
@@ -78,12 +122,6 @@ export const PublicGalleryPage = () => {
 
       // Check if there are more photos to load
       setHasMore(data.photos.length === PHOTOS_PER_PAGE);
-
-      // After gallery is set, schedule masonry spans computation
-      requestAnimationFrame(() => {
-        if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
-        computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100);
-      });
     } catch (err) {
       console.error('Failed to fetch shared gallery:', err);
       setError('Gallery not found or link has expired');
@@ -108,12 +146,6 @@ export const PublicGalleryPage = () => {
 
       // Check if there are more photos to load
       setHasMore(newPhotos.length === PHOTOS_PER_PAGE);
-
-      // Recompute masonry layout after loading new photos
-      requestAnimationFrame(() => {
-        if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
-        computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 100);
-      });
     } catch (err) {
       console.error('Failed to load more photos:', err);
     } finally {
@@ -153,53 +185,73 @@ export const PublicGalleryPage = () => {
     };
   }, [hasMore, isLoadingMore, loadMorePhotos]);
 
-  // Masonry span computation
-  const computeSpans = () => {
-    const grid = gridRef.current;
-    if (!grid) return;
-    const cs = getComputedStyle(grid);
-    const rowHeight = parseFloat(cs.getPropertyValue('grid-auto-rows')) || 8;
-    const rowGap = parseFloat(cs.getPropertyValue('gap')) || 20;
-    const items = Array.from(grid.children) as HTMLElement[];
-    items.forEach((item) => {
-      const el = item as HTMLElement;
-      const height = el.getBoundingClientRect().height;
-      const span = Math.ceil((height + rowGap) / (rowHeight + rowGap));
-      el.style.gridRowEnd = `span ${span}`;
-    });
-  };
-
   // Observe resize to reflow masonry
   useEffect(() => {
+    if (gridLayout !== 'masonry') return undefined;
     const grid = gridRef.current;
-    if (!grid) return;
+    if (!grid) return undefined;
     const schedule = () => {
-      if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
-      computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 80);
+      if (computeSpansDebounceRef.current) cancelAnimationFrame(computeSpansDebounceRef.current);
+      computeSpansDebounceRef.current = requestAnimationFrame(() => computeSpans());
     };
     const ro = new ResizeObserver(() => schedule());
-    // observe the grid itself and images inside so we recalc when content changes
+    // We compute spans from aspect ratios, so observing images is unnecessary/expensive.
     ro.observe(grid);
-    grid.querySelectorAll('img').forEach((img) => ro.observe(img));
     return () => {
       ro.disconnect();
       if (computeSpansDebounceRef.current) {
-        window.clearTimeout(computeSpansDebounceRef.current);
+        cancelAnimationFrame(computeSpansDebounceRef.current);
         computeSpansDebounceRef.current = null;
       }
     };
-  }, [photos]);
+  }, [photos, gridLayout, computeSpans]);
 
-  // Recompute masonry when grid density changes
+  // Recompute masonry spans, but defer to rAF to keep INP low.
   useEffect(() => {
-    requestAnimationFrame(() => {
-      if (computeSpansDebounceRef.current) window.clearTimeout(computeSpansDebounceRef.current);
-      computeSpansDebounceRef.current = window.setTimeout(() => computeSpans(), 80);
+    if (gridLayout !== 'masonry') return;
+    if (computeSpansDebounceRef.current) cancelAnimationFrame(computeSpansDebounceRef.current);
+    computeSpansDebounceRef.current = requestAnimationFrame(() => computeSpans());
+    return () => {
+      if (computeSpansDebounceRef.current) {
+        cancelAnimationFrame(computeSpansDebounceRef.current);
+        computeSpansDebounceRef.current = null;
+      }
+    };
+  }, [gridLayout, gridDensity, photos.length, computeSpans]);
+
+  const clearGridRowSpans = useCallback(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    Array.from(grid.children).forEach((item) => {
+      (item as HTMLElement).style.gridRowEnd = '';
     });
-  }, [gridDensity, photos.length]);
+  }, []);
+
+  // Clear inline spans when leaving masonry so uniform grid uses natural flow
+  useLayoutEffect(() => {
+    if (gridLayout === 'masonry') return;
+    clearGridRowSpans();
+  }, [gridLayout, photos.length, clearGridRowSpans]);
+
+  // Compute spans immediately when switching to masonry
+  useLayoutEffect(() => {
+    if (gridLayout !== 'masonry') return;
+    computeSpans();
+  }, [gridLayout, photos, computeSpans]);
 
   const setGridMode = useCallback((mode: 'large' | 'compact') => {
-    setGridDensity((prev) => (prev === mode ? prev : mode));
+    startTransition(() => {
+      setGridDensity((prev) => (prev === mode ? prev : mode));
+    });
+  }, []);
+
+  const setLayoutMode = useCallback((mode: 'masonry' | 'uniform') => {
+    startTransition(() => {
+      setGridLayout((prev) => {
+        if (prev === mode) return prev;
+        return mode;
+      });
+    });
   }, []);
 
   const calculateTouchDistance = (touches: ReactTouchList) => {
@@ -263,7 +315,13 @@ export const PublicGalleryPage = () => {
 
   const gridClassNames = [
     'pg-grid',
-    gridDensity === 'compact' ? 'pg-grid--compact' : 'pg-grid--large',
+    gridLayout === 'masonry'
+      ? gridDensity === 'compact'
+        ? 'pg-grid--compact'
+        : 'pg-grid--large'
+      : gridDensity === 'compact'
+        ? 'pg-grid-uniform--compact'
+        : 'pg-grid-uniform--large',
     'pg-gesture-surface',
   ].join(' ');
 
@@ -401,13 +459,15 @@ export const PublicGalleryPage = () => {
         {/* Gallery Actions */}
         {photos.length > 0 && (
           <div className="mb-8 text-center">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={handleDownloadAll}
-              className="bg-accent hover:bg-accent/90 text-accent-foreground px-6 py-3 rounded-lg font-medium shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 inline-flex items-center gap-2"
+              className="bg-accent hover:bg-accent/90 text-accent-foreground px-6 py-3 rounded-lg font-medium shadow-sm hover:shadow-md transition-all duration-200 inline-flex items-center gap-2"
             >
               <DownloadIcon className="w-5 h-5" />
               Download All Photos
-            </button>
+            </motion.button>
           </div>
         )}
 
@@ -425,45 +485,234 @@ export const PublicGalleryPage = () => {
               Photos ({gallery?.total_photos ?? photos.length})
             </h2>
 
-            <div className="hidden md:flex items-center gap-2" aria-label="Grid density controls">
-              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
-                Grid size
-              </span>
-              <div className="inline-flex rounded-lg border border-border overflow-hidden shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setGridMode('large')}
-                  className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors ${gridDensity === 'large' ? 'bg-accent text-accent-foreground' : 'bg-transparent text-text/80 dark:text-accent-foreground/80 hover:bg-surface-foreground/40'}`}
-                  aria-pressed={gridDensity === 'large'}
-                >
-                  <Maximize2 className="w-4 h-4" />
-                  Large
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setGridMode('compact')}
-                  className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors border-l border-border ${gridDensity === 'compact' ? 'bg-accent text-accent-foreground' : 'bg-transparent text-text/80 dark:text-accent-foreground/80 hover:bg-surface-foreground/40'}`}
-                  aria-pressed={gridDensity === 'compact'}
-                >
-                  <Minimize2 className="w-4 h-4" />
-                  Compact
-                </button>
+            <div className="hidden md:flex items-center gap-4" aria-label="Grid controls">
+              <div className="flex items-center gap-2" aria-label="Layout controls">
+                <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+                  Layout
+                </span>
+                <div className="inline-flex rounded-lg border border-border overflow-hidden shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setLayoutMode('masonry')}
+                    className="relative flex items-center gap-2 px-3 py-2 text-sm transition-colors"
+                    aria-pressed={gridLayout === 'masonry'}
+                  >
+                    {gridLayout === 'masonry' && (
+                      <motion.div
+                        layoutId="layout-active"
+                        className="absolute inset-0 bg-accent"
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                    <span
+                      className={`relative z-10 ${gridLayout === 'masonry' ? 'text-accent-foreground' : 'text-text/80 dark:text-accent-foreground/80'}`}
+                    >
+                      Masonry
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLayoutMode('uniform')}
+                    className="relative flex items-center gap-2 px-3 py-2 text-sm transition-colors border-l border-border"
+                    aria-pressed={gridLayout === 'uniform'}
+                  >
+                    {gridLayout === 'uniform' && (
+                      <motion.div
+                        layoutId="layout-active"
+                        className="absolute inset-0 bg-accent"
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                    <span
+                      className={`relative z-10 ${gridLayout === 'uniform' ? 'text-accent-foreground' : 'text-text/80 dark:text-accent-foreground/80'}`}
+                    >
+                      Uniform
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2" aria-label="Grid density controls">
+                <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+                  Grid size
+                </span>
+                <div className="inline-flex rounded-lg border border-border overflow-hidden shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setGridMode('large')}
+                    className="relative flex items-center gap-2 px-3 py-2 text-sm transition-colors"
+                    aria-pressed={gridDensity === 'large'}
+                  >
+                    {gridDensity === 'large' && (
+                      <motion.div
+                        layoutId="density-active"
+                        className="absolute inset-0 bg-accent"
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                    <Maximize2
+                      className={`relative z-10 w-4 h-4 ${gridDensity === 'large' ? 'text-accent-foreground' : 'text-text/80 dark:text-accent-foreground/80'}`}
+                    />
+                    <span
+                      className={`relative z-10 ${gridDensity === 'large' ? 'text-accent-foreground' : 'text-text/80 dark:text-accent-foreground/80'}`}
+                    >
+                      Large
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGridMode('compact')}
+                    className="relative flex items-center gap-2 px-3 py-2 text-sm transition-colors border-l border-border"
+                    aria-pressed={gridDensity === 'compact'}
+                  >
+                    {gridDensity === 'compact' && (
+                      <motion.div
+                        layoutId="density-active"
+                        className="absolute inset-0 bg-accent"
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                      />
+                    )}
+                    <Minimize2
+                      className={`relative z-10 w-4 h-4 ${gridDensity === 'compact' ? 'text-accent-foreground' : 'text-text/80 dark:text-accent-foreground/80'}`}
+                    />
+                    <span
+                      className={`relative z-10 ${gridDensity === 'compact' ? 'text-accent-foreground' : 'text-text/80 dark:text-accent-foreground/80'}`}
+                    >
+                      Compact
+                    </span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
           <div className="md:hidden text-xs text-muted mb-4">
-            Pinch with two fingers to switch between large and compact grids.
+            Pinch with two fingers to switch grid size. Use the controls below to change layout.
+          </div>
+
+          <div
+            className="md:hidden grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4"
+            aria-label="Mobile grid controls"
+          >
+            <div className="flex items-center gap-2 justify-between rounded-lg border border-border px-3 py-2 bg-surface/60">
+              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+                Layout
+              </span>
+              <div className="inline-flex rounded-md border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setLayoutMode('masonry')}
+                  className="relative px-2.5 py-1.5 text-xs transition-colors"
+                  aria-pressed={gridLayout === 'masonry'}
+                >
+                  {gridLayout === 'masonry' && (
+                    <motion.div
+                      layoutId="mobile-layout-active"
+                      className="absolute inset-0 bg-accent"
+                      transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <span
+                    className={`relative z-10 ${gridLayout === 'masonry' ? 'text-accent-foreground' : 'text-text/80 dark:text-accent-foreground/80'}`}
+                  >
+                    Masonry
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLayoutMode('uniform')}
+                  className="relative px-2.5 py-1.5 text-xs border-l border-border transition-colors"
+                  aria-pressed={gridLayout === 'uniform'}
+                >
+                  {gridLayout === 'uniform' && (
+                    <motion.div
+                      layoutId="mobile-layout-active"
+                      className="absolute inset-0 bg-accent"
+                      transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <span
+                    className={`relative z-10 ${gridLayout === 'uniform' ? 'text-accent-foreground' : 'text-text/80 dark:text-accent-foreground/80'}`}
+                  >
+                    Uniform
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 justify-between rounded-lg border border-border px-3 py-2 bg-surface/60">
+              <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+                Grid size
+              </span>
+              <div className="inline-flex rounded-md border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setGridMode('large')}
+                  className="relative px-2.5 py-1.5 text-xs transition-colors"
+                  aria-pressed={gridDensity === 'large'}
+                >
+                  {gridDensity === 'large' && (
+                    <motion.div
+                      layoutId="mobile-density-active"
+                      className="absolute inset-0 bg-accent"
+                      transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <span
+                    className={`relative z-10 ${gridDensity === 'large' ? 'text-accent-foreground' : 'text-text/80 dark:text-accent-foreground/80'}`}
+                  >
+                    Large
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGridMode('compact')}
+                  className="relative px-2.5 py-1.5 text-xs border-l border-border transition-colors"
+                  aria-pressed={gridDensity === 'compact'}
+                >
+                  {gridDensity === 'compact' && (
+                    <motion.div
+                      layoutId="mobile-density-active"
+                      className="absolute inset-0 bg-accent"
+                      transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                    />
+                  )}
+                  <span
+                    className={`relative z-10 ${gridDensity === 'compact' ? 'text-accent-foreground' : 'text-text/80 dark:text-accent-foreground/80'}`}
+                  >
+                    Compact
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
 
           {photos.length > 0 ? (
             <>
-              <div className={gridClassNames} ref={gridRef}>
+              <motion.div
+                layout
+                layoutRoot
+                transition={{ duration: 0.35, ease: [0.2, 0.9, 0.3, 1] }}
+                className={gridClassNames}
+                ref={gridRef}
+              >
                 {photos.map((photo, index) => (
-                  <div
+                  <motion.div
+                    layout
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    whileHover={{
+                      y: -6,
+                      scale: 1.01,
+                      transition: { duration: 0.2 },
+                    }}
+                    transition={{
+                      layout: { duration: 0.3, ease: 'easeInOut' },
+                      opacity: { duration: 0.2 },
+                      scale: { duration: 0.2 },
+                    }}
                     key={photo.photo_id}
-                    className="pg-card pg-card-animate relative group"
-                    style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
+                    className={`pg-card relative group ${gridLayout === 'uniform' ? 'pg-card--uniform' : ''}`}
                     data-testid="public-batch"
                   >
                     <button
@@ -474,14 +723,17 @@ export const PublicGalleryPage = () => {
                       <LazyImage
                         src={photo.thumbnail_url}
                         alt={`Photo ${photo.photo_id}`}
-                        className="w-full"
+                        className={`pg-card__media ${gridLayout === 'uniform' ? 'pg-card__media--uniform' : ''}`}
+                        imgClassName="pg-card__img"
+                        objectFit={gridLayout === 'uniform' ? 'contain' : 'cover'}
                         width={photo.width}
                         height={photo.height}
+                        layout
                       />
                     </button>
-                  </div>
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
 
               {/* Infinite scroll sentinel and loading indicator */}
               <div ref={observerTarget} className="h-4 mt-4" />
