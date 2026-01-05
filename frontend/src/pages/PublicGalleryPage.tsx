@@ -1,6 +1,7 @@
 import {
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
   useRef,
   startTransition,
@@ -228,10 +229,16 @@ export const PublicGalleryPage = () => {
   }, []);
 
   // Clear inline spans when leaving masonry so uniform grid uses natural flow
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (gridLayout === 'masonry') return;
     clearGridRowSpans();
   }, [gridLayout, photos.length, clearGridRowSpans]);
+
+  // Compute spans immediately when switching to masonry
+  useLayoutEffect(() => {
+    if (gridLayout !== 'masonry') return;
+    computeSpans();
+  }, [gridLayout, photos, computeSpans]);
 
   const setGridMode = useCallback((mode: 'large' | 'compact') => {
     startTransition(() => {

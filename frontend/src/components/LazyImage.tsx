@@ -44,7 +44,7 @@ export const LazyImage = ({
       },
       {
         root: null,
-        rootMargin: '50px', // Start loading 50px before entering viewport
+        rootMargin: '75px', // Start loading 75px before entering viewport
         threshold: 0.1,
       },
     );
