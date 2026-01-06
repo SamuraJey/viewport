@@ -50,7 +50,7 @@ def get_s3_client() -> "S3Client":
         protocol = "https" if settings.use_ssl else "http"
         endpoint = f"{protocol}://{endpoint}"
 
-    logger.info(f"Creating sync S3 client for endpoint: {endpoint}")
+    logger.info("Creating sync S3 client for endpoint: %s", endpoint)
 
     # Increase max pool connections to support concurrent uploads
     config = Config(
@@ -61,8 +61,8 @@ def get_s3_client() -> "S3Client":
         read_timeout=60,
         s3={"addressing_style": "path"},
     )
-    logger.info(f"Created sync S3 client config: {config}")
-    logger.info(f"S3 Client settings: {settings}")
+    logger.info("Created sync S3 client config: %s", config)
+    logger.info("S3 Client settings: %s", settings)
 
     return boto3.client(
         "s3",
@@ -129,7 +129,7 @@ def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800),
 
         return thumbnail_io.read(), width, height
     except Exception as e:
-        logger.error(f"Failed to create thumbnail: {e}")
+        logger.error("Failed to create thumbnail: %s", e)
         raise
 
 

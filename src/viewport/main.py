@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
         set_s3_client_instance(s3_client)
         logger.info("S3 client initialized successfully")
     except Exception as e:
-        logger.error(f"Failed to initialize S3 client: {e}")
+        logger.error("Failed to initialize S3 client: %s", e)
         raise
 
     yield
@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI):
         await s3_client.close()
         logger.info("S3 client closed successfully")
     except Exception as e:
-        logger.error(f"Error during S3 client shutdown: {e}")
+        logger.error("Error during S3 client shutdown: %s", e)
 
 
 # Create FastAPI app with lifespan

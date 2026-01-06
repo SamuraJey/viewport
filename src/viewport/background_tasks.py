@@ -59,7 +59,7 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
     Returns:
         dict with overall status and list of results per photo
     """
-    logger.info(f"Starting batch thumbnail creation for {len(photos)} photos")
+    logger.info("Starting batch thumbnail creation for %s photos", len(photos))
 
     results = []
     successful = 0
@@ -92,7 +92,7 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
         try:
             # Check if photo was deleted
             if photo_id not in existing_photo_ids:
-                logger.info(f"Photo {photo_id} no longer exists in database, skipping")
+                logger.info("Photo %s no longer exists in database, skipping", photo_id)
                 results.append({"photo_id": photo_id, "status": "skipped", "message": "Photo deleted"})
                 skipped += 1
                 continue
@@ -104,7 +104,7 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
             except Exception as s3_error:
                 error_code = getattr(s3_error, "response", {}).get("Error", {}).get("Code", "")
                 if error_code == "NoSuchKey":
-                    logger.info(f"File {object_key} not found in S3, skipping")
+                    logger.info("File %s not found in S3, skipping", object_key)
                     results.append({"photo_id": photo_id, "status": "skipped", "message": "File not found in S3"})
                     skipped += 1
                     continue
@@ -125,7 +125,7 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
                 photo_still_exists = db_check.execute(photo_check_stmt).scalar_one_or_none()
 
                 if not photo_still_exists:
-                    logger.warning(f"Photo {photo_id} was deleted during thumbnail generation, skipping upload")
+                    logger.warning("Photo %s was deleted during thumbnail generation, skipping upload", photo_id)
                     results.append({"photo_id": photo_id, "status": "skipped", "message": "Photo deleted during processing"})
                     skipped += 1
                     del thumbnail_bytes
@@ -139,12 +139,12 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
             del thumbnail_bytes
 
             # Store for batch UPDATE
-            logger.info(f"Successfully created thumbnail for photo {photo_id}: width={width}, height={height}, thumbnail_key={thumbnail_object_key}")
+            logger.info("Successfully created thumbnail for photo %s: width=%s, height=%s, thumbnail_key=%s", photo_id, width, height, thumbnail_object_key)
             results.append({"photo_id": photo_id, "status": "success", "thumbnail_object_key": thumbnail_object_key, "width": width, "height": height})
             successful += 1
 
         except Exception as e:
-            logger.error(f"Failed to create thumbnail for photo {photo_id}: {e}", exc_info=True)
+            logger.exception("Failed to create thumbnail for photo %s: %s", photo_id, e)
             results.append({"photo_id": photo_id, "status": "error", "message": str(e)})
             failed += 1
 
@@ -160,13 +160,13 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
                     # Build list of mappings for executemany
                     update_mappings = [{"id": r["photo_id"], "thumbnail_object_key": r["thumbnail_object_key"], "width": r["width"], "height": r["height"]} for r in successful_results]
 
-                    logger.info(f"Preparing to batch update {len(update_mappings)} photos with mappings: {update_mappings}")
+                    logger.info("Preparing to batch update %s photos with mappings: %s", len(update_mappings), update_mappings)
 
                     # Execute batch UPDATE using modern executemany pattern
                     db.execute(update(Photo), update_mappings)
                     db.commit()
 
-                    logger.info(f"Batch updated {len(update_mappings)} photos with thumbnails and dimensions")
+                    logger.info("Batch updated %s photos with thumbnails and dimensions", len(update_mappings))
 
                     # Invalidate cache for all updated thumbnails
                     from viewport.cache_utils import clear_presigned_urls_batch
@@ -175,7 +175,7 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
                     clear_presigned_urls_batch(thumbnail_keys)
 
             except Exception as db_error:
-                logger.error(f"Batch database update failed: {db_error}")
+                logger.error("Batch database update failed: %s", db_error)
                 db.rollback()
                 # Mark all as failed
                 for result in results:
@@ -185,6 +185,6 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
                 successful = 0
                 failed = len(results)
 
-    logger.info(f"Batch thumbnail creation complete: {successful} successful, {skipped} skipped, {failed} failed")
+    logger.info("Batch thumbnail creation complete: %s successful, %s skipped, %s failed", successful, skipped, failed)
 
     return {"status": "complete", "total": len(photos), "successful": successful, "skipped": skipped, "failed": failed, "results": results}
