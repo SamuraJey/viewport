@@ -23,7 +23,7 @@ S3_PORT = 9000
 
 logger = logging.getLogger(__name__)
 
-os.environ.update({"JWT_SECRET_KEY": "supersecretkey", "INVITE_CODE": "testinvitecode"})
+os.environ.update({"JWT_SECRET_KEY": "supersecretkey", "ADMIN_JWT_SECRET_KEY": "adminsecretkey", "INVITE_CODE": "testinvitecode"})
 
 
 @pytest.fixture(scope="session")

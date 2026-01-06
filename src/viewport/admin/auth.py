@@ -23,9 +23,6 @@ class AdminAuth(AuthenticationBackend):
         """Synchronous login logic running in thread pool."""
         form_dict = {}
         try:
-            # This is sync context, can't await
-            import asyncio
-
             loop = asyncio.new_event_loop()
             try:
                 form = loop.run_until_complete(request.form())
