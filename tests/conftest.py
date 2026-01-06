@@ -16,14 +16,14 @@ from testcontainers.postgres import PostgresContainer
 
 POSTGRES_IMAGE = "postgres:17-alpine"
 
-S3_IMAGE = "rustfs/rustfs:1.0.0-alpha.64"
+S3_IMAGE = "rustfs/rustfs:1.0.0-alpha.78"
 S3_ROOT_ACCESS_KEY = "minioadmin"
 S3_ROOT_SECRET_KEY = "minioadmin"
 S3_PORT = 9000
 
 logger = logging.getLogger(__name__)
 
-os.environ.update({"JWT_SECRET_KEY": "supersecretkey", "INVITE_CODE": "testinvitecode"})
+os.environ.update({"JWT_SECRET_KEY": "supersecretkey", "ADMIN_JWT_SECRET_KEY": "adminsecretkey", "INVITE_CODE": "testinvitecode"})
 
 
 @pytest.fixture(scope="session")
@@ -110,11 +110,6 @@ def s3_container() -> Generator[DockerContainer]:
         endpoint_url = f"http://{host}:{port}"
         bucket_name = os.environ["S3_BUCKET"]
 
-        # Ensure the bucket directory exists inside the container (fallback for signature issues)
-        # exit_code, output = s3_test_container.exec(["mkdir", "-p", f"/data/{bucket_name}"])
-        # if exit_code != 0:
-        #     raise RuntimeError(f"Failed to create bucket directory: {output.decode(errors='ignore')}")
-
         # Try to create the bucket via S3 API as well (preferred path)
         def _make_config(signature: str) -> Config:
             return Config(
@@ -154,12 +149,6 @@ def s3_container() -> Generator[DockerContainer]:
             os.environ["S3_SIGNATURE_VERSION"] = "s3v4"
             logger.info("Retrying S3 bucket setup with signature v4 due to previous failures")
             bucket_ready = _try_create_bucket("s3v4")
-
-        # if not bucket_ready:
-        #     logger.info(
-        #         "Proceeding with filesystem-created bucket for tests (signature=%s)",
-        #         os.environ["S3_SIGNATURE_VERSION"],
-        #     )
 
         yield s3_test_container
 
