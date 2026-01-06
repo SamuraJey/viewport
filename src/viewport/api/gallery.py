@@ -91,9 +91,9 @@ async def get_gallery_detail(
     photos_to_process = gallery.photos
     if limit is not None:
         photos_to_process = gallery.photos[offset : offset + limit]
-        logger.info(f"Gallery {gallery_id}: DB query took {db_time:.3f}s, total photos: {photo_count}, returning: {len(photos_to_process)} (offset={offset}, limit={limit})")
+        logger.info("Gallery %s: DB query took %.3fs, total photos: %s, returning: %s (offset=%s, limit=%s)", gallery_id, db_time, photo_count, len(photos_to_process), offset, limit)
     else:
-        logger.info(f"Gallery {gallery_id}: DB query took {db_time:.3f}s, photos count: {photo_count}")
+        logger.info("Gallery %s: DB query took %.3fs, photos count: %s", gallery_id, db_time, photo_count)
 
     # Use batch method for faster photo URL generation
     url_start = time.monotonic()
@@ -105,7 +105,7 @@ async def get_gallery_detail(
     urls_per_second = urls_generated / url_time if url_time > 0 else 0
 
     total_time = time.monotonic() - start_time
-    logger.info(f"Gallery {gallery_id}: URL generation took {url_time:.3f}s ({urls_generated} URLs, {urls_per_second:.0f} URLs/s), total time: {total_time:.3f}s")
+    logger.info("Gallery %s: URL generation took %.3fs (%s URLs, %.0f URLs/s), total time: %.3fs", gallery_id, url_time, urls_generated, urls_per_second, total_time)
 
     return GalleryDetailResponse(
         id=str(gallery.id),
@@ -127,14 +127,14 @@ def set_cover_photo(
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> GalleryResponse:
-    logger.info(f"Setting cover photo for gallery {gallery_id}, photo {photo_id}, user {current_user.id}")
+    logger.info("Setting cover photo for gallery %s, photo %s, user %s", gallery_id, photo_id, current_user.id)
 
     gallery = repo.set_cover_photo(gallery_id, photo_id, current_user.id)
     if not gallery:
-        logger.warning(f"Gallery {gallery_id} or photo {photo_id} not found")
+        logger.warning("Gallery %s or photo %s not found", gallery_id, photo_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery or photo not found")
 
-    logger.info(f"Cover photo set successfully: gallery {gallery_id}, cover_photo_id={gallery.cover_photo_id}")
+    logger.info("Cover photo set successfully: gallery %s, cover_photo_id=%s", gallery_id, gallery.cover_photo_id)
 
     return GalleryResponse(
         id=str(gallery.id),

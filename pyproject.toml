@@ -113,7 +113,8 @@ select = [
     "ERA",
     "C4",
     "TID",
-    "PERF"
+    "PERF",
+    "G"
 ]
 ignore = ["SIM108", "E712", "C416", "UP037"]
 flake8-bugbear.extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]

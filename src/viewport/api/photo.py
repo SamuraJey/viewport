@@ -135,7 +135,7 @@ async def upload_photos_batch(
                 )
 
             except Exception as e:
-                logger.error(f"Failed to upload file {file.filename}: {e}", exc_info=True)
+                logger.exception("Failed to upload file %s: %s", file.filename, e)
                 return PhotoUploadResult(filename=file.filename or "unknown", success=False, error=str(e))
 
     # Process all files concurrently (with semaphore limiting)
@@ -145,12 +145,12 @@ async def upload_photos_batch(
     successful_results = [r for r in results if r.success and r.metadata_ is not None]
     failed_results = [r for r in results if not r.success or r.metadata_ is None]
 
-    logger.info(f"Batch upload complete: {len(successful_results)} successful, {len(failed_results)} failed out of {len(results)} total")
+    logger.info("Batch upload complete: %s successful, %s failed out of %s total", len(successful_results), len(failed_results), len(results))
 
     # Batch insert successful photos into database
     if successful_results:
         batch_insert_start = time.time()
-        logger.info(f"Starting database batch insert for {len(successful_results)} photos")
+        logger.info("Starting database batch insert for %s photos", len(successful_results))
 
         photos_data = []
         for result in successful_results:
@@ -171,7 +171,7 @@ async def upload_photos_batch(
         created_photos = repo.create_photos_batch(photos_data)
 
         batch_insert_duration = time.time() - batch_insert_start
-        logger.info(f"Database batch insert completed in {batch_insert_duration:.2f}s")
+        logger.info("Database batch insert completed in %.2fs", batch_insert_duration)
 
         # Schedule background tasks for thumbnail creation in batches
         from viewport.background_tasks import create_thumbnails_batch_task
@@ -198,10 +198,10 @@ async def upload_photos_batch(
                 job.apply_async(ignore_result=True)
                 scheduled_batches = len(batches)
             except Exception as e:
-                logger.error(f"Failed to schedule batch tasks: {e}")
+                logger.error("Failed to schedule batch tasks: %s", e)
 
         celery_schedule_duration = time.time() - celery_schedule_start
-        logger.info(f"Scheduled {scheduled_batches} batch tasks ({len(photos_for_celery)} photos in batches of {batch_size}) in {celery_schedule_duration:.2f}s")
+        logger.info("Scheduled %s batch tasks (%s photos in batches of %s) in %.2fs", scheduled_batches, len(photos_for_celery), batch_size, celery_schedule_duration)
 
         # PERFORMANCE OPTIMIZATION: Don't generate presigned URLs here!
         # The frontend will fetch them separately when needed (e.g., when viewing gallery)

@@ -145,7 +145,7 @@ class GalleryRepository(BaseRepository):
         for data in photos_data:
             data["uploaded_at"] = now
 
-        logger.info(f"Starting batch INSERT of {len(photos_data)} photos")
+        logger.info("Starting batch INSERT of %s photos", len(photos_data))
         insert_start = time.time()
 
         # Single INSERT with RETURNING - much faster than bulk_insert_mappings + SELECT
@@ -154,14 +154,14 @@ class GalleryRepository(BaseRepository):
         photos = list(result.scalars().all())
 
         insert_duration = time.time() - insert_start
-        logger.info(f"INSERT completed in {insert_duration:.2f}s")
+        logger.info("INSERT completed in %.2fs", insert_duration)
 
         commit_start = time.time()
         self.db.commit()
         commit_duration = time.time() - commit_start
 
         total_duration = time.time() - start_time
-        logger.info(f"Batch INSERT total: {total_duration:.2f}s (INSERT: {insert_duration:.2f}s, COMMIT: {commit_duration:.2f}s)")
+        logger.info("Batch INSERT total: %.2fs (INSERT: %.2fs, COMMIT: %.2fs)", total_duration, insert_duration, commit_duration)
 
         return photos
 
@@ -186,13 +186,13 @@ class GalleryRepository(BaseRepository):
         try:
             await s3_client.delete_file(photo.object_key)
         except Exception as e:
-            logger.warning(f"Failed to delete original photo {photo.object_key}: {e}")
+            logger.warning("Failed to delete original photo %s: %s", photo.object_key, e)
 
         if photo.thumbnail_object_key != photo.object_key:  # Only delete if different
             try:
                 await s3_client.delete_file(photo.thumbnail_object_key)
             except Exception as e:
-                logger.warning(f"Failed to delete thumbnail {photo.thumbnail_object_key}: {e}")
+                logger.warning("Failed to delete thumbnail %s: %s", photo.thumbnail_object_key, e)
 
         # Delete from database
         self.db.delete(photo)
@@ -249,7 +249,7 @@ class GalleryRepository(BaseRepository):
         try:
             await s3_client.rename_file(photo.object_key, new_object_key)
         except Exception as e:
-            logger.error(f"Failed to rename object in S3: {e}")
+            logger.error("Failed to rename object in S3: %s", e)
             return None
 
         # Clear cached presigned URLs for both old and new object keys
