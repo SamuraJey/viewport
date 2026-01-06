@@ -1,5 +1,6 @@
 import io
 import logging
+from functools import lru_cache
 from typing import TYPE_CHECKING, cast
 
 import boto3
@@ -17,6 +18,12 @@ logger.setLevel(logging.INFO)
 
 if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
+
+
+@lru_cache(maxsize=1)
+def get_s3_settings() -> "S3Settings":
+    """Get cached S3 settings."""
+    return S3Settings()
 
 
 class S3Settings(BaseSettings):
@@ -37,12 +44,14 @@ class S3Settings(BaseSettings):
     )
 
 
+@lru_cache(maxsize=1)
 def get_s3_client() -> "S3Client":
     """Get a boto3 S3 client configured for MinIO (sync client).
 
     Used for operations that don't need async, like thumbnail uploads in Celery tasks.
+    The result is cached to avoid recreating the client and connection pool.
     """
-    settings = S3Settings()
+    settings = get_s3_settings()
 
     # Add protocol if not present
     endpoint = settings.endpoint
@@ -85,7 +94,7 @@ def upload_fileobj(fileobj: bytes | io.BytesIO, filename: str, content_type: str
     Returns:
         S3 object path
     """
-    settings = S3Settings()
+    settings = get_s3_settings()
     s3_client = get_s3_client()
 
     # Normalize raw bytes into a file-like object implementing read()

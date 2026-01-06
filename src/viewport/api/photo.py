@@ -68,6 +68,7 @@ async def get_all_photo_urls_for_gallery(
     return photo_responses
 
 
+# TODO We are going to impement this differently, using presigned URLs so frontend can upload directly to S3
 @router.post("/{gallery_id}/photos/batch", response_model=PhotoUploadResponse)
 async def upload_photos_batch(
     gallery_id: UUID,
@@ -99,7 +100,7 @@ async def upload_photos_batch(
         async with semaphore:
             try:
                 # Read file content into memory once - faster than multiple seeks
-                # This works well for photos which are typically <15MB
+                # This works well for photos which are typically <10MB
                 content = await file.read()
                 file_size = len(content)
 
@@ -108,7 +109,7 @@ async def upload_photos_batch(
                     return PhotoUploadResult(
                         filename=file.filename or "unknown",
                         success=False,
-                        error=f"File too large (max 15MB), got {file_size / (1024 * 1024):.1f}MB",
+                        error=f"File too large (max 10MB), got {file_size / (1024 * 1024):.1f}MB",
                     )
 
                 # Generate object key
@@ -178,8 +179,8 @@ async def upload_photos_batch(
 
         celery_schedule_start = time.time()
 
-        # Group photos into batches of 10 for memory-efficient processing
-        batch_size = 10
+        # Group photos into batches of 25 for memory-efficient processing
+        batch_size = 25
         scheduled_batches = 0
 
         # Prepare photo data for Celery tasks (extract once, not in loop)
