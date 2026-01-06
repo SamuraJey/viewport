@@ -125,14 +125,6 @@ unfixable = []
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
-[tool.pyrefly]
-project-excludes = [
-    "**/postgres_data*",
-    "**/conftest.py",
-    "**/src/viewport/alembic/**/*"
-]
-ignore-missing-imports = ["*"]
-
 [tool.ruff.lint.per-file-ignores]
 # Ignore E501 (line too long) in tests.
 "tests/*" = ["E501"]
