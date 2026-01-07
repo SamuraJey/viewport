@@ -6,7 +6,7 @@ from sqlalchemy import select, update
 
 from viewport.cache_utils import clear_presigned_urls_batch
 from viewport.celery_app import celery_app
-from viewport.minio_utils import S3Settings, create_thumbnail, generate_thumbnail_object_key
+from viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_settings
 from viewport.models.gallery import Photo
 from viewport.task_utils import BatchTaskResult, get_task_s3_client
 
@@ -121,7 +121,7 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
     logger.info("Starting batch thumbnail creation for %s photos", len(photos))
 
     s3_client = get_task_s3_client()
-    bucket = S3Settings().bucket
+    bucket = get_s3_settings().bucket
 
     result_tracker = BatchTaskResult(len(photos))
 
