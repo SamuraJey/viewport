@@ -1,7 +1,7 @@
 import io
 import logging
 from functools import lru_cache
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import boto3
 from botocore.client import Config
@@ -109,8 +109,11 @@ def upload_fileobj(fileobj: bytes | io.BytesIO, filename: str, content_type: str
     return f"/{settings.bucket}/{filename}"
 
 
-def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800), quality: int = 85) -> tuple[bytes, int, int]:
+def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800), quality: int = 80) -> tuple[bytes, int, int]:
     """Create a thumbnail from image bytes (CPU-bound, can be run in thread pool).
+
+    Optimized for performance and memory usage by using JPEG draft mode
+    and avoiding unnecessary full-resolution rotations.
 
     Args:
         image_bytes: Original image as bytes
@@ -121,22 +124,38 @@ def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800),
         Tuple of (thumbnail_bytes, width, height)
     """
     try:
-        image = cast(Image.Image, Image.open(io.BytesIO(image_bytes)))
-        # Apply EXIF orientation to fix rotation issues
-        image = ImageOps.exif_transpose(image) or image
-        image = image.convert("RGB")
-        image.thumbnail(max_size, Image.Resampling.LANCZOS)
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            # JPEG optimization: hint the decoder about target size to save CPU/RAM.
+            # This reconfigures the decoder to return a scaled-down version
+            # directly if supported (JPEG/MPO).
+            if img.format == "JPEG":
+                img.draft("RGB", max_size)
 
-        # Store width and height BEFORE closing the image
-        width = image.width
-        height = image.height
+            # Apply EXIF orientation. Done after draft() hint to rotate fewer pixels
+            # if the decoder already downscaled, but before thumbnail() to ensure
+            # correct final aspect ratio.
+            img = ImageOps.exif_transpose(img)
 
-        thumbnail_io = io.BytesIO()
-        image.save(thumbnail_io, format="JPEG", quality=quality, optimize=True)
-        image.close()
-        thumbnail_io.seek(0)
+            # Ensure we're in RGB mode (e.g., if original was CMYK or P)
+            if img.mode != "RGB":
+                img = img.convert("RGB")
 
-        return thumbnail_io.read(), width, height
+            # High-quality downsampling. LANCZOS is the best quality filter.
+            img.thumbnail(max_size, Image.Resampling.LANCZOS)
+
+            width, height = img.size
+
+            thumbnail_io = io.BytesIO()
+            # optimize=True: extra pass for Huffman tables.
+            # progressive=True: better for web display and often smaller files.
+            img.save(
+                thumbnail_io,
+                format="JPEG",
+                quality=quality,
+                optimize=True,
+                progressive=True,
+            )
+            return thumbnail_io.getvalue(), width, height
     except Exception as e:
         logger.error("Failed to create thumbnail: %s", e)
         raise

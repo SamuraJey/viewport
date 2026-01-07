@@ -47,7 +47,7 @@ def _create_dummy_jpeg_bytes(width: int = IMAGE_SIZE[0], height: int = IMAGE_SIZ
 
 
 @contextmanager
-def photo_context(engine: Engine, gallery_name: str, filename: str, content: bytes = None):
+def photo_context(engine: Engine, gallery_name: str, filename: str, content: bytes | None = None):
     if content is None:
         content = _create_dummy_jpeg_bytes()
 
