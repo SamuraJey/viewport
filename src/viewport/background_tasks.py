@@ -6,9 +6,9 @@ from sqlalchemy import select, update
 
 from viewport.cache_utils import clear_presigned_urls_batch
 from viewport.celery_app import celery_app
-from viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_settings
+from viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client, get_s3_settings
 from viewport.models.gallery import Photo
-from viewport.task_utils import BatchTaskResult, get_task_s3_client
+from viewport.task_utils import BatchTaskResult
 
 logger = logging.getLogger(__name__)
 
@@ -115,12 +115,12 @@ def _batch_update_photo_metadata(successful_results: list[dict], result_tracker:
             r["message"] = f"Database update failed: {db_error}"
 
 
-@celery_app.task(name="create_thumbnails_batch", bind=True, max_retries=3, rate_limit="50/s", acks_late=True)  # pragma: no cover
+@celery_app.task(name="create_thumbnails_batch", bind=True, max_retries=3, rate_limit="50/s", acks_late=True)
 def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
     """Background task to create thumbnails for multiple photos in one batch"""
     logger.info("Starting batch thumbnail creation for %s photos", len(photos))
 
-    s3_client = get_task_s3_client()
+    s3_client = get_s3_client()
     bucket = get_s3_settings().bucket
 
     result_tracker = BatchTaskResult(len(photos))
