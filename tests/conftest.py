@@ -40,6 +40,7 @@ def postgres_container() -> Generator[PostgresContainer]:
                 "POSTGRES_USER": url.username or "",
                 "POSTGRES_PASSWORD": url.password or "",
                 "POSTGRES_HOST": url.host or "",
+                "POSTGRES_PORT": str(url.port or 5432),
             }
         )
 

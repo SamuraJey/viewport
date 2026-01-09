@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.logger import logger
-from viewport.minio_utils import S3Settings, get_s3_client
+from viewport.minio_utils import get_s3_client, get_s3_settings
 from viewport.models.db import get_db
 from viewport.models.gallery import Gallery, Photo
 from viewport.models.sharelink import ShareLink
@@ -129,7 +129,7 @@ async def get_photos_by_sharelink(
 
 
 @router.get("/{share_id}/download/all")
-async def download_all_photos_zip(
+def download_all_photos_zip(
     share_id: UUID,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
@@ -140,7 +140,7 @@ async def download_all_photos_zip(
     if not photos:
         raise HTTPException(status_code=404, detail="No photos found")
 
-    settings = S3Settings()
+    settings = get_s3_settings()
 
     z = zipstream.ZipStream()
 

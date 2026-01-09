@@ -2,9 +2,13 @@ import io
 import logging
 from typing import TYPE_CHECKING
 
-from celery import Celery
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy import select, update
+
+from viewport.cache_utils import clear_presigned_urls_batch
+from viewport.celery_app import celery_app
+from viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client, get_s3_settings
+from viewport.models.gallery import Photo
+from viewport.task_utils import BatchTaskResult
 
 logger = logging.getLogger(__name__)
 
@@ -12,179 +16,127 @@ if TYPE_CHECKING:
     from mypy_boto3_s3.client import S3Client
 
 
-class CelerySettings(BaseSettings):
-    broker_url: str = Field(default="redis://localhost:6379/0", alias="CELERY_BROKER_URL")
-    result_backend: str = Field(default="redis://localhost:6379/0", alias="CELERY_RESULT_BACKEND")
+def _get_existing_photo_ids(photo_ids: list[str]) -> set[str]:
+    """Check which photo IDs still exist in the database."""
+    from viewport.task_utils import task_db_session
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        extra="ignore",
-    )
-
-
-settings = CelerySettings()
-
-celery_app = Celery(
-    "viewport",
-    broker=settings.broker_url,
-    backend=settings.result_backend,
-)
-
-celery_app.conf.update(
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
-    task_track_started=True,
-    task_time_limit=30 * 60,  # 30 minutes
-    task_soft_time_limit=25 * 60,  # 25 minutes
-    # Connection pool settings to prevent Redis connection exhaustion
-    broker_pool_limit=None,  # No limit on broker connections (use Redis connection pooling)
-    broker_connection_retry_on_startup=True,  # Retry connection on startup
-    broker_connection_max_retries=10,  # Retry up to 10 times
-)
+    with task_db_session() as db:
+        stmt = select(Photo.id).where(Photo.id.in_(photo_ids))
+        return {str(row[0]) for row in db.execute(stmt).all()}
 
 
-@celery_app.task(name="create_thumbnails_batch", bind=True, max_retries=3, rate_limit="50/s")  # pragma: no cover
+def _process_single_photo(
+    photo_data: dict,
+    s3_client: "S3Client",
+    bucket: str,
+    existing_ids: set[str],
+    result_tracker: BatchTaskResult,
+) -> None:
+    """Process a single photo: download, resize, and upload thumbnail."""
+    from viewport.task_utils import task_db_session
+
+    photo_id = photo_data["photo_id"]
+    object_key = photo_data["object_key"]
+
+    try:
+        # Check if photo was deleted
+        if photo_id not in existing_ids:
+            logger.info("Photo %s no longer exists in database, skipping", photo_id)
+            result_tracker.add_skipped(photo_id, "Photo deleted")
+            return
+
+        # Download original from S3
+        try:
+            response = s3_client.get_object(Bucket=bucket, Key=object_key)
+            image_bytes = response["Body"].read()
+        except Exception as s3_error:
+            # Safely extract error code from boto3 exceptions
+            response = getattr(s3_error, "response", {}) or {}
+            error_code = response.get("Error", {}).get("Code", "")
+
+            if error_code == "NoSuchKey":
+                logger.info("File %s not found in S3, skipping", object_key)
+                result_tracker.add_skipped(photo_id, "File not found in S3")
+                return
+
+            # Re-raise session/connection errors to let Celery retry the whole batch
+            logger.error("S3 error for photo %s: %s", photo_id, str(s3_error))
+            raise
+
+        # Create thumbnail
+        thumbnail_bytes, width, height = create_thumbnail(image_bytes)
+        del image_bytes  # Free memory ASAP
+
+        thumbnail_object_key = generate_thumbnail_object_key(object_key)
+
+        # CRITICAL: Check again if photo still exists before uploading thumbnail
+        with task_db_session() as db_check:
+            photo_check_stmt = select(Photo.id).where(Photo.id == photo_id)
+            if not db_check.execute(photo_check_stmt).scalar_one_or_none():
+                logger.warning("Photo %s deleted during processing, skipping upload", photo_id)
+                result_tracker.add_skipped(photo_id, "Photo deleted during processing")
+                del thumbnail_bytes
+                return
+
+        # Upload thumbnail
+        thumbnail_io = io.BytesIO(thumbnail_bytes)
+        s3_client.upload_fileobj(thumbnail_io, bucket, thumbnail_object_key, ExtraArgs={"ContentType": "image/jpeg"})
+        del thumbnail_bytes
+
+        logger.info("Successfully created thumbnail for photo %s", photo_id)
+        result_tracker.add_success(photo_id, thumbnail_object_key=thumbnail_object_key, width=width, height=height)
+
+    except Exception as e:
+        logger.exception("Failed to create thumbnail for photo %s: %s", photo_id, e)
+        result_tracker.add_error(photo_id, "Processing failed", exception=e)
+
+
+def _batch_update_photo_metadata(successful_results: list[dict], result_tracker: BatchTaskResult) -> None:
+    """Update database records and clear cache for successful thumbnails."""
+    from viewport.task_utils import task_db_session
+
+    try:
+        with task_db_session() as db:
+            update_mappings = [{"id": r["photo_id"], "thumbnail_object_key": r["thumbnail_object_key"], "width": r["width"], "height": r["height"]} for r in successful_results]
+            logger.info("Batch updating %s photos in DB", len(update_mappings))
+            db.execute(update(Photo), update_mappings)
+
+        # Invalidate cache
+        thumbnail_keys = [r["thumbnail_object_key"] for r in successful_results]
+        clear_presigned_urls_batch(thumbnail_keys)
+
+    except Exception as db_error:
+        logger.error("Batch database update failed: %s", db_error)
+        # Convert these successes to failures because they weren't persisted
+        for r in successful_results:
+            result_tracker.failed += 1
+            result_tracker.successful -= 1
+            r["status"] = "error"
+            r["message"] = f"Database update failed: {db_error}"
+
+
+@celery_app.task(name="create_thumbnails_batch", bind=True, max_retries=3, rate_limit="50/s", acks_late=True)
 def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
-    """Background task to create thumbnails for multiple photos in one batch
-
-    This reduces overhead significantly compared to individual tasks.
-    Each photo dict should contain: object_key, photo_id
-
-    Args:
-        photos: List of dicts with 'object_key' and 'photo_id'
-
-    Returns:
-        dict with overall status and list of results per photo
-    """
+    """Background task to create thumbnails for multiple photos in one batch"""
     logger.info("Starting batch thumbnail creation for %s photos", len(photos))
 
-    results = []
-    successful = 0
-    skipped = 0
-    failed = 0
+    s3_client = get_s3_client()
+    bucket = get_s3_settings().bucket
 
-    from sqlalchemy import select, update
+    result_tracker = BatchTaskResult(len(photos))
 
-    # Get settings once for all photos
-    from viewport.minio_utils import S3Settings, create_thumbnail, generate_thumbnail_object_key, get_s3_client
-    from viewport.models.db import get_session_maker
-    from viewport.models.gallery import Photo
+    # 1. Pre-check photos in database
+    photo_ids = [p["photo_id"] for p in photos]
+    existing_ids = _get_existing_photo_ids(photo_ids)
 
-    settings = S3Settings()
-    bucket = settings.bucket
-
-    s3_client: "S3Client" = get_s3_client()
-    session_maker = get_session_maker()
-
-    # First pass: Check which photos still exist in database
-    with session_maker() as db:
-        photo_ids = [p["photo_id"] for p in photos]
-        stmt = select(Photo.id).where(Photo.id.in_(photo_ids))
-        existing_photo_ids = {str(row[0]) for row in db.execute(stmt).all()}
-
+    # 2. Process each photo
     for photo_data in photos:
-        object_key = photo_data["object_key"]
-        photo_id = photo_data["photo_id"]
+        _process_single_photo(photo_data, s3_client, bucket, existing_ids, result_tracker)
 
-        try:
-            # Check if photo was deleted
-            if photo_id not in existing_photo_ids:
-                logger.info("Photo %s no longer exists in database, skipping", photo_id)
-                results.append({"photo_id": photo_id, "status": "skipped", "message": "Photo deleted"})
-                skipped += 1
-                continue
+    # 3. Batch update records
+    successful_results = [r for r in result_tracker.results if r["status"] == "success"]
+    if successful_results:
+        _batch_update_photo_metadata(successful_results, result_tracker)
 
-            # Download original from S3
-            try:
-                response = s3_client.get_object(Bucket=bucket, Key=object_key)
-                image_bytes = response["Body"].read()
-            except Exception as s3_error:
-                error_code = getattr(s3_error, "response", {}).get("Error", {}).get("Code", "")
-                if error_code == "NoSuchKey":
-                    logger.info("File %s not found in S3, skipping", object_key)
-                    results.append({"photo_id": photo_id, "status": "skipped", "message": "File not found in S3"})
-                    skipped += 1
-                    continue
-                raise
-
-            # Create thumbnail
-            thumbnail_bytes, width, height = create_thumbnail(image_bytes)
-
-            # Free memory immediately after creating thumbnail
-            del image_bytes
-
-            thumbnail_object_key = generate_thumbnail_object_key(object_key)
-
-            # CRITICAL: Check again if photo still exists before uploading thumbnail
-            # This prevents race condition where gallery/photo is deleted during thumbnail generation
-            with session_maker() as db_check:
-                photo_check_stmt = select(Photo.id).where(Photo.id == photo_id)
-                photo_still_exists = db_check.execute(photo_check_stmt).scalar_one_or_none()
-
-                if not photo_still_exists:
-                    logger.warning("Photo %s was deleted during thumbnail generation, skipping upload", photo_id)
-                    results.append({"photo_id": photo_id, "status": "skipped", "message": "Photo deleted during processing"})
-                    skipped += 1
-                    del thumbnail_bytes
-                    continue
-
-            # Upload thumbnail to S3 with proper Content-Type using the shared client
-            thumbnail_io = io.BytesIO(thumbnail_bytes)
-            s3_client.upload_fileobj(thumbnail_io, bucket, thumbnail_object_key, ExtraArgs={"ContentType": "image/jpeg"})
-
-            # Free thumbnail memory
-            del thumbnail_bytes
-
-            # Store for batch UPDATE
-            logger.info("Successfully created thumbnail for photo %s: width=%s, height=%s, thumbnail_key=%s", photo_id, width, height, thumbnail_object_key)
-            results.append({"photo_id": photo_id, "status": "success", "thumbnail_object_key": thumbnail_object_key, "width": width, "height": height})
-            successful += 1
-
-        except Exception as e:
-            logger.exception("Failed to create thumbnail for photo %s: %s", photo_id, e)
-            results.append({"photo_id": photo_id, "status": "error", "message": str(e)})
-            failed += 1
-
-    # Batch UPDATE all successful thumbnails in one query
-    if successful > 0:
-        with session_maker() as db:
-            try:
-                # Use modern SQLAlchemy 2.0 Update API with executemany pattern
-                # This is cleaner and potentially faster than CASE WHEN approach
-                successful_results = [r for r in results if r["status"] == "success"]
-
-                if successful_results:
-                    # Build list of mappings for executemany
-                    update_mappings = [{"id": r["photo_id"], "thumbnail_object_key": r["thumbnail_object_key"], "width": r["width"], "height": r["height"]} for r in successful_results]
-
-                    logger.info("Preparing to batch update %s photos with mappings: %s", len(update_mappings), update_mappings)
-
-                    # Execute batch UPDATE using modern executemany pattern
-                    db.execute(update(Photo), update_mappings)
-                    db.commit()
-
-                    logger.info("Batch updated %s photos with thumbnails and dimensions", len(update_mappings))
-
-                    # Invalidate cache for all updated thumbnails
-                    from viewport.cache_utils import clear_presigned_urls_batch
-
-                    thumbnail_keys = [r["thumbnail_object_key"] for r in successful_results]
-                    clear_presigned_urls_batch(thumbnail_keys)
-
-            except Exception as db_error:
-                logger.error("Batch database update failed: %s", db_error)
-                db.rollback()
-                # Mark all as failed
-                for result in results:
-                    if result["status"] == "success":
-                        result["status"] = "error"
-                        result["message"] = "Database update failed"
-                successful = 0
-                failed = len(results)
-
-    logger.info("Batch thumbnail creation complete: %s successful, %s skipped, %s failed", successful, skipped, failed)
-
-    return {"status": "complete", "total": len(photos), "successful": successful, "skipped": skipped, "failed": failed, "results": results}
+    logger.info("Batch completion: %s success, %s skipped, %s failed", result_tracker.successful, result_tracker.skipped, result_tracker.failed)
+    return result_tracker.to_dict()
