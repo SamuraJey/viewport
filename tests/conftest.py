@@ -31,7 +31,15 @@ os.environ.update({"JWT_SECRET_KEY": "supersecretkey", "ADMIN_JWT_SECRET_KEY": "
 
 @contextmanager
 def _temporary_env_vars(overrides: Mapping[str, str]):
-    """Temporarily replace environment values while the context is active."""
+    """Temporarily override selected environment variables.
+
+    This context manager:
+    - Records the original value (or lack of a value) for each key in ``overrides``.
+    - Sets ``os.environ`` to use the provided override values for the duration of the
+      ``with`` block.
+    - Restores each variable to its original value on exit, or removes it entirely if
+      it did not exist before the context was entered.
+    """
     previous = {key: os.environ.get(key) for key in overrides}
     os.environ.update(overrides)
     try:
