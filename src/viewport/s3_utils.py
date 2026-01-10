@@ -70,8 +70,16 @@ def get_s3_client() -> "S3Client":
         read_timeout=60,
         s3={"addressing_style": "path"},
     )
-    logger.info("Created sync S3 client config: %s", config)
-    logger.info("S3 Client settings: %s", settings)
+
+    logger.info(
+        "S3 Client settings: %s",
+        settings.model_dump(
+            exclude=(
+                "secret_key",
+                "access_key",
+            )
+        ),
+    )
 
     return boto3.client(
         "s3",
