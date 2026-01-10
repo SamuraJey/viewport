@@ -101,7 +101,7 @@ def _clear_minio_cache() -> None:
         get_minio_config.cache_clear()
         get_s3_client.cache_clear()
     except ImportError:
-        pass
+        logger.debug("viewport.minio_utils not available; skipping MinIO cache clear")
 
 
 @pytest.fixture(scope="session")
