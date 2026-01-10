@@ -6,8 +6,8 @@ from sqlalchemy import select, update
 
 from viewport.cache_utils import clear_presigned_urls_batch
 from viewport.celery_app import celery_app
-from viewport.minio_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client, get_s3_settings
 from viewport.models.gallery import Photo
+from viewport.s3_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client, get_s3_settings
 from viewport.task_utils import BatchTaskResult
 
 logger = logging.getLogger(__name__)

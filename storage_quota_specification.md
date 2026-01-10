@@ -12,7 +12,7 @@
 Внедрить систему ограничения на общий объем файлов (storage quota) для каждого пользователя фотопортфолио-сайта, чтобы контролировать использование хранилища и предотвратить неограниченное потребление ресурсов.
 
 ### 1.2 Бизнес-задачи
-- Контроль расходов на S3/MinIO хранилище
+- Контроль расходов на S3 хранилище
 - Возможность монетизации через тарифные планы с разными лимитами
 - Предсказуемость роста инфраструктуры
 - Защита от злоупотреблений (массовая загрузка файлов)
@@ -365,7 +365,7 @@ def delete_photo(
     owner_id: uuid.UUID
 ) -> bool:
     """Delete photo and update owner's storage usage"""
-    from src.viewport.minio_utils import delete_object
+    from src.viewport.s3_utils import delete_object
 
     photo = self.get_photo_by_id_and_owner(photo_id, owner_id)
     if not photo or photo.gallery_id != gallery_id:
@@ -373,7 +373,7 @@ def delete_photo(
 
     file_size = photo.file_size
 
-    # Delete from MinIO
+    # Delete from S3
     delete_object(photo.object_key)
     if photo.thumbnail_object_key != photo.object_key:
         delete_object(photo.thumbnail_object_key)

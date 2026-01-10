@@ -13,7 +13,7 @@ This document provides a comprehensive overview of the backend API|| POST   | /g
 ## File Uploads & Downloads
 - Upload photos via `POST /galleries/{gallery_id}/photos` (multipart/form-data, ≤ 15 MB, only JPG/JPEG/PNG).
 - File validation includes both extension and magic byte checks.
-- Files are stored in S3-compatible storage (MinIO for development).
+- Files are stored in S3-compatible storage (rustfs for development).
 - Download single photos or all as ZIP via public endpoints.
 - ZIP files are generated on-the-fly and streamed to the client.
 
@@ -38,7 +38,7 @@ project-root/
 │       ├── models/      # SQLAlchemy models (User, Gallery, Photo, ShareLink)
 │       ├── schemas/     # Pydantic schemas for request/response validation
 │       ├── alembic/     # Database migrations
-│       ├── auth_utils.py, db.py, logger.py, metrics.py, minio_utils.py  # Utility modules
+│       ├── auth_utils.py, db.py, logger.py, metrics.py, s3_utils.py  # Utility modules
 │       ├── main.py      # FastAPI application entry point
 │       └── ...
 ├── tests/               # Pytest-based tests for API endpoints and logic
@@ -159,7 +159,7 @@ project-root/
     "galleries": [
       {
         "id": "uuid",
-        "owner_id": "uuid", 
+        "owner_id": "uuid",
         "created_at": "2025-07-26T12:00:00Z"
       }
     ],
@@ -286,9 +286,9 @@ Short description of what this endpoint does.
 - Required: Yes/No (Bearer JWT/Public)
 
 #### Request
-- **Headers:**  
+- **Headers:**
   - `Authorization: Bearer <token>` (if required)
-- **Body:**  
+- **Body:**
   - JSON or multipart/form-data example
 
 #### Response

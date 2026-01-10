@@ -10,7 +10,7 @@ Complete Docker and Docker Compose configuration for all services.
 ### 🗄️ [Database Configuration](./database.md)
 PostgreSQL setup, connection pooling, and backup strategies.
 
-### 💾 [S3/MinIO Setup](./s3-setup.md)
+### 💾 [S3 Setup](./s3-setup.md)
 Object storage configuration for development and production.
 
 ### 🔒 [Environment Variables](./environments.md)
@@ -41,12 +41,12 @@ See [Production Deployment Guide](./production.md)
 
 ## Environment Overview
 
-| Environment | Database                    | S3      | Redis                  | Use Case               |
-| ----------- | --------------------------- | ------- | ---------------------- | ---------------------- |
-| Development | PostgreSQL (Docker)         | MinIO   | Redis (Docker)         | Local development      |
-| Testing     | PostgreSQL (testcontainers) | Mock S3 | Redis (testcontainers) | Automated tests        |
-| Staging     | PostgreSQL (managed)        | MinIO   | Redis (managed)        | Pre-production testing |
-| Production  | PostgreSQL (RDS/managed)    | AWS S3  | Redis (managed)        | Live application       |
+| Environment | Database                    | S3                     | Redis                  | Use Case               |
+| ----------- | --------------------------- | ---------------------- | ---------------------- | ---------------------- |
+| Development | PostgreSQL (Docker)         | rustfs (S3-compatible) | Redis (Docker)         | Local development      |
+| Testing     | PostgreSQL (testcontainers) | Mock S3                | Redis (testcontainers) | Automated tests        |
+| Staging     | PostgreSQL (managed)        | rustfs (S3-compatible) | Redis (managed)        | Pre-production testing |
+| Production  | PostgreSQL (RDS/managed)    | AWS S3                 | Redis (managed)        | Live application       |
 
 ## Architecture Overview
 
@@ -67,8 +67,8 @@ See [Production Deployment Guide](./production.md)
         ┌────────────┴────────────┬───────────────┐
         ▼                         ▼               ▼
    ┌─────────┐            ┌─────────────┐   ┌─────────┐
-   │Database │            │Redis Cache  │   │S3/Minio│
-   │PostgreSQL           │            │   │        │
+     │Database │            │Redis Cache  │   │S3 storage│
+     │PostgreSQL           │            │   │        │
    └─────────┘            └─────────────┘   └─────────┘
 ```
 
@@ -127,15 +127,15 @@ See [Production Deployment Guide](./production.md)
 
 ## Security Checklist
 
-✅ HTTPS/TLS in production  
-✅ Environment variables for secrets  
-✅ JWT token validation  
-✅ CORS configuration  
-✅ SQL injection prevention (ORM)  
-✅ File upload validation  
-✅ Rate limiting  
-✅ Database access controls  
-✅ Regular security updates  
+✅ HTTPS/TLS in production
+✅ Environment variables for secrets
+✅ JWT token validation
+✅ CORS configuration
+✅ SQL injection prevention (ORM)
+✅ File upload validation
+✅ Rate limiting
+✅ Database access controls
+✅ Regular security updates
 
 ---
 

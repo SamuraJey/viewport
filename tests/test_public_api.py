@@ -75,7 +75,7 @@ class TestPublicAPI:
         fake_bucket = "test-bucket"
         fake_obj = {"Body": io.BytesIO(content), "ContentType": "image/jpeg"}
 
-        with patch("viewport.minio_utils.get_s3_client") as mock_settings_class, patch("viewport.api.public.get_s3_client") as mock_get_s3:
+        with patch("viewport.s3_utils.get_s3_client") as mock_settings_class, patch("viewport.api.public.get_s3_client") as mock_get_s3:
             mock_settings = MagicMock()
             mock_settings.bucket = fake_bucket
             mock_settings_class.return_value = mock_settings

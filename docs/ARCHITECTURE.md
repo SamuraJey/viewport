@@ -15,38 +15,38 @@ graph TD
     E --> F[PostgreSQL Database]
     E --> G[Redis Cache]
     E --> H[S3 Object Store]
-    
+
     subgraph "Frontend Components"
     B1[Authentication]
     B2[Gallery Management]
     B3[Photo Upload & Display]
     B4[Public Gallery Sharing]
     end
-    
+
     subgraph "Nginx Features"
     D1[SSL/TLS Termination]
     D2[Load Balancing]
     D3[Rate Limiting]
     D4[Request Routing]
     end
-    
+
     subgraph "FastAPI Features"
     E1[Authentication]
     E2[Gallery Manager]
     E3[Photo Upload]
     E4[Public Routes]
     end
-    
+
     subgraph "Data Stores"
     F1[Users]
     F2[Galleries]
     F3[Photos]
     F4[Share Links]
-    
+
     G1[Sessions]
     G2[Cache Layers]
     G3[Counters]
-    
+
     H1[Photo Files]
     H2[Thumbnails]
     H3[Metadata]
@@ -77,7 +77,7 @@ graph TD
 - Authentication/Authorization
 
 ### 4. **Service Layer**
-- File operations (S3/MinIO)
+- File operations (S3)
 - Image processing
 - Caching logic
 - Task queuing
@@ -91,7 +91,7 @@ graph TD
 ### 6. **Persistence Layer**
 - PostgreSQL database
 - Redis cache
-- S3/MinIO storage
+- S3 storage
 
 ## Component Interaction Flow
 
@@ -211,7 +211,7 @@ flowchart TD
     D --> E[Nginx Proxy]
     E --> F[FastAPI File Handler]
     F --> G[File Validation Magic Bytes]
-    G --> H[Stream to S3/MinIO]
+    G --> H[Stream to S3]
     H --> I[Generate Thumbnail]
     I --> J[Create Photo Record DB]
     J --> K[Cache Metadata Redis]
@@ -273,7 +273,7 @@ flowchart TD
 docker-compose up
 - Single machine
 - All services in containers
-- MinIO for local S3
+- rustfs (S3-compatible) for local S3
 - PostgreSQL in Docker
 - Redis in Docker
 ```

@@ -1,7 +1,7 @@
 """
 Asynchronous S3 Client Service
 
-This module provides an async-first S3/MinIO client that uses aioboto3 for
+This module provides an async-first S3 client that uses aioboto3 for
 non-blocking S3 operations. The client is designed to be used as an application
 singleton via dependency injection.
 """
@@ -17,7 +17,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
-from viewport.minio_utils import S3Settings
+from viewport.s3_utils import S3Settings
 
 logger = logging.getLogger(__name__)
 
