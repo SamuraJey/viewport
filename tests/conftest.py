@@ -1,10 +1,13 @@
 import logging
 import os
 import time
-from collections.abc import Generator
+from collections.abc import Generator, Mapping
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
+import boto3
 import pytest
+from botocore.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url
@@ -26,6 +29,73 @@ logger = logging.getLogger(__name__)
 os.environ.update({"JWT_SECRET_KEY": "supersecretkey", "ADMIN_JWT_SECRET_KEY": "adminsecretkey", "INVITE_CODE": "testinvitecode"})
 
 
+@contextmanager
+def _temporary_env_vars(overrides: Mapping[str, str]):
+    """Temporarily replace environment values while the context is active."""
+    previous = {key: os.environ.get(key) for key in overrides}
+    os.environ.update(overrides)
+    try:
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def _make_s3_config(signature: str) -> Config:
+    return Config(
+        s3={"addressing_style": "path"},
+        signature_version=signature,
+        request_checksum_calculation="when_required",
+        response_checksum_validation="when_required",
+    )
+
+
+def _create_s3_client(endpoint_url: str, signature: str):
+    return boto3.client(
+        "s3",
+        endpoint_url=endpoint_url,
+        aws_access_key_id=S3_ROOT_ACCESS_KEY,
+        aws_secret_access_key=S3_ROOT_SECRET_KEY,
+        region_name=os.environ.get("S3_REGION", "us-east-1"),
+        config=_make_s3_config(signature),
+    )
+
+
+def _ensure_s3_bucket(endpoint_url: str, bucket_name: str, signature: str, attempts: int = 60, delay: float = 0.1) -> bool:
+    for _ in range(attempts):
+        try:
+            client = _create_s3_client(endpoint_url, signature)
+        except Exception as exc:
+            logger.warning("Unable to build S3 client (sig=%s): %s", signature, exc)
+            time.sleep(delay)
+            continue
+
+        try:
+            client.create_bucket(Bucket=bucket_name)
+            return True
+        except client.exceptions.BucketAlreadyOwnedByYou:
+            return True
+        except client.exceptions.BucketAlreadyExists:
+            return True
+        except Exception as exc:  # noqa: BLE001 - report unexpected errors while keeping bucket retry loop running
+            logger.warning("Error creating S3 bucket via API (sig=%s): %s", signature, exc)
+            time.sleep(delay)
+    return False
+
+
+def _clear_minio_cache() -> None:
+    try:
+        from viewport.minio_utils import get_minio_config, get_s3_client
+
+        get_minio_config.cache_clear()
+        get_s3_client.cache_clear()
+    except ImportError:
+        pass
+
+
 @pytest.fixture(scope="session")
 def postgres_container() -> Generator[PostgresContainer]:
     """Фикстура контейнера PostgreSQL с областью видимости на всю сессию тестов."""
@@ -34,17 +104,16 @@ def postgres_container() -> Generator[PostgresContainer]:
         # чтобы код, читающий настройки из окружения, указывал на этот контейнер
         db_url = container.get_connection_url()
         url = make_url(db_url)
-        os.environ.update(
-            {
-                "POSTGRES_DB": url.database or "",
-                "POSTGRES_USER": url.username or "",
-                "POSTGRES_PASSWORD": url.password or "",
-                "POSTGRES_HOST": url.host or "",
-                "POSTGRES_PORT": str(url.port or 5432),
-            }
-        )
+        env_updates = {
+            "POSTGRES_DB": url.database or "",
+            "POSTGRES_USER": url.username or "",
+            "POSTGRES_PASSWORD": url.password or "",
+            "POSTGRES_HOST": url.host or "",
+            "POSTGRES_PORT": str(url.port or 5432),
+        }
 
-        yield container
+        with _temporary_env_vars(env_updates):
+            yield container
 
 
 @pytest.fixture(scope="session")
@@ -83,9 +152,6 @@ def db_session(engine: Engine) -> Generator[Session]:
 @pytest.fixture(scope="session")
 def s3_container() -> Generator[DockerContainer]:
     """Фикстура контейнера S3 с областью видимости на сессию."""
-    import boto3
-    from botocore.config import Config
-
     container = (
         DockerContainer(S3_IMAGE).with_env("RUSTFS_ACCESS_KEY", S3_ROOT_ACCESS_KEY).with_env("RUSTFS_SECRET_KEY", S3_ROOT_SECRET_KEY).with_exposed_ports(S3_PORT)
         # .with_command("server /data --console-address :9001")
@@ -95,63 +161,31 @@ def s3_container() -> Generator[DockerContainer]:
         host = s3_test_container.get_container_host_ip()
         port = s3_test_container.get_exposed_port(S3_PORT)
 
-        # Set environment variables
-        os.environ.update(
-            {
-                "S3_ENDPOINT": f"http://{host}:{port}",
-                "S3_ACCESS_KEY": S3_ROOT_ACCESS_KEY,
-                "S3_SECRET_KEY": S3_ROOT_SECRET_KEY,
-                "S3_BUCKET": "test-viewport",
-                "S3_REGION": "us-east-1",
-                "S3_USE_SSL": "false",
-                "S3_SIGNATURE_VERSION": "s3v4",
-            }
-        )
+        env_updates = {
+            "S3_ENDPOINT": f"http://{host}:{port}",
+            "S3_ACCESS_KEY": S3_ROOT_ACCESS_KEY,
+            "S3_SECRET_KEY": S3_ROOT_SECRET_KEY,
+            "S3_BUCKET": "test-viewport",
+            "S3_REGION": "us-east-1",
+            "S3_USE_SSL": "false",
+            "S3_SIGNATURE_VERSION": "s3v4",
+        }
 
-        endpoint_url = f"http://{host}:{port}"
-        bucket_name = os.environ["S3_BUCKET"]
+        endpoint_url = env_updates["S3_ENDPOINT"]
+        bucket_name = env_updates["S3_BUCKET"]
 
-        # Try to create the bucket via S3 API as well (preferred path)
-        def _make_config(signature: str) -> Config:
-            return Config(
-                s3={"addressing_style": "path"},
-                signature_version=signature,
-                request_checksum_calculation="when_required",
-                response_checksum_validation="when_required",
-            )
+        with _temporary_env_vars(env_updates):
+            signature_version = env_updates["S3_SIGNATURE_VERSION"]
+            bucket_ready = _ensure_s3_bucket(endpoint_url, bucket_name, signature_version)
 
-        def _try_create_bucket(signature: str) -> bool:
-            client = boto3.client(
-                "s3",
-                endpoint_url=endpoint_url,
-                aws_access_key_id=S3_ROOT_ACCESS_KEY,
-                aws_secret_access_key=S3_ROOT_SECRET_KEY,
-                region_name=os.environ.get("S3_REGION", "us-east-1"),
-                config=_make_config(signature),
-            )
+            if not bucket_ready and signature_version != "s3v4":
+                logger.info("Retrying S3 bucket setup with signature v4 due to previous failures")
+                bucket_ready = _ensure_s3_bucket(endpoint_url, bucket_name, "s3v4")
 
-            for _ in range(60):
-                try:
-                    client.create_bucket(Bucket=bucket_name)
-                    return True
-                except client.exceptions.BucketAlreadyOwnedByYou:
-                    return True
-                except client.exceptions.BucketAlreadyExists:
-                    return True
-                except Exception as exc:  # noqa: BLE001 - log for debugging signature mismatch
-                    logger.warning("Error creating S3 bucket via API (sig=%s): %s", signature, exc)
-                    time.sleep(0.1)
-            return False
+            if not bucket_ready:
+                raise RuntimeError(f"Unable to ensure S3 bucket {bucket_name} for tests")
 
-        signature_version = os.environ["S3_SIGNATURE_VERSION"]
-        bucket_ready = _try_create_bucket(signature_version)
-
-        if not bucket_ready and signature_version != "s3v4":
-            os.environ["S3_SIGNATURE_VERSION"] = "s3v4"
-            logger.info("Retrying S3 bucket setup with signature v4 due to previous failures")
-            bucket_ready = _try_create_bucket("s3v4")
-
-        yield s3_test_container
+            yield s3_test_container
 
 
 @pytest.fixture(scope="function")
@@ -167,20 +201,13 @@ def client(db_session: Session, s3_container: DockerContainer):
 
     app.dependency_overrides[get_db] = override_get_db
 
-    # Ensure MinIO cache is cleared for each test to pick up fresh configuration
+    _clear_minio_cache()
+
     try:
-        from viewport.minio_utils import get_minio_config, get_s3_client
-
-        get_minio_config.cache_clear()
-        get_s3_client.cache_clear()
-    except ImportError:  # pragma: no cover
-        pass  # If MinIO utils aren't available, that's fine
-
-    with TestClient(app) as test_client:
-        yield test_client
-
-    # Clear overrides after test
-    app.dependency_overrides.clear()
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.clear()
 
 
 @pytest.fixture(scope="function")
@@ -190,26 +217,30 @@ def test_user_data() -> dict[str, str]:
 
 
 @pytest.fixture(scope="function")
-def authenticated_client(client: TestClient, test_user_data: dict[str, str]) -> Generator[TestClient]:
+def auth_token(client: TestClient, test_user_data: dict[str, str]) -> str:
+    """Register/login a user once per test to return a valid access token."""
+    register_response = client.post("/auth/register", json=test_user_data)
+    assert register_response.status_code in {200, 201}
+
+    login_response = client.post("/auth/login", json=test_user_data)
+    assert login_response.status_code == 200
+
+    return login_response.json()["tokens"]["access_token"]
+
+
+@pytest.fixture(scope="function")
+def authenticated_client(client: TestClient, auth_token: str) -> Generator[TestClient]:
     """Тестовый клиент с предустановленной аутентификацией."""
-    client.post("/auth/register", json=test_user_data)
-
-    # Аутентификация
-
-    response = client.post("/auth/login", json=test_user_data)
-
-    token = response.json()["tokens"]["access_token"]
-
-    client.headers.update({"Authorization": f"Bearer {token}"})
+    client.headers.update({"Authorization": f"Bearer {auth_token}"})
     yield client
-    # Очистка заголовков после теста
-    client.headers.clear()
+    client.headers.pop("Authorization", None)
 
 
 @pytest.fixture(scope="function")
 def gallery_fixture(authenticated_client: TestClient) -> str:
     """Фикстура для создания тестовой галереи."""
     response = authenticated_client.post("/galleries/", json={})
+    assert response.status_code == 201
     return response.json()["id"]
 
 
@@ -219,6 +250,7 @@ def sharelink_fixture(authenticated_client: TestClient, gallery_fixture: str) ->
     expires = (datetime.now(UTC) + timedelta(days=1)).isoformat()
     payload = {"gallery_id": gallery_fixture, "expires_at": expires}
     response = authenticated_client.post(f"/galleries/{gallery_fixture}/share-links", json=payload)
+    assert response.status_code == 201
     return response.json()["id"]
 
 
