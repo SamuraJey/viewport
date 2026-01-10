@@ -88,7 +88,7 @@ def _ensure_s3_bucket(endpoint_url: str, bucket_name: str, signature: str, attem
             return True
         except client.exceptions.BucketAlreadyExists:
             return True
-        except Exception as exc:  # noqa: BLE001 - report unexpected errors while keeping bucket retry loop running
+        except Exception as exc:  # noqa: BLE001 - catch unexpected S3 API errors during bucket creation and keep retry loop running
             logger.warning("Error creating S3 bucket via API (sig=%s): %s", signature, exc)
             time.sleep(delay)
     return False
