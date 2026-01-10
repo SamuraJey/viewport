@@ -42,7 +42,7 @@ Python and JavaScript/TypeScript code style guidelines.
    python -m venv venv
    source venv/bin/activate
    pip install -e ".[dev]"
-   
+
    # Frontend
    cd frontend
    npm install
@@ -53,7 +53,7 @@ Python and JavaScript/TypeScript code style guidelines.
    # Backend (in main directory)
    docker-compose up -d  # Start services
    uvicorn viewport.main:app --reload
-   
+
    # Frontend (in frontend directory)
    npm run dev
    ```
@@ -72,7 +72,7 @@ Python and JavaScript/TypeScript code style guidelines.
 - Git
 - PostgreSQL (or use Docker)
 - Redis (or use Docker)
-- MinIO (or use S3 credentials)
+- S3-compatible storage (rustfs) or use S3 credentials
 
 ### Recommended IDE Extensions
 - **VS Code:**

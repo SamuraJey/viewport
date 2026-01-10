@@ -16,7 +16,7 @@ src/viewport/
 ├── metrics.py                   # Prometheus metrics
 ├── auth_utils.py                # JWT and password utilities
 ├── cache_utils.py               # Redis caching utilities
-├── minio_utils.py               # S3/MinIO file operations
+├── s3_utils.py               # S3 file operations
 ├── s3_service.py                # S3 service abstraction
 ├── background_tasks.py          # Background task definitions
 ├── celery_app.py                # Celery configuration
@@ -135,11 +135,11 @@ SQLAlchemy ORM models representing database tables.
 # models/gallery.py
 class Gallery(Base):
     __tablename__ = "galleries"
-    
+
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    
+
     owner: Mapped[User] = relationship("User", back_populates="galleries")
     photos: Mapped[list[Photo]] = relationship("Photo", back_populates="gallery", cascade="all, delete-orphan")
 ```
@@ -151,7 +151,7 @@ Helper modules for common operations.
 | ----------------- | -------------------------------------------------------------- |
 | `auth_utils.py`   | JWT token creation/verification, password hashing              |
 | `db.py`           | Database session management, connection pooling                |
-| `minio_utils.py`  | S3/MinIO client initialization, file operations                |
+| `s3_utils.py`     | S3 client initialization, file operations                      |
 | `cache_utils.py`  | Redis client initialization, cache operations                  |
 | `logger.py`       | Application logging setup                                      |
 | `metrics.py`      | Prometheus metrics registration                                |
@@ -303,10 +303,10 @@ Use docstrings for public functions/classes:
 def get_gallery(gallery_id: UUID) -> Gallery:
     """
     Retrieve a gallery by its UUID.
-    
+
     Args:
         gallery_id: The UUID of the gallery to retrieve
-        
+
     Returns:
         Gallery object or raises HTTPException(404)
     """

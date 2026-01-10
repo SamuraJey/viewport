@@ -9,12 +9,12 @@ from sqlalchemy.orm import Session
 
 from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.logger import logger
-from viewport.minio_utils import get_s3_client, get_s3_settings
 from viewport.models.db import get_db
 from viewport.models.gallery import Gallery, Photo
 from viewport.models.sharelink import ShareLink
 from viewport.repositories.sharelink_repository import ShareLinkRepository
 from viewport.s3_service import AsyncS3Client
+from viewport.s3_utils import get_s3_client, get_s3_settings
 from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto
 
 router = APIRouter(prefix="/s", tags=["public"])

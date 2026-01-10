@@ -20,8 +20,8 @@ from testcontainers.postgres import PostgresContainer
 POSTGRES_IMAGE = "postgres:17-alpine"
 
 S3_IMAGE = "rustfs/rustfs:1.0.0-alpha.78"
-S3_ROOT_ACCESS_KEY = "minioadmin"
-S3_ROOT_SECRET_KEY = "minioadmin"
+S3_ROOT_ACCESS_KEY = "testaccesskey"
+S3_ROOT_SECRET_KEY = "testsecretkey"
 S3_PORT = 9000
 
 logger = logging.getLogger(__name__)
@@ -94,21 +94,21 @@ def _ensure_s3_bucket(endpoint_url: str, bucket_name: str, signature: str, attem
     return False
 
 
-def _clear_minio_cache() -> None:
+def _clear_s3_cache() -> None:
     try:
-        from viewport.minio_utils import get_minio_config, get_s3_client
+        from viewport.s3_utils import get_s3_client, get_s3_settings
 
-        get_minio_config.cache_clear()
+        get_s3_settings.cache_clear()
         get_s3_client.cache_clear()
     except ImportError:
-        logger.debug("viewport.minio_utils not available; skipping MinIO cache clear")
+        pass
 
 
 @pytest.fixture(scope="session")
 def postgres_container() -> Generator[PostgresContainer]:
     """Фикстура контейнера PostgreSQL с областью видимости на всю сессию тестов."""
     with PostgresContainer(image=POSTGRES_IMAGE) as container:
-        # Выставляем переменные окружения POSTGRES_* как в MinIO фикстуре
+        # Выставляем переменные окружения POSTGRES_* как в S3/контейнере фикстуре
         # чтобы код, читающий настройки из окружения, указывал на этот контейнер
         db_url = container.get_connection_url()
         url = make_url(db_url)
@@ -209,7 +209,7 @@ def client(db_session: Session, s3_container: DockerContainer):
 
     app.dependency_overrides[get_db] = override_get_db
 
-    _clear_minio_cache()
+    _clear_s3_cache()
 
     try:
         with TestClient(app) as test_client:

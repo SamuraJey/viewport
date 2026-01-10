@@ -52,13 +52,13 @@ Represents a photographer/user account.
 ```python
 class User(Base):
     __tablename__ = "users"
-    
+
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    
+
     # Relationships
     galleries: Mapped[list["Gallery"]] = relationship(
         "Gallery",
@@ -93,7 +93,7 @@ Represents a collection of photos owned by a user.
 ```python
 class Gallery(Base):
     __tablename__ = "galleries"
-    
+
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     owner_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
@@ -107,7 +107,7 @@ class Gallery(Base):
     )
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships
     owner: Mapped["User"] = relationship("User", back_populates="galleries")
     photos: Mapped[list["Photo"]] = relationship(
@@ -159,7 +159,7 @@ Represents an individual photo file.
 ```python
 class Photo(Base):
     __tablename__ = "photos"
-    
+
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     gallery_id: Mapped[UUID] = mapped_column(
         ForeignKey("galleries.id", ondelete="CASCADE"),
@@ -171,7 +171,7 @@ class Photo(Base):
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    
+
     # Relationships
     gallery: Mapped["Gallery"] = relationship("Gallery", back_populates="photos")
 ```
@@ -193,8 +193,8 @@ class Photo(Base):
 - `gallery_id` - for fast photo lookups by gallery
 
 **Storage:**
-- Original images stored in S3/MinIO with object_key
-- Thumbnails stored in S3/MinIO with thumbnail_object_key
+- Original images stored in S3 with object_key
+- Thumbnails stored in S3 with thumbnail_object_key
 - Only metadata is stored in database
 
 ---
@@ -206,7 +206,7 @@ Represents a shareable public link for a gallery.
 ```python
 class ShareLink(Base):
     __tablename__ = "share_links"
-    
+
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     gallery_id: Mapped[UUID] = mapped_column(
         ForeignKey("galleries.id", ondelete="CASCADE"),
@@ -217,7 +217,7 @@ class ShareLink(Base):
     zip_downloads: Mapped[int] = mapped_column(default=0)
     single_downloads: Mapped[int] = mapped_column(default=0)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    
+
     # Relationships
     gallery: Mapped["Gallery"] = relationship("Gallery", back_populates="share_links")
 ```
@@ -282,7 +282,7 @@ photos = db.query(Photo).filter_by(gallery_id=gallery_id).all()
 ```python
 import datetime
 active_links = db.query(ShareLink).filter(
-    (ShareLink.expires_at == None) | 
+    (ShareLink.expires_at == None) |
     (ShareLink.expires_at > datetime.datetime.utcnow())
 ).all()
 ```
@@ -381,5 +381,5 @@ db.commit()
 
 ---
 
-For migration instructions, see [Migrations Guide](../development/migrations.md).  
+For migration instructions, see [Migrations Guide](../development/migrations.md).
 For API schema definitions, see [API Reference](../api/reference.md).

@@ -27,7 +27,7 @@ def get_s3_settings() -> "S3Settings":
 
 
 class S3Settings(BaseSettings):
-    """Configuration for S3/MinIO client"""
+    """Configuration for the S3 client"""
 
     endpoint: str = "localhost:9000"
     access_key: str = "rustfsadmin"
@@ -46,7 +46,7 @@ class S3Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_s3_client() -> "S3Client":
-    """Get a boto3 S3 client configured for MinIO (sync client).
+    """Get a boto3 S3 client configured for the current environment (sync client).
 
     Used for operations that don't need async, like thumbnail uploads in Celery tasks.
     The result is cached to avoid recreating the client and connection pool.
@@ -84,7 +84,7 @@ def get_s3_client() -> "S3Client":
 
 
 def upload_fileobj(fileobj: bytes | io.BytesIO, filename: str, content_type: str | None = None) -> str:
-    """Upload file object to MinIO/S3 (sync version for Celery tasks).
+    """Upload file object to S3 (sync version for Celery tasks).
 
     Args:
         fileobj: File-like object or bytes to upload

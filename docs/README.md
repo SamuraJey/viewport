@@ -35,7 +35,7 @@ Backend architecture, models, and implementation details.
 - [Project Structure](./backend/structure.md) - Backend code organization
 - [Database Models](./backend/models.md) - SQLAlchemy ORM models
 - [Authentication & Auth](./backend/auth.md) - JWT implementation
-- [File Storage](./backend/storage.md) - S3/MinIO integration
+- [File Storage](./backend/storage.md) - S3 integration
 - [Configuration](./backend/configuration.md) - Environment setup
 
 ### 🎨 [Frontend Documentation](./frontend/README.md)
@@ -134,7 +134,7 @@ Development workflows, testing, and best practices.
 
 - **Backend:** Python 3.13, FastAPI, SQLAlchemy, PostgreSQL
 - **Frontend:** React 19, TypeScript, Tailwind CSS, Vite
-- **Infrastructure:** Docker, PostgreSQL, Redis, S3/MinIO
+- **Infrastructure:** Docker, PostgreSQL, Redis, S3
 - **Testing:** pytest, Vitest, pytest-cov
 - **Documentation:** Markdown, diagrams, code examples
 

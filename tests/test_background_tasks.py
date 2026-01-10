@@ -10,9 +10,9 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from viewport import background_tasks
-from viewport.minio_utils import S3Settings, get_s3_client, upload_fileobj
 from viewport.models.gallery import Gallery, Photo
 from viewport.models.user import User
+from viewport.s3_utils import S3Settings, get_s3_client, upload_fileobj
 from viewport.task_utils import BatchTaskResult
 
 IMAGE_SIZE = (640, 480)

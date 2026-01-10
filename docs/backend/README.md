@@ -14,7 +14,7 @@ SQLAlchemy ORM models, relationships, and database schema documentation.
 JWT token management, password hashing, user authentication flow, and authorization patterns.
 
 ### 💾 [Storage & File Handling](./storage.md)
-S3/MinIO integration, file upload validation, image processing, and download generation.
+S3 integration, file upload validation, image processing, and download generation.
 
 ### ⚙️ [Configuration](./configuration.md)
 Environment variables, settings management, and environment-specific configurations.
@@ -46,7 +46,7 @@ Common issues and solutions for backend development and deployment.
 - **ORM:** SQLAlchemy 2.0+
 - **Authentication:** PyJWT
 - **Password Hashing:** Bcrypt
-- **Storage:** Boto3 (S3/MinIO)
+- **Storage:** Boto3 (S3)
 - **Task Queue:** Celery with Redis
 - **Image Processing:** Pillow
 - **API Monitoring:** Prometheus FastAPI Instrumentator
@@ -81,7 +81,7 @@ JWT-based authentication, CORS configuration, and input validation on all endpoi
 - `main.py` - Application entry point and FastAPI setup
 - `db.py` - Database connection and session management
 - `auth_utils.py` - JWT and password utilities
-- `minio_utils.py` - S3/MinIO file operations
+- `s3_utils.py` - S3 file operations
 - `celery_app.py` - Celery task queue configuration
 - `cache_utils.py` - Redis caching utilities
 - `metrics.py` - Prometheus metrics setup
