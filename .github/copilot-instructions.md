@@ -39,6 +39,7 @@
 - **API calls**: Live in `frontend/src/services/*Service.ts` and use shared Axios instance `frontend/src/lib/api.ts`.
 - **Dev API routing**: Vite proxy rewrites `VITE_DEV_API_PREFIX` (default `/api`) to the backend (see `frontend/vite.config.ts`).
 - **Pages**: In `frontend/src/pages/`, use custom hooks for pagination/selection/modals instead of manual state (see DashboardPage.tsx, GalleryPage.tsx for examples).
+- **Themes**: Light/dark themes in `frontend/src/themes/` (CSS variables). Theme toggled via `themeStore` and persisted in `localStorage`. Every new feature should support both themes and have good contrast in each.
 
 ## Migrations / tests / lint
 - Alembic: config `alembic.ini`, migrations in `src/viewport/alembic/`. Create revisions with `alembic revision --autogenerate -m "..."`.
