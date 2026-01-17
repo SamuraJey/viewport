@@ -144,6 +144,14 @@ html.light {
   color-scheme: light;
 }
 
+html.light {
+  --text-select-color: #1f2937;
+}
+
+html.dark {
+  --text-select-color: #e0f0ff;
+}
+
 /* Theme color variables used by Tailwind color tokens in tailwind.config.js
    We define RGB variables to support Tailwind alpha modifiers like `bg-white/95`.
    For each semantic color we provide both an `-rgb` (space-separated r g b)

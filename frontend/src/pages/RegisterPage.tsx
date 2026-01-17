@@ -89,10 +89,11 @@ export const RegisterPage = () => {
               type="email"
               autoComplete="email"
               required
-              className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm"
+              className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm transition-all duration-200 hover:border-border/80"
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              aria-label="Email address"
             />
             <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-text-muted dark:text-text" />
           </div>
@@ -111,10 +112,11 @@ export const RegisterPage = () => {
               type="text"
               autoComplete="off"
               required
-              className="w-full px-4 py-3 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm"
+              className="w-full px-4 py-3 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm transition-all duration-200 hover:border-border/80"
               placeholder="Enter your invite code"
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value)}
+              aria-label="Invite code"
             />
           </div>
         </div>
@@ -132,15 +134,17 @@ export const RegisterPage = () => {
               type={showPassword ? 'text' : 'password'}
               autoComplete="new-password"
               required
-              className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg  focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm"
+              className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm transition-all duration-200 hover:border-border/80"
               placeholder="Create a password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              aria-label="Password"
             />
             <button
               type="button"
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
               onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
@@ -160,15 +164,17 @@ export const RegisterPage = () => {
               type={showConfirmPassword ? 'text' : 'password'}
               autoComplete="new-password"
               required
-              className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg  focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm"
+              className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm transition-all duration-200 hover:border-border/80"
               placeholder="Confirm your password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              aria-label="Confirm password"
             />
             <button
               type="button"
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
             >
               {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
@@ -185,7 +191,7 @@ export const RegisterPage = () => {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-lg hover:shadow-accent/25 hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none flex items-center justify-center gap-2"
+          className="w-full bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-lg hover:shadow-accent/25 hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-sm flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
         >
           {isLoading ? (
             <>

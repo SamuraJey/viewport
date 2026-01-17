@@ -74,7 +74,7 @@ describe('DashboardPage', () => {
     expect(
       screen.getByText('Your personal space to organize and share moments.'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'New Gallery' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create new gallery' })).toBeInTheDocument();
 
     // Should show empty state
     await waitFor(() => {
@@ -106,7 +106,7 @@ describe('DashboardPage', () => {
 
     render(<DashboardPageWrapper />);
     // Open the creation modal
-    const headerButton = screen.getByRole('button', { name: 'New Gallery' });
+    const headerButton = screen.getByRole('button', { name: 'Create new gallery' });
     await userEvent.click(headerButton);
     // Enter gallery name
     const input = screen.getByPlaceholderText('Gallery name') as HTMLInputElement;
