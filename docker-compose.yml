@@ -67,6 +67,8 @@ services:
       RUSTFS_SECRET_KEY: rustfsadmin
       RUSTFS_CONSOLE_ENABLE: true
       RUSTFS_CORS_ALLOWED_ORIGINS: "*"
+      RUSTFS_NOTIFY_WEBHOOK_AUTH_TOKEN: some_secure_token
+      RUSTFS_NOTIFY_WEBHOOK_ENABLE: true
 
     # command: server /data --console-address ":9001"
     ports:
@@ -113,7 +115,7 @@ services:
       context: .
       dockerfile: Dockerfile-backend
     container_name: viewport_celery_worker
-    command: celery -A src.viewport.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=500
+    command: celery -A src.viewport.celery_app worker --loglevel=info --concurrency=4 --max-tasks-per-child=500
     env_file:
       - .env.prod
     depends_on:
@@ -134,8 +136,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2"
-          memory: 512M
+          cpus: "4"
+          memory: 1700M
         reservations:
           cpus: "0.50"
           memory: 256M

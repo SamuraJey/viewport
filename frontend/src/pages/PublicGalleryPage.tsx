@@ -18,7 +18,6 @@ import {
   Maximize2,
   Minimize2,
 } from 'lucide-react';
-import { useTheme } from '../hooks/useTheme';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { LazyImage } from '../components/LazyImage';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
@@ -41,7 +40,6 @@ export const PublicGalleryPage = () => {
   const [error, setError] = useState<string>('');
   const [gridDensity, setGridDensity] = useState<'large' | 'compact'>('large');
   const [gridLayout, setGridLayout] = useState<'masonry' | 'uniform'>('masonry');
-  const { theme } = useTheme();
   const gridRef = useRef<HTMLDivElement | null>(null);
   const observerTarget = useRef<HTMLDivElement>(null);
   const computeSpansDebounceRef = useRef<number | null>(null);
@@ -377,9 +375,7 @@ export const PublicGalleryPage = () => {
   }
 
   return (
-    <div
-      className={`min-h-screen bg-surface dark:bg-surface-foreground/5 ${theme === 'dark' ? 'text-accent-foreground' : 'text-text'}`}
-    >
+    <div className="min-h-screen bg-surface dark:bg-surface-foreground/5 text-text dark:text-accent-foreground">
       {/* Theme switch button */}
       <div className="fixed top-6 right-6 z-30">
         <ThemeSwitch />

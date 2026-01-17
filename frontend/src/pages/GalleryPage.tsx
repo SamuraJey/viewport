@@ -47,6 +47,7 @@ export const GalleryPage = () => {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   // Refs
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -64,7 +65,6 @@ export const GalleryPage = () => {
   const { openConfirm, ConfirmModal } = useConfirmation();
 
   // Derived state
-  const isSelectionMode = selection.hasSelection;
   const areAllOnPageSelected =
     photoUrls.length > 0 && photoUrls.every((p) => selection.isSelected(p.id));
 
@@ -164,11 +164,10 @@ export const GalleryPage = () => {
                   key={pageNum}
                   onClick={() => pagination.goToPage(pageNum)}
                   disabled={pageNum === pagination.page || isLoadingPhotos}
-                  className={`px-3 py-1.5 min-w-10 rounded-lg font-medium transition-colors duration-200 ${
-                    pageNum === pagination.page
+                  className={`px-3 py-1.5 min-w-10 rounded-lg font-medium transition-colors duration-200 ${pageNum === pagination.page
                       ? 'bg-accent text-accent-foreground shadow-sm'
                       : 'bg-surface-1 dark:bg-surface-dark-1 text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40'
-                  } ${isLoadingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    } ${isLoadingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {pageNum}
                 </button>
@@ -321,6 +320,7 @@ export const GalleryPage = () => {
           );
           setPhotoUrls((prev) => prev.filter((photo) => !selection.isSelected(photo.id)));
           selection.clear();
+          setIsSelectionMode(false);
         } catch (err) {
           handleError(err);
           throw err;
@@ -446,11 +446,6 @@ export const GalleryPage = () => {
             >
               Try Again
             </button>
-            <div>
-              <Link to="/" className="text-accent dark:text-accent hover:underline text-sm">
-                ← Back to Dashboard
-              </Link>
-            </div>
           </div>
         </div>
       </Layout>
@@ -569,17 +564,21 @@ export const GalleryPage = () => {
                     onClick={() => {
                       if (isSelectionMode) {
                         selection.clear();
+                        setIsSelectionMode(false);
+                      } else {
+                        setIsSelectionMode(true);
                       }
                     }}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 ${
-                      isSelectionMode
-                        ? 'bg-blue-500 text-white hover:bg-blue-600'
-                        : 'bg-surface-foreground dark:bg-surface text-text hover:bg-surface-foreground/80 dark:hover:bg-surface/80 border border-border'
-                    }`}
-                    title="Toggle multi-select mode"
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 ${isSelectionMode
+                        ? 'bg-blue-500 text-white hover:bg-blue-600 shadow-md'
+                        : 'bg-surface-foreground dark:bg-surface text-text hover:bg-surface-foreground/80 dark:hover:bg-surface/80 border border-border hover:shadow-sm'
+                      }`}
+                    title={isSelectionMode ? 'Exit selection mode' : 'Enter selection mode'}
                   >
-                    <CheckSquare className="w-4 h-4" />
-                    <span className="text-sm font-medium">Select</span>
+                    <CheckSquare className={`w-4 h-4 ${isSelectionMode ? 'text-white' : ''}`} />
+                    <span className="text-sm font-medium">
+                      {isSelectionMode ? 'Cancel Selection' : 'Select'}
+                    </span>
                   </button>
                 )}
                 {pagination.totalPages > 1 && (
@@ -627,32 +626,35 @@ export const GalleryPage = () => {
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleSelectAllPhotos}
-                  className="flex items-center gap-2 px-3 py-2 hover:bg-blue-100 dark:hover:bg-blue-500/20 rounded-lg transition-all duration-200"
+                  className="inline-flex items-center gap-2 rounded-lg border border-blue-200/60 dark:border-blue-500/30 bg-white dark:bg-blue-500/10 px-3 py-2 transition-colors duration-200 hover:bg-gray-50 dark:hover:bg-blue-500/20"
                   title={areAllOnPageSelected ? 'Deselect all on page' : 'Select all on page'}
                 >
                   {areAllOnPageSelected ? (
                     <>
                       <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                      <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      <span className="text-sm font-semibold text-text">
                         Deselect Page
                       </span>
                     </>
                   ) : (
                     <>
                       <Square className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                      <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      <span className="text-sm font-semibold text-text">
                         Select Page
                       </span>
                     </>
                   )}
                 </button>
-                <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                <span className="inline-flex items-center rounded-full bg-white dark:bg-blue-500/15 px-2.5 py-1 text-xs font-semibold tabular-nums text-text">
                   {selection.count} selected
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={selection.clear}
+                  onClick={() => {
+                    selection.clear();
+                    setIsSelectionMode(false);
+                  }}
                   className="px-3 py-2 bg-white dark:bg-surface hover:bg-gray-100 dark:hover:bg-surface-foreground text-gray-700 dark:text-text rounded-lg text-sm font-medium transition-all duration-200"
                 >
                   Cancel
@@ -685,7 +687,7 @@ export const GalleryPage = () => {
                 <div
                   key={photo.id}
                   data-photo-card
-                  className="group bg-surface dark:bg-surface-foreground rounded-lg flex flex-col relative overflow-visible"
+                  className="group bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-visible rounded-lg border border-border dark:border-border/50 shadow-md transition-shadow duration-200 hover:shadow-2xl focus-within:shadow-2xl dark:shadow-none dark:hover:shadow-[0_0_0_1px_rgba(255,255,255,0.2),0_0_18px_rgba(255,255,255,0.35)] dark:focus-within:shadow-[0_0_0_1px_rgba(255,255,255,0.2),0_0_18px_rgba(255,255,255,0.35)]"
                 >
                   {/* Selection checkbox */}
                   {isSelectionMode && (
@@ -694,11 +696,10 @@ export const GalleryPage = () => {
                         e.stopPropagation();
                         handleTogglePhotoSelection(photo.id, e.shiftKey);
                       }}
-                      className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-colors duration-200 ${
-                        selection.isSelected(photo.id)
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-white/90 dark:bg-black/50 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-black/70'
-                      }`}
+                      className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-colors duration-200 ${selection.isSelected(photo.id)
+                          ? 'bg-blue-500 text-white shadow-md'
+                          : 'bg-white/95 dark:bg-black/60 text-gray-800 dark:text-gray-200 hover:bg-white dark:hover:bg-black/80 shadow-sm hover:shadow-md'
+                        }`}
                       title={selection.isSelected(photo.id) ? 'Deselect' : 'Select'}
                     >
                       {selection.isSelected(photo.id) ? (

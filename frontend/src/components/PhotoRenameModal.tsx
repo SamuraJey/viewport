@@ -99,7 +99,7 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = ({
           <button
             onClick={handleCancel}
             disabled={isRenaming}
-            className="p-1 text-text-muted hover:text-text dark:hover:text-text transition-all duration-200 hover:scale-110 disabled:opacity-50"
+            className="p-1 text-muted hover:text-text dark:hover:text-text transition-all duration-200 hover:scale-110 disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
@@ -138,7 +138,7 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = ({
           <button
             onClick={handleCancel}
             disabled={isRenaming}
-            className="px-4 py-2 text-text dark:text-text-muted hover:bg-surface dark:hover:bg-surface-foreground rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
+            className="px-4 py-2 text-text dark:text-muted hover:bg-surface dark:hover:bg-surface-foreground rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
           >
             Cancel
           </button>

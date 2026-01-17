@@ -158,7 +158,8 @@ export const DashboardPage = () => {
       <button
         onClick={handleOpenModal}
         disabled={isCreating}
-        className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 border border-accent/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
+        className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 border border-accent/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+        aria-label="Create your first gallery"
       >
         {isCreating ? (
           <div className="w-5 h-5 border-2 border-border/20 border-t-accent rounded-full animate-spin"></div>
@@ -188,7 +189,7 @@ export const DashboardPage = () => {
                     <div className="flex items-center gap-1.5">
                       <input
                         ref={renameInputRef}
-                        className="flex-1 px-3 py-2 border-2 border-accent/50 dark:border-accent/40 rounded-lg min-w-0 text-base bg-surface-1 dark:bg-surface-dark-1 text-text dark:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-sm transition-all duration-200"
+                        className="flex-1 px-3 py-2 border-2 border-accent/50 dark:border-accent/40 rounded-lg min-w-0 text-base bg-surface-1 dark:bg-surface-dark-1 text-text dark:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-sm hover:border-accent/70 transition-all duration-200"
                         value={renameInput}
                         onChange={(e) => setRenameInput(e.target.value)}
                         onKeyDown={(e) => {
@@ -201,13 +202,14 @@ export const DashboardPage = () => {
                           }
                         }}
                         placeholder="Gallery name..."
+                        aria-label="Rename gallery input"
                       />
                       <button
                         onClick={handleConfirmRename}
                         disabled={isRenaming || !renameInput.trim()}
                         title="Save (Enter)"
                         aria-label="Confirm rename"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-500/90 hover:bg-green-500 border border-green-600/50 text-white shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-500/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-500/90 hover:bg-green-500 border border-green-600/50 text-white shadow-sm hover:shadow-md transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                       >
                         {isRenaming ? (
                           <div className="w-4 h-4 border-2 border-border/20 border-t-accent rounded-full animate-spin" />
@@ -219,7 +221,7 @@ export const DashboardPage = () => {
                         onClick={cancelInlineRename}
                         title="Cancel (Esc)"
                         aria-label="Cancel rename"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2"
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -229,7 +231,7 @@ export const DashboardPage = () => {
                       <h3 className="font-oswald text-base font-bold uppercase tracking-wide text-text wrap-break-word">
                         {gallery.name || `Gallery #${gallery.id}`}
                       </h3>
-                      <p className="text-text-muted text-sm font-cuprum">
+                      <p className="text-muted text-sm font-cuprum">
                         {formatDateOnly(gallery.shooting_date || gallery.created_at)}
                       </p>
                     </>
@@ -240,7 +242,7 @@ export const DashboardPage = () => {
                 <div className="flex gap-2">
                   <button
                     onClick={() => beginInlineRename(gallery)}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/20 hover:bg-accent/30 border border-accent/40 text-accent shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent/50"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/20 hover:bg-accent/30 border border-accent/40 text-accent shadow-sm hover:shadow-md hover:scale-110 transition-all duration-200 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
                     title="Rename Gallery"
                     aria-label={`Rename ${gallery.name || `Gallery #${gallery.id}`}`}
                   >
@@ -248,7 +250,7 @@ export const DashboardPage = () => {
                   </button>
                   <button
                     onClick={() => handleDeleteGallery(gallery)}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-danger/50"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger shadow-sm hover:shadow-md hover:scale-110 transition-all duration-200 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2"
                     title="Delete Gallery"
                     aria-label={`Delete ${gallery.name || `Gallery #${gallery.id}`}`}
                   >
@@ -260,7 +262,8 @@ export const DashboardPage = () => {
             <div>
               <Link
                 to={`/galleries/${gallery.id}`}
-                className="block w-full bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg text-center  hover:-translate-y-0.5 hover:shadow-lg shadow-sm border border-accent/20 no-underline"
+                className="block w-full bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg text-center hover:scale-105 active:scale-95 hover:shadow-lg shadow-sm border border-accent/20 no-underline transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+                aria-label={`Manage ${gallery.name || `Gallery #${gallery.id}`}`}
               >
                 Manage Gallery
               </Link>
@@ -290,7 +293,8 @@ export const DashboardPage = () => {
               fetchGalleries(pagination.page - 1);
             }}
             disabled={pagination.isFirstPage || isLoading}
-            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark disabled:shadow-none"
+            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent hover:scale-110 active:scale-95 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark disabled:shadow-none disabled:hover:scale-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+            aria-label="Previous page"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
@@ -300,7 +304,8 @@ export const DashboardPage = () => {
               fetchGalleries(pagination.page + 1);
             }}
             disabled={pagination.isLastPage || isLoading}
-            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark disabled:shadow-none"
+            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent hover:scale-110 active:scale-95 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark disabled:shadow-none disabled:hover:scale-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+            aria-label="Next page"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
@@ -324,7 +329,8 @@ export const DashboardPage = () => {
           <button
             onClick={handleOpenModal}
             disabled={isCreating}
-            className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 border border-accent/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
+            className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 border border-accent/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+            aria-label="Create new gallery"
           >
             {isCreating ? (
               <div className="w-5 h-5 border-2 border-border dark:border-border/40 rounded-full animate-spin"></div>
@@ -348,12 +354,17 @@ export const DashboardPage = () => {
           <div
             className="fixed inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm"
             onClick={createModal.close}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-title"
           >
             <div
               className="bg-surface dark:bg-surface-dark rounded-lg shadow-lg p-6 max-w-sm w-full"
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-xl font-semibold mb-4 text-text">New Gallery</h2>
+              <h2 id="modal-title" className="text-xl font-semibold mb-4 text-text">
+                New Gallery
+              </h2>
               <p className="text-muted mb-4">Enter a name for your new gallery.</p>
               <input
                 ref={newGalleryInputRef}
@@ -369,8 +380,9 @@ export const DashboardPage = () => {
                     createModal.close();
                   }
                 }}
-                className="w-full p-3 border border-border dark:border-border/40 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent bg-transparent text-text"
+                className="w-full p-3 border border-border dark:border-border/40 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent hover:border-accent/60 bg-transparent text-text transition-all duration-200"
                 placeholder="Gallery name"
+                aria-label="Gallery name"
               />
               <label
                 className="text-sm font-medium text-text mb-2 block"
@@ -383,19 +395,22 @@ export const DashboardPage = () => {
                 type="date"
                 value={newGalleryShootingDate}
                 onChange={(e) => setNewGalleryShootingDate(e.target.value)}
-                className="w-full p-3 border border-border dark:border-border/40 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent bg-transparent text-text"
+                className="w-full p-3 border border-border dark:border-border/40 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent hover:border-accent/60 bg-transparent text-text transition-all duration-200"
+                aria-label="Gallery shooting date"
               />
               <div className="flex justify-end gap-2">
                 <button
                   onClick={createModal.close}
-                  className="px-4 py-2 bg-surface-1 dark:bg-surface-dark-1 rounded-lg text-text dark:text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 shadow-sm hover:shadow-md transition-all duration-200"
+                  className="px-4 py-2 bg-surface-1 dark:bg-surface-dark-1 rounded-lg text-text dark:text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 shadow-sm hover:shadow-md hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2"
+                  aria-label="Cancel creating gallery"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleConfirmCreate}
                   disabled={isCreating || !newGalleryName.trim()}
-                  className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
+                  className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-sm hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+                  aria-label="Create Gallery"
                 >
                   {isCreating ? (
                     <div className="w-5 h-5 border-2 border-accent/20 border-t-accent rounded-full animate-spin"></div>

@@ -96,7 +96,7 @@ describe('LoginPage', () => {
     render(<LoginPageWrapper />);
 
     const passwordInput = screen.getByLabelText('Password');
-    const toggleButton = screen.getByRole('button', { name: '' }); // Toggle button has no name
+    const toggleButton = screen.getByRole('button', { name: 'Show password' }); // Toggle button has no name
 
     expect(passwordInput).toHaveAttribute('type', 'password');
 
