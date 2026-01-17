@@ -60,7 +60,7 @@ const ErrorPageContent = ({
       case 408:
         return <Clock className="w-20 h-20 text-orange-400" />;
       default:
-        return <AlertTriangle className="w-20 h-20 text-text-muted" />;
+        return <AlertTriangle className="w-20 h-20 text-muted" />;
     }
   };
 
@@ -141,8 +141,8 @@ const ErrorPageContent = ({
         {/* Error Details */}
         <div className="bg-surface-foreground/5 backdrop-blur-sm rounded-2xl p-8 border border-border mb-8">
           <h2 className="text-4xl font-bold text-white mb-4">{errorDetails.title}</h2>
-          <p className="text-xl text-text-muted mb-4">{errorDetails.description}</p>
-          <p className="text-text-muted">{errorDetails.suggestion}</p>
+          <p className="text-xl text-muted mb-4">{errorDetails.description}</p>
+          <p className="text-muted">{errorDetails.suggestion}</p>
         </div>
 
         {/* Action Buttons */}
@@ -169,7 +169,7 @@ const ErrorPageContent = ({
 
           <button
             onClick={() => window.location.reload()}
-            className="inline-flex items-center gap-2 bg-transparent hover:bg-surface-foreground/10 text-text-muted hover:text-text font-medium py-3 px-6 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-border hover:border-border/50"
+            className="inline-flex items-center gap-2 bg-transparent hover:bg-surface-foreground/10 text-muted hover:text-text font-medium py-3 px-6 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-border hover:border-border/50"
           >
             <RefreshCw className="w-5 h-5" />
             Refresh Page
@@ -177,22 +177,20 @@ const ErrorPageContent = ({
         </div>
 
         {/* Additional Info */}
-        <div className="mt-12 text-sm text-text-muted">
+        <div className="mt-12 text-sm text-muted">
           <p>Error Code: {errorStatus}</p>
           {stackTrace ? (
             <details className="mt-4 text-left bg-surface-foreground/10 rounded-lg p-4">
-              <summary className="cursor-pointer text-text-muted mb-2">Stack Trace</summary>
-              <pre className="text-xs text-text-muted overflow-auto whitespace-pre-wrap">
+              <summary className="cursor-pointer text-muted mb-2">Stack Trace</summary>
+              <pre className="text-xs text-muted overflow-auto whitespace-pre-wrap">
                 {stackTrace}
               </pre>
             </details>
           ) : null}
           {error && import.meta.env.DEV && typeof error === 'object' && error !== null ? (
             <details className="mt-4 text-left bg-surface-foreground/10 rounded-lg p-4">
-              <summary className="cursor-pointer text-text-muted mb-2">
-                Debug Information (JSON)
-              </summary>
-              <pre className="text-xs text-text-muted overflow-auto">
+              <summary className="cursor-pointer text-muted mb-2">Debug Information (JSON)</summary>
+              <pre className="text-xs text-muted overflow-auto">
                 {JSON.stringify(error, null, 2)}
               </pre>
             </details>

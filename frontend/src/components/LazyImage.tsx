@@ -112,12 +112,12 @@ export const LazyImage = ({
           className="w-full bg-surface-foreground dark:bg-surface animate-pulse flex items-center justify-center"
           style={{ aspectRatio }}
         >
-          <div className="text-text-muted text-sm">Loading...</div>
+          <div className="text-muted text-sm">Loading...</div>
         </motion.div>
       )}
       {isLoading && imageSrc && (
         <div className="absolute inset-0 bg-surface-foreground dark:bg-surface animate-pulse flex items-center justify-center">
-          <div className="text-text-muted text-sm">Loading...</div>
+          <div className="text-muted text-sm">Loading...</div>
         </div>
       )}
     </motion.div>

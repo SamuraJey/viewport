@@ -69,7 +69,7 @@ export const LoginPage = () => {
             <h2 className="font-oswald text-3xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground mb-2">
               Welcome back
             </h2>
-            <p className="text-text-muted dark:text-text font-cuprum">
+            <p className="text-muted dark:text-text font-cuprum">
               Sign in to your Viewport account
             </p>
           </div>
@@ -96,7 +96,7 @@ export const LoginPage = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   aria-label="Email address"
                 />
-                <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-text-muted dark:text-text" />
+                <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted dark:text-text" />
               </div>
             </div>
 
@@ -123,7 +123,7 @@ export const LoginPage = () => {
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
@@ -164,7 +164,7 @@ export const LoginPage = () => {
                 <div className="w-full border-t border-border dark:border-border"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-surface dark:bg-surface-foreground text-text-muted dark:text-text">
+                <span className="px-4 bg-surface dark:bg-surface-foreground text-muted dark:text-text">
                   New to Viewport?
                 </span>
               </div>

@@ -231,7 +231,7 @@ export const DashboardPage = () => {
                       <h3 className="font-oswald text-base font-bold uppercase tracking-wide text-text wrap-break-word">
                         {gallery.name || `Gallery #${gallery.id}`}
                       </h3>
-                      <p className="text-text-muted text-sm font-cuprum">
+                      <p className="text-muted text-sm font-cuprum">
                         {formatDateOnly(gallery.shooting_date || gallery.created_at)}
                       </p>
                     </>

@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { useTheme } from '../hooks/useTheme';
 import { ThemeSwitch } from './ThemeSwitch';
 import { LogOut, User, Camera, Settings } from 'lucide-react';
 import { useState } from 'react';
@@ -13,9 +12,6 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
   const { user, logout } = useAuthStore();
-  // Determine current theme from <html> class
-  // React state for theme
-  const { theme } = useTheme();
   const navigate = useNavigate();
   const [isProfileOpen, setProfileOpen] = useState(false);
 
@@ -28,12 +24,8 @@ export const Layout = ({ children }: LayoutProps) => {
   const closeProfile = () => setProfileOpen(false);
 
   return (
-    <div
-      className={`min-h-screen text-text dark:text-accent-foreground ${theme === 'dark' ? 'bg-surface-foreground' : 'bg-surface'}`}
-    >
-      <header
-        className={`sticky top-0 z-40 backdrop-blur-lg border-b py-3 sm:py-4 ${theme === 'dark' ? 'bg-surface-foreground/95 border-border' : 'bg-surface/95 border-border'}`}
-      >
+    <div className="min-h-screen bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
+      <header className="sticky top-0 z-40 backdrop-blur-lg border-b border-border py-3 sm:py-4 bg-surface/95 dark:bg-surface-dark/95">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 px-3 py-1 sm:px-4 sm:py-1.5">
           <Link
             to="/"
@@ -54,7 +46,7 @@ export const Layout = ({ children }: LayoutProps) => {
                 >
                   <Settings className="h-5 w-5" />
                 </button>
-                <div className="hidden sm:flex items-center gap-2 rounded-lg border border-border/40 bg-surface-1 px-3 py-2 text-text dark:border-border/60 dark:bg-surface-dark-1 dark:text-text-muted">
+                <div className="hidden sm:flex items-center gap-2 rounded-lg border border-border/40 bg-surface-1 px-3 py-2 text-text dark:border-border/60 dark:bg-surface-dark-1 dark:text-text">
                   <User className="h-4 w-4" />
                   <span className="text-sm font-medium max-w-40 truncate">
                     {user.display_name || user.email}

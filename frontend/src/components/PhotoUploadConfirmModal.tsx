@@ -53,7 +53,7 @@ const PhotoItem = memo(
               loading="lazy"
             />
           ) : (
-            <FileImage className="w-12 h-12 text-text-muted" />
+            <FileImage className="w-12 h-12 text-muted" />
           )}
         </div>
 
@@ -237,7 +237,7 @@ export const PhotoUploadConfirmModal = ({
                   : 'Confirm Photo Upload'}
             </h2>
             {!result && !isUploading && (
-              <p className="text-xs sm:text-sm text-text-muted mt-1">
+              <p className="text-xs sm:text-sm text-muted mt-1">
                 Review your files before uploading
               </p>
             )}
@@ -245,7 +245,7 @@ export const PhotoUploadConfirmModal = ({
           {!isUploading && result && (
             <button
               onClick={handleClose}
-              className="p-2 text-text-muted hover:text-text dark:text-text-muted dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110 hover:bg-surface-foreground dark:hover:bg-surface rounded-lg"
+              className="p-2 text-muted hover:text-text dark:text-muted dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110 hover:bg-surface-foreground dark:hover:bg-surface rounded-lg"
             >
               <X className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
@@ -275,7 +275,7 @@ export const PhotoUploadConfirmModal = ({
               </button>
               <button
                 onClick={() => setShowCancelWarning(false)}
-                className="px-3 sm:px-4 py-2 bg-surface-foreground dark:bg-surface text-text dark:text-text-muted text-xs sm:text-sm font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
+                className="px-3 sm:px-4 py-2 bg-surface-foreground dark:bg-surface text-text dark:text-muted text-xs sm:text-sm font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
               >
                 {isUploading ? 'Continue' : 'Stay'}
               </button>
@@ -314,7 +314,7 @@ export const PhotoUploadConfirmModal = ({
                   <p className="font-semibold text-sm text-text dark:text-white">
                     {files.length} Photo{files.length !== 1 ? 's' : ''} Selected
                   </p>
-                  <p className="text-xs text-text-muted">Total size: {formatFileSize(totalSize)}</p>
+                  <p className="text-xs text-muted">Total size: {formatFileSize(totalSize)}</p>
                 </div>
               </div>
 
@@ -350,7 +350,7 @@ export const PhotoUploadConfirmModal = ({
                         <p className="text-xs sm:text-sm font-medium text-text dark:text-white truncate">
                           {file.name}
                         </p>
-                        <p className="text-xs text-text-muted">{formatFileSize(file.size)}</p>
+                        <p className="text-xs text-muted">{formatFileSize(file.size)}</p>
                         {hasError && (
                           <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
                             {isLarge && '⚠ File too large (max 15MB)'}
@@ -388,7 +388,7 @@ export const PhotoUploadConfirmModal = ({
                     {progress.currentFile}
                   </p>
                   {progress.currentBatch && progress.totalBatches && (
-                    <p className="text-xs text-text-muted">
+                    <p className="text-xs text-muted">
                       Batch {progress.currentBatch} of {progress.totalBatches}
                     </p>
                   )}
@@ -396,7 +396,7 @@ export const PhotoUploadConfirmModal = ({
               </div>
 
               <div className="space-y-2">
-                <div className="flex justify-between text-xs sm:text-sm text-text-muted font-medium">
+                <div className="flex justify-between text-xs sm:text-sm text-muted font-medium">
                   <span>Progress</span>
                   <span>
                     {progress.percentage}% • {formatFileSize(progress.loaded)} /{' '}
@@ -428,7 +428,7 @@ export const PhotoUploadConfirmModal = ({
                   <p className="font-bold text-sm sm:text-base text-text dark:text-white">
                     {result.failed_uploads === 0 ? 'All Files Uploaded!' : 'Upload Complete'}
                   </p>
-                  <p className="text-xs text-text-muted">
+                  <p className="text-xs text-muted">
                     {result.successful_uploads} successful
                     {result.failed_uploads > 0 && ` • ${result.failed_uploads} failed`}
                   </p>
@@ -451,18 +451,14 @@ export const PhotoUploadConfirmModal = ({
                 >
                   <p
                     className={`text-2xl font-bold ${
-                      result.failed_uploads > 0
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-text-muted'
+                      result.failed_uploads > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted'
                     }`}
                   >
                     {result.failed_uploads}
                   </p>
                   <p
                     className={`text-xs mt-1 ${
-                      result.failed_uploads > 0
-                        ? 'text-red-700 dark:text-red-300'
-                        : 'text-text-muted'
+                      result.failed_uploads > 0 ? 'text-red-700 dark:text-red-300' : 'text-muted'
                     }`}
                   >
                     Failed
@@ -509,7 +505,7 @@ export const PhotoUploadConfirmModal = ({
             <>
               <button
                 onClick={() => onClose()}
-                className="px-4 sm:px-6 py-2.5 text-text-muted dark:text-text hover:bg-surface dark:hover:bg-surface-foreground text-sm font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
+                className="px-4 sm:px-6 py-2.5 text-muted dark:text-text hover:bg-surface dark:hover:bg-surface-foreground text-sm font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
               >
                 Cancel
               </button>
@@ -525,7 +521,7 @@ export const PhotoUploadConfirmModal = ({
             </>
           )}
           {isUploading && (
-            <div className="flex items-center gap-2 text-text-muted text-xs sm:text-sm">
+            <div className="flex items-center gap-2 text-muted text-xs sm:text-sm">
               <div className="w-4 h-4 border-2 border-text-muted border-t-text rounded-full animate-spin" />
               Upload in progress...
             </div>

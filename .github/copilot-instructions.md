@@ -40,6 +40,7 @@
 - **Dev API routing**: Vite proxy rewrites `VITE_DEV_API_PREFIX` (default `/api`) to the backend (see `frontend/vite.config.ts`).
 - **Pages**: In `frontend/src/pages/`, use custom hooks for pagination/selection/modals instead of manual state (see DashboardPage.tsx, GalleryPage.tsx for examples).
 - **Themes**: Light/dark themes in `frontend/src/themes/` (CSS variables). Theme toggled via `themeStore` and persisted in `localStorage`. Every new feature should support both themes and have good contrast in each.
+- **Styling and theme maintenance**: Keep Tailwind dark-mode working off the `html` class that `themeStore` manages (no ad-hoc `theme === 'dark'` branches inside components). Define semantic color tokens in `frontend/src/index.css` via `@theme`/custom vars and use the generated utilities (`bg-surface`, `text-text`, `text-muted`, `bg-surface-foreground`, etc.) with `dark:` variants instead of hardcoding RGB values. When tweaking tokens (like `--color-surface-foreground-rgb`), follow the existing RGB palettes to keep light- and dark-theme surfaces consistent, and let the Tailwind utilities adapt automatically.
 
 ## Migrations / tests / lint
 - Alembic: config `alembic.ini`, migrations in `src/viewport/alembic/`. Create revisions with `alembic revision --autogenerate -m "..."`.
@@ -51,3 +52,6 @@
 
 ## Gotchas worth keeping in mind
 - Presigned URL cache is **not Redis-backed**; it’s per-process memory. Don’t assume cross-worker cache coherence.
+
+## Important rules
+- When making significant changes in the project, update this file to reflect new conventions or architectural patterns.
