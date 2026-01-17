@@ -446,11 +446,6 @@ export const GalleryPage = () => {
             >
               Try Again
             </button>
-            <div>
-              <Link to="/" className="text-accent dark:text-accent hover:underline text-sm">
-                ← Back to Dashboard
-              </Link>
-            </div>
           </div>
         </div>
       </Layout>
@@ -692,7 +687,7 @@ export const GalleryPage = () => {
                 <div
                   key={photo.id}
                   data-photo-card
-                  className="group bg-surface dark:bg-surface-foreground rounded-lg flex flex-col relative overflow-visible"
+                  className="group bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-visible rounded-lg border border-border dark:border-border/50 shadow-md transition-shadow duration-200 hover:shadow-2xl focus-within:shadow-2xl dark:shadow-none dark:hover:shadow-[0_0_0_1px_rgba(255,255,255,0.2),0_0_18px_rgba(255,255,255,0.35)] dark:focus-within:shadow-[0_0_0_1px_rgba(255,255,255,0.2),0_0_18px_rgba(255,255,255,0.35)]"
                 >
                   {/* Selection checkbox */}
                   {isSelectionMode && (
