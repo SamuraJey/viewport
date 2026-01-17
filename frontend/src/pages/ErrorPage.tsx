@@ -125,7 +125,7 @@ const ErrorPageContent = ({
 
   return (
     <div
-      className={`min-h-screen bg-gradient-to-br ${errorDetails.bgGradient} flex items-center justify-center p-4`}
+      className={`min-h-screen bg-linear-to-br ${errorDetails.bgGradient} flex items-center justify-center p-4`}
     >
       <div className="max-w-2xl w-full text-center">
         {/* Error Icon */}

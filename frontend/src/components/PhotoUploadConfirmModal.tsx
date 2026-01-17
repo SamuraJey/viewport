@@ -74,8 +74,8 @@ const PhotoItem = memo(
           </div>
         )}
 
-        <div className="bg-black/70 text-white p-3 min-h-[60px] flex flex-col justify-center">
-          <p className="text-sm font-semibold truncate break-words line-clamp-2">{file.name}</p>
+        <div className="bg-black/70 text-white p-3 min-h-15 flex flex-col justify-center">
+          <p className="text-sm font-semibold truncate wrap-break-word line-clamp-2">{file.name}</p>
           <p className="text-xs text-gray-300 mt-1">{formatFileSize(file.size)}</p>
         </div>
       </div>
@@ -227,7 +227,7 @@ export const PhotoUploadConfirmModal = ({
         }`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-5 sm:p-6 border-b border-border bg-gradient-to-r from-surface to-surface/50 dark:from-surface-foreground dark:to-surface-foreground/50">
+        <div className="flex items-center justify-between p-5 sm:p-6 border-b border-border bg-linear-to-r from-surface to-surface/50 dark:from-surface-foreground dark:to-surface-foreground/50">
           <div>
             <h2 className="text-lg sm:text-xl font-bold text-text dark:text-white">
               {result
@@ -256,7 +256,7 @@ export const PhotoUploadConfirmModal = ({
         {showCancelWarning && (
           <div className="px-5 sm:px-6 py-4 bg-red-50 dark:bg-red-500/10 border-b border-red-200 dark:border-red-500/20 animate-in fade-in slide-in-from-top-2">
             <div className="flex items-center gap-2 text-red-800 dark:text-red-200 mb-3">
-              <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+              <AlertTriangle className="w-5 h-5 shrink-0" />
               <span className="font-semibold text-sm sm:text-base">
                 {isUploading ? 'Cancel Upload?' : 'Close Window?'}
               </span>
@@ -291,7 +291,7 @@ export const PhotoUploadConfirmModal = ({
               {(hasLargeFiles || hasInvalidTypes) && (
                 <div className="p-4 bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 rounded-lg animate-in fade-in">
                   <div className="flex items-start gap-3">
-                    <AlertTriangle className="w-5 h-5 flex-shrink-0 text-yellow-600 dark:text-yellow-400 mt-0.5" />
+                    <AlertTriangle className="w-5 h-5 shrink-0 text-yellow-600 dark:text-yellow-400 mt-0.5" />
                     <div>
                       <span className="font-semibold text-sm text-yellow-800 dark:text-yellow-200 block mb-2">
                         ⚠ Warning
@@ -307,7 +307,7 @@ export const PhotoUploadConfirmModal = ({
 
               {/* Files summary */}
               <div className="flex items-center gap-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
-                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center">
+                <div className="shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center">
                   <FileImage className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
@@ -335,7 +335,7 @@ export const PhotoUploadConfirmModal = ({
                       }`}
                     >
                       {/* File icon */}
-                      <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-surface dark:bg-surface-foreground flex items-center justify-center">
+                      <div className="shrink-0 w-10 h-10 rounded-lg bg-surface dark:bg-surface-foreground flex items-center justify-center">
                         <FileImage
                           className={`w-5 h-5 ${
                             hasError
@@ -364,7 +364,7 @@ export const PhotoUploadConfirmModal = ({
                       <button
                         onClick={() => handleRemoveFile(file.name)}
                         disabled={isUploading}
-                        className="flex-shrink-0 p-2 opacity-0 group-hover:opacity-100 transition-all duration-200 text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="shrink-0 p-2 opacity-0 group-hover:opacity-100 transition-all duration-200 text-red-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Remove file"
                       >
                         <X className="w-5 h-5" />
@@ -380,7 +380,7 @@ export const PhotoUploadConfirmModal = ({
           {isUploading && progress && (
             <div className="space-y-4">
               <div className="flex items-center gap-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   <div className="w-8 h-8 rounded-full border-4 border-blue-200 dark:border-blue-500/30 border-t-blue-500 dark:border-t-blue-400 animate-spin" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -405,7 +405,7 @@ export const PhotoUploadConfirmModal = ({
                 </div>
                 <div className="w-full bg-surface-foreground dark:bg-surface rounded-full h-2.5 overflow-hidden">
                   <div
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 h-2.5 rounded-full transition-all duration-300 shadow-lg shadow-blue-500/25"
+                    className="bg-linear-to-r from-blue-500 to-blue-600 h-2.5 rounded-full transition-all duration-300 shadow-lg shadow-blue-500/25"
                     style={{ width: `${progress.percentage}%` }}
                   />
                 </div>
@@ -416,8 +416,8 @@ export const PhotoUploadConfirmModal = ({
           {/* Upload results */}
           {result && (
             <div className="space-y-4">
-              <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-r from-green-50 to-green-50/50 dark:from-green-500/10 dark:to-green-500/5 border border-green-200 dark:border-green-500/20">
-                <div className="flex-shrink-0">
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-linear-to-r from-green-50 to-green-50/50 dark:from-green-500/10 dark:to-green-500/5 border border-green-200 dark:border-green-500/20">
+                <div className="shrink-0">
                   {result.failed_uploads === 0 ? (
                     <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
                   ) : (
@@ -476,7 +476,7 @@ export const PhotoUploadConfirmModal = ({
                         key={index}
                         className="flex items-start gap-2 p-2 bg-red-50 dark:bg-red-500/10 rounded-lg border border-red-200 dark:border-red-500/20"
                       >
-                        <XCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                        <XCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium text-text dark:text-white truncate">
                             {r.filename}
@@ -492,7 +492,7 @@ export const PhotoUploadConfirmModal = ({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 sm:gap-3 p-5 sm:p-6 border-t border-border bg-gradient-to-r from-surface/50 to-surface dark:from-surface-foreground/50 dark:to-surface-foreground">
+        <div className="flex justify-end gap-2 sm:gap-3 p-5 sm:p-6 border-t border-border bg-linear-to-r from-surface/50 to-surface dark:from-surface-foreground/50 dark:to-surface-foreground">
           {result && (
             <button
               onClick={handleClose}
@@ -513,7 +513,7 @@ export const PhotoUploadConfirmModal = ({
                 ref={uploadButtonRef}
                 onClick={handleUpload}
                 disabled={files.length === 0}
-                className="px-4 sm:px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-surface-foreground disabled:to-surface-foreground disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:shadow-sm flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
+                className="px-4 sm:px-6 py-2.5 bg-linear-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-surface-foreground disabled:to-surface-foreground disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:shadow-sm flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
               >
                 <Upload className="w-4 h-4" />
                 Upload {files.length}
@@ -522,7 +522,7 @@ export const PhotoUploadConfirmModal = ({
           )}
           {isUploading && (
             <div className="flex items-center gap-2 text-muted text-xs sm:text-sm">
-              <div className="w-4 h-4 border-2 border-text-muted border-t-text rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-muted border-t-text rounded-full animate-spin" />
               Upload in progress...
             </div>
           )}
