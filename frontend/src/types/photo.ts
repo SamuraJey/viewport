@@ -44,7 +44,7 @@ export interface PhotoUploadIntentRequest {
 
 export interface PresignedUploadData {
   url: string;
-  fields: Record<string, string>;
+  headers: Record<string, string>;
 }
 
 export interface PhotoUploadIntentResponse {

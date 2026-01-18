@@ -285,7 +285,7 @@ const batchConfirmUploads = async (
 };
 
 const uploadToS3 = async (
-  presignedData: { url: string; fields: Record<string, string> },
+  presignedData: { url: string; headers: Record<string, string> },
   file: File,
   onProgress?: (percentage: number) => void,
   signal?: AbortSignal,
@@ -310,29 +310,6 @@ const uploadToS3 = async (
     }
 
     try {
-      const formData = new FormData();
-
-      // Only include essential fields to minimize multipart header size (RustFS has 64KB buffer limit)
-      // Order matters for S3 signature validation - AWS expects fields in specific order before file
-      const essentialFields = [
-        'key',
-        'policy',
-        'x-amz-algorithm',
-        'x-amz-credential',
-        'x-amz-date',
-        'x-amz-signature',
-        'x-amz-tagging',
-      ];
-
-      essentialFields.forEach((fieldName) => {
-        if (fieldName in presignedData.fields) {
-          formData.append(fieldName, presignedData.fields[fieldName]);
-        }
-      });
-
-      // Add file LAST - required by S3 signature validation
-      formData.append('file', file);
-
       // Direct fetch to S3 (не через api instance, чтобы не добавлялись auth headers)
       const xhr = new XMLHttpRequest();
 
@@ -379,8 +356,15 @@ const uploadToS3 = async (
           }
         });
 
-        xhr.open('POST', presignedData.url);
-        xhr.send(formData);
+        xhr.open('PUT', presignedData.url);
+        Object.entries(presignedData.headers).forEach(([header, value]) => {
+          if (header.toLowerCase() === 'content-length') {
+            return;
+          }
+          // Browser manages Content-Length automatically; only set other signed headers
+          xhr.setRequestHeader(header, value);
+        });
+        xhr.send(file);
       });
 
       await uploadPromise;

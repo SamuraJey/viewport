@@ -527,56 +527,56 @@ class AsyncS3Client:
 
         return urls
 
-    def generate_presigned_post(
+    def generate_presigned_put(
         self,
         object_key: str,
         content_type: str,
-        max_content_length: int,
+        content_length: int,
         expires_in: int = 900,  # 15 minutes
-    ) -> dict:
-        """Generate presigned POST data for direct S3 upload
+    ) -> dict[str, str | dict[str, str]]:
+        """Generate presigned PUT data for direct S3 upload with enforced headers.
 
         Args:
             object_key: S3 key where file will be stored
             content_type: MIME type (e.g., 'image/jpeg')
-            max_content_length: Max file size in bytes
+            content_length: Exact file size in bytes
             expires_in: URL expiration in seconds (default: 15 minutes)
 
         Returns:
-            Dict with 'url' and 'fields' for POST request
+            Dict with 'url' and 'headers' describing the signed request
 
         Raises:
-            Exception: If POST generation fails
+            Exception: If URL generation fails
         """
         try:
             presign_client = self._get_presign_client()
+            tagging = "upload-status=pending"
 
-            # RustFS has 64KB multipart buffer limit for headers/boundaries.
-            # Use minimal, compact conditions to keep policy small:
-            # - Skip Content-Type condition (browser sends it anyway)
-            # - Use per-request content-length-range so clients can only upload what they declared
-
-            conditions = [
-                ["content-length-range", 1, max_content_length],
-                {"x-amz-tagging": "upload-status=pending"},
-            ]
-
-            fields = {
-                "x-amz-tagging": "upload-status=pending",
+            params = {
+                "Bucket": self.settings.bucket,
+                "Key": object_key,
+                "ContentType": content_type,
+                "ContentLength": content_length,
+                "Tagging": tagging,
             }
 
-            response = presign_client.generate_presigned_post(
-                Bucket=self.settings.bucket,
-                Key=object_key,
-                Fields=fields,
-                Conditions=conditions,
+            url = presign_client.generate_presigned_url(
+                "put_object",
+                Params=params,
                 ExpiresIn=expires_in,
+                HttpMethod="PUT",
             )
 
-            logger.debug("Generated presigned POST for: %s", object_key)
-            return response  # {'url': ..., 'fields': {...}}
+            headers = {
+                "Content-Type": content_type,
+                "x-amz-tagging": tagging,
+                "Content-Length": str(content_length),
+            }
+
+            logger.debug("Generated presigned PUT for: %s", object_key)
+            return {"url": str(url), "headers": headers}
         except Exception as e:
-            logger.error("Failed to generate presigned POST for %s: %s", object_key, e)
+            logger.error("Failed to generate presigned PUT for %s: %s", object_key, e)
             raise
 
     async def put_object_tagging(self, key: str, tags: dict[str, str]) -> None:

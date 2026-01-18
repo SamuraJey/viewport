@@ -146,10 +146,10 @@ class PhotoUploadIntentRequest(BaseModel):
 
 
 class PresignedUploadData(BaseModel):
-    """Presigned POST data for S3 upload"""
+    """Presigned PUT data for S3 upload"""
 
     url: str
-    fields: dict[str, str]
+    headers: dict[str, str]
 
 
 class PhotoUploadIntentResponse(BaseModel):

@@ -162,11 +162,11 @@ async def batch_presigned_uploads(
             }
         )
 
-        # Generate presigned POST
-        presigned = s3_client.generate_presigned_post(
+        # Generate presigned PUT signed with exact size and tagging requirements
+        presigned = s3_client.generate_presigned_put(
             object_key=object_key,
             content_type=file_request.content_type,
-            max_content_length=file_request.file_size,
+            content_length=file_request.file_size,
             expires_in=900,
         )
 
@@ -178,7 +178,7 @@ async def batch_presigned_uploads(
                 photo_id=photo_id,
                 presigned_data=PresignedUploadData(
                     url=presigned["url"],
-                    fields=presigned["fields"],
+                    headers=presigned["headers"],
                 ),
                 expires_in=900,
             )
