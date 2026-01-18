@@ -1,4 +1,3 @@
-import io
 from typing import cast
 
 import requests
@@ -33,9 +32,8 @@ def upload_photo_via_presigned(client: TestClient, gallery_id: str, content: byt
     item = data["items"][0]
 
     presigned_url = item["presigned_data"]["url"]
-    fields = item["presigned_data"]["fields"]
-    form_data = {key: str(value) for key, value in fields.items()}
-    upload_resp = requests.post(presigned_url, data=form_data, files={"file": (filename, io.BytesIO(content), "image/jpeg")})
+    headers = item["presigned_data"]["headers"]
+    upload_resp = requests.put(presigned_url, headers=headers, data=content)
     assert upload_resp.status_code in {200, 204}
 
     confirm_resp = client.post(

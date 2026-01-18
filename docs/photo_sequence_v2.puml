@@ -1,0 +1,50 @@
+@startuml photo_sequence_v2
+header Viewport Photo Upload (Presigned PUT)
+footer Page %page% of %lastpage%
+title Photo Upload Sequence (Batch presigned PUT)
+
+actor User
+participant "Browser (React)" as UI
+participant "Backend (FastAPI)" as API
+database "Postgres" as DB
+participant "S3 (RustFS)" as S3
+participant "Celery Worker" as Worker
+
+User -> UI: Select files & Click upload
+activate UI
+
+UI -> API: POST /galleries/{id}/photos/batch-presigned\n(filenames, sizes, types)
+activate API
+API -> DB: Verify gallery ownership
+API -> DB: Create Photo records (Status: PENDING)
+API -> API: Generate presigned PUT URLs\n(with Content-Length & x-amz-tagging)
+API --> UI: BatchPresignedUploadsResponse\n(urls, headers, ids)
+deactivate API
+
+loop For each file in current batch
+    UI -> S3: HTTP PUT (file data)\nHeaders: [Signed Headers from API]
+    activate S3
+    S3 -> S3: Validate Content-Length &\nSignature against headers
+    S3 --> UI: 200 OK
+    deactivate S3
+    UI -> UI: Update progress bar
+end
+
+UI -> API: POST /galleries/{id}/photos/batch-confirm\n(photo_ids, successes)
+activate API
+API -> DB: Update Photo status to SUCCESSFUL
+API -> S3: (fire & forget) Update Tags\nupload-status=confirmed
+API -> API: Trigger create_thumbnails_batch_task
+API --> UI: BatchConfirmUploadResponse
+deactivate API
+
+UI --> User: Show upload summary
+
+... Background Processing ...
+
+Worker -> S3: Download original photo
+Worker -> Worker: Generate thumbnail
+Worker -> S3: Upload thumbnail
+Worker -> DB: Update Photo (width, height, status)
+
+@enduml

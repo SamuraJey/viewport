@@ -1,8 +1,7 @@
 import logging
 import re
 import time
-import uuid
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -147,7 +146,7 @@ async def batch_presigned_uploads(
         timestamp = int(time.time() * 1000)
         safe_filename = sanitize_filename(file_request.filename)
         object_key = f"{gallery_id}/{timestamp}_{safe_filename}"
-        photo_id = uuid.uuid4()
+        photo_id = uuid4()
 
         photos_payload.append(
             {
@@ -278,7 +277,7 @@ async def debug_photo_tags(
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user=Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_s3_client),
-):
+):  # pragma: no cover - debug endpoint TODO Remove
     """Debug endpoint to check S3 tags for a photo"""
     # Verify gallery ownership
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
