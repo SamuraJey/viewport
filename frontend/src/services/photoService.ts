@@ -517,6 +517,8 @@ const uploadPhotosPresigned = async (
   }
 
   const BATCH_SIZE = 50; // Request presigned URLs in batches of 50
+  const INTER_UPLOAD_DELAY_MS = 5; // Delay between uploads
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   return (async () => {
     const totalSize = files.reduce((sum, file) => sum + file.size, 0);
@@ -624,6 +626,7 @@ const uploadPhotosPresigned = async (
           });
           completedBytes += file.size;
           emitProgress(file.name);
+          await wait(INTER_UPLOAD_DELAY_MS);
           continue;
         }
 
@@ -671,6 +674,7 @@ const uploadPhotosPresigned = async (
         }
 
         emitProgress(file.name);
+        await wait(INTER_UPLOAD_DELAY_MS);
       }
 
       // 3. Confirm batch uploads immediately after batch is uploaded
