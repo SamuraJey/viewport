@@ -25,6 +25,7 @@ export interface PhotoUploadResult {
   success: boolean;
   error?: string;
   photo?: PhotoResponse;
+  retryable?: boolean;
 }
 
 export interface PhotoUploadResponse {
@@ -32,4 +33,55 @@ export interface PhotoUploadResponse {
   total_files: number;
   successful_uploads: number;
   failed_uploads: number;
+}
+
+// Presigned upload types
+export interface PhotoUploadIntentRequest {
+  filename: string;
+  file_size: number;
+  content_type: string;
+}
+
+export interface PresignedUploadData {
+  url: string;
+  fields: Record<string, string>;
+}
+
+export interface PhotoUploadIntentResponse {
+  photo_id: string;
+  presigned_data: PresignedUploadData;
+  expires_in: number;
+}
+
+export interface PhotoConfirmUploadResponse {
+  status: 'confirmed' | 'already_processed';
+}
+
+// Batch presigned upload types
+export interface BatchPresignedUploadItem {
+  filename: string;
+  file_size: number;
+  success: boolean;
+  error?: string;
+  photo_id?: string;
+  presigned_data?: PresignedUploadData;
+  expires_in?: number;
+}
+
+export interface BatchPresignedUploadsResponse {
+  items: BatchPresignedUploadItem[];
+}
+
+export interface ConfirmPhotoUploadItem {
+  photo_id: string;
+  success?: boolean;
+}
+
+export interface BatchConfirmUploadRequest {
+  items: ConfirmPhotoUploadItem[];
+}
+
+export interface BatchConfirmUploadResponse {
+  confirmed_count: number;
+  failed_count: number;
 }

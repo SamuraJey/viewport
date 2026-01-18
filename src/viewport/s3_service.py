@@ -321,6 +321,27 @@ class AsyncS3Client:
             logger.error("Failed to check if object exists %s: %s", key, e)
             raise
 
+    async def head_object(self, key: str) -> dict:
+        """Get object metadata without downloading the file
+
+        Args:
+            key: S3 object key
+
+        Returns:
+            Object metadata dict with ContentLength, ContentType, etc.
+
+        Raises:
+            ClientError: If object doesn't exist or other S3 error
+        """
+        try:
+            async with self._get_s3_client() as s3:
+                s3: "S3Client"
+                response = await s3.head_object(Bucket=self.settings.bucket, Key=key)
+            return response
+        except Exception as e:
+            logger.error("Failed to head object %s: %s", key, e)
+            raise
+
     async def rename_file(self, old_key: str, new_key: str) -> None:
         """Rename a file in S3 by copying to new key and deleting old key.
 
@@ -505,6 +526,162 @@ class AsyncS3Client:
                 logger.warning("Failed to generate presigned URL for %s: %s", key, e)
 
         return urls
+
+    def generate_presigned_post(
+        self,
+        object_key: str,
+        content_type: str,
+        max_content_length: int,
+        expires_in: int = 900,  # 15 minutes
+    ) -> dict:
+        """Generate presigned POST data for direct S3 upload
+
+        Args:
+            object_key: S3 key where file will be stored
+            content_type: MIME type (e.g., 'image/jpeg')
+            max_content_length: Max file size in bytes
+            expires_in: URL expiration in seconds (default: 15 minutes)
+
+        Returns:
+            Dict with 'url' and 'fields' for POST request
+
+        Raises:
+            Exception: If POST generation fails
+        """
+        try:
+            presign_client = self._get_presign_client()
+
+            # RustFS has 64KB multipart buffer limit for headers/boundaries.
+            # Use minimal, compact conditions to keep policy small:
+            # - Skip Content-Type condition (browser sends it anyway)
+            # - Use per-request content-length-range so clients can only upload what they declared
+
+            conditions = [
+                ["content-length-range", 1, max_content_length],
+                {"x-amz-tagging": "upload-status=pending"},
+            ]
+
+            fields = {
+                "x-amz-tagging": "upload-status=pending",
+            }
+
+            response = presign_client.generate_presigned_post(
+                Bucket=self.settings.bucket,
+                Key=object_key,
+                Fields=fields,
+                Conditions=conditions,
+                ExpiresIn=expires_in,
+            )
+
+            logger.debug("Generated presigned POST for: %s", object_key)
+            return response  # {'url': ..., 'fields': {...}}
+        except Exception as e:
+            logger.error("Failed to generate presigned POST for %s: %s", object_key, e)
+            raise
+
+    async def put_object_tagging(self, key: str, tags: dict[str, str]) -> None:
+        """Update object tags in S3
+
+        Args:
+            key: S3 object key
+            tags: Dictionary of tag key-value pairs
+
+        Raises:
+            Exception: If tagging update fails
+        """
+        try:
+            # Convert tags dict to S3 TagSet format
+            tag_set = [{"Key": k, "Value": v} for k, v in tags.items()]
+
+            async with self._get_s3_client() as s3:
+                s3: "S3Client"
+                await s3.put_object_tagging(
+                    Bucket=self.settings.bucket,
+                    Key=key,
+                    Tagging={"TagSet": tag_set},
+                )
+            logger.debug("Updated tags for: %s", key)
+        except Exception as e:
+            logger.error("Failed to update tags for %s: %s", key, e)
+            raise
+
+    async def delete_object_tagging(self, key: str) -> None:
+        """Remove all tags from S3 object
+
+        Args:
+            key: S3 object key
+
+        Raises:
+            Exception: If tagging deletion fails
+        """
+        try:
+            async with self._get_s3_client() as s3:
+                s3: "S3Client"
+                await s3.delete_object_tagging(
+                    Bucket=self.settings.bucket,
+                    Key=key,
+                )
+            logger.debug("Deleted tags for: %s", key)
+        except Exception as e:
+            logger.error("Failed to delete tags for %s: %s", key, e)
+            raise
+
+    async def get_object_tagging(self, key: str) -> dict[str, str]:
+        """Get tags from S3 object
+
+        Args:
+            key: S3 object key
+
+        Returns:
+            Dictionary of tag key-value pairs
+
+        Raises:
+            Exception: If getting tags fails
+        """
+        try:
+            async with self._get_s3_client() as s3:
+                s3: "S3Client"
+                response = await s3.get_object_tagging(
+                    Bucket=self.settings.bucket,
+                    Key=key,
+                )
+            # Convert TagSet to dict
+            tags = {tag["Key"]: tag["Value"] for tag in response.get("TagSet", [])}
+            logger.debug("Got tags for %s: %s", key, tags)
+            return tags
+        except Exception as e:
+            logger.error("Failed to get tags for %s: %s", key, e)
+            raise
+
+    async def copy_object_with_new_tags(self, key: str, new_tags: dict[str, str]) -> None:
+        """Copy object to itself with new tags (workaround for immutable tags)
+
+        Args:
+            key: S3 object key
+            new_tags: New tags to apply
+
+        Raises:
+            Exception: If copy fails
+        """
+        try:
+            async with self._get_s3_client() as s3:
+                s3: "S3Client"
+                # Convert tags to URL-encoded format
+                tag_string = "&".join(f"{k}={v}" for k, v in new_tags.items())
+
+                # Copy object to itself with new tags
+                await s3.copy_object(
+                    Bucket=self.settings.bucket,
+                    Key=key,
+                    CopySource={"Bucket": self.settings.bucket, "Key": key},
+                    Tagging=tag_string,
+                    TaggingDirective="REPLACE",
+                    MetadataDirective="COPY",
+                )
+            logger.info("Copied object with new tags for: %s -> %s", key, new_tags)
+        except Exception as e:
+            logger.error("Failed to copy object with new tags for %s: %s", key, e)
+            raise
 
     async def get_object(self, key: str) -> dict:
         """Get an object from S3.

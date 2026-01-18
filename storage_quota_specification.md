@@ -186,7 +186,7 @@ class StorageSettings(BaseSettings):
     default_storage_quota: int = 5 * 1024 * 1024 * 1024  # 5 GB
 
     # Maximum file size for single upload (in bytes)
-    max_file_size: int = 15 * 1024 * 1024  # 15 MB
+    max_file_size: int = 10 * 1024 * 1024  # 15 MB
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -488,7 +488,7 @@ def upload_photo(
     contents = file.file.read()
     file_size = len(contents)
     if file_size > MAX_FILE_SIZE:
-        raise HTTPException(status_code=413, detail="File too large (max 15MB)")
+        raise HTTPException(status_code=413, detail="File too large (max 10MB)")
 
     # NEW: Check storage quota
     user_repo = UserRepository(repo.db)
@@ -553,7 +553,7 @@ def upload_photos_batch(
                 results.append(PhotoUploadResult(
                     filename=file.filename or "unknown",
                     success=False,
-                    error=f"File too large (max 15MB), got {file_size / (1024 * 1024):.1f}MB"
+                    error=f"File too large (max 10MB), got {file_size / (1024 * 1024):.1f}MB"
                 ))
                 failed_uploads += 1
                 continue

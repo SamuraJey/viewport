@@ -23,6 +23,7 @@
 - Photo upload performance pattern:
   - Batch upload endpoint (`src/viewport/api/photo.py`) uploads originals first, batch-inserts DB rows, then schedules Celery thumbnail batches.
   - Avoid generating presigned URLs during batch upload; fetch URLs separately via `/photos/urls` endpoints.
+- No direct SQL in routers; use repositories for all DB access.
 
 ## Frontend conventions (React)
 - **Type system**: Centralized in `frontend/src/types/` (common.ts, gallery.ts, photo.ts, sharelink.ts, auth.ts).

@@ -14,6 +14,16 @@ export type {
   PhotoUrlResponse,
   PhotoUploadResult,
   PhotoUploadResponse,
+  PhotoUploadIntentRequest,
+  PresignedUploadData,
+  PhotoUploadIntentResponse,
+  PhotoConfirmUploadResponse,
+  BatchPresignedUploadItem,
+  BatchPresignedUploadsRequest,
+  BatchPresignedUploadsResponse,
+  ConfirmPhotoUploadItem,
+  BatchConfirmUploadRequest,
+  BatchConfirmUploadResponse,
 } from './photo';
 
 // Share link types

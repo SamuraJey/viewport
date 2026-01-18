@@ -58,7 +58,7 @@ services:
           memory: 128M
 
   s3-service:
-    image: rustfs/rustfs:1.0.0-alpha.78
+    image: rustfs/rustfs:1.0.0-alpha.80
     container_name: viewport_s3
     restart: always
     environment:
@@ -69,6 +69,7 @@ services:
       RUSTFS_CORS_ALLOWED_ORIGINS: "*"
       RUSTFS_NOTIFY_WEBHOOK_AUTH_TOKEN: some_secure_token
       RUSTFS_NOTIFY_WEBHOOK_ENABLE: true
+      RUSTFS_BUFFER_PROFILE: AiTraining
 
     # command: server /data --console-address ":9001"
     ports:

@@ -1,17 +1,13 @@
 import io
-from typing import cast
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
+from tests.helpers import upload_photo_via_presigned
+
 
 def _upload_photo(client: TestClient, gallery_id: str, content: bytes, filename: str = "photo.jpg") -> str:
-    files = {"files": (filename, io.BytesIO(content), "image/jpeg")}
-    resp = client.post(f"/galleries/{gallery_id}/photos/batch", files=files)
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["successful_uploads"] == 1
-    return cast(str, data["results"][0]["photo"]["id"])
+    return upload_photo_via_presigned(client, gallery_id, content, filename)
 
 
 class TestPublicAPI:

@@ -1,21 +1,32 @@
 import logging
+import re
 import time
-from typing import Annotated
+import uuid
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from viewport.auth_utils import get_current_user
 from viewport.dependencies import get_s3_client
 from viewport.models.db import get_db
+from viewport.models.gallery import PhotoUploadStatus
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.s3_service import AsyncS3Client
-from viewport.schemas.photo import PhotoRenameRequest, PhotoResponse, PhotoUploadResponse, PhotoUploadResult
+from viewport.schemas.photo import (
+    BatchConfirmUploadRequest,
+    BatchConfirmUploadResponse,
+    BatchPresignedUploadItem,
+    BatchPresignedUploadsRequest,
+    BatchPresignedUploadsResponse,
+    PhotoRenameRequest,
+    PhotoResponse,
+    PresignedUploadData,
+)
 
 logger = logging.getLogger(__name__)
 
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 15 MB
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 # Pre-computed content type mapping for faster lookups
 CONTENT_TYPE_MAP = {
@@ -31,6 +42,35 @@ router = APIRouter(prefix="/galleries", tags=["photos"])
 
 def get_gallery_repository(db: Session = Depends(get_db)) -> GalleryRepository:
     return GalleryRepository(db)
+
+
+def sanitize_filename(filename: str) -> str:
+    """Sanitize filename while preserving readability and Cyrillic characters
+
+    Removes path separators and null bytes, replaces spaces with underscores,
+    keeps alphanumeric (Latin + Cyrillic), dots, dashes, and underscores.
+    """
+    if not filename:
+        return "file"
+
+    # Remove path separators and null bytes
+    filename = filename.replace("\\", "").replace("/", "").replace("\0", "")
+
+    # Replace spaces with underscores
+    filename = filename.replace(" ", "_")
+
+    # Keep safe characters: alphanumeric (Latin + Cyrillic), dots, dashes, underscores
+    # \u0400-\u04FF covers Cyrillic block (а-я, А-Я, ё, Ё, etc.)
+    filename = re.sub(r"[^a-zA-Z0-9._\-а-яА-ЯёЁ]", "", filename)
+
+    # Remove leading/trailing dots and dashes
+    filename = filename.strip(".-")
+
+    # Ensure we have a filename
+    if not filename:
+        filename = "file"
+
+    return filename
 
 
 def get_content_type_from_filename(filename: str | None) -> str:
@@ -68,177 +108,204 @@ async def get_all_photo_urls_for_gallery(
     return photo_responses
 
 
-# TODO We are going to impement this differently, using presigned URLs so frontend can upload directly to S3
-@router.post("/{gallery_id}/photos/batch", response_model=PhotoUploadResponse)
-async def upload_photos_batch(
+@router.post("/{gallery_id}/photos/batch-presigned", response_model=BatchPresignedUploadsResponse)
+async def batch_presigned_uploads(
     gallery_id: UUID,
-    files: Annotated[list[UploadFile], File()],
+    request: BatchPresignedUploadsRequest,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user=Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
+) -> BatchPresignedUploadsResponse:
+    """Generate presigned URLs for batch upload (max 100 files)
+
+    1. Verify gallery ownership
+    2. Create Photo records for each file
+    3. Generate presigned POST URLs
+    4. Return batch response
+    """
+    # 1. Check gallery ownership
+    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    if not gallery:
+        raise HTTPException(404, "Gallery not found")
+
+    items: list[BatchPresignedUploadItem] = []
+    photos_payload: list[dict] = []
+
+    # 2. Generate Photo records and presigned URLs
+    for file_request in request.files:
+        if file_request.file_size > MAX_FILE_SIZE:
+            items.append(
+                BatchPresignedUploadItem(
+                    filename=file_request.filename,
+                    file_size=file_request.file_size,
+                    success=False,
+                    error=f"File exceeds maximum size of {MAX_FILE_SIZE // (1024 * 1024)}MB",
+                )
+            )
+            continue
+
+        timestamp = int(time.time() * 1000)
+        safe_filename = sanitize_filename(file_request.filename)
+        object_key = f"{gallery_id}/{timestamp}_{safe_filename}"
+        photo_id = uuid.uuid4()
+
+        photos_payload.append(
+            {
+                "id": photo_id,
+                "gallery_id": gallery_id,
+                "object_key": object_key,
+                "thumbnail_object_key": object_key,
+                "file_size": file_request.file_size,
+                "status": PhotoUploadStatus.PENDING,
+                "width": None,
+                "height": None,
+            }
+        )
+
+        # Generate presigned POST
+        presigned = s3_client.generate_presigned_post(
+            object_key=object_key,
+            content_type=file_request.content_type,
+            max_content_length=file_request.file_size,
+            expires_in=900,
+        )
+
+        items.append(
+            BatchPresignedUploadItem(
+                filename=file_request.filename,
+                file_size=file_request.file_size,
+                success=True,
+                photo_id=photo_id,
+                presigned_data=PresignedUploadData(
+                    url=presigned["url"],
+                    fields=presigned["fields"],
+                ),
+                expires_in=900,
+            )
+        )
+
+    if photos_payload:
+        repo.create_photos_batch(photos_payload)
+
+    return BatchPresignedUploadsResponse(items=items)
+
+
+@router.post("/{gallery_id}/photos/batch-confirm", response_model=BatchConfirmUploadResponse)
+async def batch_confirm_uploads(
+    gallery_id: UUID,
+    request: BatchConfirmUploadRequest,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user=Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
+) -> BatchConfirmUploadResponse:
+    """Confirm batch photo uploads to S3
+
+    Process multiple photo confirmations in one request.
+    Sets status to SUCCESSFUL for confirmed uploads.
+    Starts thumbnail processing.
+    """
+    import asyncio
+
+    # 1. Verify gallery ownership
+    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    if not gallery:
+        raise HTTPException(403, "Access denied")
+
+    # 2. Batch fetch all photos
+    photo_ids = [item.photo_id for item in request.items]
+    photos = repo.get_photos_by_ids_and_gallery(gallery_id, photo_ids)
+    photo_map = {p.id: p for p in photos}
+
+    confirmed_count = 0
+    failed_count = 0
+    photos_to_process = []
+    photos_to_tag = []
+    status_updates: dict[UUID, PhotoUploadStatus] = {}
+
+    # 3. Process each photo
+    for item in request.items:
+        photo = photo_map.get(item.photo_id)
+        if not photo:
+            failed_count += 1
+            continue
+
+        if not item.success:
+            # Mark as failed
+            status_updates[photo.id] = PhotoUploadStatus.FAILED
+            failed_count += 1
+            continue
+
+        if photo.status == PhotoUploadStatus.SUCCESSFUL:
+            # Already processed
+            confirmed_count += 1
+            continue
+
+        # Mark as successful
+        status_updates[photo.id] = PhotoUploadStatus.SUCCESSFUL
+        confirmed_count += 1
+        photos_to_process.append({"photo_id": str(photo.id), "object_key": photo.object_key})
+        photos_to_tag.append(photo.object_key)
+
+    # 4. Batch commit DB changes
+    repo.set_photos_statuses(photo_map, status_updates)
+
+    # 5. Batch update tags in parallel (fire and forget)
+    async def background_tagging():
+        await asyncio.gather(*[tag_photo(key) for key in photos_to_tag], return_exceptions=True)
+
+    async def tag_photo(object_key: str) -> None:
+        try:
+            await s3_client.put_object_tagging(object_key, {"upload-status": "confirmed"})
+        except Exception as e:
+            logger.warning("Failed to update tag for %s: %s", object_key, e)
+
+    if photos_to_tag:
+        asyncio.create_task(background_tagging())
+
+    # 6. Start batch thumbnail processing
+    if photos_to_process:
+        from viewport.background_tasks import create_thumbnails_batch_task
+
+        create_thumbnails_batch_task.delay(photos_to_process)
+
+    return BatchConfirmUploadResponse(confirmed_count=confirmed_count, failed_count=failed_count)
+
+
+@router.get("/{gallery_id}/photos/{photo_id}/debug-tags")
+async def debug_photo_tags(
+    gallery_id: UUID,
+    photo_id: UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user=Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ):
-    """Upload multiple photos to a gallery - fast upload, deferred thumbnail generation"""
-    import asyncio
-
-    # Check gallery ownership
+    """Debug endpoint to check S3 tags for a photo"""
+    # Verify gallery ownership
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
-        raise HTTPException(status_code=404, detail="Gallery not found")
+        raise HTTPException(403, "Access denied")
 
-    if not files:
-        logger.warning("No files provided in batch upload")
-        raise HTTPException(status_code=400, detail="No files provided")
+    # Get photo
+    photo = repo.get_photo_by_id_and_gallery(photo_id, gallery_id)
+    if not photo:
+        raise HTTPException(404, "Photo not found")
 
-    results = []
-    successful_uploads = 0
-    failed_uploads = 0
-
-    semaphore = asyncio.Semaphore(50)  # Higher concurrency - S3 can handle it
-
-    async def process_single_file(file: UploadFile) -> PhotoUploadResult:
-        """Process a single file: validate and upload original to S3"""
-        async with semaphore:
-            try:
-                # Read file content into memory once - faster than multiple seeks
-                # This works well for photos which are typically <10MB
-                content = await file.read()
-                file_size = len(content)
-
-                # Validate file size
-                if file_size > MAX_FILE_SIZE:
-                    return PhotoUploadResult(
-                        filename=file.filename or "unknown",
-                        success=False,
-                        error=f"File too large (max 10MB), got {file_size / (1024 * 1024):.1f}MB",
-                    )
-
-                # Generate object key
-                object_key = f"{gallery_id}/{file.filename}"
-
-                # Fast content type determination using pre-computed mapping
-                content_type = get_content_type_from_filename(file.filename)
-
-                # Upload bytes directly - uses put_object for small files (fastest)
-                await s3_client.upload_bytes(content, object_key, content_type=content_type)
-
-                # Return data for batch DB insert (thumbnail will be created later)
-                return PhotoUploadResult(
-                    filename=file.filename or "unknown",
-                    success=True,
-                    photo=None,  # Will be populated after DB insert
-                    metadata_={
-                        "object_key": object_key,
-                        "thumbnail_object_key": object_key,  # Use original as placeholder
-                        "file_size": file_size,
-                        "width": None,
-                        "height": None,
-                    },
-                )
-
-            except Exception as e:
-                logger.exception("Failed to upload file %s: %s", file.filename, e)
-                return PhotoUploadResult(filename=file.filename or "unknown", success=False, error=str(e))
-
-    # Process all files concurrently (with semaphore limiting)
-    results = await asyncio.gather(*[process_single_file(file) for file in files])
-
-    # Separate successful and failed uploads
-    successful_results = [r for r in results if r.success and r.metadata_ is not None]
-    failed_results = [r for r in results if not r.success or r.metadata_ is None]
-
-    logger.info("Batch upload complete: %s successful, %s failed out of %s total", len(successful_results), len(failed_results), len(results))
-
-    # Batch insert successful photos into database
-    if successful_results:
-        batch_insert_start = time.time()
-        logger.info("Starting database batch insert for %s photos", len(successful_results))
-
-        photos_data = []
-        for result in successful_results:
-            metadata = result.metadata_
-            assert metadata is not None  # Since successful_results are filtered
-            photos_data.append(
-                {
-                    "gallery_id": gallery_id,
-                    "object_key": metadata["object_key"],
-                    "thumbnail_object_key": metadata["thumbnail_object_key"],
-                    "file_size": metadata["file_size"],
-                    "width": metadata["width"],
-                    "height": metadata["height"],
-                }
-            )
-
-        # Batch insert into database
-        created_photos = repo.create_photos_batch(photos_data)
-
-        batch_insert_duration = time.time() - batch_insert_start
-        logger.info("Database batch insert completed in %.2fs", batch_insert_duration)
-
-        # Schedule background tasks for thumbnail creation in batches
-        from viewport.background_tasks import create_thumbnails_batch_task
-
-        celery_schedule_start = time.time()
-
-        # Group photos into batches of 25 for memory-efficient processing
-        batch_size = 25
-        scheduled_batches = 0
-
-        # Prepare photo data for Celery tasks (extract once, not in loop)
-        photos_for_celery = [{"object_key": photo.object_key, "photo_id": str(photo.id)} for photo in created_photos]
-
-        # Use Celery's group primitive for more efficient batch scheduling
-        from celery import group
-
-        # Split into batches
-        batches = [photos_for_celery[i : i + batch_size] for i in range(0, len(photos_for_celery), batch_size)]
-
-        # Schedule all batches at once using group (more efficient than loop)
-        if batches:
-            try:
-                job = group(create_thumbnails_batch_task.s(batch) for batch in batches)
-                job.apply_async(ignore_result=True)
-                scheduled_batches = len(batches)
-            except Exception as e:
-                logger.error("Failed to schedule batch tasks: %s", e)
-
-        celery_schedule_duration = time.time() - celery_schedule_start
-        logger.info("Scheduled %s batch tasks (%s photos in batches of %s) in %.2fs", scheduled_batches, len(photos_for_celery), batch_size, celery_schedule_duration)
-
-        # PERFORMANCE OPTIMIZATION: Don't generate presigned URLs here!
-        # The frontend will fetch them separately when needed (e.g., when viewing gallery)
-        # This saves 3-5 seconds per batch upload of 10 photos
-        # Just return minimal success info
-
-        # Build PhotoResponse objects efficiently (no redundant operations in loop)
-        for i, result in enumerate(successful_results):
-            photo = created_photos[i]
-            # Extract filename from object_key once
-            object_key = result.metadata_["object_key"]
-            filename = object_key.split("/", 1)[1] if "/" in object_key else object_key
-
-            # Return minimal photo info without URLs
-            result.photo = PhotoResponse(
-                id=photo.id,
-                gallery_id=photo.gallery_id,
-                url="",  # Empty - frontend will fetch when needed
-                thumbnail_url="",  # Empty - frontend will fetch when needed
-                filename=filename,
-                width=photo.width,
-                height=photo.height,
-                file_size=photo.file_size,
-                uploaded_at=photo.uploaded_at,
-            )
-
-        successful_uploads = len(successful_results)
-
-    failed_uploads = len(failed_results)
-
-    return PhotoUploadResponse(
-        results=results,
-        total_files=len(files),
-        successful_uploads=successful_uploads,
-        failed_uploads=failed_uploads,
-    )
+    # Get tags from S3
+    try:
+        tags = await s3_client.get_object_tagging(photo.object_key)
+        return {
+            "photo_id": str(photo.id),
+            "object_key": photo.object_key,
+            "status": photo.status,
+            "s3_tags": tags,
+        }
+    except Exception as e:
+        return {
+            "photo_id": str(photo.id),
+            "object_key": photo.object_key,
+            "status": photo.status,
+            "error": str(e),
+        }
 
 
 @router.delete("/{gallery_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
