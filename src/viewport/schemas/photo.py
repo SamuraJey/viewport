@@ -206,7 +206,7 @@ class ConfirmPhotoUploadItem(BaseModel):
 class BatchConfirmUploadRequest(BaseModel):
     """Request to confirm multiple photo uploads"""
 
-    items: list[ConfirmPhotoUploadItem] = Field(..., min_items=1, max_items=100)
+    items: list[ConfirmPhotoUploadItem] = Field(..., min_length=1, max_length=100)
 
 
 class BatchConfirmUploadResponse(BaseModel):
