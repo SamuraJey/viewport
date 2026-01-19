@@ -124,7 +124,7 @@ def test_create_thumbnails_batch_task_skips_missing_object(engine: Engine, s3_co
 
         result = _execute_thumbnail_task(str(ctx.photo_id), ctx.object_key)
 
-        assert_batch_counts(result, skipped=1)
+        assert_batch_counts(result, failed=1)
         assert any(r["message"] == "File not found in S3" for r in result["results"])
 
 
@@ -162,7 +162,7 @@ def test_create_thumbnails_batch_task_reports_processing_errors(engine: Engine, 
 @pytest.mark.unit
 def test_batch_update_photo_metadata_failure(monkeypatch):
     tracker = BatchTaskResult(1)
-    successful = [{"photo_id": str(uuid4()), "thumbnail_object_key": "foo", "width": 10, "height": 20}]
+    successful = [{"photo_id": str(uuid4()), "thumbnail_object_key": "foo", "width": 10, "height": 20, "status": "success"}]
     tracker.successful = len(successful)
 
     @contextmanager
@@ -175,7 +175,7 @@ def test_batch_update_photo_metadata_failure(monkeypatch):
 
     monkeypatch.setattr("viewport.task_utils.task_db_session", _failing_session)
 
-    background_tasks._batch_update_photo_metadata(successful, tracker)
+    background_tasks._batch_update_photo_results(successful, tracker)
 
     assert tracker.failed == 1
     assert tracker.successful == 0

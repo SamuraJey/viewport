@@ -70,6 +70,8 @@ services:
       RUSTFS_NOTIFY_WEBHOOK_AUTH_TOKEN: some_secure_token
       RUSTFS_NOTIFY_WEBHOOK_ENABLE: true
       RUSTFS_BUFFER_PROFILE: AiTraining
+      RUSTFS_NS_SCANNER_INTERVAL: 60  # in seconds
+      RUST_LOG: "rustfs=info,ecstore=info,s3s=info,iam=info,notify=info"
 
     # command: server /data --console-address ":9001"
     ports:
@@ -116,7 +118,7 @@ services:
       context: .
       dockerfile: Dockerfile-backend
     container_name: viewport_celery_worker
-    command: celery -A src.viewport.celery_app worker --loglevel=info --concurrency=4 --max-tasks-per-child=500
+    command: celery -A src.viewport.celery_app worker --loglevel=info --concurrency=4 --max-tasks-per-child=500 --beat
     env_file:
       - .env.prod
     depends_on:

@@ -21,8 +21,12 @@
   - Constructed per-request from `db: Session = Depends(get_db)` (`src/viewport/models/db.py`).
   - Keep business logic close to repository methods when it’s DB/S3 orchestration (e.g. async delete/rename in `GalleryRepository`).
 - Photo upload performance pattern:
-  - Batch upload endpoint (`src/viewport/api/photo.py`) uploads originals first, batch-inserts DB rows, then schedules Celery thumbnail batches.
-  - Avoid generating presigned URLs during batch upload; fetch URLs separately via `/photos/urls` endpoints.
+  - **Two-step upload**:
+    1. `/batch-presigned`: Creates `PENDING` DB records and returns presigned PUT URLs. Client uploads directly to S3.
+    2. `/batch-confirm`: Verifies upload by applying `upload-status: confirmed` tag to S3 objects.
+  - **Confirmation logic**: Existence check is performed via `put_object_tagging`. `NoSuchKey` errors result in `FAILED` status. Successful tagging triggers Celery thumbnail batches.
+  - **Presigned URLs**: Avoid generating presigned URLs during batch upload; fetch URLs separately via `/photos/urls` endpoints.
+  - **Garbage collection**: A Celery beat task (`cleanup_orphaned_uploads`) runs hourly to delete `PENDING` photo records older than 1 hour and their corresponding S3 objects to prevent storage leaks from unconfirmed uploads.
 - No direct SQL in routers; use repositories for all DB access.
 
 ## Frontend conventions (React)

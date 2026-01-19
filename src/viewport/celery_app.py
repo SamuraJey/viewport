@@ -3,6 +3,7 @@
 import logging
 
 from celery import Celery
+from celery.schedules import crontab
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -44,5 +45,12 @@ celery_app.conf.update(
     broker_connection_retry_on_startup=True,  # Retry connection on startup
     broker_connection_max_retries=10,  # Retry up to 10 times
 )
+
+celery_app.conf.beat_schedule = {
+    "cleanup-orphaned-uploads-every-hour": {
+        "task": "cleanup_orphaned_uploads",
+        "schedule": crontab(minute=0),  # Top of every hour
+    },
+}
 
 __all__ = ["celery_app"]

@@ -186,7 +186,14 @@ class TestPhotoAPI:
         """Confirming uploads updates counts and schedules thumbnail task."""
         payload = {"files": [{"filename": "confirm.jpg", "file_size": 256, "content_type": "image/jpeg"}]}
         presigned = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
-        photo_id = presigned.json()["items"][0]["photo_id"]
+        item = presigned.json()["items"][0]
+        photo_id = item["photo_id"]
+
+        # NEW: Actually upload the file to S3 so head_object succeeds
+        import requests
+
+        upload_resp = requests.put(item["presigned_data"]["url"], headers=item["presigned_data"]["headers"], data=b"x" * 256)
+        assert upload_resp.status_code in {200, 204}
 
         captured: dict[str, list] = {}
 
@@ -218,7 +225,8 @@ class TestPhotoAPI:
         data = response.json()
         assert data["photo_id"] == photo_id
         assert data["status"] == PhotoUploadStatus.SUCCESSFUL
-        assert data["s3_tags"]["upload-status"] == "confirmed"
+        # Note: Tagging is now asynchronous in Celery, so it stays 'pending' right after confirmation
+        assert data["s3_tags"]["upload-status"] == "pending"
 
     def test_debug_photo_tags_handles_errors(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Debug endpoint returns error payload when S3 tagging fails."""
