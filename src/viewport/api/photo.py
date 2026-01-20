@@ -120,7 +120,7 @@ async def batch_presigned_uploads(
 
     1. Verify gallery ownership
     2. Create Photo records for each file
-    3. Generate presigned POST URLs
+    3. Generate presigned PUT URLs
     4. Return batch response
     """
     # 1. Check gallery ownership
