@@ -40,10 +40,11 @@ const PhotoItem = memo(
 
     return (
       <div
-        className={`relative group flex flex-col h-full rounded-lg overflow-hidden transition-all duration-200 ${hasError
+        className={`relative group flex flex-col h-full rounded-lg overflow-hidden transition-all duration-200 ${
+          hasError
             ? 'ring-2 ring-red-400 dark:ring-red-500'
             : 'ring-2 ring-border hover:ring-blue-400 dark:hover:ring-blue-500'
-          }`}
+        }`}
       >
         <div className="flex-1 w-full bg-surface-foreground dark:bg-surface flex items-center justify-center overflow-hidden">
           {preview ? (
@@ -299,15 +300,17 @@ export const PhotoUploadConfirmModal = ({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-start justify-center overflow-y-auto transition-all duration-200 pt-4 sm:pt-8 ${isOpen
+      className={`fixed inset-0 z-50 flex items-start justify-center overflow-y-auto transition-all duration-200 pt-4 sm:pt-8 ${
+        isOpen
           ? 'bg-black/50 backdrop-blur-sm'
           : 'bg-transparent backdrop-blur-0 pointer-events-none'
-        }`}
+      }`}
       onClick={handleBackdropClick}
     >
       <div
-        className={`bg-surface dark:bg-surface-foreground rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden mx-3 sm:mx-4 mb-6 sm:mb-8 transition-all duration-200 transform ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
-          }`}
+        className={`bg-surface dark:bg-surface-foreground rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden mx-3 sm:mx-4 mb-6 sm:mb-8 transition-all duration-200 transform ${
+          isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
+        }`}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-5 sm:p-6 border-b border-border bg-linear-to-r from-surface to-surface/50 dark:from-surface-foreground dark:to-surface-foreground/50">
@@ -411,18 +414,20 @@ export const PhotoUploadConfirmModal = ({
                   return (
                     <div
                       key={index}
-                      className={`flex items-start gap-3 p-3 rounded-lg transition-all duration-200 group ${hasError
+                      className={`flex items-start gap-3 p-3 rounded-lg transition-all duration-200 group ${
+                        hasError
                           ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20'
                           : 'bg-surface-foreground dark:bg-surface border border-border hover:border-blue-300 dark:hover:border-blue-500/30'
-                        }`}
+                      }`}
                     >
                       {/* File icon */}
                       <div className="shrink-0 w-10 h-10 rounded-lg bg-surface dark:bg-surface-foreground flex items-center justify-center">
                         <FileImage
-                          className={`w-5 h-5 ${hasError
+                          className={`w-5 h-5 ${
+                            hasError
                               ? 'text-red-500 dark:text-red-400'
                               : 'text-blue-500 dark:text-blue-400'
-                            }`}
+                          }`}
                         />
                       </div>
 
@@ -524,20 +529,23 @@ export const PhotoUploadConfirmModal = ({
                   <p className="text-xs text-green-700 dark:text-green-300 mt-1">Successful</p>
                 </div>
                 <div
-                  className={`p-3 rounded-lg text-center border ${result.failed_uploads > 0
+                  className={`p-3 rounded-lg text-center border ${
+                    result.failed_uploads > 0
                       ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20'
                       : 'bg-surface-foreground dark:bg-surface border-border'
-                    }`}
+                  }`}
                 >
                   <p
-                    className={`text-2xl font-bold ${result.failed_uploads > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted'
-                      }`}
+                    className={`text-2xl font-bold ${
+                      result.failed_uploads > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted'
+                    }`}
                   >
                     {result.failed_uploads}
                   </p>
                   <p
-                    className={`text-xs mt-1 ${result.failed_uploads > 0 ? 'text-red-700 dark:text-red-300' : 'text-muted'
-                      }`}
+                    className={`text-xs mt-1 ${
+                      result.failed_uploads > 0 ? 'text-red-700 dark:text-red-300' : 'text-muted'
+                    }`}
                   >
                     Failed
                   </p>

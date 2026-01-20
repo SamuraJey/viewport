@@ -664,7 +664,12 @@ const uploadPhotosPresigned = async (
       // 3. Confirm batch uploads immediately after batch is uploaded
       if (batchSuccessfulPhotoIds.length > 0 || batchFailedPhotoIds.length > 0) {
         try {
-          await batchConfirmUploads(galleryId, batchSuccessfulPhotoIds, batchFailedPhotoIds, signal);
+          await batchConfirmUploads(
+            galleryId,
+            batchSuccessfulPhotoIds,
+            batchFailedPhotoIds,
+            signal,
+          );
         } catch (error) {
           console.error('Failed to confirm batch uploads:', error);
           // Non-fatal - uploads are still in S3, just not confirmed
