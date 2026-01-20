@@ -3,6 +3,8 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
+from botocore.exceptions import ClientError
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy import delete, select, update
 
 from viewport.cache_utils import clear_presigned_urls_batch
@@ -15,6 +17,16 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from mypy_boto3_s3.client import S3Client
+
+
+def _is_valid_image(image_bytes: bytes) -> bool:
+    """Validate if the given bytes represent a valid image."""
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            img.verify()
+        return True
+    except (UnidentifiedImageError, OSError):
+        return False
 
 
 def _get_existing_photo_ids(photo_ids: list[str]) -> set[str]:
@@ -48,11 +60,12 @@ def _process_single_photo(
 
         # Download original from S3
         try:
-            # First, update tagging to "confirmed" (moved from API for reliability)
             try:
                 s3_client.put_object_tagging(Bucket=bucket, Key=object_key, Tagging={"TagSet": [{"Key": "upload-status", "Value": "confirmed"}]})
-            except Exception as tag_error:
+            except ClientError as tag_error:
                 logger.warning("Failed to update S3 tag for %s: %s", object_key, tag_error)
+            except Exception as tag_general_error:
+                logger.warning("Unexpected error updating S3 tag for %s: %s", object_key, tag_general_error)
 
             response = s3_client.get_object(Bucket=bucket, Key=object_key)
             image_bytes = response["Body"].read()
@@ -69,6 +82,29 @@ def _process_single_photo(
             # Re-raise session/connection errors to let Celery retry the whole batch
             logger.error("S3 error for photo %s: %s", photo_id, str(s3_error))
             raise
+
+        # Validate image magic bytes before processing
+        if not _is_valid_image(image_bytes):
+            logger.warning(
+                "Object %s for photo %s is not a valid image",
+                object_key,
+                photo_id,
+            )
+
+            try:
+                s3_client.delete_object(Bucket=bucket, Key=object_key)
+            except ClientError as delete_error:  # TODO: consider handling specific error codes if needed. Also save failed deletions to a DB, for later retry
+                logger.warning("Failed to delete invalid S3 object %s: %s", object_key, delete_error)
+
+            # Previously we preserved the DB record and marked it FAILED, but
+            # the intended behavior for invalid uploaded objects is to remove
+            # them entirely (object + DB record). Delete the DB row so orphan
+            # entries aren't left behind.
+            with task_db_session() as db_cleanup:
+                db_cleanup.execute(delete(Photo).where(Photo.id == photo_id))
+
+            result_tracker.add_error(photo_id, "Invalid image file")
+            return
 
         # Create thumbnail
         thumbnail_bytes, width, height = create_thumbnail(image_bytes)

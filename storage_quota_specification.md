@@ -186,7 +186,7 @@ class StorageSettings(BaseSettings):
     default_storage_quota: int = 5 * 1024 * 1024 * 1024  # 5 GB
 
     # Maximum file size for single upload (in bytes)
-    max_file_size: int = 10 * 1024 * 1024  # 15 MB
+    max_file_size: int = 10 * 1024 * 1024  # 10 MB
 
     model_config = SettingsConfigDict(
         env_file=".env",

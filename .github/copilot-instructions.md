@@ -5,6 +5,7 @@
 - Backend layers: routers in `src/viewport/api/` → repository layer in `src/viewport/repositories/` (SQLAlchemy `Session`) → Postgres models in `src/viewport/models/`.
 - Storage/URLs: originals + thumbnails live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them **in-process** (see `src/viewport/cache_utils.py`).
 - Background work: Celery tasks in `src/viewport/background_tasks.py` create thumbnails after uploads; Docker Compose runs a separate `celery_worker`.
+- uv is used as package manager.
 
 ## How to run (preferred workflows)
 - Containers (recommended): `docker-compose up -d` (services: backend, postgres, rustfs, redis, celery).

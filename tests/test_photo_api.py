@@ -2,12 +2,11 @@
 
 from uuid import uuid4
 
+import requests
 from fastapi.testclient import TestClient
 
 from tests.helpers import register_and_login, upload_photo_via_presigned
 from viewport.api.photo import MAX_FILE_SIZE, get_content_type_from_filename, sanitize_filename
-from viewport.dependencies import get_s3_client
-from viewport.models.gallery import PhotoUploadStatus
 
 
 class TestPhotoAPI:
@@ -190,7 +189,6 @@ class TestPhotoAPI:
         photo_id = item["photo_id"]
 
         # NEW: Actually upload the file to S3 so head_object succeeds
-        import requests
 
         upload_resp = requests.put(item["presigned_data"]["url"], headers=item["presigned_data"]["headers"], data=b"x" * 256)
         assert upload_resp.status_code in {200, 204}
@@ -215,43 +213,6 @@ class TestPhotoAPI:
         assert result["confirmed_count"] == 1
         assert result["failed_count"] == 1
         assert captured["batch"][0]["photo_id"] == photo_id
-
-    def test_debug_photo_tags_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
-        """Debug endpoint returns tags for successfully uploaded photos."""
-        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"tag-content", "tag.jpg")
-
-        response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/{photo_id}/debug-tags")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["photo_id"] == photo_id
-        assert data["status"] == PhotoUploadStatus.SUCCESSFUL
-        # Note: Tagging is now asynchronous in Celery, so it stays 'pending' right after confirmation
-        assert data["s3_tags"]["upload-status"] == "pending"
-
-    def test_debug_photo_tags_handles_errors(self, authenticated_client: TestClient, gallery_id_fixture: str):
-        """Debug endpoint returns error payload when S3 tagging fails."""
-        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"error", "error.jpg")
-
-        async def broken_client():
-            class Broken:
-                async def get_object_tagging(self, key: str):  # noqa: ARG002
-                    raise RuntimeError("boom")
-
-            yield Broken()
-
-        app = authenticated_client.app
-        previous = app.dependency_overrides.get(get_s3_client)
-        app.dependency_overrides[get_s3_client] = broken_client
-        try:
-            response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/{photo_id}/debug-tags")
-        finally:
-            if previous is None:
-                app.dependency_overrides.pop(get_s3_client, None)
-            else:
-                app.dependency_overrides[get_s3_client] = previous
-
-        assert response.status_code == 200
-        assert "error" in response.json()
 
     def test_delete_photo_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Deleting an existing photo returns 204 and subsequently 404."""

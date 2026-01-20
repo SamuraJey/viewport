@@ -5,6 +5,7 @@ from typing import NamedTuple
 from uuid import uuid4
 
 import pytest
+from botocore.exceptions import ClientError
 from PIL import Image
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -96,7 +97,6 @@ def assert_batch_counts(result, successful=0, failed=0, skipped=0):
     assert result["skipped"] == skipped
 
 
-@pytest.mark.integration
 def test_create_thumbnails_batch_task_creates_thumbnail(engine: Engine, s3_container) -> None:
     with photo_context(engine, "celery-test", "celery-original.jpg") as ctx:
         result = _execute_thumbnail_task(str(ctx.photo_id), ctx.object_key)
@@ -115,7 +115,6 @@ def test_create_thumbnails_batch_task_creates_thumbnail(engine: Engine, s3_conta
             assert response["ContentLength"] > 0
 
 
-@pytest.mark.integration
 def test_create_thumbnails_batch_task_skips_missing_object(engine: Engine, s3_container) -> None:
     with photo_context(engine, "missing-test", "missing.jpg") as ctx:
         s3_client = get_s3_client()
@@ -128,7 +127,6 @@ def test_create_thumbnails_batch_task_skips_missing_object(engine: Engine, s3_co
         assert any(r["message"] == "File not found in S3" for r in result["results"])
 
 
-@pytest.mark.integration
 def test_create_thumbnails_batch_task_skips_deleted_during_processing(engine: Engine, s3_container, monkeypatch) -> None:
     with photo_context(engine, "deleted-during", "deleted.jpg") as ctx:
         original_precheck = background_tasks._get_existing_photo_ids
@@ -146,11 +144,10 @@ def test_create_thumbnails_batch_task_skips_deleted_during_processing(engine: En
         assert any(r["message"] == "Photo deleted during processing" for r in result["results"])
 
 
-@pytest.mark.integration
-def test_create_thumbnails_batch_task_reports_processing_errors(engine: Engine, s3_container) -> None:
+def test_create_thumbnails_batch_task_reports_processing_errors(engine: Engine, s3_container, monkeypatch) -> None:
     with photo_context(engine, "error-test", "broken.jpg", content=b"not-an-image") as ctx:
+        monkeypatch.setattr(background_tasks, "_is_valid_image", lambda _: True)  # Force validation to pass so processing continues to error
         result = _execute_thumbnail_task(str(ctx.photo_id), ctx.object_key)
-
         assert_batch_counts(result, failed=1)
         assert any(r["status"] == "error" for r in result["results"])
 
@@ -159,7 +156,28 @@ def test_create_thumbnails_batch_task_reports_processing_errors(engine: Engine, 
             assert updated_photo.thumbnail_object_key == ctx.object_key
 
 
-@pytest.mark.unit
+def test_create_thumbnails_batch_task_invalid_image_deletes_record_when_mocked(engine: Engine, s3_container, monkeypatch) -> None:
+    """Ensure that when `_is_valid_image` returns False we delete the DB record and S3 object.
+
+    This test mocks `_is_valid_image` to isolate the decision path.
+    """
+    with photo_context(engine, "mocked-invalid", "mocked.jpg") as ctx:
+        # Force the validator to return False
+        monkeypatch.setattr(background_tasks, "_is_valid_image", lambda _: False)
+
+        result = _execute_thumbnail_task(str(ctx.photo_id), ctx.object_key)
+
+        assert_batch_counts(result, failed=1)
+
+        with session_scope(engine) as session:
+            assert session.get(Photo, ctx.photo_id) is None
+
+        s3_client = get_s3_client()
+        bucket = S3Settings().bucket
+        with pytest.raises(ClientError):
+            s3_client.head_object(Bucket=bucket, Key=ctx.object_key)
+
+
 def test_batch_update_photo_metadata_failure(monkeypatch):
     tracker = BatchTaskResult(1)
     successful = [{"photo_id": str(uuid4()), "thumbnail_object_key": "foo", "width": 10, "height": 20, "status": "success"}]

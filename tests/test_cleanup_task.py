@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from freezegun.api import FrozenDateTimeFactory
 
 
-@pytest.mark.integration
 class TestCleanupTask:
     def test_cleanup_orphaned_uploads_task(self, engine, s3_container, freezer: FrozenDateTimeFactory):
         # 0. Set initial time

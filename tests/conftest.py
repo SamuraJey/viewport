@@ -1,3 +1,4 @@
+import importlib
 import logging
 import os
 import time
@@ -23,6 +24,8 @@ S3_IMAGE = "rustfs/rustfs:1.0.0-alpha.80"
 S3_ROOT_ACCESS_KEY = "testaccesskey"
 S3_ROOT_SECRET_KEY = "testsecretkey"
 S3_PORT = 9000
+VALKEY_IMAGE = "valkey/valkey:8-alpine"
+VALKEY_PORT = 6379
 
 logger = logging.getLogger(__name__)
 
@@ -196,8 +199,45 @@ def s3_container() -> Generator[DockerContainer]:
             yield s3_test_container
 
 
+@pytest.fixture(scope="session")
+def valkey_container() -> Generator[str]:
+    """Start ValKey and return its Redis-style broker URL."""
+    container = DockerContainer(VALKEY_IMAGE).with_exposed_ports(VALKEY_PORT)
+    with container as cont:
+        host = cont.get_container_host_ip()
+        port = cont.get_exposed_port(VALKEY_PORT)
+        yield f"redis://{host}:{port}/0"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def celery_env(valkey_container):  # TODO THIS IS HORRIBLE
+    overrides = {"CELERY_BROKER_URL": valkey_container, "CELERY_RESULT_BACKEND": valkey_container}
+    with _temporary_env_vars(overrides):
+        try:
+            import viewport.celery_app as ca
+
+            importlib.reload(ca)
+        except Exception:
+            pass
+
+        try:
+            import viewport.background_tasks as bt
+
+            importlib.reload(bt)
+        except Exception:
+            pass
+
+        yield
+
+
+@pytest.fixture(scope="session")
+def celery_config(valkey_container):
+    """Configure pytest-celery to use the ValKey container as broker/backend."""
+    return {"broker_url": valkey_container, "result_backend": valkey_container}
+
+
 @pytest.fixture(scope="function")
-def client(db_session: Session, s3_container: DockerContainer):
+def client(db_session: Session, s3_container: DockerContainer, celery_config):
     """Фикстура тестового клиента FastAPI с очисткой состояния между тестами."""
 
     # Override get_db to use the transactional db_session for each test

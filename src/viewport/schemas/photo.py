@@ -187,7 +187,7 @@ class BatchPresignedUploadItem(BaseModel):
 class BatchPresignedUploadsRequest(BaseModel):
     """Request for batch presigned URLs"""
 
-    files: list[PhotoUploadIntentRequest] = Field(..., min_items=1, max_items=100)
+    files: list[PhotoUploadIntentRequest] = Field(..., min_length=1, max_length=100)
 
 
 class BatchPresignedUploadsResponse(BaseModel):
