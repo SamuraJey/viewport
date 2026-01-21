@@ -1,12 +1,13 @@
-import importlib
 import logging
 import os
 import time
+import uuid
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
 import boto3
+import jwt
 import pytest
 from botocore.config import Config
 from fastapi.testclient import TestClient
@@ -210,23 +211,21 @@ def valkey_container() -> Generator[str]:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def celery_env(valkey_container):  # TODO THIS IS HORRIBLE
-    overrides = {"CELERY_BROKER_URL": valkey_container, "CELERY_RESULT_BACKEND": valkey_container}
+def celery_env(valkey_container):
+    """Configure Celery to use the test ValKey container.
+
+    This fixture sets environment variables before any Celery modules are imported,
+    ensuring the Celery app is configured with the test broker/backend from the start.
+    The environment variables remain set for the entire test session.
+    """
+    overrides = {
+        "CELERY_BROKER_URL": valkey_container,
+        "CELERY_RESULT_BACKEND": valkey_container,
+    }
+
     with _temporary_env_vars(overrides):
-        try:
-            import viewport.celery_app as ca
-
-            importlib.reload(ca)
-        except Exception:
-            pass
-
-        try:
-            import viewport.background_tasks as bt
-
-            importlib.reload(bt)
-        except Exception:
-            pass
-
+        # The celery_app module reads from environment variables when imported.
+        # Tests that import celery_app will get the test configuration automatically.
         yield
 
 
@@ -345,9 +344,6 @@ def invalid_auth_headers() -> dict[str, str]:
 def expired_auth_headers() -> dict[str, str]:
     """Fixture providing expired access token in Authorization header."""
     # Generate a token expired in the past
-    import uuid
-
-    import jwt
 
     from viewport.auth_utils import authsettings
 

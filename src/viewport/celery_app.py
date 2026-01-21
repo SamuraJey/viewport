@@ -1,13 +1,9 @@
-"""Celery application configuration"""
-
-import logging
+"""Celery application configuration."""
 
 from celery import Celery
 from celery.schedules import crontab
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-logger = logging.getLogger(__name__)
 
 
 class CelerySettings(BaseSettings):
@@ -20,37 +16,43 @@ class CelerySettings(BaseSettings):
     )
 
 
-settings = CelerySettings()
+def create_celery_app(settings: CelerySettings | None = None) -> Celery:
+    """Create and configure a Celery application instance."""
 
-celery_app = Celery(
-    "viewport",
-    broker=settings.broker_url,
-    backend=settings.result_backend,
-    include=["viewport.background_tasks"],
-)
+    if settings is None:
+        settings = CelerySettings()
 
-celery_app.conf.update(
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
-    task_track_started=True,
-    task_time_limit=30 * 60,  # 30 minutes
-    task_soft_time_limit=25 * 60,  # 25 minutes
-    task_acks_late=True,
-    task_reject_on_worker_lost=True,
-    # Connection pool settings to prevent Redis connection exhaustion
-    broker_pool_limit=None,  # No limit on broker connections (use Redis connection pooling)
-    broker_connection_retry_on_startup=True,  # Retry connection on startup
-    broker_connection_max_retries=10,  # Retry up to 10 times
-)
+    app = Celery("viewport", include=["viewport.background_tasks"])
 
-celery_app.conf.beat_schedule = {
-    "cleanup-orphaned-uploads-every-hour": {
-        "task": "cleanup_orphaned_uploads",
-        "schedule": crontab(minute=0),  # Top of every hour
-    },
-}
+    app.conf.update(
+        broker_url=settings.broker_url,
+        result_backend=settings.result_backend,
+        task_serializer="json",
+        accept_content=["json"],
+        result_serializer="json",
+        timezone="UTC",
+        enable_utc=True,
+        task_track_started=True,
+        task_time_limit=30 * 60,  # 30 minutes
+        task_soft_time_limit=25 * 60,  # 25 minutes
+        task_acks_late=True,
+        task_reject_on_worker_lost=True,
+        broker_pool_limit=None,
+        broker_connection_retry_on_startup=True,
+        broker_connection_max_retries=10,
+    )
 
-__all__ = ["celery_app"]
+    # Schedule periodic tasks
+    app.conf.beat_schedule = {
+        "cleanup-orphaned-uploads-every-hour": {
+            "task": "cleanup_orphaned_uploads",
+            "schedule": crontab(minute=0),  # Every hour at minute 0
+        },
+    }
+
+    return app
+
+
+celery_app = create_celery_app()
+
+__all__ = ["celery_app", "create_celery_app", "CelerySettings"]

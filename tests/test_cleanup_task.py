@@ -1,17 +1,14 @@
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import pytest
+from freezegun.api import FrozenDateTimeFactory
 from sqlalchemy.orm import Session
 
 from viewport.background_tasks import cleanup_orphaned_uploads_task
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.user import User
 from viewport.s3_utils import get_s3_client, get_s3_settings
-
-if TYPE_CHECKING:
-    from freezegun.api import FrozenDateTimeFactory
 
 
 class TestCleanupTask:
