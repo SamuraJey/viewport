@@ -12,6 +12,7 @@ import logging
 from typing import TYPE_CHECKING, BinaryIO
 
 import aioboto3
+import boto3
 from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -105,9 +106,7 @@ class AsyncS3Client:
         """
         return self.session.client("s3", endpoint_url=self._endpoint_url, config=self._config)
 
-    def _get_presign_client(self):
-        import boto3
-
+    def _get_presign_client(self) -> "S3Client":  # Maybe use async? idk why we used sync here
         if self._presign_client is None:
             self._presign_client = boto3.client(
                 "s3",
