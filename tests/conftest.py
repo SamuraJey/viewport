@@ -212,16 +212,19 @@ def valkey_container() -> Generator[str]:
 def celery_env(valkey_container):
     """Configure Celery to use the test ValKey container.
     
-    This fixture reconfigures the global celery_app instance to use the test broker/backend
-    without requiring brittle module reloading. The configuration is updated directly on the
-    Celery app instance, which is the recommended approach for testing.
+    This fixture sets environment variables before any Celery modules are imported,
+    ensuring the Celery app is configured with the test broker/backend from the start.
+    The environment variables remain set for the entire test session.
     """
-    from viewport.celery_app import reconfigure_celery_for_tests
+    overrides = {
+        "CELERY_BROKER_URL": valkey_container,
+        "CELERY_RESULT_BACKEND": valkey_container,
+    }
     
-    # Reconfigure Celery to use test container
-    reconfigure_celery_for_tests(broker_url=valkey_container, result_backend=valkey_container)
-    
-    yield
+    with _temporary_env_vars(overrides):
+        # The celery_app module reads from environment variables when imported.
+        # Tests that import celery_app will get the test configuration automatically.
+        yield
 
 
 @pytest.fixture(scope="session")

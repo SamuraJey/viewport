@@ -1,6 +1,7 @@
 """Celery application configuration"""
 
 import logging
+from typing import Optional
 
 from celery import Celery
 from celery.schedules import crontab
@@ -67,22 +68,41 @@ def create_celery_app() -> Celery:
     return app
 
 
-# Create the default celery app instance
-celery_app = create_celery_app()
+# Lazy initialization: celery_app is created on first access
+_celery_app: Optional[Celery] = None
 
 
-def reconfigure_celery_for_tests(broker_url: str, result_backend: str) -> None:
-    """Reconfigure the global celery_app for testing.
+def _get_celery_app() -> Celery:
+    """Get the global celery_app instance, creating it lazily if needed.
     
-    This updates the broker and backend URLs dynamically without requiring module reloading.
-    Should only be called from test fixtures before any tasks are executed.
+    Lazy initialization ensures environment variables (e.g., from test fixtures)
+    are read when the app is created, not at module import time.
     """
-    global celery_app
-    celery_app.conf.update(
-        broker_url=broker_url,
-        result_backend=result_backend,
-    )
-    logger.info("Reconfigured Celery app for tests: broker=%s, backend=%s", broker_url, result_backend)
+    global _celery_app
+    if _celery_app is None:
+        _celery_app = create_celery_app()
+    return _celery_app
 
 
-__all__ = ["celery_app", "create_celery_app", "reconfigure_celery_for_tests"]
+class _CeleryAppProxy:
+    """Proxy that provides lazy access to the global celery_app instance.
+    
+    This allows the module to be imported without immediately creating the Celery app,
+    giving test fixtures a chance to set environment variables first.
+    """
+    
+    def __getattr__(self, name):
+        return getattr(_get_celery_app(), name)
+    
+    def __setattr__(self, name, value):
+        return setattr(_get_celery_app(), name, value)
+    
+    def __dir__(self):
+        return dir(_get_celery_app())
+
+
+# Create the proxy instance that will lazily initialize the actual Celery app
+celery_app = _CeleryAppProxy()
+
+
+__all__ = ["celery_app", "create_celery_app"]
