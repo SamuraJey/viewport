@@ -1,4 +1,3 @@
-import importlib
 import logging
 import os
 import time
@@ -210,24 +209,19 @@ def valkey_container() -> Generator[str]:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def celery_env(valkey_container):  # TODO THIS IS HORRIBLE
-    overrides = {"CELERY_BROKER_URL": valkey_container, "CELERY_RESULT_BACKEND": valkey_container}
-    with _temporary_env_vars(overrides):
-        try:
-            import viewport.celery_app as ca
-
-            importlib.reload(ca)
-        except Exception:
-            pass
-
-        try:
-            import viewport.background_tasks as bt
-
-            importlib.reload(bt)
-        except Exception:
-            pass
-
-        yield
+def celery_env(valkey_container):
+    """Configure Celery to use the test ValKey container.
+    
+    This fixture reconfigures the global celery_app instance to use the test broker/backend
+    without requiring brittle module reloading. The configuration is updated directly on the
+    Celery app instance, which is the recommended approach for testing.
+    """
+    from viewport.celery_app import reconfigure_celery_for_tests
+    
+    # Reconfigure Celery to use test container
+    reconfigure_celery_for_tests(broker_url=valkey_container, result_backend=valkey_container)
+    
+    yield
 
 
 @pytest.fixture(scope="session")
