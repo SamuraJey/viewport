@@ -85,19 +85,28 @@ def _get_celery_app() -> Celery:
 
 
 class _CeleryAppProxy:
-    """Proxy that provides lazy access to the global celery_app instance.
+    """Proxy that forwards all attribute access to the lazily-initialized Celery app.
     
-    This allows the module to be imported without immediately creating the Celery app,
-    giving test fixtures a chance to set environment variables first.
+    This proxy allows the celery_app module variable to be imported at any time
+    without immediately creating the Celery application instance. The actual app
+    is only created on first attribute access, ensuring that environment variables
+    (such as those set by test fixtures) are read at the right time.
+    
+    This pattern is useful for testing: test fixtures can set environment variables
+    before the Celery app reads its configuration, avoiding the need for module
+    reloading or runtime reconfiguration.
     """
     
-    def __getattr__(self, name):
+    def __getattr__(self, name: str):
+        """Forward attribute access to the underlying Celery app."""
         return getattr(_get_celery_app(), name)
     
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value):
+        """Forward attribute assignment to the underlying Celery app."""
         return setattr(_get_celery_app(), name, value)
     
     def __dir__(self):
+        """Forward directory listing to the underlying Celery app."""
         return dir(_get_celery_app())
 
 
