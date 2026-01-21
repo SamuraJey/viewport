@@ -206,6 +206,7 @@ def cleanup_orphaned_uploads_task() -> dict:
     threshold = datetime.now(UTC) - timedelta(hours=1)
     logger.info("Starting orphaned uploads cleanup (threshold: %s)", threshold)
 
+    # TODO may be we can notify users about failed photo uploads and may be let them reupload, but not now
     with task_db_session() as db:
         # 1. Find orphaned or failed photos
         stmt = select(Photo).where(
