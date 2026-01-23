@@ -24,6 +24,11 @@ vi.mock('react-router-dom', async () => {
 describe('useErrorHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, 'error').mockImplementation(() => { });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('redirects to error page for critical errors', () => {
@@ -67,6 +72,11 @@ describe('useErrorHandler', () => {
 describe('useNetworkErrorHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, 'error').mockImplementation(() => { });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('normalizes network errors to a friendly message', () => {

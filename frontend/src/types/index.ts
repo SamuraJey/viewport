@@ -11,13 +11,10 @@ export type { Gallery, GalleryDetail, GalleryListResponse } from './gallery';
 // Photo types
 export type {
   PhotoResponse,
-  PhotoUrlResponse,
   PhotoUploadResult,
   PhotoUploadResponse,
   PhotoUploadIntentRequest,
   PresignedUploadData,
-  PhotoUploadIntentResponse,
-  PhotoConfirmUploadResponse,
   BatchPresignedUploadItem,
   BatchPresignedUploadsRequest,
   BatchPresignedUploadsResponse,

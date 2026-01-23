@@ -387,6 +387,7 @@ export const PublicGalleryPage = () => {
           <img
             src={gallery.cover.full_url}
             alt="Gallery cover"
+            crossOrigin="anonymous"
             className="absolute inset-0 w-full h-full object-cover"
           />
           {/* Overlay */}

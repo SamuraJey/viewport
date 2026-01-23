@@ -1,10 +1,7 @@
 import { api } from '../lib/api';
 import type {
-  PhotoConfirmUploadResponse,
   PhotoResponse,
   PhotoUploadIntentRequest,
-  PhotoUploadIntentResponse,
-  PhotoUrlResponse,
   PhotoUploadResult,
   PhotoUploadResponse,
   BatchPresignedUploadsRequest,
@@ -17,26 +14,7 @@ import type {
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 // Re-export types for backward compatibility
-export type {
-  PhotoConfirmUploadResponse,
-  PhotoResponse,
-  PhotoUploadIntentRequest,
-  PhotoUploadIntentResponse,
-  PhotoUrlResponse,
-  PhotoUploadResult,
-  PhotoUploadResponse,
-};
-
-const uploadPhoto = async (galleryId: string, file: File): Promise<PhotoResponse> => {
-  const formData = new FormData();
-  formData.append('file', file);
-  const response = await api.post<PhotoResponse>(`/galleries/${galleryId}/photos`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-  return response.data;
-};
+export type { PhotoResponse, PhotoUploadIntentRequest, PhotoUploadResult, PhotoUploadResponse };
 
 const deletePhoto = async (galleryId: string, photoId: string): Promise<void> => {
   await api.delete(`/galleries/${galleryId}/photos/${photoId}`);
@@ -56,194 +34,7 @@ const renamePhoto = async (
   return response.data;
 };
 
-const getPhotoUrl = async (galleryId: string, photoId: string): Promise<PhotoUrlResponse> => {
-  const response = await api.get<PhotoUrlResponse>(`/galleries/${galleryId}/photos/${photoId}/url`);
-  return response.data;
-};
-
-const getPhotoUrlDirect = async (photoId: string): Promise<PhotoUrlResponse> => {
-  const response = await api.get<PhotoUrlResponse>(`/photos/auth/${photoId}/url`);
-  return response.data;
-};
-
-const uploadPhotos = async (
-  galleryId: string,
-  files: File[],
-  onProgress?: (progress: {
-    loaded: number;
-    total: number;
-    percentage: number;
-    currentFile: string;
-    currentBatch?: number;
-    totalBatches?: number;
-  }) => void,
-): Promise<PhotoUploadResponse> => {
-  // Optimized batch settings for faster uploads:
-  // - Smaller batches = faster individual requests, better parallelism
-  // - Higher concurrency = more parallel uploads to backend
-  const BATCH_SIZE = 15; // Smaller batches for faster response times
-  const MAX_CONCURRENCY = 4; // More parallel batch uploads
-
-  if (files.length === 0) {
-    return {
-      results: [],
-      total_files: 0,
-      successful_uploads: 0,
-      failed_uploads: 0,
-    };
-  }
-
-  const batches: { index: number; files: File[] }[] = [];
-  for (let i = 0; i < files.length; i += BATCH_SIZE) {
-    batches.push({ index: batches.length, files: files.slice(i, i + BATCH_SIZE) });
-  }
-
-  const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-  const totalBatches = batches.length;
-
-  const allResults: PhotoUploadResult[] = [];
-  let successfulUploads = 0;
-  let failedUploads = 0;
-
-  let completedBytes = 0;
-  const inFlightBytes = new Map<number, number>();
-  const batchSizes = new Map<number, number>();
-
-  const emitProgress = (currentBatchIndex: number, currentFileName: string) => {
-    if (!onProgress) {
-      return;
-    }
-
-    const inFlightTotal = Array.from(inFlightBytes.values()).reduce((sum, value) => sum + value, 0);
-    const loaded = completedBytes + inFlightTotal;
-    const percentage = totalSize > 0 ? Math.min(100, Math.round((loaded * 100) / totalSize)) : 0;
-
-    onProgress({
-      loaded,
-      total: totalSize,
-      percentage,
-      currentFile: currentFileName,
-      currentBatch: currentBatchIndex + 1,
-      totalBatches,
-    });
-  };
-
-  const updateProgress = (batchIndex: number, loadedInBatch: number) => {
-    if (!onProgress) {
-      return;
-    }
-
-    const batchSize = batchSizes.get(batchIndex) ?? 0;
-    const clampedLoaded = Math.min(loadedInBatch, batchSize);
-    inFlightBytes.set(batchIndex, clampedLoaded);
-
-    const firstFileName = batches[batchIndex]?.files[0]?.name ?? 'Uploading...';
-    emitProgress(batchIndex, firstFileName);
-  };
-
-  const processBatch = async (batch: { index: number; files: File[] }) => {
-    const formData = new FormData();
-    batch.files.forEach((file) => formData.append('files', file));
-
-    const batchSize = batch.files.reduce((sum, file) => sum + file.size, 0);
-    batchSizes.set(batch.index, batchSize);
-
-    try {
-      const response = await api.post<PhotoUploadResponse>(
-        `/galleries/${galleryId}/photos/batch`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-          timeout: 120000, // 2 minute timeout for uploads
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              updateProgress(batch.index, progressEvent.loaded);
-            } else {
-              updateProgress(batch.index, Math.min(progressEvent.loaded, batchSize));
-            }
-          },
-        },
-      );
-
-      inFlightBytes.delete(batch.index);
-      completedBytes += batchSize;
-      emitProgress(batch.index, batch.files[0]?.name ?? 'Completed');
-
-      allResults.push(...response.data.results);
-      successfulUploads += response.data.successful_uploads;
-      failedUploads += response.data.failed_uploads;
-    } catch (error) {
-      inFlightBytes.delete(batch.index);
-      completedBytes += batchSize;
-
-      const failedResults: PhotoUploadResult[] = batch.files.map((file) => ({
-        filename: file.name,
-        success: false,
-        error: error instanceof Error ? error.message : 'Upload failed',
-      }));
-
-      allResults.push(...failedResults);
-      failedUploads += batch.files.length;
-      emitProgress(batch.index, batch.files[0]?.name ?? 'Failed');
-    }
-  };
-
-  let nextBatchIndex = 0;
-
-  const worker = async () => {
-    while (nextBatchIndex < batches.length) {
-      const currentIndex = nextBatchIndex;
-      nextBatchIndex += 1;
-      const batch = batches[currentIndex];
-      await processBatch(batch);
-    }
-  };
-
-  const workers = Array.from({ length: Math.min(MAX_CONCURRENCY, batches.length) }, () => worker());
-  await Promise.all(workers);
-
-  return {
-    results: allResults,
-    total_files: files.length,
-    successful_uploads: successfulUploads,
-    failed_uploads: failedUploads,
-  };
-};
-
-const getAllPhotoUrls = async (galleryId: string): Promise<PhotoResponse[]> => {
-  const response = await api.get<PhotoResponse[]>(`/galleries/${galleryId}/photos/urls`);
-  return response.data;
-};
-
-// Presigned upload methods
-const createUploadIntent = async (
-  galleryId: string,
-  request: PhotoUploadIntentRequest,
-  signal?: AbortSignal,
-): Promise<PhotoUploadIntentResponse> => {
-  const response = await api.post<PhotoUploadIntentResponse>(
-    `/galleries/${galleryId}/photos/upload-intent`,
-    request,
-    { signal },
-  );
-  return response.data;
-};
-
-const confirmUpload = async (
-  galleryId: string,
-  photoId: string,
-  signal?: AbortSignal,
-): Promise<PhotoConfirmUploadResponse> => {
-  const response = await api.post<PhotoConfirmUploadResponse>(
-    `/galleries/${galleryId}/photos/confirm-upload`,
-    { photo_id: photoId },
-    { signal },
-  );
-  return response.data;
-};
-
+// Batch presigned upload methods
 const batchCreateUploadIntents = async (
   galleryId: string,
   files: File[],
@@ -310,7 +101,7 @@ const uploadToS3 = async (
     }
 
     try {
-      // Direct fetch to S3 (не через api instance, чтобы не добавлялись auth headers)
+      // Direct fetch from S3
       const xhr = new XMLHttpRequest();
 
       const uploadPromise = new Promise<void>((resolve, reject) => {
@@ -395,53 +186,6 @@ const uploadToS3 = async (
   }
 
   throw lastError || new Error('S3 upload failed after retries');
-};
-
-/**
- * Upload a single photo using presigned URL (direct to S3)
- *
- * Flow:
- * 1. Request upload intent (get presigned URL)
- * 2. Upload file directly to S3
- * 3. Confirm upload with backend
- */
-const uploadPhotoPresigned = async (
-  galleryId: string,
-  file: File,
-  onProgress?: (progress: { loaded: number; total: number; percentage: number }) => void,
-  signal?: AbortSignal,
-): Promise<{ photo_id: string }> => {
-  // 1. Get upload intent
-  const intent = await createUploadIntent(
-    galleryId,
-    {
-      filename: file.name,
-      file_size: file.size,
-      content_type: file.type,
-    },
-    signal,
-  );
-
-  // 2. Upload to S3
-  await uploadToS3(
-    intent.presigned_data,
-    file,
-    (percentage) => {
-      if (onProgress) {
-        onProgress({
-          loaded: Math.round((file.size * percentage) / 100),
-          total: file.size,
-          percentage,
-        });
-      }
-    },
-    signal,
-  );
-
-  // 3. Confirm upload
-  await confirmUpload(galleryId, intent.photo_id, signal);
-
-  return { photo_id: intent.photo_id };
 };
 
 /**
@@ -687,21 +431,8 @@ const uploadPhotosPresigned = async (
 };
 
 export const photoService = {
-  uploadPhoto,
-  uploadPhotos,
   deletePhoto,
   renamePhoto,
-  getPhotoUrl,
-  getPhotoUrlDirect,
-  getAllPhotoUrls,
-  // Presigned upload methods
-  createUploadIntent,
-  uploadToS3,
-  confirmUpload,
-  uploadPhotoPresigned,
   uploadPhotosPresigned,
   retryFailedUploads,
-  // Batch upload methods
-  batchCreateUploadIntents,
-  batchConfirmUploads,
 };

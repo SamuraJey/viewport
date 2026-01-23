@@ -1,6 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { usePhotoLightbox } from '../../hooks/usePhotoLightbox';
+import type { PhotoSlide } from '../../hooks/usePhotoLightbox';
 
 // Mock yet-another-react-lightbox
 vi.mock('yet-another-react-lightbox', () => ({
@@ -82,15 +83,15 @@ describe('usePhotoLightbox', () => {
   it('renders lightbox with provided slides', () => {
     const { result } = renderHook(() => usePhotoLightbox());
 
-    const slides = [
-      { src: '/photo1.jpg', alt: 'Photo 1' },
-      { src: '/photo2.jpg', alt: 'Photo 2' },
+    const slides: PhotoSlide[] = [
+      { src: '/photo1.jpg', alt: 'Photo 1', imageProps: { crossOrigin: 'anonymous' } },
+      { src: '/photo2.jpg', alt: 'Photo 2', imageProps: { crossOrigin: 'anonymous' } },
     ];
 
     const lightbox = result.current.renderLightbox(slides);
 
     expect(lightbox).toBeDefined();
-    expect(lightbox.props.slides).toBe(slides);
+    expect(lightbox.props.slides).toStrictEqual(slides);
     expect(lightbox.props.open).toBe(false);
   });
 

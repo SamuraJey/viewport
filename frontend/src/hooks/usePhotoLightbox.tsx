@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import type { ImgHTMLAttributes } from 'react';
 import Lightbox from 'yet-another-react-lightbox';
 import Thumbnails from 'yet-another-react-lightbox/plugins/thumbnails';
 import Fullscreen from 'yet-another-react-lightbox/plugins/fullscreen';
@@ -7,13 +8,14 @@ import Zoom from 'yet-another-react-lightbox/plugins/zoom';
 import 'yet-another-react-lightbox/styles.css';
 import 'yet-another-react-lightbox/plugins/thumbnails.css';
 
-interface PhotoSlide {
+export interface PhotoSlide {
   src: string;
   alt?: string;
   width?: number;
   height?: number;
   download?: string;
   downloadFilename?: string;
+  imageProps?: ImgHTMLAttributes<HTMLImageElement>;
 }
 
 interface UsePhotoLightboxOptions {
@@ -94,7 +96,13 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
       open={lightboxOpen}
       close={closeLightbox}
       index={lightboxIndex}
-      slides={slides}
+      slides={slides.map((slide) => ({
+        ...slide,
+        imageProps: {
+          ...slide.imageProps,
+          crossOrigin: 'anonymous',
+        },
+      }))}
       plugins={[Thumbnails, Fullscreen, LightboxDownload, Zoom]}
       controller={{
         closeOnPullDown: true,

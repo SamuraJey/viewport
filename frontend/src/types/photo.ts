@@ -14,12 +14,6 @@ export interface PhotoResponse {
   uploaded_at: string;
 }
 
-export interface PhotoUrlResponse {
-  id: string;
-  url: string;
-  expires_in: number;
-}
-
 export interface PhotoUploadResult {
   filename: string;
   success: boolean;
@@ -45,16 +39,6 @@ export interface PhotoUploadIntentRequest {
 export interface PresignedUploadData {
   url: string;
   headers: Record<string, string>;
-}
-
-export interface PhotoUploadIntentResponse {
-  photo_id: string;
-  presigned_data: PresignedUploadData;
-  expires_in: number;
-}
-
-export interface PhotoConfirmUploadResponse {
-  status: 'confirmed' | 'already_processed';
 }
 
 // Batch presigned upload types

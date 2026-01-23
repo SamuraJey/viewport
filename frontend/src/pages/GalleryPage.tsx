@@ -850,6 +850,7 @@ export const GalleryPage = () => {
                       <img
                         src={photo.thumbnail_url}
                         alt={`Photo ${photo.id}`}
+                        crossOrigin="anonymous"
                         className="w-full h-full object-contain rounded-t-lg transition-opacity"
                         loading="lazy"
                       />
