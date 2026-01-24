@@ -1,195 +1,376 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { photoService } from '../../services/photoService';
 import { api } from '../../lib/api';
 
-// Mock the api module
 vi.mock('../../lib/api', () => ({
   api: {
+    get: vi.fn(),
     post: vi.fn(),
     delete: vi.fn(),
     patch: vi.fn(),
-    get: vi.fn(),
   },
 }));
+
+type XhrBehavior =
+  | { type: 'load'; status?: number; statusText?: string; progress?: number }
+  | { type: 'error' };
+
+class MockXMLHttpRequest {
+  static sendQueue: XhrBehavior[] = [];
+  static instances: MockXMLHttpRequest[] = [];
+
+  status = 200;
+  statusText = 'OK';
+  method = '';
+  url = '';
+  headers: Array<[string, string]> = [];
+  uploadProgress?: (event: ProgressEvent) => void;
+  listeners: Record<string, Array<() => void>> = {};
+  sentFile?: File;
+
+  upload = {
+    addEventListener: (event: string, cb: (event: ProgressEvent) => void) => {
+      if (event === 'progress') {
+        this.uploadProgress = cb;
+      }
+    },
+  };
+
+  constructor() {
+    MockXMLHttpRequest.instances.push(this);
+  }
+
+  open(method: string, url: string) {
+    this.method = method;
+    this.url = url;
+  }
+
+  setRequestHeader(name: string, value: string) {
+    this.headers.push([name, value]);
+  }
+
+  addEventListener(type: string, cb: () => void) {
+    if (!this.listeners[type]) {
+      this.listeners[type] = [];
+    }
+    this.listeners[type].push(cb);
+  }
+
+  removeEventListener(type: string, cb: () => void) {
+    this.listeners[type] = (this.listeners[type] ?? []).filter((fn) => fn !== cb);
+  }
+
+  send(file: File) {
+    this.sentFile = file;
+    const behavior = MockXMLHttpRequest.sendQueue.shift() ?? { type: 'load', status: 200 };
+
+    if (this.uploadProgress && behavior.type === 'load' && behavior.progress !== undefined) {
+      this.uploadProgress({
+        lengthComputable: true,
+        loaded: behavior.progress,
+        total: file.size,
+      } as ProgressEvent);
+    }
+
+    if (behavior.type === 'load') {
+      this.status = behavior.status ?? 200;
+      this.statusText = behavior.statusText ?? 'OK';
+      (this.listeners.load ?? []).forEach((cb) => cb());
+      return;
+    }
+
+    (this.listeners.error ?? []).forEach((cb) => cb());
+  }
+
+  abort() {
+    (this.listeners.abort ?? []).forEach((cb) => cb());
+  }
+}
+
+const createFile = (name: string, size: number, type = 'image/jpeg') => {
+  const data = new Uint8Array(size);
+  return new File([data], name, { type });
+};
 
 describe('photoService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('XMLHttpRequest', MockXMLHttpRequest as unknown as typeof XMLHttpRequest);
+    MockXMLHttpRequest.sendQueue = [];
+    MockXMLHttpRequest.instances = [];
+    vi.spyOn(console, 'warn').mockImplementation(() => { });
+    vi.spyOn(console, 'error').mockImplementation(() => { });
   });
 
-  describe('uploadPhoto', () => {
-    it('should upload photo with FormData', async () => {
-      const galleryId = 'gallery-123';
-      const mockFile = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
-      const mockResponse = {
-        data: {
-          id: 'photo-123',
-          gallery_id: galleryId,
-          url: '/photos/photo-123',
-          created_at: '2025-01-01T00:00:00Z',
-        },
-      };
+  it('deletes photo by gallery and photo id', async () => {
+    vi.mocked(api.delete).mockResolvedValue({} as any);
 
-      vi.mocked(api.post).mockResolvedValue(mockResponse);
+    await photoService.deletePhoto('gallery-1', 'photo-1');
 
-      const result = await photoService.uploadPhoto(galleryId, mockFile);
+    expect(api.delete).toHaveBeenCalledWith('/galleries/gallery-1/photos/photo-1');
+  });
 
-      expect(api.post).toHaveBeenCalledWith(
-        `/galleries/${galleryId}/photos`,
-        expect.any(FormData),
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
+  it('renames photo with provided filename', async () => {
+    const response = {
+      data: {
+        id: 'photo-1',
+        gallery_id: 'gallery-1',
+        url: '/photo',
+        thumbnail_url: '/thumb',
+        filename: 'new.jpg',
+        file_size: 123,
+        uploaded_at: '2025-01-01T00:00:00Z',
+      },
+    };
+
+    vi.mocked(api.patch).mockResolvedValue(response as any);
+
+    const result = await photoService.renamePhoto('gallery-1', 'photo-1', 'new.jpg');
+
+    expect(api.patch).toHaveBeenCalledWith('/galleries/gallery-1/photos/photo-1/rename', {
+      filename: 'new.jpg',
+    });
+    expect(result).toEqual(response.data);
+  });
+
+  it('returns empty response when no files provided', async () => {
+    const result = await photoService.uploadPhotosPresigned('gallery-1', []);
+
+    expect(result).toEqual({
+      results: [],
+      total_files: 0,
+      successful_uploads: 0,
+      failed_uploads: 0,
+    });
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('flags oversized files without calling presign', async () => {
+    const oversized = createFile('big.jpg', 11 * 1024 * 1024);
+
+    const result = await photoService.uploadPhotosPresigned('gallery-1', [oversized]);
+
+    expect(result.failed_uploads).toBe(1);
+    expect(result.successful_uploads).toBe(0);
+    expect(result.results[0]).toEqual({
+      filename: 'big.jpg',
+      success: false,
+      error: 'File exceeds maximum size of 10MB',
+      retryable: false,
+    });
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('handles presigned batch failures', async () => {
+    const file = createFile('photo.jpg', 1024);
+
+    vi.mocked(api.post).mockResolvedValueOnce({
+      data: {
+        items: [{ filename: 'photo.jpg', success: false, error: 'File rejected' }],
+      },
+    } as any);
+
+    const result = await photoService.uploadPhotosPresigned('gallery-1', [file]);
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/galleries/gallery-1/photos/batch-presigned',
+      {
+        files: [
+          {
+            filename: 'photo.jpg',
+            file_size: 1024,
+            content_type: 'image/jpeg',
           },
-        },
-      );
-      expect(result).toEqual(mockResponse.data);
-    });
-
-    it('should handle upload errors', async () => {
-      const galleryId = 'gallery-123';
-      const mockFile = new File(['test'], 'test.jpg', { type: 'image/jpeg' });
-
-      const mockError = new Error('Upload failed');
-      vi.mocked(api.post).mockRejectedValue(mockError);
-
-      await expect(photoService.uploadPhoto(galleryId, mockFile)).rejects.toThrow('Upload failed');
+        ],
+      },
+      { signal: undefined },
+    );
+    expect(result.failed_uploads).toBe(1);
+    expect(result.results[0]).toEqual({
+      filename: 'photo.jpg',
+      success: false,
+      error: 'File rejected',
     });
   });
 
-  describe('deletePhoto', () => {
-    it('should make DELETE request to remove photo', async () => {
-      const galleryId = 'gallery-123';
-      const photoId = 'photo-123';
+  it('uploads files, tracks progress, and confirms batch', async () => {
+    const fileA = createFile('a.jpg', 2000);
+    const fileB = createFile('b.jpg', 3000);
 
-      vi.mocked(api.delete).mockResolvedValue({} as any);
-
-      await photoService.deletePhoto(galleryId, photoId);
-
-      expect(api.delete).toHaveBeenCalledWith(`/galleries/${galleryId}/photos/${photoId}`);
-    });
-
-    it('should handle delete errors', async () => {
-      const galleryId = 'gallery-123';
-      const photoId = 'non-existent';
-
-      const mockError = new Error('Photo not found');
-      vi.mocked(api.delete).mockRejectedValue(mockError);
-
-      await expect(photoService.deletePhoto(galleryId, photoId)).rejects.toThrow('Photo not found');
-      expect(api.delete).toHaveBeenCalledWith(`/galleries/${galleryId}/photos/${photoId}`);
-    });
-  });
-
-  describe('service methods', () => {
-    it('should have all required methods', () => {
-      expect(typeof photoService.uploadPhoto).toBe('function');
-      expect(typeof photoService.deletePhoto).toBe('function');
-    });
-  });
-
-  describe('metadata endpoints', () => {
-    it('renames a photo', async () => {
-      const galleryId = 'g1';
-      const photoId = 'p1';
-      const filename = 'new.jpg';
-
-      vi.mocked(api.patch).mockResolvedValue({ data: { id: photoId, filename } } as any);
-
-      const response = await photoService.renamePhoto(galleryId, photoId, filename);
-
-      expect(api.patch).toHaveBeenCalledWith(`/galleries/${galleryId}/photos/${photoId}/rename`, {
-        filename,
-      });
-      expect(response).toEqual({ id: photoId, filename });
-    });
-
-    it('fetches photo URLs', async () => {
-      const galleryId = 'g1';
-      const photoId = 'p1';
-      const urlResponse = { data: { url: '/full/p1.jpg' } } as any;
-      const directResponse = { data: { url: '/auth/p1.jpg' } } as any;
-      const allResponse = { data: [{ id: 'p1' }, { id: 'p2' }] } as any;
-
-      vi.mocked(api.get)
-        .mockResolvedValueOnce(urlResponse)
-        .mockResolvedValueOnce(directResponse)
-        .mockResolvedValueOnce(allResponse);
-
-      const url = await photoService.getPhotoUrl(galleryId, photoId);
-      const direct = await photoService.getPhotoUrlDirect(photoId);
-      const all = await photoService.getAllPhotoUrls(galleryId);
-
-      expect(api.get).toHaveBeenNthCalledWith(1, `/galleries/${galleryId}/photos/${photoId}/url`);
-      expect(api.get).toHaveBeenNthCalledWith(2, `/photos/auth/${photoId}/url`);
-      expect(api.get).toHaveBeenNthCalledWith(3, `/galleries/${galleryId}/photos/urls`);
-      expect(url).toEqual(urlResponse.data);
-      expect(direct).toEqual(directResponse.data);
-      expect(all).toEqual(allResponse.data);
-    });
-  });
-
-  describe('uploadPhotos', () => {
-    const galleryId = 'gallery-456';
-
-    const makeFile = (name: string, size = 100) =>
-      new File([new ArrayBuffer(size)], name, { type: 'image/jpeg' });
-
-    it('returns early when no files provided', async () => {
-      const result = await photoService.uploadPhotos(galleryId, []);
-
-      expect(result).toEqual({
-        results: [],
-        total_files: 0,
-        successful_uploads: 0,
-        failed_uploads: 0,
-      });
-      expect(api.post).not.toHaveBeenCalled();
-    });
-
-    it('uploads batches and reports progress', async () => {
-      const files = [makeFile('a.jpg', 200), makeFile('b.jpg', 300)];
-
-      vi.mocked(api.post).mockImplementation(async (_url, _formData, config) => {
-        config?.onUploadProgress?.({ loaded: 100, total: 200 } as any);
-        config?.onUploadProgress?.({ loaded: 150 } as any);
-
-        return {
+    vi.mocked(api.post).mockImplementation((url) => {
+      if (url === '/galleries/gallery-1/photos/batch-presigned') {
+        return Promise.resolve({
           data: {
-            results: files.map((f) => ({ filename: f.name, success: true })),
-            successful_uploads: files.length,
-            failed_uploads: 0,
+            items: [
+              {
+                filename: 'a.jpg',
+                success: true,
+                photo_id: 'photo-a',
+                presigned_data: {
+                  url: 'https://s3/upload-a',
+                  headers: { 'Content-Type': 'image/jpeg', 'Content-Length': '2000' },
+                },
+              },
+              {
+                filename: 'b.jpg',
+                success: true,
+                photo_id: 'photo-b',
+                presigned_data: {
+                  url: 'https://s3/upload-b',
+                  headers: { 'Content-Type': 'image/jpeg' },
+                },
+              },
+            ],
           },
-        } as any;
-      });
+        } as any);
+      }
 
-      const progressSpy = vi.fn();
-      const result = await photoService.uploadPhotos(galleryId, files, progressSpy);
+      if (url === '/galleries/gallery-1/photos/batch-confirm') {
+        return Promise.resolve({ data: {} } as any);
+      }
 
-      expect(api.post).toHaveBeenCalledWith(
-        `/galleries/${galleryId}/photos/batch`,
-        expect.any(FormData),
-        expect.objectContaining({ headers: { 'Content-Type': 'multipart/form-data' } }),
-      );
-      expect(progressSpy).toHaveBeenCalled();
-      expect(result.successful_uploads).toBe(2);
-      expect(result.failed_uploads).toBe(0);
-      expect(result.results).toHaveLength(2);
+      return Promise.reject(new Error('Unexpected url'));
     });
 
-    it('handles batch failures gracefully', async () => {
-      const files = [makeFile('c.jpg')];
+    MockXMLHttpRequest.sendQueue = [
+      { type: 'load', status: 200, progress: fileA.size },
+      { type: 'load', status: 200, progress: fileB.size },
+    ];
 
-      vi.mocked(api.post).mockRejectedValue(new Error('fail'));
+    const progressSpy = vi.fn();
 
-      const progressSpy = vi.fn();
-      const result = await photoService.uploadPhotos(galleryId, files, progressSpy);
+    const result = await photoService.uploadPhotosPresigned('gallery-1', [fileA, fileB], progressSpy);
 
-      expect(progressSpy).toHaveBeenCalled();
-      expect(result.successful_uploads).toBe(0);
-      expect(result.failed_uploads).toBe(1);
-      expect(result.results[0].success).toBe(false);
+    expect(result.successful_uploads).toBe(2);
+    expect(result.failed_uploads).toBe(0);
+    expect(result.total_files).toBe(2);
+
+    const lastProgress = progressSpy.mock.calls.at(-1)?.[0];
+    expect(lastProgress).toMatchObject({
+      percentage: 100,
+      successCount: 2,
+      failedCount: 0,
+    });
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/galleries/gallery-1/photos/batch-confirm',
+      {
+        items: [
+          { photo_id: 'photo-a', success: true },
+          { photo_id: 'photo-b', success: true },
+        ],
+      },
+      { signal: undefined },
+    );
+
+    const firstHeaders = MockXMLHttpRequest.instances[0]?.headers ?? [];
+    expect(firstHeaders.find(([key]) => key.toLowerCase() === 'content-length')).toBeUndefined();
+  });
+
+  it('marks empty files as failed and confirms failed ids', async () => {
+    const emptyFile = createFile('empty.jpg', 0);
+
+    vi.mocked(api.post).mockImplementation((url) => {
+      if (url === '/galleries/gallery-1/photos/batch-presigned') {
+        return Promise.resolve({
+          data: {
+            items: [
+              {
+                filename: 'empty.jpg',
+                success: true,
+                photo_id: 'photo-empty',
+                presigned_data: {
+                  url: 'https://s3/upload-empty',
+                  headers: { 'Content-Type': 'image/jpeg' },
+                },
+              },
+            ],
+          },
+        } as any);
+      }
+
+      if (url === '/galleries/gallery-1/photos/batch-confirm') {
+        return Promise.resolve({ data: {} } as any);
+      }
+
+      return Promise.reject(new Error('Unexpected url'));
+    });
+
+    const result = await photoService.uploadPhotosPresigned('gallery-1', [emptyFile]);
+
+    expect(result.failed_uploads).toBe(1);
+    expect(result.successful_uploads).toBe(0);
+    expect(result.results[0]).toEqual({
+      filename: 'empty.jpg',
+      success: false,
+      error: 'Cannot upload empty file',
+    });
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/galleries/gallery-1/photos/batch-confirm',
+      {
+        items: [{ photo_id: 'photo-empty', success: false }],
+      },
+      { signal: undefined },
+    );
+  });
+
+  it('retries transient network errors before succeeding', async () => {
+    vi.useFakeTimers();
+
+    const file = createFile('retry.jpg', 1024);
+
+    vi.mocked(api.post).mockImplementation((url) => {
+      if (url === '/galleries/gallery-1/photos/batch-presigned') {
+        return Promise.resolve({
+          data: {
+            items: [
+              {
+                filename: 'retry.jpg',
+                success: true,
+                photo_id: 'photo-retry',
+                presigned_data: {
+                  url: 'https://s3/upload-retry',
+                  headers: { 'Content-Type': 'image/jpeg' },
+                },
+              },
+            ],
+          },
+        } as any);
+      }
+
+      if (url === '/galleries/gallery-1/photos/batch-confirm') {
+        return Promise.resolve({ data: {} } as any);
+      }
+
+      return Promise.reject(new Error('Unexpected url'));
+    });
+
+    MockXMLHttpRequest.sendQueue = [{ type: 'error' }, { type: 'load', status: 200 }];
+
+    const promise = photoService.uploadPhotosPresigned('gallery-1', [file]);
+
+    await vi.runAllTimersAsync();
+    const result = await promise;
+
+    expect(result.successful_uploads).toBe(1);
+    expect(MockXMLHttpRequest.instances.length).toBe(2);
+
+    vi.useRealTimers();
+  });
+
+  it('returns empty results when retryFailedUploads gets no files', async () => {
+    const result = await photoService.retryFailedUploads('gallery-1', []);
+
+    expect(result).toEqual({
+      results: [],
+      total_files: 0,
+      successful_uploads: 0,
+      failed_uploads: 0,
     });
   });
 });

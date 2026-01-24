@@ -98,6 +98,7 @@ export const LazyImage = ({
           ref={imgRef}
           src={imageSrc}
           alt={alt}
+          crossOrigin="anonymous"
           className={`w-full h-full ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${imgClassName ?? ''} ${isLoading ? 'opacity-0' : 'opacity-100 transition-opacity duration-300'}`}
           onLoad={handleLoad}
           onError={handleError}

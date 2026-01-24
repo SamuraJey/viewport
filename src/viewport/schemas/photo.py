@@ -135,3 +135,82 @@ class PhotoRenameRequest(BaseModel):
     """Request model for renaming a photo"""
 
     filename: str = Field(..., min_length=1, max_length=255, description="New filename for the photo")
+
+
+class PhotoUploadIntentRequest(BaseModel):
+    """Request to initiate photo upload via presigned URL"""
+
+    filename: str = Field(..., min_length=1, max_length=255)
+    file_size: int = Field(..., gt=0)
+    content_type: str = Field(..., pattern=r"^image/(jpeg|jpg|png|webp|gif)$")
+
+
+class PresignedUploadData(BaseModel):
+    """Presigned PUT data for S3 upload"""
+
+    url: str
+    headers: dict[str, str]
+
+
+class PhotoUploadIntentResponse(BaseModel):
+    """Response with photo_id and presigned upload data"""
+
+    photo_id: UUID
+    presigned_data: PresignedUploadData
+    expires_in: int  # seconds
+
+
+class PhotoConfirmUploadRequest(BaseModel):
+    """Request to confirm photo upload"""
+
+    photo_id: UUID
+
+
+class PhotoConfirmUploadResponse(BaseModel):
+    """Response for photo upload confirmation"""
+
+    status: str  # 'confirmed' or 'already_processed'
+
+
+class BatchPresignedUploadItem(BaseModel):
+    """Result for a single file inside the batch presigned response"""
+
+    filename: str
+    file_size: int
+    success: bool
+    error: str | None = None
+    photo_id: UUID | None = None
+    presigned_data: PresignedUploadData | None = None
+    expires_in: int | None = None
+
+
+class BatchPresignedUploadsRequest(BaseModel):
+    """Request for batch presigned URLs"""
+
+    files: list[PhotoUploadIntentRequest] = Field(..., min_length=1, max_length=100)
+
+
+class BatchPresignedUploadsResponse(BaseModel):
+    """Response with batch presigned URLs"""
+
+    items: list[BatchPresignedUploadItem]
+
+
+class ConfirmPhotoUploadItem(BaseModel):
+    """Single item in batch confirm upload request"""
+
+    photo_id: UUID
+    success: bool = True
+
+
+class BatchConfirmUploadRequest(BaseModel):
+    """Request to confirm multiple photo uploads"""
+
+    items: list[ConfirmPhotoUploadItem] = Field(..., min_length=1, max_length=100)
+
+
+class BatchConfirmUploadResponse(BaseModel):
+    """Response for batch upload confirmation"""
+
+    confirmed_count: int
+    failed_count: int

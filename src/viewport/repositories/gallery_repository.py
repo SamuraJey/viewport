@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime
 
 from sqlalchemy import func, insert, select
 
-from viewport.models.gallery import Gallery, Photo
+from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
 from viewport.repositories.base_repository import BaseRepository
 from viewport.s3_service import AsyncS3Client
@@ -116,6 +116,28 @@ class GalleryRepository(BaseRepository):
         # Sort by object_key (which contains the filename after the gallery prefix)
         stmt = select(Photo).where(Photo.gallery_id == gallery_id).order_by(Photo.object_key.asc())
         return list(self.db.execute(stmt).scalars().all())
+
+    def get_photos_by_ids_and_gallery(self, gallery_id: uuid.UUID, photo_ids: list[uuid.UUID]) -> list[Photo]:
+        if not photo_ids:
+            return []
+        stmt = select(Photo).where(Photo.gallery_id == gallery_id, Photo.id.in_(photo_ids))
+        return list(self.db.execute(stmt).scalars().all())
+
+    def set_photo_status(self, photo: Photo, status: PhotoUploadStatus) -> Photo:
+        photo.status = status
+        self.db.commit()
+        self.db.refresh(photo)
+        return photo
+
+    def set_photos_statuses(self, photo_map: dict[uuid.UUID, Photo], status_updates: dict[uuid.UUID, PhotoUploadStatus]) -> None:
+        if not status_updates:
+            return
+        for photo_id, status in status_updates.items():
+            photo = photo_map.get(photo_id)
+            if not photo:
+                continue
+            photo.status = status
+        self.db.commit()
 
     def create_photo(self, gallery_id: uuid.UUID, object_key: str, thumbnail_object_key: str, file_size: int, width: int | None = None, height: int | None = None) -> Photo:
         photo = Photo(gallery_id=gallery_id, object_key=object_key, thumbnail_object_key=thumbnail_object_key, file_size=file_size, width=width, height=height)

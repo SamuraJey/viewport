@@ -86,9 +86,10 @@ vi.mock('../../services/galleryService', () => ({
 
 vi.mock('../../services/photoService', () => ({
   photoService: {
-    getAllPhotoUrls: vi.fn(),
-    uploadPhoto: vi.fn(),
     deletePhoto: vi.fn(),
+    renamePhoto: vi.fn(),
+    uploadPhotosPresigned: vi.fn(),
+    retryFailedUploads: vi.fn(),
   },
 }));
 
@@ -131,25 +132,19 @@ const GalleryPageWrapper = () => {
 describe('GalleryPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    vi.spyOn(console, 'error').mockImplementation(() => { });
 
     // Default mock responses
     const { galleryService } = await import('../../services/galleryService');
-    const { photoService } = await import('../../services/photoService');
     const { shareLinkService } = await import('../../services/shareLinkService');
 
     vi.mocked(galleryService.getGallery).mockResolvedValue(mockGalleryData);
-    vi.mocked(photoService.getAllPhotoUrls).mockResolvedValue(mockGalleryData.photos);
-    vi.mocked(photoService.uploadPhoto).mockResolvedValue({
-      id: 'photo4',
-      url: '/api/photos/photo4.jpg',
-      thumbnail_url: '/api/photos/photo4_thumb.jpg',
-      gallery_id: '1',
-      filename: 'photo4.jpg',
-      file_size: 12345,
-      uploaded_at: '2024-01-01T10:00:00Z',
-    });
     vi.mocked(shareLinkService.createShareLink).mockResolvedValue(mockShareLink);
     vi.mocked(window.confirm).mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('should render gallery page correctly', async () => {
@@ -226,9 +221,7 @@ describe('GalleryPage', () => {
       };
 
       const { galleryService } = await import('../../services/galleryService');
-      const { photoService } = await import('../../services/photoService');
       vi.mocked(galleryService.getGallery).mockResolvedValue(singlePhotoGallery);
-      vi.mocked(photoService.getAllPhotoUrls).mockResolvedValue(singlePhotoGallery.photos);
 
       render(<GalleryPageWrapper />);
 
@@ -333,9 +326,7 @@ describe('GalleryPage', () => {
       };
 
       const { galleryService } = await import('../../services/galleryService');
-      const { photoService } = await import('../../services/photoService');
       vi.mocked(galleryService.getGallery).mockResolvedValue(emptyGallery);
-      vi.mocked(photoService.getAllPhotoUrls).mockResolvedValue([]);
 
       render(<GalleryPageWrapper />);
 

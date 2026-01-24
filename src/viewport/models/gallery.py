@@ -1,11 +1,19 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, SmallInteger, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import mapped_column, relationship
 
 from viewport.models.db import Base
+
+
+class PhotoUploadStatus:
+    """Status of photo upload process (integer mapping)"""
+
+    PENDING = 1  # Presigned URL issued, awaiting upload
+    SUCCESSFUL = 2  # File successfully uploaded to S3
+    FAILED = 3  # Upload failed
 
 
 class Gallery(Base):
@@ -57,9 +65,15 @@ class Photo(Base):
         ForeignKey("galleries.id", name="photos_gallery_id_fkey", ondelete="CASCADE"),
         nullable=False,
     )
+    # Upload status (pending, successful, failed)
+    status = mapped_column(
+        SmallInteger,
+        nullable=False,
+        default=PhotoUploadStatus.PENDING,
+        server_default=str(PhotoUploadStatus.PENDING),
+    )
     # S3 object key (e.g., gallery_id/filename)
     object_key = mapped_column(String, nullable=False)
-    # S3 object key for thumbnail (e.g., gallery_id/thumbnails/filename)
     thumbnail_object_key = mapped_column(String, nullable=False)
     file_size = mapped_column(Integer, nullable=False)
     # Optional stored dimensions (filled from S3 metadata during upload)

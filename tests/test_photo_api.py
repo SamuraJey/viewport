@@ -1,11 +1,12 @@
 """Tests for photo API endpoints."""
 
-import io
 from uuid import uuid4
 
+import requests
 from fastapi.testclient import TestClient
 
-from tests.helpers import register_and_login
+from tests.helpers import register_and_login, upload_photo_via_presigned
+from viewport.api.photo import MAX_FILE_SIZE, get_content_type_from_filename, sanitize_filename
 
 
 class TestPhotoAPI:
@@ -15,9 +16,9 @@ class TestPhotoAPI:
         """Test uploading photo to non-existent gallery."""
         fake_uuid = str(uuid4())
         image_content = b"fake image content"
-        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
+        payload = {"files": [{"filename": "test.jpg", "file_size": len(image_content), "content_type": "image/jpeg"}]}
 
-        response = authenticated_client.post(f"/galleries/{fake_uuid}/photos", files=files)
+        response = authenticated_client.post(f"/galleries/{fake_uuid}/photos/batch-presigned", json=payload)
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
@@ -28,72 +29,11 @@ class TestPhotoAPI:
         client.headers.update({"Authorization": f"Bearer {different_user_token}"})
 
         image_content = b"fake image content"
-        files = {"file": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
+        payload = {"files": [{"filename": "test.jpg", "file_size": len(image_content), "content_type": "image/jpeg"}]}
 
-        response = client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
+        response = client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
-
-    def test_get_photo_url_auth_not_found(self, authenticated_client: TestClient):
-        """Test getting a signed URL for a non-existent photo."""
-        fake_photo_id = str(uuid4())
-        response = authenticated_client.get(f"/photos/auth/{fake_photo_id}/url")
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
-
-    def test_upload_photos_batch_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
-        """Test successful batch photo upload."""
-        files = [
-            ("files", ("photo1.jpg", b"content1", "image/jpeg")),
-            ("files", ("photo2.png", b"content2", "image/png")),
-        ]
-        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch", files=files)
-        assert response.status_code == 200
-        data = response.json()
-        assert data["total_files"] == 2
-        assert data["successful_uploads"] == 2
-        assert data["failed_uploads"] == 0
-        assert len(data["results"]) == 2
-        assert data["results"][0]["success"] is True
-        assert data["results"][1]["success"] is True
-
-    def test_upload_photos_batch_partial_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
-        """Test batch upload with some files too large."""
-        large_content = b"x" * (16 * 1024 * 1024)  # 16MB
-        files = [
-            ("files", ("photo1.jpg", b"content1", "image/jpeg")),
-            ("files", ("large_photo.jpg", large_content, "image/jpeg")),
-        ]
-        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch", files=files)
-        assert response.status_code == 200
-        data = response.json()
-        assert data["total_files"] == 2
-        assert data["successful_uploads"] == 1
-        assert data["failed_uploads"] == 1
-        assert len(data["results"]) == 2
-        assert data["results"][0]["success"] is True
-        assert data["results"][1]["success"] is False
-        assert "file too large" in data["results"][1]["error"].lower()
-
-    def test_upload_photos_batch_gallery_not_found(self, authenticated_client: TestClient):
-        """Test batch uploading to a non-existent gallery."""
-        fake_gallery_id = str(uuid4())
-        files = [("files", ("photo1.jpg", b"content1", "image/jpeg"))]
-        response = authenticated_client.post(f"/galleries/{fake_gallery_id}/photos/batch", files=files)
-        assert response.status_code == 404
-
-    def test_upload_photos_batch_unauthorized(self, client: TestClient):
-        """Test batch uploading without authentication."""
-        fake_gallery_id = str(uuid4())
-        files = [("files", ("photo1.jpg", b"content1", "image/jpeg"))]
-        response = client.post(f"/galleries/{fake_gallery_id}/photos/batch", files=files)
-        assert response.status_code == 401
-
-    def test_upload_photos_batch_no_files(self, authenticated_client: TestClient, gallery_id_fixture: str):
-        """Test batch uploading with no files."""
-        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch")
-        assert response.status_code == 422  # because files is required and fastapi returns 422 in this case
-        assert "Field required".lower() in str(response.json()["detail"]).lower()
 
     def test_delete_photo_not_found(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test deleting non-existent photo."""
@@ -195,14 +135,110 @@ class TestPhotoAPI:
 
     def test_rename_photo_invalid_filename(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test renaming photo with invalid filename."""
-        # First upload a photo
-        image_content = b"fake image content"
-        files = {"files": ("test.jpg", io.BytesIO(image_content), "image/jpeg")}
-        upload_response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch", files=files)
-        assert upload_response.status_code == 200
-        photo_id = upload_response.json()["results"][0]["photo"]["id"]
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"fake image content", "test.jpg")
 
         # Try to rename with empty filename
         rename_data = {"filename": ""}
         response = authenticated_client.patch(f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rename", json=rename_data)
         assert response.status_code == 422  # Validation error
+
+    def test_get_all_photo_urls_for_gallery_with_photos(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Getting photo URLs returns uploaded photos."""
+        payload = b"test bytes"
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, payload, "capture.jpg")
+
+        response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/urls")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        photo = data[0]
+        assert photo["id"] == photo_id
+        assert photo["file_size"] == len(payload)
+        assert photo["url"].startswith("http")
+        assert photo["thumbnail_url"].startswith("http")
+
+    def test_batch_presigned_uploads_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Batch presigned uploads returns valid PUT instructions."""
+        payload = {"files": [{"filename": "picture.png", "file_size": 1024, "content_type": "image/png"}]}
+
+        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
+        assert response.status_code == 200
+        items = response.json()["items"]
+        assert len(items) == 1
+        item = items[0]
+        assert item["success"]
+        assert item["presigned_data"]["headers"]["Content-Length"] == "1024"
+        assert item["presigned_data"]["headers"]["Content-Type"] == "image/png"
+        assert item["presigned_data"]["url"].startswith("http")
+
+    def test_batch_presigned_uploads_size_limit(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Files that exceed MAX_FILE_SIZE are rejected."""
+        payload = {"files": [{"filename": "huge.jpg", "file_size": MAX_FILE_SIZE + 1, "content_type": "image/jpeg"}]}
+
+        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
+        assert response.status_code == 200
+        item = response.json()["items"][0]
+        assert not item["success"]
+        assert "File exceeds maximum size" in item["error"]
+
+    def test_batch_confirm_uploads_updates_counts_and_triggers_task(self, authenticated_client: TestClient, gallery_id_fixture: str, monkeypatch):
+        """Confirming uploads updates counts and schedules thumbnail task."""
+        payload = {"files": [{"filename": "confirm.jpg", "file_size": 256, "content_type": "image/jpeg"}]}
+        presigned = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
+        item = presigned.json()["items"][0]
+        photo_id = item["photo_id"]
+
+        # NEW: Actually upload the file to S3 so head_object succeeds
+
+        upload_resp = requests.put(item["presigned_data"]["url"], headers=item["presigned_data"]["headers"], data=b"x" * 256)
+        assert upload_resp.status_code in {200, 204}
+
+        captured: dict[str, list] = {}
+
+        def fake_delay(batch: list[dict]):
+            captured["batch"] = batch
+
+        monkeypatch.setattr("viewport.background_tasks.create_thumbnails_batch_task.delay", fake_delay)
+
+        confirm_payload = {
+            "items": [
+                {"photo_id": photo_id, "success": True},
+                {"photo_id": str(uuid4()), "success": False},
+            ]
+        }
+        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-confirm", json=confirm_payload)
+
+        assert response.status_code == 200
+        result = response.json()
+        assert result["confirmed_count"] == 1
+        assert result["failed_count"] == 1
+        assert captured["batch"][0]["photo_id"] == photo_id
+
+    def test_delete_photo_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Deleting an existing photo returns 204 and subsequently 404."""
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"delete", "delete.jpg")
+
+        response = authenticated_client.delete(f"/galleries/{gallery_id_fixture}/photos/{photo_id}")
+        assert response.status_code == 204
+
+        second = authenticated_client.delete(f"/galleries/{gallery_id_fixture}/photos/{photo_id}")
+        assert second.status_code == 404
+
+    def test_rename_photo_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Renaming a photo updates the filename."""
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"rename", "rename.jpg")
+        response = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rename",
+            json={"filename": "new-name.jpg"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == photo_id
+        assert data["filename"] == "new-name.jpg"
+
+    def test_filename_utilities(self):
+        """sanitize_filename and content-type helper behave predictably."""
+        assert sanitize_filename(".hidden/file?.png") == "hiddenfile.png"
+        assert sanitize_filename("") == "file"
+        assert get_content_type_from_filename("photo.webp") == "image/webp"
+        assert get_content_type_from_filename(None) == "image/jpeg"

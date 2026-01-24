@@ -11,9 +11,16 @@ export type { Gallery, GalleryDetail, GalleryListResponse } from './gallery';
 // Photo types
 export type {
   PhotoResponse,
-  PhotoUrlResponse,
   PhotoUploadResult,
   PhotoUploadResponse,
+  PhotoUploadIntentRequest,
+  PresignedUploadData,
+  BatchPresignedUploadItem,
+  BatchPresignedUploadsRequest,
+  BatchPresignedUploadsResponse,
+  ConfirmPhotoUploadItem,
+  BatchConfirmUploadRequest,
+  BatchConfirmUploadResponse,
 } from './photo';
 
 // Share link types

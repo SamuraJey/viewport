@@ -20,6 +20,8 @@ interface UploadProgress {
   currentFile: string;
   currentBatch?: number;
   totalBatches?: number;
+  successCount?: number;
+  failedCount?: number;
 }
 
 interface PhotoItemProps {
@@ -32,7 +34,7 @@ interface PhotoItemProps {
 
 const PhotoItem = memo(
   ({ file, preview, isUploading, onRemove, formatFileSize }: PhotoItemProps) => {
-    const isLarge = file.size > 15 * 1024 * 1024;
+    const isLarge = file.size > 10 * 1024 * 1024;
     const isInvalid = !['image/jpeg', 'image/png', 'image/jpg'].includes(file.type);
     const hasError = isLarge || isInvalid;
 
@@ -84,6 +86,8 @@ const PhotoItem = memo(
 );
 PhotoItem.displayName = 'PhotoItem';
 
+const SUPPORTED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
+
 export const PhotoUploadConfirmModal = ({
   isOpen,
   onClose,
@@ -98,6 +102,9 @@ export const PhotoUploadConfirmModal = ({
   const [showModal, setShowModal] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
   const uploadButtonRef = useRef<HTMLButtonElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isCancelledRef = useRef(false);
+  const failedFilesRef = useRef<File[]>([]);
 
   // Handle modal animation
   useEffect(() => {
@@ -116,6 +123,13 @@ export const PhotoUploadConfirmModal = ({
 
   // Force close modal (used after warning confirmation)
   const handleForceClose = useCallback(() => {
+    // Mark as cancelled
+    isCancelledRef.current = true;
+    // Cancel ongoing uploads
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     // Clean up file previews
     setProgress(null);
     setResult(null);
@@ -153,10 +167,12 @@ export const PhotoUploadConfirmModal = ({
   if (!isOpen && !showModal) return null;
 
   const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-  const hasLargeFiles = files.some((file) => file.size > 15 * 1024 * 1024);
-  const hasInvalidTypes = files.some(
-    (file) => !['image/jpeg', 'image/png', 'image/jpg'].includes(file.type),
-  );
+  const hasLargeFiles = files.some((file) => file.size > 10 * 1024 * 1024);
+  const validUploadCount = files.filter(
+    (file) => file.size <= 10 * 1024 * 1024 && SUPPORTED_TYPES.includes(file.type),
+  ).length;
+  const hasValidFiles = validUploadCount > 0;
+  const hasInvalidTypes = files.some((file) => !SUPPORTED_TYPES.includes(file.type));
 
   // Handle file removal
   const handleRemoveFile = (fileName: string) => {
@@ -165,29 +181,99 @@ export const PhotoUploadConfirmModal = ({
   };
 
   const handleUpload = async () => {
+    if (!hasValidFiles) return;
+    setIsUploading(true);
+    setProgress(null);
+    setResult(null);
+    failedFilesRef.current = [];
+
+    // Create new AbortController for this upload
+    abortControllerRef.current = new AbortController();
+
+    try {
+      // Use presigned upload (direct to S3)
+      const result = await photoService.uploadPhotosPresigned(
+        galleryId,
+        files,
+        setProgress,
+        abortControllerRef.current.signal,
+      );
+
+      // Track failed files for potential retry
+      failedFilesRef.current = result.results
+        .filter((r) => !r.success && r.retryable !== false)
+        .map((r) => files.find((f) => f.name === r.filename))
+        .filter((f) => f !== undefined) as File[];
+
+      setResult(result);
+      // Don't call onUploadComplete here - wait for user to close the modal
+    } catch (error) {
+      // Only show error if it's not a cancellation
+      if (!(error instanceof Error && error.message.includes('cancelled'))) {
+        console.error('Upload failed:', error);
+        setResult({
+          results: files.map((file) => ({
+            filename: file.name,
+            success: false,
+            error: 'Upload failed',
+          })),
+          total_files: files.length,
+          successful_uploads: 0,
+          failed_uploads: files.length,
+        });
+        failedFilesRef.current = files;
+      }
+    } finally {
+      setIsUploading(false);
+      setProgress(null);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleRetryFailed = async () => {
+    if (failedFilesRef.current.length === 0) return;
+
     setIsUploading(true);
     setProgress(null);
     setResult(null);
 
+    // Create new AbortController for this retry
+    abortControllerRef.current = new AbortController();
+
     try {
-      const result = await photoService.uploadPhotos(galleryId, files, setProgress);
+      const result = await photoService.retryFailedUploads(
+        galleryId,
+        failedFilesRef.current,
+        setProgress,
+        abortControllerRef.current.signal,
+      );
+
+      // Update result with new attempt
+      if (result.failed_uploads > 0) {
+        failedFilesRef.current = failedFilesRef.current.filter((file) =>
+          result.results.some((r) => r.filename === file.name && !r.success),
+        );
+      } else {
+        failedFilesRef.current = [];
+      }
+
       setResult(result);
-      // Don't call onUploadComplete here - wait for user to close the modal
     } catch (error) {
-      console.error('Upload failed:', error);
+      console.error('Retry failed:', error);
       setResult({
-        results: files.map((file) => ({
+        results: failedFilesRef.current.map((file) => ({
           filename: file.name,
           success: false,
-          error: 'Upload failed',
+          error: 'Retry failed',
         })),
-        total_files: files.length,
+        total_files: failedFilesRef.current.length,
         successful_uploads: 0,
-        failed_uploads: files.length,
+        failed_uploads: failedFilesRef.current.length,
       });
     } finally {
       setIsUploading(false);
       setProgress(null);
+      abortControllerRef.current = null;
     }
   };
 
@@ -297,7 +383,7 @@ export const PhotoUploadConfirmModal = ({
                         ⚠ Warning
                       </span>
                       <ul className="text-xs sm:text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
-                        {hasLargeFiles && <li>• Files larger than 15MB will be rejected</li>}
+                        {hasLargeFiles && <li>• Files larger than 10MB will be rejected</li>}
                         {hasInvalidTypes && <li>• Only JPG and PNG formats are supported</li>}
                       </ul>
                     </div>
@@ -321,7 +407,7 @@ export const PhotoUploadConfirmModal = ({
               {/* Files list */}
               <div className="space-y-2">
                 {files.map((file, index) => {
-                  const isLarge = file.size > 15 * 1024 * 1024;
+                  const isLarge = file.size > 10 * 1024 * 1024;
                   const isInvalid = !['image/jpeg', 'image/png', 'image/jpg'].includes(file.type);
                   const hasError = isLarge || isInvalid;
 
@@ -353,7 +439,7 @@ export const PhotoUploadConfirmModal = ({
                         <p className="text-xs text-muted">{formatFileSize(file.size)}</p>
                         {hasError && (
                           <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">
-                            {isLarge && '⚠ File too large (max 15MB)'}
+                            {isLarge && '⚠ File too large (max 10MB)'}
                             {isInvalid && isLarge && ' • '}
                             {isInvalid && 'Invalid format (JPG/PNG only)'}
                           </p>
@@ -494,12 +580,24 @@ export const PhotoUploadConfirmModal = ({
         {/* Footer */}
         <div className="flex justify-end gap-2 sm:gap-3 p-5 sm:p-6 border-t border-border bg-linear-to-r from-surface/50 to-surface dark:from-surface-foreground/50 dark:to-surface-foreground">
           {result && (
-            <button
-              onClick={handleClose}
-              className="px-4 sm:px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
-            >
-              Close
-            </button>
+            <>
+              {failedFilesRef.current.length > 0 && (
+                <button
+                  onClick={handleRetryFailed}
+                  disabled={isUploading}
+                  className="px-4 sm:px-6 py-2.5 bg-yellow-500 hover:bg-yellow-600 disabled:bg-surface-foreground disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 disabled:opacity-50 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
+                >
+                  <Upload className="w-4 h-4" />
+                  Retry {failedFilesRef.current.length}
+                </button>
+              )}
+              <button
+                onClick={handleClose}
+                className="px-4 sm:px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
+              >
+                Close
+              </button>
+            </>
           )}
           {!result && !isUploading && (
             <>
@@ -512,11 +610,11 @@ export const PhotoUploadConfirmModal = ({
               <button
                 ref={uploadButtonRef}
                 onClick={handleUpload}
-                disabled={files.length === 0}
+                disabled={files.length === 0 || !hasValidFiles}
                 className="px-4 sm:px-6 py-2.5 bg-linear-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-surface-foreground disabled:to-surface-foreground disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:shadow-sm flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
               >
                 <Upload className="w-4 h-4" />
-                Upload {files.length}
+                Upload {validUploadCount}
               </button>
             </>
           )}

@@ -1,12 +1,15 @@
 import io
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select, update
+from botocore.exceptions import ClientError
+from PIL import Image, UnidentifiedImageError
+from sqlalchemy import delete, select, update
 
 from viewport.cache_utils import clear_presigned_urls_batch
 from viewport.celery_app import celery_app
-from viewport.models.gallery import Photo
+from viewport.models.gallery import Photo, PhotoUploadStatus
 from viewport.s3_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client, get_s3_settings
 from viewport.task_utils import BatchTaskResult
 
@@ -14,6 +17,16 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from mypy_boto3_s3.client import S3Client
+
+
+def _is_valid_image(image_bytes: bytes) -> bool:
+    """Validate if the given bytes represent a valid image."""
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            img.verify()
+        return True
+    except (UnidentifiedImageError, OSError):
+        return False
 
 
 def _get_existing_photo_ids(photo_ids: list[str]) -> set[str]:
@@ -47,6 +60,13 @@ def _process_single_photo(
 
         # Download original from S3
         try:
+            try:
+                s3_client.put_object_tagging(Bucket=bucket, Key=object_key, Tagging={"TagSet": [{"Key": "upload-status", "Value": "confirmed"}]})
+            except ClientError as tag_error:
+                logger.warning("Failed to update S3 tag for %s: %s", object_key, tag_error)
+            except Exception as tag_general_error:
+                logger.warning("Unexpected error updating S3 tag for %s: %s", object_key, tag_general_error)
+
             response = s3_client.get_object(Bucket=bucket, Key=object_key)
             image_bytes = response["Body"].read()
         except Exception as s3_error:
@@ -55,13 +75,36 @@ def _process_single_photo(
             error_code = response.get("Error", {}).get("Code", "")
 
             if error_code == "NoSuchKey":
-                logger.info("File %s not found in S3, skipping", object_key)
-                result_tracker.add_skipped(photo_id, "File not found in S3")
+                logger.warning("File %s not found in S3, marking as failed", object_key)
+                result_tracker.add_error(photo_id, "File not found in S3")
                 return
 
             # Re-raise session/connection errors to let Celery retry the whole batch
             logger.error("S3 error for photo %s: %s", photo_id, str(s3_error))
             raise
+
+        # Validate image magic bytes before processing
+        if not _is_valid_image(image_bytes):
+            logger.warning(
+                "Object %s for photo %s is not a valid image",
+                object_key,
+                photo_id,
+            )
+
+            try:
+                s3_client.delete_object(Bucket=bucket, Key=object_key)
+            except ClientError as delete_error:  # TODO: consider handling specific error codes if needed. Also save failed deletions to a DB, for later retry
+                logger.warning("Failed to delete invalid S3 object %s: %s", object_key, delete_error)
+
+            # Previously we preserved the DB record and marked it FAILED, but
+            # the intended behavior for invalid uploaded objects is to remove
+            # them entirely (object + DB record). Delete the DB row so orphan
+            # entries aren't left behind.
+            with task_db_session() as db_cleanup:
+                db_cleanup.execute(delete(Photo).where(Photo.id == photo_id))
+
+            result_tracker.add_error(photo_id, "Invalid image file")
+            return
 
         # Create thumbnail
         thumbnail_bytes, width, height = create_thumbnail(image_bytes)
@@ -91,23 +134,35 @@ def _process_single_photo(
         result_tracker.add_error(photo_id, "Processing failed", exception=e)
 
 
-def _batch_update_photo_metadata(successful_results: list[dict], result_tracker: BatchTaskResult) -> None:
-    """Update database records and clear cache for successful thumbnails."""
+def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskResult) -> None:
+    """Update database records and clear cache for processed photos."""
     from viewport.task_utils import task_db_session
+
+    successful_results = [r for r in results if r["status"] == "success"]
+    failed_results = [r for r in results if r["status"] == "error"]
 
     try:
         with task_db_session() as db:
-            update_mappings = [{"id": r["photo_id"], "thumbnail_object_key": r["thumbnail_object_key"], "width": r["width"], "height": r["height"]} for r in successful_results]
-            logger.info("Batch updating %s photos in DB", len(update_mappings))
-            db.execute(update(Photo), update_mappings)
+            # 1. Update metadata for successful photos
+            if successful_results:
+                update_mappings = [{"id": r["photo_id"], "thumbnail_object_key": r["thumbnail_object_key"], "width": r["width"], "height": r["height"]} for r in successful_results]
+                logger.info("Batch updating %s photos with metadata in DB", len(update_mappings))
+                db.execute(update(Photo), update_mappings)
 
-        # Invalidate cache
-        thumbnail_keys = [r["thumbnail_object_key"] for r in successful_results]
-        clear_presigned_urls_batch(thumbnail_keys)
+            # 2. Mark failed photos as FAILED (Fixes "lying" SUCCESSFUL status from API)
+            if failed_results:
+                failed_ids = [r["photo_id"] for r in failed_results]
+                logger.info("Batch marking %s photos as FAILED in DB", len(failed_ids))
+                db.execute(update(Photo).where(Photo.id.in_(failed_ids)).values(status=PhotoUploadStatus.FAILED))
+
+        # Invalidate cache for successful thumbnails
+        if successful_results:
+            thumbnail_keys = [r["thumbnail_object_key"] for r in successful_results]
+            clear_presigned_urls_batch(thumbnail_keys)
 
     except Exception as db_error:
         logger.error("Batch database update failed: %s", db_error)
-        # Convert these successes to failures because they weren't persisted
+        # Convert successes in this batch to failures because they weren't persisted
         for r in successful_results:
             result_tracker.failed += 1
             result_tracker.successful -= 1
@@ -133,10 +188,63 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
     for photo_data in photos:
         _process_single_photo(photo_data, s3_client, bucket, existing_ids, result_tracker)
 
-    # 3. Batch update records
-    successful_results = [r for r in result_tracker.results if r["status"] == "success"]
-    if successful_results:
-        _batch_update_photo_metadata(successful_results, result_tracker)
+    # 3. Batch update records (including failures)
+    if result_tracker.results:
+        _batch_update_photo_results(result_tracker.results, result_tracker)
 
     logger.info("Batch completion: %s success, %s skipped, %s failed", result_tracker.successful, result_tracker.skipped, result_tracker.failed)
     return result_tracker.to_dict()
+
+
+@celery_app.task(name="cleanup_orphaned_uploads")
+def cleanup_orphaned_uploads_task() -> dict:
+    """
+    Remove PENDING photo records older than 1 hour and cleanup their S3 objects.
+    """
+    from viewport.task_utils import task_db_session
+
+    threshold = datetime.now(UTC) - timedelta(hours=1)
+    logger.info("Starting orphaned uploads cleanup (threshold: %s)", threshold)
+
+    # TODO may be we can notify users about failed photo uploads and may be let them reupload, but not now
+    with task_db_session() as db:
+        # 1. Find orphaned or failed photos
+        stmt = select(Photo).where(
+            Photo.status.in_([PhotoUploadStatus.PENDING, PhotoUploadStatus.FAILED]),
+            Photo.uploaded_at < threshold,
+        )
+        orphaned_photos = db.execute(stmt).scalars().all()
+
+        if not orphaned_photos:
+            logger.info("No photos found to clean up")
+            return {"deleted_count": 0}
+
+        photo_ids = [p.id for p in orphaned_photos]
+        object_keys = []
+        for p in orphaned_photos:
+            object_keys.append(p.object_key)
+            # If thumbnail is different, add it too
+            if p.thumbnail_object_key and p.thumbnail_object_key != p.object_key:
+                object_keys.append(p.thumbnail_object_key)
+
+        # 2. Delete from S3
+        if object_keys:
+            s3_client = get_s3_client()
+            bucket = get_s3_settings().bucket
+
+            # S3 delete_objects can take up to 1000 keys
+            for i in range(0, len(object_keys), 1000):
+                batch = object_keys[i : i + 1000]
+                delete_request = {"Objects": [{"Key": key} for key in batch]}
+                try:
+                    s3_client.delete_objects(Bucket=bucket, Delete=delete_request)
+                    logger.info("Deleted %s objects from S3", len(batch))
+                except Exception as e:
+                    logger.error("Failed to delete batch from S3: %s", e)
+
+        # 3. Delete from DB
+        delete_stmt = delete(Photo).where(Photo.id.in_(photo_ids))
+        db.execute(delete_stmt)
+
+        logger.info("Cleaned up %s orphaned photo records", len(photo_ids))
+        return {"deleted_count": len(photo_ids)}
