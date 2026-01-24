@@ -207,16 +207,13 @@ async def batch_confirm_uploads(
     request: BatchConfirmUploadRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user=Depends(get_current_user),
-    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> BatchConfirmUploadResponse:
     """Confirm batch photo uploads to S3
 
     Process multiple photo confirmations in one request.
     Sets status to SUCCESSFUL for confirmed uploads.
-    Starts thumbnail processing.
+    Starts thumbnail processing (S3 verification happens in background).
     """
-    import asyncio
-
     # 1. Verify gallery ownership
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
@@ -232,51 +229,25 @@ async def batch_confirm_uploads(
     photos_to_process = []
     status_updates: dict[UUID, PhotoUploadStatus] = {}
 
-    # 3. Process each photo (with existence verification)
-    async def process_item(item):
-        nonlocal confirmed_count, failed_count
+    # 3. Process each photo (S3 verification deferred to background task)
+    for item in request.items:
         photo = photo_map.get(item.photo_id)
         if not photo:
             failed_count += 1
-            return
+            continue
 
         if not item.success:
-            # Mark as failed
             status_updates[photo.id] = PhotoUploadStatus.FAILED
             failed_count += 1
-            return
+            continue
 
         if photo.status == PhotoUploadStatus.SUCCESSFUL:
-            # Already processed
             confirmed_count += 1
-            return
+            continue
 
-        # Double check existence and set "confirmed" tag in S3.
-        # This replaces the need for a separate head_object call.
-        try:
-            await s3_client.put_object_tagging(
-                photo.object_key,
-                {"upload-status": "confirmed"},
-            )
-            # Mark as successful
-            status_updates[photo.id] = PhotoUploadStatus.SUCCESSFUL
-            confirmed_count += 1
-            photos_to_process.append({"photo_id": str(photo.id), "object_key": photo.object_key})
-        except ClientError as e:
-            error_code = e.response.get("Error", {}).get("Code")
-            if error_code in ("NoSuchKey", "404"):
-                logger.warning("Photo %s not found in S3 during confirmation", photo.id)
-            else:
-                logger.error("Failed to tag photo %s in endpoint: %s", photo.id, e)
-
-            status_updates[photo.id] = PhotoUploadStatus.FAILED
-            failed_count += 1
-        except Exception as err:
-            logger.warning("Unexpected error tagging photo %s: %s", photo.id, err)
-            status_updates[photo.id] = PhotoUploadStatus.FAILED
-            failed_count += 1
-
-    await asyncio.gather(*[process_item(item) for item in request.items])
+        status_updates[photo.id] = PhotoUploadStatus.SUCCESSFUL
+        confirmed_count += 1
+        photos_to_process.append({"photo_id": str(photo.id), "object_key": photo.object_key})
 
     # 4. Batch commit DB changes
     repo.set_photos_statuses(photo_map, status_updates)

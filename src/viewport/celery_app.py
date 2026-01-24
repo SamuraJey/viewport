@@ -48,6 +48,10 @@ def create_celery_app(settings: CelerySettings | None = None) -> Celery:
             "task": "cleanup_orphaned_uploads",
             "schedule": crontab(minute=0),  # Every hour at minute 0
         },
+        "reconcile-successful-uploads-every-10-min": {
+            "task": "reconcile_successful_uploads",
+            "schedule": crontab(minute="*/10"),
+        },
     }
 
     return app

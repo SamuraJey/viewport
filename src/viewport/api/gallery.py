@@ -162,10 +162,13 @@ async def delete_gallery(
     gallery_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
-    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> None:
-    if not await repo.delete_gallery_async(gallery_id, current_user.id, s3_client):
+    if not await repo.soft_delete_gallery_async(gallery_id, current_user.id):
         raise HTTPException(status_code=404, detail="Gallery not found")
+
+    from viewport.background_tasks import delete_gallery_data_task
+
+    delete_gallery_data_task.delay(str(gallery_id))
 
 
 @router.patch("/{gallery_id}", response_model=GalleryResponse)

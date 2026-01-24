@@ -28,6 +28,7 @@
   - **Confirmation logic**: Existence check is performed via `put_object_tagging`. `NoSuchKey` errors result in `FAILED` status. Successful tagging triggers Celery thumbnail batches.
   - **Presigned URLs**: Avoid generating presigned URLs during batch upload; fetch URLs separately via `/photos/urls` endpoints.
   - **Garbage collection**: A Celery beat task (`cleanup_orphaned_uploads`) runs hourly to delete `PENDING` photo records older than 1 hour and their corresponding S3 objects to prevent storage leaks from unconfirmed uploads.
+  - **Gallery deletion**: `galleries.is_deleted` is a soft-delete flag. Deleting a gallery hides it from queries and enqueues a background task to purge S3 objects and hard-delete DB rows.
 - No direct SQL in routers; use repositories for all DB access.
 
 ## Frontend conventions (React)

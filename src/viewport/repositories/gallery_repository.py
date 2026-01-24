@@ -28,17 +28,17 @@ class GalleryRepository(BaseRepository):
 
     def get_galleries_by_owner(self, owner_id: uuid.UUID, page: int, size: int) -> tuple[list[Gallery], int | None]:
         # Get total count
-        count_stmt = select(func.count()).select_from(Gallery).where(Gallery.owner_id == owner_id)
+        count_stmt = select(func.count()).select_from(Gallery).where(Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False))
         total = self.db.execute(count_stmt).scalar()
 
         # Get galleries with pagination
-        stmt = select(Gallery).where(Gallery.owner_id == owner_id).order_by(Gallery.created_at.desc()).offset((page - 1) * size).limit(size)
+        stmt = select(Gallery).where(Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False)).order_by(Gallery.created_at.desc()).offset((page - 1) * size).limit(size)
         galleries = self.db.execute(stmt).scalars().all()
 
         return list(galleries), total
 
     def get_gallery_by_id_and_owner(self, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> Gallery | None:
-        stmt = select(Gallery).where(Gallery.id == gallery_id, Gallery.owner_id == owner_id)
+        stmt = select(Gallery).where(Gallery.id == gallery_id, Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False))
         return self.db.execute(stmt).scalar_one_or_none()
 
     def update_gallery(self, gallery_id: uuid.UUID, owner_id: uuid.UUID, name: str | None = None, shooting_date: date | None = None) -> Gallery | None:
@@ -64,27 +64,42 @@ class GalleryRepository(BaseRepository):
         if not gallery:
             return False
 
-        # Note: S3 deletion is done asynchronously in a background task
-        # This method only deletes from database
         self.db.delete(gallery)
         self.db.commit()
         return True
 
     async def delete_gallery_async(self, gallery_id: uuid.UUID, owner_id: uuid.UUID, s3_client: "AsyncS3Client") -> bool:  # type: ignore
-        """Delete gallery with S3 cleanup"""
+        """Hard delete gallery (S3 cleanup handled separately)."""
         gallery = self.get_gallery_by_id_and_owner(gallery_id, owner_id)
         if not gallery:
             return False
-
-        # Delete the entire gallery folder from S3 (including all photos and thumbnails)
-        await s3_client.delete_folder(f"{gallery_id}/")
 
         self.db.delete(gallery)
         self.db.commit()
         return True
 
+    def soft_delete_gallery(self, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> bool:
+        """Soft delete gallery (mark as deleted)."""
+        gallery = self.get_gallery_by_id_and_owner(gallery_id, owner_id)
+        if not gallery:
+            return False
+
+        gallery.is_deleted = True
+        self.db.commit()
+        return True
+
+    async def soft_delete_gallery_async(self, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> bool:
+        """Soft delete gallery (mark as deleted)."""
+        gallery = self.get_gallery_by_id_and_owner(gallery_id, owner_id)
+        if not gallery:
+            return False
+
+        gallery.is_deleted = True
+        self.db.commit()
+        return True
+
     def get_photo_by_id_and_gallery(self, photo_id: uuid.UUID, gallery_id: uuid.UUID) -> Photo | None:
-        stmt = select(Photo).where(Photo.id == photo_id, Photo.gallery_id == gallery_id)
+        stmt = select(Photo).join(Photo.gallery).where(Photo.id == photo_id, Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
         return self.db.execute(stmt).scalar_one_or_none()
 
     def set_cover_photo(self, gallery_id: uuid.UUID, photo_id: uuid.UUID, owner_id: uuid.UUID) -> Gallery | None:
@@ -109,18 +124,18 @@ class GalleryRepository(BaseRepository):
         return gallery
 
     def get_photo_by_id_and_owner(self, photo_id: uuid.UUID, owner_id: uuid.UUID) -> Photo | None:
-        stmt = select(Photo).join(Photo.gallery).where(Photo.id == photo_id, Gallery.owner_id == owner_id)
+        stmt = select(Photo).join(Photo.gallery).where(Photo.id == photo_id, Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False))
         return self.db.execute(stmt).scalar_one_or_none()
 
     def get_photos_by_gallery_id(self, gallery_id: uuid.UUID) -> list[Photo]:
         # Sort by object_key (which contains the filename after the gallery prefix)
-        stmt = select(Photo).where(Photo.gallery_id == gallery_id).order_by(Photo.object_key.asc())
+        stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(Photo.object_key.asc())
         return list(self.db.execute(stmt).scalars().all())
 
     def get_photos_by_ids_and_gallery(self, gallery_id: uuid.UUID, photo_ids: list[uuid.UUID]) -> list[Photo]:
         if not photo_ids:
             return []
-        stmt = select(Photo).where(Photo.gallery_id == gallery_id, Photo.id.in_(photo_ids))
+        stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Photo.id.in_(photo_ids), Gallery.is_deleted.is_(False))
         return list(self.db.execute(stmt).scalars().all())
 
     def set_photo_status(self, photo: Photo, status: PhotoUploadStatus) -> Photo:

@@ -24,7 +24,7 @@ vi.mock('react-router-dom', async () => {
 describe('useErrorHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(console, 'error').mockImplementation(() => { });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -72,7 +72,7 @@ describe('useErrorHandler', () => {
 describe('useNetworkErrorHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(console, 'error').mockImplementation(() => { });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
