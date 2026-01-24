@@ -1,7 +1,6 @@
 /**
  * Photo-related types
  */
-// TODO Remove redundant types if any exist.
 export interface PhotoResponse {
   id: string;
   gallery_id: string;
