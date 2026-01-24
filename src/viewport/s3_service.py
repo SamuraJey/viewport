@@ -312,7 +312,7 @@ class AsyncS3Client:
                 s3: "S3Client"
                 await s3.head_object(Bucket=self.settings.bucket, Key=key)
             return True
-        except Exception as e:
+        except ClientError as e:
             # Check if it's a NoSuchKey error by checking the exception code
             error_code = getattr(e.response, "Error", {}).get("Code") if hasattr(e, "response") else None
             if error_code == "404" or "NoSuchKey" in str(type(e).__name__):
@@ -337,7 +337,7 @@ class AsyncS3Client:
                 s3: "S3Client"
                 response = await s3.head_object(Bucket=self.settings.bucket, Key=key)
             return response
-        except Exception as e:
+        except ClientError as e:
             logger.error("Failed to head object %s: %s", key, e)
             raise
 
@@ -574,7 +574,7 @@ class AsyncS3Client:
 
             logger.debug("Generated presigned PUT for: %s", object_key)
             return {"url": str(url), "headers": headers}
-        except Exception as e:
+        except ClientError as e:
             logger.error("Failed to generate presigned PUT for %s: %s", object_key, e)
             raise
 

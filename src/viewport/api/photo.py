@@ -163,12 +163,23 @@ async def batch_presigned_uploads(
         )
 
         # Generate presigned PUT signed with exact size and tagging requirements
-        presigned = s3_client.generate_presigned_put(
-            object_key=object_key,
-            content_type=file_request.content_type,
-            content_length=file_request.file_size,
-            expires_in=900,
-        )
+        try:
+            presigned = s3_client.generate_presigned_put(
+                object_key=object_key,
+                content_type=file_request.content_type,
+                content_length=file_request.file_size,
+                expires_in=900,
+            )
+        except ClientError:
+            items.append(
+                BatchPresignedUploadItem(
+                    filename=file_request.filename,
+                    file_size=file_request.file_size,
+                    success=False,
+                    error="Failed to generate presigned URL",
+                )
+            )
+            continue
 
         items.append(
             BatchPresignedUploadItem(
