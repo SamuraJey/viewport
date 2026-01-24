@@ -168,12 +168,17 @@ const uploadToS3 = async (
         throw lastError;
       }
 
-      // Only retry on 400/413 (request errors), not network errors
+      // Retry on transient 5xx, request errors, and network errors
       const is400 = lastError.message.includes('400');
       const is413 = lastError.message.includes('413');
+      const is500 = lastError.message.includes('500');
+      const is502 = lastError.message.includes('502');
+      const is503 = lastError.message.includes('503');
+      const is504 = lastError.message.includes('504');
       const isNetworkError = lastError.message.includes('network error');
+      const isTransient5xx = is500 || is502 || is503 || is504;
 
-      if (attempt < MAX_RETRIES && (is400 || is413 || isNetworkError)) {
+      if (attempt < MAX_RETRIES && (is400 || is413 || isNetworkError || isTransient5xx)) {
         // Exponential backoff: 100ms, 300ms, 900ms, 2700ms, 8100ms
         const delay = Math.min(100 * Math.pow(3, attempt - 1), 10000);
         await new Promise((resolve) => setTimeout(resolve, delay));
