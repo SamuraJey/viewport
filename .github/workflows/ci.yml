@@ -79,6 +79,7 @@ jobs:
       - name: Run tests with coverage
         env:
           JWT_SECRET_KEY: supersecretkey
+          CI: true
         run: |
           uv run pytest -n auto --cov=src --cov-branch --cov-report=xml --cov-fail-under=75 --random-order-bucket=module --random-order-seed=$RANDOM tests/
 
