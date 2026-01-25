@@ -1,17 +1,19 @@
 import io
 import logging
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from botocore.exceptions import ClientError
 from PIL import Image, UnidentifiedImageError
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, or_, select, update
 
 from viewport.cache_utils import clear_presigned_urls_batch
 from viewport.celery_app import celery_app
-from viewport.models.gallery import Photo, PhotoUploadStatus
+from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
+from viewport.models.sharelink import ShareLink
 from viewport.s3_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client, get_s3_settings
-from viewport.task_utils import BatchTaskResult
+from viewport.task_utils import BatchTaskResult, task_db_session
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +33,9 @@ def _is_valid_image(image_bytes: bytes) -> bool:
 
 def _get_existing_photo_ids(photo_ids: list[str]) -> set[str]:
     """Check which photo IDs still exist in the database."""
-    from viewport.task_utils import task_db_session
 
     with task_db_session() as db:
-        stmt = select(Photo.id).where(Photo.id.in_(photo_ids))
+        stmt = select(Photo.id).join(Photo.gallery).where(Photo.id.in_(photo_ids), Gallery.is_deleted.is_(False))
         return {str(row[0]) for row in db.execute(stmt).all()}
 
 
@@ -46,7 +47,6 @@ def _process_single_photo(
     result_tracker: BatchTaskResult,
 ) -> None:
     """Process a single photo: download, resize, and upload thumbnail."""
-    from viewport.task_utils import task_db_session
 
     photo_id = photo_data["photo_id"]
     object_key = photo_data["object_key"]
@@ -114,7 +114,7 @@ def _process_single_photo(
 
         # CRITICAL: Check again if photo still exists before uploading thumbnail
         with task_db_session() as db_check:
-            photo_check_stmt = select(Photo.id).where(Photo.id == photo_id)
+            photo_check_stmt = select(Photo.id).join(Photo.gallery).where(Photo.id == photo_id, Gallery.is_deleted.is_(False))
             if not db_check.execute(photo_check_stmt).scalar_one_or_none():
                 logger.warning("Photo %s deleted during processing, skipping upload", photo_id)
                 result_tracker.add_skipped(photo_id, "Photo deleted during processing")
@@ -136,7 +136,6 @@ def _process_single_photo(
 
 def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskResult) -> None:
     """Update database records and clear cache for processed photos."""
-    from viewport.task_utils import task_db_session
 
     successful_results = [r for r in results if r["status"] == "success"]
     failed_results = [r for r in results if r["status"] == "error"]
@@ -201,7 +200,6 @@ def cleanup_orphaned_uploads_task() -> dict:
     """
     Remove PENDING photo records older than 1 hour and cleanup their S3 objects.
     """
-    from viewport.task_utils import task_db_session
 
     threshold = datetime.now(UTC) - timedelta(hours=1)
     logger.info("Starting orphaned uploads cleanup (threshold: %s)", threshold)
@@ -248,3 +246,79 @@ def cleanup_orphaned_uploads_task() -> dict:
 
         logger.info("Cleaned up %s orphaned photo records", len(photo_ids))
         return {"deleted_count": len(photo_ids)}
+
+
+@celery_app.task(name="delete_gallery_data", bind=True, max_retries=3, acks_late=True)
+def delete_gallery_data_task(self, gallery_id: str) -> dict:
+    """Delete all gallery objects in S3 and hard-delete DB rows."""
+    s3_client = get_s3_client()
+    bucket = get_s3_settings().bucket
+    prefix = f"{gallery_id}/"
+
+    deleted_objects = 0
+    try:
+        continuation_token = None
+        while True:
+            list_params: dict = {"Bucket": bucket, "Prefix": prefix}
+            if continuation_token:
+                list_params["ContinuationToken"] = continuation_token
+
+            response = s3_client.list_objects_v2(**list_params)
+            objects = response.get("Contents", [])
+            if objects:
+                keys = [{"Key": obj["Key"]} for obj in objects]
+                for i in range(0, len(keys), 1000):
+                    batch = keys[i : i + 1000]
+                    s3_client.delete_objects(Bucket=bucket, Delete={"Objects": batch})
+                    deleted_objects += len(batch)
+
+            if not response.get("IsTruncated"):
+                break
+            continuation_token = response.get("NextContinuationToken")
+
+        gallery_uuid = uuid.UUID(gallery_id)
+
+        with task_db_session() as db:
+            db.execute(delete(Photo).where(Photo.gallery_id == gallery_uuid))
+            db.execute(delete(ShareLink).where(ShareLink.gallery_id == gallery_uuid))
+            db.execute(delete(Gallery).where(Gallery.id == gallery_uuid))
+
+        logger.info("Deleted gallery %s: %s S3 objects removed", gallery_id, deleted_objects)
+        return {"deleted_objects": deleted_objects}
+    except Exception as exc:
+        logger.exception("Failed to delete gallery data for %s", gallery_id)
+        raise self.retry(exc=exc, countdown=30) from exc
+
+
+@celery_app.task(name="reconcile_successful_uploads")
+def reconcile_successful_uploads_task() -> dict:
+    """Requeue successful uploads missing thumbnails/metadata."""
+
+    threshold = datetime.now(UTC) - timedelta(minutes=5)
+    max_batch = 500
+
+    with task_db_session() as db:
+        stmt = (
+            select(Photo.id, Photo.object_key)
+            .join(Photo.gallery)
+            .where(
+                Photo.status == PhotoUploadStatus.SUCCESSFUL,
+                Gallery.is_deleted.is_(False),
+                Photo.uploaded_at < threshold,
+                or_(
+                    Photo.width.is_(None),
+                    Photo.height.is_(None),
+                    Photo.thumbnail_object_key == Photo.object_key,
+                ),
+            )
+            .limit(max_batch)
+        )
+        rows = db.execute(stmt).all()
+
+    if not rows:
+        return {"requeued_count": 0}
+
+    photos = [{"photo_id": str(row[0]), "object_key": row[1]} for row in rows]
+    create_thumbnails_batch_task.delay(photos)
+    logger.info("Requeued %s successful uploads missing thumbnails/metadata", len(photos))
+    return {"requeued_count": len(photos)}

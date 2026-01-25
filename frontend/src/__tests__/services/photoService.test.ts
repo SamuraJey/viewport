@@ -98,8 +98,8 @@ describe('photoService', () => {
     vi.stubGlobal('XMLHttpRequest', MockXMLHttpRequest as unknown as typeof XMLHttpRequest);
     MockXMLHttpRequest.sendQueue = [];
     MockXMLHttpRequest.instances = [];
-    vi.spyOn(console, 'warn').mockImplementation(() => { });
-    vi.spyOn(console, 'error').mockImplementation(() => { });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -243,7 +243,11 @@ describe('photoService', () => {
 
     const progressSpy = vi.fn();
 
-    const result = await photoService.uploadPhotosPresigned('gallery-1', [fileA, fileB], progressSpy);
+    const result = await photoService.uploadPhotosPresigned(
+      'gallery-1',
+      [fileA, fileB],
+      progressSpy,
+    );
 
     expect(result.successful_uploads).toBe(2);
     expect(result.failed_uploads).toBe(0);

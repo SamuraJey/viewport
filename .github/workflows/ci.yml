@@ -4,10 +4,16 @@ on:
   pull_request:
     branches: ["**"]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   detect-changes:
     name: Detect Changed Areas
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
@@ -37,6 +43,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.backend == 'true' }}
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
       - name: Set up Docker Buildx
@@ -75,8 +83,9 @@ jobs:
       - name: Run tests with coverage
         env:
           JWT_SECRET_KEY: supersecretkey
+          CI: true
         run: |
-          uv run pytest -n auto --cov=src --cov-branch --cov-report=xml --cov-fail-under=75 tests/
+          uv run pytest -n auto --cov=src --cov-branch --cov-report=xml --cov-fail-under=75 --random-order-bucket=module --random-order-seed=$RANDOM tests/
 
       - name: Comment coverage on PR (non-blocking)
         continue-on-error: true
@@ -90,6 +99,8 @@ jobs:
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.frontend == 'true' }}
     continue-on-error: true
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
       - name: Use Node.js
@@ -101,6 +112,12 @@ jobs:
       - name: Install deps
         working-directory: frontend
         run: npm ci
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+      - name: Security audit
+        working-directory: frontend
+        run: npm audit --audit-level moderate
       - name: Typecheck and build
         working-directory: frontend
         run: npm run build

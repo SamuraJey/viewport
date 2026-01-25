@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, SmallInteger, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, SmallInteger, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import mapped_column, relationship
 
@@ -23,6 +23,7 @@ class Gallery(Base):
     owner_id = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name = mapped_column(String, nullable=False, default="")  # Custom name for the gallery
     created_at = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    is_deleted = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     # Displayed shooting date (defaults to gallery creation date)
     shooting_date = mapped_column(Date, nullable=False, default=lambda: datetime.now(UTC).date())
     # Optional cover photo for public display

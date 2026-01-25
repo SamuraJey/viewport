@@ -74,15 +74,6 @@ def test_delete_gallery(repo, owner_id):
 
 
 @pytest.mark.asyncio
-async def test_delete_gallery_async_calls_s3(repo, owner_id):
-    gallery = repo.create_gallery(owner_id, "Async")
-    dummy = DummyAsyncS3Client()
-    result = await repo.delete_gallery_async(gallery.id, owner_id, dummy)
-    assert result is True
-    assert dummy.deleted_folders == [f"{gallery.id}/"]
-
-
-@pytest.mark.asyncio
 async def test_delete_gallery_async_missing(repo, owner_id):
     dummy = DummyAsyncS3Client()
     assert await repo.delete_gallery_async(uuid.uuid4(), owner_id, dummy) is False
