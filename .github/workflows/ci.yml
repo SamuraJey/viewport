@@ -76,7 +76,7 @@ jobs:
         env:
           JWT_SECRET_KEY: supersecretkey
         run: |
-          uv run pytest -n auto --cov=src --cov-branch --cov-report=xml --cov-fail-under=75 tests/
+          uv run pytest -n auto --cov=src --cov-branch --cov-report=xml --cov-fail-under=75 --random-order-bucket=module --random-order-seed=$RANDOM tests/
 
       - name: Comment coverage on PR (non-blocking)
         continue-on-error: true
