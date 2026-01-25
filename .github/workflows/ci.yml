@@ -4,6 +4,10 @@ on:
   pull_request:
     branches: ["**"]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   detect-changes:
     name: Detect Changed Areas
@@ -108,6 +112,12 @@ jobs:
       - name: Install deps
         working-directory: frontend
         run: npm ci
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+      - name: Security audit
+        working-directory: frontend
+        run: npm audit --audit-level moderate
       - name: Typecheck and build
         working-directory: frontend
         run: npm run build
