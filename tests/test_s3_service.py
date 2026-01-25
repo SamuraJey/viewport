@@ -434,7 +434,7 @@ class TestAsyncS3ClientRenameFile:
             await s3_client.rename_file("old-key.txt", "new-key.txt")
 
 
-class TestAsyncS3ClientRetryLogic:
+class TestAsyncS3ClientRetryLogic:  # TODO REMOVE
     """Tests for retry logic on transient errors."""
 
     @pytest.mark.asyncio

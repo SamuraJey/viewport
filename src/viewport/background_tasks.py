@@ -300,8 +300,10 @@ def reconcile_successful_uploads_task() -> dict:
     with task_db_session() as db:
         stmt = (
             select(Photo.id, Photo.object_key)
+            .join(Photo.gallery)
             .where(
                 Photo.status == PhotoUploadStatus.SUCCESSFUL,
+                Gallery.is_deleted.is_(False),
                 Photo.uploaded_at < threshold,
                 or_(
                     Photo.width.is_(None),
