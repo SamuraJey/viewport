@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Generator
 from functools import lru_cache
 
@@ -5,6 +6,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+logger = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
@@ -40,16 +43,20 @@ def _get_engine_and_sessionmaker() -> tuple[Engine, sessionmaker[Session]]:  # p
     database_url = get_database_url()
     connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
 
-    # Configure connection pool for better concurrency
+    # Configure connection pool for high concurrency with sync SQLAlchemy + FastAPI
+    # With 2 workers @ 120 RPS each, and multiple DB queries per request:
+    # - Auth: 1 query per request
+    # - Business logic: 1-3 queries per request
+    # - Average request time: 50-100ms
+    # Concurrent requests per worker: 120 RPS * 0.1s = 12 concurrent
+    # But with bursts and slow queries, need 3-5x margin
     # pool_size: persistent connections (kept alive)
     # max_overflow: additional temporary connections when pool exhausted
-    # pool_timeout: seconds to wait for connection before raising error
-    # pool_recycle: recycle connections after N seconds (prevents stale connections)
     pool_config = {
-        "pool_size": 20,  # Base pool size (enough for API + Celery workers)
-        "max_overflow": 30,  # Allow up to 50 total connections (20 + 30)
-        "pool_timeout": 30,  # Wait up to 30 seconds for connection
-        "pool_recycle": 3600,  # Recycle connections every hour
+        "pool_size": 100,  # Large base pool for high concurrency (per worker)
+        "max_overflow": 50,  # Allow up to 300 total connections per worker during bursts
+        "pool_timeout": 20,  # Wait up to 60 seconds (should never happen with this size)
+        "pool_recycle": 1800,  # Recycle connections every 30 minutes
         "pool_pre_ping": True,  # Verify connection health before using
     }
 
@@ -68,9 +75,25 @@ def get_session_maker():  # pragma: no cover - simple accessor
 
 
 def get_db() -> Generator[Session]:  # pragma: no cover
+    """Dependency injection for database sessions.
+
+    The context manager automatically closes the session,
+    so explicit close() is not needed and can cause issues.
+    """
+    import time
+
     session_maker = get_session_maker()
-    with session_maker() as db:
-        try:
-            yield db
-        finally:
-            db.close()
+    session = session_maker()
+    session_start = time.time()
+
+    try:
+        yield session
+    except Exception as e:
+        logger.warning("Session error after %.3fs: %s", time.time() - session_start, e)
+        session.rollback()
+        raise
+    finally:
+        duration = time.time() - session_start
+        if duration > 1.0:  # Log sessions longer than 1 second
+            logger.warning("Long-lived session: %.3fs", duration)
+        session.close()
