@@ -2,6 +2,7 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import select, update
+from sqlalchemy.orm import selectinload
 
 from viewport.models.gallery import Photo
 from viewport.models.sharelink import ShareLink
@@ -14,7 +15,11 @@ class ShareLinkRepository(BaseRepository):  # pragma: no cover # TODO tests
         return self.db.execute(stmt).scalar_one_or_none()
 
     def get_valid_sharelink(self, sharelink_id: uuid.UUID) -> ShareLink | None:
-        sharelink = self.get_sharelink_by_id(sharelink_id)
+        """Get sharelink with eager loading of gallery and gallery.owner to avoid lazy loading issues."""
+        from viewport.models.gallery import Gallery
+
+        stmt = select(ShareLink).where(ShareLink.id == sharelink_id).options(selectinload(ShareLink.gallery).selectinload(Gallery.owner))
+        sharelink = self.db.execute(stmt).scalar_one_or_none()
         if not sharelink:
             return None
         if sharelink.expires_at and sharelink.expires_at.timestamp() < datetime.now(UTC).timestamp():

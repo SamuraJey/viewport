@@ -3,7 +3,8 @@ import time
 import uuid
 from datetime import UTC, date, datetime
 
-from sqlalchemy import func, insert, select
+from sqlalchemy import func, insert, select, update
+from sqlalchemy.orm import selectinload
 
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
@@ -39,6 +40,11 @@ class GalleryRepository(BaseRepository):
 
     def get_gallery_by_id_and_owner(self, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> Gallery | None:
         stmt = select(Gallery).where(Gallery.id == gallery_id, Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False))
+        return self.db.execute(stmt).scalar_one_or_none()
+
+    def get_gallery_by_id_and_owner_with_sharelinks(self, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> Gallery | None:
+        """Get gallery with eagerly loaded share_links to avoid lazy loading after commit."""
+        stmt = select(Gallery).where(Gallery.id == gallery_id, Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False)).options(selectinload(Gallery.share_links))
         return self.db.execute(stmt).scalar_one_or_none()
 
     def update_gallery(self, gallery_id: uuid.UUID, owner_id: uuid.UUID, name: str | None = None, shooting_date: date | None = None) -> Gallery | None:
@@ -103,16 +109,31 @@ class GalleryRepository(BaseRepository):
         return self.db.execute(stmt).scalar_one_or_none()
 
     def set_cover_photo(self, gallery_id: uuid.UUID, photo_id: uuid.UUID, owner_id: uuid.UUID) -> Gallery | None:
-        gallery = self.get_gallery_by_id_and_owner(gallery_id, owner_id)
-        if not gallery:
+        # Perform single UPDATE with RETURNING to avoid loading objects into memory
+        # Ensure the photo belongs to the gallery and the gallery belongs to owner
+        stmt = (
+            update(Gallery)
+            .where(
+                Gallery.id == gallery_id,
+                Gallery.owner_id == owner_id,
+                # only set if the photo exists and belongs to the gallery
+                Gallery.is_deleted.is_(False),
+            )
+            .where(select(1).select_from(Photo).where(Photo.id == photo_id, Photo.gallery_id == gallery_id).exists())
+            .values(cover_photo_id=photo_id)
+            .returning(Gallery)
+        )
+
+        result = self.db.execute(stmt)
+        updated_gallery = result.scalars().first()
+        if not updated_gallery:
             return None
-        photo = self.get_photo_by_id_and_gallery(photo_id, gallery_id)
-        if not photo:
-            return None
-        gallery.cover_photo_id = photo_id
+
+        # Commit the change and return the refreshed gallery object
         self.db.commit()
-        self.db.refresh(gallery)
-        return gallery
+        # The returned `updated_gallery` is populated via RETURNING; refresh for any deferred attributes
+        self.db.refresh(updated_gallery)
+        return updated_gallery
 
     def clear_cover_photo(self, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> Gallery | None:
         gallery = self.get_gallery_by_id_and_owner(gallery_id, owner_id)
@@ -130,6 +151,14 @@ class GalleryRepository(BaseRepository):
     def get_photos_by_gallery_id(self, gallery_id: uuid.UUID) -> list[Photo]:
         # Sort by object_key (which contains the filename after the gallery prefix)
         stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(Photo.object_key.asc())
+        return list(self.db.execute(stmt).scalars().all())
+
+    def get_photo_count_by_gallery(self, gallery_id: uuid.UUID) -> int:
+        stmt = select(func.count()).select_from(Photo).where(Photo.gallery_id == gallery_id)
+        return int(self.db.execute(stmt).scalar() or 0)
+
+    def get_photos_by_gallery_paginated(self, gallery_id: uuid.UUID, limit: int, offset: int) -> list[Photo]:
+        stmt = select(Photo).where(Photo.gallery_id == gallery_id).order_by(Photo.object_key.asc()).offset(offset).limit(limit)
         return list(self.db.execute(stmt).scalars().all())
 
     def get_photos_by_ids_and_gallery(self, gallery_id: uuid.UUID, photo_ids: list[uuid.UUID]) -> list[Photo]:
