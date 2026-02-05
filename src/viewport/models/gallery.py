@@ -64,6 +64,7 @@ class Photo(Base):
     gallery_id = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("galleries.id", name="photos_gallery_id_fkey", ondelete="CASCADE"),
+        index=True,
         nullable=False,
     )
     # Upload status (pending, successful, failed)
