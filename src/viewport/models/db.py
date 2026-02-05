@@ -32,6 +32,7 @@ class DatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", env_prefix="POSTGRES_", extra="ignore")
 
 
+@lru_cache(maxsize=1)
 def get_database_url() -> str:  # pragma: no cover
     settings = DatabaseSettings()
     return settings.database_url
