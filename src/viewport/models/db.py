@@ -90,7 +90,7 @@ def get_db() -> Generator[Session]:  # pragma: no cover
     try:
         yield session
     except Exception as e:
-        logger.warning("Session error after %.3fs: %s", time.time() - session_start, e)
+        logger.warning("Session error after %.3fs: %s", time.time() - session_start, e, exc_info=True)
         session.rollback()
         raise
     finally:
