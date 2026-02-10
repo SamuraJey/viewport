@@ -55,8 +55,8 @@ def _get_engine_and_sessionmaker() -> tuple[Engine, sessionmaker[Session]]:  # p
     # max_overflow: additional temporary connections when pool exhausted
     pool_config = {
         "pool_size": 100,  # Large base pool for high concurrency (per worker)
-        "max_overflow": 50,  # Allow up to 300 total connections per worker during bursts
-        "pool_timeout": 20,  # Wait up to 60 seconds (should never happen with this size)
+        "max_overflow": 50,  # Allow up to 150 total connections per worker during bursts (100 base + 50 overflow)
+        "pool_timeout": 20,  # Wait up to 20 seconds (should never happen with this size)
         "pool_recycle": 1800,  # Recycle connections every 30 minutes
         "pool_pre_ping": True,  # Verify connection health before using
     }
