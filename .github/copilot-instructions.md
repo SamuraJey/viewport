@@ -29,6 +29,7 @@
   - **Presigned URLs**: Avoid generating presigned URLs during batch upload; fetch URLs separately via `/photos/urls` endpoints.
   - **Garbage collection**: A Celery beat task (`cleanup_orphaned_uploads`) runs hourly to delete `PENDING` photo records older than 1 hour and their corresponding S3 objects to prevent storage leaks from unconfirmed uploads.
   - **Gallery deletion**: `galleries.is_deleted` is a soft-delete flag. Deleting a gallery hides it from queries and enqueues a background task to purge S3 objects and hard-delete DB rows.
+  - **Storage quotas**: User storage is tracked on `users` (`storage_quota`, `storage_used`, `storage_reserved`). Reserve bytes on `/batch-presigned`, finalize on confirm, and release on failures/orphan cleanup; only admins edit quota via SQLAdmin.
 - No direct SQL in routers; use repositories for all DB access.
 
 ## Frontend conventions (React)

@@ -26,6 +26,9 @@ class TokenPair(BaseModel):
 class LoginResponse(BaseModel):
     id: str
     email: EmailStr
+    display_name: str | None = None
+    storage_used: int
+    storage_quota: int
     tokens: TokenPair
 
 
@@ -37,6 +40,8 @@ class MeResponse(BaseModel):
     id: str
     email: EmailStr
     display_name: str | None = None
+    storage_used: int
+    storage_quota: int
 
 
 class UpdateMeRequest(BaseModel):

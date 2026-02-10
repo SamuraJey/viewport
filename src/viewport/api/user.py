@@ -17,7 +17,13 @@ def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
 
 @router.get("/me", response_model=MeResponse)
 def get_me(current_user: User = Depends(get_current_user)):
-    return {"id": str(current_user.id), "email": current_user.email, "display_name": current_user.display_name}
+    return {
+        "id": str(current_user.id),
+        "email": current_user.email,
+        "display_name": current_user.display_name,
+        "storage_used": current_user.storage_used,
+        "storage_quota": current_user.storage_quota,
+    }
 
 
 @router.put("/me", response_model=MeResponse)
@@ -25,7 +31,13 @@ def update_me(req: UpdateMeRequest, repo: UserRepository = Depends(get_user_repo
     user = repo.update_user_display_name(current_user.id, req.display_name)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return {"id": str(user.id), "email": user.email, "display_name": user.display_name}
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "display_name": user.display_name,
+        "storage_used": user.storage_used,
+        "storage_quota": user.storage_quota,
+    }
 
 
 @router.put("/me/password", status_code=status.HTTP_200_OK)

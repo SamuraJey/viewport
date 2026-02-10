@@ -6,12 +6,13 @@ from typing import TYPE_CHECKING
 
 from botocore.exceptions import ClientError
 from PIL import Image, UnidentifiedImageError
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import delete, func, or_, select, update
 
 from viewport.cache_utils import clear_presigned_urls_batch
 from viewport.celery_app import celery_app
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
+from viewport.models.user import User
 from viewport.s3_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client, get_s3_settings
 from viewport.task_utils import BatchTaskResult, task_db_session
 
@@ -37,6 +38,28 @@ def _get_existing_photo_ids(photo_ids: list[str]) -> set[str]:
     with task_db_session() as db:
         stmt = select(Photo.id).join(Photo.gallery).where(Photo.id.in_(photo_ids), Gallery.is_deleted.is_(False))
         return {str(row[0]) for row in db.execute(stmt).all()}
+
+
+def _release_reserved_for_photos(db, photo_ids: list[str]) -> None:
+    if not photo_ids:
+        return
+
+    stmt = (
+        select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0)).select_from(Photo).join(Gallery, Photo.gallery_id == Gallery.id).where(Photo.id.in_(photo_ids)).group_by(Gallery.owner_id)
+    )
+    for owner_id, total in db.execute(stmt).all():
+        db.execute(update(User).where(User.id == owner_id).values(storage_reserved=func.greatest(User.storage_reserved - total, 0)))
+
+
+def _decrement_used_for_photos(db, photo_ids: list[str]) -> None:
+    if not photo_ids:
+        return
+
+    stmt = (
+        select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0)).select_from(Photo).join(Gallery, Photo.gallery_id == Gallery.id).where(Photo.id.in_(photo_ids)).group_by(Gallery.owner_id)
+    )
+    for owner_id, total in db.execute(stmt).all():
+        db.execute(update(User).where(User.id == owner_id).values(storage_used=func.greatest(User.storage_used - total, 0)))
 
 
 def _process_single_photo(
@@ -101,6 +124,10 @@ def _process_single_photo(
             # them entirely (object + DB record). Delete the DB row so orphan
             # entries aren't left behind.
             with task_db_session() as db_cleanup:
+                photo_row = db_cleanup.execute(select(Photo.file_size, Gallery.owner_id).select_from(Photo).join(Gallery, Photo.gallery_id == Gallery.id).where(Photo.id == photo_id)).one_or_none()
+                if photo_row:
+                    file_size, owner_id = photo_row
+                    db_cleanup.execute(update(User).where(User.id == owner_id).values(storage_used=func.greatest(User.storage_used - file_size, 0)))
                 db_cleanup.execute(delete(Photo).where(Photo.id == photo_id))
 
             result_tracker.add_error(photo_id, "Invalid image file")
@@ -153,6 +180,7 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
                 failed_ids = [r["photo_id"] for r in failed_results]
                 logger.info("Batch marking %s photos as FAILED in DB", len(failed_ids))
                 db.execute(update(Photo).where(Photo.id.in_(failed_ids)).values(status=PhotoUploadStatus.FAILED))
+                _decrement_used_for_photos(db, failed_ids)
 
         # Invalidate cache for successful thumbnails
         if successful_results:
@@ -204,33 +232,42 @@ def cleanup_orphaned_uploads_task() -> dict:
     threshold = datetime.now(UTC) - timedelta(hours=1)
     logger.info("Starting orphaned uploads cleanup (threshold: %s)", threshold)
 
-    # TODO may be we can notify users about failed photo uploads and may be let them reupload, but not now
-    with task_db_session() as db:
-        # 1. Find orphaned or failed photos
-        stmt = select(Photo).where(
-            Photo.status.in_([PhotoUploadStatus.PENDING, PhotoUploadStatus.FAILED]),
-            Photo.uploaded_at < threshold,
-        )
-        orphaned_photos = db.execute(stmt).scalars().all()
+    s3_client = get_s3_client()
+    bucket = get_s3_settings().bucket
+    batch_size = 250
+    total_deleted = 0
 
-        if not orphaned_photos:
-            logger.info("No photos found to clean up")
-            return {"deleted_count": 0}
+    while True:
+        with task_db_session() as db:
+            stmt = (
+                select(Photo)
+                .where(
+                    Photo.status.in_([PhotoUploadStatus.PENDING, PhotoUploadStatus.FAILED]),
+                    Photo.uploaded_at < threshold,
+                )
+                .order_by(Photo.uploaded_at)
+                .limit(batch_size)
+            )
+            chunk = db.execute(stmt).scalars().all()
+            if not chunk:
+                if total_deleted == 0:
+                    logger.info("No photos found to clean up")
+                break
 
-        photo_ids = [p.id for p in orphaned_photos]
-        object_keys = []
-        for p in orphaned_photos:
-            object_keys.append(p.object_key)
-            # If thumbnail is different, add it too
-            if p.thumbnail_object_key and p.thumbnail_object_key != p.object_key:
-                object_keys.append(p.thumbnail_object_key)
+            photo_ids = [p.id for p in chunk]
+            object_keys = []
+            for p in chunk:
+                object_keys.append(p.object_key)
+                if p.thumbnail_object_key and p.thumbnail_object_key != p.object_key:
+                    object_keys.append(p.thumbnail_object_key)
 
-        # 2. Delete from S3
+            orphaned_ids = [str(p.id) for p in chunk]
+            _release_reserved_for_photos(db, orphaned_ids)
+            delete_stmt = delete(Photo).where(Photo.id.in_(photo_ids))
+            db.execute(delete_stmt)
+
+        total_deleted += len(photo_ids)
         if object_keys:
-            s3_client = get_s3_client()
-            bucket = get_s3_settings().bucket
-
-            # S3 delete_objects can take up to 1000 keys
             for i in range(0, len(object_keys), 1000):
                 batch = object_keys[i : i + 1000]
                 delete_request = {"Objects": [{"Key": key} for key in batch]}
@@ -240,12 +277,8 @@ def cleanup_orphaned_uploads_task() -> dict:
                 except Exception as e:
                     logger.error("Failed to delete batch from S3: %s", e)
 
-        # 3. Delete from DB
-        delete_stmt = delete(Photo).where(Photo.id.in_(photo_ids))
-        db.execute(delete_stmt)
-
-        logger.info("Cleaned up %s orphaned photo records", len(photo_ids))
-        return {"deleted_count": len(photo_ids)}
+    logger.info("Cleaned up %s orphaned photo records", total_deleted)
+    return {"deleted_count": total_deleted}
 
 
 @celery_app.task(name="delete_gallery_data", bind=True, max_retries=3, acks_late=True)
@@ -279,6 +312,23 @@ def delete_gallery_data_task(self, gallery_id: str) -> dict:
         gallery_uuid = uuid.UUID(gallery_id)
 
         with task_db_session() as db:
+            owner_row = db.execute(select(Gallery.owner_id).where(Gallery.id == gallery_uuid)).one_or_none()
+            if owner_row:
+                owner_id = owner_row[0]
+                used_bytes = db.execute(
+                    select(func.coalesce(func.sum(Photo.file_size), 0)).where(
+                        Photo.gallery_id == gallery_uuid,
+                        Photo.status == PhotoUploadStatus.SUCCESSFUL,
+                    )
+                ).scalar_one()
+                reserved_bytes = db.execute(
+                    select(func.coalesce(func.sum(Photo.file_size), 0)).where(
+                        Photo.gallery_id == gallery_uuid,
+                        Photo.status == PhotoUploadStatus.PENDING,
+                    )
+                ).scalar_one()
+                db.execute(update(User).where(User.id == owner_id).values(storage_used=func.greatest(User.storage_used - used_bytes, 0)))
+                db.execute(update(User).where(User.id == owner_id).values(storage_reserved=func.greatest(User.storage_reserved - reserved_bytes, 0)))
             db.execute(delete(Photo).where(Photo.gallery_id == gallery_uuid))
             db.execute(delete(ShareLink).where(ShareLink.gallery_id == gallery_uuid))
             db.execute(delete(Gallery).where(Gallery.id == gallery_uuid))

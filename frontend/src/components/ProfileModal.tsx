@@ -39,6 +39,26 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
   const logout = useAuthStore((state) => state.logout);
   const tokens = useAuthStore((state) => state.tokens);
   const login = useAuthStore((state) => state.login);
+  const user = useAuthStore((state) => state.user);
+
+  const storageUsed = user?.storage_used ?? 0;
+  const storageQuota = user?.storage_quota ?? 0;
+  const storagePercent = storageQuota > 0 ? Math.min(100, Math.round((storageUsed / storageQuota) * 100)) : 0;
+
+  const formatBytes = (bytes: number) => {
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+      return '0 B';
+    }
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let size = bytes;
+    let unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex += 1;
+    }
+    const precision = size >= 10 || unitIndex === 0 ? 0 : 1;
+    return `${size.toFixed(precision)} ${units[unitIndex]}`;
+  };
 
   const handleProfileSave = useCallback(async () => {
     setError(null);
@@ -110,6 +130,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
       .then((user) => {
         setEmail(user.email);
         setDisplayName(user.display_name || '');
+        if (tokens) {
+          login(
+            {
+              id: user.id,
+              email: user.email,
+              display_name: user.display_name,
+              storage_used: user.storage_used,
+              storage_quota: user.storage_quota,
+            },
+            tokens,
+          );
+        }
         setTimeout(() => firstFieldRef.current?.focus(), 0);
       })
       .catch((err: unknown) => {
@@ -121,7 +153,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
           setError('Failed to load profile');
         }
       });
-  }, [isOpen, logout, navigate]);
+  }, [isOpen, logout, navigate, login, tokens]);
 
   // Keyboard events
   useEffect(() => {
@@ -282,6 +314,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                   placeholder="Enter your display name"
                   className="w-full px-4 py-2.5 border border-border rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
                 />
+              </div>
+
+              <div className="rounded-lg border border-border/60 bg-muted/20 dark:bg-muted-dark/30 px-4 py-3">
+                <div className="flex items-center justify-between text-sm font-medium text-text">
+                  <span>Storage usage</span>
+                  <span>
+                    {formatBytes(storageUsed)} / {formatBytes(storageQuota)}
+                  </span>
+                </div>
+                <div className="mt-2 h-2 w-full rounded-full bg-border/60">
+                  <div
+                    className="h-2 rounded-full bg-accent transition-all"
+                    style={{ width: `${storagePercent}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-muted">{storagePercent}% used</p>
               </div>
 
               <button

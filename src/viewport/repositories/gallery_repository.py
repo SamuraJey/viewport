@@ -8,6 +8,7 @@ from sqlalchemy import func, insert, select
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
 from viewport.repositories.base_repository import BaseRepository
+from viewport.repositories.user_repository import UserRepository
 from viewport.s3_service import AsyncS3Client
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,23 @@ class GalleryRepository(BaseRepository):
         if not gallery:
             return False
 
+        used_bytes = self.db.execute(
+            select(func.coalesce(func.sum(Photo.file_size), 0)).where(
+                Photo.gallery_id == gallery_id,
+                Photo.status == PhotoUploadStatus.SUCCESSFUL,
+            )
+        ).scalar_one()
+        reserved_bytes = self.db.execute(
+            select(func.coalesce(func.sum(Photo.file_size), 0)).where(
+                Photo.gallery_id == gallery_id,
+                Photo.status == PhotoUploadStatus.PENDING,
+            )
+        ).scalar_one()
+
+        user_repo = UserRepository(self.db)
+        user_repo.decrement_storage_used(gallery.owner_id, int(used_bytes))
+        user_repo.release_reserved_storage(gallery.owner_id, int(reserved_bytes))
+
         self.db.delete(gallery)
         self.db.commit()
         return True
@@ -73,6 +91,23 @@ class GalleryRepository(BaseRepository):
         gallery = self.get_gallery_by_id_and_owner(gallery_id, owner_id)
         if not gallery:
             return False
+
+        used_bytes = self.db.execute(
+            select(func.coalesce(func.sum(Photo.file_size), 0)).where(
+                Photo.gallery_id == gallery_id,
+                Photo.status == PhotoUploadStatus.SUCCESSFUL,
+            )
+        ).scalar_one()
+        reserved_bytes = self.db.execute(
+            select(func.coalesce(func.sum(Photo.file_size), 0)).where(
+                Photo.gallery_id == gallery_id,
+                Photo.status == PhotoUploadStatus.PENDING,
+            )
+        ).scalar_one()
+
+        user_repo = UserRepository(self.db)
+        user_repo.decrement_storage_used(gallery.owner_id, int(used_bytes))
+        user_repo.release_reserved_storage(gallery.owner_id, int(reserved_bytes))
 
         self.db.delete(gallery)
         self.db.commit()
@@ -207,6 +242,12 @@ class GalleryRepository(BaseRepository):
         if not photo or photo.gallery_id != gallery_id:
             return False
 
+        user_repo = UserRepository(self.db)
+        if photo.status == PhotoUploadStatus.SUCCESSFUL:
+            user_repo.decrement_storage_used(owner_id, photo.file_size)
+        elif photo.status == PhotoUploadStatus.PENDING:
+            user_repo.release_reserved_storage(owner_id, photo.file_size)
+
         # Note: S3 deletion is done asynchronously in a background task
         # This method only deletes from database
         self.db.delete(photo)
@@ -218,6 +259,12 @@ class GalleryRepository(BaseRepository):
         photo = self.get_photo_by_id_and_owner(photo_id, owner_id)
         if not photo or photo.gallery_id != gallery_id:
             return False
+
+        user_repo = UserRepository(self.db)
+        if photo.status == PhotoUploadStatus.SUCCESSFUL:
+            user_repo.decrement_storage_used(owner_id, photo.file_size)
+        elif photo.status == PhotoUploadStatus.PENDING:
+            user_repo.release_reserved_storage(owner_id, photo.file_size)
 
         # Delete both original and thumbnail from S3
         try:
