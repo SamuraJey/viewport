@@ -2,6 +2,7 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import select, update
+from sqlalchemy.orm import selectinload
 
 from viewport.models.gallery import Photo
 from viewport.models.sharelink import ShareLink
@@ -14,7 +15,11 @@ class ShareLinkRepository(BaseRepository):  # pragma: no cover # TODO tests
         return self.db.execute(stmt).scalar_one_or_none()
 
     def get_valid_sharelink(self, sharelink_id: uuid.UUID) -> ShareLink | None:
-        sharelink = self.get_sharelink_by_id(sharelink_id)
+        """Get sharelink with eager loading of gallery and gallery.owner to avoid lazy loading issues."""
+        from viewport.models.gallery import Gallery
+
+        stmt = select(ShareLink).where(ShareLink.id == sharelink_id).options(selectinload(ShareLink.gallery).selectinload(Gallery.owner))
+        sharelink = self.db.execute(stmt).scalar_one_or_none()
         if not sharelink:
             return None
         if sharelink.expires_at and sharelink.expires_at.timestamp() < datetime.now(UTC).timestamp():
@@ -23,11 +28,15 @@ class ShareLinkRepository(BaseRepository):  # pragma: no cover # TODO tests
 
     def get_photos_by_gallery_id(self, gallery_id: uuid.UUID) -> list[Photo]:
         # Ensure consistent ordering by filename/object_key for public listings
-        stmt = select(Photo).where(Photo.gallery_id == gallery_id).order_by(Photo.object_key.asc())
+        from viewport.models.gallery import Gallery
+
+        stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(Photo.object_key.asc())
         return list(self.db.execute(stmt).scalars().all())
 
     def get_photo_by_id_and_gallery(self, photo_id: uuid.UUID, gallery_id: uuid.UUID) -> Photo | None:
-        stmt = select(Photo).where(Photo.id == photo_id, Photo.gallery_id == gallery_id)
+        from viewport.models.gallery import Gallery
+
+        stmt = select(Photo).join(Photo.gallery).where(Photo.id == photo_id, Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
         return self.db.execute(stmt).scalar_one_or_none()
 
     def increment_views(self, sharelink_id: uuid.UUID) -> None:

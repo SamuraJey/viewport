@@ -300,43 +300,6 @@ async def batch_confirm_uploads(
     return BatchConfirmUploadResponse(confirmed_count=confirmed_count, failed_count=failed_count)
 
 
-@router.get("/{gallery_id}/photos/{photo_id}/debug-tags")
-async def debug_photo_tags(
-    gallery_id: UUID,
-    photo_id: UUID,
-    repo: GalleryRepository = Depends(get_gallery_repository),
-    current_user=Depends(get_current_user),
-    s3_client: AsyncS3Client = Depends(get_s3_client),
-):  # pragma: no cover - debug endpoint TODO Remove
-    """Debug endpoint to check S3 tags for a photo"""
-    # Verify gallery ownership
-    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
-    if not gallery:
-        raise HTTPException(403, "Access denied")
-
-    # Get photo
-    photo = repo.get_photo_by_id_and_gallery(photo_id, gallery_id)
-    if not photo:
-        raise HTTPException(404, "Photo not found")
-
-    # Get tags from S3
-    try:
-        tags = await s3_client.get_object_tagging(photo.object_key)
-        return {
-            "photo_id": str(photo.id),
-            "object_key": photo.object_key,
-            "status": photo.status,
-            "s3_tags": tags,
-        }
-    except Exception as e:
-        return {
-            "photo_id": str(photo.id),
-            "object_key": photo.object_key,
-            "status": photo.status,
-            "error": str(e),
-        }
-
-
 @router.delete("/{gallery_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_photo(
     gallery_id: UUID,
