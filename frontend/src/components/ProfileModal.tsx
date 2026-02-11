@@ -61,6 +61,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
     return `${size.toFixed(precision)} ${units[unitIndex]}`;
   };
 
+  const formatMB = (bytes: number) => {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
+    const mb = Math.round(bytes / 1024 / 1024);
+    return `${mb} MB`;
+  };
+
+  const [showStorageTooltip, setShowStorageTooltip] = useState(false);
+
   const handleProfileSave = useCallback(async () => {
     setError(null);
     setSavingProfile(true);
@@ -317,7 +325,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                 />
               </div>
 
-              <div className="rounded-lg border border-border/60 bg-muted/20 dark:bg-muted-dark/30 px-4 py-3">
+              <div
+                className="relative rounded-lg border border-border/60 bg-muted/20 dark:bg-muted-dark/30 px-4 py-3"
+                onMouseEnter={() => setShowStorageTooltip(true)}
+                onMouseLeave={() => setShowStorageTooltip(false)}
+              >
+                {showStorageTooltip && (
+                  <div
+                    className="absolute left-1/2 -translate-x-1/2 -top-10 bg-surface dark:bg-surface-dark border border-border/40 text-text text-sm rounded-md px-3 py-1 shadow-sm"
+                    role="status"
+                  >
+                    {`${formatMB(storageUsed)} / ${formatMB(storageQuota)} USED`}
+                  </div>
+                )}
                 <div className="flex items-center justify-between text-sm font-medium text-text">
                   <span>Storage usage</span>
                   <span>

@@ -401,17 +401,6 @@ export const PublicGalleryPage = () => {
             </h1>
             <div className="mt-4 text-lg pg-hero__meta">
               {gallery.photographer && <span>{gallery.photographer}</span>}
-              {gallery.photographer && gallery.site_url && <span className="mx-2">|</span>}
-              {gallery.site_url && (
-                <a
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline hover:text-accent-foreground"
-                  href={gallery.site_url}
-                >
-                  {new URL(gallery.site_url).host}
-                </a>
-              )}
             </div>
           </div>
 

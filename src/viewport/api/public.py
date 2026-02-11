@@ -99,9 +99,10 @@ async def get_photos_by_sharelink(
         if cover_photo_obj:
             cover_filename = cover_photo_obj.object_key.split("/", 1)[1] if "/" in cover_photo_obj.object_key else cover_photo_obj.object_key
             cover_url = url_map.get(cover_photo_obj.object_key)
+            cover_thumb_url = url_map.get(cover_photo_obj.thumbnail_object_key)
 
         if cover_url:
-            cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_url, filename=cover_filename)
+            cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_thumb_url, filename=cover_filename)
             logger.info(f"Cover set successfully: {cover_filename}")
         else:
             logger.warning(f"Cover URL not generated for photo {cover_id}")
