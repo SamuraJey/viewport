@@ -154,11 +154,11 @@ class GalleryRepository(BaseRepository):
         return list(self.db.execute(stmt).scalars().all())
 
     def get_photo_count_by_gallery(self, gallery_id: uuid.UUID) -> int:
-        stmt = select(func.count()).select_from(Photo).where(Photo.gallery_id == gallery_id)
+        stmt = select(func.count()).select_from(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
         return int(self.db.execute(stmt).scalar() or 0)
 
     def get_photos_by_gallery_paginated(self, gallery_id: uuid.UUID, limit: int, offset: int) -> list[Photo]:
-        stmt = select(Photo).where(Photo.gallery_id == gallery_id).order_by(Photo.object_key.asc()).offset(offset).limit(limit)
+        stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(Photo.object_key.asc()).offset(offset).limit(limit)
         return list(self.db.execute(stmt).scalars().all())
 
     def get_photos_by_ids_and_gallery(self, gallery_id: uuid.UUID, photo_ids: list[uuid.UUID]) -> list[Photo]:
