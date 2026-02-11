@@ -1,7 +1,11 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+
+if TYPE_CHECKING:
+    from viewport.models.gallery import Photo
 
 
 class PhotoCreateRequest(BaseModel):
@@ -52,7 +56,7 @@ class PhotoResponse(BaseModel):
         )
 
     @classmethod
-    async def from_db_photos_batch(cls, photos: list, s3_client) -> list["PhotoResponse"]:
+    async def from_db_photos_batch(cls, photos: list["Photo"], s3_client) -> list["PhotoResponse"]:
         """Create PhotoResponse list from database Photo models with batched presigned URLs
 
         This is much faster than calling from_db_photo for each photo individually,

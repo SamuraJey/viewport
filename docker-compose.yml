@@ -39,9 +39,8 @@ services:
       POSTGRES_DB: viewport
       POSTGRES_USER: viewport
       POSTGRES_PASSWORD: viewport
-      # Increase max connections for concurrent Celery tasks
-      POSTGRES_MAX_CONNECTIONS: 100
-    command: postgres -c max_connections=100 -c shared_buffers=256MB
+      POSTGRES_MAX_CONNECTIONS: 1000
+    command: postgres -c max_connections=1000 -c shared_buffers=256MB
     ports:
       - "5432:5432"
     volumes:
@@ -51,14 +50,14 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.50"
-          memory: 256M
+          cpus: "2"
+          memory: 512M
         reservations:
           cpus: "0.25"
           memory: 128M
 
   s3-service:
-    image: rustfs/rustfs:1.0.0-alpha.80
+    image: rustfs/rustfs:1.0.0-alpha.82
     container_name: viewport_s3
     restart: always
     environment:
@@ -70,7 +69,7 @@ services:
       RUSTFS_NOTIFY_WEBHOOK_AUTH_TOKEN: some_secure_token
       RUSTFS_NOTIFY_WEBHOOK_ENABLE: true
       RUSTFS_BUFFER_PROFILE: AiTraining
-      RUSTFS_NS_SCANNER_INTERVAL: 60  # in seconds
+      RUSTFS_NS_SCANNER_INTERVAL: 60 # in seconds
       RUST_LOG: "rustfs=info,ecstore=info,s3s=info,iam=info,notify=info"
 
     # command: server /data --console-address ":9001"
@@ -84,7 +83,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.50"
+          cpus: "2.50"
           memory: 1G
         reservations:
           cpus: "0.25"
@@ -118,7 +117,7 @@ services:
       context: .
       dockerfile: Dockerfile-backend
     container_name: viewport_celery_worker
-    command: celery -A src.viewport.celery_app worker --loglevel=info --concurrency=4 --max-tasks-per-child=500 --beat
+    command: celery -A src.viewport.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=500 --beat
     env_file:
       - .env.prod
     depends_on:
@@ -139,7 +138,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "4"
+          cpus: "0.50"
           memory: 1700M
         reservations:
           cpus: "0.50"

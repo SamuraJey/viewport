@@ -79,20 +79,21 @@ async def get_gallery_detail(
     start_time = time.monotonic()
 
     db_start = time.monotonic()
-    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    # Use eager loading for share_links to avoid lazy loading after session closes
+    gallery = repo.get_gallery_by_id_and_owner_with_sharelinks(gallery_id, current_user.id)
     db_time = time.monotonic() - db_start
 
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
 
-    photo_count = len(gallery.photos)
+    # Use repository methods that perform efficient DB queries instead of loading the whole relationship
+    photo_count = repo.get_photo_count_by_gallery(gallery_id)
 
-    # Apply pagination if limit is provided
-    photos_to_process = gallery.photos
     if limit is not None:
-        photos_to_process = gallery.photos[offset : offset + limit]
+        photos_to_process = repo.get_photos_by_gallery_paginated(gallery_id, limit, offset)
         logger.info("Gallery %s: DB query took %.3fs, total photos: %s, returning: %s (offset=%s, limit=%s)", gallery_id, db_time, photo_count, len(photos_to_process), offset, limit)
     else:
+        photos_to_process = repo.get_photos_by_gallery_id(gallery_id)
         logger.info("Gallery %s: DB query took %.3fs, photos count: %s", gallery_id, db_time, photo_count)
 
     # Use batch method for faster photo URL generation
