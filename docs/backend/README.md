@@ -16,6 +16,9 @@ JWT token management, password hashing, user authentication flow, and authorizat
 ### 💾 [Storage & File Handling](./storage.md)
 S3 integration, file upload validation, image processing, and download generation.
 
+### 📦 [Storage Quotas](./quotas.md)
+Quota counters (`storage_quota`, `storage_used`, `storage_reserved`), upload accounting lifecycle, and cleanup/background consistency flows.
+
 ### ⚙️ [Configuration](./configuration.md)
 Environment variables, settings management, and environment-specific configurations.
 

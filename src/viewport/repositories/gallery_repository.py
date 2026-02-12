@@ -208,7 +208,7 @@ class GalleryRepository(BaseRepository):
         self.db.refresh(photo)
         return photo
 
-    def set_photos_statuses(self, photo_map: dict[uuid.UUID, Photo], status_updates: dict[uuid.UUID, PhotoUploadStatus]) -> None:
+    def set_photos_statuses(self, photo_map: dict[uuid.UUID, Photo], status_updates: dict[uuid.UUID, PhotoUploadStatus], commit: bool = True) -> None:
         if not status_updates:
             return
         for photo_id, status in status_updates.items():
@@ -216,7 +216,8 @@ class GalleryRepository(BaseRepository):
             if not photo:
                 continue
             photo.status = status
-        self.db.commit()
+        if commit:
+            self.db.commit()
 
     def create_photo(self, gallery_id: uuid.UUID, object_key: str, thumbnail_object_key: str, file_size: int, width: int | None = None, height: int | None = None) -> Photo:
         photo = Photo(gallery_id=gallery_id, object_key=object_key, thumbnail_object_key=thumbnail_object_key, file_size=file_size, width=width, height=height)

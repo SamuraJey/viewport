@@ -79,7 +79,7 @@ class UserRepository(BaseRepository):
         self.db.commit()
         return True
 
-    def release_reserved_storage(self, user_id: uuid.UUID, bytes_to_release: int) -> None:
+    def release_reserved_storage(self, user_id: uuid.UUID, bytes_to_release: int, commit: bool = True) -> None:
         if bytes_to_release <= 0:
             return
 
@@ -90,9 +90,10 @@ class UserRepository(BaseRepository):
 
         user.storage_reserved = max(user.storage_reserved - bytes_to_release, 0)
         self.db.add(user)
-        self.db.commit()
+        if commit:
+            self.db.commit()
 
-    def finalize_reserved_storage(self, user_id: uuid.UUID, bytes_to_finalize: int) -> None:
+    def finalize_reserved_storage(self, user_id: uuid.UUID, bytes_to_finalize: int, commit: bool = True) -> None:
         if bytes_to_finalize <= 0:
             return
 
@@ -104,9 +105,10 @@ class UserRepository(BaseRepository):
         user.storage_reserved = max(user.storage_reserved - bytes_to_finalize, 0)
         user.storage_used += bytes_to_finalize
         self.db.add(user)
-        self.db.commit()
+        if commit:
+            self.db.commit()
 
-    def decrement_storage_used(self, user_id: uuid.UUID, bytes_to_decrement: int) -> None:
+    def decrement_storage_used(self, user_id: uuid.UUID, bytes_to_decrement: int, commit: bool = True) -> None:
         if bytes_to_decrement <= 0:
             return
 
@@ -117,7 +119,8 @@ class UserRepository(BaseRepository):
 
         user.storage_used = max(user.storage_used - bytes_to_decrement, 0)
         self.db.add(user)
-        self.db.commit()
+        if commit:
+            self.db.commit()
 
     def recalculate_storage(self, user_id: uuid.UUID) -> User | None:
         stmt = select(User).where(User.id == user_id).with_for_update()

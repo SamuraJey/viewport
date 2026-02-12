@@ -230,6 +230,7 @@ async def batch_confirm_uploads(
     repo: GalleryRepository = Depends(get_gallery_repository),
     user_repo: UserRepository = Depends(get_user_repository),
     current_user=Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> BatchConfirmUploadResponse:
     """Confirm batch photo uploads to S3
 
@@ -253,14 +254,25 @@ async def batch_confirm_uploads(
     status_updates: dict[UUID, PhotoUploadStatus] = {}
 
     # 3. Process each photo (S3 verification deferred to background task)
+    seen_photo_ids: set[UUID] = set()
+    previous_status_map: dict[UUID, PhotoUploadStatus] = {}
+
     for item in request.items:
+        if item.photo_id in seen_photo_ids:
+            failed_count += 1
+            continue
+
+        seen_photo_ids.add(item.photo_id)
         photo = photo_map.get(item.photo_id)
         if not photo:
             failed_count += 1
             continue
 
+        previous_status_map[photo.id] = photo.status
+
         if not item.success:
-            status_updates[photo.id] = PhotoUploadStatus.FAILED
+            if photo.status == PhotoUploadStatus.PENDING:
+                status_updates[photo.id] = PhotoUploadStatus.FAILED
             failed_count += 1
             continue
 
@@ -268,12 +280,23 @@ async def batch_confirm_uploads(
             confirmed_count += 1
             continue
 
+        if photo.status != PhotoUploadStatus.PENDING:
+            failed_count += 1
+            continue
+
+        try:
+            await s3_client.head_object(photo.object_key)
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "") if hasattr(e, "response") else ""
+            if error_code in {"NoSuchKey", "404", "NotFound"}:
+                status_updates[photo.id] = PhotoUploadStatus.FAILED
+                failed_count += 1
+                continue
+            raise HTTPException(status_code=503, detail="Storage is temporarily unavailable") from e
+
         status_updates[photo.id] = PhotoUploadStatus.SUCCESSFUL
         confirmed_count += 1
         photos_to_process.append({"photo_id": str(photo.id), "object_key": photo.object_key})
-
-    # 4. Batch commit DB changes
-    repo.set_photos_statuses(photo_map, status_updates)
 
     bytes_to_finalize = 0
     bytes_to_release = 0
@@ -281,15 +304,23 @@ async def batch_confirm_uploads(
         photo = photo_map.get(photo_id)
         if not photo:
             continue
-        if photo_status == PhotoUploadStatus.SUCCESSFUL:
+        previous_status = previous_status_map.get(photo_id)
+        if photo_status == PhotoUploadStatus.SUCCESSFUL and previous_status == PhotoUploadStatus.PENDING:
             bytes_to_finalize += photo.file_size
-        elif photo_status == PhotoUploadStatus.FAILED and photo.status == PhotoUploadStatus.PENDING:
+        elif photo_status == PhotoUploadStatus.FAILED and previous_status == PhotoUploadStatus.PENDING:
             bytes_to_release += photo.file_size
 
-    if bytes_to_finalize:
-        user_repo.finalize_reserved_storage(current_user.id, bytes_to_finalize)
-    if bytes_to_release:
-        user_repo.release_reserved_storage(current_user.id, bytes_to_release)
+    # 4. Commit statuses and quota updates atomically
+    try:
+        repo.set_photos_statuses(photo_map, status_updates, commit=False)
+        if bytes_to_finalize:
+            user_repo.finalize_reserved_storage(current_user.id, bytes_to_finalize, commit=False)
+        if bytes_to_release:
+            user_repo.release_reserved_storage(current_user.id, bytes_to_release, commit=False)
+        repo.db.commit()
+    except Exception:
+        repo.db.rollback()
+        raise
 
     # 5. Start batch thumbnail processing (will retry tagging if needed)
     if photos_to_process:

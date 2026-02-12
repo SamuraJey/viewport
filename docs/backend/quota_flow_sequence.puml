@@ -1,0 +1,51 @@
+@startuml quota_flow_sequence
+title Viewport Quota Enforcement & Upload Accounting
+
+actor User
+participant "Frontend" as FE
+participant "FastAPI /photo" as API
+database "Postgres" as DB
+participant "S3 (RustFS)" as S3
+participant "Celery" as C
+
+User -> FE: Select files
+FE -> API: POST /galleries/{id}/photos/batch-presigned
+activate API
+API -> DB: Check gallery owner
+API -> DB: reserve_storage(user_id, total_valid_bytes)
+API -> DB: INSERT photos(status=PENDING)
+API --> FE: presigned URLs + signed headers
+deactivate API
+
+loop each uploaded file
+  FE -> S3: PUT object (signed headers)
+  S3 --> FE: 200/204
+end
+
+FE -> API: POST /galleries/{id}/photos/batch-confirm
+activate API
+API -> DB: Set photo statuses
+API -> DB: finalize_reserved_storage(success_bytes)
+API -> DB: release_reserved_storage(failed_bytes)
+API -> C: create_thumbnails_batch_task.delay(...)
+API --> FE: confirmed_count / failed_count
+deactivate API
+
+activate C
+C -> S3: get_object(original)
+C -> C: Validate image + create thumbnail
+C -> S3: upload thumbnail
+C -> DB: update thumbnail metadata
+alt processing failed
+  C -> DB: mark photo FAILED
+  C -> DB: decrement storage_used
+end
+deactivate C
+
+== Periodic cleanup ==
+C -> DB: select stale PENDING/FAILED
+C -> DB: release reserved bytes for stale records
+C -> DB: delete stale photo rows
+C -> S3: delete stale objects
+
+@enduml

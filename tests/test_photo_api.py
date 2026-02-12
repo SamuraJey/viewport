@@ -1,12 +1,19 @@
 """Tests for photo API endpoints."""
 
-from uuid import uuid4
+from typing import TYPE_CHECKING
+from uuid import UUID, uuid4
 
 import requests
+from botocore.exceptions import ClientError
 from fastapi.testclient import TestClient
 
 from tests.helpers import register_and_login, upload_photo_via_presigned
 from viewport.api.photo import MAX_FILE_SIZE, get_content_type_from_filename, sanitize_filename
+from viewport.models.gallery import Photo, PhotoUploadStatus
+from viewport.models.user import User
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
 class TestPhotoAPI:
@@ -242,3 +249,64 @@ class TestPhotoAPI:
         assert sanitize_filename("") == "file"
         assert get_content_type_from_filename("photo.webp") == "image/webp"
         assert get_content_type_from_filename(None) == "image/jpeg"
+
+    def test_batch_confirm_missing_s3_object_marks_failed_and_releases_reserved(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session):
+        payload = {"files": [{"filename": "missing-object.jpg", "file_size": 256, "content_type": "image/jpeg"}]}
+        presigned = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
+        assert presigned.status_code == 200
+        item = presigned.json()["items"][0]
+        photo_id = UUID(item["photo_id"])
+
+        me_resp = authenticated_client.get("/me")
+        assert me_resp.status_code == 200
+        user_id = UUID(me_resp.json()["id"])
+
+        response = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/photos/batch-confirm",
+            json={"items": [{"photo_id": str(photo_id), "success": True}]},
+        )
+
+        assert response.status_code == 200
+        result = response.json()
+        assert result["confirmed_count"] == 0
+        assert result["failed_count"] == 1
+
+        db_session.expire_all()
+        user = db_session.get(User, user_id)
+        photo = db_session.get(Photo, photo_id)
+        assert user is not None
+        assert photo is not None
+        assert user.storage_used == 0
+        assert user.storage_reserved == 0
+        assert photo.status == PhotoUploadStatus.FAILED
+
+    def test_batch_confirm_transient_s3_error_keeps_state_unchanged(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: Session, monkeypatch):
+        payload = {"files": [{"filename": "rollback.jpg", "file_size": 256, "content_type": "image/jpeg"}]}
+        presigned = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
+        assert presigned.status_code == 200
+        item = presigned.json()["items"][0]
+        photo_id = UUID(item["photo_id"])
+
+        me_resp = authenticated_client.get("/me")
+        assert me_resp.status_code == 200
+        user_id = UUID(me_resp.json()["id"])
+
+        async def fail_head_object(*args, **kwargs):
+            raise ClientError({"Error": {"Code": "ServiceUnavailable", "Message": "temporary outage"}}, "HeadObject")
+
+        monkeypatch.setattr("viewport.s3_service.AsyncS3Client.head_object", fail_head_object)
+
+        response = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/photos/batch-confirm",
+            json={"items": [{"photo_id": str(photo_id), "success": True}]},
+        )
+        assert response.status_code == 503
+
+        db_session.expire_all()
+        user = db_session.get(User, user_id)
+        photo = db_session.get(Photo, photo_id)
+        assert user is not None
+        assert photo is not None
+        assert user.storage_used == 0
+        assert user.storage_reserved == 256
+        assert photo.status == PhotoUploadStatus.PENDING

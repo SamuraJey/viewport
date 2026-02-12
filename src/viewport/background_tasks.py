@@ -261,8 +261,8 @@ def cleanup_orphaned_uploads_task() -> dict:
                 if p.thumbnail_object_key and p.thumbnail_object_key != p.object_key:
                     object_keys.append(p.thumbnail_object_key)
 
-            orphaned_ids = [str(p.id) for p in chunk]
-            _release_reserved_for_photos(db, orphaned_ids)
+            pending_ids = [str(p.id) for p in chunk if p.status == PhotoUploadStatus.PENDING]
+            _release_reserved_for_photos(db, pending_ids)
             delete_stmt = delete(Photo).where(Photo.id.in_(photo_ids))
             db.execute(delete_stmt)
 

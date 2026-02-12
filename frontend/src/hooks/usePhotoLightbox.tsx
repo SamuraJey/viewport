@@ -118,7 +118,6 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
           <img
             src={progressiveSlide.thumbnailSrc}
             alt={progressiveSlide.alt || ''}
-            crossOrigin="anonymous"
             draggable={false}
             style={{
               position: 'absolute',
@@ -133,7 +132,6 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
           <img
             src={progressiveSlide.src}
             alt={progressiveSlide.alt || ''}
-            crossOrigin="anonymous"
             draggable={false}
             onLoad={() => markSlideLoaded(progressiveSlide.src)}
             onError={() => markSlideLoaded(progressiveSlide.src)}
