@@ -38,6 +38,7 @@ export const PublicGalleryPage = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string>('');
+  const [isHeroFullLoaded, setIsHeroFullLoaded] = useState(false);
   const [gridDensity, setGridDensity] = useState<'large' | 'compact'>('large');
   const [gridLayout, setGridLayout] = useState<'masonry' | 'uniform'>('masonry');
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -159,6 +160,10 @@ export const PublicGalleryPage = () => {
   useEffect(() => {
     fetchGalleryData();
   }, [fetchGalleryData]);
+
+  useEffect(() => {
+    setIsHeroFullLoaded(false);
+  }, [gallery?.cover?.full_url]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
@@ -304,6 +309,7 @@ export const PublicGalleryPage = () => {
   // Prepare slides for lightbox
   const lightboxSlides = photos.map((photo) => ({
     src: photo.full_url,
+    thumbnailSrc: photo.thumbnail_url,
     width: photo.width || undefined,
     height: photo.height || undefined,
     alt: photo.filename || `Photo ${photo.photo_id}`,
@@ -383,12 +389,22 @@ export const PublicGalleryPage = () => {
       {/* Hero Section */}
       {gallery?.cover ? (
         <div className="pg-hero relative w-full text-accent-foreground">
-          {/* Background Image */}
+          {/* Thumbnail first */}
+          <img
+            src={gallery.cover.thumbnail_url}
+            alt="Gallery cover preview"
+            crossOrigin="anonymous"
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isHeroFullLoaded ? 'opacity-0' : 'opacity-100'}`}
+          />
+
+          {/* Full image fades in */}
           <img
             src={gallery.cover.full_url}
             alt="Gallery cover"
             crossOrigin="anonymous"
-            className="absolute inset-0 w-full h-full object-cover"
+            onLoad={() => setIsHeroFullLoaded(true)}
+            onError={() => setIsHeroFullLoaded(true)}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${isHeroFullLoaded ? 'opacity-100' : 'opacity-0'}`}
           />
           {/* Overlay */}
           <div className="pg-hero__overlay" />
