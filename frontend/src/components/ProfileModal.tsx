@@ -270,7 +270,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
           {/* Error Alert */}
           {error && (
             <div className="bg-danger/10 border border-danger/20 rounded-lg p-4 flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-danger flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-danger shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-danger font-medium">Error</p>
                 <p className="text-danger/80 text-sm mt-1">{error}</p>
@@ -588,7 +588,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
 
               <div className="bg-danger/10 border border-danger/20 rounded-xl p-6 space-y-4">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-6 h-6 text-danger flex-shrink-0 mt-1" />
+                  <AlertTriangle className="w-6 h-6 text-danger shrink-0 mt-1" />
                   <div>
                     <p className="text-danger font-bold text-lg mb-2">
                       This action cannot be undone!
