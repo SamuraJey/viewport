@@ -62,9 +62,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
   };
 
   const formatMB = (bytes: number) => {
-    if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
-    const mb = Math.round(bytes / 1024 / 1024);
-    return `${mb} MB`;
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0.00 MB';
+    const mb = bytes / 1024 / 1024;
+    return `${mb.toFixed(2)} MB`;
   };
 
   const [showStorageTooltip, setShowStorageTooltip] = useState(false);
@@ -244,10 +244,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
     >
       <div
         className="bg-surface dark:bg-surface-dark rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto border border-border dark:border-border/40"
+        data-lenis-prevent
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-surface dark:bg-surface-dark border-b border-border dark:border-border/40 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+        <div className="sticky top-0 bg-surface dark:bg-surface-dark border-b border-border dark:border-border/40 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-accent/10 rounded-full flex items-center justify-center">
               <User className="w-5 h-5 text-accent" />
@@ -326,13 +327,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
               </div>
 
               <div
-                className="relative rounded-lg border border-border/60 bg-muted/20 dark:bg-muted-dark/30 px-4 py-3"
+                className="relative rounded-lg border border-border/60 bg-muted/20 dark:bg-muted-dark/30 px-4 py-3 z-0"
                 onMouseEnter={() => setShowStorageTooltip(true)}
                 onMouseLeave={() => setShowStorageTooltip(false)}
               >
                 {showStorageTooltip && (
                   <div
-                    className="absolute left-1/2 -translate-x-1/2 -top-10 bg-surface dark:bg-surface-dark border border-border/40 text-text text-sm rounded-md px-3 py-1 shadow-sm"
+                    className="absolute left-1/2 -translate-x-1/2 -top-10 bg-surface dark:bg-surface-dark border border-border/40 text-text text-sm rounded-md px-3 py-1 shadow-sm z-10"
                     role="status"
                   >
                     {`${formatMB(storageUsed)} / ${formatMB(storageQuota)} USED`}
