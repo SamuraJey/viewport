@@ -1,6 +1,6 @@
 """Tests for photo API endpoints."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Never
 from uuid import UUID, uuid4
 
 import requests
@@ -250,7 +250,7 @@ class TestPhotoAPI:
         assert get_content_type_from_filename("photo.webp") == "image/webp"
         assert get_content_type_from_filename(None) == "image/jpeg"
 
-    def test_batch_confirm_missing_s3_object_marks_failed_and_releases_reserved(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session):
+    def test_batch_confirm_missing_s3_object_marks_failed_and_releases_reserved(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: Session):
         payload = {"files": [{"filename": "missing-object.jpg", "file_size": 256, "content_type": "image/jpeg"}]}
         presigned = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
         assert presigned.status_code == 200
@@ -291,7 +291,7 @@ class TestPhotoAPI:
         assert me_resp.status_code == 200
         user_id = UUID(me_resp.json()["id"])
 
-        async def fail_head_object(*args, **kwargs):
+        async def fail_head_object(*args, **kwargs) -> Never:
             raise ClientError({"Error": {"Code": "ServiceUnavailable", "Message": "temporary outage"}}, "HeadObject")
 
         monkeypatch.setattr("viewport.s3_service.AsyncS3Client.head_object", fail_head_object)
@@ -303,8 +303,8 @@ class TestPhotoAPI:
         assert response.status_code == 503
 
         db_session.expire_all()
-        user = db_session.get(User, user_id)
-        photo = db_session.get(Photo, photo_id)
+        user: User = db_session.get(User, user_id)
+        photo: Photo = db_session.get(Photo, photo_id)
         assert user is not None
         assert photo is not None
         assert user.storage_used == 0
