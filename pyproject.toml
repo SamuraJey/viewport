@@ -169,3 +169,4 @@ filterwarnings = [
 [tool.coverage.run]
 # Needed by py-cov-action/python-coverage-comment-action to map paths correctly
 relative_files = true
+omit = ["*/alembic/*"]
