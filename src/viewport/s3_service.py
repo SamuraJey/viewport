@@ -201,8 +201,6 @@ class AsyncS3Client:
                 logger.error("Failed to upload object %s: %s", key, e)
                 raise
 
-        raise RuntimeError(f"Failed to upload object {key} after retries")
-
     async def upload_bytes(
         self,
         data: bytes,
