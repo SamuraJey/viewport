@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import type { ImgHTMLAttributes } from 'react';
-import Lightbox from 'yet-another-react-lightbox';
+import Lightbox, { type Slide } from 'yet-another-react-lightbox';
 import Thumbnails from 'yet-another-react-lightbox/plugins/thumbnails';
 import Fullscreen from 'yet-another-react-lightbox/plugins/fullscreen';
 import LightboxDownload from 'yet-another-react-lightbox/plugins/download';
@@ -209,7 +209,7 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
               crossOrigin: 'anonymous',
             },
           };
-        }) as any
+        }) as Slide[]
       }
       render={{
         slide: renderProgressiveSlide,
