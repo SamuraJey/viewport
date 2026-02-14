@@ -4,22 +4,22 @@
 case "$1" in
   purge)
     echo "Purging all tasks from Celery queue..."
-    docker exec viewport_celery_worker uv run celery -A src.viewport.background_tasks purge -f
+    docker exec viewport_celery_worker celery -A src.viewport.background_tasks purge -f
     ;;
 
   stats)
     echo "Celery worker statistics..."
-    docker exec viewport_celery_worker uv run celery -A src.viewport.background_tasks inspect stats
+    docker exec viewport_celery_worker celery -A src.viewport.background_tasks inspect stats
     ;;
 
   active)
     echo "Active tasks..."
-    docker exec viewport_celery_worker uv run celery -A src.viewport.background_tasks inspect active
+    docker exec viewport_celery_worker celery -A src.viewport.background_tasks inspect active
     ;;
 
   scheduled)
     echo "Scheduled tasks..."
-    docker exec viewport_celery_worker uv run celery -A src.viewport.background_tasks inspect scheduled
+    docker exec viewport_celery_worker celery -A src.viewport.background_tasks inspect scheduled
     ;;
 
   queue-length)

@@ -1027,6 +1027,7 @@ export const GalleryPage = () => {
       {renderLightbox(
         photoUrls.map((photo) => ({
           src: photo.url,
+          thumbnailSrc: photo.thumbnail_url,
           alt: photo.filename,
           download: photo.url,
           downloadFilename: photo.filename,

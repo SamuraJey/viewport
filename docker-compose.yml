@@ -117,6 +117,7 @@ services:
       context: .
       dockerfile: Dockerfile-backend
     container_name: viewport_celery_worker
+    restart: always
     command: celery -A src.viewport.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=500 --beat
     env_file:
       - .env.prod

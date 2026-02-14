@@ -15,7 +15,16 @@ class UserAdmin(ModelView, model=User):
     icon = "fa-solid fa-user"
 
     # List page configuration
-    column_list = [User.id, User.email, User.display_name, User.is_admin, User.created_at]
+    column_list = [
+        User.id,
+        User.email,
+        User.display_name,
+        User.storage_used,
+        User.storage_reserved,
+        User.storage_quota,
+        User.is_admin,
+        User.created_at,
+    ]
     column_searchable_list = [User.email, User.display_name]
     column_sortable_list = [User.email, User.created_at]
     column_default_sort = [(User.created_at, True)]
@@ -25,13 +34,22 @@ class UserAdmin(ModelView, model=User):
         User.id,
         User.email,
         User.display_name,
+        User.storage_used,
+        User.storage_reserved,
+        User.storage_quota,
         User.is_admin,
         User.created_at,
         User.galleries,
     ]
 
     # Form configuration - hide password hash, exclude created_at
-    form_excluded_columns = [User.password_hash, User.created_at, User.galleries]
+    form_excluded_columns = [
+        User.password_hash,
+        User.created_at,
+        User.galleries,
+        User.storage_used,
+        User.storage_reserved,
+    ]
 
     # Permissions - disable creation (registration via API only)
     can_create = False

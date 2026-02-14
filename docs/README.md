@@ -36,6 +36,7 @@ Backend architecture, models, and implementation details.
 - [Database Models](./backend/models.md) - SQLAlchemy ORM models
 - [Authentication & Auth](./backend/auth.md) - JWT implementation
 - [File Storage](./backend/storage.md) - S3 integration
+- [Storage Quotas](./backend/quotas.md) - Quota enforcement and upload accounting
 - [Configuration](./backend/configuration.md) - Environment setup
 
 ### 🎨 [Frontend Documentation](./frontend/README.md)

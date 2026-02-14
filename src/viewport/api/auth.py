@@ -59,7 +59,14 @@ def login_user(request: LoginRequest, repo: UserRepository = Depends(get_user_re
         raise HTTPException(status_code=401, detail="Invalid email or password")
     access_token = create_access_token(str(user.id))
     refresh_token = create_refresh_token(str(user.id))
-    return LoginResponse(id=str(user.id), email=user.email, tokens={"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"})
+    return LoginResponse(
+        id=str(user.id),
+        email=user.email,
+        display_name=user.display_name,
+        storage_used=user.storage_used,
+        storage_quota=user.storage_quota,
+        tokens={"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"},
+    )
 
 
 @router.post("/refresh", response_model=TokenPair, status_code=status.HTTP_200_OK)

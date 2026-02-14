@@ -73,11 +73,92 @@ def test_delete_gallery(repo, owner_id):
     assert repo.delete_gallery(gallery.id, owner_id, dummy) is False
 
 
+def test_delete_gallery_uses_single_transaction_for_quota_updates(repo, owner_id, monkeypatch):
+    gallery = repo.create_gallery(owner_id, "Tx Delete")
+    calls: list[tuple[str, int, bool]] = []
+
+    def _mock_decrement_storage_used(self, user_id, bytes_to_decrement, commit=True):
+        calls.append(("used", int(bytes_to_decrement), commit))
+
+    def _mock_release_reserved_storage(self, user_id, bytes_to_release, commit=True):
+        calls.append(("reserved", int(bytes_to_release), commit))
+
+    monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.decrement_storage_used", _mock_decrement_storage_used)
+    monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.release_reserved_storage", _mock_release_reserved_storage)
+
+    assert repo.delete_gallery(gallery.id, owner_id, DummyAsyncS3Client()) is True
+    assert ("used", 0, False) in calls
+    assert ("reserved", 0, False) in calls
+
+
 @pytest.mark.asyncio
 async def test_delete_gallery_async_missing(repo, owner_id):
     dummy = DummyAsyncS3Client()
     assert await repo.delete_gallery_async(uuid.uuid4(), owner_id, dummy) is False
     assert dummy.deleted_folders == []
+
+
+def test_delete_photo_uses_single_transaction_for_quota_updates(repo, owner_id, monkeypatch):
+    gallery = repo.create_gallery(owner_id, "Photo Tx")
+    photo = repo.create_photo(gallery.id, f"{gallery.id}/photo.jpg", f"{gallery.id}/photo.jpg", 1024)
+    photo.status = PhotoUploadStatus.SUCCESSFUL
+    repo.db.add(photo)
+    repo.db.commit()
+
+    calls: list[tuple[str, int, bool]] = []
+
+    def _mock_decrement_storage_used(self, user_id, bytes_to_decrement, commit=True):
+        calls.append(("used", int(bytes_to_decrement), commit))
+
+    def _mock_release_reserved_storage(self, user_id, bytes_to_release, commit=True):
+        calls.append(("reserved", int(bytes_to_release), commit))
+
+    monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.decrement_storage_used", _mock_decrement_storage_used)
+    monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.release_reserved_storage", _mock_release_reserved_storage)
+
+    assert repo.delete_photo(photo.id, gallery.id, owner_id, DummyAsyncS3Client()) is True
+    assert ("used", 1024, False) in calls
+    assert not any(c[0] == "reserved" for c in calls)
+
+
+@pytest.mark.asyncio
+async def test_delete_photo_async_uses_single_transaction_for_quota_updates(repo, owner_id, monkeypatch):
+    gallery = repo.create_gallery(owner_id, "Photo Async Tx")
+    photo = repo.create_photo(gallery.id, f"{gallery.id}/async.jpg", f"{gallery.id}/async.jpg", 2048)
+
+    calls: list[tuple[str, int, bool]] = []
+
+    def _mock_decrement_storage_used(self, user_id, bytes_to_decrement, commit=True):
+        calls.append(("used", int(bytes_to_decrement), commit))
+
+    def _mock_release_reserved_storage(self, user_id, bytes_to_release, commit=True):
+        calls.append(("reserved", int(bytes_to_release), commit))
+
+    monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.decrement_storage_used", _mock_decrement_storage_used)
+    monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.release_reserved_storage", _mock_release_reserved_storage)
+
+    assert await repo.delete_photo_async(photo.id, gallery.id, owner_id, DummyAsyncS3Client()) is True
+    assert ("reserved", 2048, False) in calls
+    assert not any(c[0] == "used" for c in calls)
+
+
+@pytest.mark.asyncio
+async def test_delete_gallery_async_uses_single_transaction_for_quota_updates(repo, owner_id, monkeypatch):
+    gallery = repo.create_gallery(owner_id, "Tx Async Delete")
+    calls: list[tuple[str, int, bool]] = []
+
+    def _mock_decrement_storage_used(self, user_id, bytes_to_decrement, commit=True):
+        calls.append(("used", int(bytes_to_decrement), commit))
+
+    def _mock_release_reserved_storage(self, user_id, bytes_to_release, commit=True):
+        calls.append(("reserved", int(bytes_to_release), commit))
+
+    monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.decrement_storage_used", _mock_decrement_storage_used)
+    monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.release_reserved_storage", _mock_release_reserved_storage)
+
+    assert await repo.delete_gallery_async(gallery.id, owner_id, DummyAsyncS3Client()) is True
+    assert ("used", 0, False) in calls
+    assert ("reserved", 0, False) in calls
 
 
 def _create_photo(repo, gallery_id: uuid.UUID, filename: str, owner_id: uuid.UUID) -> uuid.UUID:

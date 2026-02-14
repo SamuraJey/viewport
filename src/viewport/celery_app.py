@@ -52,6 +52,10 @@ def create_celery_app(settings: CelerySettings | None = None) -> Celery:
             "task": "reconcile_successful_uploads",
             "schedule": crontab(minute="*/10"),
         },
+        "reconcile-storage-quotas-daily": {
+            "task": "reconcile_storage_quotas",
+            "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
+        },
     }
 
     return app

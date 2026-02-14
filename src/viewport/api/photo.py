@@ -12,6 +12,7 @@ from viewport.dependencies import get_s3_client
 from viewport.models.db import get_db
 from viewport.models.gallery import PhotoUploadStatus
 from viewport.repositories.gallery_repository import GalleryRepository
+from viewport.repositories.user_repository import UserRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.schemas.photo import (
     BatchConfirmUploadRequest,
@@ -42,6 +43,10 @@ router = APIRouter(prefix="/galleries", tags=["photos"])
 
 def get_gallery_repository(db: Session = Depends(get_db)) -> GalleryRepository:
     return GalleryRepository(db)
+
+
+def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
+    return UserRepository(db)
 
 
 def sanitize_filename(filename: str) -> str:
@@ -113,6 +118,7 @@ async def batch_presigned_uploads(
     gallery_id: UUID,
     request: BatchPresignedUploadsRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
+    user_repo: UserRepository = Depends(get_user_repository),
     current_user=Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> BatchPresignedUploadsResponse:
@@ -128,8 +134,14 @@ async def batch_presigned_uploads(
     if not gallery:
         raise HTTPException(404, "Gallery not found")
 
+    valid_files = [file_request for file_request in request.files if file_request.file_size <= MAX_FILE_SIZE]
+    bytes_to_reserve = sum(file_request.file_size for file_request in valid_files)
+    if bytes_to_reserve > 0 and not user_repo.reserve_storage(current_user.id, bytes_to_reserve):
+        raise HTTPException(status_code=507, detail="Storage quota exceeded")
+
     items: list[BatchPresignedUploadItem] = []
     photos_payload: list[dict] = []
+    failed_presign_bytes = 0
 
     # 2. Generate Photo records and presigned URLs
     for file_request in request.files:
@@ -149,6 +161,26 @@ async def batch_presigned_uploads(
         object_key = f"{gallery_id}/{timestamp}_{safe_filename}"
         photo_id = uuid4()
 
+        # Generate presigned PUT signed with exact size and tagging requirements
+        try:
+            presigned = s3_client.generate_presigned_put(
+                object_key=object_key,
+                content_type=file_request.content_type,
+                content_length=file_request.file_size,
+                expires_in=900,
+            )
+        except ClientError:
+            failed_presign_bytes += file_request.file_size
+            items.append(
+                BatchPresignedUploadItem(
+                    filename=file_request.filename,
+                    file_size=file_request.file_size,
+                    success=False,
+                    error="Failed to generate presigned URL",
+                )
+            )
+            continue
+
         photos_payload.append(
             {
                 "id": photo_id,
@@ -161,25 +193,6 @@ async def batch_presigned_uploads(
                 "height": None,
             }
         )
-
-        # Generate presigned PUT signed with exact size and tagging requirements
-        try:
-            presigned = s3_client.generate_presigned_put(
-                object_key=object_key,
-                content_type=file_request.content_type,
-                content_length=file_request.file_size,
-                expires_in=900,
-            )
-        except ClientError:
-            items.append(
-                BatchPresignedUploadItem(
-                    filename=file_request.filename,
-                    file_size=file_request.file_size,
-                    success=False,
-                    error="Failed to generate presigned URL",
-                )
-            )
-            continue
 
         items.append(
             BatchPresignedUploadItem(
@@ -195,8 +208,17 @@ async def batch_presigned_uploads(
             )
         )
 
+    if failed_presign_bytes > 0:
+        user_repo.release_reserved_storage(current_user.id, failed_presign_bytes)
+
     if photos_payload:
-        repo.create_photos_batch(photos_payload)
+        try:
+            repo.create_photos_batch(photos_payload)
+        except Exception:
+            reserved_for_created = bytes_to_reserve - failed_presign_bytes
+            if reserved_for_created > 0:
+                user_repo.release_reserved_storage(current_user.id, reserved_for_created)
+            raise
 
     return BatchPresignedUploadsResponse(items=items)
 
@@ -206,7 +228,9 @@ async def batch_confirm_uploads(
     gallery_id: UUID,
     request: BatchConfirmUploadRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
+    user_repo: UserRepository = Depends(get_user_repository),
     current_user=Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> BatchConfirmUploadResponse:
     """Confirm batch photo uploads to S3
 
@@ -230,14 +254,25 @@ async def batch_confirm_uploads(
     status_updates: dict[UUID, PhotoUploadStatus] = {}
 
     # 3. Process each photo (S3 verification deferred to background task)
+    seen_photo_ids: set[UUID] = set()
+    previous_status_map: dict[UUID, PhotoUploadStatus] = {}
+
     for item in request.items:
+        if item.photo_id in seen_photo_ids:
+            failed_count += 1
+            continue
+
+        seen_photo_ids.add(item.photo_id)
         photo = photo_map.get(item.photo_id)
         if not photo:
             failed_count += 1
             continue
 
+        previous_status_map[photo.id] = photo.status
+
         if not item.success:
-            status_updates[photo.id] = PhotoUploadStatus.FAILED
+            if photo.status == PhotoUploadStatus.PENDING:
+                status_updates[photo.id] = PhotoUploadStatus.FAILED
             failed_count += 1
             continue
 
@@ -245,12 +280,48 @@ async def batch_confirm_uploads(
             confirmed_count += 1
             continue
 
+        if photo.status != PhotoUploadStatus.PENDING:
+            failed_count += 1
+            continue
+
+        try:
+            await s3_client.head_object(photo.object_key)
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "") if hasattr(e, "response") else ""
+            if error_code in {"NoSuchKey", "404", "NotFound"}:
+                status_updates[photo.id] = PhotoUploadStatus.FAILED
+                failed_count += 1
+                continue
+            raise HTTPException(status_code=503, detail="Storage is temporarily unavailable") from e
+
         status_updates[photo.id] = PhotoUploadStatus.SUCCESSFUL
         confirmed_count += 1
+        # TODO find all places where we use dicts like this, and replace it with DTOs.
         photos_to_process.append({"photo_id": str(photo.id), "object_key": photo.object_key})
 
-    # 4. Batch commit DB changes
-    repo.set_photos_statuses(photo_map, status_updates)
+    bytes_to_finalize = 0
+    bytes_to_release = 0
+    for photo_id, photo_status in status_updates.items():
+        photo = photo_map.get(photo_id)
+        if not photo:
+            continue
+        previous_status = previous_status_map.get(photo_id)
+        if photo_status == PhotoUploadStatus.SUCCESSFUL and previous_status == PhotoUploadStatus.PENDING:
+            bytes_to_finalize += photo.file_size
+        elif photo_status == PhotoUploadStatus.FAILED and previous_status == PhotoUploadStatus.PENDING:
+            bytes_to_release += photo.file_size
+
+    # 4. Commit statuses and quota updates atomically
+    try:
+        repo.set_photos_statuses(photo_map, status_updates, commit=False)
+        if bytes_to_finalize:
+            user_repo.finalize_reserved_storage(current_user.id, bytes_to_finalize, commit=False)
+        if bytes_to_release:
+            user_repo.release_reserved_storage(current_user.id, bytes_to_release, commit=False)
+        repo.db.commit()
+    except Exception:
+        repo.db.rollback()
+        raise
 
     # 5. Start batch thumbnail processing (will retry tagging if needed)
     if photos_to_process:

@@ -1,6 +1,7 @@
 from logging.config import fileConfig
 
 from alembic import context
+from alembic.operations import ops
 from sqlalchemy import engine_from_config, pool
 
 from viewport.models.db import Base
@@ -69,21 +70,74 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
 
-    def include_object(object, name, type_, reflected, compare_to):
-        """Prevent autogenerate from dropping tables automatically.
+    def _is_spurious_photos_fk(operation: ops.MigrateOperation) -> bool:
+        if isinstance(operation, ops.CreateForeignKeyOp):
+            return (
+                operation.constraint_name == "photos_gallery_id_fkey"
+                and operation.source_table == "photos"
+                and operation.referent_table == "galleries"
+            )
+        if isinstance(operation, ops.DropConstraintOp):
+            return (
+                operation.constraint_name == "photos_gallery_id_fkey"
+                and operation.table_name == "photos"
+                and operation.constraint_type == "foreignkey"
+            )
+        return False
 
-        Returns True to include the object in autogenerate processing. We intentionally
-        include everything but when an object would be dropped (i.e. compare_to is None and reflected is False),
-        we return True but log it so human can inspect; this avoids alembic auto-generating drop_table operations.
-        """
+    def _prune_spurious_fk_ops(container: ops.OpContainer) -> None:
+        filtered_ops: list[ops.MigrateOperation] = []
+        for operation in container.ops:
+            if isinstance(operation, ops.OpContainer):
+                _prune_spurious_fk_ops(operation)
+                if operation.ops:
+                    filtered_ops.append(operation)
+                continue
+            if _is_spurious_photos_fk(operation):
+                continue
+            filtered_ops.append(operation)
+        container.ops = filtered_ops
+
+    def process_revision_directives(revision_context, revision, directives):
+        if not getattr(config.cmd_opts, "autogenerate", False):
+            return
+        if not directives:
+            return
+
+        script = directives[0]
+        _prune_spurious_fk_ops(script.upgrade_ops)
+        _prune_spurious_fk_ops(script.downgrade_ops)
+
+        if not script.upgrade_ops.ops and not script.downgrade_ops.ops:
+            directives[:] = []
+
+    def include_object(object, name, type_, reflected, compare_to):
+        """Filter autogenerate objects before diffing."""
+        if type_ in {"foreign_key_constraint", "foreignkey"}:
+            object_name = name or getattr(object, "name", None) or getattr(compare_to, "name", None)
+            table_name = getattr(getattr(object, "table", None), "name", None) or getattr(getattr(compare_to, "table", None), "name", None)
+            referent_table = None
+            target = object if object is not None else compare_to
+            if target is not None and hasattr(target, "elements") and target.elements:
+                referent_table = getattr(getattr(target.elements[0], "column", None), "table", None)
+                referent_table = getattr(referent_table, "name", None)
+
+            if object_name == "photos_gallery_id_fkey" and table_name == "photos" and referent_table == "galleries":
+                return False
+
         # If alembic tries to drop a table (object exists in DB but not in models), don't auto-drop
         if type_ == 'table' and compare_to is None and reflected:
-            # detected a DB table not present in models -- don't drop automatically
             return False
         return True
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata, include_object=include_object, compare_type=True)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
+            process_revision_directives=process_revision_directives,
+            compare_type=True,
+        )
 
         with context.begin_transaction():
             context.run_migrations()

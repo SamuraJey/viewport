@@ -39,6 +39,35 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
   const logout = useAuthStore((state) => state.logout);
   const tokens = useAuthStore((state) => state.tokens);
   const login = useAuthStore((state) => state.login);
+  const user = useAuthStore((state) => state.user);
+
+  const storageUsed = user?.storage_used ?? 0;
+  const storageQuota = user?.storage_quota ?? 0;
+  const storagePercent =
+    storageQuota > 0 ? Math.min(100, Math.round((storageUsed / storageQuota) * 100)) : 0;
+
+  const formatBytes = (bytes: number) => {
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+      return '0 B';
+    }
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let size = bytes;
+    let unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex += 1;
+    }
+    const precision = size >= 10 || unitIndex === 0 ? 0 : 1;
+    return `${size.toFixed(precision)} ${units[unitIndex]}`;
+  };
+
+  const formatMB = (bytes: number) => {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0.00 MB';
+    const mb = bytes / 1024 / 1024;
+    return `${mb.toFixed(2)} MB`;
+  };
+
+  const [showStorageTooltip, setShowStorageTooltip] = useState(false);
 
   const handleProfileSave = useCallback(async () => {
     setError(null);
@@ -110,6 +139,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
       .then((user) => {
         setEmail(user.email);
         setDisplayName(user.display_name || '');
+        if (tokens) {
+          login(
+            {
+              id: user.id,
+              email: user.email,
+              display_name: user.display_name,
+              storage_used: user.storage_used,
+              storage_quota: user.storage_quota,
+            },
+            tokens,
+          );
+        }
         setTimeout(() => firstFieldRef.current?.focus(), 0);
       })
       .catch((err: unknown) => {
@@ -121,7 +162,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
           setError('Failed to load profile');
         }
       });
-  }, [isOpen, logout, navigate]);
+  }, [isOpen, logout, navigate, login, tokens]);
 
   // Keyboard events
   useEffect(() => {
@@ -203,10 +244,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
     >
       <div
         className="bg-surface dark:bg-surface-dark rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto border border-border dark:border-border/40"
+        data-lenis-prevent
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-surface dark:bg-surface-dark border-b border-border dark:border-border/40 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+        <div className="sticky top-0 bg-surface dark:bg-surface-dark border-b border-border dark:border-border/40 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-accent/10 rounded-full flex items-center justify-center">
               <User className="w-5 h-5 text-accent" />
@@ -228,7 +270,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
           {/* Error Alert */}
           {error && (
             <div className="bg-danger/10 border border-danger/20 rounded-lg p-4 flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-danger flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-danger shrink-0 mt-0.5" />
               <div className="flex-1">
                 <p className="text-danger font-medium">Error</p>
                 <p className="text-danger/80 text-sm mt-1">{error}</p>
@@ -282,6 +324,34 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                   placeholder="Enter your display name"
                   className="w-full px-4 py-2.5 border border-border rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
                 />
+              </div>
+
+              <div
+                className="relative rounded-lg border border-border/60 bg-muted/20 dark:bg-muted-dark/30 px-4 py-3 z-0"
+                onMouseEnter={() => setShowStorageTooltip(true)}
+                onMouseLeave={() => setShowStorageTooltip(false)}
+              >
+                {showStorageTooltip && (
+                  <div
+                    className="absolute left-1/2 -translate-x-1/2 -top-10 bg-surface dark:bg-surface-dark border border-border/40 text-text text-sm rounded-md px-3 py-1 shadow-sm z-10"
+                    role="status"
+                  >
+                    {`${formatMB(storageUsed)} / ${formatMB(storageQuota)} USED`}
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-sm font-medium text-text">
+                  <span>Storage usage</span>
+                  <span>
+                    {formatBytes(storageUsed)} / {formatBytes(storageQuota)}
+                  </span>
+                </div>
+                <div className="mt-2 h-2 w-full rounded-full bg-border/60">
+                  <div
+                    className="h-2 rounded-full bg-accent transition-all"
+                    style={{ width: `${storagePercent}%` }}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-muted">{storagePercent}% used</p>
               </div>
 
               <button
@@ -518,7 +588,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
 
               <div className="bg-danger/10 border border-danger/20 rounded-xl p-6 space-y-4">
                 <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-6 h-6 text-danger flex-shrink-0 mt-1" />
+                  <AlertTriangle className="w-6 h-6 text-danger shrink-0 mt-1" />
                   <div>
                     <p className="text-danger font-bold text-lg mb-2">
                       This action cannot be undone!

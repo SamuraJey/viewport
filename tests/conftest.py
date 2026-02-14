@@ -11,7 +11,7 @@ import jwt
 import pytest
 from botocore.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.orm import sessionmaker
@@ -145,6 +145,17 @@ def engine(postgres_container: PostgresContainer) -> Generator[Engine]:
     engine.dispose()
 
 
+@pytest.fixture(autouse=True)
+def _cleanup_database(engine: Engine) -> None:
+    """Clear all tables before each test to ensure isolation."""
+    from viewport.models.db import Base
+
+    with engine.begin() as conn:
+        table_names = [table.name for table in Base.metadata.tables.values()]
+        if table_names:
+            conn.execute(text(f"TRUNCATE {', '.join(table_names)} CASCADE;"))
+
+
 @pytest.fixture(scope="function")
 def db_session(engine: Engine) -> Generator[Session]:
     """Фикстура сессии базы данных с изоляцией на каждый тест."""
@@ -198,6 +209,25 @@ def s3_container() -> Generator[DockerContainer]:
                 raise RuntimeError(f"Unable to ensure S3 bucket {bucket_name} for tests")
 
             yield s3_test_container
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_s3(s3_container) -> None:
+    """Clear S3 bucket before each test to ensure isolation."""
+    from viewport.s3_utils import get_s3_client, get_s3_settings
+
+    _clear_s3_cache()
+    client = get_s3_client()
+    settings = get_s3_settings()
+
+    try:
+        paginator = client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=settings.bucket):
+            if "Contents" in page:
+                objects = [{"Key": obj["Key"]} for obj in page["Contents"]]
+                client.delete_objects(Bucket=settings.bucket, Delete={"Objects": objects})
+    except Exception as e:
+        logger.warning("Failed to clear S3 bucket during isolation cleanup: %s", e)
 
 
 @pytest.fixture(scope="session")

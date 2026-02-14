@@ -27,8 +27,9 @@
     2. `/batch-confirm`: Verifies upload by applying `upload-status: confirmed` tag to S3 objects.
   - **Confirmation logic**: Existence check is performed via `put_object_tagging`. `NoSuchKey` errors result in `FAILED` status. Successful tagging triggers Celery thumbnail batches.
   - **Presigned URLs**: Avoid generating presigned URLs during batch upload; fetch URLs separately via `/photos/urls` endpoints.
-  - **Garbage collection**: A Celery beat task (`cleanup_orphaned_uploads`) runs hourly to delete `PENDING` photo records older than 1 hour and their corresponding S3 objects to prevent storage leaks from unconfirmed uploads.
+  - **Garbage collection**: A Celery beat task (`cleanup_orphaned_uploads`) runs hourly to delete `PENDING` photo records older than 30 minutes and their corresponding S3 objects to prevent storage leaks from unconfirmed uploads.
   - **Gallery deletion**: `galleries.is_deleted` is a soft-delete flag. Deleting a gallery hides it from queries and enqueues a background task to purge S3 objects and hard-delete DB rows.
+  - **Storage quotas**: User storage is tracked on `users` (`storage_quota`, `storage_used`, `storage_reserved`). Reserve bytes on `/batch-presigned`, finalize on confirm, and release on failures/orphan cleanup; only admins edit quota via SQLAdmin.
 - No direct SQL in routers; use repositories for all DB access.
 
 ## Frontend conventions (React)
@@ -51,6 +52,17 @@
 
 ## Migrations / tests / lint
 - Alembic: config `alembic.ini`, migrations in `src/viewport/alembic/`. Create revisions with `alembic revision --autogenerate -m "..."`.
+- **Migration workflow (required)**:
+  1. Ensure local DB is at head: `alembic upgrade head`.
+  2. Make model changes.
+  3. Generate migration: `alembic revision --autogenerate -m "..."`.
+  4. Validate generated revision contains only intended business changes.
+  5. Run `alembic check` (must report `No new upgrade operations detected.`).
+  6. Run migration tests: `pytest tests/test_migrations.py` (or `just test` for full suite).
+  7. For local history rewrites only (never shared history), re-align DB revision pointer with `alembic stamp --purge <revision>`.
+- **Autogenerate notes**:
+  - `src/viewport/alembic/env.py` contains filtering for a known false-positive FK diff on `photos_gallery_id_fkey`; do not add cleanup scripts for this.
+  - Keep cyclical FK metadata stable by using `use_alter=True` on `Gallery.cover_photo_id` FK to `photos.id`.
 - Backend checks:
   - Format + autofix: `just pretty` / `make pretty` (Ruff).
   - Typecheck: `just mypy`.

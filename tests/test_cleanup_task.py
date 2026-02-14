@@ -118,3 +118,64 @@ class TestCleanupTask:
 
         # Recent S3 object should still exist
         s3_client.head_object(Bucket=bucket, Key=recent_key)
+
+    def test_cleanup_releases_reserved_only_for_pending(self, engine, s3_container, freezer: FrozenDateTimeFactory):
+        initial_time = datetime(2025, 2, 1, 10, 0, 0, tzinfo=UTC)
+        freezer.move_to(initial_time)
+
+        with Session(engine) as session:
+            user = User(
+                email=f"cleanup-reserved-{uuid4()}@example.com",
+                password_hash="hashed",
+                display_name="cleanup",
+                storage_reserved=150,
+                storage_used=120,
+            )
+            session.add(user)
+            session.flush()
+
+            gallery = Gallery(owner_id=user.id, name="Reserved Cleanup Gallery")
+            session.add(gallery)
+            session.flush()
+
+            pending_photo = Photo(
+                id=uuid4(),
+                gallery_id=gallery.id,
+                status=PhotoUploadStatus.PENDING,
+                object_key=f"{gallery.id}/pending-old.jpg",
+                thumbnail_object_key=f"{gallery.id}/pending-old.jpg",
+                file_size=100,
+            )
+            failed_photo = Photo(
+                id=uuid4(),
+                gallery_id=gallery.id,
+                status=PhotoUploadStatus.FAILED,
+                object_key=f"{gallery.id}/failed-old.jpg",
+                thumbnail_object_key=f"{gallery.id}/failed-old-thumb.jpg",
+                file_size=100,
+            )
+            session.add(pending_photo)
+            session.add(failed_photo)
+            session.commit()
+
+            pending_key = pending_photo.object_key
+            failed_key = failed_photo.object_key
+            failed_thumb_key = failed_photo.thumbnail_object_key
+            user_id = user.id
+
+        s3_client = get_s3_client()
+        bucket = get_s3_settings().bucket
+        s3_client.put_object(Bucket=bucket, Key=pending_key, Body=b"dummy")
+        s3_client.put_object(Bucket=bucket, Key=failed_key, Body=b"dummy")
+        s3_client.put_object(Bucket=bucket, Key=failed_thumb_key, Body=b"dummy")
+
+        freezer.tick(timedelta(hours=1, minutes=5))
+
+        result = cleanup_orphaned_uploads_task()
+        assert result["deleted_count"] == 2
+
+        with Session(engine) as session:
+            refreshed_user = session.get(User, user_id)
+            assert refreshed_user is not None
+            assert refreshed_user.storage_reserved == 50
+            assert refreshed_user.storage_used == 120

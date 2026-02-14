@@ -90,13 +90,15 @@ class TestAuthSchemas:
     def test_login_response_valid(self):
         """Test valid login response."""
         user_id = str(uuid.uuid4())
-        data = {"id": user_id, "email": "test@example.com", "tokens": {"access_token": "access_123", "refresh_token": "refresh_456"}}
+        data = {"id": user_id, "email": "test@example.com", "tokens": {"access_token": "access_123", "refresh_token": "refresh_456"}, "storage_used": 1024, "storage_quota": 2048}
         response = LoginResponse(**data)
 
         assert response.id == user_id
         assert response.email == "test@example.com"
         assert response.tokens.access_token == "access_123"
         assert response.tokens.refresh_token == "refresh_456"
+        assert response.storage_used == 1024
+        assert response.storage_quota == 2048
 
     def test_refresh_request_valid(self):
         """Test valid refresh request."""
