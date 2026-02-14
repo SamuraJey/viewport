@@ -251,11 +251,11 @@ async def batch_confirm_uploads(
     confirmed_count = 0
     failed_count = 0
     photos_to_process = []
-    status_updates: dict[UUID, int] = {}
+    status_updates: dict[UUID, PhotoUploadStatus] = {}
 
     # 3. Process each photo (S3 verification deferred to background task)
     seen_photo_ids: set[UUID] = set()
-    previous_status_map: dict[UUID, int] = {}
+    previous_status_map: dict[UUID, PhotoUploadStatus] = {}
 
     for item in request.items:
         if item.photo_id in seen_photo_ids:

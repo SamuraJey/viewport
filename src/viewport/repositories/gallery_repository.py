@@ -202,13 +202,13 @@ class GalleryRepository(BaseRepository):
         stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Photo.id.in_(photo_ids), Gallery.is_deleted.is_(False))
         return list(self.db.execute(stmt).scalars().all())
 
-    def set_photo_status(self, photo: Photo, status: int) -> Photo:
+    def set_photo_status(self, photo: Photo, status: PhotoUploadStatus) -> Photo:
         photo.status = status
         self.db.commit()
         self.db.refresh(photo)
         return photo
 
-    def set_photos_statuses(self, photo_map: dict[uuid.UUID, Photo], status_updates: dict[uuid.UUID, int], commit: bool = True) -> None:
+    def set_photos_statuses(self, photo_map: dict[uuid.UUID, Photo], status_updates: dict[uuid.UUID, PhotoUploadStatus], commit: bool = True) -> None:
         if not status_updates:
             return
         for photo_id, status in status_updates.items():
