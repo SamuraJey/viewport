@@ -9,7 +9,8 @@ singleton via dependency injection.
 import asyncio
 import io
 import logging
-from typing import TYPE_CHECKING, BinaryIO
+from contextlib import AbstractAsyncContextManager
+from typing import TYPE_CHECKING, Any, BinaryIO, cast
 
 import aioboto3
 import boto3
@@ -74,12 +75,12 @@ class AsyncS3Client:
 
     def _get_endpoint_url(self) -> str | None:
         """Get the endpoint URL with protocol if needed."""
-        endpoint = self.settings.endpoint
-        use_ssl = getattr(self.settings, "use_ssl", False)
+        endpoint = cast(str, self.settings.endpoint)
+        use_ssl = self.settings.use_ssl
         if not endpoint.startswith(("http://", "https://")):
             protocol = "https" if use_ssl else "http"
             return f"{protocol}://{endpoint}"
-        return endpoint
+        return cast(str, endpoint)
 
     @property
     def session(self) -> aioboto3.Session:
@@ -96,7 +97,7 @@ class AsyncS3Client:
             )
         return self._session
 
-    def _get_s3_client(self) -> "S3Client":
+    def _get_s3_client(self) -> AbstractAsyncContextManager[Any]:
         """Get configured S3 client context manager from shared session.
 
         Uses the shared session but creates a new client for each operation.
@@ -104,9 +105,9 @@ class AsyncS3Client:
 
         Usage: async with self._get_s3_client() as s3:
         """
-        return self.session.client("s3", endpoint_url=self._endpoint_url, config=self._config)
+        return cast(AbstractAsyncContextManager[Any], self.session.client("s3", endpoint_url=self._endpoint_url, config=self._config))
 
-    def _get_presign_client(self) -> "S3Client":  # Maybe use async? idk why we used sync here
+    def _get_presign_client(self) -> "S3Client":
         if self._presign_client is None:
             self._presign_client = boto3.client(
                 "s3",
@@ -116,7 +117,7 @@ class AsyncS3Client:
                 region_name=self.settings.region,
                 config=self._config,
             )
-        return self._presign_client
+        return cast("S3Client", self._presign_client)
 
     async def upload_fileobj(
         self,
@@ -168,7 +169,6 @@ class AsyncS3Client:
                     file_obj.seek(0)
 
                 async with self._get_s3_client() as s3:
-                    s3: "S3Client"
                     await s3.upload_fileobj(
                         file_obj,
                         self.settings.bucket,
@@ -200,6 +200,8 @@ class AsyncS3Client:
             except Exception as e:
                 logger.error("Failed to upload object %s: %s", key, e)
                 raise
+
+        raise RuntimeError(f"Failed to upload object {key} after retries")
 
     async def upload_bytes(
         self,
@@ -236,7 +238,6 @@ class AsyncS3Client:
 
             try:
                 async with self._get_s3_client() as s3:
-                    s3: "S3Client"
                     await s3.put_object(
                         Bucket=self.settings.bucket,
                         Key=key,
@@ -266,8 +267,6 @@ class AsyncS3Client:
         """
         try:
             async with self._get_s3_client() as s3:
-                s3: "S3Client"
-
                 response = await s3.get_object(Bucket=self.settings.bucket, Key=key)
                 # Read the body stream
                 body = response.get("Body")
@@ -291,7 +290,6 @@ class AsyncS3Client:
         """
         try:
             async with self._get_s3_client() as s3:
-                s3: "S3Client"
                 await s3.delete_object(Bucket=self.settings.bucket, Key=key)
             logger.info("Successfully deleted object: %s", key)
         except Exception as e:
@@ -309,7 +307,6 @@ class AsyncS3Client:
         """
         try:
             async with self._get_s3_client() as s3:
-                s3: "S3Client"
                 await s3.head_object(Bucket=self.settings.bucket, Key=key)
             return True
         except ClientError as e:
@@ -334,9 +331,8 @@ class AsyncS3Client:
         """
         try:
             async with self._get_s3_client() as s3:
-                s3: "S3Client"
                 response = await s3.head_object(Bucket=self.settings.bucket, Key=key)
-            return response
+            return cast(dict[str, Any], response)
         except ClientError as e:
             logger.error("Failed to head object %s: %s", key, e)
             raise
@@ -353,7 +349,6 @@ class AsyncS3Client:
         """
         try:
             async with self._get_s3_client() as s3:
-                s3: "S3Client"
                 # Copy object to new key
                 copy_source = {"Bucket": self.settings.bucket, "Key": old_key}
                 await s3.copy_object(
@@ -379,7 +374,6 @@ class AsyncS3Client:
         """
         try:
             async with self._get_s3_client() as s3:
-                s3: "S3Client"
                 # List all objects with the given prefix
                 objects_to_delete = []
                 continuation_token = None
@@ -593,7 +587,6 @@ class AsyncS3Client:
             tag_set = [{"Key": k, "Value": v} for k, v in tags.items()]
 
             async with self._get_s3_client() as s3:
-                s3: "S3Client"
                 await s3.put_object_tagging(
                     Bucket=self.settings.bucket,
                     Key=key,
@@ -615,7 +608,6 @@ class AsyncS3Client:
         """
         try:
             async with self._get_s3_client() as s3:
-                s3: "S3Client"
                 await s3.delete_object_tagging(
                     Bucket=self.settings.bucket,
                     Key=key,
@@ -639,7 +631,6 @@ class AsyncS3Client:
         """
         try:
             async with self._get_s3_client() as s3:
-                s3: "S3Client"
                 response = await s3.get_object_tagging(
                     Bucket=self.settings.bucket,
                     Key=key,
@@ -664,7 +655,6 @@ class AsyncS3Client:
         """
         try:
             async with self._get_s3_client() as s3:
-                s3: "S3Client"
                 # Convert tags to URL-encoded format
                 tag_string = "&".join(f"{k}={v}" for k, v in new_tags.items())
 
@@ -696,10 +686,9 @@ class AsyncS3Client:
         """
         try:
             async with self._get_s3_client() as s3:
-                s3: "S3Client"
                 response = await s3.get_object(Bucket=self.settings.bucket, Key=key)
             logger.info("Successfully got object: %s", key)
-            return response
+            return cast(dict[str, Any], response)
         except Exception as e:
             logger.error("Failed to get object %s: %s", key, e)
             raise

@@ -74,10 +74,10 @@ def get_s3_client() -> "S3Client":
     logger.info(
         "S3 Client settings: %s",
         settings.model_dump(
-            exclude=(
+            exclude={
                 "secret_key",
                 "access_key",
-            )
+            }
         ),
     )
 
@@ -132,17 +132,17 @@ def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800),
         Tuple of (thumbnail_bytes, width, height)
     """
     try:
-        with Image.open(io.BytesIO(image_bytes)) as img:
+        with Image.open(io.BytesIO(image_bytes)) as opened_img:
             # JPEG optimization: hint the decoder about target size to save CPU/RAM.
             # This reconfigures the decoder to return a scaled-down version
             # directly if supported (JPEG/MPO).
-            if img.format == "JPEG":
-                img.draft("RGB", max_size)
+            if opened_img.format == "JPEG":
+                opened_img.draft("RGB", max_size)
 
             # Apply EXIF orientation. Done after draft() hint to rotate fewer pixels
             # if the decoder already downscaled, but before thumbnail() to ensure
             # correct final aspect ratio.
-            img = ImageOps.exif_transpose(img)
+            img = ImageOps.exif_transpose(opened_img)
 
             # Ensure we're in RGB mode (e.g., if original was CMYK or P)
             if img.mode != "RGB":
