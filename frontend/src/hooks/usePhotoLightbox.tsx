@@ -4,9 +4,10 @@ import Lightbox from 'yet-another-react-lightbox';
 import Thumbnails from 'yet-another-react-lightbox/plugins/thumbnails';
 import Fullscreen from 'yet-another-react-lightbox/plugins/fullscreen';
 import LightboxDownload from 'yet-another-react-lightbox/plugins/download';
-import Zoom from 'yet-another-react-lightbox/plugins/zoom';
 import 'yet-another-react-lightbox/styles.css';
 import 'yet-another-react-lightbox/plugins/thumbnails.css';
+
+const LIGHTBOX_PLUGINS = [Thumbnails, Fullscreen, LightboxDownload];
 
 export interface PhotoSlide {
   src: string;
@@ -17,6 +18,12 @@ export interface PhotoSlide {
   download?: string;
   downloadFilename?: string;
   imageProps?: ImgHTMLAttributes<HTMLImageElement>;
+}
+
+interface InternalPhotoSlide extends Omit<PhotoSlide, 'src'> {
+  type?: string;
+  fullSrc: string;
+  src?: string;
 }
 
 interface UsePhotoLightboxOptions {
@@ -46,7 +53,6 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [loadedSlides, setLoadedSlides] = useState<Record<string, boolean>>({});
 
   const thumbnailsRef = useRef<{
     visible: boolean;
@@ -92,19 +98,10 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
     }
   }, [lightboxIndex, gridRef, photoCardSelector]);
 
-  const markSlideLoaded = useCallback((src: string) => {
-    setLoadedSlides((prev) => {
-      if (prev[src]) return prev;
-      return { ...prev, [src]: true };
-    });
-  }, []);
-
   const renderProgressiveSlide = useCallback(
     ({ slide, rect }: { slide: unknown; rect: { width: number; height: number } }) => {
-      const progressiveSlide = slide as PhotoSlide;
-      if (!progressiveSlide.thumbnailSrc) return undefined;
-
-      const isLoaded = Boolean(loadedSlides[progressiveSlide.src]);
+      const progressiveSlide = slide as InternalPhotoSlide;
+      if (progressiveSlide.type !== 'progressive') return undefined;
 
       return (
         <div
@@ -125,30 +122,60 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
               width: '100%',
               height: '100%',
               objectFit: 'contain',
-              opacity: isLoaded ? 0 : 1,
+              opacity: 1,
               transition: 'opacity 260ms ease',
             }}
           />
           <img
-            src={progressiveSlide.src}
+            src={progressiveSlide.fullSrc}
             alt={progressiveSlide.alt || ''}
             draggable={false}
-            onLoad={() => markSlideLoaded(progressiveSlide.src)}
-            onError={() => markSlideLoaded(progressiveSlide.src)}
+            crossOrigin="anonymous"
+            onLoad={(event) => {
+              event.currentTarget.style.opacity = '1';
+              const thumbnailImage = event.currentTarget
+                .previousElementSibling as HTMLImageElement | null;
+              if (thumbnailImage) {
+                thumbnailImage.style.opacity = '0';
+              }
+            }}
+            onError={(event) => {
+              event.currentTarget.style.opacity = '1';
+            }}
             style={{
               position: 'absolute',
               inset: 0,
               width: '100%',
               height: '100%',
               objectFit: 'contain',
-              opacity: isLoaded ? 1 : 0,
+              opacity: 0,
               transition: 'opacity 420ms ease',
             }}
           />
         </div>
       );
     },
-    [loadedSlides, markSlideLoaded],
+    [],
+  );
+
+  const renderProgressiveThumbnail = useCallback(
+    ({ slide }: { slide: unknown; rect: { width: number; height: number } }) => {
+      const progressiveSlide = slide as InternalPhotoSlide;
+      if (progressiveSlide.type !== 'progressive') return undefined;
+
+      return (
+        <img
+          src={progressiveSlide.src}
+          alt={progressiveSlide.alt || ''}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+          }}
+        />
+      );
+    },
+    [],
   );
 
   // Render the Lightbox component
@@ -157,18 +184,39 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
       open={lightboxOpen}
       close={closeLightbox}
       index={lightboxIndex}
-      slides={slides.map((slide) => ({
-        ...slide,
-        imageProps: {
-          ...slide.imageProps,
-          crossOrigin: 'anonymous',
-        },
-      }))}
+      slides={
+        slides.map((slide) => {
+          if (slide.thumbnailSrc) {
+            // Progressive slide: mark as custom type to prevent YARL's preload
+            return {
+              type: 'progressive',
+              src: slide.thumbnailSrc, // For Thumbnails plugin carousel
+              fullSrc: slide.src,
+              thumbnailSrc: slide.thumbnailSrc,
+              alt: slide.alt,
+              width: slide.width,
+              height: slide.height,
+              download: slide.download,
+              downloadFilename: slide.downloadFilename,
+              imageProps: slide.imageProps,
+            } as InternalPhotoSlide;
+          }
+          // Standard slide: let YARL handle preload
+          return {
+            ...slide,
+            imageProps: {
+              ...slide.imageProps,
+              crossOrigin: 'anonymous',
+            },
+          };
+        }) as any
+      }
       render={{
         slide: renderProgressiveSlide,
+        thumbnail: renderProgressiveThumbnail,
         iconLoading: () => null,
       }}
-      plugins={[Thumbnails, Fullscreen, LightboxDownload, Zoom]}
+      plugins={LIGHTBOX_PLUGINS}
       controller={{
         closeOnPullDown: true,
         closeOnPullUp: true,
@@ -190,10 +238,6 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
         spacing: 0,
         imageFit: 'contain',
       }}
-      zoom={{
-        maxZoomPixelRatio: 3,
-        scrollToZoom: true,
-      }}
       styles={{
         container: { backgroundColor: 'rgba(0, 0, 0, 0.85)' },
       }}
@@ -211,7 +255,7 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
           handleThumbnailsVisibility();
         },
         view: ({ index }) => {
-          setLightboxIndex(index);
+          setLightboxIndex((prevIndex) => (prevIndex === index ? prevIndex : index));
 
           // Load more photos when viewing near the end
           if (
