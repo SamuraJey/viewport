@@ -2,7 +2,7 @@ import io
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from botocore.exceptions import ClientError
 from PIL import Image, UnidentifiedImageError
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from mypy_boto3_s3.client import S3Client
+    from mypy_boto3_s3.type_defs import DeleteTypeDef
 
 
 def _is_valid_image(image_bytes: bytes) -> bool:
@@ -94,8 +95,8 @@ def _process_single_photo(
             image_bytes = response["Body"].read()
         except Exception as s3_error:
             # Safely extract error code from boto3 exceptions
-            response = getattr(s3_error, "response", {}) or {}
-            error_code = response.get("Error", {}).get("Code", "")
+            error_response = cast(dict[str, Any], getattr(s3_error, "response", {}) or {})
+            error_code = cast(str, error_response.get("Error", {}).get("Code", ""))
 
             if error_code == "NoSuchKey":
                 logger.warning("File %s not found in S3, marking as failed", object_key)
@@ -268,7 +269,7 @@ def cleanup_orphaned_uploads_task() -> dict:
             if object_keys:
                 for i in range(0, len(object_keys), 1000):
                     batch = object_keys[i : i + 1000]
-                    delete_request = {"Objects": [{"Key": key} for key in batch]}
+                    delete_request = cast("DeleteTypeDef", {"Objects": [{"Key": key} for key in batch]})
                     try:
                         response = s3_client.delete_objects(Bucket=bucket, Delete=delete_request)
                         errors = response.get("Errors") or []
@@ -319,7 +320,7 @@ def delete_gallery_data_task(self, gallery_id: str) -> dict:
                 keys = [{"Key": obj["Key"]} for obj in objects]
                 for i in range(0, len(keys), 1000):
                     batch = keys[i : i + 1000]
-                    delete_response = s3_client.delete_objects(Bucket=bucket, Delete={"Objects": batch})
+                    delete_response = s3_client.delete_objects(Bucket=bucket, Delete=cast("DeleteTypeDef", {"Objects": batch}))
                     errors = delete_response.get("Errors") or []
                     if errors:
                         logger.error("Partial delete errors when deleting gallery objects: %s", errors)

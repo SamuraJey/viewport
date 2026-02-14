@@ -35,6 +35,9 @@ class AdminAuth(AuthenticationBackend):
         email = form_dict.get("username")  # SQLAdmin uses 'username' field
         password = form_dict.get("password")
 
+        if not isinstance(email, str) or not isinstance(password, str):
+            return False
+
         if not email or not password:
             return False
 

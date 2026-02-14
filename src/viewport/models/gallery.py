@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, date, datetime
+from enum import IntEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, SmallInteger, String
@@ -12,7 +13,7 @@ if TYPE_CHECKING:
     from .sharelink import ShareLink
 
 
-class PhotoUploadStatus:
+class PhotoUploadStatus(IntEnum):
     """Status of photo upload process (integer mapping)"""
 
     PENDING = 1  # Presigned URL issued, awaiting upload
@@ -72,11 +73,11 @@ class Photo(Base):
         nullable=False,
     )
     # Upload status (pending, successful, failed)
-    status: Mapped[int] = mapped_column(
+    status: Mapped[PhotoUploadStatus] = mapped_column(
         SmallInteger,
         nullable=False,
         default=PhotoUploadStatus.PENDING,
-        server_default=str(PhotoUploadStatus.PENDING),
+        server_default=str(PhotoUploadStatus.PENDING.value),
     )
     # S3 object key (e.g., gallery_id/filename)
     object_key: Mapped[str] = mapped_column(String, nullable=False)

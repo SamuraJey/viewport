@@ -236,7 +236,7 @@ async def batch_confirm_uploads(
 
     Process multiple photo confirmations in one request.
     Sets status to SUCCESSFUL for confirmed uploads.
-    Starts thumbnail processing (S3 verification happens in background).
+    Starts thumbnail processing (S3 verification and fallback-to-FAILED happen in background).
     """
     # 1. Verify gallery ownership
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
@@ -277,22 +277,16 @@ async def batch_confirm_uploads(
             continue
 
         if photo.status == PhotoUploadStatus.SUCCESSFUL:
+            # Idempotent retry path: if metadata/thumbnail are still missing,
+            # enqueue background processing again.
+            if photo.thumbnail_object_key == photo.object_key or photo.width is None or photo.height is None:
+                photos_to_process.append({"photo_id": str(photo.id), "object_key": photo.object_key})
             confirmed_count += 1
             continue
 
         if photo.status != PhotoUploadStatus.PENDING:
             failed_count += 1
             continue
-
-        try:
-            await s3_client.head_object(photo.object_key)
-        except ClientError as e:
-            error_code = e.response.get("Error", {}).get("Code", "") if hasattr(e, "response") else ""
-            if error_code in {"NoSuchKey", "404", "NotFound"}:
-                status_updates[photo.id] = PhotoUploadStatus.FAILED
-                failed_count += 1
-                continue
-            raise HTTPException(status_code=503, detail="Storage is temporarily unavailable") from e
 
         status_updates[photo.id] = PhotoUploadStatus.SUCCESSFUL
         confirmed_count += 1
@@ -327,7 +321,16 @@ async def batch_confirm_uploads(
     if photos_to_process:
         from viewport.background_tasks import create_thumbnails_batch_task
 
-        create_thumbnails_batch_task.delay(photos_to_process)
+        try:
+            create_thumbnails_batch_task.delay(photos_to_process)
+        except Exception as exc:
+            # Statuses are already committed; periodic reconciler will requeue.
+            logger.warning(
+                "Failed to enqueue thumbnail task for gallery %s (%s photos): %s",
+                gallery_id,
+                len(photos_to_process),
+                exc,
+            )
 
     return BatchConfirmUploadResponse(confirmed_count=confirmed_count, failed_count=failed_count)
 

@@ -525,6 +525,56 @@ def test_reconcile_successful_uploads_missing_metadata_criteria(engine: Engine, 
         assert photo_ids == {str(ctx1.photo_id), str(ctx2.photo_id), str(ctx3.photo_id)}
 
 
+def test_reconcile_successful_uploads_requeue_then_process_keeps_successful_status(engine: Engine, s3_container, monkeypatch) -> None:
+    """Integration path: SUCCESSFUL without thumbnail metadata is requeued and then processed successfully."""
+
+    with photo_context(engine, "requeue-then-process", "eventual.jpg") as ctx:
+        with session_scope(engine) as session:
+            photo = session.get(Photo, ctx.photo_id)
+            assert photo is not None
+            photo.status = PhotoUploadStatus.SUCCESSFUL
+            photo.uploaded_at = datetime.now(UTC) - timedelta(minutes=10)
+            photo.width = None
+            photo.height = None
+            photo.thumbnail_object_key = photo.object_key
+
+            user = session.get(User, ctx.user_id)
+            assert user is not None
+            user.storage_used = photo.file_size
+            user.storage_reserved = 0
+            session.flush()
+
+        captured_calls: list[list[dict[str, str]]] = []
+
+        def mock_delay(photos_batch):
+            captured_calls.append(photos_batch)
+
+        monkeypatch.setattr(create_thumbnails_batch_task, "delay", mock_delay)
+
+        requeue_result = reconcile_successful_uploads_task.run()
+
+        assert requeue_result["requeued_count"] == 1
+        assert len(captured_calls) == 1
+        assert captured_calls[0][0]["photo_id"] == str(ctx.photo_id)
+        assert captured_calls[0][0]["object_key"] == ctx.object_key
+
+        process_result = create_thumbnails_batch_task.run(captured_calls[0])
+        assert_batch_counts(process_result, successful=1)
+
+        with session_scope(engine) as session:
+            updated_photo = session.get(Photo, ctx.photo_id)
+            assert updated_photo is not None
+            assert updated_photo.status == PhotoUploadStatus.SUCCESSFUL
+            assert updated_photo.thumbnail_object_key.endswith("thumbnails/eventual.jpg")
+            assert updated_photo.width is not None
+            assert updated_photo.height is not None
+
+            updated_user = session.get(User, ctx.user_id)
+            assert updated_user is not None
+            assert updated_user.storage_reserved == 0
+            assert updated_user.storage_used == updated_photo.file_size
+
+
 def test_delete_gallery_data_task_deletes_gallery_and_objects(engine: Engine, s3_container) -> None:
     """Test that delete_gallery_data_task deletes all S3 objects and DB records."""
 
