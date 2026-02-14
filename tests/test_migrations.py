@@ -1,7 +1,6 @@
 import uuid
 from pathlib import Path
 
-import pytest
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
@@ -36,7 +35,6 @@ def _drop_database(admin_url: str, db_name: str) -> None:
         admin_engine.dispose()
 
 
-@pytest.mark.integration
 def test_alembic_upgrade_and_downgrade(postgres_container) -> None:
     admin_url = postgres_container.get_connection_url(driver="psycopg")
     db_name = f"alembic_test_{uuid.uuid4().hex}"
