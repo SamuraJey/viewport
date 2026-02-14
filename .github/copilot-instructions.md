@@ -52,6 +52,17 @@
 
 ## Migrations / tests / lint
 - Alembic: config `alembic.ini`, migrations in `src/viewport/alembic/`. Create revisions with `alembic revision --autogenerate -m "..."`.
+- **Migration workflow (required)**:
+  1. Ensure local DB is at head: `alembic upgrade head`.
+  2. Make model changes.
+  3. Generate migration: `alembic revision --autogenerate -m "..."`.
+  4. Validate generated revision contains only intended business changes.
+  5. Run `alembic check` (must report `No new upgrade operations detected.`).
+  6. Run migration tests: `pytest tests/test_migrations.py` (or `just test` for full suite).
+  7. For local history rewrites only (never shared history), re-align DB revision pointer with `alembic stamp --purge <revision>`.
+- **Autogenerate notes**:
+  - `src/viewport/alembic/env.py` contains filtering for a known false-positive FK diff on `photos_gallery_id_fkey`; do not add cleanup scripts for this.
+  - Keep cyclical FK metadata stable by using `use_alter=True` on `Gallery.cover_photo_id` FK to `photos.id`.
 - Backend checks:
   - Format + autofix: `just pretty` / `make pretty` (Ruff).
   - Typecheck: `just mypy`.

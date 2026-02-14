@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, DateTime, String
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -16,6 +16,8 @@ class User(Base):
     __tablename__ = "users"
 
     DEFAULT_STORAGE_QUOTA_BYTES = 10 * 1024 * 1024 * 1024
+
+    __table_args__ = (CheckConstraint("storage_quota >= 0", name="users_storage_quota_nonnegative"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)

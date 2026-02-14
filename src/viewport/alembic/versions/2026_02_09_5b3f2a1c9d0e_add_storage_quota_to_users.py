@@ -39,10 +39,16 @@ def upgrade() -> None:
         "users",
         sa.Column("storage_reserved", sa.BigInteger(), nullable=False, server_default="0"),
     )
+    op.create_check_constraint(
+        "users_storage_quota_nonnegative",
+        "users",
+        "storage_quota >= 0",
+    )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
+    op.drop_constraint("users_storage_quota_nonnegative", "users", type_="check")
     op.drop_column("users", "storage_reserved")
     op.drop_column("users", "storage_used")
     op.drop_column("users", "storage_quota")

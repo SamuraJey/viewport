@@ -33,7 +33,7 @@ class Gallery(Base):
     # Optional cover photo for public display
     cover_photo_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("photos.id", name="galleries_cover_photo_id_fkey", ondelete="SET NULL"),
+        ForeignKey("photos.id", name="galleries_cover_photo_id_fkey", ondelete="SET NULL", use_alter=True),
         nullable=True,
     )
 
