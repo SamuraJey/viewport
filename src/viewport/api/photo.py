@@ -296,6 +296,7 @@ async def batch_confirm_uploads(
 
         status_updates[photo.id] = PhotoUploadStatus.SUCCESSFUL
         confirmed_count += 1
+        # TODO find all places where we use dicts like this, and replace it with DTOs.
         photos_to_process.append({"photo_id": str(photo.id), "object_key": photo.object_key})
 
     bytes_to_finalize = 0

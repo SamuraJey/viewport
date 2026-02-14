@@ -71,7 +71,7 @@ def _process_single_photo(
 ) -> None:
     """Process a single photo: download, resize, and upload thumbnail."""
 
-    photo_id = photo_data["photo_id"]
+    photo_id = photo_data["photo_id"]  # aaaaa
     object_key = photo_data["object_key"]
 
     try:

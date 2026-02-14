@@ -85,8 +85,8 @@ class GalleryRepository(BaseRepository):
         ).scalar_one()
 
         user_repo = UserRepository(self.db)
-        user_repo.decrement_storage_used(gallery.owner_id, int(used_bytes))
-        user_repo.release_reserved_storage(gallery.owner_id, int(reserved_bytes))
+        user_repo.decrement_storage_used(gallery.owner_id, int(used_bytes), commit=False)
+        user_repo.release_reserved_storage(gallery.owner_id, int(reserved_bytes), commit=False)
 
         self.db.delete(gallery)
         self.db.commit()
@@ -112,8 +112,8 @@ class GalleryRepository(BaseRepository):
         ).scalar_one()
 
         user_repo = UserRepository(self.db)
-        user_repo.decrement_storage_used(gallery.owner_id, int(used_bytes))
-        user_repo.release_reserved_storage(gallery.owner_id, int(reserved_bytes))
+        user_repo.decrement_storage_used(gallery.owner_id, int(used_bytes), commit=False)
+        user_repo.release_reserved_storage(gallery.owner_id, int(reserved_bytes), commit=False)
 
         self.db.delete(gallery)
         self.db.commit()
