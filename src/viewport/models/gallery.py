@@ -47,7 +47,7 @@ class Gallery(Base):
         order_by="Photo.object_key",
     )
     # Optional relationship to the cover photo (may be None)
-    cover_photo: Mapped["Photo"] = relationship(
+    cover_photo: Mapped["Photo | None"] = relationship(
         "Photo",
         primaryjoin="Gallery.cover_photo_id==Photo.id",
         foreign_keys="Gallery.cover_photo_id",

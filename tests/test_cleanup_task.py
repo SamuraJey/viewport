@@ -124,7 +124,13 @@ class TestCleanupTask:
         freezer.move_to(initial_time)
 
         with Session(engine) as session:
-            user = User(email=f"cleanup-reserved-{uuid4()}@example.com", password_hash="hashed", display_name="cleanup", storage_reserved=150)
+            user = User(
+                email=f"cleanup-reserved-{uuid4()}@example.com",
+                password_hash="hashed",
+                display_name="cleanup",
+                storage_reserved=150,
+                storage_used=120,
+            )
             session.add(user)
             session.flush()
 
@@ -172,3 +178,4 @@ class TestCleanupTask:
             refreshed_user = session.get(User, user_id)
             assert refreshed_user is not None
             assert refreshed_user.storage_reserved == 50
+            assert refreshed_user.storage_used == 120

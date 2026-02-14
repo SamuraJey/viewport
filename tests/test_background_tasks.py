@@ -14,8 +14,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from viewport import background_tasks
-from viewport.background_tasks import create_thumbnails_batch_task, delete_gallery_data_task, reconcile_successful_uploads_task
-from viewport.models.gallery import Gallery, Photo
+from viewport.background_tasks import create_thumbnails_batch_task, delete_gallery_data_task, reconcile_storage_quotas_task, reconcile_successful_uploads_task
+from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
 from viewport.s3_utils import S3Settings, get_s3_client, upload_fileobj
@@ -212,6 +212,103 @@ def test_reconcile_successful_uploads_no_matching_photos(engine: Engine) -> None
     result = reconcile_successful_uploads_task.run()
 
     assert result["requeued_count"] == 0
+
+
+def test_reconcile_storage_quotas_recomputes_from_active_successful_and_pending(engine: Engine) -> None:
+    with session_scope(engine) as session:
+        user = User(email=f"reconcile-{uuid4()}@example.com", password_hash="hashed", display_name="reconcile", storage_used=999, storage_reserved=999)
+        session.add(user)
+        session.flush()
+
+        active_gallery = Gallery(owner_id=user.id, name="active")
+        deleted_gallery = Gallery(owner_id=user.id, name="deleted", is_deleted=True)
+        session.add(active_gallery)
+        session.add(deleted_gallery)
+        session.flush()
+
+        session.add_all(
+            [
+                Photo(
+                    gallery_id=active_gallery.id,
+                    object_key=f"{active_gallery.id}/succ.jpg",
+                    thumbnail_object_key=f"{active_gallery.id}/succ-thumb.jpg",
+                    file_size=120,
+                    status=PhotoUploadStatus.SUCCESSFUL,
+                ),
+                Photo(
+                    gallery_id=active_gallery.id,
+                    object_key=f"{active_gallery.id}/pending.jpg",
+                    thumbnail_object_key=f"{active_gallery.id}/pending.jpg",
+                    file_size=80,
+                    status=PhotoUploadStatus.PENDING,
+                ),
+                Photo(
+                    gallery_id=active_gallery.id,
+                    object_key=f"{active_gallery.id}/failed.jpg",
+                    thumbnail_object_key=f"{active_gallery.id}/failed.jpg",
+                    file_size=999,
+                    status=PhotoUploadStatus.FAILED,
+                ),
+                Photo(
+                    gallery_id=deleted_gallery.id,
+                    object_key=f"{deleted_gallery.id}/deleted-succ.jpg",
+                    thumbnail_object_key=f"{deleted_gallery.id}/deleted-succ-thumb.jpg",
+                    file_size=777,
+                    status=PhotoUploadStatus.SUCCESSFUL,
+                ),
+            ]
+        )
+        session.flush()
+        user_id = user.id
+
+    result = reconcile_storage_quotas_task.run()
+    assert result["updated_users"] == 1
+
+    with session_scope(engine) as session:
+        refreshed = session.get(User, user_id)
+        assert refreshed is not None
+        assert refreshed.storage_used == 120
+        assert refreshed.storage_reserved == 80
+
+
+def test_reconcile_storage_quotas_includes_users_without_photos(engine: Engine) -> None:
+    with session_scope(engine) as session:
+        user_with_photos = User(email=f"reconcile-owner-{uuid4()}@example.com", password_hash="hashed", display_name="owner", storage_used=0, storage_reserved=0)
+        user_without_photos = User(email=f"reconcile-empty-{uuid4()}@example.com", password_hash="hashed", display_name="empty", storage_used=55, storage_reserved=44)
+        session.add(user_with_photos)
+        session.add(user_without_photos)
+        session.flush()
+
+        gallery = Gallery(owner_id=user_with_photos.id, name="owner-gallery")
+        session.add(gallery)
+        session.flush()
+
+        session.add(
+            Photo(
+                gallery_id=gallery.id,
+                object_key=f"{gallery.id}/succ.jpg",
+                thumbnail_object_key=f"{gallery.id}/succ-thumb.jpg",
+                file_size=10,
+                status=PhotoUploadStatus.SUCCESSFUL,
+            )
+        )
+        session.flush()
+
+        owner_id = user_with_photos.id
+        empty_id = user_without_photos.id
+
+    result = reconcile_storage_quotas_task.run()
+    assert result["updated_users"] == 2
+
+    with session_scope(engine) as session:
+        owner = session.get(User, owner_id)
+        empty = session.get(User, empty_id)
+        assert owner is not None
+        assert empty is not None
+        assert owner.storage_used == 10
+        assert owner.storage_reserved == 0
+        assert empty.storage_used == 0
+        assert empty.storage_reserved == 0
 
 
 def test_reconcile_successful_uploads_selects_correct_photos(engine: Engine, s3_container, monkeypatch) -> None:

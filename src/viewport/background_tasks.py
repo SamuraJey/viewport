@@ -262,7 +262,6 @@ def cleanup_orphaned_uploads_task() -> dict:
                     object_keys.append(p.thumbnail_object_key)
 
             pending_ids = [str(p.id) for p in chunk if p.status == PhotoUploadStatus.PENDING]
-            failed_ids = [str(p.id) for p in chunk if p.status == PhotoUploadStatus.FAILED]
 
             # 1. Delete from S3 first to avoid orphans if DB deletion fails but task isn't retried
             # If S3 delete fails, the task will fail and retry (processing the same chunk)
@@ -285,10 +284,10 @@ def cleanup_orphaned_uploads_task() -> dict:
 
             # 2. Update DB and release quota only after S3 confirms deletion
             # This is atomic within the transaction block
+            # Only release reserved bytes for PENDING rows. FAILED rows should
+            # not decrement storage_used here because their quota transition is
+            # handled at the point they become FAILED.
             _release_reserved_for_photos(db, pending_ids)
-            # If there are FAILED rows, decrement storage_used for them as well
-            if failed_ids:
-                _decrement_used_for_photos(db, failed_ids)
             delete_stmt = delete(Photo).where(Photo.id.in_(photo_ids))
             db.execute(delete_stmt)
             db.commit()  # Explicitly commit within the loop if needed, though session context handles it
@@ -387,22 +386,29 @@ def reconcile_storage_quotas_task() -> dict:
             .group_by(Gallery.owner_id, Photo.status)
         ).all()
 
-        used_by_user: dict[int, int] = {}
-        reserved_by_user: dict[int, int] = {}
-        owner_ids: set[int] = set()
+        used_by_user: dict[uuid.UUID, int] = {}
+        reserved_by_user: dict[uuid.UUID, int] = {}
 
         for owner_id, status, total_size in usage_rows:
-            owner_ids.add(owner_id)
             if status == PhotoUploadStatus.SUCCESSFUL:
                 used_by_user[owner_id] = used_by_user.get(owner_id, 0) + total_size
             elif status == PhotoUploadStatus.PENDING:
                 reserved_by_user[owner_id] = reserved_by_user.get(owner_id, 0) + total_size
 
-        # Only load users that we need to reconcile. Fall back to all users if none found.
-        if owner_ids:
-            users = db.execute(select(User).where(User.id.in_(owner_ids))).scalars().all()
-        else:
-            users = db.execute(select(User)).scalars().all()
+        owner_ids = set(used_by_user) | set(reserved_by_user)
+        users = (
+            db.execute(
+                select(User).where(
+                    or_(
+                        User.id.in_(owner_ids),
+                        User.storage_used != 0,
+                        User.storage_reserved != 0,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
 
         for user in users:
             reconciled_users += 1
