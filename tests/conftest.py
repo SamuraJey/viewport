@@ -4,7 +4,9 @@ import time
 import uuid
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import boto3
 import jwt
@@ -30,7 +32,109 @@ VALKEY_PORT = 6379
 
 logger = logging.getLogger(__name__)
 
+_SHARED_POSTGRES_CONTAINER: PostgresContainer | None = None
+_SHARED_POSTGRES_INFO: dict[str, Any] | None = None
+
 os.environ.update({"JWT_SECRET_KEY": "supersecretkey", "ADMIN_JWT_SECRET_KEY": "adminsecretkey", "INVITE_CODE": "testinvitecode"})
+
+
+@dataclass(frozen=True)
+class PostgresConnectionInfo:
+    username: str
+    password: str
+    host: str
+    port: int
+    database: str
+
+    def get_connection_url(self, driver: str | None = None, database: str | None = None) -> str:
+        driver_name = "postgresql"
+        if driver:
+            driver_name = f"{driver_name}+{driver}"
+
+        target_db = database or self.database
+        return f"{driver_name}://{self.username}:{self.password}@{self.host}:{self.port}/{target_db}"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "username": self.username,
+            "password": self.password,
+            "host": self.host,
+            "port": self.port,
+            "database": self.database,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "PostgresConnectionInfo":
+        return cls(
+            username=str(data["username"]),
+            password=str(data["password"]),
+            host=str(data["host"]),
+            port=int(data["port"]),
+            database=str(data["database"]),
+        )
+
+
+def _xdist_enabled(config: pytest.Config) -> bool:
+    num_processes = getattr(config.option, "numprocesses", 0)
+    if num_processes in (0, 1, None):
+        return False
+    return bool(num_processes)
+
+
+def _is_worker_process(config: pytest.Config) -> bool:
+    return hasattr(config, "workerinput")
+
+
+def _worker_id_from_config(config: pytest.Config) -> str:
+    if _is_worker_process(config):
+        return str(config.workerinput.get("workerid", "gw0"))
+    return os.environ.get("PYTEST_XDIST_WORKER", "master")
+
+
+def _connection_info_from_container(container: PostgresContainer) -> PostgresConnectionInfo:
+    db_url = container.get_connection_url(driver="psycopg")
+    url = make_url(db_url)
+    return PostgresConnectionInfo(
+        username=url.username or "",
+        password=url.password or "",
+        host=url.host or "",
+        port=int(url.port or 5432),
+        database=url.database or "postgres",
+    )
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    global _SHARED_POSTGRES_CONTAINER, _SHARED_POSTGRES_INFO
+
+    if _is_worker_process(config) or not _xdist_enabled(config):
+        return
+
+    if _SHARED_POSTGRES_CONTAINER is not None:
+        return
+
+    container = PostgresContainer(image=POSTGRES_IMAGE)
+    container.start()
+    _SHARED_POSTGRES_CONTAINER = container
+    _SHARED_POSTGRES_INFO = _connection_info_from_container(container).to_dict()
+
+
+def pytest_configure_node(node) -> None:
+    if _SHARED_POSTGRES_INFO is not None:
+        node.workerinput["shared_postgres"] = _SHARED_POSTGRES_INFO
+
+
+def pytest_unconfigure(config: pytest.Config) -> None:
+    global _SHARED_POSTGRES_CONTAINER, _SHARED_POSTGRES_INFO
+
+    if _is_worker_process(config):
+        return
+
+    if _SHARED_POSTGRES_CONTAINER is None:
+        return
+
+    _SHARED_POSTGRES_CONTAINER.stop()
+    _SHARED_POSTGRES_CONTAINER = None
+    _SHARED_POSTGRES_INFO = None
 
 
 @contextmanager
@@ -108,28 +212,81 @@ def _clear_s3_cache() -> None:
         pass
 
 
+def _refresh_app_s3_client_instance() -> None:
+    try:
+        from viewport.dependencies import set_s3_client_instance
+        from viewport.s3_service import AsyncS3Client
+
+        set_s3_client_instance(AsyncS3Client())
+    except ImportError:
+        pass
+
+
 @pytest.fixture(scope="session")
-def postgres_container() -> Generator[PostgresContainer]:
-    """Фикстура контейнера PostgreSQL с областью видимости на всю сессию тестов."""
+def _postgres_server(request: pytest.FixtureRequest) -> Generator[PostgresConnectionInfo]:
+    """Provide PostgreSQL server connection info.
+
+    Under xdist this reuses one server started by master process.
+    Without xdist it starts a regular testcontainer for the session.
+    """
+    worker_input = getattr(request.config, "workerinput", {})
+    shared_info = worker_input.get("shared_postgres")
+
+    if shared_info:
+        yield PostgresConnectionInfo.from_dict(shared_info)
+        return
+
     with PostgresContainer(image=POSTGRES_IMAGE) as container:
-        # Выставляем переменные окружения POSTGRES_* как в S3/контейнере фикстуре
-        # чтобы код, читающий настройки из окружения, указывал на этот контейнер
-        db_url = container.get_connection_url()
-        url = make_url(db_url)
-        env_updates = {
-            "POSTGRES_DB": url.database or "",
-            "POSTGRES_USER": url.username or "",
-            "POSTGRES_PASSWORD": url.password or "",
-            "POSTGRES_HOST": url.host or "",
-            "POSTGRES_PORT": str(url.port or 5432),
-        }
-
-        with _temporary_env_vars(env_updates):
-            yield container
+        yield _connection_info_from_container(container)
 
 
 @pytest.fixture(scope="session")
-def engine(postgres_container: PostgresContainer) -> Generator[Engine]:
+def postgres_container(_postgres_server: PostgresConnectionInfo, request: pytest.FixtureRequest) -> Generator[PostgresConnectionInfo]:
+    """Per-worker isolated database on top of a PostgreSQL testcontainer server."""
+    worker_id = _worker_id_from_config(request.config).replace("-", "_")
+    worker_db_name = f"test_{worker_id}"
+
+    admin_url = _postgres_server.get_connection_url(driver="psycopg", database="postgres")
+    admin_engine = create_engine(admin_url)
+    try:
+        with admin_engine.connect() as connection:
+            connection = connection.execution_options(isolation_level="AUTOCOMMIT")
+            connection.execute(text(f'DROP DATABASE IF EXISTS "{worker_db_name}" WITH (FORCE)'))
+            connection.execute(text(f'CREATE DATABASE "{worker_db_name}"'))
+    finally:
+        admin_engine.dispose()
+
+    env_updates = {
+        "POSTGRES_DB": worker_db_name,
+        "POSTGRES_USER": _postgres_server.username,
+        "POSTGRES_PASSWORD": _postgres_server.password,
+        "POSTGRES_HOST": _postgres_server.host,
+        "POSTGRES_PORT": str(_postgres_server.port),
+    }
+
+    worker_connection = PostgresConnectionInfo(
+        username=_postgres_server.username,
+        password=_postgres_server.password,
+        host=_postgres_server.host,
+        port=_postgres_server.port,
+        database=worker_db_name,
+    )
+
+    with _temporary_env_vars(env_updates):
+        try:
+            yield worker_connection
+        finally:
+            cleanup_engine = create_engine(admin_url)
+            try:
+                with cleanup_engine.connect() as connection:
+                    connection = connection.execution_options(isolation_level="AUTOCOMMIT")
+                    connection.execute(text(f'DROP DATABASE IF EXISTS "{worker_db_name}" WITH (FORCE)'))
+            finally:
+                cleanup_engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def engine(postgres_container: PostgresConnectionInfo) -> Generator[Engine]:
     """Фикстура движка SQLAlchemy с областью видимости на сессию."""
 
     from viewport.models import Gallery, Photo, ShareLink, User  # noqa: F401
@@ -146,8 +303,22 @@ def engine(postgres_container: PostgresContainer) -> Generator[Engine]:
 
 
 @pytest.fixture(autouse=True)
-def _cleanup_database(engine: Engine) -> None:
-    """Clear all tables before each test to ensure isolation."""
+def _cleanup_database(engine: Engine, request) -> None:
+    """Clear all tables for tests that do not use transactional DB fixtures."""
+    transactional_fixtures = {
+        "db_session",
+        "client",
+        "authenticated_client",
+        "auth_token",
+        "gallery_fixture",
+        "sharelink_fixture",
+        "gallery_id_fixture",
+        "sharelink_data",
+    }
+
+    if transactional_fixtures.intersection(request.fixturenames):
+        return
+
     from viewport.models.db import Base
 
     with engine.begin() as conn:
@@ -212,8 +383,23 @@ def s3_container() -> Generator[DockerContainer]:
 
 
 @pytest.fixture(autouse=True)
-def _cleanup_s3(s3_container) -> None:
-    """Clear S3 bucket before each test to ensure isolation."""
+def _cleanup_s3(request) -> None:
+    """Clear S3 bucket before each S3-related test to ensure isolation."""
+    s3_related_modules = {
+        "tests/test_photo_api.py",
+        "tests/test_public_api.py",
+        "tests/test_background_tasks.py",
+        "tests/test_cleanup_task.py",
+        "tests/test_s3_service.py",
+    }
+
+    needs_s3 = "s3_container" in request.fixturenames or any(module in request.node.nodeid for module in s3_related_modules)
+
+    if not needs_s3:
+        return
+
+    request.getfixturevalue("s3_container")
+
     from viewport.s3_utils import get_s3_client, get_s3_settings
 
     _clear_s3_cache()
@@ -260,21 +446,28 @@ def celery_env(valkey_container):
 
 
 @pytest.fixture(scope="session")
-def celery_config(valkey_container):
+def celery_config(valkey_container, celery_env):
     """Configure pytest-celery to use the ValKey container as broker/backend."""
     return {"broker_url": valkey_container, "result_backend": valkey_container}
 
 
-@pytest.fixture(scope="function")
-def client(db_session: Session, s3_container: DockerContainer, celery_config):
-    """Фикстура тестового клиента FastAPI с очисткой состояния между тестами."""
+@pytest.fixture(scope="session")
+def _db_session_holder() -> dict[str, Session | None]:
+    return {"session": None}
 
-    # Override get_db to use the transactional db_session for each test
+
+@pytest.fixture(scope="session")
+def app_client(_db_session_holder: dict[str, Session | None]):
+    """Session-scoped TestClient with dynamic DB session override."""
+
     from viewport.main import app
     from viewport.models.db import get_db
 
     def override_get_db():
-        yield db_session
+        session = _db_session_holder["session"]
+        if session is None:
+            raise RuntimeError("db_session is not set for current test")
+        yield session
 
     app.dependency_overrides[get_db] = override_get_db
 
@@ -285,6 +478,25 @@ def client(db_session: Session, s3_container: DockerContainer, celery_config):
             yield test_client
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="function")
+def client(db_session: Session, app_client: TestClient, _db_session_holder: dict[str, Session | None]):
+    """Фикстура тестового клиента FastAPI с очисткой состояния между тестами."""
+    _db_session_holder["session"] = db_session
+    default_headers = dict(app_client.headers)
+    app_client.headers.clear()
+    app_client.headers.update(default_headers)
+
+    _clear_s3_cache()
+    _refresh_app_s3_client_instance()
+
+    try:
+        yield app_client
+    finally:
+        _db_session_holder["session"] = None
+        app_client.headers.clear()
+        app_client.headers.update(default_headers)
 
 
 @pytest.fixture(scope="function")
