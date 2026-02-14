@@ -23,12 +23,22 @@ from testcontainers.postgres import PostgresContainer
 
 POSTGRES_IMAGE = "postgres:17-alpine"
 
-S3_IMAGE = "rustfs/rustfs:1.0.0-alpha.80"
+S3_IMAGE = "rustfs/rustfs:1.0.0-alpha.83"
 S3_ROOT_ACCESS_KEY = "testaccesskey"
 S3_ROOT_SECRET_KEY = "testsecretkey"
 S3_PORT = 9000
 VALKEY_IMAGE = "valkey/valkey:8-alpine"
 VALKEY_PORT = 6379
+S3_TRIGGER_FIXTURES = {
+    "s3_container",
+    "client",
+    "authenticated_client",
+    "auth_token",
+    "gallery_fixture",
+    "sharelink_fixture",
+    "gallery_id_fixture",
+    "sharelink_data",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -222,6 +232,10 @@ def _refresh_app_s3_client_instance() -> None:
         pass
 
 
+def _needs_s3_for_request(request: pytest.FixtureRequest) -> bool:
+    return bool(S3_TRIGGER_FIXTURES.intersection(request.fixturenames))
+
+
 @pytest.fixture(scope="session")
 def _postgres_server(request: pytest.FixtureRequest) -> Generator[PostgresConnectionInfo]:
     """Provide PostgreSQL server connection info.
@@ -385,17 +399,7 @@ def s3_container() -> Generator[DockerContainer]:
 @pytest.fixture(autouse=True)
 def _cleanup_s3(request) -> None:
     """Clear S3 bucket before each S3-related test to ensure isolation."""
-    s3_related_modules = {
-        "tests/test_photo_api.py",
-        "tests/test_public_api.py",
-        "tests/test_background_tasks.py",
-        "tests/test_cleanup_task.py",
-        "tests/test_s3_service.py",
-    }
-
-    needs_s3 = "s3_container" in request.fixturenames or any(module in request.node.nodeid for module in s3_related_modules)
-
-    if not needs_s3:
+    if not _needs_s3_for_request(request):
         return
 
     request.getfixturevalue("s3_container")
@@ -481,15 +485,17 @@ def app_client(_db_session_holder: dict[str, Session | None]):
 
 
 @pytest.fixture(scope="function")
-def client(db_session: Session, app_client: TestClient, _db_session_holder: dict[str, Session | None]):
+def client(db_session: Session, app_client: TestClient, _db_session_holder: dict[str, Session | None], request: pytest.FixtureRequest):
     """Фикстура тестового клиента FastAPI с очисткой состояния между тестами."""
     _db_session_holder["session"] = db_session
     default_headers = dict(app_client.headers)
     app_client.headers.clear()
     app_client.headers.update(default_headers)
 
-    _clear_s3_cache()
-    _refresh_app_s3_client_instance()
+    if _needs_s3_for_request(request):
+        request.getfixturevalue("s3_container")
+        _clear_s3_cache()
+        _refresh_app_s3_client_instance()
 
     try:
         yield app_client
