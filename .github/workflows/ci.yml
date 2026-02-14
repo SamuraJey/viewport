@@ -55,11 +55,13 @@ jobs:
           context: .
           file: ./Dockerfile-backend
           push: false
+          cache-from: type=gha,scope=backend-image
+          cache-to: type=gha,mode=max,scope=backend-image
 
   python-tests:
     name: Python Tests (with coverage >= 80%)
     runs-on: ubuntu-latest
-    needs: [detect-changes, build-backend-image]
+    needs: detect-changes
     if: ${{ needs.detect-changes.outputs.backend == 'true' }}
     permissions:
       # Required for posting/updating PR comments and pushing the data branch on default branch
@@ -73,12 +75,16 @@ jobs:
         with:
           version: ""
           enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+          cache-suffix: python-tests
 
       - name: Set Up Python
         run: uv python install
 
       - name: Sync dependencies
-        run: uv sync
+        run: uv sync --frozen
 
       - name: Run tests with coverage
         env:
@@ -108,10 +114,10 @@ jobs:
         with:
           node-version: "22"
           cache: "npm"
-          cache-dependency-path: frontend/package.json
+          cache-dependency-path: frontend/package-lock.json
       - name: Install deps
         working-directory: frontend
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit
       - name: Lint
         working-directory: frontend
         run: npm run lint
