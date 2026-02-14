@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import time
 import uuid
 from collections.abc import Generator, Mapping
@@ -13,7 +14,7 @@ import jwt
 import pytest
 from botocore.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.engine.base import Engine
 from sqlalchemy.orm import sessionmaker
@@ -95,10 +96,19 @@ def _is_worker_process(config: pytest.Config) -> bool:
     return hasattr(config, "workerinput")
 
 
+def _sanitize_worker_id(worker_id: str) -> str:
+    sanitized = re.sub(r"[^A-Za-z0-9_]", "_", worker_id)
+    if not sanitized:
+        sanitized = "worker"
+    return sanitized[:64]
+
+
 def _worker_id_from_config(config: pytest.Config) -> str:
     if _is_worker_process(config):
-        return str(config.workerinput.get("workerid", "gw0"))
-    return os.environ.get("PYTEST_XDIST_WORKER", "master")
+        worker_id = str(config.workerinput.get("workerid", "gw0"))
+    else:
+        worker_id = os.environ.get("PYTEST_XDIST_WORKER", "master")
+    return _sanitize_worker_id(worker_id)
 
 
 def _connection_info_from_container(container: PostgresContainer) -> PostgresConnectionInfo:
@@ -345,16 +355,28 @@ def _cleanup_database(engine: Engine, request) -> None:
 def db_session(engine: Engine) -> Generator[Session]:
     """Фикстура сессии базы данных с изоляцией на каждый тест."""
     connection = engine.connect()
-    transaction = connection.begin()
+    outer_transaction = connection.begin()
     session_factory = sessionmaker(bind=connection)
     session = session_factory()
+    session.begin_nested()
 
-    yield session
+    @event.listens_for(session, "after_transaction_end")
+    def _restart_savepoint(_session: Session, ended_transaction) -> None:
+        parent = getattr(ended_transaction, "parent", None)
+        if parent is None:
+            parent = getattr(ended_transaction, "_parent", None)
 
-    # Откатываем транзакцию и закрываем соединение после теста
-    session.close()
-    transaction.rollback()
-    connection.close()
+        if ended_transaction.nested and not (parent and parent.nested):
+            _session.begin_nested()
+
+    try:
+        yield session
+    finally:
+        event.remove(session, "after_transaction_end", _restart_savepoint)
+        session.close()
+        if outer_transaction.is_active:
+            outer_transaction.rollback()
+        connection.close()
 
 
 @pytest.fixture(scope="session")

@@ -5,7 +5,9 @@
         "tests",
         "--cov=src",
         "--cov-branch",
-        "--cov-report=term-missing"
+        "--cov-report=term-missing",
+        "--random-order-bucket=module",
+        "--random-order-seed=$RANDOM"
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
