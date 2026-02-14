@@ -274,9 +274,9 @@ class GalleryRepository(BaseRepository):
 
         user_repo = UserRepository(self.db)
         if photo.status == PhotoUploadStatus.SUCCESSFUL:
-            user_repo.decrement_storage_used(owner_id, photo.file_size)
+            user_repo.decrement_storage_used(owner_id, photo.file_size, commit=False)
         elif photo.status == PhotoUploadStatus.PENDING:
-            user_repo.release_reserved_storage(owner_id, photo.file_size)
+            user_repo.release_reserved_storage(owner_id, photo.file_size, commit=False)
 
         # Note: S3 deletion is done asynchronously in a background task
         # This method only deletes from database
@@ -292,9 +292,9 @@ class GalleryRepository(BaseRepository):
 
         user_repo = UserRepository(self.db)
         if photo.status == PhotoUploadStatus.SUCCESSFUL:
-            user_repo.decrement_storage_used(owner_id, photo.file_size)
+            user_repo.decrement_storage_used(owner_id, photo.file_size, commit=False)
         elif photo.status == PhotoUploadStatus.PENDING:
-            user_repo.release_reserved_storage(owner_id, photo.file_size)
+            user_repo.release_reserved_storage(owner_id, photo.file_size, commit=False)
 
         # Delete both original and thumbnail from S3
         try:
