@@ -91,11 +91,7 @@ describe('usePhotoLightbox', () => {
     const lightbox = result.current.renderLightbox(slides);
 
     expect(lightbox).toBeDefined();
-    expect(lightbox.props.slides).toHaveLength(2);
-    expect(lightbox.props.slides[0].src).toBe('/photo1.jpg');
-    expect(lightbox.props.slides[0].imageProps.crossOrigin).toBe('anonymous');
-    expect(typeof lightbox.props.render.slide).toBe('function');
-    expect(typeof lightbox.props.render.iconLoading).toBe('function');
+    expect(lightbox.props.slides).toStrictEqual(slides);
     expect(lightbox.props.open).toBe(false);
   });
 

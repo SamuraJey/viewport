@@ -10,7 +10,6 @@ import 'yet-another-react-lightbox/plugins/thumbnails.css';
 
 export interface PhotoSlide {
   src: string;
-  thumbnailSrc?: string;
   alt?: string;
   width?: number;
   height?: number;
@@ -46,7 +45,6 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [loadedSlides, setLoadedSlides] = useState<Record<string, boolean>>({});
 
   const thumbnailsRef = useRef<{
     visible: boolean;
@@ -92,65 +90,6 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
     }
   }, [lightboxIndex, gridRef, photoCardSelector]);
 
-  const markSlideLoaded = useCallback((src: string) => {
-    setLoadedSlides((prev) => {
-      if (prev[src]) return prev;
-      return { ...prev, [src]: true };
-    });
-  }, []);
-
-  const renderProgressiveSlide = useCallback(
-    ({ slide, rect }: { slide: unknown; rect: { width: number; height: number } }) => {
-      const progressiveSlide = slide as PhotoSlide;
-      if (!progressiveSlide.thumbnailSrc) return undefined;
-
-      const isLoaded = Boolean(loadedSlides[progressiveSlide.src]);
-
-      return (
-        <div
-          style={{
-            position: 'relative',
-            width: rect.width,
-            height: rect.height,
-            overflow: 'hidden',
-          }}
-        >
-          <img
-            src={progressiveSlide.thumbnailSrc}
-            alt={progressiveSlide.alt || ''}
-            draggable={false}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              opacity: isLoaded ? 0 : 1,
-              transition: 'opacity 260ms ease',
-            }}
-          />
-          <img
-            src={progressiveSlide.src}
-            alt={progressiveSlide.alt || ''}
-            draggable={false}
-            onLoad={() => markSlideLoaded(progressiveSlide.src)}
-            onError={() => markSlideLoaded(progressiveSlide.src)}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              opacity: isLoaded ? 1 : 0,
-              transition: 'opacity 420ms ease',
-            }}
-          />
-        </div>
-      );
-    },
-    [loadedSlides, markSlideLoaded],
-  );
-
   // Render the Lightbox component
   const renderLightbox = (slides: PhotoSlide[], totalPhotos?: number) => (
     <Lightbox
@@ -164,10 +103,6 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
           crossOrigin: 'anonymous',
         },
       }))}
-      render={{
-        slide: renderProgressiveSlide,
-        iconLoading: () => null,
-      }}
       plugins={[Thumbnails, Fullscreen, LightboxDownload, Zoom]}
       controller={{
         closeOnPullDown: true,
