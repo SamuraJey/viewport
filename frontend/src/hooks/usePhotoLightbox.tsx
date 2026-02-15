@@ -4,10 +4,11 @@ import Lightbox, { type Slide } from 'yet-another-react-lightbox';
 import Thumbnails from 'yet-another-react-lightbox/plugins/thumbnails';
 import Fullscreen from 'yet-another-react-lightbox/plugins/fullscreen';
 import LightboxDownload from 'yet-another-react-lightbox/plugins/download';
+import Zoom from 'yet-another-react-lightbox/plugins/zoom';
 import 'yet-another-react-lightbox/styles.css';
 import 'yet-another-react-lightbox/plugins/thumbnails.css';
 
-const LIGHTBOX_PLUGINS = [Thumbnails, Fullscreen, LightboxDownload];
+const LIGHTBOX_PLUGINS = [Thumbnails, Fullscreen, LightboxDownload, Zoom];
 
 export interface PhotoSlide {
   src: string;
@@ -21,9 +22,9 @@ export interface PhotoSlide {
 }
 
 interface InternalPhotoSlide extends Omit<PhotoSlide, 'src'> {
-  type?: string;
+  isProgressive?: boolean;
   fullSrc: string;
-  src?: string;
+  src: string;
 }
 
 interface UsePhotoLightboxOptions {
@@ -39,6 +40,12 @@ interface UsePhotoLightboxOptions {
   isLoadingMore?: boolean;
   /** Number of photos from the end to trigger load more */
   loadMoreThreshold?: number;
+  /** Maximum zoom ratio for the zoom plugin */
+  maxZoomPixelRatio?: number;
+  /** Multiplier for zoom in/out operations (default: 1.25) */
+  zoomInMultiplier?: number;
+  /** Enable scroll-to-zoom functionality */
+  scrollToZoom?: boolean;
 }
 
 export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
@@ -49,6 +56,9 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
     hasMore = false,
     isLoadingMore = false,
     loadMoreThreshold = 10,
+    maxZoomPixelRatio = 2,
+    zoomInMultiplier = 1.25,
+    scrollToZoom = true,
   } = options;
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -99,9 +109,23 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
   }, [lightboxIndex, gridRef, photoCardSelector]);
 
   const renderProgressiveSlide = useCallback(
-    ({ slide, rect }: { slide: unknown; rect: { width: number; height: number } }) => {
+    ({
+      slide,
+      rect,
+      zoom,
+    }: {
+      slide: unknown;
+      rect: { width: number; height: number };
+      zoom?: number;
+      maxZoom?: number;
+    }) => {
       const progressiveSlide = slide as InternalPhotoSlide;
-      if (progressiveSlide.type !== 'progressive') return undefined;
+      if (!progressiveSlide.isProgressive) return undefined;
+
+      // Apply zoom transformation
+      const scale = zoom || 1;
+      const transformStyle =
+        scale > 1 ? { transform: `scale(${scale})`, transformOrigin: 'center center' } : {};
 
       return (
         <div
@@ -124,6 +148,7 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
               objectFit: 'contain',
               opacity: 1,
               transition: 'opacity 260ms ease',
+              ...transformStyle,
             }}
           />
           <img
@@ -150,6 +175,7 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
               objectFit: 'contain',
               opacity: 0,
               transition: 'opacity 420ms ease',
+              ...transformStyle,
             }}
           />
         </div>
@@ -161,7 +187,7 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
   const renderProgressiveThumbnail = useCallback(
     ({ slide }: { slide: unknown; rect: { width: number; height: number } }) => {
       const progressiveSlide = slide as InternalPhotoSlide;
-      if (progressiveSlide.type !== 'progressive') return undefined;
+      if (!progressiveSlide.isProgressive) return undefined;
 
       return (
         <img
@@ -187,10 +213,10 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
       slides={
         slides.map((slide) => {
           if (slide.thumbnailSrc) {
-            // Progressive slide: mark as custom type to prevent YARL's preload
+            // Progressive slide: load full image while showing thumbnail
             return {
-              type: 'progressive',
-              src: slide.thumbnailSrc, // For Thumbnails plugin carousel
+              isProgressive: true,
+              src: slide.src, // Full image for zoom plugin detection
               fullSrc: slide.src,
               thumbnailSrc: slide.thumbnailSrc,
               alt: slide.alt,
@@ -237,6 +263,11 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
         padding: '0px',
         spacing: 0,
         imageFit: 'contain',
+      }}
+      zoom={{
+        maxZoomPixelRatio,
+        zoomInMultiplier,
+        scrollToZoom,
       }}
       styles={{
         container: { backgroundColor: 'rgba(0, 0, 0, 0.85)' },
