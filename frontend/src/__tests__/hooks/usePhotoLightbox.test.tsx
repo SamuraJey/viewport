@@ -91,50 +91,8 @@ describe('usePhotoLightbox', () => {
     const lightbox = result.current.renderLightbox(slides);
 
     expect(lightbox).toBeDefined();
-    expect(lightbox.props.slides).toHaveLength(2);
-    expect(lightbox.props.slides[0].src).toBe('/photo1.jpg');
-    expect(lightbox.props.slides[0].imageProps.crossOrigin).toBe('anonymous');
-    expect(typeof lightbox.props.render.slide).toBe('function');
-    expect(typeof lightbox.props.render.iconLoading).toBe('function');
+    expect(lightbox.props.slides).toStrictEqual(slides);
     expect(lightbox.props.open).toBe(false);
-  });
-
-  it('renders progressive slide when thumbnail exists', () => {
-    const { result } = renderHook(() => usePhotoLightbox());
-
-    const slides: PhotoSlide[] = [
-      { src: '/photo1.jpg', thumbnailSrc: '/photo1-thumb.jpg', alt: 'Photo 1' },
-    ];
-
-    const lightbox = result.current.renderLightbox(slides);
-    const processedSlide = lightbox.props.slides[0];
-
-    // Check that slide with thumbnail becomes progressive type
-    expect(processedSlide.type).toBe('progressive');
-    expect(processedSlide.src).toBe('/photo1-thumb.jpg'); // For Thumbnails plugin
-    expect(processedSlide.fullSrc).toBe('/photo1.jpg');
-    expect(processedSlide.thumbnailSrc).toBe('/photo1-thumb.jpg');
-
-    const renderedSlide = lightbox.props.render.slide({
-      slide: processedSlide,
-      rect: { width: 1000, height: 800 },
-    });
-
-    expect(renderedSlide).toBeDefined();
-  });
-
-  it('uses standard slide for photos without thumbnail', () => {
-    const { result } = renderHook(() => usePhotoLightbox());
-
-    const slides: PhotoSlide[] = [{ src: '/photo1.jpg', alt: 'Photo 1' }];
-
-    const lightbox = result.current.renderLightbox(slides);
-    const processedSlide = lightbox.props.slides[0];
-
-    // Standard slide should have src and no custom type
-    expect(processedSlide.src).toBe('/photo1.jpg');
-    expect(processedSlide.type).toBeUndefined();
-    expect(processedSlide.imageProps.crossOrigin).toBe('anonymous');
   });
 
   it('handles thumbnails visibility on mobile', () => {
@@ -393,13 +351,20 @@ describe('usePhotoLightbox', () => {
     const slides = [{ src: '/photo1.jpg', alt: 'Photo 1' }];
     const lightbox = result.current.renderLightbox(slides);
 
-    expect(lightbox.props.plugins).toEqual(['Thumbnails', 'Fullscreen', 'LightboxDownload']);
+    expect(lightbox.props.plugins).toEqual([
+      'Thumbnails',
+      'Fullscreen',
+      'LightboxDownload',
+      'Zoom',
+    ]);
     expect(lightbox.props.controller.closeOnPullDown).toBe(true);
     expect(lightbox.props.controller.closeOnPullUp).toBe(true);
     expect(lightbox.props.controller.closeOnBackdropClick).toBe(true);
     expect(lightbox.props.carousel.padding).toBe('0px');
     expect(lightbox.props.carousel.spacing).toBe(0);
     expect(lightbox.props.carousel.imageFit).toBe('contain');
+    expect(lightbox.props.zoom.maxZoomPixelRatio).toBe(3);
+    expect(lightbox.props.zoom.scrollToZoom).toBe(true);
     expect(lightbox.props.styles.container.backgroundColor).toBe('rgba(0, 0, 0, 0.85)');
   });
 
