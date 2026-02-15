@@ -165,7 +165,7 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
 
       return (
         <img
-          src={progressiveSlide.src}
+          src={progressiveSlide.thumbnailSrc}
           alt={progressiveSlide.alt || ''}
           style={{
             width: '100%',
@@ -255,7 +255,7 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
           handleThumbnailsVisibility();
         },
         view: ({ index }) => {
-          setLightboxIndex((prevIndex) => (prevIndex === index ? prevIndex : index));
+          setLightboxIndex(index);
 
           // Load more photos when viewing near the end
           if (
