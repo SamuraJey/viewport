@@ -1023,6 +1023,74 @@ body.dark .auth-layout a:hover {
   color: rgb(var(--color-primary-400-rgb)) !important;
 }
 
+/* ===== AUTH LAYOUT DECORATION ===== */
+/* Subtle radial dot-grid pattern for auth pages */
+.auth-dot-grid {
+  background-image: radial-gradient(circle,
+      rgb(var(--color-accent-rgb) / 0.18) 1px,
+      transparent 1px);
+  background-size: 28px 28px;
+}
+
+html.dark .auth-dot-grid {
+  background-image: radial-gradient(circle,
+      rgb(var(--color-accent-rgb) / 0.1) 1px,
+      transparent 1px);
+}
+
+/* ===== CUSTOM SCROLLBAR ===== */
+/* Webkit-based browsers */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-neutral-400-rgb) / 0.5);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-neutral-500-rgb) / 0.7);
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-neutral-600-rgb) / 0.5);
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-neutral-500-rgb) / 0.7);
+}
+
+/* ===== DATE INPUT STYLING ===== */
+input[type='date']::-webkit-calendar-picker-indicator {
+  opacity: 0.5;
+  cursor: pointer;
+  filter: none;
+}
+
+html.dark input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.6;
+}
+
+input[type='date']:hover::-webkit-calendar-picker-indicator {
+  opacity: 0.9;
+}
+
+/* ===== PHOTO UPLOADER ===== */
+.uploader-zone {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.uploader-zone--active {
+  transform: scale(1.01);
+}
+
 /* ===== LIGHTBOX CUSTOMIZATION ===== */
 /* Remove size restrictions to show photos at full available size */
 .yarl__slide .yarl__slide_image {

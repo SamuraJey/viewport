@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { Upload } from 'lucide-react';
+import { Upload, ImagePlus } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { PhotoUploadConfirmModal } from './PhotoUploadConfirmModal';
 import type { PhotoUploadResponse } from '../services/photoService';
 
@@ -106,11 +107,10 @@ export const PhotoUploader = ({ galleryId, onUploadComplete }: PhotoUploaderProp
   return (
     <div>
       <div
-        className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8  cursor-pointer ${
-          dragActive
-            ? 'border-accent bg-accent/10 dark:bg-accent/10'
-            : 'border-border hover:border-muted dark:hover:border-muted bg-surface dark:bg-surface-foreground/50'
-        }`}
+        className={`uploader-zone relative flex flex-col items-center justify-center border-2 border-dashed rounded-xl py-10 px-8 cursor-pointer select-none ${dragActive
+            ? 'uploader-zone--active border-accent bg-accent/8 dark:bg-accent/8 shadow-inner'
+            : 'border-border dark:border-border/40 hover:border-accent/60 hover:bg-accent/4 dark:hover:bg-accent/4 bg-surface-1 dark:bg-surface-dark-1'
+          }`}
         onClick={() => fileInputRef.current?.click()}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
@@ -119,16 +119,28 @@ export const PhotoUploader = ({ galleryId, onUploadComplete }: PhotoUploaderProp
         role="button"
         aria-label="Upload photos"
       >
-        <Upload className="w-10 h-10 text-accent mb-2" />
-        <p className="text-lg text-text font-semibold">
+        <motion.div
+          animate={dragActive ? { scale: 1.15, rotate: -4 } : { scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+          className="mb-3"
+        >
+          {files.length > 0 ? (
+            <ImagePlus className="w-10 h-10 text-accent" />
+          ) : (
+            <Upload className="w-10 h-10 text-accent" />
+          )}
+        </motion.div>
+        <p className="text-base font-semibold text-text mb-1">
           {files.length > 0
-            ? `${files.length} file${files.length > 1 ? 's' : ''} selected`
-            : 'Drag & drop photos here'}
+            ? `${files.length} file${files.length > 1 ? 's' : ''} ready`
+            : dragActive
+              ? 'Drop photos here'
+              : 'Drag & drop photos here'}
         </p>
-        <p className="text-sm text-muted dark:text-muted-dark">
+        <p className="text-sm text-muted">
           {files.length > 0
-            ? 'Opening upload confirmation...'
-            : 'or click to select files (JPG/PNG, ≤ 15MB)'}
+            ? 'Opening upload confirmation…'
+            : 'or click to browse · JPG / PNG · up to 15 MB'}
         </p>
         <input
           type="file"
