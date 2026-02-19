@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
     isImageFitCover,
     isImageSlide,
@@ -21,6 +21,25 @@ interface PhotoSlideWithThumbnail extends Slide {
     thumbnailSrc?: string;
 }
 
+const loadedFullImageSrc = new Set<string>();
+const isDev = import.meta.env.DEV;
+
+function shortSrc(src: string): string {
+    const [path] = src.split('?');
+    return path.split('/').pop() || path;
+}
+
+function debugLog(event: string, src: string, extra?: Record<string, unknown>) {
+    if (!isDev) return;
+
+    console.log('[ProgressiveSlide]', {
+        event,
+        src: shortSrc(src),
+        loaded: loadedFullImageSrc.has(src),
+        ...extra,
+    });
+}
+
 function hasKnownDimensions(
     slide: PhotoSlideWithThumbnail,
 ): slide is PhotoSlideWithThumbnail & { width: number; height: number } {
@@ -29,8 +48,8 @@ function hasKnownDimensions(
 
 /**
  * Progressive slide renderer for yet-another-react-lightbox.
- * Shows the cached thumbnail immediately as a blurred placeholder,
- * then crossfades to the full-resolution image once it finishes loading.
+ * Shows the cached thumbnail immediately, then crossfades to the
+ * full-resolution image once it finishes loading.
  *
  * Returns `undefined` for slides that:
  * - are not standard image slides
@@ -38,7 +57,13 @@ function hasKnownDimensions(
  * - have no width/height (sizing math would break zoom panning)
  */
 export function ProgressiveSlide({ slide, offset, rect }: ProgressiveSlideProps) {
-    const [fullLoaded, setFullLoaded] = useState(false);
+    const typedSlide = slide as PhotoSlideWithThumbnail;
+    const isRenderableImageSlide =
+        isImageSlide(slide) && !!typedSlide.thumbnailSrc && hasKnownDimensions(typedSlide);
+
+    const [fullLoaded, setFullLoaded] = useState(
+        Boolean(typedSlide.src && loadedFullImageSrc.has(typedSlide.src)),
+    );
     const [thumbHidden, setThumbHidden] = useState(false);
 
     const {
@@ -48,10 +73,31 @@ export function ProgressiveSlide({ slide, offset, rect }: ProgressiveSlideProps)
 
     const { currentIndex } = useLightboxState();
 
-    const typedSlide = slide as PhotoSlideWithThumbnail;
+    const shouldRenderFullImage = Math.abs(offset) <= 1;
+    const isActiveSlide = offset === 0;
+
+    useEffect(() => {
+        if (!typedSlide.src || !isRenderableImageSlide) {
+            return;
+        }
+
+        debugLog('effect', typedSlide.src, {
+            offset,
+            currentIndex,
+            fullLoadedAtStart: loadedFullImageSrc.has(typedSlide.src),
+            shouldRenderFullImage,
+        });
+
+        setThumbHidden(false);
+        setFullLoaded(loadedFullImageSrc.has(typedSlide.src));
+
+        return () => {
+            debugLog('effect-cleanup', typedSlide.src, { offset, currentIndex });
+        };
+    }, [typedSlide.src, offset, currentIndex, isRenderableImageSlide, shouldRenderFullImage]);
 
     // Fall through to YARL default renderer in these cases so zoom still works
-    if (!isImageSlide(slide) || !typedSlide.thumbnailSrc || !hasKnownDimensions(typedSlide)) {
+    if (!isRenderableImageSlide) {
         return undefined;
     }
 
@@ -67,6 +113,8 @@ export function ProgressiveSlide({ slide, offset, rect }: ProgressiveSlideProps)
         : rect.height;
 
     const handleFullLoad = () => {
+        loadedFullImageSrc.add(typedSlide.src);
+        debugLog('full-img-onload', typedSlide.src, { offset, currentIndex });
         setFullLoaded(true);
     };
 
@@ -85,7 +133,7 @@ export function ProgressiveSlide({ slide, offset, rect }: ProgressiveSlideProps)
             onClick={handleClick}
         >
             {/* Thumbnail placeholder layer — hidden after full image transition completes */}
-            {!thumbHidden && (
+            {!thumbHidden && isActiveSlide && (
                 <img
                     src={typedSlide.thumbnailSrc}
                     alt=""
@@ -96,8 +144,6 @@ export function ProgressiveSlide({ slide, offset, rect }: ProgressiveSlideProps)
                         width: '100%',
                         height: '100%',
                         objectFit: cover ? 'cover' : 'contain',
-                        filter: 'blur(12px)',
-                        transform: 'scale(1.05)',
                         opacity: fullLoaded ? 0 : 1,
                         transition: 'opacity 300ms ease',
                         pointerEvents: 'none',
@@ -106,23 +152,26 @@ export function ProgressiveSlide({ slide, offset, rect }: ProgressiveSlideProps)
                 />
             )}
 
-            {/* Full-resolution image layer */}
-            <img
-                src={typedSlide.src}
-                alt={typedSlide.alt ?? ''}
-                draggable={false}
-                crossOrigin="anonymous"
-                style={{
-                    position: 'absolute',
-                    inset: 0,
-                    width: '100%',
-                    height: '100%',
-                    objectFit: cover ? 'cover' : 'contain',
-                    opacity: fullLoaded ? 1 : 0,
-                    transition: 'opacity 300ms ease',
-                }}
-                onLoad={handleFullLoad}
-            />
+            {/* Full-resolution image layer (current + adjacent slides for preload) */}
+            {shouldRenderFullImage && (
+                <img
+                    src={typedSlide.src}
+                    alt={typedSlide.alt ?? ''}
+                    draggable={false}
+                    crossOrigin="anonymous"
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: cover ? 'cover' : 'contain',
+                        opacity: isActiveSlide && fullLoaded ? 1 : 0,
+                        transition: 'opacity 300ms ease',
+                        pointerEvents: isActiveSlide ? undefined : 'none',
+                    }}
+                    onLoad={handleFullLoad}
+                />
+            )}
         </div>
     );
 }
