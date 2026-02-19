@@ -5,6 +5,7 @@ import { ThemeSwitch } from './ThemeSwitch';
 import { LogOut, User, Camera, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { ProfileModal } from './ProfileModal';
+import { NetworkStatus } from './ErrorDisplay';
 
 interface LayoutProps {
   children: ReactNode;
@@ -65,6 +66,9 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
       </header>
       <main className="max-w-7xl xl:max-w-380 2xl:max-w-480 mx-auto px-4 xl:px-6 2xl:px-8 py-8">
+        <div className="mb-6">
+          <NetworkStatus />
+        </div>
         {children}
       </main>
       <ProfileModal isOpen={isProfileOpen} onClose={closeProfile} />

@@ -1,4 +1,5 @@
 import { AlertCircle, RefreshCw, X } from 'lucide-react';
+import { useOnline } from '../hooks/useOnline';
 
 interface ErrorDisplayProps {
   error: string;
@@ -85,16 +86,29 @@ export const ErrorDisplay = ({
   );
 };
 
-// Network status component
+// Network status component (reactive)
+
 export const NetworkStatus = () => {
-  const isOnline = navigator.onLine;
+  const isOnline = useOnline();
 
   if (isOnline) return null;
 
   return (
     <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 text-yellow-700 dark:text-yellow-400 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
       <AlertCircle className="w-4 h-4" />
-      You're currently offline. Some features may not work properly.
+      <span className="truncate">
+        You're currently offline. Some features may not work properly.
+      </span>
+      <div className="ml-auto flex items-center gap-2">
+        <button
+          onClick={() => window.location.reload()}
+          className="inline-flex items-center gap-2 bg-yellow-100 dark:bg-yellow-500/10 hover:bg-yellow-200 dark:hover:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 px-3 py-1 rounded-lg text-sm shadow-sm"
+          title="Retry"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Retry
+        </button>
+      </div>
     </div>
   );
 };

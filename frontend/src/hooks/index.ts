@@ -9,6 +9,7 @@ export { useSelection } from './useSelection';
 export { useModal } from './useModal';
 export { useAsync } from './useAsync';
 export { useTheme } from './useTheme';
+export { useOnline } from './useOnline';
 
 // Re-export types
 export type { UsePaginationOptions, UsePaginationReturn } from './usePagination';

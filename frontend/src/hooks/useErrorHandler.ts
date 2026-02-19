@@ -1,6 +1,11 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { handleApiError, shouldShowErrorPage, formatErrorMessage, NetworkError } from '../lib/errorHandling';
+import {
+  handleApiError,
+  shouldShowErrorPage,
+  formatErrorMessage,
+  NetworkError,
+} from '../lib/errorHandling';
 
 interface UseErrorHandlerResult {
   error: string | null;

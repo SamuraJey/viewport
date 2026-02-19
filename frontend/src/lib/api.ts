@@ -77,7 +77,9 @@ api.interceptors.response.use(
     // For network errors, reject with a distinct NetworkError so downstream
     // error handling can treat it as an offline (statusCode 0) case.
     if (!error.response && error.code === 'ERR_NETWORK') {
-      return Promise.reject(new NetworkError('Network error. Please check your internet connection.'));
+      return Promise.reject(
+        new NetworkError('Network error. Please check your internet connection.'),
+      );
     }
 
     // For timeout errors
