@@ -26,12 +26,30 @@ export class ApiError extends Error {
   }
 }
 
+// Distinct error class for network/offline situations. Treated as statusCode 0 by handlers.
+export class NetworkError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NetworkError';
+  }
+}
+
 export const handleApiError = (error: unknown): ApiError => {
   if (error instanceof ApiError) {
     return error;
   }
 
+  // NetworkError -> map to statusCode 0 (offline/transient network issue)
+  if (error instanceof NetworkError) {
+    return new ApiError(0, error.message);
+  }
+
+  // Axios network errors (no response + ERR_NETWORK) should also map to statusCode 0
   if (error instanceof AxiosError) {
+    if (!error.response && error.code === 'ERR_NETWORK') {
+      return new ApiError(0, error.message || 'Network error');
+    }
+
     return ApiError.fromAxiosError(error);
   }
 
