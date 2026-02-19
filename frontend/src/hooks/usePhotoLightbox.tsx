@@ -107,7 +107,7 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
         },
       }))}
       plugins={[Thumbnails, Fullscreen, LightboxDownload, Zoom]}
-      render={{ slide: ProgressiveSlide }}
+      render={{ slideContainer: ProgressiveSlide }}
       controller={{
         closeOnPullDown: true,
         closeOnPullUp: true,

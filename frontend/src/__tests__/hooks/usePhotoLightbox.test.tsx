@@ -370,7 +370,7 @@ describe('usePhotoLightbox', () => {
     expect(lightbox.props.zoom.maxZoomPixelRatio).toBe(3);
     expect(lightbox.props.zoom.scrollToZoom).toBe(true);
     expect(lightbox.props.styles.container.backgroundColor).toBe('rgba(0, 0, 0, 0.85)');
-    expect(lightbox.props.render.slide).toBe('ProgressiveSlide');
+    expect(lightbox.props.render.slideContainer).toBe('ProgressiveSlide');
   });
 
   it('sets carousel finite based on hasMore option', () => {
