@@ -134,3 +134,5 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = React.memo(
     );
   },
 );
+
+ConfirmationModal.displayName = 'ConfirmationModal';
