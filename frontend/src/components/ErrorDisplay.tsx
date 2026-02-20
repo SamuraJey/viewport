@@ -94,7 +94,7 @@ export const NetworkStatus = () => {
   if (isOnline) return null;
 
   return (
-    <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 text-yellow-700 dark:text-yellow-400 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+    <div className="mb-6 bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 text-yellow-700 dark:text-yellow-400 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
       <AlertCircle className="w-4 h-4" />
       <span className="truncate">
         You're currently offline. Some features may not work properly.

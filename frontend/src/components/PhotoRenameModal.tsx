@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { X, FileText, Check } from 'lucide-react';
 
 export interface PhotoRenameModalProps {
@@ -82,13 +83,22 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <motion.div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
         onClick={handleCancel}
       />
 
-      <div className="relative bg-surface dark:bg-surface-foreground rounded-lg shadow-xl w-full max-w-md mx-4 transform transition-all">
+      <motion.div
+        className="relative bg-surface dark:bg-surface-foreground rounded-lg shadow-xl w-full max-w-md border border-border dark:border-border/20 overflow-hidden"
+        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 16 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+      >
         <div className="flex items-center justify-between p-6 border-b border-border dark:border-border">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
@@ -160,7 +170,7 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = ({
             )}
           </button>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

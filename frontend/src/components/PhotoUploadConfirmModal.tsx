@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, memo, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { X, Upload, FileImage, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { formatFileSize } from '../lib/utils';
 import { photoService } from '../services/photoService';
@@ -298,19 +299,28 @@ export const PhotoUploadConfirmModal = ({
     }
   };
 
+  if (!isOpen) return null;
+
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-start justify-center overflow-y-auto transition-all duration-200 pt-4 sm:pt-8 ${
-        isOpen
-          ? 'bg-black/50 backdrop-blur-sm'
-          : 'bg-transparent backdrop-blur-0 pointer-events-none'
-      }`}
-      onClick={handleBackdropClick}
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto pt-4 sm:pt-8 p-4"
+      role="dialog"
+      aria-modal="true"
     >
-      <div
-        className={`bg-surface dark:bg-surface-foreground rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden mx-3 sm:mx-4 mb-6 sm:mb-8 transition-all duration-200 transform ${
-          isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
-        }`}
+      <motion.div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={handleBackdropClick}
+      />
+
+      <motion.div
+        className="relative bg-surface dark:bg-surface-foreground rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden mb-6 sm:mb-8 border border-border dark:border-border/20"
+        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 16 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-5 sm:p-6 border-b border-border bg-linear-to-r from-surface to-surface/50 dark:from-surface-foreground dark:to-surface-foreground/50">
@@ -625,7 +635,7 @@ export const PhotoUploadConfirmModal = ({
             </div>
           )}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

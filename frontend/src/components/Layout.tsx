@@ -3,9 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { ThemeSwitch } from './ThemeSwitch';
 import { LogOut, Camera } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ProfileModal } from './ProfileModal';
 import { NetworkStatus } from './ErrorDisplay';
+import { AnimatePresence } from 'framer-motion';
 
 /** Returns up to 2 uppercase initials for a display name or email. */
 const getUserInitials = (name?: string | null, email?: string): string => {
@@ -58,8 +59,8 @@ export const Layout = ({ children }: LayoutProps) => {
   const openProfile = () => setProfileOpen(true);
   const closeProfile = () => setProfileOpen(false);
 
-  const initials = getUserInitials(user?.display_name, user?.email);
-  const avatarColor = getAvatarColor(user?.email ?? 'user');
+  const initials = useMemo(() => getUserInitials(user?.display_name, user?.email), [user]);
+  const avatarColor = useMemo(() => getAvatarColor(user?.email ?? 'user'), [user?.email]);
 
   return (
     <div className="min-h-screen bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
@@ -130,12 +131,12 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
       </header>
       <main className="max-w-7xl xl:max-w-380 2xl:max-w-480 mx-auto px-4 xl:px-6 2xl:px-8 py-8">
-        <div className="mb-6">
-          <NetworkStatus />
-        </div>
+        <NetworkStatus />
         {children}
       </main>
-      <ProfileModal isOpen={isProfileOpen} onClose={closeProfile} />
+      <AnimatePresence>
+        {isProfileOpen && <ProfileModal isOpen={isProfileOpen} onClose={closeProfile} />}
+      </AnimatePresence>
     </div>
   );
 };

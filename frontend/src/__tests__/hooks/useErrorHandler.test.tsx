@@ -8,7 +8,7 @@ const mockFormatErrorMessage = vi.fn();
 const mockNavigate = vi.fn();
 
 vi.mock('../../lib/errorHandling', () => ({
-  NetworkError: class NetworkError extends Error { },
+  NetworkError: class NetworkError extends Error {},
   handleApiError: (...args: unknown[]) => mockHandleApiError(...args),
   shouldShowErrorPage: (...args: unknown[]) => mockShouldShowErrorPage(...args),
   formatErrorMessage: (...args: unknown[]) => mockFormatErrorMessage(...args),
@@ -25,7 +25,7 @@ vi.mock('react-router-dom', async () => {
 describe('useErrorHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(console, 'error').mockImplementation(() => { });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -73,7 +73,7 @@ describe('useErrorHandler', () => {
 describe('useNetworkErrorHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(console, 'error').mockImplementation(() => { });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
