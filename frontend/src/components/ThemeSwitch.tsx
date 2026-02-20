@@ -25,7 +25,7 @@ export const ThemeSwitch = ({ className = '', variant = 'floating' }: ThemeSwitc
   const variantClasses =
     variant === 'floating'
       ? 'fixed top-4 right-4 z-50 bg-surface dark:bg-surface shadow-lg hover:shadow-xl hover:scale-110'
-      : 'relative z-auto bg-surface-1 dark:bg-surface-dark-1 shadow-sm hover:shadow-md hover:-translate-y-0.5';
+      : 'relative z-auto h-10 w-10 bg-surface-1 dark:bg-surface-dark-1 shadow-sm hover:shadow-md hover:-translate-y-0.5';
 
   return (
     <button

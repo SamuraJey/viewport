@@ -27,6 +27,8 @@ import {
   ChevronRight,
   CheckSquare,
   Square,
+  Search,
+  Pencil,
 } from 'lucide-react';
 import { PhotoUploader } from '../components/PhotoUploader';
 import { useConfirmation, usePagination, useSelection, useModal, useErrorHandler } from '../hooks';
@@ -165,11 +167,10 @@ export const GalleryPage = () => {
                   key={pageNum}
                   onClick={() => pagination.goToPage(pageNum)}
                   disabled={pageNum === pagination.page || isLoadingPhotos}
-                  className={`px-3 py-1.5 min-w-10 rounded-lg font-medium transition-colors duration-200 ${
-                    pageNum === pagination.page
-                      ? 'bg-accent text-accent-foreground shadow-sm'
-                      : 'bg-surface-1 dark:bg-surface-dark-1 text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40'
-                  } ${isLoadingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`px-3 py-1.5 min-w-10 rounded-lg font-medium transition-colors duration-200 ${pageNum === pagination.page
+                    ? 'bg-accent text-accent-foreground shadow-sm'
+                    : 'bg-surface-1 dark:bg-surface-dark-1 text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40'
+                    } ${isLoadingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {pageNum}
                 </button>
@@ -487,7 +488,7 @@ export const GalleryPage = () => {
     <Layout>
       <div className="space-y-8">
         {/* Gallery Header */}
-        <div className="relative overflow-hidden rounded-2xl border border-border dark:border-border/20 bg-surface dark:bg-surface-foreground/5">
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-surface dark:border-border/20 dark:bg-surface-foreground/5">
           {/* Cover photo background (if available on this page) */}
           {(() => {
             const coverPhoto = gallery.cover_photo_id
@@ -505,28 +506,28 @@ export const GalleryPage = () => {
               </>
             ) : null;
           })()}
-          <div className="relative flex flex-col gap-4 p-6 sm:p-8">
+          <div className="relative flex flex-col gap-5 p-5 sm:p-7">
             <Link
               to="/"
-              className="flex items-center gap-1.5 text-sm text-accent/80 hover:text-accent transition-colors w-fit"
+              className="inline-flex h-10 w-fit items-center gap-1.5 rounded-lg border border-border/60 bg-surface-1 px-3 text-sm font-medium text-muted transition-colors hover:border-accent/40 hover:text-accent dark:border-border/40 dark:bg-surface-dark-1"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Galleries
             </Link>
-            <div className="flex flex-col sm:flex-row sm:items-start gap-4 justify-between">
-              <div className="flex-1 min-w-0">
-                <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text leading-tight">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <h1 className="font-oswald text-3xl font-bold leading-tight tracking-wider text-text uppercase sm:text-4xl">
                   {gallery.name || `Gallery #${gallery.id}`}
                 </h1>
-                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted">
-                  <label className="text-xs uppercase tracking-wide text-muted font-semibold shrink-0">
+                <div className="mt-4 flex flex-wrap items-center gap-2.5 text-sm text-muted">
+                  <label className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted">
                     Shooting date
                   </label>
                   <input
                     type="date"
                     value={shootingDateInput}
                     onChange={(e) => setShootingDateInput(e.target.value)}
-                    className="rounded-lg border border-border dark:border-border/40 bg-surface-1 dark:bg-surface-dark-1 px-3 py-2 text-text shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    className="h-10 rounded-lg border border-border bg-surface-1 px-3 text-text shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 dark:border-border/40 dark:bg-surface-dark-1"
                   />
                   <button
                     onClick={handleSaveShootingDate}
@@ -535,7 +536,7 @@ export const GalleryPage = () => {
                       !shootingDateInput ||
                       shootingDateInput === gallery.shooting_date?.slice(0, 10)
                     }
-                    className="inline-flex items-center gap-2 rounded-lg border border-accent bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm disabled:hover:translate-y-0"
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-accent bg-accent px-3 text-sm font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
                   >
                     {isSavingShootingDate ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -544,14 +545,14 @@ export const GalleryPage = () => {
                     )}
                     Save date
                   </button>
-                  <span className="text-xs text-muted">
+                  <span className="rounded-md bg-surface-1 px-2 py-1 text-xs text-muted dark:bg-surface-dark-1">
                     Created on {formatDateOnly(gallery.created_at)}
                   </span>
                 </div>
               </div>
               <button
                 onClick={handleDeleteGallery}
-                className="flex items-center gap-2 px-4 py-2 bg-danger/10 dark:bg-danger/20 hover:bg-danger/20 text-danger border border-danger/20 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-1 active:scale-95"
+                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-danger/20 bg-danger/10 px-4 text-danger shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-danger/20 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-1 active:scale-95 dark:bg-danger/20"
                 title="Delete Gallery"
                 aria-label="Delete gallery"
               >
@@ -568,7 +569,7 @@ export const GalleryPage = () => {
           data-photos-section
         >
           <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-2xl font-semibold text-text">
                 Photos
                 {pagination.total > 0 && (
@@ -588,21 +589,20 @@ export const GalleryPage = () => {
                         setIsSelectionMode(true);
                       }
                     }}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 ${
-                      isSelectionMode
-                        ? 'bg-blue-500 text-white hover:bg-blue-600 shadow-md'
-                        : 'bg-surface-foreground dark:bg-surface text-text hover:bg-surface-foreground/80 dark:hover:bg-surface/80 border border-border hover:shadow-sm'
-                    }`}
+                    className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-all duration-200 ${isSelectionMode
+                      ? 'border-accent bg-accent text-accent-foreground shadow-sm hover:brightness-105 hover:shadow-md'
+                      : 'border-border bg-surface-1 text-text hover:bg-surface-2 hover:shadow-sm dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2'
+                      }`}
                     title={isSelectionMode ? 'Exit selection mode' : 'Enter selection mode'}
                   >
-                    <CheckSquare className={`w-4 h-4 ${isSelectionMode ? 'text-white' : ''}`} />
-                    <span className="text-sm font-medium">
+                    <CheckSquare className="h-4 w-4" />
+                    <span>
                       {isSelectionMode ? 'Cancel Selection' : 'Select'}
                     </span>
                   </button>
                 )}
                 {pagination.totalPages > 1 && (
-                  <span className="text-sm text-muted">
+                  <span className="inline-flex h-10 items-center rounded-lg border border-border/60 bg-surface-1 px-3 text-sm text-muted dark:border-border/40 dark:bg-surface-dark-1">
                     Page {pagination.page} of {pagination.totalPages}
                   </span>
                 )}
@@ -642,26 +642,26 @@ export const GalleryPage = () => {
 
           {/* Selection Toolbar */}
           {(isSelectionMode || selection.hasSelection) && (
-            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg flex items-center justify-between">
+            <div className="mb-6 flex flex-col gap-3 rounded-lg border border-border/70 bg-surface-1 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-border/40 dark:bg-surface-dark-1">
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleSelectAllPhotos}
-                  className="inline-flex items-center gap-2 rounded-lg border border-blue-200/60 dark:border-blue-500/30 bg-white dark:bg-blue-500/10 px-3 py-2 transition-colors duration-200 hover:bg-gray-50 dark:hover:bg-blue-500/20"
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-surface px-3 transition-colors duration-200 hover:bg-surface-1 dark:border-border/50 dark:bg-surface-dark dark:hover:bg-surface-dark-2"
                   title={areAllOnPageSelected ? 'Deselect all on page' : 'Select all on page'}
                 >
                   {areAllOnPageSelected ? (
                     <>
-                      <CheckSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      <CheckSquare className="h-5 w-5 text-accent" />
                       <span className="text-sm font-semibold text-text">Deselect Page</span>
                     </>
                   ) : (
                     <>
-                      <Square className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      <Square className="h-5 w-5 text-accent" />
                       <span className="text-sm font-semibold text-text">Select Page</span>
                     </>
                   )}
                 </button>
-                <span className="inline-flex items-center rounded-full bg-white dark:bg-blue-500/15 px-2.5 py-1 text-xs font-semibold tabular-nums text-text">
+                <span className="inline-flex h-8 items-center rounded-full bg-surface px-2.5 text-xs font-semibold tabular-nums text-text dark:bg-surface-dark">
                   {selection.count} selected
                 </span>
               </div>
@@ -671,14 +671,14 @@ export const GalleryPage = () => {
                     selection.clear();
                     setIsSelectionMode(false);
                   }}
-                  className="px-3 py-2 bg-white dark:bg-surface hover:bg-gray-100 dark:hover:bg-surface-foreground text-gray-700 dark:text-text rounded-lg text-sm font-medium transition-all duration-200"
+                  className="inline-flex h-10 items-center rounded-lg border border-border bg-surface px-3 text-sm font-medium text-muted transition-all duration-200 hover:bg-surface-1 hover:text-text dark:border-border/50 dark:bg-surface-dark dark:text-text dark:hover:bg-surface-dark-2"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleDeleteMultiplePhotos}
                   disabled={!selection.hasSelection}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md active:scale-95"
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-danger/20 bg-danger px-4 text-sm font-medium text-accent-foreground shadow-sm transition-all duration-200 hover:shadow-md hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Trash2 className="w-4 h-4" />
                   Delete {selection.count > 0 ? `(${selection.count})` : ''}
@@ -712,11 +712,10 @@ export const GalleryPage = () => {
                         e.stopPropagation();
                         handleTogglePhotoSelection(photo.id, e.shiftKey);
                       }}
-                      className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-colors duration-200 ${
-                        selection.isSelected(photo.id)
-                          ? 'bg-blue-500 text-white shadow-md'
-                          : 'bg-white/95 dark:bg-black/60 text-gray-800 dark:text-gray-200 hover:bg-white dark:hover:bg-black/80 shadow-sm hover:shadow-md'
-                      }`}
+                      className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-colors duration-200 ${selection.isSelected(photo.id)
+                        ? 'bg-blue-500 text-white shadow-md'
+                        : 'bg-white/95 dark:bg-black/60 text-gray-800 dark:text-gray-200 hover:bg-white dark:hover:bg-black/80 shadow-sm hover:shadow-md'
+                        }`}
                       title={selection.isSelected(photo.id) ? 'Deselect' : 'Select'}
                     >
                       {selection.isSelected(photo.id) ? (
@@ -734,7 +733,7 @@ export const GalleryPage = () => {
                       {/* Pop-up arrow */}
                       <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent popup-arrow"></div>
 
-                      <div className="flex justify-center gap-2">
+                      <div className="flex items-center justify-center gap-1.5">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -742,20 +741,9 @@ export const GalleryPage = () => {
                           }}
                           className="popup-action popup-action--accent"
                           title="Open photo"
+                          aria-label="Open photo"
                         >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"
-                            />
-                          </svg>
+                          <Search className="h-4 w-4" />
                         </button>
                         {gallery.cover_photo_id === photo.id ? (
                           <button
@@ -763,10 +751,11 @@ export const GalleryPage = () => {
                               e.stopPropagation();
                               handleClearCover();
                             }}
-                            className="popup-action popup-action--warning"
+                            className="popup-action popup-action--warning popup-action--active"
                             title="Clear cover photo"
+                            aria-label="Clear cover photo"
                           >
-                            <StarOff className="w-4 h-4" />
+                            <StarOff className="h-4 w-4" />
                           </button>
                         ) : (
                           <button
@@ -776,8 +765,9 @@ export const GalleryPage = () => {
                             }}
                             className="popup-action popup-action--warning"
                             title="Set as cover"
+                            aria-label="Set as cover"
                           >
-                            <Star className="w-4 h-4" />
+                            <Star className="h-4 w-4" />
                           </button>
                         )}
                         <button
@@ -787,20 +777,9 @@ export const GalleryPage = () => {
                           }}
                           className="popup-action popup-action--accent"
                           title="Rename photo"
+                          aria-label="Rename photo"
                         >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                            />
-                          </svg>
+                          <Pencil className="h-4 w-4" />
                         </button>
                         <button
                           onClick={async (e) => {
@@ -826,20 +805,9 @@ export const GalleryPage = () => {
                           }}
                           className="popup-action popup-action--success"
                           title="Download photo"
+                          aria-label="Download photo"
                         >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                            />
-                          </svg>
+                          <Download className="h-4 w-4" />
                         </button>
                         <button
                           onClick={(e) => {
@@ -848,8 +816,9 @@ export const GalleryPage = () => {
                           }}
                           className="popup-action popup-action--danger"
                           title="Delete photo"
+                          aria-label="Delete photo"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
                     </div>
