@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // Import components under test
@@ -61,28 +61,45 @@ describe('ErrorDisplay component', () => {
 });
 
 describe('NetworkStatus component', () => {
-  const realNavigator = { ...global.navigator };
+  const realNavigator = { ...global.navigator } as any;
 
-  beforeEach(() => {
-    // reset navigator.onLine after each test
+  afterEach(() => {
+    // restore original navigator
     Object.defineProperty(global, 'navigator', {
       value: realNavigator,
       configurable: true,
-      writable: true,
     });
   });
 
-  it('returns null when online', () => {
+  it('returns null when online and shows banner when offline (reactive)', async () => {
     Object.defineProperty(global, 'navigator', { value: { onLine: true }, configurable: true });
     const { container } = render(<NetworkStatus />);
     expect(container.firstChild).toBeNull();
-  });
 
-  it('shows offline banner when offline', () => {
+    // simulate going offline
     Object.defineProperty(global, 'navigator', { value: { onLine: false }, configurable: true });
-    render(<NetworkStatus />);
+    act(() => {
+      window.dispatchEvent(new Event('offline'));
+    });
+
     expect(
       screen.getByText("You're currently offline. Some features may not work properly."),
     ).toBeInTheDocument();
+
+    // mock reload and click retry
+    const reloadSpy = vi.spyOn(window.location, 'reload').mockImplementation(() => undefined);
+    const retry = screen.getByRole('button', { name: /retry/i });
+    await userEvent.click(retry);
+    expect(reloadSpy).toHaveBeenCalled();
+    reloadSpy.mockRestore();
+
+    // simulate going back online
+    Object.defineProperty(global, 'navigator', { value: { onLine: true }, configurable: true });
+    act(() => {
+      window.dispatchEvent(new Event('online'));
+    });
+    expect(
+      screen.queryByText("You're currently offline. Some features may not work properly."),
+    ).toBeNull();
   });
 });

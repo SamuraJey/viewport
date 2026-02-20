@@ -1,11 +1,31 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { galleryService, type Gallery } from '../services/galleryService';
 import { formatDateOnly } from '../lib/utils';
 import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, Edit3, Check, X } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { useErrorHandler, useConfirmation, usePagination, useModal } from '../hooks';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.07, delayChildren: 0.05 },
+  },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 24, scale: 0.97 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { type: 'spring' as const, stiffness: 340, damping: 26 },
+  },
+  exit: { opacity: 0, scale: 0.94, y: -8, transition: { duration: 0.15 } },
+};
 
 export const DashboardPage = () => {
   const [galleries, setGalleries] = useState<Gallery[]>([]);
@@ -138,8 +158,22 @@ export const DashboardPage = () => {
   };
 
   const renderLoading = () => (
-    <div className="flex items-center justify-center h-96">
-      <div className="w-12 h-12 border-4 border-muted/60 dark:border-muted-dark/60 border-t-accent rounded-full animate-spin"></div>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div
+          key={i}
+          className="bg-surface dark:bg-surface-foreground/95 rounded-2xl p-8 border border-border dark:border-border/10 animate-pulse"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-lg bg-muted/20 dark:bg-muted-dark/20 shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 bg-muted/20 dark:bg-muted-dark/20 rounded w-3/4" />
+              <div className="h-3 bg-muted/20 dark:bg-muted-dark/20 rounded w-1/2" />
+            </div>
+          </div>
+          <div className="h-11 bg-muted/20 dark:bg-muted-dark/20 rounded-lg" />
+        </div>
+      ))}
     </div>
   );
 
@@ -173,104 +207,114 @@ export const DashboardPage = () => {
 
   const renderGalleries = () => (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {galleries.map((gallery) => (
-          <div
-            key={gallery.id}
-            className="bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-8 border border-border dark:border-border/10 hover:transform hover:scale-101 hover:shadow-2xl "
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="bg-accent/20 p-2 rounded-lg shrink-0 border border-accent/10">
-                  <Calendar className="h-6 w-6 text-accent" />
+      <motion.div
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        <AnimatePresence mode="popLayout">
+          {galleries.map((gallery) => (
+            <motion.div
+              key={gallery.id}
+              variants={cardVariants}
+              layout
+              exit="exit"
+              className="bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-8 border border-border dark:border-border/10 hover:transform hover:scale-101 hover:shadow-2xl "
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="bg-accent/20 p-2 rounded-lg shrink-0 border border-accent/10">
+                    <Calendar className="h-6 w-6 text-accent" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    {renameGalleryId === gallery.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          ref={renameInputRef}
+                          className="flex-1 px-3 py-2 border-2 border-accent/50 dark:border-accent/40 rounded-lg min-w-0 text-base bg-surface-1 dark:bg-surface-dark-1 text-text dark:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-sm hover:border-accent/70 transition-all duration-200"
+                          value={renameInput}
+                          onChange={(e) => setRenameInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleConfirmRename();
+                            } else if (e.key === 'Escape') {
+                              e.preventDefault();
+                              cancelInlineRename();
+                            }
+                          }}
+                          placeholder="Gallery name..."
+                          aria-label="Rename gallery input"
+                        />
+                        <button
+                          onClick={handleConfirmRename}
+                          disabled={isRenaming || !renameInput.trim()}
+                          title="Save (Enter)"
+                          aria-label="Confirm rename"
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-500/90 hover:bg-green-500 border border-green-600/50 text-white shadow-sm hover:shadow-md transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                        >
+                          {isRenaming ? (
+                            <div className="w-4 h-4 border-2 border-border/20 border-t-accent rounded-full animate-spin" />
+                          ) : (
+                            <Check className="w-4 h-4" />
+                          )}
+                        </button>
+                        <button
+                          onClick={cancelInlineRename}
+                          title="Cancel (Esc)"
+                          aria-label="Cancel rename"
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <h3 className="font-oswald text-base font-bold uppercase tracking-wide text-text wrap-break-word">
+                          {gallery.name || `Gallery #${gallery.id}`}
+                        </h3>
+                        <p className="text-muted text-sm font-cuprum">
+                          {formatDateOnly(gallery.shooting_date || gallery.created_at)}
+                        </p>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  {renameGalleryId === gallery.id ? (
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        ref={renameInputRef}
-                        className="flex-1 px-3 py-2 border-2 border-accent/50 dark:border-accent/40 rounded-lg min-w-0 text-base bg-surface-1 dark:bg-surface-dark-1 text-text dark:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-sm hover:border-accent/70 transition-all duration-200"
-                        value={renameInput}
-                        onChange={(e) => setRenameInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleConfirmRename();
-                          } else if (e.key === 'Escape') {
-                            e.preventDefault();
-                            cancelInlineRename();
-                          }
-                        }}
-                        placeholder="Gallery name..."
-                        aria-label="Rename gallery input"
-                      />
-                      <button
-                        onClick={handleConfirmRename}
-                        disabled={isRenaming || !renameInput.trim()}
-                        title="Save (Enter)"
-                        aria-label="Confirm rename"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-500/90 hover:bg-green-500 border border-green-600/50 text-white shadow-sm hover:shadow-md transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                      >
-                        {isRenaming ? (
-                          <div className="w-4 h-4 border-2 border-border/20 border-t-accent rounded-full animate-spin" />
-                        ) : (
-                          <Check className="w-4 h-4" />
-                        )}
-                      </button>
-                      <button
-                        onClick={cancelInlineRename}
-                        title="Cancel (Esc)"
-                        aria-label="Cancel rename"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <h3 className="font-oswald text-base font-bold uppercase tracking-wide text-text wrap-break-word">
-                        {gallery.name || `Gallery #${gallery.id}`}
-                      </h3>
-                      <p className="text-muted text-sm font-cuprum">
-                        {formatDateOnly(gallery.shooting_date || gallery.created_at)}
-                      </p>
-                    </>
-                  )}
-                </div>
+                {renameGalleryId !== gallery.id && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => beginInlineRename(gallery)}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/20 hover:bg-accent/30 border border-accent/40 text-accent shadow-sm hover:shadow-md hover:scale-110 transition-all duration-200 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+                      title="Rename Gallery"
+                      aria-label={`Rename ${gallery.name || `Gallery #${gallery.id}`}`}
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteGallery(gallery)}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger shadow-sm hover:shadow-md hover:scale-110 transition-all duration-200 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2"
+                      title="Delete Gallery"
+                      aria-label={`Delete ${gallery.name || `Gallery #${gallery.id}`}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
-              {renameGalleryId !== gallery.id && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => beginInlineRename(gallery)}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/20 hover:bg-accent/30 border border-accent/40 text-accent shadow-sm hover:shadow-md hover:scale-110 transition-all duration-200 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
-                    title="Rename Gallery"
-                    aria-label={`Rename ${gallery.name || `Gallery #${gallery.id}`}`}
-                  >
-                    <Edit3 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteGallery(gallery)}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger shadow-sm hover:shadow-md hover:scale-110 transition-all duration-200 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2"
-                    title="Delete Gallery"
-                    aria-label={`Delete ${gallery.name || `Gallery #${gallery.id}`}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-            <div>
-              <Link
-                to={`/galleries/${gallery.id}`}
-                className="block w-full bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg text-center hover:scale-105 active:scale-95 hover:shadow-lg shadow-sm border border-accent/20 no-underline transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
-                aria-label={`Manage ${gallery.name || `Gallery #${gallery.id}`}`}
-              >
-                Manage Gallery
-              </Link>
-            </div>
-          </div>
-        ))}
-      </div>
+              <div>
+                <Link
+                  to={`/galleries/${gallery.id}`}
+                  className="block w-full bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg text-center hover:scale-105 active:scale-95 hover:shadow-lg shadow-sm border border-accent/20 no-underline transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+                  aria-label={`Manage ${gallery.name || `Gallery #${gallery.id}`}`}
+                >
+                  Manage Gallery
+                </Link>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </motion.div>
       {renderPagination()}
     </>
   );
@@ -350,78 +394,101 @@ export const DashboardPage = () => {
             : renderGalleries()}
 
         {/* Modal for entering new gallery name */}
-        {createModal.isOpen && (
-          <div
-            className="fixed inset-0 flex items-center justify-center z-50 bg-black/30 backdrop-blur-sm"
-            onClick={createModal.close}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="modal-title"
-          >
-            <div
-              className="bg-surface dark:bg-surface-dark rounded-lg shadow-lg p-6 max-w-sm w-full"
-              onClick={(e) => e.stopPropagation()}
+        <AnimatePresence>
+          {createModal.isOpen && (
+            <motion.div
+              className="fixed inset-0 flex items-center justify-center z-50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={createModal.close}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="modal-title"
             >
-              <h2 id="modal-title" className="text-xl font-semibold mb-4 text-text">
-                New Gallery
-              </h2>
-              <p className="text-muted mb-4">Enter a name for your new gallery.</p>
-              <input
-                ref={newGalleryInputRef}
-                type="text"
-                value={newGalleryName}
-                onChange={(e) => setNewGalleryName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleConfirmCreate();
-                  } else if (e.key === 'Escape') {
-                    e.preventDefault();
-                    createModal.close();
-                  }
-                }}
-                className="w-full p-3 border border-border dark:border-border/40 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent hover:border-accent/60 bg-transparent text-text transition-all duration-200"
-                placeholder="Gallery name"
-                aria-label="Gallery name"
-              />
-              <label
-                className="text-sm font-medium text-text mb-2 block"
-                htmlFor="shooting-date-input"
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+              <motion.div
+                className="relative bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 border border-border dark:border-border/20"
+                initial={{ opacity: 0, scale: 0.92, y: 24 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.92, y: 24 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                onClick={(e) => e.stopPropagation()}
               >
-                Shooting date
-              </label>
-              <input
-                id="shooting-date-input"
-                type="date"
-                value={newGalleryShootingDate}
-                onChange={(e) => setNewGalleryShootingDate(e.target.value)}
-                className="w-full p-3 border border-border dark:border-border/40 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent hover:border-accent/60 bg-transparent text-text transition-all duration-200"
-                aria-label="Gallery shooting date"
-              />
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={createModal.close}
-                  className="px-4 py-2 bg-surface-1 dark:bg-surface-dark-1 rounded-lg text-text dark:text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 shadow-sm hover:shadow-md hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2"
-                  aria-label="Cancel creating gallery"
+                <h2
+                  id="modal-title"
+                  className="font-oswald text-xl font-bold uppercase tracking-wide mb-1 text-text"
                 >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmCreate}
-                  disabled={isCreating || !newGalleryName.trim()}
-                  className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-sm hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
-                  aria-label="Create Gallery"
-                >
-                  {isCreating ? (
-                    <div className="w-5 h-5 border-2 border-accent/20 border-t-accent rounded-full animate-spin"></div>
-                  ) : (
-                    'Create Gallery'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+                  New Gallery
+                </h2>
+                <p className="text-muted text-sm mb-5">Enter a name for your new gallery.</p>
+                <div className="space-y-4">
+                  <div>
+                    <label
+                      htmlFor="gallery-name-input"
+                      className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1.5"
+                    >
+                      Gallery name
+                    </label>
+                    <input
+                      id="gallery-name-input"
+                      ref={newGalleryInputRef}
+                      type="text"
+                      value={newGalleryName}
+                      onChange={(e) => setNewGalleryName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleConfirmCreate();
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          createModal.close();
+                        }
+                      }}
+                      className="w-full px-4 py-3 border-2 border-border dark:border-border/40 rounded-xl focus:outline-none focus:ring-0 focus:border-accent hover:border-accent/60 bg-surface-1 dark:bg-surface-dark-1 text-text transition-all duration-200"
+                      placeholder="Gallery name"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1.5"
+                      htmlFor="shooting-date-input"
+                    >
+                      Shooting date
+                    </label>
+                    <input
+                      id="shooting-date-input"
+                      type="date"
+                      value={newGalleryShootingDate}
+                      onChange={(e) => setNewGalleryShootingDate(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-border dark:border-border/40 rounded-xl focus:outline-none focus:ring-0 focus:border-accent hover:border-accent/60 bg-surface-1 dark:bg-surface-dark-1 text-text transition-all duration-200"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-6">
+                  <button
+                    onClick={createModal.close}
+                    className="px-4 py-2.5 bg-surface-1 dark:bg-surface-dark-1 rounded-xl text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40 shadow-sm hover:shadow-md transition-all duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmCreate}
+                    disabled={isCreating || !newGalleryName.trim()}
+                    className="px-4 py-2.5 bg-accent text-accent-foreground rounded-xl shadow-sm hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-sm"
+                  >
+                    {isCreating ? (
+                      <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      'Create Gallery'
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Confirmation Modal */}
         {ConfirmModal}

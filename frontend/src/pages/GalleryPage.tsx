@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 import { galleryService, type GalleryDetail } from '../services/galleryService';
 import { photoService, type PhotoResponse } from '../services/photoService';
 import type { PhotoUploadResponse } from '../services/photoService';
@@ -485,30 +486,47 @@ export const GalleryPage = () => {
   return (
     <Layout>
       <div className="space-y-8">
-        {/* ... (keep existing header section) */}
-        <div className="flex flex-col gap-4">
-          <div>
+        {/* Gallery Header */}
+        <div className="relative overflow-hidden rounded-2xl border border-border dark:border-border/20 bg-surface dark:bg-surface-foreground/5">
+          {/* Cover photo background (if available on this page) */}
+          {(() => {
+            const coverPhoto = gallery.cover_photo_id
+              ? photoUrls.find((p) => p.id === gallery.cover_photo_id)
+              : photoUrls[0];
+            return coverPhoto?.thumbnail_url ? (
+              <>
+                <img
+                  src={coverPhoto.thumbnail_url}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-25 dark:opacity-15 pointer-events-none"
+                  aria-hidden="true"
+                />
+                <div className="absolute inset-0 bg-gradient-to-b from-surface/50 to-surface/90 dark:from-surface-dark/60 dark:to-surface-dark/95 pointer-events-none" />
+              </>
+            ) : null;
+          })()}
+          <div className="relative flex flex-col gap-4 p-6 sm:p-8">
             <Link
               to="/"
-              className="flex items-center gap-2 text-sm text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 mb-4"
+              className="flex items-center gap-1.5 text-sm text-accent/80 hover:text-accent transition-colors w-fit"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Galleries
             </Link>
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-4xl font-bold text-text">
+            <div className="flex flex-col sm:flex-row sm:items-start gap-4 justify-between">
+              <div className="flex-1 min-w-0">
+                <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text leading-tight">
                   {gallery.name || `Gallery #${gallery.id}`}
                 </h1>
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted">
-                  <label className="text-xs uppercase tracking-wide text-muted font-semibold">
+                  <label className="text-xs uppercase tracking-wide text-muted font-semibold shrink-0">
                     Shooting date
                   </label>
                   <input
                     type="date"
                     value={shootingDateInput}
                     onChange={(e) => setShootingDateInput(e.target.value)}
-                    className="rounded-lg border border-border dark:border-border/40 bg-transparent px-3 py-2 text-text shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+                    className="rounded-lg border border-border dark:border-border/40 bg-surface-1 dark:bg-surface-dark-1 px-3 py-2 text-text shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
                   />
                   <button
                     onClick={handleSaveShootingDate}
@@ -1037,12 +1055,16 @@ export const GalleryPage = () => {
       )}
 
       {/* Photo Rename Modal */}
-      <PhotoRenameModal
-        isOpen={renameModal.isOpen}
-        onClose={handleCloseRenameModal}
-        currentFilename={renameModal.data?.filename || ''}
-        onRename={handleRenameConfirm}
-      />
+      <AnimatePresence>
+        {renameModal.isOpen && (
+          <PhotoRenameModal
+            isOpen={renameModal.isOpen}
+            onClose={handleCloseRenameModal}
+            currentFilename={renameModal.data?.filename || ''}
+            onRename={handleRenameConfirm}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Confirmation Modal */}
       {ConfirmModal}

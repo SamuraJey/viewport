@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import {
   X,
   User,
@@ -21,7 +22,28 @@ export interface ProfileModalProps {
   onClose: () => void;
 }
 
-export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
+const formatBytes = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B';
+  }
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  const precision = size >= 10 || unitIndex === 0 ? 0 : 1;
+  return `${size.toFixed(precision)} ${units[unitIndex]}`;
+};
+
+const formatMB = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0.00 MB';
+  const mb = bytes / 1024 / 1024;
+  return `${mb.toFixed(2)} MB`;
+};
+
+export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, onClose }) => {
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -43,29 +65,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
 
   const storageUsed = user?.storage_used ?? 0;
   const storageQuota = user?.storage_quota ?? 0;
-  const storagePercent =
-    storageQuota > 0 ? Math.min(100, Math.round((storageUsed / storageQuota) * 100)) : 0;
-
-  const formatBytes = (bytes: number) => {
-    if (!Number.isFinite(bytes) || bytes <= 0) {
-      return '0 B';
-    }
-    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    let size = bytes;
-    let unitIndex = 0;
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024;
-      unitIndex += 1;
-    }
-    const precision = size >= 10 || unitIndex === 0 ? 0 : 1;
-    return `${size.toFixed(precision)} ${units[unitIndex]}`;
-  };
-
-  const formatMB = (bytes: number) => {
-    if (!Number.isFinite(bytes) || bytes <= 0) return '0.00 MB';
-    const mb = bytes / 1024 / 1024;
-    return `${mb.toFixed(2)} MB`;
-  };
+  const storagePercent = useMemo(
+    () => (storageQuota > 0 ? Math.min(100, Math.round((storageUsed / storageQuota) * 100)) : 0),
+    [storageUsed, storageQuota],
+  );
 
   const [showStorageTooltip, setShowStorageTooltip] = useState(false);
 
@@ -232,19 +235,29 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
       setDeletingAccount(false);
     }
   }, [isOpen]);
-  if (!isOpen) return null;
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="profile-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
     >
-      <div
-        className="bg-surface dark:bg-surface-dark rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto border border-border dark:border-border/40"
+      <motion.div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        onClick={onClose}
+      />
+      <motion.div
+        className="relative bg-surface dark:bg-surface-dark rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto border border-border dark:border-border/40"
         data-lenis-prevent
+        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 16 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -290,7 +303,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
               <div>
                 <label
                   htmlFor="email"
-                  className="flex items-center gap-2 text-sm font-medium text-muted mb-2"
+                  className="flex items-center gap-2 text-sm font-medium text-text mb-2"
                 >
                   <Mail className="w-4 h-4" />
                   Email Address
@@ -300,7 +313,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                   type="email"
                   value={email}
                   readOnly
-                  className="w-full px-4 py-2.5 border border-border/60 rounded-lg bg-muted/20 dark:bg-muted-dark/30 text-muted cursor-not-allowed focus:outline-none"
+                  className="w-full px-4 py-2.5 border border-border/40 rounded-lg bg-surface/80 dark:bg-muted-dark/20 text-text/50 cursor-not-allowed focus:outline-none"
                   title="Email cannot be changed"
                 />
                 <p className="text-xs text-muted/70 mt-1">Email address cannot be changed</p>
@@ -327,7 +340,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
               </div>
 
               <div
-                className="relative rounded-lg border border-border/60 bg-muted/20 dark:bg-muted-dark/30 px-4 py-3 z-0"
+                className="relative rounded-lg border border-border/40 bg-surface dark:bg-muted-dark/20 px-4 py-3 z-0"
                 onMouseEnter={() => setShowStorageTooltip(true)}
                 onMouseLeave={() => setShowStorageTooltip(false)}
               >
@@ -345,13 +358,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                     {formatBytes(storageUsed)} / {formatBytes(storageQuota)}
                   </span>
                 </div>
-                <div className="mt-2 h-2 w-full rounded-full bg-border/60">
+                <div className="mt-2 h-2 w-full rounded-full bg-border/40 dark:bg-border/20">
                   <div
                     className="h-2 rounded-full bg-accent transition-all"
                     style={{ width: `${storagePercent}%` }}
                   />
                 </div>
-                <p className="mt-1 text-xs text-muted">{storagePercent}% used</p>
+                <p className="mt-1 text-xs text-text/60 dark:text-muted">{storagePercent}% used</p>
               </div>
 
               <button
@@ -634,7 +647,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
             </section>
           )}
         </div>
-      </div>
+      </motion.div>
     </div>
   );
-};
+});

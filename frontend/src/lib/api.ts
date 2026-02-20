@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { AxiosError } from 'axios';
 import { useAuthStore } from '../stores/authStore';
+import { NetworkError } from './errorHandling';
 
 // Create axios instance
 export const api = axios.create({
@@ -73,10 +74,12 @@ api.interceptors.response.use(
       }
     }
 
-    // For network errors, enhance the error message
+    // For network errors, reject with a distinct NetworkError so downstream
+    // error handling can treat it as an offline (statusCode 0) case.
     if (!error.response && error.code === 'ERR_NETWORK') {
-      const networkError = new Error('Network error. Please check your internet connection.');
-      return Promise.reject(networkError);
+      return Promise.reject(
+        new NetworkError('Network error. Please check your internet connection.'),
+      );
     }
 
     // For timeout errors

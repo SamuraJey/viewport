@@ -343,7 +343,7 @@ async def delete_photo(
     current_user=Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ):
-    if not await repo.delete_photo_async(photo_id, gallery_id, current_user.id, s3_client):
+    if not repo.delete_photo(photo_id, gallery_id, current_user.id, s3_client):
         raise HTTPException(status_code=404, detail="Photo not found")
     return
 

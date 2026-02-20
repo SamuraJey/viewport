@@ -345,7 +345,7 @@ html.dark {
 
   --color-border-rgb: 82 82 91;
   --color-text-rgb: var(--color-neutral-900-rgb);
-  --color-muted-rgb: var(--color-neutral-500-rgb);
+  --color-muted-rgb: var(--color-neutral-700-rgb);
   --color-muted-dark-rgb: 82 82 91;
   --color-surface-rgb: 24 24 27;
   --color-surface-1-rgb: 39 39 42;
@@ -412,7 +412,14 @@ html.dark {
   /* neutral solid background, icons may be colored by variant below */
   color: rgb(var(--color-neutral-600-rgb));
   border-color: var(--color-neutral-300);
-  background-color: var(--color-neutral-50);
+  background-color: var(--color-neutral-100);
+}
+
+.dark .popup-action,
+:root.dark .popup-action {
+  color: rgb(var(--color-neutral-700-rgb));
+  border-color: var(--color-neutral-400);
+  background-color: var(--color-neutral-100);
 }
 
 /* Variant: neutral by default, show color on hover/focus */
@@ -420,6 +427,12 @@ html.dark {
   /* colored by default: keep accent color for icons/borders */
   color: rgb(var(--color-primary-500-rgb));
   border-color: rgb(var(--color-primary-500-rgb) / 0.32);
+}
+
+.dark .popup-action--accent,
+:root.dark .popup-action--accent {
+  color: rgb(var(--color-primary-600-rgb));
+  border-color: rgb(var(--color-primary-600-rgb) / 0.45);
 }
 
 .popup-action--accent:hover,
@@ -432,6 +445,13 @@ html.dark {
   border-color: rgb(245 158 11 / 0.32);
 }
 
+.dark .popup-action--warning,
+:root.dark .popup-action--warning {
+  color: rgb(251 191 36);
+  /* yellow-400 */
+  border-color: rgb(251 191 36 / 0.4);
+}
+
 .popup-action--warning:hover,
 .popup-action--warning:focus-visible {
   box-shadow: 0 0 0 3px rgb(245 158 11 / 0.08);
@@ -442,6 +462,13 @@ html.dark {
   border-color: rgb(16 185 129 / 0.32);
 }
 
+.dark .popup-action--success,
+:root.dark .popup-action--success {
+  color: rgb(74 222 128);
+  /* green-400 */
+  border-color: rgb(74 222 128 / 0.4);
+}
+
 .popup-action--success:hover,
 .popup-action--success:focus-visible {
   box-shadow: 0 0 0 3px rgb(16 185 129 / 0.08);
@@ -450,6 +477,13 @@ html.dark {
 .popup-action--danger {
   color: rgb(239 68 68);
   border-color: rgb(239 68 68 / 0.32);
+}
+
+.dark .popup-action--danger,
+:root.dark .popup-action--danger {
+  color: rgb(248 113 113);
+  /* red-400 */
+  border-color: rgb(248 113 113 / 0.4);
 }
 
 .popup-action--danger:hover,
@@ -1021,6 +1055,74 @@ body.dark .auth-layout .text-gray-900 {
 html.dark .auth-layout a:hover,
 body.dark .auth-layout a:hover {
   color: rgb(var(--color-primary-400-rgb)) !important;
+}
+
+/* ===== AUTH LAYOUT DECORATION ===== */
+/* Subtle radial dot-grid pattern for auth pages */
+.auth-dot-grid {
+  background-image: radial-gradient(circle,
+      rgb(var(--color-accent-rgb) / 0.18) 1px,
+      transparent 1px);
+  background-size: 28px 28px;
+}
+
+html.dark .auth-dot-grid {
+  background-image: radial-gradient(circle,
+      rgb(var(--color-accent-rgb) / 0.1) 1px,
+      transparent 1px);
+}
+
+/* ===== CUSTOM SCROLLBAR ===== */
+/* Webkit-based browsers */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-neutral-400-rgb) / 0.5);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-neutral-500-rgb) / 0.7);
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-neutral-600-rgb) / 0.5);
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--color-neutral-500-rgb) / 0.7);
+}
+
+/* ===== DATE INPUT STYLING ===== */
+input[type='date']::-webkit-calendar-picker-indicator {
+  opacity: 0.5;
+  cursor: pointer;
+  filter: none;
+}
+
+html.dark input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.6;
+}
+
+input[type='date']:hover::-webkit-calendar-picker-indicator {
+  opacity: 0.9;
+}
+
+/* ===== PHOTO UPLOADER ===== */
+.uploader-zone {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.uploader-zone--active {
+  transform: scale(1.01);
 }
 
 /* ===== LIGHTBOX CUSTOMIZATION ===== */

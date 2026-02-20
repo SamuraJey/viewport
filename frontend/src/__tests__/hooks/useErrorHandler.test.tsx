@@ -8,6 +8,7 @@ const mockFormatErrorMessage = vi.fn();
 const mockNavigate = vi.fn();
 
 vi.mock('../../lib/errorHandling', () => ({
+  NetworkError: class NetworkError extends Error {},
   handleApiError: (...args: unknown[]) => mockHandleApiError(...args),
   shouldShowErrorPage: (...args: unknown[]) => mockShouldShowErrorPage(...args),
   formatErrorMessage: (...args: unknown[]) => mockFormatErrorMessage(...args),

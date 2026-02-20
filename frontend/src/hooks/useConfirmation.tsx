@@ -77,18 +77,18 @@ export function useConfirmation() {
     // Modal will close itself on success via onClose in ConfirmationModal
   }, []);
 
-  const ConfirmModal = state.options ? (
+  const ConfirmModal = (
     <ConfirmationModal
       isOpen={state.isOpen}
       onClose={closeConfirm}
       onConfirm={handleConfirm}
-      title={state.options.title}
-      message={state.options.message}
-      confirmText={state.options.confirmText}
-      cancelText={state.options.cancelText}
-      isDangerous={state.options.isDangerous}
+      title={state.options?.title ?? ''}
+      message={state.options?.message ?? ''}
+      confirmText={state.options?.confirmText}
+      cancelText={state.options?.cancelText}
+      isDangerous={state.options?.isDangerous}
     />
-  ) : null;
+  );
 
   return {
     openConfirm,
