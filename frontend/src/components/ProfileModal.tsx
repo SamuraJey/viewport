@@ -236,8 +236,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   return (
     <div
       role="dialog"
@@ -305,7 +303,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
               <div>
                 <label
                   htmlFor="email"
-                  className="flex items-center gap-2 text-sm font-medium text-muted mb-2"
+                  className="flex items-center gap-2 text-sm font-medium text-text mb-2"
                 >
                   <Mail className="w-4 h-4" />
                   Email Address
@@ -315,7 +313,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
                   type="email"
                   value={email}
                   readOnly
-                  className="w-full px-4 py-2.5 border border-border/60 rounded-lg bg-muted/20 dark:bg-muted-dark/30 text-muted cursor-not-allowed focus:outline-none"
+                  className="w-full px-4 py-2.5 border border-border/40 rounded-lg bg-surface/80 dark:bg-muted-dark/20 text-text/50 cursor-not-allowed focus:outline-none"
                   title="Email cannot be changed"
                 />
                 <p className="text-xs text-muted/70 mt-1">Email address cannot be changed</p>
@@ -342,7 +340,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
               </div>
 
               <div
-                className="relative rounded-lg border border-border/60 bg-muted/20 dark:bg-muted-dark/30 px-4 py-3 z-0"
+                className="relative rounded-lg border border-border/40 bg-surface dark:bg-muted-dark/20 px-4 py-3 z-0"
                 onMouseEnter={() => setShowStorageTooltip(true)}
                 onMouseLeave={() => setShowStorageTooltip(false)}
               >
@@ -360,13 +358,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
                     {formatBytes(storageUsed)} / {formatBytes(storageQuota)}
                   </span>
                 </div>
-                <div className="mt-2 h-2 w-full rounded-full bg-border/60">
+                <div className="mt-2 h-2 w-full rounded-full bg-border/40 dark:bg-border/20">
                   <div
                     className="h-2 rounded-full bg-accent transition-all"
                     style={{ width: `${storagePercent}%` }}
                   />
                 </div>
-                <p className="mt-1 text-xs text-muted">{storagePercent}% used</p>
+                <p className="mt-1 text-xs text-text/60 dark:text-muted">{storagePercent}% used</p>
               </div>
 
               <button

@@ -36,9 +36,9 @@ export const ThemeSwitch = ({ className = '', variant = 'floating' }: ThemeSwitc
     >
       <div className={`${isAnimating ? 'animate-spin-once' : ''}`}>
         {theme === 'dark' ? (
-          <Sun className="h-5 w-5 text-yellow-400" />
+          <Sun className="h-5 w-5 text-yellow-500 fill-yellow-500/20" />
         ) : (
-          <Moon className="h-5 w-5 text-yellow-400" />
+          <Moon className="h-5 w-5 text-indigo-600 fill-indigo-600/10" />
         )}
       </div>
     </button>

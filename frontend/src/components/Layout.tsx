@@ -100,7 +100,7 @@ export const Layout = ({ children }: LayoutProps) => {
                 <button
                   onClick={openProfile}
                   title="Account Settings"
-                  className="hidden sm:flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/40 bg-surface-1 dark:bg-surface-dark-1 text-muted hover:text-accent hover:border-accent/40 hover:-translate-y-0.5 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
+                  className="hidden sm:flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/40 bg-surface-1 dark:bg-surface-dark-1 text-muted dark:text-text/70 hover:text-accent hover:border-accent/40 hover:-translate-y-0.5 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -120,7 +120,7 @@ export const Layout = ({ children }: LayoutProps) => {
                 <button
                   onClick={handleLogout}
                   title="Sign Out"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center text-sm bg-surface-1 dark:bg-surface-dark-1 border border-border text-muted hover:border-danger hover:text-danger hover:bg-danger/5 dark:hover:bg-danger/10 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 sm:w-auto sm:px-3.5 sm:gap-2"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center text-sm bg-surface-1 dark:bg-surface-dark-1 border border-border text-muted dark:text-text/70 hover:border-danger hover:text-danger hover:bg-danger/5 dark:hover:bg-danger/10 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 sm:w-auto sm:px-3.5 sm:gap-2"
                 >
                   <LogOut className="h-4 w-4" />
                   <span className="hidden sm:inline">Sign Out</span>
