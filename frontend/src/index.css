@@ -55,6 +55,25 @@ picture,
   animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  ::view-transition-group(root) {
+    animation-duration: 0s;
+  }
+
+  html,
+  body,
+  header,
+  main,
+  nav,
+  footer,
+  .animate-spin-once {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
+}
+
 /* Animation keyframes */
 @keyframes theme-fade-out {
   0% {
@@ -865,8 +884,6 @@ html.dark .pg-card:hover {
 }
 
 .dark .pg-columns>.pg-card img.photo--wide,
-.dark .pg-columns>.pg-card>button>img.photo--wide,
-html.dark .pg-columns>.pg-card img.photo--wide,
 html.dark .pg-columns>.pg-card>button>img.photo--wide {
   background-color: rgb(24, 24, 27);
 }
@@ -882,30 +899,21 @@ html.dark .pg-columns>.pg-card>button>img.photo--wide {
 }
 
 /* Fix for popup menus on photos */
-.dark .popup-container,
-html.dark .popup-container,
-body.dark .popup-container,
-:root.dark .popup-container {
+html.dark .popup-container {
   background-color: rgb(39, 39, 42) !important;
   color: rgb(244, 244, 245) !important;
   border-color: rgb(63, 63, 70) !important;
 }
 
 /* Fix for popup action buttons inside popups - only override neutral ones, preserve accent colors */
-.dark .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(.popup-action--success):not(.popup-action--danger),
-html.dark .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(.popup-action--success):not(.popup-action--danger),
-body.dark .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(.popup-action--success):not(.popup-action--danger),
-:root.dark .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(.popup-action--success):not(.popup-action--danger) {
+html.dark .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(.popup-action--success):not(.popup-action--danger) {
   background-color: rgb(63, 63, 70) !important;
   color: rgb(244, 244, 245) !important;
   border-color: rgb(82, 82, 91) !important;
 }
 
 /* Fix accent buttons to use same neutral background but with accent text color */
-.dark .popup-action--accent,
-html.dark .popup-action--accent,
-body.dark .popup-action--accent,
-:root.dark .popup-action--accent {
+html.dark .popup-action--accent {
   background-color: rgb(63, 63, 70) !important;
   color: rgb(96, 165, 250) !important;
   border-color: rgb(96, 165, 250) !important;
@@ -913,7 +921,6 @@ body.dark .popup-action--accent,
 
 /* Final dark-mode popup override (placed at file end so it wins cascade). */
 html.dark .popup-container,
-body.dark .popup-container,
 .dark .popup-container {
   background-color: rgb(var(--color-neutral-50-rgb) / 0.98) !important;
   color: rgb(var(--color-neutral-900-rgb)) !important;
@@ -922,8 +929,7 @@ body.dark .popup-container,
 }
 
 html.dark .popup-arrow,
-.dark .popup-arrow,
-body.dark .popup-arrow {
+.dark .popup-arrow {
   border-top-color: rgb(var(--color-neutral-50-rgb) / 0.98) !important;
 }
 
@@ -931,49 +937,34 @@ body.dark .popup-arrow {
    Some pages applied extra rules or had differing specificity which caused
    inconsistent backgrounds or icon colors. Make dark-mode appearance explicit
    for all variants so UI is uniform. */
-:root.dark .popup-action,
-html.dark .popup-action,
-body.dark .popup-action,
-.dark .popup-action {
+html.dark .popup-action {
   background-color: rgb(63, 63, 70) !important;
   color: rgb(244, 244, 245) !important;
   border-color: rgb(82, 82, 91) !important;
 }
 
-:root.dark .popup-action--accent,
-html.dark .popup-action--accent,
-body.dark .popup-action--accent,
-.dark .popup-action--accent {
+html.dark .popup-action--accent {
   background-color: rgb(63, 63, 70) !important;
   color: rgb(96, 165, 250) !important;
   /* blue-400 */
   border-color: rgba(96, 165, 250, 0.32) !important;
 }
 
-:root.dark .popup-action--warning,
-html.dark .popup-action--warning,
-body.dark .popup-action--warning,
-.dark .popup-action--warning {
+html.dark .popup-action--warning {
   background-color: rgb(63, 63, 70) !important;
   color: rgb(245, 158, 11) !important;
   /* amber-500 */
   border-color: rgba(245, 158, 11, 0.32) !important;
 }
 
-:root.dark .popup-action--success,
-html.dark .popup-action--success,
-body.dark .popup-action--success,
-.dark .popup-action--success {
+html.dark .popup-action--success {
   background-color: rgb(63, 63, 70) !important;
   color: rgb(16, 185, 129) !important;
   /* green-500 */
   border-color: rgba(16, 185, 129, 0.32) !important;
 }
 
-:root.dark .popup-action--danger,
-html.dark .popup-action--danger,
-body.dark .popup-action--danger,
-.dark .popup-action--danger {
+html.dark .popup-action--danger {
   background-color: rgb(63, 63, 70) !important;
   color: rgb(239, 68, 68) !important;
   /* red-500 */
@@ -986,10 +977,7 @@ body.dark .popup-action--danger,
 .dark input[type='password'],
 html.dark input[type='email'],
 html.dark input[type='text'],
-html.dark input[type='password'],
-body.dark input[type='email'],
-body.dark input[type='text'],
-body.dark input[type='password'] {
+html.dark input[type='password'] {
   border-color: rgb(82, 82, 91) !important;
   background-color: transparent !important;
   color: rgb(244, 244, 245) !important;
@@ -1001,10 +989,7 @@ body.dark input[type='password'] {
 .dark input[type='password']:focus,
 html.dark input[type='email']:focus,
 html.dark input[type='text']:focus,
-html.dark input[type='password']:focus,
-body.dark input[type='email']:focus,
-body.dark input[type='text']:focus,
-body.dark input[type='password']:focus {
+html.dark input[type='password']:focus {
   border-color: rgb(96, 165, 250) !important;
   outline: none !important;
   box-shadow: 0 0 0 1px rgb(96, 165, 250) !important;
@@ -1016,10 +1001,7 @@ body.dark input[type='password']:focus {
 .dark input[type='password']:disabled,
 html.dark input[type='email']:disabled,
 html.dark input[type='text']:disabled,
-html.dark input[type='password']:disabled,
-body.dark input[type='email']:disabled,
-body.dark input[type='text']:disabled,
-body.dark input[type='password']:disabled {
+html.dark input[type='password']:disabled {
   border-color: rgb(63, 63, 70) !important;
   background-color: rgb(39, 39, 42) !important;
   color: rgb(161, 161, 170) !important;
@@ -1043,17 +1025,13 @@ body.dark input[type='password']:disabled {
 
 /* Dark theme variant: keep register link white and use lighter accent on hover */
 .dark .auth-layout a,
-html.dark .auth-layout a,
-body.dark .auth-layout a,
 .dark .auth-layout .text-gray-900,
-html.dark .auth-layout .text-gray-900,
-body.dark .auth-layout .text-gray-900 {
+html.dark .auth-layout .text-gray-900 {
   color: rgb(var(--color-white-rgb)) !important;
 }
 
 .dark .auth-layout a:hover,
-html.dark .auth-layout a:hover,
-body.dark .auth-layout a:hover {
+html.dark .auth-layout a:hover {
   color: rgb(var(--color-primary-400-rgb)) !important;
 }
 

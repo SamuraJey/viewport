@@ -1,19 +1,78 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 type Theme = 'light' | 'dark';
+type ThemePreference = Theme | 'system';
+
+const THEME_PREFERENCE_KEY = 'theme-preference';
 
 interface ThemeState {
   theme: Theme;
+  preference: ThemePreference;
   isHydrated: boolean;
-  setTheme: (theme: Theme) => void;
+  setTheme: (preference: ThemePreference) => void;
   toggleTheme: () => void;
   setHydrated: (hydrated: boolean) => void;
+  syncSystemTheme: () => void;
 }
+
+const getSystemTheme = (): Theme => {
+  if (typeof window === 'undefined') return 'dark';
+
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light';
+};
+
+const resolveTheme = (preference: ThemePreference): Theme =>
+  preference === 'system' ? getSystemTheme() : preference;
+
+const disableTransitionsDuringThemeChange = () => {
+  if (typeof window === 'undefined') return () => {};
+
+  const style = document.createElement('style');
+  style.appendChild(
+    document.createTextNode(
+      `*, *::before, *::after {
+        transition-property: none !important;
+        transition-duration: 0s !important;
+        animation-duration: 0s !important;
+      }`,
+    ),
+  );
+
+  document.head.appendChild(style);
+
+  return () => {
+    void window.getComputedStyle(document.body);
+
+    requestAnimationFrame(() => {
+      style.remove();
+    });
+  };
+};
+
+const getInitialPreference = (): ThemePreference => {
+  if (typeof window === 'undefined') return 'system';
+
+  const storedPreference = localStorage.getItem(THEME_PREFERENCE_KEY);
+  if (
+    storedPreference === 'light' ||
+    storedPreference === 'dark' ||
+    storedPreference === 'system'
+  ) {
+    return storedPreference;
+  }
+
+  return 'system';
+};
+
+const initialPreference = getInitialPreference();
 
 // Helper function to apply theme to DOM with smooth transition
 const applyTheme = (theme: Theme, smooth = true) => {
   if (typeof window === 'undefined') return;
+
+  const restoreTransitions = disableTransitionsDuringThemeChange();
 
   const updateTheme = () => {
     // Remove any existing theme classes first
@@ -22,8 +81,7 @@ const applyTheme = (theme: Theme, smooth = true) => {
     // Add the new theme class
     document.documentElement.classList.add(theme);
 
-    // Sync with localStorage for the index.html script
-    localStorage.setItem('theme', theme);
+    restoreTransitions();
   };
 
   // Check if View Transitions API is supported
@@ -61,45 +119,41 @@ const applyTheme = (theme: Theme, smooth = true) => {
   }
 };
 
-export const useThemeStore = create<ThemeState>()(
-  persist(
-    (set, get) => ({
-      theme: 'dark', // Default to dark theme
-      isHydrated: false,
-      setTheme: (theme: Theme) => {
-        const currentTheme = get().theme;
-        if (currentTheme === theme && get().isHydrated) return;
-        set({ theme });
-        applyTheme(theme, true);
-      },
-      toggleTheme: () => {
-        const currentTheme = get().theme;
-        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-        get().setTheme(newTheme);
-      },
-      setHydrated: (hydrated: boolean) => {
-        set({ isHydrated: hydrated });
-      },
-    }),
-    {
-      name: 'theme-storage',
-      onRehydrateStorage: () => (state) => {
-        if (state) {
-          applyTheme(state.theme, false);
-        } else {
-          applyTheme('dark', false);
-        }
-      },
-    },
-  ),
-);
+export const useThemeStore = create<ThemeState>()((set, get) => ({
+  theme: resolveTheme(initialPreference),
+  preference: initialPreference,
+  isHydrated: false,
+  setTheme: (preference: ThemePreference) => {
+    const resolvedTheme = resolveTheme(preference);
+    const { theme: currentTheme, preference: currentPreference, isHydrated } = get();
+
+    if (currentTheme === resolvedTheme && currentPreference === preference && isHydrated) return;
+
+    set({ theme: resolvedTheme, preference });
+    localStorage.setItem(THEME_PREFERENCE_KEY, preference);
+    applyTheme(resolvedTheme, true);
+  },
+  toggleTheme: () => {
+    const currentTheme = get().theme;
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    get().setTheme(newTheme);
+  },
+  setHydrated: (hydrated: boolean) => {
+    set({ isHydrated: hydrated });
+  },
+  syncSystemTheme: () => {
+    const { preference, theme } = get();
+    if (preference !== 'system') return;
+
+    const nextTheme = getSystemTheme();
+    if (theme === nextTheme) return;
+
+    set({ theme: nextTheme });
+    applyTheme(nextTheme, false);
+  },
+}));
 
 // Apply default theme immediately for initial load without animation
 if (typeof window !== 'undefined') {
-  const savedTheme = localStorage.getItem('theme') as Theme | null;
-  const systemTheme =
-    window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light';
-  applyTheme(savedTheme || systemTheme, false);
+  applyTheme(resolveTheme(initialPreference), false);
 }

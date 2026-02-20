@@ -6,15 +6,30 @@ import { useThemeStore } from '../stores/themeStore';
  * This should be placed early in the component tree
  */
 export const ThemeInitializer = () => {
-  const { setHydrated } = useThemeStore();
+  const { setHydrated, preference, syncSystemTheme } = useThemeStore();
 
   useEffect(() => {
     // Mark as hydrated on mount
     setHydrated(true);
-
-    // We don't need to manually apply the theme here anymore
-    // as themeStore handles it via persist middleware and applyTheme calls
   }, [setHydrated]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    if (preference !== 'system') return;
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleSystemThemeChange = () => {
+      syncSystemTheme();
+    };
+
+    syncSystemTheme();
+
+    mediaQuery.addEventListener('change', handleSystemThemeChange);
+
+    return () => {
+      mediaQuery.removeEventListener('change', handleSystemThemeChange);
+    };
+  }, [preference, syncSystemTheme]);
 
   // This component doesn't render anything
   return null;
