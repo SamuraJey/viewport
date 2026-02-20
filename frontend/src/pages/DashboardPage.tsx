@@ -425,10 +425,14 @@ export const DashboardPage = () => {
                 <p className="text-muted text-sm mb-5">Enter a name for your new gallery.</p>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1.5">
+                    <label
+                      htmlFor="gallery-name-input"
+                      className="block text-xs font-semibold uppercase tracking-wide text-muted mb-1.5"
+                    >
                       Gallery name
                     </label>
                     <input
+                      id="gallery-name-input"
                       ref={newGalleryInputRef}
                       type="text"
                       value={newGalleryName}
