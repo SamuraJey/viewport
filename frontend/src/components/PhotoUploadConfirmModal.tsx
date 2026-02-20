@@ -376,7 +376,7 @@ export const PhotoUploadConfirmModal = memo(
           )}
 
           {/* Content */}
-          <div className="p-5 sm:p-6 overflow-y-auto max-h-96 space-y-4">
+          <div data-lenis-prevent className="p-5 sm:p-6 overflow-y-auto max-h-96 space-y-4">
             {!result && !isUploading && (
               <>
                 {/* Warning messages */}

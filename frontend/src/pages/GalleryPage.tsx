@@ -29,8 +29,9 @@ import {
   Square,
   Search,
   Pencil,
+  Upload,
 } from 'lucide-react';
-import { PhotoUploader } from '../components/PhotoUploader';
+import { PhotoUploader, type PhotoUploaderHandle } from '../components/PhotoUploader';
 import { useConfirmation, usePagination, useSelection, useModal, useErrorHandler } from '../hooks';
 
 const numberFormatter = new Intl.NumberFormat();
@@ -51,9 +52,12 @@ export const GalleryPage = () => {
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [isPageDragActive, setIsPageDragActive] = useState(false);
 
   // Refs
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const dragDepthRef = useRef(0);
+  const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
 
   const { openLightbox, renderLightbox } = usePhotoLightbox({
     photoCardSelector: '[data-photo-card]',
@@ -116,37 +120,32 @@ export const GalleryPage = () => {
   const PaginationControls = () => {
     if (pagination.totalPages <= 1) return null;
 
-    return (
-      <div className="flex flex-col items-center gap-4 py-6">
-        {/* Page info */}
-        <div className="flex flex-col items-center gap-1">
-          <span className="text-base font-medium text-text">
-            Page {pagination.page} of {pagination.totalPages}
-          </span>
-          <span className="text-sm text-muted">
-            Showing {(pagination.page - 1) * pagination.pageSize + 1}-
-            {Math.min(pagination.page * pagination.pageSize, pagination.total)} of{' '}
-            {pagination.total} photo
-            {pagination.total !== 1 ? 's' : ''}
-          </span>
-        </div>
+    const from = (pagination.page - 1) * pagination.pageSize + 1;
+    const to = Math.min(pagination.page * pagination.pageSize, pagination.total);
 
-        {/* Navigation buttons */}
-        <div className="flex items-center gap-3">
+    return (
+      <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <span className="text-sm font-medium text-muted">
+          Page {pagination.page} of {pagination.totalPages}
+          <span className="ml-2 text-xs text-muted/80">
+            {from}-{to} of {pagination.total}
+          </span>
+        </span>
+
+        <div className="flex items-center gap-2">
           <button
             onClick={pagination.previousPage}
             disabled={pagination.isFirstPage || isLoadingPhotos}
-            className="flex items-center gap-2 px-5 py-2.5 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm border border-accent/20 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md transition-shadow duration-200"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-accent/20 bg-accent px-3 text-sm font-medium text-accent-foreground shadow-sm transition-shadow duration-200 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40"
           >
             {isLoadingPhotos ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="h-4 w-4" />
             )}
             Previous
           </button>
 
-          {/* Page numbers */}
           <div className="flex items-center gap-1">
             {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
               let pageNum: number;
@@ -167,10 +166,11 @@ export const GalleryPage = () => {
                   key={pageNum}
                   onClick={() => pagination.goToPage(pageNum)}
                   disabled={pageNum === pagination.page || isLoadingPhotos}
-                  className={`px-3 py-1.5 min-w-10 rounded-lg font-medium transition-colors duration-200 ${pageNum === pagination.page
-                    ? 'bg-accent text-accent-foreground shadow-sm'
-                    : 'bg-surface-1 dark:bg-surface-dark-1 text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40'
-                    } ${isLoadingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`inline-flex h-9 min-w-9 items-center justify-center rounded-lg px-2 text-sm font-medium transition-colors duration-200 ${
+                    pageNum === pagination.page
+                      ? 'bg-accent text-accent-foreground shadow-sm'
+                      : 'bg-surface-1 dark:bg-surface-dark-1 text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40'
+                  } ${isLoadingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   {pageNum}
                 </button>
@@ -181,13 +181,13 @@ export const GalleryPage = () => {
           <button
             onClick={pagination.nextPage}
             disabled={pagination.isLastPage || isLoadingPhotos}
-            className="flex items-center gap-2 px-5 py-2.5 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm border border-accent/20 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md transition-shadow duration-200"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-accent/20 bg-accent px-3 text-sm font-medium text-accent-foreground shadow-sm transition-shadow duration-200 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40"
           >
             Next
             {isLoadingPhotos ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="h-4 w-4" />
             )}
           </button>
         </div>
@@ -421,6 +421,42 @@ export const GalleryPage = () => {
     }
   };
 
+  const hasDraggedFiles = (event: React.DragEvent<HTMLDivElement>) =>
+    Array.from(event.dataTransfer?.types ?? []).includes('Files');
+
+  const handleGalleryDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    setIsPageDragActive(true);
+  };
+
+  const handleGalleryDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    if (!isPageDragActive) setIsPageDragActive(true);
+  };
+
+  const handleGalleryDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) {
+      setIsPageDragActive(false);
+    }
+  };
+
+  const handleGalleryDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setIsPageDragActive(false);
+    if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+      photoUploaderRef.current?.handleExternalFiles(event.dataTransfer.files);
+    }
+  };
+
   if (isInitialLoading) {
     // Initial loading state - show full page loader
     return (
@@ -486,77 +522,78 @@ export const GalleryPage = () => {
 
   return (
     <Layout>
-      <div className="space-y-8">
+      <div
+        className="relative space-y-6"
+        onDragEnter={handleGalleryDragEnter}
+        onDragOver={handleGalleryDragOver}
+        onDragLeave={handleGalleryDragLeave}
+        onDrop={handleGalleryDrop}
+      >
+        {isPageDragActive && (
+          <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-[1px]">
+            <div className="rounded-xl border border-accent/30 bg-surface/95 px-6 py-4 text-center shadow-xl dark:bg-surface-dark/95">
+              <p className="text-base font-semibold text-text">Drop photos to upload</p>
+              <p className="mt-1 text-sm text-muted">JPG / PNG · up to 15 MB</p>
+            </div>
+          </div>
+        )}
+
         {/* Gallery Header */}
-        <div className="relative overflow-hidden rounded-2xl border border-border bg-surface dark:border-border/20 dark:bg-surface-foreground/5">
-          {/* Cover photo background (if available on this page) */}
-          {(() => {
-            const coverPhoto = gallery.cover_photo_id
-              ? photoUrls.find((p) => p.id === gallery.cover_photo_id)
-              : photoUrls[0];
-            return coverPhoto?.thumbnail_url ? (
-              <>
-                <img
-                  src={coverPhoto.thumbnail_url}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-25 dark:opacity-15 pointer-events-none"
-                  aria-hidden="true"
-                />
-                <div className="absolute inset-0 bg-gradient-to-b from-surface/50 to-surface/90 dark:from-surface-dark/60 dark:to-surface-dark/95 pointer-events-none" />
-              </>
-            ) : null;
-          })()}
-          <div className="relative flex flex-col gap-5 p-5 sm:p-7">
-            <Link
-              to="/"
-              className="inline-flex h-10 w-fit items-center gap-1.5 rounded-lg border border-border/60 bg-surface-1 px-3 text-sm font-medium text-muted transition-colors hover:border-accent/40 hover:text-accent dark:border-border/40 dark:bg-surface-dark-1"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Galleries
-            </Link>
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0 flex-1">
-                <h1 className="font-oswald text-3xl font-bold leading-tight tracking-wider text-text uppercase sm:text-4xl">
-                  {gallery.name || `Gallery #${gallery.id}`}
-                </h1>
-                <div className="mt-4 flex flex-wrap items-center gap-2.5 text-sm text-muted">
-                  <label className="shrink-0 text-xs font-semibold uppercase tracking-wide text-muted">
-                    Shooting date
-                  </label>
-                  <input
-                    type="date"
-                    value={shootingDateInput}
-                    onChange={(e) => setShootingDateInput(e.target.value)}
-                    className="h-10 rounded-lg border border-border bg-surface-1 px-3 text-text shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 dark:border-border/40 dark:bg-surface-dark-1"
-                  />
-                  <button
-                    onClick={handleSaveShootingDate}
-                    disabled={
-                      isSavingShootingDate ||
-                      !shootingDateInput ||
-                      shootingDateInput === gallery.shooting_date?.slice(0, 10)
-                    }
-                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-accent bg-accent px-3 text-sm font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
-                  >
-                    {isSavingShootingDate ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Check className="w-4 h-4" />
-                    )}
-                    Save date
-                  </button>
-                  <span className="rounded-md bg-surface-1 px-2 py-1 text-xs text-muted dark:bg-surface-dark-1">
-                    Created on {formatDateOnly(gallery.created_at)}
-                  </span>
-                </div>
-              </div>
+        <div className="rounded-2xl border border-border bg-surface p-4 dark:border-border/30 dark:bg-surface-foreground/5 sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-3">
+              <Link
+                to="/"
+                className="inline-flex h-9 w-fit items-center gap-1.5 rounded-lg border border-border/60 bg-surface-1 px-3 text-sm font-medium text-muted transition-colors hover:border-accent/40 hover:text-accent dark:border-border/40 dark:bg-surface-dark-1"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Galleries
+              </Link>
+              <h1 className="font-oswald text-3xl font-bold leading-tight tracking-wide text-text uppercase sm:text-4xl">
+                {gallery.name || `Gallery #${gallery.id}`}
+              </h1>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <label className="sr-only" htmlFor="gallery-shooting-date">
+                Shooting date
+              </label>
+              <span className="rounded-md bg-surface-1 px-2.5 py-2 text-xs font-semibold uppercase tracking-wide text-muted dark:bg-surface-dark-1">
+                Shooting date
+              </span>
+              <input
+                id="gallery-shooting-date"
+                type="date"
+                value={shootingDateInput}
+                onChange={(e) => setShootingDateInput(e.target.value)}
+                className="h-10 rounded-lg border border-border bg-surface-1 px-3 text-text shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 dark:border-border/40 dark:bg-surface-dark-1"
+              />
+              <button
+                onClick={handleSaveShootingDate}
+                disabled={
+                  isSavingShootingDate ||
+                  !shootingDateInput ||
+                  shootingDateInput === gallery.shooting_date?.slice(0, 10)
+                }
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-accent bg-accent px-3 text-sm font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
+              >
+                {isSavingShootingDate ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+                Save date
+              </button>
+              <span className="rounded-md bg-surface-1 px-2.5 py-2 text-xs text-muted dark:bg-surface-dark-1">
+                Created {formatDateOnly(gallery.created_at)}
+              </span>
               <button
                 onClick={handleDeleteGallery}
-                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-danger/20 bg-danger/10 px-4 text-danger shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-danger/20 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-1 active:scale-95 dark:bg-danger/20"
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-danger/20 bg-danger/10 px-4 text-danger shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-danger/20 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-1 active:scale-95 dark:bg-danger/20"
                 title="Delete Gallery"
                 aria-label="Delete gallery"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="h-4 w-4" />
                 Delete Gallery
               </button>
             </div>
@@ -568,7 +605,7 @@ export const GalleryPage = () => {
           className="bg-surface dark:bg-surface-foreground/5 rounded-2xl p-4 lg:p-6 xl:p-8 border border-border dark:border-border/10"
           data-photos-section
         >
-          <div className="mb-6">
+          <div className="mb-8">
             <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-2xl font-semibold text-text">
                 Photos
@@ -579,6 +616,14 @@ export const GalleryPage = () => {
                 )}
               </h2>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => photoUploaderRef.current?.openFilePicker()}
+                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-accent/30 bg-accent/10 px-3 text-sm font-medium text-accent transition-all duration-200 hover:bg-accent/20"
+                  title="Add photos"
+                >
+                  <Upload className="h-4 w-4" />
+                  Add Photos
+                </button>
                 {photoUrls.length > 0 && (
                   <button
                     onClick={() => {
@@ -589,16 +634,15 @@ export const GalleryPage = () => {
                         setIsSelectionMode(true);
                       }
                     }}
-                    className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-all duration-200 ${isSelectionMode
-                      ? 'border-accent bg-accent text-accent-foreground shadow-sm hover:brightness-105 hover:shadow-md'
-                      : 'border-border bg-surface-1 text-text hover:bg-surface-2 hover:shadow-sm dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2'
-                      }`}
+                    className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-all duration-200 ${
+                      isSelectionMode
+                        ? 'border-accent bg-accent text-accent-foreground shadow-sm hover:brightness-105 hover:shadow-md'
+                        : 'border-border bg-surface-1 text-text hover:bg-surface-2 hover:shadow-sm dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2'
+                    }`}
                     title={isSelectionMode ? 'Exit selection mode' : 'Enter selection mode'}
                   >
                     <CheckSquare className="h-4 w-4" />
-                    <span>
-                      {isSelectionMode ? 'Cancel Selection' : 'Select'}
-                    </span>
+                    <span>{isSelectionMode ? 'Cancel Selection' : 'Select'}</span>
                   </button>
                 )}
                 {pagination.totalPages > 1 && (
@@ -608,7 +652,12 @@ export const GalleryPage = () => {
                 )}
               </div>
             </div>
-            <PhotoUploader galleryId={galleryId} onUploadComplete={handleUploadComplete} />
+            <PhotoUploader
+              ref={photoUploaderRef}
+              galleryId={galleryId}
+              onUploadComplete={handleUploadComplete}
+              showDropzone={false}
+            />
             {uploadError && (
               <div className="mt-2 text-danger bg-danger/10 dark:bg-danger/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
                 {uploadError}
@@ -635,7 +684,7 @@ export const GalleryPage = () => {
 
           {/* Top Pagination */}
           {pagination.totalPages > 1 && (
-            <div className="border-b border-border dark:border-border/40 mb-6">
+            <div className="mb-8 border-b border-border dark:border-border/40">
               <PaginationControls />
             </div>
           )}
@@ -696,7 +745,7 @@ export const GalleryPage = () => {
             </div>
           ) : photoUrls.length > 0 ? (
             <div
-              className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 lg:gap-8 pt-14"
+              className="grid grid-cols-1 gap-5 pt-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 lg:gap-6"
               ref={gridRef}
             >
               {photoUrls.map((photo, index) => (
@@ -712,10 +761,11 @@ export const GalleryPage = () => {
                         e.stopPropagation();
                         handleTogglePhotoSelection(photo.id, e.shiftKey);
                       }}
-                      className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-colors duration-200 ${selection.isSelected(photo.id)
-                        ? 'bg-blue-500 text-white shadow-md'
-                        : 'bg-white/95 dark:bg-black/60 text-gray-800 dark:text-gray-200 hover:bg-white dark:hover:bg-black/80 shadow-sm hover:shadow-md'
-                        }`}
+                      className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-colors duration-200 ${
+                        selection.isSelected(photo.id)
+                          ? 'bg-blue-500 text-white shadow-md'
+                          : 'bg-white/95 dark:bg-black/60 text-gray-800 dark:text-gray-200 hover:bg-white dark:hover:bg-black/80 shadow-sm hover:shadow-md'
+                      }`}
                       title={selection.isSelected(photo.id) ? 'Deselect' : 'Select'}
                     >
                       {selection.isSelected(photo.id) ? (
