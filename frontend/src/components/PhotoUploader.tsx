@@ -107,11 +107,10 @@ export const PhotoUploader = ({ galleryId, onUploadComplete }: PhotoUploaderProp
   return (
     <div>
       <div
-        className={`uploader-zone relative flex flex-col items-center justify-center border-2 border-dashed rounded-xl py-10 px-8 cursor-pointer select-none ${
-          dragActive
+        className={`uploader-zone relative flex flex-col items-center justify-center border-2 border-dashed rounded-xl py-10 px-8 cursor-pointer select-none ${dragActive
             ? 'uploader-zone--active border-accent bg-accent/8 dark:bg-accent/8 shadow-inner'
             : 'border-border dark:border-border/40 hover:border-accent/60 hover:bg-accent/4 dark:hover:bg-accent/4 bg-surface-1 dark:bg-surface-dark-1'
-        }`}
+          }`}
         onClick={() => fileInputRef.current?.click()}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
@@ -140,8 +139,8 @@ export const PhotoUploader = ({ galleryId, onUploadComplete }: PhotoUploaderProp
         </p>
         <p className="text-sm text-muted">
           {files.length > 0
-            ? 'Opening upload confirmation…'
-            : 'or click to browse · JPG / PNG · up to 15 MB'}
+            ? 'Opening upload confirmation...'
+            : 'or click to select files · JPG / PNG · up to 15 MB'}
         </p>
         <input
           type="file"

@@ -443,7 +443,7 @@ export const DashboardPage = () => {
                         }
                       }}
                       className="w-full px-4 py-3 border-2 border-border dark:border-border/40 rounded-xl focus:outline-none focus:ring-0 focus:border-accent hover:border-accent/60 bg-surface-1 dark:bg-surface-dark-1 text-text transition-all duration-200"
-                      placeholder="e.g. Summer 2025"
+                      placeholder="Gallery name"
                     />
                   </div>
                   <div>
