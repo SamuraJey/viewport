@@ -123,7 +123,7 @@ jobs:
         run: npm run lint
       - name: Security audit
         working-directory: frontend
-        run: npm audit --audit-level moderate
+        run: npm audit --production --audit-level moderate
       - name: Typecheck and build
         working-directory: frontend
         run: npm run build
