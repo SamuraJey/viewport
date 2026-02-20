@@ -486,6 +486,11 @@ html.dark {
   border-color: rgb(248 113 113 / 0.4);
 }
 
+.popup-action--danger:hover,
+.popup-action--danger:focus-visible {
+  box-shadow: 0 0 0 3px rgb(239 68 68 / 0.08);
+}
+
 /* Popup container: use semantic neutral tokens so the popup adapts to
    light/dark themes via the variables defined in :root / :root.dark.
    Avoid global `!important` rules here so Tailwind utilities can still
