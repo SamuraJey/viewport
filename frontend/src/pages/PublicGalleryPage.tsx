@@ -39,6 +39,7 @@ export const PublicGalleryPage = () => {
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string>('');
   const [isHeroFullLoaded, setIsHeroFullLoaded] = useState(false);
+  const heroImgRef = useRef<HTMLImageElement>(null);
   const [gridDensity, setGridDensity] = useState<'large' | 'compact'>('large');
   const [gridLayout, setGridLayout] = useState<'masonry' | 'uniform'>('masonry');
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -161,8 +162,19 @@ export const PublicGalleryPage = () => {
     fetchGalleryData();
   }, [fetchGalleryData]);
 
-  useEffect(() => {
-    setIsHeroFullLoaded(false);
+  useLayoutEffect(() => {
+    // If we have a URL and the browser already cached the image,
+    // mark the hero as loaded immediately. We only depend on the URL
+    // so the effect re‑runs when the source actually changes.
+    if (
+      gallery?.cover?.full_url &&
+      heroImgRef.current?.complete &&
+      heroImgRef.current?.naturalWidth > 0
+    ) {
+      setIsHeroFullLoaded(true);
+    } else {
+      setIsHeroFullLoaded(false);
+    }
   }, [gallery?.cover?.full_url]);
 
   // Intersection Observer for infinite scroll
@@ -393,17 +405,15 @@ export const PublicGalleryPage = () => {
           <img
             src={gallery.cover.thumbnail_url}
             alt="Gallery cover preview"
-            crossOrigin="anonymous"
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isHeroFullLoaded ? 'opacity-0' : 'opacity-100'}`}
+            className="absolute inset-0 w-full h-full object-cover"
           />
 
           {/* Full image fades in */}
           <img
+            ref={heroImgRef}
             src={gallery.cover.full_url}
             alt="Gallery cover"
-            crossOrigin="anonymous"
             onLoad={() => setIsHeroFullLoaded(true)}
-            onError={() => setIsHeroFullLoaded(true)}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${isHeroFullLoaded ? 'opacity-100' : 'opacity-0'}`}
           />
           {/* Overlay */}
