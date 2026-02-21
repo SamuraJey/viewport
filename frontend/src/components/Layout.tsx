@@ -64,63 +64,49 @@ export const Layout = ({ children }: LayoutProps) => {
 
   return (
     <div className="min-h-screen bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
-      <header className="sticky top-0 z-40 backdrop-blur-lg border-b border-border py-3 sm:py-4 bg-surface/95 dark:bg-surface-dark/95">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 px-3 py-1 sm:px-4 sm:py-1.5">
+      <header className="sticky top-0 z-40 border-b border-border bg-surface/95 py-2 backdrop-blur-lg dark:bg-surface-dark/95 sm:py-3">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-3 sm:px-4">
           <Link
             to="/"
-            className="flex min-w-0 items-center gap-2 text-text dark:text-accent-foreground hover:opacity-80 transition-opacity font-oswald text-lg font-bold uppercase tracking-wide sm:gap-3 sm:text-xl sm:tracking-wider"
+            className="flex min-w-0 items-center gap-2 font-oswald text-lg font-bold uppercase tracking-wide text-text transition-opacity hover:opacity-80 sm:gap-3 sm:text-xl sm:tracking-wider dark:text-accent-foreground"
+            aria-label="Go to home"
           >
             <Camera className="h-7 w-7 sm:h-8 sm:w-8" />
             <span className="truncate">Viewport</span>
           </Link>
 
-          <nav className="ml-2 flex flex-nowrap items-center gap-2 overflow-x-auto sm:ml-4 sm:gap-3">
+          <nav className="flex items-center gap-2 sm:gap-3" aria-label="Top navigation">
             <ThemeSwitch variant="inline" />
             {user ? (
               <>
-                {/* User display chip */}
-                <div className="hidden sm:flex items-center gap-2.5 rounded-lg border border-border/40 bg-surface-1 pl-1 pr-3 py-1.5 text-text dark:border-border/60 dark:bg-surface-dark-1 dark:text-text">
+                <button
+                  onClick={openProfile}
+                  title="Account Settings"
+                  aria-label="Open account settings"
+                  className="hidden min-w-0 items-center gap-2.5 rounded-lg border border-border/40 bg-surface-1 px-2.5 py-1.5 text-text shadow-sm transition-colors hover:border-accent/50 hover:bg-surface-2 sm:flex dark:border-border/60 dark:bg-surface-dark-1 dark:text-text dark:hover:bg-surface-dark-2"
+                >
                   <span
                     className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white text-xs font-bold select-none ${avatarColor}`}
                   >
                     {initials}
                   </span>
-                  <span className="text-sm font-medium max-w-40 truncate">
+                  <span className="max-w-40 truncate text-sm font-medium">
                     {user.display_name || user.email}
                   </span>
-                </div>
-                {/* Settings / profile button */}
+                </button>
                 <button
                   onClick={openProfile}
                   title="Account Settings"
-                  className={`flex sm:hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-white text-sm font-bold shadow-sm hover:shadow-md hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer ring-2 ring-offset-1 ring-offset-surface dark:ring-offset-surface-dark ring-transparent hover:ring-accent/40 ${avatarColor}`}
+                  aria-label="Open account settings"
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm ring-2 ring-transparent ring-offset-1 ring-offset-surface transition-all duration-200 hover:scale-105 hover:shadow-md hover:ring-accent/40 active:scale-95 sm:hidden dark:ring-offset-surface-dark ${avatarColor}`}
                 >
                   {initials}
                 </button>
                 <button
-                  onClick={openProfile}
-                  title="Account Settings"
-                  className="hidden sm:flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/40 bg-surface-1 dark:bg-surface-dark-1 text-muted dark:text-text/70 hover:text-accent hover:border-accent/40 hover:-translate-y-0.5 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
-                >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                  </svg>
-                </button>
-                <button
                   onClick={handleLogout}
                   title="Sign Out"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center text-sm bg-surface-1 dark:bg-surface-dark-1 border border-border text-muted dark:text-text/70 hover:border-danger hover:text-danger hover:bg-danger/5 dark:hover:bg-danger/10 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 sm:w-auto sm:px-3.5 sm:gap-2"
+                  aria-label="Sign out"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-1 text-sm text-muted shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-danger hover:bg-danger/5 hover:text-danger hover:shadow-md sm:w-auto sm:gap-2 sm:px-3.5 dark:bg-surface-dark-1 dark:text-text/70 dark:hover:bg-danger/10"
                 >
                   <LogOut className="h-4 w-4" />
                   <span className="hidden sm:inline">Sign Out</span>
