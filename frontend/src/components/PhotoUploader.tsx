@@ -156,17 +156,16 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
                 ? 'Opening upload confirmation...'
                 : 'or click to select files · JPG / PNG · up to 15 MB'}
             </p>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileInput}
+              multiple
+              accept="image/jpeg,image/png,image/jpg"
+              className="hidden"
+            />
           </div>
         )}
-
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileInput}
-          multiple
-          accept="image/jpeg,image/png,image/jpg"
-          className="hidden"
-        />
 
         {error && (
           <div
