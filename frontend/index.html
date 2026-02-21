@@ -14,15 +14,26 @@
       const resolveSystemTheme = () =>
         window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 
-      const storedPreference = localStorage.getItem(preferenceKey)
+      let storedPreference = null
+      try {
+        storedPreference = localStorage.getItem(preferenceKey)
+      } catch (e) {
+        // Storage access failed (privacy mode / quota); fall back to non-persistent behavior
+        storedPreference = null
+      }
 
       const preference =
         storedPreference === 'dark' || storedPreference === 'light' || storedPreference === 'system'
           ? storedPreference
           : 'system'
 
-      if (!storedPreference) {
-        localStorage.setItem(preferenceKey, preference)
+      // Try to persist the default preference, but don't let failures stop theme application
+      try {
+        if (!storedPreference) {
+          localStorage.setItem(preferenceKey, preference)
+        }
+      } catch (e) {
+        // ignore persistence errors
       }
 
       const resolvedTheme = preference === 'system' ? resolveSystemTheme() : preference
