@@ -211,11 +211,21 @@ class GalleryRepository(BaseRepository):
     def set_photos_statuses(self, photo_map: dict[uuid.UUID, Photo], status_updates: dict[uuid.UUID, PhotoUploadStatus], commit: bool = True) -> None:
         if not status_updates:
             return
+
+        # Group by status to do bulk updates
+        status_groups = {}
+        for photo_id, status in status_updates.items():
+            status_groups.setdefault(status, []).append(photo_id)
+
+        for status, photo_ids in status_groups.items():
+            self.db.execute(update(Photo).where(Photo.id.in_(photo_ids)).values(status=status))
+
+        # Also update the objects in memory so they reflect the new state
         for photo_id, status in status_updates.items():
             photo = photo_map.get(photo_id)
-            if not photo:
-                continue
-            photo.status = status
+            if photo:
+                photo.status = status
+
         if commit:
             self.db.commit()
 

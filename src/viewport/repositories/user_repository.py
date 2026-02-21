@@ -108,6 +108,26 @@ class UserRepository(BaseRepository):
         if commit:
             self.db.commit()
 
+    def finalize_and_release_reserved_storage(self, user_id: uuid.UUID, bytes_to_finalize: int, bytes_to_release: int, commit: bool = True) -> None:
+        if bytes_to_finalize <= 0 and bytes_to_release <= 0:
+            return
+
+        stmt = select(User).where(User.id == user_id).with_for_update()
+        user = self.db.execute(stmt).scalar_one_or_none()
+        if not user:
+            return
+
+        if bytes_to_finalize > 0:
+            user.storage_reserved = max(user.storage_reserved - bytes_to_finalize, 0)
+            user.storage_used += bytes_to_finalize
+
+        if bytes_to_release > 0:
+            user.storage_reserved = max(user.storage_reserved - bytes_to_release, 0)
+
+        self.db.add(user)
+        if commit:
+            self.db.commit()
+
     def decrement_storage_used(self, user_id: uuid.UUID, bytes_to_decrement: int, commit: bool = True) -> None:
         if bytes_to_decrement <= 0:
             return
