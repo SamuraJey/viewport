@@ -8,14 +8,39 @@
   <title>Viewport</title>
   <!-- Tailwind CSS dark mode init: apply stored or system preference before styles load -->
   <script>
-    if (
-      localStorage.theme === 'dark' ||
-      (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)
-    ) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
+    ; (() => {
+      const preferenceKey = 'theme-preference'
+
+      const resolveSystemTheme = () =>
+        window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+
+      let storedPreference = null
+      try {
+        storedPreference = localStorage.getItem(preferenceKey)
+      } catch (e) {
+        // Storage access failed (privacy mode / quota); fall back to non-persistent behavior
+        storedPreference = null
+      }
+
+      const preference =
+        storedPreference === 'dark' || storedPreference === 'light' || storedPreference === 'system'
+          ? storedPreference
+          : 'system'
+
+      // Try to persist the default preference, but don't let failures stop theme application
+      try {
+        if (!storedPreference) {
+          localStorage.setItem(preferenceKey, preference)
+        }
+      } catch (e) {
+        // ignore persistence errors
+      }
+
+      const resolvedTheme = preference === 'system' ? resolveSystemTheme() : preference
+
+      document.documentElement.classList.remove('dark', 'light')
+      document.documentElement.classList.add(resolvedTheme)
+    })()
   </script>
 </head>
 

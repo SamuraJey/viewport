@@ -384,7 +384,7 @@ export const PublicGalleryPage = () => {
     <div className="min-h-screen bg-surface dark:bg-surface-foreground/5 text-text dark:text-accent-foreground">
       {/* Theme switch button */}
       <div className="fixed top-6 right-6 z-30">
-        <ThemeSwitch />
+        <ThemeSwitch variant="inline" />
       </div>
       {/* Hero Section */}
       {gallery?.cover ? (
