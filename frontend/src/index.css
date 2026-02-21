@@ -386,14 +386,14 @@ html.dark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  /* 8 */
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
   padding: 0.25rem;
   border-radius: 0.5rem;
-  /* rounded-lg */
   transition:
     background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
     transform 120ms ease;
   box-shadow: 0 1px 2px rgba(2, 6, 23, 0.06);
   border: 1px solid rgba(0, 0, 0, 0.06);
@@ -411,15 +411,28 @@ html.dark {
 .popup-action {
   /* neutral solid background, icons may be colored by variant below */
   color: rgb(var(--color-neutral-600-rgb));
-  border-color: var(--color-neutral-300);
-  background-color: var(--color-neutral-100);
+  border-color: rgb(var(--color-neutral-300-rgb));
+  background-color: rgb(var(--color-neutral-100-rgb));
 }
 
 .dark .popup-action,
 :root.dark .popup-action {
-  color: rgb(var(--color-neutral-700-rgb));
-  border-color: var(--color-neutral-400);
-  background-color: var(--color-neutral-100);
+  color: rgb(var(--color-neutral-800-rgb));
+  border-color: rgb(var(--color-neutral-400-rgb));
+  background-color: rgb(var(--color-neutral-100-rgb));
+}
+
+.popup-action:hover,
+.popup-action:focus-visible {
+  background-color: rgb(var(--color-neutral-50-rgb));
+  box-shadow: 0 2px 8px rgba(2, 6, 23, 0.1);
+}
+
+.popup-action:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgb(var(--color-accent-rgb) / 0.25),
+    0 2px 8px rgba(2, 6, 23, 0.1);
 }
 
 /* Variant: neutral by default, show color on hover/focus */
@@ -489,6 +502,15 @@ html.dark {
 .popup-action--danger:hover,
 .popup-action--danger:focus-visible {
   box-shadow: 0 0 0 3px rgb(239 68 68 / 0.08);
+}
+
+.popup-action--active {
+  background-color: rgb(var(--color-accent-rgb) / 0.12);
+}
+
+.dark .popup-action--active,
+:root.dark .popup-action--active {
+  background-color: rgb(var(--color-accent-rgb) / 0.18);
 }
 
 /* Popup container: use semantic neutral tokens so the popup adapts to
