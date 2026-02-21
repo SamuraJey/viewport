@@ -163,8 +163,14 @@ export const PublicGalleryPage = () => {
   }, [fetchGalleryData]);
 
   useLayoutEffect(() => {
-    // Check if hero image is already in cache
-    if (gallery?.cover && heroImgRef.current?.complete && heroImgRef.current?.naturalWidth > 0) {
+    // If we have a URL and the browser already cached the image,
+    // mark the hero as loaded immediately. We only depend on the URL
+    // so the effect re‑runs when the source actually changes.
+    if (
+      gallery?.cover?.full_url &&
+      heroImgRef.current?.complete &&
+      heroImgRef.current?.naturalWidth > 0
+    ) {
       setIsHeroFullLoaded(true);
     } else {
       setIsHeroFullLoaded(false);
