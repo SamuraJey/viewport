@@ -619,7 +619,7 @@ export const GalleryPage = () => {
                 <button
                   onClick={() => photoUploaderRef.current?.openFilePicker()}
                   className="inline-flex h-10 items-center gap-2 rounded-lg border border-accent/30 bg-accent/10 px-3 text-sm font-medium text-accent transition-all duration-200 hover:bg-accent/20"
-                  title="Add photos"
+                  title="Add photos (JPG/PNG up to 15 MB)"
                 >
                   <Upload className="h-4 w-4" />
                   Add Photos
