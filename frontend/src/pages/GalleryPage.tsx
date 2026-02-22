@@ -904,11 +904,24 @@ export const GalleryPage = () => {
               ))}
             </div>
           ) : (
-            <div className="text-center py-16 border-2 border-dashed border-border dark:border-border/40 rounded-lg">
-              <ImageOff className="mx-auto h-12 w-12 text-muted dark:text-muted-dark" />
-              <h3 className="mt-4 text-lg font-medium text-muted">No photos in this gallery</h3>
-              <p className="mt-2 text-sm text-muted">Upload your first photo to get started.</p>
-            </div>
+            <button
+              type="button"
+              onClick={() => photoUploaderRef.current?.openFilePicker()}
+              className="group flex w-full flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-surface/30 px-6 py-16 text-center transition hover:border-accent hover:bg-linear-to-br hover:from-surface/70 hover:to-accent/10 focus-visible:border-accent dark:border-border/40 dark:bg-surface-dark/30 dark:hover:from-surface-dark/70 dark:hover:to-accent/10"
+            >
+              <div className="flex h-16 w-16 items-center justify-center rounded-full border border-border bg-surface/60 text-muted transition group-hover:border-accent group-hover:text-accent dark:border-border/30 dark:bg-surface-dark/50 dark:text-muted-dark">
+                <ImageOff className="h-8 w-8" />
+              </div>
+              <h3 className="mt-4 text-lg font-medium text-muted transition group-hover:text-text dark:text-muted-dark">
+                No photos in this gallery
+              </h3>
+              <p className="mt-2 text-sm text-muted transition group-hover:text-text/80">
+                Upload your first photo to get started.
+              </p>
+              <span className="mt-3 text-xs font-semibold uppercase tracking-[0.3em] text-accent transition group-hover:text-accent-foreground">
+                Click to add photos
+              </span>
+            </button>
           )}
 
           {/* Bottom Pagination */}
