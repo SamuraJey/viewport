@@ -229,10 +229,11 @@ export const GalleryPage = () => {
                         setIsSelectionMode(true);
                       }
                     }}
-                    className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-all duration-200 ${isSelectionMode
+                    className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-all duration-200 ${
+                      isSelectionMode
                         ? 'border-accent bg-accent text-accent-foreground shadow-sm hover:brightness-105 hover:shadow-md'
                         : 'border-border bg-surface-1 text-text hover:bg-surface-2 hover:shadow-sm dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2'
-                      }`}
+                    }`}
                     title={isSelectionMode ? 'Exit selection mode' : 'Enter selection mode'}
                   >
                     <CheckSquare className="h-4 w-4" />

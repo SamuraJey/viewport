@@ -138,20 +138,38 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
     setTotal(0);
   }, [initialPage, goToPage]);
 
-  return {
-    page,
-    pageSize,
-    total,
-    totalPages,
-    goToPage,
-    nextPage,
-    previousPage,
-    firstPage,
-    lastPage,
-    setTotal,
-    reset,
-    hasMore,
-    isFirstPage,
-    isLastPage,
-  };
+  return useMemo(
+    () => ({
+      page,
+      pageSize,
+      total,
+      totalPages,
+      goToPage,
+      nextPage,
+      previousPage,
+      firstPage,
+      lastPage,
+      setTotal,
+      reset,
+      hasMore,
+      isFirstPage,
+      isLastPage,
+    }),
+    [
+      page,
+      pageSize,
+      total,
+      totalPages,
+      goToPage,
+      nextPage,
+      previousPage,
+      firstPage,
+      lastPage,
+      setTotal,
+      reset,
+      hasMore,
+      isFirstPage,
+      isLastPage,
+    ],
+  );
 }

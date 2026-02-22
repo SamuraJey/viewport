@@ -30,10 +30,11 @@ const PhotoItem = memo(
 
     return (
       <div
-        className={`relative group flex flex-col h-full rounded-lg overflow-hidden transition-all duration-200 ${hasError
+        className={`relative group flex flex-col h-full rounded-lg overflow-hidden transition-all duration-200 ${
+          hasError
             ? 'ring-2 ring-red-400 dark:ring-red-500'
             : 'ring-2 ring-border hover:ring-blue-400 dark:hover:ring-blue-500'
-          }`}
+        }`}
       >
         <div className="flex-1 w-full bg-surface-foreground dark:bg-surface flex items-center justify-center overflow-hidden">
           {preview ? (
@@ -293,18 +294,20 @@ export const PhotoUploadConfirmModal = memo(
                     return (
                       <div
                         key={index}
-                        className={`flex items-start gap-3 p-3 rounded-lg transition-all duration-200 group ${hasError
+                        className={`flex items-start gap-3 p-3 rounded-lg transition-all duration-200 group ${
+                          hasError
                             ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20'
                             : 'bg-surface-foreground dark:bg-surface border border-border hover:border-blue-300 dark:hover:border-blue-500/30'
-                          }`}
+                        }`}
                       >
                         {/* File icon */}
                         <div className="shrink-0 w-10 h-10 rounded-lg bg-surface dark:bg-surface-foreground flex items-center justify-center">
                           <FileImage
-                            className={`w-5 h-5 ${hasError
+                            className={`w-5 h-5 ${
+                              hasError
                                 ? 'text-red-500 dark:text-red-400'
                                 : 'text-blue-500 dark:text-blue-400'
-                              }`}
+                            }`}
                           />
                         </div>
 
@@ -406,20 +409,23 @@ export const PhotoUploadConfirmModal = memo(
                     <p className="text-xs text-green-700 dark:text-green-300 mt-1">Successful</p>
                   </div>
                   <div
-                    className={`p-3 rounded-lg text-center border ${result.failed_uploads > 0
+                    className={`p-3 rounded-lg text-center border ${
+                      result.failed_uploads > 0
                         ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20'
                         : 'bg-surface-foreground dark:bg-surface border-border'
-                      }`}
+                    }`}
                   >
                     <p
-                      className={`text-2xl font-bold ${result.failed_uploads > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted'
-                        }`}
+                      className={`text-2xl font-bold ${
+                        result.failed_uploads > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted'
+                      }`}
                     >
                       {result.failed_uploads}
                     </p>
                     <p
-                      className={`text-xs mt-1 ${result.failed_uploads > 0 ? 'text-red-700 dark:text-red-300' : 'text-muted'
-                        }`}
+                      className={`text-xs mt-1 ${
+                        result.failed_uploads > 0 ? 'text-red-700 dark:text-red-300' : 'text-muted'
+                      }`}
                     >
                       Failed
                     </p>
