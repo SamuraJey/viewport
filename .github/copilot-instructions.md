@@ -43,6 +43,7 @@
   - `useErrorHandler`: Centralized error handling (error, clearError, handleError).
 - **State management**: Zustand stores in `frontend/src/stores/` (authStore, themeStore).
   - Theme uses **themeStore only** (ThemeContext was removed). Access via `useThemeStore()` hook.
+  - Theme preference is persisted under `localStorage['theme-preference']` with values `light|dark|system`.
   - Auth header is injected from `authStore`, and 401 triggers refresh via `/auth/refresh`.
 - **API calls**: Live in `frontend/src/services/*Service.ts` and use shared Axios instance `frontend/src/lib/api.ts`.
 - **Dev API routing**: Vite proxy rewrites `VITE_DEV_API_PREFIX` (default `/api`) to the backend (see `frontend/vite.config.ts`).
@@ -50,7 +51,7 @@
   - Keep pages as orchestration layers and prefer route-level lazy loading (`React.lazy` + `Suspense`) in `frontend/src/App.tsx` for main page components to control bundle size.
   - `GalleryPage.tsx` follows a **photo-first** layout: compact metadata header and primary focus on the photo grid. Upload starts directly from `Add Photos` (file picker), and drag-and-drop is handled across the whole gallery page instead of a permanently large uploader block.
   - For large page/modals, prefer feature-local decomposition into focused presentation components under dedicated folders (e.g. `components/public-gallery/`, `components/dashboard/`, `components/profile/`, `components/upload-confirm/`, `components/auth/`) while keeping orchestration in page/container components.
-- **Themes**: Light/dark themes are configured via CSS variables in `frontend/src/index.css` (primarily in the `:root` and `html.dark` selectors). Theme toggled via `themeStore` and persisted in `localStorage`. Every new feature should support both themes and have good contrast in each.
+- **Themes**: Light/dark themes are configured via CSS variables in `frontend/src/index.css` (primarily in the `:root` and `html.dark` selectors). Theme toggled via `themeStore`; first visit follows `prefers-color-scheme`, and explicit user toggles override system by persisting `theme-preference` in `localStorage`. Every new feature should support both themes and have good contrast in each.
 - **Styling and theme maintenance**: Keep Tailwind dark-mode working off the `html` class that `themeStore` manages (no ad-hoc `theme === 'dark'` branches inside components). Define semantic color tokens in `frontend/src/index.css` via `@theme`/custom vars and use the generated utilities (`bg-surface`, `text-text`, `text-muted`, `bg-surface-foreground`, etc.) with `dark:` variants instead of hardcoding RGB values. When tweaking tokens (like `--color-surface-foreground-rgb`), follow the existing RGB palettes to keep light- and dark-theme surfaces consistent, and let the Tailwind utilities adapt automatically.
 
 ## Migrations / tests / lint

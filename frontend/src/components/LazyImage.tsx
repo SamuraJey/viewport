@@ -46,8 +46,8 @@ export const LazyImage = ({
       },
       {
         root: null,
-        rootMargin: '75px', // Start loading 75px before entering viewport
-        threshold: 0.1,
+        rootMargin: '200px', // Start loading 200px before entering viewport
+        threshold: 0,
       },
     );
 
@@ -98,7 +98,6 @@ export const LazyImage = ({
           ref={imgRef}
           src={imageSrc}
           alt={alt}
-          crossOrigin="anonymous"
           className={`w-full h-full ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${imgClassName ?? ''} ${isLoading ? 'opacity-0' : 'opacity-100 transition-opacity duration-300'}`}
           onLoad={handleLoad}
           onError={handleError}
