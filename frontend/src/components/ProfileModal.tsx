@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   X,
@@ -13,9 +13,8 @@ import {
   AlertTriangle,
   Loader2,
 } from 'lucide-react';
-import { authService } from '../services/authService';
-import { useAuthStore } from '../stores/authStore';
-import { useNavigate } from 'react-router-dom';
+
+import { useProfileActions } from '../hooks';
 
 export interface ProfileModalProps {
   isOpen: boolean;
@@ -44,128 +43,34 @@ const formatMB = (bytes: number) => {
 };
 
 export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, onClose }) => {
-  const [email, setEmail] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const {
+    email,
+    displayName,
+    setDisplayName,
+    currentPassword,
+    setCurrentPassword,
+    newPassword,
+    setNewPassword,
+    confirmPassword,
+    setConfirmPassword,
+    error,
+    savingProfile,
+    changingPassword,
+    storageUsed,
+    storageQuota,
+    storagePercent,
+    handleProfileSave,
+    handlePasswordChange,
+    handleLogout,
+  } = useProfileActions(isOpen, onClose);
+
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [changingPassword, setChangingPassword] = useState(false);
   const firstFieldRef = useRef<HTMLInputElement>(null);
   const confirmPassRef = useRef<HTMLInputElement>(null);
-  const navigate = useNavigate();
-  const logout = useAuthStore((state) => state.logout);
-  const tokens = useAuthStore((state) => state.tokens);
-  const login = useAuthStore((state) => state.login);
-  const user = useAuthStore((state) => state.user);
-
-  const storageUsed = user?.storage_used ?? 0;
-  const storageQuota = user?.storage_quota ?? 0;
-  const storagePercent = useMemo(
-    () => (storageQuota > 0 ? Math.min(100, Math.round((storageUsed / storageQuota) * 100)) : 0),
-    [storageUsed, storageQuota],
-  );
 
   const [showStorageTooltip, setShowStorageTooltip] = useState(false);
-
-  const handleProfileSave = useCallback(async () => {
-    setError(null);
-    setSavingProfile(true);
-    try {
-      const updated = await authService.updateProfile({ display_name: displayName });
-      if (tokens) {
-        // Update auth store including display_name
-        login(
-          {
-            id: updated.id,
-            email: updated.email,
-            display_name: updated.display_name,
-            storage_used: updated.storage_used,
-            storage_quota: updated.storage_quota,
-          },
-          tokens,
-        );
-      }
-      onClose();
-    } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 401) {
-        logout();
-        navigate('/auth/login');
-      } else {
-        setError('Failed to update profile');
-      }
-    } finally {
-      setSavingProfile(false);
-    }
-  }, [displayName, tokens, login, onClose, logout, navigate]);
-
-  const handlePasswordChange = useCallback(async () => {
-    setError(null);
-    if (newPassword !== confirmPassword) {
-      setError('New password and confirmation do not match');
-      return;
-    }
-    setChangingPassword(true);
-    try {
-      await authService.changePassword({
-        current_password: currentPassword,
-        new_password: newPassword,
-        confirm_password: confirmPassword,
-      });
-      onClose();
-    } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 401) {
-        logout();
-        navigate('/auth/login');
-      } else {
-        const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data
-          ?.detail;
-        setError(detail || 'Failed to change password');
-      }
-    } finally {
-      setChangingPassword(false);
-    }
-  }, [currentPassword, newPassword, confirmPassword, onClose, logout, navigate]);
-
-  // Fetch profile on open
-  useEffect(() => {
-    if (!isOpen) return;
-    setError(null);
-    authService
-      .getCurrentUser()
-      .then((user) => {
-        setEmail(user.email);
-        setDisplayName(user.display_name || '');
-        if (tokens) {
-          login(
-            {
-              id: user.id,
-              email: user.email,
-              display_name: user.display_name,
-              storage_used: user.storage_used,
-              storage_quota: user.storage_quota,
-            },
-            tokens,
-          );
-        }
-        setTimeout(() => firstFieldRef.current?.focus(), 0);
-      })
-      .catch((err: unknown) => {
-        const status = (err as { response?: { status?: number } })?.response?.status;
-        if (status === 401) {
-          logout();
-          navigate('/auth/login');
-        } else {
-          setError('Failed to load profile');
-        }
-      });
-  }, [isOpen, logout, navigate, login, tokens]);
 
   // Keyboard events
   useEffect(() => {
@@ -185,12 +90,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose, handlePasswordChange, handleProfileSave]);
-
-  const handleLogout = () => {
-    logout();
-    onClose();
-    navigate('/auth/login');
-  };
 
   // In-modal two-step delete flow
   const [deleteStep, setDeleteStep] = useState<'initial' | 'password' | 'confirm'>('initial');

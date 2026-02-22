@@ -21,23 +21,16 @@ import {
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { LazyImage } from '../components/LazyImage';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
-import {
-  shareLinkService,
-  type PublicPhoto,
-  type SharedGallery,
-} from '../services/shareLinkService';
+import { usePublicGallery } from '../hooks';
 
 // Get API base URL from environment variables
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export const PublicGalleryPage = () => {
   const { shareId } = useParams<{ shareId: string }>();
-  const [gallery, setGallery] = useState<SharedGallery | null>(null);
-  const [photos, setPhotos] = useState<PublicPhoto[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [error, setError] = useState<string>('');
+  const { gallery, photos, isLoading, isLoadingMore, hasMore, error, loadMorePhotos } =
+    usePublicGallery({ shareId });
+
   const [isHeroFullLoaded, setIsHeroFullLoaded] = useState(false);
   const [gridDensity, setGridDensity] = useState<'large' | 'compact'>('large');
   const [gridLayout, setGridLayout] = useState<'masonry' | 'uniform'>('masonry');
@@ -47,9 +40,6 @@ export const PublicGalleryPage = () => {
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchHandledRef = useRef(false);
   const previousGridLayoutRef = useRef(gridLayout);
-
-  // Pagination settings
-  const PHOTOS_PER_PAGE = 100;
 
   // Load more photos callback (will be used by lightbox hook)
   const loadMorePhotosRef = useRef<(() => void) | undefined>(undefined);
@@ -102,64 +92,10 @@ export const PublicGalleryPage = () => {
     previousGridLayoutRef.current = gridLayout;
   }, [gridLayout]);
 
-  const fetchGalleryData = useCallback(async () => {
-    if (!shareId) {
-      setError('Invalid share link');
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      // Fetch gallery metadata and first batch of photos
-      const data = await shareLinkService.getSharedGallery(shareId, {
-        limit: PHOTOS_PER_PAGE,
-        offset: 0,
-      });
-
-      setGallery(data);
-      setPhotos(data.photos || []);
-
-      // Check if there are more photos to load
-      setHasMore(data.photos.length === PHOTOS_PER_PAGE);
-    } catch (err) {
-      console.error('Failed to fetch shared gallery:', err);
-      setError('Gallery not found or link has expired');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [shareId, PHOTOS_PER_PAGE]);
-
-  const loadMorePhotos = useCallback(async () => {
-    if (isLoadingMore || !hasMore || !shareId) return;
-
-    setIsLoadingMore(true);
-    try {
-      const currentOffset = photos.length;
-      const moreData = await shareLinkService.getSharedGallery(shareId, {
-        limit: PHOTOS_PER_PAGE,
-        offset: currentOffset,
-      });
-
-      const newPhotos = moreData.photos || [];
-      setPhotos((prev) => [...prev, ...newPhotos]);
-
-      // Check if there are more photos to load
-      setHasMore(newPhotos.length === PHOTOS_PER_PAGE);
-    } catch (err) {
-      console.error('Failed to load more photos:', err);
-    } finally {
-      setIsLoadingMore(false);
-    }
-  }, [shareId, photos.length, isLoadingMore, hasMore, PHOTOS_PER_PAGE]);
-
   // Update ref when loadMorePhotos changes
   useEffect(() => {
     loadMorePhotosRef.current = loadMorePhotos;
   }, [loadMorePhotos]);
-
-  useEffect(() => {
-    fetchGalleryData();
-  }, [fetchGalleryData]);
 
   useEffect(() => {
     setIsHeroFullLoaded(false);
@@ -747,7 +683,7 @@ export const PublicGalleryPage = () => {
                 </div>
               )}
 
-              {!hasMore && photos.length > PHOTOS_PER_PAGE && (
+              {!hasMore && photos.length > 50 && (
                 <div className="text-center py-8 text-muted text-sm">
                   All photos loaded ({photos.length} total)
                 </div>

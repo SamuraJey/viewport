@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { galleryService, type Gallery } from '../services/galleryService';
+import { type Gallery } from '../services/galleryService';
 import { formatDateOnly } from '../lib/utils';
 import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, Edit3, Check, X } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { ErrorDisplay } from '../components/ErrorDisplay';
-import { useErrorHandler, useConfirmation, usePagination, useModal } from '../hooks';
+import { useDashboardActions } from '../hooks';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -28,8 +28,22 @@ const cardVariants = {
 };
 
 export const DashboardPage = () => {
-  const [galleries, setGalleries] = useState<Gallery[]>([]);
-  const [isCreating, setIsCreating] = useState(false);
+  const {
+    galleries,
+    isCreating,
+    isRenaming,
+    pagination,
+    createModal,
+    error,
+    clearError,
+    isLoading,
+    ConfirmModal,
+    fetchGalleries,
+    createGallery,
+    deleteGallery,
+    renameGallery,
+  } = useDashboardActions();
+
   const [newGalleryName, setNewGalleryName] = useState('');
   const [newGalleryShootingDate, setNewGalleryShootingDate] = useState('');
   const newGalleryInputRef = useRef<HTMLInputElement>(null);
@@ -38,31 +52,6 @@ export const DashboardPage = () => {
   // Inline rename state
   const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState('');
-  const [isRenaming, setIsRenaming] = useState(false);
-
-  // Use new hooks
-  const pagination = usePagination({ pageSize: 9 });
-  const createModal = useModal();
-  const { error, clearError, handleError, isLoading, setLoading } = useErrorHandler();
-  const { openConfirm, ConfirmModal } = useConfirmation();
-
-  const fetchGalleries = useCallback(
-    async (pageNum: number) => {
-      setLoading(true);
-      try {
-        clearError();
-        const response = await galleryService.getGalleries(pageNum, pagination.pageSize);
-        setGalleries(response.galleries);
-        pagination.setTotal(response.total);
-      } catch (err: unknown) {
-        handleError(err);
-      } finally {
-        setLoading(false);
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [clearError, handleError, setLoading, pagination.pageSize, pagination.setTotal],
-  );
 
   useEffect(() => {
     fetchGalleries(pagination.page);
@@ -91,42 +80,8 @@ export const DashboardPage = () => {
   };
 
   // Confirm creation with entered name
-  const handleConfirmCreate = async () => {
-    if (!newGalleryName.trim()) return;
-
-    try {
-      setIsCreating(true);
-      await galleryService.createGallery({
-        name: newGalleryName.trim(),
-        shooting_date: newGalleryShootingDate || undefined,
-      });
-      createModal.close();
-      pagination.firstPage();
-      await fetchGalleries(1);
-    } catch (err: unknown) {
-      handleError(err);
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  // Handler for deleting a gallery
-  const handleDeleteGallery = async (gallery: Gallery) => {
-    openConfirm({
-      title: 'Delete Gallery?',
-      message: `Are you sure you want to delete "${gallery.name || `Gallery #${gallery.id}`}" and all its contents? This action cannot be undone.`,
-      isDangerous: true,
-      confirmText: 'Delete',
-      onConfirm: async () => {
-        try {
-          await galleryService.deleteGallery(gallery.id);
-          await fetchGalleries(pagination.page);
-        } catch (err) {
-          handleError(err);
-          throw err;
-        }
-      },
-    });
+  const handleConfirmCreate = () => {
+    createGallery(newGalleryName, newGalleryShootingDate);
   };
 
   // Begin inline rename for a gallery
@@ -145,16 +100,8 @@ export const DashboardPage = () => {
   // Confirm inline rename
   const handleConfirmRename = async () => {
     if (!renameGalleryId) return;
-    try {
-      setIsRenaming(true);
-      await galleryService.updateGallery(renameGalleryId, renameInput.trim());
-      setRenameGalleryId(null);
-      await fetchGalleries(pagination.page);
-    } catch (err: unknown) {
-      handleError(err);
-    } finally {
-      setIsRenaming(false);
-    }
+    await renameGallery(renameGalleryId, renameInput);
+    setRenameGalleryId(null);
   };
 
   const renderLoading = () => (
@@ -292,7 +239,7 @@ export const DashboardPage = () => {
                       <Edit3 className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => handleDeleteGallery(gallery)}
+                      onClick={() => deleteGallery(gallery)}
                       className="flex h-9 w-9 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger shadow-sm hover:shadow-md hover:scale-110 transition-all duration-200 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2"
                       title="Delete Gallery"
                       aria-label={`Delete ${gallery.name || `Gallery #${gallery.id}`}`}

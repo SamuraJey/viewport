@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { X, Upload, FileImage, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { formatFileSize } from '../lib/utils';
-import { photoService } from '../services/photoService';
 import type { PhotoUploadResponse } from '../services/photoService';
+import { usePhotoUpload } from '../hooks';
 
 interface PhotoUploadConfirmModalProps {
   isOpen: boolean;
@@ -12,17 +12,6 @@ interface PhotoUploadConfirmModalProps {
   galleryId: string;
   onUploadComplete: (result: PhotoUploadResponse) => void;
   onFilesChange?: (files: File[]) => void;
-}
-
-interface UploadProgress {
-  loaded: number;
-  total: number;
-  percentage: number;
-  currentFile: string;
-  currentBatch?: number;
-  totalBatches?: number;
-  successCount?: number;
-  failedCount?: number;
 }
 
 interface PhotoItemProps {
@@ -87,8 +76,6 @@ const PhotoItem = memo(
 );
 PhotoItem.displayName = 'PhotoItem';
 
-const SUPPORTED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
-
 export const PhotoUploadConfirmModal = memo(
   ({
     isOpen,
@@ -98,14 +85,26 @@ export const PhotoUploadConfirmModal = memo(
     onUploadComplete,
     onFilesChange,
   }: PhotoUploadConfirmModalProps) => {
-    const [isUploading, setIsUploading] = useState(false);
-    const [progress, setProgress] = useState<UploadProgress | null>(null);
-    const [result, setResult] = useState<PhotoUploadResponse | null>(null);
+    const {
+      isUploading,
+      progress,
+      result,
+      setResult,
+      totalSize,
+      hasLargeFiles,
+      validUploadCount,
+      hasValidFiles,
+      hasInvalidTypes,
+      handleRemoveFile,
+      handleUpload,
+      handleRetryFailed,
+      cancelUpload,
+      failedFilesRef,
+    } = usePhotoUpload(galleryId, files, onFilesChange);
+
     const [showCancelWarning, setShowCancelWarning] = useState(false);
     const uploadButtonRef = useRef<HTMLButtonElement>(null);
-    const abortControllerRef = useRef<AbortController | null>(null);
     const isCancelledRef = useRef(false);
-    const failedFilesRef = useRef<File[]>([]);
 
     // Focus management when modal opens
     useEffect(() => {
@@ -122,18 +121,10 @@ export const PhotoUploadConfirmModal = memo(
     const handleForceClose = useCallback(() => {
       // Mark as cancelled
       isCancelledRef.current = true;
-      // Cancel ongoing uploads
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-      // Clean up file previews
-      setProgress(null);
-      setResult(null);
-      setIsUploading(false);
+      cancelUpload();
       setShowCancelWarning(false);
       onClose();
-    }, [onClose]);
+    }, [onClose, cancelUpload]);
 
     // Handle cancel attempt - show warning first, then close on second attempt
     const handleCancelAttempt = useCallback(() => {
@@ -160,122 +151,6 @@ export const PhotoUploadConfirmModal = memo(
       }
     }, [isOpen, isUploading, showCancelWarning, result, handleCancelAttempt]);
 
-    const { totalSize, hasLargeFiles, validUploadCount, hasValidFiles, hasInvalidTypes } =
-      useMemo(() => {
-        const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-        const hasLargeFiles = files.some((file) => file.size > 10 * 1024 * 1024);
-        const validFiles = files.filter(
-          (file) => file.size <= 10 * 1024 * 1024 && SUPPORTED_TYPES.includes(file.type),
-        );
-        const validUploadCount = validFiles.length;
-        const hasValidFiles = validUploadCount > 0;
-        const hasInvalidTypes = files.some((file) => !SUPPORTED_TYPES.includes(file.type));
-        return { totalSize, hasLargeFiles, validUploadCount, hasValidFiles, hasInvalidTypes };
-      }, [files]);
-
-    // Handle file removal
-    const handleRemoveFile = (fileName: string) => {
-      const updatedFiles = files.filter((f) => f.name !== fileName);
-      onFilesChange?.(updatedFiles);
-    };
-
-    const handleUpload = async () => {
-      if (!hasValidFiles) return;
-      setIsUploading(true);
-      setProgress(null);
-      setResult(null);
-      failedFilesRef.current = [];
-
-      // Create new AbortController for this upload
-      abortControllerRef.current = new AbortController();
-
-      try {
-        // Use presigned upload (direct to S3)
-        const result = await photoService.uploadPhotosPresigned(
-          galleryId,
-          files,
-          setProgress,
-          abortControllerRef.current.signal,
-        );
-
-        // Track failed files for potential retry
-        failedFilesRef.current = result.results
-          .filter((r) => !r.success && r.retryable !== false)
-          .map((r) => files.find((f) => f.name === r.filename))
-          .filter((f) => f !== undefined) as File[];
-
-        setResult(result);
-        // Don't call onUploadComplete here - wait for user to close the modal
-      } catch (error) {
-        // Only show error if it's not a cancellation
-        if (!(error instanceof Error && error.message.includes('cancelled'))) {
-          console.error('Upload failed:', error);
-          setResult({
-            results: files.map((file) => ({
-              filename: file.name,
-              success: false,
-              error: 'Upload failed',
-            })),
-            total_files: files.length,
-            successful_uploads: 0,
-            failed_uploads: files.length,
-          });
-          failedFilesRef.current = files;
-        }
-      } finally {
-        setIsUploading(false);
-        setProgress(null);
-        abortControllerRef.current = null;
-      }
-    };
-
-    const handleRetryFailed = async () => {
-      if (failedFilesRef.current.length === 0) return;
-
-      setIsUploading(true);
-      setProgress(null);
-      setResult(null);
-
-      // Create new AbortController for this retry
-      abortControllerRef.current = new AbortController();
-
-      try {
-        const result = await photoService.retryFailedUploads(
-          galleryId,
-          failedFilesRef.current,
-          setProgress,
-          abortControllerRef.current.signal,
-        );
-
-        // Update result with new attempt
-        if (result.failed_uploads > 0) {
-          failedFilesRef.current = failedFilesRef.current.filter((file) =>
-            result.results.some((r) => r.filename === file.name && !r.success),
-          );
-        } else {
-          failedFilesRef.current = [];
-        }
-
-        setResult(result);
-      } catch (error) {
-        console.error('Retry failed:', error);
-        setResult({
-          results: failedFilesRef.current.map((file) => ({
-            filename: file.name,
-            success: false,
-            error: 'Retry failed',
-          })),
-          total_files: failedFilesRef.current.length,
-          successful_uploads: 0,
-          failed_uploads: failedFilesRef.current.length,
-        });
-      } finally {
-        setIsUploading(false);
-        setProgress(null);
-        abortControllerRef.current = null;
-      }
-    };
-
     // Close modal and clean up
     const handleClose = () => {
       if (result) {
@@ -283,7 +158,6 @@ export const PhotoUploadConfirmModal = memo(
         onUploadComplete(result);
         onClose();
         setResult(null);
-        setProgress(null);
         setShowCancelWarning(false);
       } else {
         // Show confirmation before closing
