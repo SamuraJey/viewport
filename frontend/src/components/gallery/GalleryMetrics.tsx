@@ -1,5 +1,5 @@
 import { Eye, DownloadCloud, Download } from 'lucide-react';
-import type { ShareLink } from '../../services/shareLinkService';
+import type { ShareLink } from '../../types';
 
 interface GalleryMetricsProps {
   shareLinks: ShareLink[];

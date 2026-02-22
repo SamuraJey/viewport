@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Check, Loader2, Trash2 } from 'lucide-react';
 import { formatDateOnly } from '../../lib/utils';
-import type { GalleryDetail } from '../../services/galleryService';
+import type { GalleryDetail } from '../../types';
 
 interface GalleryHeaderProps {
   gallery: GalleryDetail;

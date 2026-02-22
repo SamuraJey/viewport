@@ -6,6 +6,7 @@ import { PhotoRenameModal } from '../components/PhotoRenameModal';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import { GalleryHeader } from '../components/gallery/GalleryHeader';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
+import { GalleryDragOverlay } from '../components/gallery/GalleryDragOverlay';
 import { GalleryPhotoSection } from '../components/gallery/GalleryPhotoSection';
 import {
   GalleryInitialLoadingState,
@@ -144,14 +145,7 @@ export const GalleryPage = () => {
         onDragLeave={handleGalleryDragLeave}
         onDrop={handleGalleryDrop}
       >
-        {isPageDragActive && (
-          <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-[1px]">
-            <div className="rounded-xl border border-accent/30 bg-surface/95 px-6 py-4 text-center shadow-xl dark:bg-surface-dark/95">
-              <p className="text-base font-semibold text-text">Drop photos to upload</p>
-              <p className="mt-1 text-sm text-muted">JPG / PNG · up to 15 MB</p>
-            </div>
-          </div>
-        )}
+        <GalleryDragOverlay isActive={isPageDragActive} />
 
         {/* Gallery Header */}
         <GalleryHeader
@@ -165,42 +159,48 @@ export const GalleryPage = () => {
 
         <GalleryPhotoSection
           galleryId={galleryId}
-          photoUrls={photoUrls}
           pagination={pagination}
-          isLoadingPhotos={isLoadingPhotos}
-          uploadError={uploadError}
-          error={error}
-          isSelectionMode={isSelectionMode}
-          isCoverPhoto={(photoId) => gallery.cover_photo_id === photoId}
-          isPhotoSelected={selection.isSelected}
-          areAllOnPageSelected={areAllOnPageSelected}
-          selectionCount={selection.count}
-          hasSelection={selection.hasSelection}
           gridRef={gridRef}
           photoUploaderRef={photoUploaderRef}
-          onUploadComplete={handleUploadComplete}
-          onDismissUploadError={() => setUploadError('')}
-          onDismissError={clearError}
-          onToggleSelectionMode={() => {
-            if (isSelectionMode) {
+          state={{
+            photoUrls,
+            isLoadingPhotos,
+            uploadError,
+            error,
+            isSelectionMode,
+          }}
+          selection={{
+            areAllOnPageSelected,
+            selectionCount: selection.count,
+            hasSelection: selection.hasSelection,
+            isPhotoSelected: selection.isSelected,
+            isCoverPhoto: (photoId) => gallery.cover_photo_id === photoId,
+          }}
+          actions={{
+            onUploadComplete: handleUploadComplete,
+            onDismissUploadError: () => setUploadError(''),
+            onDismissError: clearError,
+            onToggleSelectionMode: () => {
+              if (isSelectionMode) {
+                selection.clear();
+                setIsSelectionMode(false);
+              } else {
+                setIsSelectionMode(true);
+              }
+            },
+            onTogglePhotoSelection: handleTogglePhotoSelection,
+            onOpenPhoto: openPhoto,
+            onSetCover: handleSetCover,
+            onClearCover: handleClearCover,
+            onRenamePhoto: handleRenamePhoto,
+            onDeletePhoto: handleDeletePhoto,
+            onSelectAllPhotos: handleSelectAllPhotos,
+            onCancelSelection: () => {
               selection.clear();
               setIsSelectionMode(false);
-            } else {
-              setIsSelectionMode(true);
-            }
+            },
+            onDeleteMultiplePhotos: handleDeleteMultiplePhotosWrapper,
           }}
-          onTogglePhotoSelection={handleTogglePhotoSelection}
-          onOpenPhoto={openPhoto}
-          onSetCover={handleSetCover}
-          onClearCover={handleClearCover}
-          onRenamePhoto={handleRenamePhoto}
-          onDeletePhoto={handleDeletePhoto}
-          onSelectAllPhotos={handleSelectAllPhotos}
-          onCancelSelection={() => {
-            selection.clear();
-            setIsSelectionMode(false);
-          }}
-          onDeleteMultiplePhotos={handleDeleteMultiplePhotosWrapper}
         />
         <ShareLinksSection
           shareLinks={shareLinks}

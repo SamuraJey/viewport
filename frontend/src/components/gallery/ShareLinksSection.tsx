@@ -10,7 +10,7 @@ import {
   Check,
   Trash2,
 } from 'lucide-react';
-import type { ShareLink } from '../../services/shareLinkService';
+import type { ShareLink } from '../../types';
 
 interface ShareLinksSectionProps {
   shareLinks: ShareLink[];

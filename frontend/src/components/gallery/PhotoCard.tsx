@@ -1,5 +1,5 @@
 import { CheckSquare, Square, Search, Star, StarOff, Pencil, Download, Trash2 } from 'lucide-react';
-import type { PhotoResponse } from '../../services/photoService';
+import type { PhotoResponse } from '../../types';
 
 interface PhotoCardProps {
   photo: PhotoResponse;
@@ -61,11 +61,10 @@ export const PhotoCard = ({
             e.stopPropagation();
             onToggleSelection(photo.id, e.shiftKey);
           }}
-          className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-colors duration-200 ${
-            isSelected
+          className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-colors duration-200 ${isSelected
               ? 'bg-blue-500 text-white shadow-md'
               : 'bg-white/95 dark:bg-black/60 text-gray-800 dark:text-gray-200 hover:bg-white dark:hover:bg-black/80 shadow-sm hover:shadow-md'
-          }`}
+            }`}
           title={isSelected ? 'Deselect' : 'Select'}
         >
           {isSelected ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}

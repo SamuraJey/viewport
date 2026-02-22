@@ -47,6 +47,7 @@
 - **API calls**: Live in `frontend/src/services/*Service.ts` and use shared Axios instance `frontend/src/lib/api.ts`.
 - **Dev API routing**: Vite proxy rewrites `VITE_DEV_API_PREFIX` (default `/api`) to the backend (see `frontend/vite.config.ts`).
 - **Pages**: In `frontend/src/pages/`, use custom hooks for pagination/selection/modals instead of manual state (see DashboardPage.tsx, GalleryPage.tsx for examples).
+  - Keep pages as orchestration layers and prefer route-level lazy loading (`React.lazy` + `Suspense`) in `frontend/src/App.tsx` for main page components to control bundle size.
   - `GalleryPage.tsx` follows a **photo-first** layout: compact metadata header and primary focus on the photo grid. Upload starts directly from `Add Photos` (file picker), and drag-and-drop is handled across the whole gallery page instead of a permanently large uploader block.
   - For large page/modals, prefer feature-local decomposition into focused presentation components under dedicated folders (e.g. `components/public-gallery/`, `components/dashboard/`, `components/profile/`, `components/upload-confirm/`, `components/auth/`) while keeping orchestration in page/container components.
 - **Themes**: Light/dark themes are configured via CSS variables in `frontend/src/index.css` (primarily in the `:root` and `html.dark` selectors). Theme toggled via `themeStore` and persisted in `localStorage`. Every new feature should support both themes and have good contrast in each.
