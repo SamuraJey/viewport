@@ -126,15 +126,17 @@ class AsyncS3Client:
         content_type: str | None = None,
         metadata: dict[str, str] | None = None,
         file_size: int | None = None,
+        cache_control: str | None = None,
     ) -> str:
         """Upload a file object to S3.
 
         Args:
             file_obj: File-like object or bytes to upload
             key: S3 object key
-            content_type: Optional Content-Type header (e.g., 'image/jpeg')
+            content_type: Optional Content-Type header (e.g., 'image/avif')
             metadata: Optional metadata to attach to the object
             file_size: Optional file size hint for transfer config optimization
+            cache_control: Optional Cache-Control header (e.g., 'public, max-age=31536000, immutable')
 
         Returns:
             S3 object path
@@ -155,6 +157,8 @@ class AsyncS3Client:
             extra_args["ContentType"] = content_type
         if metadata:
             extra_args["Metadata"] = metadata
+        if cache_control:
+            extra_args["CacheControl"] = cache_control
 
         # Choose transfer config based on file size
         # Small files (<5MB) skip multipart overhead entirely

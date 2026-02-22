@@ -513,17 +513,17 @@ html.dark {
   background-color: rgb(var(--color-accent-rgb) / 0.18);
 }
 
-/* Popup container: use semantic neutral tokens so the popup adapts to
-   light/dark themes via the variables defined in :root / :root.dark.
+/* Popup container: use semantic surface tokens so the popup keeps a soft
+   grey across both themes while still respecting the palette variables.
    Avoid global `!important` rules here so Tailwind utilities can still
    adjust opacity when needed. */
 .popup-container {
-  background-color: rgb(var(--color-neutral-50-rgb) / 0.98);
-  border: 1px solid rgb(var(--color-neutral-300-rgb));
+  background-color: rgb(var(--color-surface-rgb) / 0.98);
+  border: 1px solid rgb(var(--color-border-rgb));
   box-shadow: 0 10px 30px rgba(2, 6, 23, 0.12);
   padding: 0.5rem;
   border-radius: 0.5rem;
-  color: rgb(var(--color-neutral-900-rgb));
+  color: var(--color-text);
 }
 
 /* For dark mode the RGB variables are inverted in `:root.dark`, so the
@@ -537,16 +537,16 @@ body.dark .popup-container {
 
 /* Arrow: set border-top color explicitly to match the popup background */
 .popup-arrow {
-  /* Match popup container background (light mode) */
-  border-top-color: rgb(var(--color-white-rgb) / 0.98);
+  /* Match neutral popup container surface even in light mode */
+  border-top-color: rgb(var(--color-surface-rgb) / 0.98);
 }
 
 .dark .popup-arrow,
 html.dark .popup-arrow,
 body.dark .popup-arrow,
 :root.dark .popup-arrow {
-  /* Match popup container background in dark mode */
-  border-top-color: rgb(var(--color-neutral-50-rgb) / 0.96) !important;
+  /* Match popup surface tone in dark mode */
+  border-top-color: rgb(var(--color-surface-dark-1-rgb) / 0.96) !important;
 }
 
 .demo-swatch__color {
@@ -908,9 +908,9 @@ html.dark .pg-columns>.pg-card>button>img.photo--wide {
 html.dark .popup-container,
 body.dark .popup-container,
 :root.dark .popup-container {
-  background-color: rgb(39, 39, 42) !important;
-  color: rgb(244, 244, 245) !important;
-  border-color: rgb(63, 63, 70) !important;
+  background-color: rgb(var(--color-surface-dark-1-rgb) / 0.98) !important;
+  color: rgb(var(--color-surface-foreground-rgb)) !important;
+  border-color: rgb(var(--color-border-rgb)) !important;
 }
 
 /* Fix for popup action buttons inside popups - only override neutral ones, preserve accent colors */
@@ -937,16 +937,16 @@ body.dark .popup-action--accent,
 html.dark .popup-container,
 body.dark .popup-container,
 .dark .popup-container {
-  background-color: rgb(var(--color-neutral-50-rgb) / 0.98) !important;
-  color: rgb(var(--color-neutral-900-rgb)) !important;
-  border-color: rgb(var(--color-neutral-500-rgb)) !important;
+  background-color: rgb(var(--color-surface-dark-1-rgb) / 0.98) !important;
+  color: var(--color-text) !important;
+  border-color: rgb(var(--color-border-rgb)) !important;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45) !important;
 }
 
 html.dark .popup-arrow,
 .dark .popup-arrow,
 body.dark .popup-arrow {
-  border-top-color: rgb(var(--color-neutral-50-rgb) / 0.98) !important;
+  border-top-color: rgb(var(--color-surface-dark-1-rgb) / 0.98) !important;
 }
 
 /* Normalization: ensure popup-action variants render consistently in dark mode.

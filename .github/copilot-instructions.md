@@ -75,3 +75,4 @@
 
 ## Important rules
 - When making significant changes in the project, update this file to reflect new conventions or architectural patterns.
+- Documentations must be put in docs/ folder.

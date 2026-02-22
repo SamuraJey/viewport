@@ -149,9 +149,17 @@ def _process_single_photo(
                 del thumbnail_bytes
                 return
 
-        # Upload thumbnail
+        # Upload thumbnail with aggressive caching (immutable content)
         thumbnail_io = io.BytesIO(thumbnail_bytes)
-        s3_client.upload_fileobj(thumbnail_io, bucket, thumbnail_object_key, ExtraArgs={"ContentType": "image/jpeg"})
+        s3_client.upload_fileobj(
+            thumbnail_io,
+            bucket,
+            thumbnail_object_key,
+            ExtraArgs={
+                "ContentType": "image/avif",
+                "CacheControl": "public, max-age=31536000, immutable",  # 1 year, never changes
+            },
+        )
         del thumbnail_bytes
 
         logger.info("Successfully created thumbnail for photo %s", photo_id)

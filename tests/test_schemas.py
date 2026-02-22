@@ -237,7 +237,7 @@ class TestPhotoSchemas:
             "id": photo_id,
             "gallery_id": gallery_id,
             "url": "/photos/test.jpg",
-            "thumbnail_url": "/photos/thumbnails/test.jpg",
+            "thumbnail_url": "/photos/thumbnails/test.avif",
             "filename": "test.jpg",
             "file_size": 2048,
             "uploaded_at": uploaded_at,
@@ -259,7 +259,7 @@ class TestPhotoSchemas:
         mock_photo.file_size = 1024
         mock_photo.uploaded_at = datetime.now(UTC)
         mock_photo.object_key = f"{mock_photo.gallery_id}/test.jpg"
-        mock_photo.thumbnail_object_key = f"{mock_photo.gallery_id}/thumbnails/test.jpg"
+        mock_photo.thumbnail_object_key = f"{mock_photo.gallery_id}/thumbnails/test.avif"
         mock_photo.width = 800
         mock_photo.height = 600
 
@@ -283,7 +283,15 @@ class TestPhotoSchemas:
         uploaded_at = datetime.now(UTC)
 
         photos = [
-            {"id": photo_id, "gallery_id": gallery_id, "url": "/photos/test.jpg", "thumbnail_url": "/photos/thumbnails/test.jpg", "filename": "test.jpg", "file_size": 1024, "uploaded_at": uploaded_at}
+            {
+                "id": photo_id,
+                "gallery_id": gallery_id,
+                "url": "/photos/test.jpg",
+                "thumbnail_url": "/photos/thumbnails/test.avif",
+                "filename": "test.jpg",
+                "file_size": 1024,
+                "uploaded_at": uploaded_at,
+            }
         ]
 
         data = {"photos": photos, "total": 1, "page": 1, "size": 10}
