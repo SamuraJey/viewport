@@ -3,13 +3,14 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { useAuthStore } from '../stores/authStore';
 import { validateEmail } from '../lib/utils';
-import { Eye, EyeOff, Camera, Mail, LogIn, UserPlus } from 'lucide-react';
+import { Mail, LogIn, UserPlus } from 'lucide-react';
 import { AuthLayout } from '../components/AuthLayout';
+import { AuthCard } from '../components/auth/AuthCard';
+import { AuthPasswordField, AuthTextField } from '../components/auth/AuthFields';
 
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -59,78 +60,33 @@ export const LoginPage = () => {
   return (
     <AuthLayout>
       <div className="relative w-full max-w-md">
-        {/* Card container */}
-        <div className="bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-border dark:border-border/10">
-          {/* Logo/Brand area */}
-          <div className="text-center mb-8">
-            <div className="w-12 h-12 bg-accent rounded-xl flex items-center justify-center mx-auto mb-4">
-              <Camera className="h-6 w-6 text-white" />
-            </div>
-            <h2 className="font-oswald text-3xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground mb-2">
-              Welcome back
-            </h2>
-            <p className="text-muted dark:text-text font-cuprum">
-              Sign in to your Viewport account
-            </p>
-          </div>
-
+        <AuthCard title="Welcome back" subtitle="Sign in to your Viewport account">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email Field */}
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide"
-              >
-                Email address
-              </label>
-              <div className="relative">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border rounded-lg focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm text-text dark:text-accent-foreground transition-all duration-200 hover:border-border/80"
-                  placeholder="Enter your email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  aria-label="Email address"
-                />
-                <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted dark:text-text" />
-              </div>
-            </div>
+            <AuthTextField
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              label="Email address"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              aria-label="Email address"
+              rightAdornment={<Mail className="h-5 w-5" />}
+            />
 
-            {/* Password Field */}
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide"
-              >
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  required
-                  className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm transition-all duration-200 hover:border-border/80"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  aria-label="Password"
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
-                  onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
-            </div>
+            <AuthPasswordField
+              id="password"
+              name="password"
+              autoComplete="current-password"
+              required
+              label="Password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              aria-label="Password"
+            />
 
             {/* Error Message */}
             {error && (
@@ -139,7 +95,6 @@ export const LoginPage = () => {
               </div>
             )}
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={isLoading}
@@ -158,7 +113,6 @@ export const LoginPage = () => {
               )}
             </button>
 
-            {/* Divider */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-border dark:border-border"></div>
@@ -170,7 +124,6 @@ export const LoginPage = () => {
               </div>
             </div>
 
-            {/* Register Link */}
             <div className="text-center">
               <Link
                 to="/auth/register"
@@ -181,7 +134,7 @@ export const LoginPage = () => {
               </Link>
             </div>
           </form>
-        </div>
+        </AuthCard>
       </div>
     </AuthLayout>
   );
