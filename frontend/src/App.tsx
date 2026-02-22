@@ -1,7 +1,8 @@
 import { Suspense, lazy } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { RequireAuth } from './components/RequireAuth';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { Layout } from './components/Layout';
 import { NotFoundPage, ErrorPage } from './pages/ErrorPage';
 import { PublicGalleryPage } from './pages/PublicGalleryPage';
 import { useAuthStore } from './stores/authStore';
@@ -20,9 +21,17 @@ const GalleryPage = lazy(() =>
 );
 
 const RouteFallback = () => (
-  <div className="min-h-screen flex items-center justify-center bg-surface text-muted">
-    <div className="text-sm font-medium">Loading page...</div>
+  <div className="pointer-events-none fixed inset-x-0 top-0 z-100">
+    <div className="h-0.5 w-full bg-accent/70 animate-pulse" />
   </div>
+);
+
+const ProtectedLayout = () => (
+  <RequireAuth>
+    <Layout>
+      <Outlet />
+    </Layout>
+  </RequireAuth>
 );
 
 function App() {
@@ -46,22 +55,10 @@ function App() {
           <Route path="/share/:shareId" element={<PublicGalleryPage />} />
 
           {/* Protected routes */}
-          <Route
-            path="/"
-            element={
-              <RequireAuth>
-                <DashboardPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/galleries/:id"
-            element={
-              <RequireAuth>
-                <GalleryPage />
-              </RequireAuth>
-            }
-          />
+          <Route element={<ProtectedLayout />}>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/galleries/:id" element={<GalleryPage />} />
+          </Route>
 
           {/* Error routes */}
           <Route path="/error/404" element={<NotFoundPage />} />

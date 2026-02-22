@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { type Gallery } from '../services/galleryService';
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Layout } from '../components/Layout';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { useDashboardActions } from '../hooks';
 import { DashboardGalleryCard } from '../components/dashboard/DashboardGalleryCard';
@@ -52,10 +51,26 @@ export const DashboardPage = () => {
   // Inline rename state
   const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState('');
+  const [showLoadingSkeleton, setShowLoadingSkeleton] = useState(false);
 
   useEffect(() => {
     fetchGalleries(pagination.page);
   }, [fetchGalleries, pagination.page]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setShowLoadingSkeleton(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShowLoadingSkeleton(true);
+    }, 220);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isLoading]);
 
   // Focus input when create modal opens
   useEffect(() => {
@@ -223,58 +238,58 @@ export const DashboardPage = () => {
   };
 
   return (
-    <Layout>
-      <div className="flex flex-col gap-8">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">
-              My Galleries
-            </h1>
-            <p className="text-muted font-cuprum text-lg">
-              Your personal space to organize and share moments.
-            </p>
-          </div>
-          <button
-            onClick={handleOpenModal}
-            disabled={isCreating}
-            className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 border border-accent/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
-            aria-label="Create new gallery"
-          >
-            {isCreating ? (
-              <div className="w-5 h-5 border-2 border-border dark:border-border/40 rounded-full animate-spin"></div>
-            ) : (
-              <Plus className="h-5 w-5" />
-            )}
-            New Gallery
-          </button>
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">
+            My Galleries
+          </h1>
+          <p className="text-muted font-cuprum text-lg">
+            Your personal space to organize and share moments.
+          </p>
         </div>
+        <button
+          onClick={handleOpenModal}
+          disabled={isCreating}
+          className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 border border-accent/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+          aria-label="Create new gallery"
+        >
+          {isCreating ? (
+            <div className="w-5 h-5 border-2 border-border dark:border-border/40 rounded-full animate-spin"></div>
+          ) : (
+            <Plus className="h-5 w-5" />
+          )}
+          New Gallery
+        </button>
+      </div>
 
-        {error && renderError()}
+      {error && renderError()}
 
-        {isLoading
-          ? renderLoading()
+      {isLoading && showLoadingSkeleton
+        ? renderLoading()
+        : isLoading
+          ? null
           : galleries.length === 0
             ? renderEmptyState()
             : renderGalleries()}
 
-        {/* Modal for entering new gallery name */}
-        <AnimatePresence>
-          <CreateGalleryModal
-            isOpen={createModal.isOpen}
-            isCreating={isCreating}
-            newGalleryName={newGalleryName}
-            shootingDate={newGalleryShootingDate}
-            inputRef={newGalleryInputRef}
-            onClose={createModal.close}
-            onConfirm={handleConfirmCreate}
-            onNameChange={setNewGalleryName}
-            onShootingDateChange={setNewGalleryShootingDate}
-          />
-        </AnimatePresence>
+      {/* Modal for entering new gallery name */}
+      <AnimatePresence>
+        <CreateGalleryModal
+          isOpen={createModal.isOpen}
+          isCreating={isCreating}
+          newGalleryName={newGalleryName}
+          shootingDate={newGalleryShootingDate}
+          inputRef={newGalleryInputRef}
+          onClose={createModal.close}
+          onConfirm={handleConfirmCreate}
+          onNameChange={setNewGalleryName}
+          onShootingDateChange={setNewGalleryShootingDate}
+        />
+      </AnimatePresence>
 
-        {/* Confirmation Modal */}
-        {ConfirmModal}
-      </div>
-    </Layout>
+      {/* Confirmation Modal */}
+      {ConfirmModal}
+    </div>
   );
 };

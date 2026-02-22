@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
-import { Layout } from '../components/Layout';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import { GalleryHeader } from '../components/gallery/GalleryHeader';
@@ -56,6 +55,7 @@ export const GalleryPage = () => {
 
   // State
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [showInitialLoadingState, setShowInitialLoadingState] = useState(false);
 
   // Refs
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -83,6 +83,21 @@ export const GalleryPage = () => {
     fetchGalleryDetails(pagination.page, isInitial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagination.page, galleryId]);
+
+  useEffect(() => {
+    if (!isInitialLoading) {
+      setShowInitialLoadingState(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShowInitialLoadingState(true);
+    }, 220);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isInitialLoading]);
 
   // Handler for toggling photo selection
   const handleTogglePhotoSelection = (photoId: string, isShiftKey: boolean = false) => {
@@ -119,8 +134,12 @@ export const GalleryPage = () => {
     openLightbox(index);
   };
 
-  if (isInitialLoading) {
+  if (isInitialLoading && showInitialLoadingState) {
     return <GalleryInitialLoadingState />;
+  }
+
+  if (isInitialLoading) {
+    return null;
   }
 
   if (error && !gallery) {
@@ -137,7 +156,7 @@ export const GalleryPage = () => {
   }
 
   return (
-    <Layout>
+    <>
       <div
         className="relative space-y-6"
         onDragEnter={handleGalleryDragEnter}
@@ -237,6 +256,6 @@ export const GalleryPage = () => {
 
       {/* Confirmation Modal */}
       {ConfirmModal}
-    </Layout>
+    </>
   );
 };

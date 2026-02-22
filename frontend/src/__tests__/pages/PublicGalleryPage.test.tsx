@@ -3,9 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Polyfill ResizeObserver for jsdom environment used by Vitest
 if (!(global as any).ResizeObserver) {
   (global as any).ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+    observe() { }
+    unobserve() { }
+    disconnect() { }
   };
 }
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -93,7 +93,7 @@ const wrapper = () => (
 describe('PublicGalleryPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => { });
     const { shareLinkService } = await import('../../services/shareLinkService');
     vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue(mockPublicGallery);
     // Load component after mocks are configured
@@ -104,14 +104,12 @@ describe('PublicGalleryPage', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows loading indicator initially', async () => {
+  it('does not render fullscreen skeleton while loading', async () => {
     const { container } = render(wrapper());
-    // Skeleton loading shows placeholder grid with animated elements
-    expect(container.querySelector('[data-testid="skeleton-loader"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="skeleton-loader"]')).not.toBeInTheDocument();
 
-    // Wait for loading to finish to avoid act() warning
     await waitFor(() => {
-      expect(container.querySelector('[data-testid="skeleton-loader"]')).not.toBeInTheDocument();
+      expect(screen.getByText('Photos (2)')).toBeInTheDocument();
     });
   });
 
