@@ -7,8 +7,21 @@ interface PublicGalleryHeroProps {
 
 export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
   const [isHeroFullLoaded, setIsHeroFullLoaded] = useState(false);
+  const [scrollY, setScrollY] = useState(0);
   const heroImgRef = useRef<HTMLImageElement>(null);
   const heroUrl = gallery?.cover?.full_url;
+
+  useEffect(() => {
+    const handleScroll = () => {
+      // Only update if we're near the top to save performance
+      if (window.scrollY < window.innerHeight) {
+        setScrollY(window.scrollY);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useLayoutEffect(() => {
     if (!heroUrl) {
@@ -16,10 +29,7 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
       return;
     }
 
-    if (
-      heroImgRef.current?.complete &&
-      heroImgRef.current?.naturalWidth > 0
-    ) {
+    if (heroImgRef.current?.complete && heroImgRef.current?.naturalWidth > 0) {
       setIsHeroFullLoaded(true);
     } else {
       setIsHeroFullLoaded(false);
@@ -62,7 +72,7 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
   }
 
   return (
-    <div className="pg-hero relative w-full text-accent-foreground bg-surface-foreground/15 dark:bg-surface/20">
+    <div className="pg-hero relative w-full text-accent-foreground bg-surface-foreground/15 dark:bg-surface/20 overflow-hidden">
       <img
         src={gallery.cover.thumbnail_url}
         alt="Gallery cover preview"
@@ -84,37 +94,55 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
 
       <div className="pg-hero__overlay" />
 
-      <div className="relative z-10 p-6">
-        {gallery.date && <p className="text-sm pg-hero__meta mb-2">{gallery.date}</p>}
-        <h1 className="pg-hero__title font-bold drop-shadow-lg">
-          {gallery.gallery_name || 'Shared Gallery'}
-        </h1>
-        <div className="mt-4 text-lg pg-hero__meta">
-          {gallery.photographer && <span>{gallery.photographer}</span>}
+      {/* Animated text content with parallax */}
+      <div
+        className="relative z-10 p-6 w-full max-w-4xl mx-auto"
+        style={{ transform: `translateY(${scrollY * 0.4}px)` }}
+      >
+        <div
+          className="opacity-0 animate-fade-in-up flex flex-col items-center"
+          style={{ animationDelay: '0.2s', animationFillMode: 'forwards' }}
+        >
+          {gallery.date && <p className="text-sm pg-hero__meta mb-2">{gallery.date}</p>}
+          <h1 className="pg-hero__title font-bold drop-shadow-lg text-center">
+            {gallery.gallery_name || 'Shared Gallery'}
+          </h1>
+          <div className="mt-4 text-lg pg-hero__meta text-center">
+            {gallery.photographer && <span>{gallery.photographer}</span>}
+          </div>
         </div>
       </div>
 
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
-        <a
-          href="#gallery-content"
-          aria-label="Scroll to photos"
-          className="w-10 h-10 border-2 border-white/70 rounded-full flex items-center justify-center animate-pulse hover:bg-white/20 transition-colors duration-200"
-          onClick={(event) => {
-            event.preventDefault();
-            document.getElementById('gallery-content')?.scrollIntoView({ behavior: 'smooth' });
-          }}
+      {/* Animated scroll button */}
+      <div
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10"
+        style={{ opacity: Math.max(0, 1 - scrollY / 300) }}
+      >
+        <div
+          className="opacity-0 animate-fade-in"
+          style={{ animationDelay: '0.8s', animationFillMode: 'forwards' }}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="w-5 h-5"
+          <a
+            href="#gallery-content"
+            aria-label="Scroll to photos"
+            className="w-10 h-10 border-2 border-white/70 rounded-full flex items-center justify-center animate-pulse hover:bg-white/20 transition-colors duration-200"
+            onClick={(event) => {
+              event.preventDefault();
+              document.getElementById('gallery-content')?.scrollIntoView({ behavior: 'smooth' });
+            }}
           >
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </a>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="w-5 h-5"
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </a>
+        </div>
       </div>
     </div>
   );

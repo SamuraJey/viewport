@@ -3,9 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Polyfill ResizeObserver for jsdom environment used by Vitest
 if (!(global as any).ResizeObserver) {
   (global as any).ResizeObserver = class {
-    observe() { }
-    unobserve() { }
-    disconnect() { }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
   };
 }
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -93,7 +93,7 @@ const wrapper = () => (
 describe('PublicGalleryPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    vi.spyOn(console, 'error').mockImplementation(() => { });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     const { shareLinkService } = await import('../../services/shareLinkService');
     vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue(mockPublicGallery);
     // Load component after mocks are configured
