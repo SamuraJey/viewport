@@ -7,7 +7,6 @@ import { PublicGalleryHero } from '../components/public-gallery/PublicGalleryHer
 import { PublicGalleryPhotoSection } from '../components/public-gallery/PublicGalleryPhotoSection';
 import {
     PublicGalleryError,
-    PublicGallerySkeleton,
 } from '../components/public-gallery/PublicGalleryStates';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import { usePublicGallery } from '../hooks';
@@ -88,7 +87,7 @@ export const PublicGalleryPage = () => {
     );
 
     if (isLoading) {
-        return <PublicGallerySkeleton />;
+        return null;
     }
 
     if (error) {
@@ -98,7 +97,7 @@ export const PublicGalleryPage = () => {
     return (
         <div className="min-h-screen bg-surface dark:bg-surface-foreground/5 text-text dark:text-accent-foreground">
             <div className="fixed top-6 right-6 z-30">
-                <ThemeSwitch />
+                <ThemeSwitch variant="inline" />
             </div>
 
             <PublicGalleryHero gallery={gallery} />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { SharedGallery } from '../../services/shareLinkService';
 
 interface PublicGalleryHeroProps {
@@ -7,10 +7,46 @@ interface PublicGalleryHeroProps {
 
 export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
   const [isHeroFullLoaded, setIsHeroFullLoaded] = useState(false);
+  const heroImgRef = useRef<HTMLImageElement>(null);
+  const heroUrl = gallery?.cover?.full_url;
+
+  useLayoutEffect(() => {
+    if (!heroUrl) {
+      setIsHeroFullLoaded(false);
+      return;
+    }
+
+    if (
+      heroImgRef.current?.complete &&
+      heroImgRef.current?.naturalWidth > 0
+    ) {
+      setIsHeroFullLoaded(true);
+    } else {
+      setIsHeroFullLoaded(false);
+    }
+  }, [heroUrl]);
 
   useEffect(() => {
-    setIsHeroFullLoaded(false);
-  }, [gallery?.cover?.full_url]);
+    if (!heroUrl) return;
+
+    const preload = new Image();
+    preload.src = heroUrl;
+
+    if (preload.complete && preload.naturalWidth > 0) {
+      setIsHeroFullLoaded(true);
+      return;
+    }
+
+    const handlePreload = () => {
+      setIsHeroFullLoaded(true);
+    };
+
+    preload.addEventListener('load', handlePreload, { once: true });
+
+    return () => {
+      preload.removeEventListener('load', handlePreload);
+    };
+  }, [heroUrl]);
 
   if (!gallery?.cover) {
     return (
@@ -26,20 +62,23 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
   }
 
   return (
-    <div className="pg-hero relative w-full text-accent-foreground">
+    <div className="pg-hero relative w-full text-accent-foreground bg-surface-foreground/15 dark:bg-surface/20">
       <img
         src={gallery.cover.thumbnail_url}
         alt="Gallery cover preview"
-        crossOrigin="anonymous"
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isHeroFullLoaded ? 'opacity-0' : 'opacity-100'}`}
+        loading="eager"
+        fetchPriority="high"
+        className="absolute inset-0 w-full h-full object-cover"
       />
 
       <img
+        ref={heroImgRef}
         src={gallery.cover.full_url}
         alt="Gallery cover"
-        crossOrigin="anonymous"
+        loading="eager"
+        fetchPriority="high"
+        decoding="async"
         onLoad={() => setIsHeroFullLoaded(true)}
-        onError={() => setIsHeroFullLoaded(true)}
         className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${isHeroFullLoaded ? 'opacity-100' : 'opacity-0'}`}
       />
 
