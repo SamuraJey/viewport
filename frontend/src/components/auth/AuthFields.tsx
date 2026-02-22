@@ -19,7 +19,11 @@ export const AuthTextField = ({ id, label, rightAdornment, ...inputProps }: Base
       {label}
     </label>
     <div className="relative">
-      <input id={id} className={`${baseInputClassName} ${rightAdornment ? 'pr-12' : ''}`} {...inputProps} />
+      <input
+        id={id}
+        className={`${baseInputClassName} ${rightAdornment ? 'pr-12' : ''}`}
+        {...inputProps}
+      />
       {rightAdornment ? (
         <div className="pointer-events-none absolute right-3 top-1/2 transform -translate-y-1/2 text-muted dark:text-text">
           {rightAdornment}

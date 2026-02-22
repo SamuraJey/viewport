@@ -13,7 +13,9 @@ export const UploadProgressContent = ({ progress }: UploadProgressContentProps) 
           <div className="w-8 h-8 rounded-full border-4 border-blue-200 dark:border-blue-500/30 border-t-blue-500 dark:border-t-blue-400 animate-spin" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-text dark:text-white truncate">{progress.currentFile}</p>
+          <p className="text-sm font-medium text-text dark:text-white truncate">
+            {progress.currentFile}
+          </p>
           {progress.currentBatch && progress.totalBatches && (
             <p className="text-xs text-muted">
               Batch {progress.currentBatch} of {progress.totalBatches}
@@ -26,7 +28,8 @@ export const UploadProgressContent = ({ progress }: UploadProgressContentProps) 
         <div className="flex justify-between text-xs sm:text-sm text-muted font-medium">
           <span>Progress</span>
           <span>
-            {progress.percentage}% • {formatFileSize(progress.loaded)} / {formatFileSize(progress.total)}
+            {progress.percentage}% • {formatFileSize(progress.loaded)} /{' '}
+            {formatFileSize(progress.total)}
           </span>
         </div>
         <div className="w-full bg-surface-foreground dark:bg-surface rounded-full h-2.5 overflow-hidden">

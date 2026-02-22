@@ -58,7 +58,10 @@ export const ProfileInfoSection = ({
 
       <div className="bg-surface-1 dark:bg-surface-dark-1 rounded-xl p-6 space-y-4 border border-border/40">
         <div>
-          <label htmlFor="email" className="flex items-center gap-2 text-sm font-medium text-text mb-2">
+          <label
+            htmlFor="email"
+            className="flex items-center gap-2 text-sm font-medium text-text mb-2"
+          >
             <Mail className="w-4 h-4" />
             Email Address
           </label>
@@ -112,7 +115,10 @@ export const ProfileInfoSection = ({
             </span>
           </div>
           <div className="mt-2 h-2 w-full rounded-full bg-border/40 dark:bg-border/20">
-            <div className="h-2 rounded-full bg-accent transition-all" style={{ width: `${storagePercent}%` }} />
+            <div
+              className="h-2 rounded-full bg-accent transition-all"
+              style={{ width: `${storagePercent}%` }}
+            />
           </div>
           <p className="mt-1 text-xs text-text/60 dark:text-muted">{storagePercent}% used</p>
         </div>

@@ -71,7 +71,9 @@ export const ProfileDangerZoneSection = ({
         </div>
 
         <div className="bg-danger/10 border border-danger/20 rounded-xl p-6 space-y-4">
-          <p className="text-text">Please enter your current password to proceed with account deletion.</p>
+          <p className="text-text">
+            Please enter your current password to proceed with account deletion.
+          </p>
 
           <div className="relative">
             <input

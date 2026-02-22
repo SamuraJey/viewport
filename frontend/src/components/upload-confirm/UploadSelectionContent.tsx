@@ -1,11 +1,6 @@
 import { AlertTriangle, FileImage, X } from 'lucide-react';
 import { formatFileSize } from '../../lib/utils';
-import {
-  getFileUploadErrorText,
-  hasFileUploadError,
-  isFileTypeInvalid,
-  isFileTooLarge,
-} from './uploadConfirmUtils';
+import { getFileUploadErrorText, hasFileUploadError } from './uploadConfirmUtils';
 
 interface UploadSelectionContentProps {
   files: File[];
@@ -58,8 +53,6 @@ export const UploadSelectionContent = ({
       <div className="space-y-2">
         {files.map((file, index) => {
           const hasError = hasFileUploadError(file);
-          const isInvalid = isFileTypeInvalid(file);
-          const isLarge = isFileTooLarge(file);
           const fileErrorText = getFileUploadErrorText(file);
 
           return (

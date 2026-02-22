@@ -48,7 +48,10 @@ export const CreateGalleryModal = ({
         transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         onClick={(event) => event.stopPropagation()}
       >
-        <h2 id="modal-title" className="font-oswald text-xl font-bold uppercase tracking-wide mb-1 text-text">
+        <h2
+          id="modal-title"
+          className="font-oswald text-xl font-bold uppercase tracking-wide mb-1 text-text"
+        >
           New Gallery
         </h2>
         <p className="text-muted text-sm mb-5">Enter a name for your new gallery.</p>
