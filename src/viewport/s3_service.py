@@ -456,24 +456,36 @@ class AsyncS3Client:
         Raises:
             Exception: If URL generation fails
         """
-        # Check cache first
-        cached = get_cached_presigned_url(key)
+        # Check cache first.
+        # Keep a versioned cache key so cache-policy changes can take effect
+        # immediately after deploy without waiting old in-memory entries out.
+        cache_key = f"v2:get:{expires_in}:{key}"
+        cached = get_cached_presigned_url(cache_key)
         if cached:
             logger.debug("Using cached presigned URL for: %s", key)
             return cached
 
         try:
+            # Explicit response cache policy for browser caching.
+            # We align max-age with URL expiry so clients never cache longer
+            # than the signed URL remains valid.
+            cache_max_age = max(0, int(expires_in))
+
             # Create a sync boto3 client for presigned URL generation
             # (presigned URLs are sync operation, no need for async)
             s3_client = self._get_presign_client()
             url = s3_client.generate_presigned_url(
                 "get_object",
-                Params={"Bucket": self.settings.bucket, "Key": key},
+                Params={
+                    "Bucket": self.settings.bucket,
+                    "Key": key,
+                    "ResponseCacheControl": f"private, max-age={cache_max_age}, immutable",
+                },
                 ExpiresIn=expires_in,
             )
             # Cache the presigned URL (with some buffer inside cache function)
             try:
-                cache_presigned_url(key, str(url), expires_in)
+                cache_presigned_url(cache_key, str(url), expires_in)
             except Exception:
                 logger.warning("Failed to cache presigned URL for key %s", key)
 

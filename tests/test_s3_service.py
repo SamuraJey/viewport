@@ -524,3 +524,35 @@ class TestAsyncS3ClientClose:
         assert s3_client._session is None
         mock_presign.close.assert_called_once()
         assert s3_client._presign_client is None
+
+
+class TestAsyncS3ClientPresignedGet:
+    """Tests for generate_presigned_url method."""
+
+    def test_generate_presigned_url_sets_response_cache_control(self, s3_client):
+        """Presigned GET should include explicit Cache-Control response override."""
+        mock_presign_client = MagicMock()
+        mock_presign_client.generate_presigned_url.return_value = "https://s3.local/object"
+        s3_client._get_presign_client = MagicMock(return_value=mock_presign_client)
+
+        with patch("viewport.s3_service.get_cached_presigned_url", return_value=None):
+            url = s3_client.generate_presigned_url("gallery/thumb.avif", expires_in=3600)
+
+        assert url == "https://s3.local/object"
+        mock_presign_client.generate_presigned_url.assert_called_once()
+
+        call_kwargs = mock_presign_client.generate_presigned_url.call_args.kwargs
+        assert call_kwargs["ExpiresIn"] == 3600
+        assert call_kwargs["Params"]["Bucket"] == "test-bucket"
+        assert call_kwargs["Params"]["Key"] == "gallery/thumb.avif"
+        assert call_kwargs["Params"]["ResponseCacheControl"] == "private, max-age=3600, immutable"
+
+    def test_generate_presigned_url_uses_cache_before_generating(self, s3_client):
+        """When URL is already cached, boto presign generation should be skipped."""
+        s3_client._get_presign_client = MagicMock()
+
+        with patch("viewport.s3_service.get_cached_presigned_url", return_value="https://cached.local/object"):
+            url = s3_client.generate_presigned_url("gallery/thumb.avif", expires_in=3600)
+
+        assert url == "https://cached.local/object"
+        s3_client._get_presign_client.assert_not_called()
