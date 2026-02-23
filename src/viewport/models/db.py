@@ -2,6 +2,7 @@ import logging
 from collections.abc import Generator
 from functools import lru_cache
 
+from fastapi import HTTPException
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Engine
@@ -89,6 +90,12 @@ def get_db() -> Generator[Session]:  # pragma: no cover
 
     try:
         yield session
+    except HTTPException as http_exc:
+        status_code = getattr(http_exc, "status_code", None)
+        log_method = logger.info if isinstance(status_code, int) and status_code < 500 else logger.warning
+        log_method("Session HTTP exception after %.3fs: %s", time.time() - session_start, http_exc)
+        session.rollback()
+        raise
     except Exception as e:
         logger.warning("Session error after %.3fs: %s", time.time() - session_start, e, exc_info=True)
         session.rollback()

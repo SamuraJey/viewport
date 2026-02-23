@@ -1,5 +1,4 @@
 import type { MutableRefObject, TouchEventHandler } from 'react';
-import { motion } from 'framer-motion';
 import { ImageOff, Loader2 } from 'lucide-react';
 import { LazyImage } from '../LazyImage';
 import { PublicGalleryGridControls } from './PublicGalleryGridControls';
@@ -63,28 +62,9 @@ export const PublicGalleryPhotoSection = ({
 
       {photos.length > 0 ? (
         <>
-          <motion.div
-            layout
-            layoutRoot
-            transition={{ duration: 0.35, ease: [0.2, 0.9, 0.3, 1] }}
-            className={gridClassNames}
-            ref={gridRef}
-          >
+          <div className={gridClassNames} ref={gridRef}>
             {photos.map((photo, index) => (
-              <motion.div
-                layout
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                whileHover={{
-                  y: -6,
-                  scale: 1.01,
-                  transition: { duration: 0.2 },
-                }}
-                transition={{
-                  layout: { duration: 0.3, ease: 'easeInOut' },
-                  opacity: { duration: 0.2 },
-                  scale: { duration: 0.2 },
-                }}
+              <div
                 key={photo.photo_id}
                 className={`pg-card relative group ${gridLayout === 'uniform' ? 'pg-card--uniform' : ''}`}
                 data-testid="public-batch"
@@ -102,12 +82,11 @@ export const PublicGalleryPhotoSection = ({
                     objectFit={gridLayout === 'uniform' ? 'contain' : 'cover'}
                     width={photo.width}
                     height={photo.height}
-                    layout
                   />
                 </button>
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
+          </div>
 
           <div ref={observerTargetRef} className="h-4 mt-4" />
 

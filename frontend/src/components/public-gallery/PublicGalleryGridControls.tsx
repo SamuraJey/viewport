@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import type { PublicGridDensity, PublicGridLayout } from '../../hooks/usePublicGalleryGrid';
 
@@ -53,11 +52,7 @@ const SegmentedControl = <T extends string>({
             aria-pressed={isActive}
           >
             {isActive && (
-              <motion.div
-                layoutId={activeLayoutId}
-                className="absolute inset-0 bg-accent"
-                transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-              />
+              <div className="absolute inset-0 bg-accent" data-layout-id={activeLayoutId} />
             )}
             {option.icon === 'maximize' && (
               <Maximize2

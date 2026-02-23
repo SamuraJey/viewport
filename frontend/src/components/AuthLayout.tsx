@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { motion } from 'framer-motion';
 import { ThemeSwitch } from './ThemeSwitch';
 
 interface AuthLayoutProps {
@@ -21,14 +20,7 @@ export const AuthLayout = ({ children }: AuthLayoutProps) => {
       <ThemeSwitch />
 
       {/* Animated card wrapper */}
-      <motion.div
-        className="relative z-10 w-full max-w-md"
-        initial={{ opacity: 0, y: 28, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ type: 'spring', stiffness: 320, damping: 28, delay: 0.05 }}
-      >
-        {children}
-      </motion.div>
+      <div className="relative z-10 w-full max-w-md animate-fade-in-up">{children}</div>
     </div>
   );
 };

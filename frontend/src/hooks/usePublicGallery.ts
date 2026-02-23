@@ -5,6 +5,13 @@ import {
   type SharedGallery,
 } from '../services/shareLinkService';
 
+const PUBLIC_GALLERY_FATAL_STATUSES = new Set([404, 410]);
+
+const getErrorStatus = (error: unknown): number | undefined => {
+  const status = (error as { response?: { status?: number } } | null)?.response?.status;
+  return typeof status === 'number' ? status : undefined;
+};
+
 interface UsePublicGalleryProps {
   shareId: string | undefined;
   photosPerPage?: number;
@@ -21,12 +28,14 @@ export const usePublicGallery = ({ shareId, photosPerPage = 100 }: UsePublicGall
   const fetchGalleryData = useCallback(async () => {
     if (!shareId) {
       setError('Invalid share link');
+      setHasMore(false);
       setIsLoading(false);
       return;
     }
 
     try {
       setIsLoading(true);
+      setError('');
       const data = await shareLinkService.getSharedGallery(shareId, {
         limit: photosPerPage,
         offset: 0,
@@ -37,6 +46,10 @@ export const usePublicGallery = ({ shareId, photosPerPage = 100 }: UsePublicGall
       setHasMore(data.photos.length === photosPerPage);
     } catch (err) {
       console.error('Failed to fetch shared gallery:', err);
+      const status = getErrorStatus(err);
+      if (status && PUBLIC_GALLERY_FATAL_STATUSES.has(status)) {
+        setHasMore(false);
+      }
       setError('Gallery not found or link has expired');
     } finally {
       setIsLoading(false);
@@ -59,6 +72,11 @@ export const usePublicGallery = ({ shareId, photosPerPage = 100 }: UsePublicGall
       setHasMore(newPhotos.length === photosPerPage);
     } catch (err) {
       console.error('Failed to load more photos:', err);
+      const status = getErrorStatus(err);
+      if (status && PUBLIC_GALLERY_FATAL_STATUSES.has(status)) {
+        setHasMore(false);
+        setError('Gallery not found or link has expired');
+      }
     } finally {
       setIsLoadingMore(false);
     }

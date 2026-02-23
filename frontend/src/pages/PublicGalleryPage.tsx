@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { Download as DownloadIcon } from 'lucide-react';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { PublicGalleryHero } from '../components/public-gallery/PublicGalleryHero';
@@ -103,15 +102,13 @@ export const PublicGalleryPage = () => {
       <div id="gallery-content" className="w-full px-4 sm:px-6 lg:px-10 py-16">
         {photos.length > 0 && (
           <div className="mb-8 text-center">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            <button
               onClick={handleDownloadAll}
-              className="bg-accent hover:bg-accent/90 text-accent-foreground px-6 py-3 rounded-lg font-medium shadow-sm hover:shadow-md transition-all duration-200 inline-flex items-center gap-2"
+              className="bg-accent hover:bg-accent/90 text-accent-foreground px-6 py-3 rounded-lg font-medium shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] inline-flex items-center gap-2"
             >
               <DownloadIcon className="w-5 h-5" />
               Download All Photos
-            </motion.button>
+            </button>
           </div>
         )}
 

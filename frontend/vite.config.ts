@@ -89,7 +89,15 @@ export default defineConfig(({ mode }) => {
               return 'state';
             }
 
-            return 'vendor';
+            if (id.includes('lenis')) {
+              return 'scroll';
+            }
+
+            if (id.includes('yet-another-react-lightbox')) {
+              return 'lightbox';
+            }
+
+            return;
           },
         },
       },
