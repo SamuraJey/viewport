@@ -992,14 +992,23 @@ html.dark .popup-action--danger {
   border-color: rgba(239, 68, 68, 0.32) !important;
 }
 
-/* Fix for input fields in dark mode - add visible borders */
-.dark input[type='email'],
-.dark input[type='text'],
-.dark input[type='password'],
-html.dark input[type='email'],
-html.dark input[type='text'],
-html.dark input[type='password'] {
+/* Fix for input fields in dark mode - add visible borders on editable inputs only */
+/*
+   Read-only fields (including the email address on Profile) already receive
+   explicit Tailwind classes for background, text color, and cursor. The
+   previous rule overrode those styles by forcing a transparent background
+   and bright text on *all* inputs, making the readonly email look like an
+   editable field.  Exclude `[readonly]` so that the component can
+   customize its appearance.
+*/
+.dark input[type='email']:not([readonly]),
+.dark input[type='text']:not([readonly]),
+.dark input[type='password']:not([readonly]),
+html.dark input[type='email']:not([readonly]),
+html.dark input[type='text']:not([readonly]),
+html.dark input[type='password']:not([readonly]) {
   border-color: rgb(82, 82, 91) !important;
+  /* editable inputs can be transparent to let background show through */
   background-color: transparent !important;
   color: rgb(244, 244, 245) !important;
 }
