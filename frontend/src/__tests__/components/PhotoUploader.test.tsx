@@ -34,7 +34,7 @@ describe('PhotoUploader', () => {
 
     render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
 
-    const fileInput = screen.getByLabelText(/upload photos/i).querySelector('input[type="file"]');
+    const fileInput = document.querySelector('input[type="file"]');
     expect(fileInput).toBeInTheDocument();
 
     if (fileInput) {
@@ -159,8 +159,8 @@ describe('PhotoUploader', () => {
     // Clicking the drop zone should trigger file selection
     await user.click(dropZone);
 
-    // The file input should be part of the drop zone
-    expect(dropZone.querySelector('input[type="file"]')).toBeInTheDocument();
+    // The file input should be in the document (always rendered)
+    expect(document.querySelector('input[type="file"]')).toBeInTheDocument();
   });
 
   it('should prevent upload when isUploading is true', () => {

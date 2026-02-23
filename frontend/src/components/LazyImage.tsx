@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
 
 interface LazyImageProps {
   src: string;
@@ -31,6 +30,7 @@ export const LazyImage = ({
 
   // Calculate aspect ratio from provided dimensions
   const aspectRatio = width && height ? `${width}/${height}` : '4/3';
+  const layoutTransitionClass = layout ? 'transition-all duration-300 ease-in-out' : '';
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -84,42 +84,33 @@ export const LazyImage = ({
   }
 
   return (
-    <motion.div
-      layout={layout}
-      className={`relative flex items-center justify-center overflow-hidden ${className ?? ''}`}
+    <div
+      className={`relative flex items-center justify-center overflow-hidden ${layoutTransitionClass} ${className ?? ''}`}
       style={style}
-      transition={{
-        layout: { duration: 0.3, ease: 'easeInOut' },
-      }}
     >
       {imageSrc ? (
-        <motion.img
-          layout={layout}
+        <img
           ref={imgRef}
           src={imageSrc}
           alt={alt}
-          className={`w-full h-full ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${imgClassName ?? ''} ${isLoading ? 'opacity-0' : 'opacity-100 transition-opacity duration-300'}`}
+          className={`w-full h-full ${layoutTransitionClass} ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${imgClassName ?? ''} ${isLoading ? 'opacity-0' : 'opacity-100'}`}
           onLoad={handleLoad}
           onError={handleError}
-          transition={{
-            layout: { duration: 0.3, ease: 'easeInOut' },
-          }}
         />
       ) : (
-        <motion.div
-          layout={layout}
+        <div
           ref={imgRef}
-          className="w-full bg-surface-foreground dark:bg-surface animate-pulse flex items-center justify-center"
+          className={`w-full bg-surface-foreground dark:bg-surface animate-pulse flex items-center justify-center ${layoutTransitionClass}`}
           style={{ aspectRatio }}
         >
           <div className="text-muted text-sm">Loading...</div>
-        </motion.div>
+        </div>
       )}
       {isLoading && imageSrc && (
         <div className="absolute inset-0 bg-surface-foreground dark:bg-surface animate-pulse flex items-center justify-center">
           <div className="text-muted text-sm">Loading...</div>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 };

@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -41,12 +43,19 @@ def update_me(req: UpdateMeRequest, repo: UserRepository = Depends(get_user_repo
 
 
 @router.put("/me/password", status_code=status.HTTP_200_OK)
-def change_password(req: ChangePasswordRequest, repo: UserRepository = Depends(get_user_repository), current_user: User = Depends(get_current_user)):
+async def change_password(req: ChangePasswordRequest, repo: UserRepository = Depends(get_user_repository), current_user: User = Depends(get_current_user)):
     if req.new_password != req.confirm_password:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password and confirmation do not match")
-    if not verify_password(req.current_password, current_user.password_hash):
+
+    # Run CPU-bound bcrypt in a separate thread to avoid blocking the event loop
+    is_valid = await asyncio.to_thread(verify_password, req.current_password, current_user.password_hash)
+    if not is_valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
-    user = repo.update_user_password(current_user.id, hash_password(req.new_password))
+
+    hashed_password = await asyncio.to_thread(hash_password, req.new_password)
+
+    # Run synchronous DB operation in a separate thread
+    user = await asyncio.to_thread(repo.update_user_password, current_user.id, hashed_password)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "Password updated successfully"}

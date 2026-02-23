@@ -58,6 +58,49 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: env.VITE_BUILD_OUT_DIR ?? 'dist',
       sourcemap: env.VITE_BUILD_SOURCEMAP === 'true',
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) {
+              return;
+            }
+
+            if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('scheduler')) {
+              return 'react-core';
+            }
+
+            if (id.includes('react-router') || id.includes('@remix-run/router')) {
+              return 'router';
+            }
+
+            if (id.includes('framer-motion')) {
+              return 'motion';
+            }
+
+            if (id.includes('lucide-react')) {
+              return 'icons';
+            }
+
+            if (id.includes('axios')) {
+              return 'network';
+            }
+
+            if (id.includes('zustand')) {
+              return 'state';
+            }
+
+            if (id.includes('lenis')) {
+              return 'scroll';
+            }
+
+            if (id.includes('yet-another-react-lightbox')) {
+              return 'lightbox';
+            }
+
+            return;
+          },
+        },
+      },
     },
     define: {
       __APP_VERSION__: JSON.stringify(env.npm_package_version ?? '0.0.0'),

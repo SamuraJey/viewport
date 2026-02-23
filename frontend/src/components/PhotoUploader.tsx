@@ -118,6 +118,16 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
 
     return (
       <div>
+        {/* Hidden file input for programmatic opening */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileInput}
+          multiple
+          accept="image/jpeg,image/png,image/jpg"
+          className="hidden"
+        />
+
         {showDropzone && (
           <div
             className={`uploader-zone relative flex flex-col items-center justify-center border-2 border-dashed rounded-xl py-10 px-8 cursor-pointer select-none ${
@@ -156,14 +166,6 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
                 ? 'Opening upload confirmation...'
                 : 'or click to select files · JPG / PNG · up to 15 MB'}
             </p>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileInput}
-              multiple
-              accept="image/jpeg,image/png,image/jpg"
-              className="hidden"
-            />
           </div>
         )}
 

@@ -1,7 +1,7 @@
-import { StrictMode } from 'react';
+import { StrictMode, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { ReactLenis } from 'lenis/react';
+import { DeferredLenis } from './components/DeferredLenis';
 import { ThemeInitializer } from './components/ThemeInitializer';
 import './index.css';
 import App from './App.tsx';
@@ -11,15 +11,15 @@ const ENABLE_STRICT_MODE = false;
 
 const AppWrapper = ENABLE_STRICT_MODE
   ? StrictMode
-  : ({ children }: { children: React.ReactNode }) => <>{children}</>;
+  : ({ children }: { children: ReactNode }) => <>{children}</>;
 
 createRoot(document.getElementById('root')!).render(
   <AppWrapper>
-    <ReactLenis root>
+    <DeferredLenis>
       <BrowserRouter>
         <ThemeInitializer />
         <App />
       </BrowserRouter>
-    </ReactLenis>
+    </DeferredLenis>
   </AppWrapper>,
 );

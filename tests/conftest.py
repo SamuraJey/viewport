@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 _SHARED_POSTGRES_CONTAINER: PostgresContainer | None = None
 _SHARED_POSTGRES_INFO: dict[str, Any] | None = None
 
-os.environ.update({"JWT_SECRET_KEY": "supersecretkey", "ADMIN_JWT_SECRET_KEY": "adminsecretkey", "INVITE_CODE": "testinvitecode"})
+os.environ.update({"JWT_SECRET_KEY": "supersecretkeysupersecretkeysupersecretkey", "ADMIN_JWT_SECRET_KEY": "adminsecretkeyadminsecretkeyadminsecretkey", "INVITE_CODE": "testinvitecode"})
 
 
 @dataclass(frozen=True)

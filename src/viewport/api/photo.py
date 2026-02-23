@@ -230,7 +230,6 @@ async def batch_confirm_uploads(
     repo: GalleryRepository = Depends(get_gallery_repository),
     user_repo: UserRepository = Depends(get_user_repository),
     current_user=Depends(get_current_user),
-    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> BatchConfirmUploadResponse:
     """Confirm batch photo uploads to S3
 
@@ -308,10 +307,8 @@ async def batch_confirm_uploads(
     # 4. Commit statuses and quota updates atomically
     try:
         repo.set_photos_statuses(photo_map, status_updates, commit=False)
-        if bytes_to_finalize:
-            user_repo.finalize_reserved_storage(current_user.id, bytes_to_finalize, commit=False)
-        if bytes_to_release:
-            user_repo.release_reserved_storage(current_user.id, bytes_to_release, commit=False)
+        if bytes_to_finalize or bytes_to_release:
+            user_repo.finalize_and_release_reserved_storage(current_user.id, bytes_to_finalize, bytes_to_release, commit=False)
         repo.db.commit()
     except Exception:
         repo.db.rollback()

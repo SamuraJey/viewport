@@ -111,7 +111,7 @@ def test_create_thumbnails_batch_task_creates_thumbnail(engine: Engine, s3_conta
         with session_scope(engine) as session:
             updated_photo = session.get(Photo, ctx.photo_id)
             assert updated_photo is not None
-            assert updated_photo.thumbnail_object_key.endswith("thumbnails/celery-original.jpg")
+            assert updated_photo.thumbnail_object_key.endswith("thumbnails/celery-original.avif")
             assert updated_photo.width is not None and updated_photo.height is not None
 
             s3_client = get_s3_client()
@@ -565,7 +565,7 @@ def test_reconcile_successful_uploads_requeue_then_process_keeps_successful_stat
             updated_photo = session.get(Photo, ctx.photo_id)
             assert updated_photo is not None
             assert updated_photo.status == PhotoUploadStatus.SUCCESSFUL
-            assert updated_photo.thumbnail_object_key.endswith("thumbnails/eventual.jpg")
+            assert updated_photo.thumbnail_object_key.endswith("thumbnails/eventual.avif")
             assert updated_photo.width is not None
             assert updated_photo.height is not None
 
@@ -591,9 +591,9 @@ def test_delete_gallery_data_task_deletes_gallery_and_objects(engine: Engine, s3
         # Create photo 1 with a thumbnail
         content1 = _create_dummy_jpeg_bytes()
         object_key1 = f"{gallery.id}/photo1.jpg"
-        thumbnail_key1 = f"{gallery.id}/thumbnails/photo1.jpg"
+        thumbnail_key1 = f"{gallery.id}/thumbnails/photo1.avif"
         upload_fileobj(content1, object_key1, content_type="image/jpeg")
-        upload_fileobj(content1, thumbnail_key1, content_type="image/jpeg")
+        upload_fileobj(content1, thumbnail_key1, content_type="image/avif")
 
         photo1 = Photo(
             gallery_id=gallery.id,

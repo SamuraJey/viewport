@@ -56,6 +56,7 @@ picture,
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   ::view-transition-old(root),
   ::view-transition-new(root),
   ::view-transition-group(root) {
@@ -532,17 +533,17 @@ html.dark {
   background-color: rgb(var(--color-accent-rgb) / 0.18);
 }
 
-/* Popup container: use semantic neutral tokens so the popup adapts to
-   light/dark themes via the variables defined in :root / :root.dark.
+/* Popup container: use semantic surface tokens so the popup keeps a soft
+   grey across both themes while still respecting the palette variables.
    Avoid global `!important` rules here so Tailwind utilities can still
    adjust opacity when needed. */
 .popup-container {
-  background-color: rgb(var(--color-neutral-50-rgb) / 0.98);
-  border: 1px solid rgb(var(--color-neutral-300-rgb));
+  background-color: rgb(var(--color-surface-rgb) / 0.98);
+  border: 1px solid rgb(var(--color-border-rgb));
   box-shadow: 0 10px 30px rgba(2, 6, 23, 0.12);
   padding: 0.5rem;
   border-radius: 0.5rem;
-  color: rgb(var(--color-neutral-900-rgb));
+  color: var(--color-text);
 }
 
 /* For dark mode the RGB variables are inverted in `:root.dark`, so the
@@ -556,16 +557,16 @@ body.dark .popup-container {
 
 /* Arrow: set border-top color explicitly to match the popup background */
 .popup-arrow {
-  /* Match popup container background (light mode) */
-  border-top-color: rgb(var(--color-white-rgb) / 0.98);
+  /* Match neutral popup container surface even in light mode */
+  border-top-color: rgb(var(--color-surface-rgb) / 0.98);
 }
 
 .dark .popup-arrow,
 html.dark .popup-arrow,
 body.dark .popup-arrow,
 :root.dark .popup-arrow {
-  /* Match popup container background in dark mode */
-  border-top-color: rgb(var(--color-neutral-50-rgb) / 0.96) !important;
+  /* Match popup surface tone in dark mode */
+  border-top-color: rgb(var(--color-surface-dark-1-rgb) / 0.96) !important;
 }
 
 .demo-swatch__color {
@@ -698,7 +699,6 @@ body.dark .gallery-create__btn,
 
 .pg-card {
   transition: box-shadow 220ms;
-  will-change: transform;
   border-radius: 0.75rem;
   overflow: hidden;
   box-shadow: 0 6px 22px rgba(2, 6, 23, 0.08);
@@ -739,8 +739,7 @@ body.dark .gallery-create__btn,
 }
 
 .pg-card:hover {
-  transform: translateY(-6px) scale(1.01);
-  box-shadow: 0 18px 50px rgba(2, 6, 23, 0.12);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.553);
 }
 
 /* Dark theme shadows for better visibility */
@@ -752,7 +751,7 @@ html.dark .pg-card {
 
 .dark .pg-card:hover,
 html.dark .pg-card:hover {
-  box-shadow: 0 18px 50px rgba(255, 255, 255, 0.12), 0 0 20px rgba(255, 255, 255, 0.05);
+  box-shadow: 0 6px 22px rgba(255, 255, 255, 0.08), 0 0 20px rgba(255, 255, 255, 0.05);
 }
 
 .pg-grid {
@@ -922,9 +921,9 @@ html.dark .pg-columns>.pg-card>button>img.photo--wide {
 
 /* Fix for popup menus on photos */
 html.dark .popup-container {
-  background-color: rgb(39, 39, 42) !important;
-  color: rgb(244, 244, 245) !important;
-  border-color: rgb(63, 63, 70) !important;
+  background-color: rgb(var(--color-surface-dark-1-rgb) / 0.98) !important;
+  color: rgb(var(--color-surface-foreground-rgb)) !important;
+  border-color: rgb(var(--color-border-rgb)) !important;
 }
 
 /* Fix for popup action buttons inside popups - only override neutral ones, preserve accent colors */
@@ -944,15 +943,15 @@ html.dark .popup-action--accent {
 /* Final dark-mode popup override (placed at file end so it wins cascade). */
 html.dark .popup-container,
 .dark .popup-container {
-  background-color: rgb(var(--color-neutral-50-rgb) / 0.98) !important;
-  color: rgb(var(--color-neutral-900-rgb)) !important;
-  border-color: rgb(var(--color-neutral-500-rgb)) !important;
+  background-color: rgb(var(--color-surface-dark-1-rgb) / 0.98) !important;
+  color: var(--color-text) !important;
+  border-color: rgb(var(--color-border-rgb)) !important;
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45) !important;
 }
 
 html.dark .popup-arrow,
 .dark .popup-arrow {
-  border-top-color: rgb(var(--color-neutral-50-rgb) / 0.98) !important;
+  border-top-color: rgb(var(--color-surface-dark-1-rgb) / 0.98) !important;
 }
 
 /* Normalization: ensure popup-action variants render consistently in dark mode.
@@ -993,14 +992,23 @@ html.dark .popup-action--danger {
   border-color: rgba(239, 68, 68, 0.32) !important;
 }
 
-/* Fix for input fields in dark mode - add visible borders */
-.dark input[type='email'],
-.dark input[type='text'],
-.dark input[type='password'],
-html.dark input[type='email'],
-html.dark input[type='text'],
-html.dark input[type='password'] {
+/* Fix for input fields in dark mode - add visible borders on editable inputs only */
+/*
+   Read-only fields (including the email address on Profile) already receive
+   explicit Tailwind classes for background, text color, and cursor. The
+   previous rule overrode those styles by forcing a transparent background
+   and bright text on *all* inputs, making the readonly email look like an
+   editable field.  Exclude `[readonly]` so that the component can
+   customize its appearance.
+*/
+.dark input[type='email']:not([readonly]),
+.dark input[type='text']:not([readonly]),
+.dark input[type='password']:not([readonly]),
+html.dark input[type='email']:not([readonly]),
+html.dark input[type='text']:not([readonly]),
+html.dark input[type='password']:not([readonly]) {
   border-color: rgb(82, 82, 91) !important;
+  /* editable inputs can be transparent to let background show through */
   background-color: transparent !important;
   color: rgb(244, 244, 245) !important;
 }

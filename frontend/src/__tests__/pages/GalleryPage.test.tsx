@@ -160,14 +160,11 @@ describe('GalleryPage', () => {
     expect(screen.getAllByRole('img')).toHaveLength(3);
   });
 
-  it('should display loading state initially', async () => {
+  it('should render gallery after initial load', async () => {
     render(<GalleryPageWrapper />);
 
-    expect(screen.getByText('Loading gallery...')).toBeInTheDocument();
-
-    // Wait for loading to finish to avoid act() warning
     await waitFor(() => {
-      expect(screen.queryByText('Loading gallery...')).not.toBeInTheDocument();
+      expect(screen.getByText('Gallery #1')).toBeInTheDocument();
     });
   });
 

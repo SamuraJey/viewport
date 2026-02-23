@@ -91,13 +91,19 @@ def get_s3_client() -> "S3Client":
     )
 
 
-def upload_fileobj(fileobj: bytes | io.BytesIO, filename: str, content_type: str | None = None) -> str:
+def upload_fileobj(
+    fileobj: bytes | io.BytesIO,
+    filename: str,
+    content_type: str | None = None,
+    cache_control: str | None = None,
+) -> str:
     """Upload file object to S3 (sync version for Celery tasks).
 
     Args:
         fileobj: File-like object or bytes to upload
         filename: S3 object key
-        content_type: Optional Content-Type header (e.g., 'image/jpeg')
+        content_type: Optional Content-Type header (e.g., 'image/avif')
+        cache_control: Optional Cache-Control header (e.g., 'public, max-age=31536000, immutable')
 
     Returns:
         S3 object path
@@ -112,21 +118,23 @@ def upload_fileobj(fileobj: bytes | io.BytesIO, filename: str, content_type: str
     extra_args = {}
     if content_type:
         extra_args["ContentType"] = content_type
+    if cache_control:
+        extra_args["CacheControl"] = cache_control
 
     s3_client.upload_fileobj(fileobj, settings.bucket, filename, ExtraArgs=extra_args if extra_args else None)
     return f"/{settings.bucket}/{filename}"
 
 
-def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800), quality: int = 80) -> tuple[bytes, int, int]:
-    """Create a thumbnail from image bytes (CPU-bound, can be run in thread pool).
+def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (1000, 1000), quality: int = 70) -> tuple[bytes, int, int]:
+    """Create a thumbnail from image bytes in AVIF format (CPU-bound, can be run in thread pool).
 
-    Optimized for performance and memory usage by using JPEG draft mode
-    and avoiding unnecessary full-resolution rotations.
+    Optimized for performance and memory usage by using modern AVIF format
+    which provides superior compression and quality compared to JPEG.
 
     Args:
         image_bytes: Original image as bytes
         max_size: Maximum dimensions (width, height) for thumbnail
-        quality: JPEG quality (1-95, higher is better quality)
+        quality: AVIF quality (0-100, defaults to 75; 0=smallest/poorest, 100=largest/best)
 
     Returns:
         Tuple of (thumbnail_bytes, width, height)
@@ -154,17 +162,18 @@ def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800),
             width, height = img.size
 
             thumbnail_io = io.BytesIO()
-            # optimize=True: extra pass for Huffman tables.
-            # progressive=True: better for web display and often smaller files.
+            # AVIF: modern format with superior compression
+            # quality: 0-100 (default 75, Pillow default for AVIF)
+            # speed: 8 #noqa
+            # subsampling: 4:2:0 (default, good for web)
             img.save(
                 thumbnail_io,
-                format="JPEG",
+                format="AVIF",
                 quality=quality,
-                optimize=True,
-                progressive=True,
+                speed=8,
             )
             return thumbnail_io.getvalue(), width, height
-    except Exception as e:
+    except Exception as e:  # 50 фото за 14 секунд
         logger.error("Failed to create thumbnail: %s", e)
         raise
 
@@ -172,15 +181,20 @@ def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (800, 800),
 def generate_thumbnail_object_key(original_object_key: str) -> str:
     """Generate thumbnail object key from original object key.
 
+    Converts to AVIF format extension regardless of original format.
+
     Args:
         original_object_key: Original object key (e.g., 'gallery_id/filename.jpg')
 
     Returns:
-        Thumbnail object key (e.g., 'gallery_id/thumbnails/filename.jpg')
+        Thumbnail object key in AVIF format (e.g., 'gallery_id/thumbnails/filename.avif')
     """
     if "/" in original_object_key:
         gallery_id, filename = original_object_key.split("/", 1)
-        return f"{gallery_id}/thumbnails/{filename}"
+        # Replace file extension with .avif
+        base_name = ".".join(filename.split(".")[:-1]) if "." in filename else filename
+        return f"{gallery_id}/thumbnails/{base_name}.avif"
     else:
         # Fallback if no gallery_id prefix
-        return f"thumbnails/{original_object_key}"
+        base_name = ".".join(original_object_key.split(".")[:-1]) if "." in original_object_key else original_object_key
+        return f"thumbnails/{base_name}.avif"

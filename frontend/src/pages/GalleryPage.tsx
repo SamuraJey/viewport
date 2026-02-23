@@ -1,114 +1,82 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
-import { galleryService, type GalleryDetail } from '../services/galleryService';
-import { photoService, type PhotoResponse } from '../services/photoService';
-import type { PhotoUploadResponse } from '../services/photoService';
-import { shareLinkService, type ShareLink } from '../services/shareLinkService';
-import { Layout } from '../components/Layout';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
-import { formatDateOnly } from '../lib/utils';
+import { GalleryHeader } from '../components/gallery/GalleryHeader';
+import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
+import { GalleryDragOverlay } from '../components/gallery/GalleryDragOverlay';
+import { GalleryPhotoSection } from '../components/gallery/GalleryPhotoSection';
 import {
-  Loader2,
-  Trash2,
-  Share2,
-  Link as LinkIcon,
-  Copy,
-  Check,
-  Eye,
-  Download,
-  DownloadCloud,
-  ArrowLeft,
-  ImageOff,
-  Star,
-  StarOff,
-  ChevronLeft,
-  ChevronRight,
-  CheckSquare,
-  Square,
-  Search,
-  Pencil,
-  Upload,
-} from 'lucide-react';
-import { PhotoUploader, type PhotoUploaderHandle } from '../components/PhotoUploader';
-import { useConfirmation, usePagination, useSelection, useModal, useErrorHandler } from '../hooks';
-
-const numberFormatter = new Intl.NumberFormat();
+  GalleryInitialLoadingState,
+  GalleryLoadErrorState,
+  GalleryNotFoundState,
+} from '../components/gallery/GalleryPageStates';
+import { type PhotoUploaderHandle } from '../components/PhotoUploader';
+import { usePagination, useSelection, useGalleryActions, useGalleryDragAndDrop } from '../hooks';
 
 export const GalleryPage = () => {
   const { id } = useParams<{ id: string }>();
   const galleryId = id!;
 
+  // Use new hooks
+  const pagination = usePagination({ pageSize: 100, syncWithUrl: true });
+  const selection = useSelection<string>();
+
+  const {
+    gallery,
+    photoUrls,
+    shareLinks,
+    isInitialLoading,
+    isLoadingPhotos,
+    uploadError,
+    setUploadError,
+    isCreatingLink,
+    shootingDateInput,
+    setShootingDateInput,
+    isSavingShootingDate,
+    error,
+    clearError,
+    ConfirmModal,
+    renameModal,
+    fetchGalleryDetails,
+    handleUploadComplete,
+    handleSaveShootingDate,
+    handleDeleteGallery,
+    handleSetCover,
+    handleClearCover,
+    handleCreateShareLink,
+    handleDeleteShareLink,
+    handleRenamePhoto,
+    handleRenameConfirm,
+    handleDeletePhoto,
+    handleDeleteMultiplePhotos,
+  } = useGalleryActions({ galleryId, pagination });
+
   // State
-  const [gallery, setGallery] = useState<GalleryDetail | null>(null);
-  const [photoUrls, setPhotoUrls] = useState<PhotoResponse[]>([]);
-  const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
-  const [uploadError, setUploadError] = useState('');
-  const [isCreatingLink, setIsCreatingLink] = useState(false);
-  const [copiedLink, setCopiedLink] = useState<string | null>(null);
-  const [shootingDateInput, setShootingDateInput] = useState('');
-  const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [isPageDragActive, setIsPageDragActive] = useState(false);
+  const [showInitialLoadingState, setShowInitialLoadingState] = useState(false);
 
   // Refs
   const gridRef = useRef<HTMLDivElement | null>(null);
-  const dragDepthRef = useRef(0);
   const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
+
+  const {
+    isPageDragActive,
+    handleGalleryDragEnter,
+    handleGalleryDragOver,
+    handleGalleryDragLeave,
+    handleGalleryDrop,
+  } = useGalleryDragAndDrop(photoUploaderRef);
 
   const { openLightbox, renderLightbox } = usePhotoLightbox({
     photoCardSelector: '[data-photo-card]',
     gridRef,
   });
 
-  // Use new hooks
-  const pagination = usePagination({ pageSize: 100, syncWithUrl: true });
-  const selection = useSelection<string>();
-  const renameModal = useModal<{ id: string; filename: string }>();
-  const { error, clearError, handleError } = useErrorHandler();
-  const { openConfirm, ConfirmModal } = useConfirmation();
-
   // Derived state
   const areAllOnPageSelected =
     photoUrls.length > 0 && photoUrls.every((p) => selection.isSelected(p.id));
-
-  const fetchGalleryDetails = useCallback(
-    async (page: number, isInitial = false) => {
-      if (isInitial) {
-        setIsInitialLoading(true);
-      } else {
-        setIsLoadingPhotos(true);
-      }
-      clearError();
-      try {
-        const offset = (page - 1) * pagination.pageSize;
-        const galleryData = await galleryService.getGallery(galleryId, {
-          limit: pagination.pageSize,
-          offset,
-        });
-        setGallery(galleryData);
-        setPhotoUrls(galleryData.photos || []);
-        setShareLinks(galleryData.share_links || []);
-        pagination.setTotal(galleryData.total_photos);
-        const fallbackDate = galleryData.shooting_date || galleryData.created_at || '';
-        setShootingDateInput(fallbackDate.slice(0, 10));
-      } catch (err) {
-        handleError(err);
-      } finally {
-        if (isInitial) {
-          setIsInitialLoading(false);
-        } else {
-          setIsLoadingPhotos(false);
-        }
-      }
-    },
-    // Note: Don't include pagination object itself to avoid infinite loops
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [galleryId, pagination.pageSize, pagination.setTotal, clearError, handleError],
-  );
 
   useEffect(() => {
     const isInitial = gallery === null;
@@ -116,172 +84,20 @@ export const GalleryPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagination.page, galleryId]);
 
-  // Pagination component (reusable)
-  const PaginationControls = () => {
-    if (pagination.totalPages <= 1) return null;
-
-    const from = (pagination.page - 1) * pagination.pageSize + 1;
-    const to = Math.min(pagination.page * pagination.pageSize, pagination.total);
-
-    return (
-      <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <span className="text-sm font-medium text-muted">
-          Page {pagination.page} of {pagination.totalPages}
-          <span className="ml-2 text-xs text-muted/80">
-            {from}-{to} of {pagination.total}
-          </span>
-        </span>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={pagination.previousPage}
-            disabled={pagination.isFirstPage || isLoadingPhotos}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-accent/20 bg-accent px-3 text-sm font-medium text-accent-foreground shadow-sm transition-shadow duration-200 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {isLoadingPhotos ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <ChevronLeft className="h-4 w-4" />
-            )}
-            Previous
-          </button>
-
-          <div className="flex items-center gap-1">
-            {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-              let pageNum: number;
-
-              // Show first pages, current page context, or last pages
-              if (pagination.totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (pagination.page <= 3) {
-                pageNum = i + 1;
-              } else if (pagination.page >= pagination.totalPages - 2) {
-                pageNum = pagination.totalPages - 4 + i;
-              } else {
-                pageNum = pagination.page - 2 + i;
-              }
-
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => pagination.goToPage(pageNum)}
-                  disabled={pageNum === pagination.page || isLoadingPhotos}
-                  className={`inline-flex h-9 min-w-9 items-center justify-center rounded-lg px-2 text-sm font-medium transition-colors duration-200 ${
-                    pageNum === pagination.page
-                      ? 'bg-accent text-accent-foreground shadow-sm'
-                      : 'bg-surface-1 dark:bg-surface-dark-1 text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40'
-                  } ${isLoadingPhotos ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-          </div>
-
-          <button
-            onClick={pagination.nextPage}
-            disabled={pagination.isLastPage || isLoadingPhotos}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-accent/20 bg-accent px-3 text-sm font-medium text-accent-foreground shadow-sm transition-shadow duration-200 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Next
-            {isLoadingPhotos ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  // Handler for photo upload completion - refresh photos without full page reload
-  const handleUploadComplete = async (result: PhotoUploadResponse) => {
-    setUploadError('');
-
-    // Fetch only the first page of photos to get the newly uploaded ones
-    if (result.successful_uploads > 0) {
-      try {
-        setIsLoadingPhotos(true);
-        const offset = (pagination.page - 1) * pagination.pageSize;
-        const galleryData = await galleryService.getGallery(galleryId, {
-          limit: pagination.pageSize,
-          offset,
-        });
-        setPhotoUrls(galleryData.photos || []);
-        pagination.setTotal(galleryData.total_photos);
-      } catch (err) {
-        handleError(err);
-      } finally {
-        setIsLoadingPhotos(false);
-      }
+  useEffect(() => {
+    if (!isInitialLoading) {
+      setShowInitialLoadingState(false);
+      return;
     }
 
-    if (result.failed_uploads > 0) {
-      setUploadError(`${result.failed_uploads} of ${result.total_files} photos failed to upload`);
-    }
-  };
+    const timeoutId = window.setTimeout(() => {
+      setShowInitialLoadingState(true);
+    }, 220);
 
-  const handleSaveShootingDate = async () => {
-    if (!shootingDateInput) return;
-
-    setIsSavingShootingDate(true);
-    clearError();
-    try {
-      const updated = await galleryService.updateGallery(galleryId, {
-        shooting_date: shootingDateInput,
-      });
-      setGallery((prev) => (prev ? { ...prev, shooting_date: updated.shooting_date } : prev));
-      setShootingDateInput(updated.shooting_date?.slice(0, 10) ?? shootingDateInput);
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setIsSavingShootingDate(false);
-    }
-  };
-
-  // Handler for renaming a photo
-  // Handler for opening rename modal
-  const handleRenamePhoto = (photoId: string, currentFilename: string) => {
-    renameModal.open({ id: photoId, filename: currentFilename });
-  };
-
-  // Handler for actual rename operation
-  const handleRenameConfirm = async (newFilename: string) => {
-    if (!renameModal.data) return;
-
-    await photoService.renamePhoto(galleryId, renameModal.data.id, newFilename);
-    // Update filename locally without reloading all photos
-    setPhotoUrls((prev) =>
-      prev.map((photo) =>
-        photo.id === renameModal.data!.id ? { ...photo, filename: newFilename } : photo,
-      ),
-    );
-  };
-
-  // Handler for closing rename modal
-  const handleCloseRenameModal = () => {
-    renameModal.close();
-  };
-
-  // Handler for deleting a photo
-  const handleDeletePhoto = (photoId: string) => {
-    openConfirm({
-      title: 'Delete Photo',
-      message: 'Are you sure you want to delete this photo? This action cannot be undone.',
-      isDangerous: true,
-      confirmText: 'Delete',
-      onConfirm: async () => {
-        try {
-          await photoService.deletePhoto(galleryId, photoId);
-          setPhotoUrls((prev) => prev.filter((photo) => photo.id !== photoId));
-        } catch (err) {
-          handleError(err);
-          throw err;
-        }
-      },
-    });
-  };
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isInitialLoading]);
 
   // Handler for toggling photo selection
   const handleTogglePhotoSelection = (photoId: string, isShiftKey: boolean = false) => {
@@ -306,94 +122,11 @@ export const GalleryPage = () => {
   };
 
   // Handler for deleting multiple photos
-  const handleDeleteMultiplePhotos = () => {
-    if (!selection.hasSelection) return;
-
-    openConfirm({
-      title: 'Delete Photos',
-      message: `Are you sure you want to delete ${selection.count} photo${selection.count > 1 ? 's' : ''}? This action cannot be undone.`,
-      isDangerous: true,
-      confirmText: 'Delete',
-      onConfirm: async () => {
-        try {
-          await Promise.all(
-            Array.from(selection.selectedIds).map((photoId) =>
-              photoService.deletePhoto(galleryId, photoId),
-            ),
-          );
-          setPhotoUrls((prev) => prev.filter((photo) => !selection.isSelected(photo.id)));
-          selection.clear();
-          setIsSelectionMode(false);
-        } catch (err) {
-          handleError(err);
-          throw err;
-        }
-      },
+  const handleDeleteMultiplePhotosWrapper = () => {
+    handleDeleteMultiplePhotos(selection.selectedIds, () => {
+      selection.clear();
+      setIsSelectionMode(false);
     });
-  };
-
-  // Handler for deleting the gallery from detail page
-  const handleDeleteGallery = () => {
-    openConfirm({
-      title: 'Delete Gallery',
-      message:
-        'Are you sure you want to delete this gallery and all its contents? This action cannot be undone.',
-      isDangerous: true,
-      confirmText: 'Delete',
-      onConfirm: async () => {
-        try {
-          await galleryService.deleteGallery(galleryId);
-          window.location.href = '/';
-        } catch (err) {
-          handleError(err);
-          throw err;
-        }
-      },
-    });
-  };
-
-  // Handler for creating a share link
-  const handleCreateShareLink = async () => {
-    setIsCreatingLink(true);
-    clearError();
-    try {
-      await shareLinkService.createShareLink(galleryId);
-      // Refresh only share links without reloading photos
-      const galleryData = await galleryService.getGallery(galleryId, { limit: 1, offset: 0 });
-      setShareLinks(galleryData.share_links || []);
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setIsCreatingLink(false);
-    }
-  };
-
-  // Handler for deleting a share link
-  const handleDeleteShareLink = (linkId: string) => {
-    openConfirm({
-      title: 'Delete Share Link',
-      message: 'Are you sure you want to delete this share link?',
-      isDangerous: true,
-      confirmText: 'Delete',
-      onConfirm: async () => {
-        try {
-          await shareLinkService.deleteShareLink(galleryId, linkId);
-          // Refresh only share links without reloading photos
-          const galleryData = await galleryService.getGallery(galleryId, { limit: 1, offset: 0 });
-          setShareLinks(galleryData.share_links || []);
-        } catch (err) {
-          handleError(err);
-          throw err;
-        }
-      },
-    });
-  };
-
-  // Handler for copying a link to clipboard
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedLink(text);
-    setTimeout(() => setCopiedLink(null), 2000);
   };
 
   // Photo modal handlers
@@ -401,127 +134,29 @@ export const GalleryPage = () => {
     openLightbox(index);
   };
 
-  const handleSetCover = async (photoId: string) => {
-    try {
-      await galleryService.setCoverPhoto(galleryId, photoId);
-      // Update cover photo locally without reloading all photos
-      setGallery((prev) => (prev ? { ...prev, cover_photo_id: photoId } : null));
-    } catch (err) {
-      handleError(err);
-    }
-  };
-
-  const handleClearCover = async () => {
-    try {
-      await galleryService.clearCoverPhoto(galleryId);
-      // Update cover photo locally without reloading all photos
-      setGallery((prev) => (prev ? { ...prev, cover_photo_id: null } : null));
-    } catch (err) {
-      handleError(err);
-    }
-  };
-
-  const hasDraggedFiles = (event: React.DragEvent<HTMLDivElement>) =>
-    Array.from(event.dataTransfer?.types ?? []).includes('Files');
-
-  const handleGalleryDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) return;
-    event.preventDefault();
-    dragDepthRef.current += 1;
-    setIsPageDragActive(true);
-  };
-
-  const handleGalleryDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'copy';
-    if (!isPageDragActive) setIsPageDragActive(true);
-  };
-
-  const handleGalleryDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) return;
-    event.preventDefault();
-    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-    if (dragDepthRef.current === 0) {
-      setIsPageDragActive(false);
-    }
-  };
-
-  const handleGalleryDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) return;
-    event.preventDefault();
-    dragDepthRef.current = 0;
-    setIsPageDragActive(false);
-    if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
-      photoUploaderRef.current?.handleExternalFiles(event.dataTransfer.files);
-    }
-  };
+  if (isInitialLoading && showInitialLoadingState) {
+    return <GalleryInitialLoadingState />;
+  }
 
   if (isInitialLoading) {
-    // Initial loading state - show full page loader
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="w-16 h-16 animate-spin text-accent" />
-            <p className="text-lg text-muted">Loading gallery...</p>
-          </div>
-        </div>
-      </Layout>
-    );
+    return null;
   }
 
   if (error && !gallery) {
-    // Error state when gallery failed to load initially
     return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="flex flex-col items-center gap-4">
-            <div className="text-danger text-lg font-medium">Failed to load gallery</div>
-            <div className="text-muted dark:text-muted-dark">{error}</div>
-            <button
-              onClick={() => fetchGalleryDetails(pagination.page, true)}
-              className="px-4 py-2 bg-accent text-accent-foreground rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border border-accent/20"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      </Layout>
+      <GalleryLoadErrorState
+        error={error}
+        onRetry={() => fetchGalleryDetails(pagination.page, true)}
+      />
     );
   }
 
   if (!gallery) {
-    // ... (keep existing not found state)
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center space-y-4">
-            <div className="text-muted dark:text-muted-dark text-lg">Gallery not found</div>
-            <Link to="/" className="text-accent hover:underline">
-              ← Back to Dashboard
-            </Link>
-          </div>
-        </div>
-      </Layout>
-    );
+    return <GalleryNotFoundState />;
   }
 
-  const totalViews = shareLinks.reduce((sum, link) => sum + (link.views ?? 0), 0);
-  const totalZipDownloads = shareLinks.reduce((sum, link) => sum + (link.zip_downloads ?? 0), 0);
-  const totalDownloads = shareLinks.reduce(
-    (sum, link) => sum + (link.zip_downloads ?? 0) + (link.single_downloads ?? 0),
-    0,
-  );
-
-  const summaryMetrics = [
-    { label: 'Total Views', value: totalViews, icon: Eye },
-    { label: 'ZIP Downloads', value: totalZipDownloads, icon: DownloadCloud },
-    { label: 'Total Downloads', value: totalDownloads, icon: Download },
-  ];
-
   return (
-    <Layout>
+    <>
       <div
         className="relative space-y-6"
         onDragEnter={handleGalleryDragEnter}
@@ -529,534 +164,69 @@ export const GalleryPage = () => {
         onDragLeave={handleGalleryDragLeave}
         onDrop={handleGalleryDrop}
       >
-        {isPageDragActive && (
-          <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-[1px]">
-            <div className="rounded-xl border border-accent/30 bg-surface/95 px-6 py-4 text-center shadow-xl dark:bg-surface-dark/95">
-              <p className="text-base font-semibold text-text">Drop photos to upload</p>
-              <p className="mt-1 text-sm text-muted">JPG / PNG · up to 15 MB</p>
-            </div>
-          </div>
-        )}
+        <GalleryDragOverlay isActive={isPageDragActive} />
 
         {/* Gallery Header */}
-        <div className="rounded-2xl border border-border bg-surface p-4 dark:border-border/30 dark:bg-surface-foreground/5 sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-3">
-              <Link
-                to="/"
-                className="inline-flex h-9 w-fit items-center gap-1.5 rounded-lg border border-border/60 bg-surface-1 px-3 text-sm font-medium text-muted transition-colors hover:border-accent/40 hover:text-accent dark:border-border/40 dark:bg-surface-dark-1"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to Galleries
-              </Link>
-              <h1 className="font-oswald text-3xl font-bold leading-tight tracking-wide text-text uppercase sm:text-4xl">
-                {gallery.name || `Gallery #${gallery.id}`}
-              </h1>
-            </div>
+        <GalleryHeader
+          gallery={gallery}
+          shootingDateInput={shootingDateInput}
+          setShootingDateInput={setShootingDateInput}
+          isSavingShootingDate={isSavingShootingDate}
+          onSaveShootingDate={handleSaveShootingDate}
+          onDeleteGallery={handleDeleteGallery}
+        />
 
-            <div className="flex flex-wrap items-center gap-2.5">
-              <label className="sr-only" htmlFor="gallery-shooting-date">
-                Shooting date
-              </label>
-              <span className="rounded-md bg-surface-1 px-2.5 py-2 text-xs font-semibold uppercase tracking-wide text-muted dark:bg-surface-dark-1">
-                Shooting date
-              </span>
-              <input
-                id="gallery-shooting-date"
-                type="date"
-                value={shootingDateInput}
-                onChange={(e) => setShootingDateInput(e.target.value)}
-                className="h-10 rounded-lg border border-border bg-surface-1 px-3 text-text shadow-sm focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30 dark:border-border/40 dark:bg-surface-dark-1"
-              />
-              <button
-                onClick={handleSaveShootingDate}
-                disabled={
-                  isSavingShootingDate ||
-                  !shootingDateInput ||
-                  shootingDateInput === gallery.shooting_date?.slice(0, 10)
-                }
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-accent bg-accent px-3 text-sm font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
-              >
-                {isSavingShootingDate ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Check className="h-4 w-4" />
-                )}
-                Save date
-              </button>
-              <span className="rounded-md bg-surface-1 px-2.5 py-2 text-xs text-muted dark:bg-surface-dark-1">
-                Created {formatDateOnly(gallery.created_at)}
-              </span>
-              <button
-                onClick={handleDeleteGallery}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-danger/20 bg-danger/10 px-4 text-danger shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-danger/20 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-danger focus:ring-offset-1 active:scale-95 dark:bg-danger/20"
-                title="Delete Gallery"
-                aria-label="Delete gallery"
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete Gallery
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Photo Section */}
-        <div
-          className="bg-surface dark:bg-surface-foreground/5 rounded-2xl p-4 lg:p-6 xl:p-8 border border-border dark:border-border/10"
-          data-photos-section
-        >
-          <div className="mb-8">
-            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-2xl font-semibold text-text">
-                Photos
-                {pagination.total > 0 && (
-                  <span className="ml-2 text-lg text-muted font-normal">
-                    ({photoUrls.length} of {pagination.total})
-                  </span>
-                )}
-              </h2>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => photoUploaderRef.current?.openFilePicker()}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-accent/30 bg-accent/10 px-3 text-sm font-medium text-accent transition-all duration-200 hover:bg-accent/20"
-                  title="Add photos"
-                >
-                  <Upload className="h-4 w-4" />
-                  Add Photos
-                </button>
-                {photoUrls.length > 0 && (
-                  <button
-                    onClick={() => {
-                      if (isSelectionMode) {
-                        selection.clear();
-                        setIsSelectionMode(false);
-                      } else {
-                        setIsSelectionMode(true);
-                      }
-                    }}
-                    className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-all duration-200 ${
-                      isSelectionMode
-                        ? 'border-accent bg-accent text-accent-foreground shadow-sm hover:brightness-105 hover:shadow-md'
-                        : 'border-border bg-surface-1 text-text hover:bg-surface-2 hover:shadow-sm dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2'
-                    }`}
-                    title={isSelectionMode ? 'Exit selection mode' : 'Enter selection mode'}
-                  >
-                    <CheckSquare className="h-4 w-4" />
-                    <span>{isSelectionMode ? 'Cancel Selection' : 'Select'}</span>
-                  </button>
-                )}
-                {pagination.totalPages > 1 && (
-                  <span className="inline-flex h-10 items-center rounded-lg border border-border/60 bg-surface-1 px-3 text-sm text-muted dark:border-border/40 dark:bg-surface-dark-1">
-                    Page {pagination.page} of {pagination.totalPages}
-                  </span>
-                )}
-              </div>
-            </div>
-            <PhotoUploader
-              ref={photoUploaderRef}
-              galleryId={galleryId}
-              onUploadComplete={handleUploadComplete}
-              showDropzone={false}
-            />
-            {uploadError && (
-              <div className="mt-2 text-danger bg-danger/10 dark:bg-danger/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
-                {uploadError}
-                <button
-                  onClick={() => setUploadError('')}
-                  className="ml-2 text-xs text-accent-foreground bg-danger/80 hover:bg-danger px-2 py-1 rounded shadow-sm hover:shadow-md transition-all duration-200"
-                >
-                  Dismiss
-                </button>
-              </div>
-            )}
-            {error && (
-              <div className="mt-2 text-danger bg-danger/10 dark:bg-danger/20 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
-                {error}
-                <button
-                  onClick={clearError}
-                  className="ml-2 text-xs text-accent-foreground bg-danger/80 hover:bg-danger px-2 py-1 rounded shadow-sm hover:shadow-md transition-all duration-200"
-                >
-                  Dismiss
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Top Pagination */}
-          {pagination.totalPages > 1 && (
-            <div className="mb-8 border-b border-border dark:border-border/40">
-              <PaginationControls />
-            </div>
-          )}
-
-          {/* Selection Toolbar */}
-          {(isSelectionMode || selection.hasSelection) && (
-            <div className="mb-6 flex flex-col gap-3 rounded-lg border border-border/70 bg-surface-1 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-border/40 dark:bg-surface-dark-1">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleSelectAllPhotos}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-surface px-3 transition-colors duration-200 hover:bg-surface-1 dark:border-border/50 dark:bg-surface-dark dark:hover:bg-surface-dark-2"
-                  title={areAllOnPageSelected ? 'Deselect all on page' : 'Select all on page'}
-                >
-                  {areAllOnPageSelected ? (
-                    <>
-                      <CheckSquare className="h-5 w-5 text-accent" />
-                      <span className="text-sm font-semibold text-text">Deselect Page</span>
-                    </>
-                  ) : (
-                    <>
-                      <Square className="h-5 w-5 text-accent" />
-                      <span className="text-sm font-semibold text-text">Select Page</span>
-                    </>
-                  )}
-                </button>
-                <span className="inline-flex h-8 items-center rounded-full bg-surface px-2.5 text-xs font-semibold tabular-nums text-text dark:bg-surface-dark">
-                  {selection.count} selected
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => {
-                    selection.clear();
-                    setIsSelectionMode(false);
-                  }}
-                  className="inline-flex h-10 items-center rounded-lg border border-border bg-surface px-3 text-sm font-medium text-muted transition-all duration-200 hover:bg-surface-1 hover:text-text dark:border-border/50 dark:bg-surface-dark dark:text-text dark:hover:bg-surface-dark-2"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDeleteMultiplePhotos}
-                  disabled={!selection.hasSelection}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-danger/20 bg-danger px-4 text-sm font-medium text-accent-foreground shadow-sm transition-all duration-200 hover:shadow-md hover:brightness-110 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete {selection.count > 0 ? `(${selection.count})` : ''}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Photos Grid or Loading State */}
-          {isLoadingPhotos ? (
-            <div className="flex flex-col items-center justify-center py-20 min-h-100">
-              <Loader2 className="w-12 h-12 animate-spin text-accent mb-4" />
-              <span className="text-lg text-muted">Loading photos...</span>
-              <span className="text-sm text-muted/70 mt-1">Page {pagination.page}</span>
-            </div>
-          ) : photoUrls.length > 0 ? (
-            <div
-              className="grid grid-cols-1 gap-5 pt-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 lg:gap-6"
-              ref={gridRef}
-            >
-              {photoUrls.map((photo, index) => (
-                <div
-                  key={photo.id}
-                  data-photo-card
-                  className="group bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-visible rounded-lg border border-border dark:border-border/50 shadow-md transition-shadow duration-200 hover:shadow-2xl focus-within:shadow-2xl dark:shadow-none dark:hover:shadow-[0_0_0_1px_rgba(255,255,255,0.2),0_0_18px_rgba(255,255,255,0.35)] dark:focus-within:shadow-[0_0_0_1px_rgba(255,255,255,0.2),0_0_18px_rgba(255,255,255,0.35)]"
-                >
-                  {/* Selection checkbox */}
-                  {isSelectionMode && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleTogglePhotoSelection(photo.id, e.shiftKey);
-                      }}
-                      className={`absolute top-2 left-2 z-10 p-2 rounded-lg transition-colors duration-200 ${
-                        selection.isSelected(photo.id)
-                          ? 'bg-blue-500 text-white shadow-md'
-                          : 'bg-white/95 dark:bg-black/60 text-gray-800 dark:text-gray-200 hover:bg-white dark:hover:bg-black/80 shadow-sm hover:shadow-md'
-                      }`}
-                      title={selection.isSelected(photo.id) ? 'Deselect' : 'Select'}
-                    >
-                      {selection.isSelected(photo.id) ? (
-                        <CheckSquare className="w-5 h-5" />
-                      ) : (
-                        <Square className="w-5 h-5" />
-                      )}
-                    </button>
-                  )}
-
-                  {/* Image area */}
-                  <div className="relative h-80">
-                    {/* Action Panel - floating pop-up above container */}
-                    <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 z-20 popup-container opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                      {/* Pop-up arrow */}
-                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent popup-arrow"></div>
-
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openPhoto(index);
-                          }}
-                          className="popup-action popup-action--accent"
-                          title="Open photo"
-                          aria-label="Open photo"
-                        >
-                          <Search className="h-4 w-4" />
-                        </button>
-                        {gallery.cover_photo_id === photo.id ? (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleClearCover();
-                            }}
-                            className="popup-action popup-action--warning popup-action--active"
-                            title="Clear cover photo"
-                            aria-label="Clear cover photo"
-                          >
-                            <StarOff className="h-4 w-4" />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSetCover(photo.id);
-                            }}
-                            className="popup-action popup-action--warning"
-                            title="Set as cover"
-                            aria-label="Set as cover"
-                          >
-                            <Star className="h-4 w-4" />
-                          </button>
-                        )}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRenamePhoto(photo.id, photo.filename);
-                          }}
-                          className="popup-action popup-action--accent"
-                          title="Rename photo"
-                          aria-label="Rename photo"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            // Download functionality using fetch to force download dialog
-                            try {
-                              const response = await fetch(photo.url);
-                              const blob = await response.blob();
-
-                              const url = window.URL.createObjectURL(blob);
-                              const link = document.createElement('a');
-                              link.href = url;
-                              link.download = photo.filename;
-                              document.body.appendChild(link);
-                              link.click();
-
-                              // Cleanup
-                              document.body.removeChild(link);
-                              window.URL.revokeObjectURL(url);
-                            } catch (error) {
-                              console.error('Failed to download photo:', error);
-                            }
-                          }}
-                          className="popup-action popup-action--success"
-                          title="Download photo"
-                          aria-label="Download photo"
-                        >
-                          <Download className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeletePhoto(photo.id);
-                          }}
-                          className="popup-action popup-action--danger"
-                          title="Delete photo"
-                          aria-label="Delete photo"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Photo - takes full image area */}
-                    <button
-                      onClick={() => openPhoto(index)}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        handleRenamePhoto(photo.id, photo.filename);
-                      }}
-                      className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0"
-                      aria-label={`Photo ${photo.id}`}
-                      title="Click to view, double-click to rename"
-                    >
-                      <img
-                        src={photo.thumbnail_url}
-                        alt={`Photo ${photo.id}`}
-                        className="w-full h-full object-contain rounded-t-lg transition-opacity"
-                        loading="lazy"
-                      />
-                    </button>
-                  </div>
-
-                  {/* Caption below the image (not overlapping) */}
-                  <div className="px-2 py-2">
-                    <p className="text-xs text-muted truncate text-center" title={photo.filename}>
-                      {photo.filename}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-16 border-2 border-dashed border-border dark:border-border/40 rounded-lg">
-              <ImageOff className="mx-auto h-12 w-12 text-muted dark:text-muted-dark" />
-              <h3 className="mt-4 text-lg font-medium text-muted">No photos in this gallery</h3>
-              <p className="mt-2 text-sm text-muted">Upload your first photo to get started.</p>
-            </div>
-          )}
-
-          {/* Bottom Pagination */}
-          {pagination.totalPages > 1 && (
-            <div className="mt-8 border-t border-border dark:border-border/40">
-              <PaginationControls />
-            </div>
-          )}
-        </div>
-        <div className="bg-surface-1 dark:bg-surface-dark-1 rounded-2xl p-6 border border-border dark:border-border/40">
-          <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center gap-4">
-              <h2 className="text-2xl font-semibold text-text">Share Links</h2>
-              <button
-                onClick={handleCreateShareLink}
-                disabled={isCreatingLink}
-                className="flex items-center gap-2 px-4 py-2 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border border-accent/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none gallery-create__btn cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 active:scale-95"
-                id="gallery-create-btn"
-                aria-label="Create new share link"
-              >
-                {isCreatingLink ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-accent-foreground" />
-                ) : (
-                  <Share2 className="w-5 h-5 text-accent-foreground" />
-                )}
-                <span className="text-accent-foreground">Create New Link</span>
-              </button>
-            </div>
-          </div>
-
-          {shareLinks.length > 0 ? (
-            <>
-              <div
-                data-testid="share-link-stats-summary"
-                className="grid gap-2.5 mb-4 sm:grid-cols-2 xl:grid-cols-4"
-              >
-                {summaryMetrics.map((metric) => {
-                  const Icon = metric.icon;
-                  return (
-                    <div
-                      key={metric.label}
-                      className="flex items-center gap-2.5 rounded-lg border border-border/70 dark:border-border/50 bg-surface-1/80 dark:bg-surface-dark-2/70 p-2.5 sm:p-3"
-                    >
-                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent/15 text-accent">
-                        <Icon className="w-3.5 h-3.5" aria-hidden="true" />
-                      </div>
-                      <div className="space-y-0.5 leading-none">
-                        <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-text/75 dark:text-accent-foreground/90">
-                          {metric.label}
-                        </p>
-                        <p className="text-sm font-semibold text-text dark:text-accent-foreground">
-                          {numberFormatter.format(metric.value)}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <ul className="space-y-3">
-                {shareLinks.map((link) => {
-                  const fullUrl = `${window.location.origin}/share/${link.id}`;
-                  const zipDownloads = link.zip_downloads ?? 0;
-                  const totalLinkDownloads = zipDownloads + (link.single_downloads ?? 0);
-                  const linkMetrics = [
-                    { label: 'Views', value: link.views ?? 0, icon: Eye },
-                    { label: 'ZIP', value: zipDownloads, icon: DownloadCloud }, // Single downloads removed
-                    { label: 'Total', value: totalLinkDownloads, icon: Download },
-                  ];
-                  return (
-                    <li
-                      key={link.id}
-                      className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-lg border border-border dark:border-border flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6 flex-1 min-w-0">
-                        <div className="flex items-center gap-4 min-w-0">
-                          <LinkIcon className="w-5 h-5 text-accent gallery-link__icon" />
-                          <a
-                            href={fullUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-accent hover:underline truncate gallery-link__anchor"
-                          >
-                            {fullUrl}
-                          </a>
-                        </div>
-                        <div
-                          data-testid={`share-link-${link.id}-metrics`}
-                          className="grid w-full gap-2 text-xs sm:text-sm min-[420px]:grid-cols-2 lg:flex lg:flex-wrap lg:w-auto lg:items-center"
-                        >
-                          {linkMetrics.map((metric) => {
-                            const Icon = metric.icon;
-                            return (
-                              <div
-                                key={metric.label}
-                                className="flex items-center justify-between gap-2 rounded-md border border-border/70 bg-surface-1/80 px-2.5 py-1.5 leading-tight dark:border-border/50 dark:bg-surface-dark-2/70"
-                              >
-                                <span className="flex items-center gap-1.5">
-                                  <Icon
-                                    className="h-3.5 w-3.5 text-text/70 dark:text-accent-foreground/80"
-                                    aria-hidden="true"
-                                  />
-                                  <span className="text-[0.7rem] font-semibold uppercase tracking-wide text-text/70 dark:text-accent-foreground/75">
-                                    {metric.label}
-                                  </span>
-                                </span>
-                                <span className="text-sm font-semibold text-text dark:text-accent-foreground">
-                                  {numberFormatter.format(metric.value)}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => copyToClipboard(fullUrl)}
-                          className="flex items-center justify-center w-8 h-8 p-1 bg-success/20 hover:bg-success/30 text-success rounded-lg transition-all duration-200 border border-border gallery-copy__btn cursor-pointer hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 active:scale-95"
-                          title="Copy link"
-                          aria-label="Copy link"
-                        >
-                          {copiedLink === fullUrl ? (
-                            <Check className="w-4 h-4 text-success" />
-                          ) : (
-                            <Copy className="w-4 h-4 text-success" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleDeleteShareLink(link.id)}
-                          className="flex items-center justify-center w-8 h-8 p-1 bg-danger/20 hover:bg-danger/30 text-danger rounded-lg transition-all duration-200 border border-border cursor-pointer hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-1 active:scale-95"
-                          aria-label="Delete share link"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          ) : (
-            <div className="text-center py-12 border-2 border-dashed border-border dark:border-border/40 rounded-lg">
-              <Share2 className="mx-auto h-12 w-12 text-muted" />
-              <h3 className="mt-4 text-lg font-medium text-muted">No share links created</h3>
-              <p className="mt-2 text-sm text-muted">
-                Create a link to share this gallery with others.
-              </p>
-            </div>
-          )}
-        </div>
+        <GalleryPhotoSection
+          galleryId={galleryId}
+          pagination={pagination}
+          gridRef={gridRef}
+          photoUploaderRef={photoUploaderRef}
+          state={{
+            photoUrls,
+            isLoadingPhotos,
+            uploadError,
+            error,
+            isSelectionMode,
+          }}
+          selection={{
+            areAllOnPageSelected,
+            selectionCount: selection.count,
+            hasSelection: selection.hasSelection,
+            isPhotoSelected: selection.isSelected,
+            isCoverPhoto: (photoId) => gallery.cover_photo_id === photoId,
+          }}
+          actions={{
+            onUploadComplete: handleUploadComplete,
+            onDismissUploadError: () => setUploadError(''),
+            onDismissError: clearError,
+            onToggleSelectionMode: () => {
+              if (isSelectionMode) {
+                selection.clear();
+                setIsSelectionMode(false);
+              } else {
+                setIsSelectionMode(true);
+              }
+            },
+            onTogglePhotoSelection: handleTogglePhotoSelection,
+            onOpenPhoto: openPhoto,
+            onSetCover: handleSetCover,
+            onClearCover: handleClearCover,
+            onRenamePhoto: handleRenamePhoto,
+            onDeletePhoto: handleDeletePhoto,
+            onSelectAllPhotos: handleSelectAllPhotos,
+            onCancelSelection: () => {
+              selection.clear();
+              setIsSelectionMode(false);
+            },
+            onDeleteMultiplePhotos: handleDeleteMultiplePhotosWrapper,
+          }}
+        />
+        <ShareLinksSection
+          shareLinks={shareLinks}
+          isCreatingLink={isCreatingLink}
+          onCreateLink={handleCreateShareLink}
+          onDeleteLink={handleDeleteShareLink}
+        />
       </div>
 
       {/* Lightbox */}
@@ -1077,7 +247,7 @@ export const GalleryPage = () => {
         {renameModal.isOpen && (
           <PhotoRenameModal
             isOpen={renameModal.isOpen}
-            onClose={handleCloseRenameModal}
+            onClose={renameModal.close}
             currentFilename={renameModal.data?.filename || ''}
             onRename={handleRenameConfirm}
           />
@@ -1086,6 +256,6 @@ export const GalleryPage = () => {
 
       {/* Confirmation Modal */}
       {ConfirmModal}
-    </Layout>
+    </>
   );
 };

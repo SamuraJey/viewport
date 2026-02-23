@@ -104,14 +104,12 @@ describe('PublicGalleryPage', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows loading indicator initially', async () => {
+  it('does not render fullscreen skeleton while loading', async () => {
     const { container } = render(wrapper());
-    // Skeleton loading shows placeholder grid with animated elements
-    expect(container.querySelector('[data-testid="skeleton-loader"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="skeleton-loader"]')).not.toBeInTheDocument();
 
-    // Wait for loading to finish to avoid act() warning
     await waitFor(() => {
-      expect(container.querySelector('[data-testid="skeleton-loader"]')).not.toBeInTheDocument();
+      expect(screen.getByText('Photos (2)')).toBeInTheDocument();
     });
   });
 

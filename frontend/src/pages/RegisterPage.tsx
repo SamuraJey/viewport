@@ -2,16 +2,16 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { validateEmail, validatePassword } from '../lib/utils';
-import { Eye, EyeOff, UserPlus, Mail, CheckCircle, Camera } from 'lucide-react';
+import { UserPlus, Mail, CheckCircle } from 'lucide-react';
 import { AuthLayout } from '../components/AuthLayout';
+import { AuthCard } from '../components/auth/AuthCard';
+import { AuthPasswordField, AuthTextField } from '../components/auth/AuthFields';
 
 export const RegisterPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [inviteCode, setInviteCode] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -62,123 +62,56 @@ export const RegisterPage = () => {
   };
 
   const renderForm = () => (
-    <div className="bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-8 shadow-2xl border border-border dark:border-border/10">
-      <div className="text-center mb-8">
-        <div className="w-12 h-12 bg-accent rounded-xl flex items-center justify-center mx-auto mb-4">
-          <Camera className="h-6 w-6 text-white" />
-        </div>
-        <h2 className="font-oswald text-3xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground mb-2">
-          Create Account
-        </h2>
-        <p className="text-muted dark:text-text font-cuprum">
-          Join Viewport and start sharing your moments.
-        </p>
-      </div>
+    <AuthCard title="Create Account" subtitle="Join Viewport and start sharing your moments.">
       <form onSubmit={handleSubmit} className="space-y-6">
+        <AuthTextField
+          id="email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          required
+          label="Email Address"
+          placeholder="Enter your email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          aria-label="Email address"
+          rightAdornment={<Mail className="h-5 w-5" />}
+        />
+        <AuthTextField
+          id="inviteCode"
+          name="inviteCode"
+          type="text"
+          autoComplete="off"
+          required
+          label="Invite Code"
+          placeholder="Enter your invite code"
+          value={inviteCode}
+          onChange={(e) => setInviteCode(e.target.value)}
+          aria-label="Invite code"
+        />
+        <AuthPasswordField
+          id="password"
+          name="password"
+          autoComplete="new-password"
+          required
+          label="Password"
+          placeholder="Create a password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          aria-label="Password"
+        />
         <div>
-          <label
-            htmlFor="email"
-            className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide"
-          >
-            Email Address
-          </label>
-          <div className="relative">
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm transition-all duration-200 hover:border-border/80"
-              placeholder="Enter your email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              aria-label="Email address"
-            />
-            <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted dark:text-text" />
-          </div>
-        </div>
-        <div>
-          <label
-            htmlFor="inviteCode"
-            className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide"
-          >
-            Invite Code
-          </label>
-          <div className="relative">
-            <input
-              id="inviteCode"
-              name="inviteCode"
-              type="text"
-              autoComplete="off"
-              required
-              className="w-full px-4 py-3 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm transition-all duration-200 hover:border-border/80"
-              placeholder="Enter your invite code"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
-              aria-label="Invite code"
-            />
-          </div>
-        </div>
-        <div>
-          <label
-            htmlFor="password"
-            className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide"
-          >
-            Password
-          </label>
-          <div className="relative">
-            <input
-              id="password"
-              name="password"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="new-password"
-              required
-              className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm transition-all duration-200 hover:border-border/80"
-              placeholder="Create a password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              aria-label="Password"
-            />
-            <button
-              type="button"
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
-              onClick={() => setShowPassword(!showPassword)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-            >
-              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-            </button>
-          </div>
-        </div>
-        <div>
-          <label
-            htmlFor="confirmPassword"
-            className="block text-sm font-semibold text-text dark:text-text mb-2 uppercase tracking-wide"
-          >
-            Confirm Password
-          </label>
-          <div className="relative">
-            <input
-              id="confirmPassword"
-              name="confirmPassword"
-              type={showConfirmPassword ? 'text' : 'password'}
-              autoComplete="new-password"
-              required
-              className="w-full px-4 py-3 pr-12 bg-surface dark:bg-surface-foreground/80 border-2 border-border dark:border-border text-text dark:text-accent-foreground rounded-lg focus:outline-none focus:border-accent focus:bg-surface dark:focus:bg-surface-foreground focus:ring-4 focus:ring-accent/20 backdrop-blur-sm transition-all duration-200 hover:border-border/80"
-              placeholder="Confirm your password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              aria-label="Confirm password"
-            />
-            <button
-              type="button"
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted dark:text-text hover:text-text dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-            >
-              {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-            </button>
-          </div>
+          <AuthPasswordField
+            id="confirmPassword"
+            name="confirmPassword"
+            autoComplete="new-password"
+            required
+            label="Confirm Password"
+            placeholder="Confirm your password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            aria-label="Confirm password"
+          />
           <p className="text-xs text-muted dark:text-text mt-2">
             Password must be at least 8 characters long.
           </p>
@@ -224,7 +157,7 @@ export const RegisterPage = () => {
           </Link>
         </div>
       </form>
-    </div>
+    </AuthCard>
   );
 
   const renderSuccess = () => (
