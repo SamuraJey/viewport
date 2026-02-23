@@ -10,7 +10,6 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
   const heroImgRef = useRef<HTMLImageElement>(null);
   const heroUrl = gallery?.cover?.full_url;
 
-
   useLayoutEffect(() => {
     if (!heroUrl) {
       setIsHeroFullLoaded(false);

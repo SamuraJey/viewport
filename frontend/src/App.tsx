@@ -4,7 +4,6 @@ import { RequireAuth } from './components/RequireAuth';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
 import { NotFoundPage, ErrorPage } from './pages/ErrorPage';
-import { PublicGalleryPage } from './pages/PublicGalleryPage';
 import { useAuthStore } from './stores/authStore';
 
 const LoginPage = lazy(() =>
@@ -18,6 +17,9 @@ const DashboardPage = lazy(() =>
 );
 const GalleryPage = lazy(() =>
   import('./pages/GalleryPage').then((module) => ({ default: module.GalleryPage })),
+);
+const PublicGalleryPage = lazy(() =>
+  import('./pages/PublicGalleryPage').then((module) => ({ default: module.PublicGalleryPage })),
 );
 
 const RouteFallback = () => (
