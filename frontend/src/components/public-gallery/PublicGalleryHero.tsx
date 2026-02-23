@@ -7,21 +7,9 @@ interface PublicGalleryHeroProps {
 
 export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
   const [isHeroFullLoaded, setIsHeroFullLoaded] = useState(false);
-  const [scrollY, setScrollY] = useState(0);
   const heroImgRef = useRef<HTMLImageElement>(null);
   const heroUrl = gallery?.cover?.full_url;
 
-  useEffect(() => {
-    const handleScroll = () => {
-      // Only update if we're near the top to save performance
-      if (window.scrollY < window.innerHeight) {
-        setScrollY(window.scrollY);
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   useLayoutEffect(() => {
     if (!heroUrl) {
@@ -95,14 +83,8 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
       <div className="pg-hero__overlay" />
 
       {/* Animated text content with parallax */}
-      <div
-        className="relative z-10 p-6 w-full max-w-4xl mx-auto"
-        style={{ transform: `translateY(${scrollY * 0.4}px)` }}
-      >
-        <div
-          className="opacity-0 animate-fade-in-up flex flex-col items-center"
-          style={{ animationDelay: '0.2s', animationFillMode: 'forwards' }}
-        >
+      <div className="relative z-10 p-6 w-full max-w-4xl mx-auto">
+        <div className="flex flex-col items-center">
           {gallery.date && <p className="text-sm pg-hero__meta mb-2">{gallery.date}</p>}
           <h1 className="pg-hero__title font-bold drop-shadow-lg text-center">
             {gallery.gallery_name || 'Shared Gallery'}
