@@ -10,7 +10,6 @@ from starlette.responses import RedirectResponse
 from viewport.admin import AdminAuth, GalleryAdmin, PhotoAdmin, ShareLinkAdmin, UserAdmin
 from viewport.api.auth import router as auth_router
 from viewport.api.gallery import router as gallery_router
-from viewport.api.monitoring import router as monitoring_router
 from viewport.api.photo import router as photo_router
 from viewport.api.public import router as public_router
 from viewport.api.sharelink import router as sharelink_router
@@ -106,7 +105,6 @@ app.include_router(photo_router)
 app.include_router(sharelink_router)
 app.include_router(public_router)
 app.include_router(user_router)
-app.include_router(monitoring_router)
 
 setup_metrics(app)
 
