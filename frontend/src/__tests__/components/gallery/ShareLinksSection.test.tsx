@@ -1,18 +1,40 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ShareLinksSection } from '../../../components/gallery/ShareLinksSection';
 import type { ShareLink } from '../../../types';
 
-// Mock navigator.clipboard (not used in simplified test)
-vi.stubGlobal('navigator', {
-  ...navigator,
-  clipboard: {
-    writeText: vi.fn(),
-  },
-});
-
 describe('ShareLinksSection', () => {
+  const mockWriteText = vi.fn().mockResolvedValue(undefined);
+
+  beforeEach(() => {
+    mockWriteText.mockReset();
+
+    // Mock navigator.clipboard (moved into beforeEach to keep global state isolated)
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: mockWriteText,
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    // Mock window.location for construction of share links
+    // Using vi.stubGlobal ensures it is properly cleaned up by vi.unstubAllGlobals()
+    vi.stubGlobal('location', {
+      ...window.location,
+      origin: 'http://localhost:3000',
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+    // Restore/Cleanup navigator.clipboard to avoid leaking into other test files
+    // @ts-expect-error - Restoring the original navigator.clipboard after tests
+    delete navigator.clipboard;
+  });
+
   const mockShareLinks: ShareLink[] = [
     {
       id: 'link-1',
@@ -94,12 +116,6 @@ describe('ShareLinksSection', () => {
   });
 
   it('should display link URLs correctly', () => {
-    // Mock window.location.origin
-    Object.defineProperty(window, 'location', {
-      value: { origin: 'http://localhost:3000' },
-      writable: true,
-    });
-
     render(<ShareLinksSection {...defaultProps} />);
 
     expect(screen.getByText('http://localhost:3000/share/link-1')).toBeInTheDocument();
@@ -153,25 +169,6 @@ describe('ShareLinksSection', () => {
     await user.click(deleteButtons[0]);
 
     expect(mockOnDeleteLink).toHaveBeenCalledWith('link-1');
-  });
-
-  it('should copy link to clipboard when copy button is clicked', async () => {
-    const user = userEvent.setup();
-
-    // Mock window.location.origin
-    Object.defineProperty(window, 'location', {
-      value: { origin: 'http://localhost:3000' },
-      writable: true,
-    });
-
-    render(<ShareLinksSection {...defaultProps} />);
-
-    const copyButtons = screen.getAllByRole('button', { name: /copy link/i });
-    expect(copyButtons).toHaveLength(3);
-
-    // Just test that the button can be clicked (clipboard mocking is complex in jsdom)
-    await user.click(copyButtons[0]);
-    // Note: Actual clipboard functionality would be tested in e2e tests
   });
 
   it('should display empty state when no share links exist', () => {

@@ -26,7 +26,7 @@ export const PhotoSelectionBar = ({
       <div className="flex items-center gap-4">
         <button
           onClick={onSelectAll}
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 transition-all duration-200 hover:bg-surface-1 hover:border-accent/30 hover:-translate-y-0.5 hover:shadow-sm dark:border-border/40 dark:bg-surface-dark dark:hover:bg-surface-dark-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          className="group inline-flex h-10 items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 transition-all duration-200 hover:bg-surface-1 hover:border-accent/30 hover:-translate-y-0.5 hover:shadow-sm dark:border-border/40 dark:bg-surface-dark dark:hover:bg-surface-dark-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           title={areAllOnPageSelected ? 'Deselect all on page' : 'Select all on page'}
         >
           {areAllOnPageSelected ? (

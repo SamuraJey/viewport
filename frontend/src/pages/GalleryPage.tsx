@@ -35,7 +35,6 @@ export const GalleryPage = () => {
     isLoadingPhotos,
     uploadError,
     setUploadError,
-    // ... other props
     isCreatingLink,
     shootingDateInput,
     setShootingDateInput,

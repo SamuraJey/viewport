@@ -3,8 +3,8 @@ import { Eye, EyeOff, Key, Loader2, ShieldCheck } from 'lucide-react';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function getStrength(pwd: string): { score: number; label: string; color: string } {
-  if (!pwd) return { score: 0, label: '', color: '' };
+function getStrength(pwd: string): { score: number; label: string; bg: string; text: string } {
+  if (!pwd) return { score: 0, label: '', bg: '', text: '' };
   let score = 0;
   if (pwd.length >= 8) score++;
   if (pwd.length >= 12) score++;
@@ -24,7 +24,8 @@ function getStrength(pwd: string): { score: number; label: string; color: string
   return {
     score,
     label: labels[score] ?? '',
-    color: colors[score] ?? '' + ' ' + (textColors[score] ?? ''),
+    bg: colors[score] ?? '',
+    text: textColors[score] ?? '',
   };
 }
 
@@ -118,7 +119,7 @@ export const ProfilePasswordSection = ({
   onChangePassword,
 }: ProfilePasswordSectionProps) => {
   const strength = getStrength(newPassword);
-  const [strengthBg, strengthText] = strength.color.split(' ');
+  const { bg: strengthBg, text: strengthText } = strength;
   const passwordMismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
   const passwordMatch = confirmPassword.length > 0 && newPassword === confirmPassword;
   const canSubmit =

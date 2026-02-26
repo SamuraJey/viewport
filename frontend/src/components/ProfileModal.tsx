@@ -33,7 +33,7 @@ function stringToHue(s: string): number {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffffff;
   return h % 360;
 }
-
+// TODO Refactor later
 export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, onClose }) => {
   const {
     email,
@@ -237,6 +237,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
             return (
               <button
                 key={id}
+                id={`tab-${id}`}
                 role="tab"
                 aria-selected={isActive}
                 aria-controls={`tab-panel-${id}`}
