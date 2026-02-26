@@ -17,7 +17,19 @@ class AdminAuth(AuthenticationBackend):
     async def authenticate(self, request: Request) -> bool:
         """Return True if a user is currently authenticated for the admin."""
         user_id = request.session.get("user_id")
-        return bool(user_id)
+        if not user_id:
+            return False
+
+        def _is_admin_user() -> bool:
+            db: Session = next(get_db())
+            try:
+                stmt = select(User.is_admin).where(User.id == user_id)
+                is_admin = db.execute(stmt).scalar_one_or_none()
+                return bool(is_admin)
+            finally:
+                db.close()
+
+        return await run_in_threadpool(_is_admin_user)
 
     async def logout(self, request: Request) -> bool:
         """Log out the current user by clearing the admin session."""
