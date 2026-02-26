@@ -61,7 +61,7 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
   }
 
   return (
-    <div className="pg-hero relative w-full text-accent-foreground bg-surface-foreground/15 dark:bg-surface/20 overflow-hidden rounded-b-3xl shadow-md">
+    <div className="pg-hero relative w-full text-accent-foreground bg-surface-foreground/15 dark:bg-surface/20 overflow-hidden shadow-md">
       <img
         src={gallery.cover.thumbnail_url}
         alt="Gallery cover preview"
