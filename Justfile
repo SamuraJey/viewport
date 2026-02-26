@@ -62,15 +62,3 @@ test:
 # Run tests with coverage
 test-cov:
     {{ VENV }}/bin/pytest -n 4 ./tests --cov={{ PROJECT_NAME }} --cov-branch --cov-fail-under=85
-
-# Start load test monitoring
-monitor:
-    @echo "Starting real-time monitoring..."
-    @echo "Open another terminal and run: just load-test"
-    {{ VENV }}/bin/python performance_tests/monitor_load.py
-
-# Run optimized load test
-load-test:
-    @echo "Starting Locust load test..."
-    @echo "Open http://localhost:8089 in your browser"
-    {{ VENV }}/bin/locust -f performance_tests/locustfile_optimized.py --host=http://localhost:8000
