@@ -83,7 +83,7 @@ export const Layout = ({ children }: LayoutProps) => {
                   onClick={openProfile}
                   title="Account Settings"
                   aria-label="Open account settings"
-                  className="hidden min-w-0 items-center gap-2.5 rounded-lg border border-border/40 bg-surface-1 px-2.5 py-1.5 text-text shadow-sm transition-colors hover:border-accent/50 hover:bg-surface-2 sm:flex dark:border-border/60 dark:bg-surface-dark-1 dark:text-text dark:hover:bg-surface-dark-2"
+                  className="hidden min-w-0 items-center gap-2.5 rounded-xl border border-border/40 bg-surface-1 px-3 py-2 text-text shadow-sm transition-all duration-200 hover:border-accent/50 hover:bg-surface-2 hover:-translate-y-0.5 hover:shadow-md sm:flex dark:border-border/60 dark:bg-surface-dark-1 dark:text-text dark:hover:bg-surface-dark-2"
                 >
                   <span
                     className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white text-xs font-bold select-none ${avatarColor}`}
@@ -106,10 +106,10 @@ export const Layout = ({ children }: LayoutProps) => {
                   onClick={handleLogout}
                   title="Sign Out"
                   aria-label="Sign out"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-surface-1 text-sm text-muted shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-danger hover:bg-danger/5 hover:text-danger hover:shadow-md sm:w-auto sm:gap-2 sm:px-3.5 dark:bg-surface-dark-1 dark:text-text/70 dark:hover:bg-danger/10"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-1 text-sm text-muted shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-danger hover:bg-danger/5 hover:text-danger hover:shadow-md sm:w-auto sm:gap-2 sm:px-4 dark:bg-surface-dark-1 dark:text-text/70 dark:hover:bg-danger/10"
                 >
                   <LogOut className="h-4 w-4" />
-                  <span className="hidden sm:inline">Sign Out</span>
+                  <span className="hidden sm:inline font-medium">Sign Out</span>
                 </button>
               </>
             ) : null}

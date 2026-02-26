@@ -68,14 +68,14 @@ export const UploadModalFooter = ({
   onUpload,
   uploadButtonRef,
 }: UploadModalFooterProps) => (
-  <div className="flex justify-end gap-2 sm:gap-3 p-5 sm:p-6 border-t border-border bg-linear-to-r from-surface/50 to-surface dark:from-surface-foreground/50 dark:to-surface-foreground">
+  <div className="flex justify-end gap-3 p-5 sm:p-6 border-t border-border bg-surface-1/50 dark:bg-surface-dark-1/50">
     {result && (
       <>
         {failedCount > 0 && (
           <button
             onClick={onRetryFailed}
             disabled={isUploading}
-            className="px-4 sm:px-6 py-2.5 bg-yellow-500 hover:bg-yellow-600 disabled:bg-surface-foreground disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 disabled:opacity-50 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
+            className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-600 disabled:bg-surface-foreground disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95 disabled:opacity-50 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
           >
             <Upload className="w-4 h-4" />
             Retry {failedCount}
@@ -83,7 +83,7 @@ export const UploadModalFooter = ({
         )}
         <button
           onClick={onClose}
-          className="px-4 sm:px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
+          className="px-5 py-2.5 bg-accent hover:bg-accent/90 text-white text-sm font-medium rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
         >
           Close
         </button>
@@ -94,7 +94,7 @@ export const UploadModalFooter = ({
       <>
         <button
           onClick={onCancel}
-          className="px-4 sm:px-6 py-2.5 text-muted dark:text-text hover:bg-surface dark:hover:bg-surface-foreground text-sm font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
+          className="px-5 py-2.5 text-text dark:text-muted bg-surface-1 dark:bg-surface-dark-1 hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-sm font-medium rounded-xl border border-border dark:border-border/40 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
         >
           Cancel
         </button>
@@ -102,7 +102,7 @@ export const UploadModalFooter = ({
           ref={uploadButtonRef}
           onClick={onUpload}
           disabled={filesCount === 0 || !hasValidFiles}
-          className="px-4 sm:px-6 py-2.5 bg-linear-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-surface-foreground disabled:to-surface-foreground disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:shadow-sm flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
+          className="px-5 py-2.5 bg-accent hover:bg-accent/90 disabled:bg-surface-foreground disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:shadow-sm disabled:hover:translate-y-0 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
         >
           <Upload className="w-4 h-4" />
           Upload {validUploadCount}
@@ -111,7 +111,7 @@ export const UploadModalFooter = ({
     )}
 
     {isUploading && (
-      <div className="flex items-center gap-2 text-muted text-xs sm:text-sm">
+      <div className="flex items-center gap-2 text-muted text-xs sm:text-sm font-medium">
         <div className="w-4 h-4 border-2 border-muted border-t-text rounded-full animate-spin" />
         Upload in progress...
       </div>

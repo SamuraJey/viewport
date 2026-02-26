@@ -47,19 +47,21 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
 
   if (!gallery?.cover) {
     return (
-      <div className="text-center py-16">
-        <h1 className="text-4xl font-bold text-text dark:text-accent-foreground mb-2">
+      <div className="text-center py-24 px-6 bg-surface-foreground/5 dark:bg-surface-1/30 rounded-3xl border border-border/50 shadow-xs mb-8">
+        <h1 className="text-4xl sm:text-5xl font-bold text-text dark:text-accent-foreground mb-4 tracking-tight">
           {gallery?.gallery_name || 'Shared Gallery'}
         </h1>
         {gallery?.photographer && (
-          <p className="text-muted dark:text-text text-lg">By {gallery.photographer}</p>
+          <p className="text-muted dark:text-muted text-lg sm:text-xl font-medium">
+            By {gallery.photographer}
+          </p>
         )}
       </div>
     );
   }
 
   return (
-    <div className="pg-hero relative w-full text-accent-foreground bg-surface-foreground/15 dark:bg-surface/20 overflow-hidden">
+    <div className="pg-hero relative w-full text-accent-foreground bg-surface-foreground/15 dark:bg-surface/20 overflow-hidden rounded-b-3xl shadow-md">
       <img
         src={gallery.cover.thumbnail_url}
         alt="Gallery cover preview"
@@ -79,17 +81,21 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
         className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${isHeroFullLoaded ? 'opacity-100' : 'opacity-0'}`}
       />
 
-      <div className="pg-hero__overlay" />
+      <div className="pg-hero__overlay bg-linear-to-t from-black/80 via-black/40 to-black/10" />
 
       {/* Animated text content with parallax */}
-      <div className="relative z-10 p-6 w-full max-w-4xl mx-auto">
-        <div className="flex flex-col items-center">
-          {gallery.date && <p className="text-sm pg-hero__meta mb-2">{gallery.date}</p>}
-          <h1 className="pg-hero__title font-bold drop-shadow-lg text-center">
+      <div className="relative z-10 p-8 w-full max-w-5xl mx-auto flex flex-col justify-end h-full pb-24">
+        <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
+          {gallery.date && (
+            <p className="text-sm sm:text-base font-medium text-white/80 tracking-wider uppercase mb-3">
+              {gallery.date}
+            </p>
+          )}
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-bold text-white drop-shadow-xl tracking-tight leading-tight">
             {gallery.gallery_name || 'Shared Gallery'}
           </h1>
-          <div className="mt-4 text-lg pg-hero__meta text-center">
-            {gallery.photographer && <span>{gallery.photographer}</span>}
+          <div className="mt-4 sm:mt-6 text-lg sm:text-xl font-medium text-white/90 drop-shadow-md">
+            {gallery.photographer && <span>By {gallery.photographer}</span>}
           </div>
         </div>
       </div>
@@ -106,7 +112,7 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
           <a
             href="#gallery-content"
             aria-label="Scroll to photos"
-            className="w-10 h-10 border-2 border-white/70 rounded-full flex items-center justify-center animate-pulse hover:bg-white/20 transition-colors duration-200"
+            className="w-12 h-12 border-2 border-white/50 rounded-full flex items-center justify-center hover:bg-white/20 hover:border-white hover:scale-110 transition-all duration-300 backdrop-blur-xs"
             onClick={(event) => {
               event.preventDefault();
               document.getElementById('gallery-content')?.scrollIntoView({ behavior: 'smooth' });
@@ -117,8 +123,8 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
-              className="w-5 h-5"
+              strokeWidth="2.5"
+              className="w-6 h-6 text-white"
             >
               <path d="M6 9l6 6 6-6" />
             </svg>

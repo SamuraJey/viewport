@@ -117,14 +117,14 @@ export const RegisterPage = () => {
           </p>
         </div>
         {error && (
-          <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-center text-sm">
+          <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 px-4 py-3 rounded-xl text-center text-sm font-medium shadow-xs">
             {error}
           </div>
         )}
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-lg hover:shadow-accent/25 hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-sm flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+          className="w-full bg-accent text-accent-foreground font-semibold py-3.5 px-6 rounded-xl shadow-sm hover:shadow-md hover:shadow-accent/20 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-sm flex items-center justify-center gap-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           {isLoading ? (
             <>
@@ -138,12 +138,12 @@ export const RegisterPage = () => {
             </>
           )}
         </button>
-        <div className="relative my-6">
+        <div className="relative my-8">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border dark:border-border"></div>
+            <div className="w-full border-t border-border/60 dark:border-border/40"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-4 bg-surface dark:bg-surface-foreground text-muted dark:text-text">
+            <span className="px-4 bg-surface dark:bg-surface-foreground text-muted font-medium">
               Already have an account?
             </span>
           </div>
@@ -151,7 +151,7 @@ export const RegisterPage = () => {
         <div className="text-center">
           <Link
             to="/auth/login"
-            className="inline-flex items-center text-sm font-medium text-text dark:text-accent-foreground hover:text-accent dark:hover:text-accent-foreground"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-text dark:text-accent-foreground hover:text-accent dark:hover:text-accent-foreground transition-colors duration-200 p-2 rounded-lg hover:bg-surface-1/50"
           >
             Sign in to your account
           </Link>
@@ -161,10 +161,14 @@ export const RegisterPage = () => {
   );
 
   const renderSuccess = () => (
-    <div className="relative z-10 w-full max-w-md p-8 flex flex-col gap-6 bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-xl border border-border dark:border-white/10 text-center">
-      <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
-      <h2 className="text-3xl font-bold text-text dark:text-white">Registration Successful!</h2>
-      <p className="text-lg text-muted dark:text-text">Redirecting you to sign in...</p>
+    <div className="relative z-10 w-full max-w-md p-10 flex flex-col gap-6 bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl border border-border/50 dark:border-white/10 text-center shadow-xl">
+      <div className="w-20 h-20 mx-auto bg-green-50 dark:bg-green-500/10 rounded-full flex items-center justify-center mb-2">
+        <CheckCircle className="h-10 w-10 text-green-500" />
+      </div>
+      <h2 className="text-3xl font-bold text-text dark:text-white tracking-tight">
+        Registration Successful!
+      </h2>
+      <p className="text-lg text-muted font-medium">Redirecting you to sign in...</p>
     </div>
   );
 

@@ -130,11 +130,10 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
 
         {showDropzone && (
           <div
-            className={`uploader-zone relative flex flex-col items-center justify-center border-2 border-dashed rounded-xl py-10 px-8 cursor-pointer select-none ${
-              dragActive
-                ? 'uploader-zone--active border-accent bg-accent/8 dark:bg-accent/8 shadow-inner'
-                : 'border-border dark:border-border/40 hover:border-accent/60 hover:bg-accent/4 dark:hover:bg-accent/4 bg-surface-1 dark:bg-surface-dark-1'
-            }`}
+            className={`uploader-zone relative flex flex-col items-center justify-center border-2 border-dashed rounded-3xl py-12 px-8 cursor-pointer select-none transition-all duration-300 ${dragActive
+                ? 'uploader-zone--active border-accent bg-accent/10 dark:bg-accent/10 shadow-inner scale-[1.02]'
+                : 'border-border/50 dark:border-border/30 hover:border-accent/60 hover:bg-accent/5 dark:hover:bg-accent/5 bg-surface-1/50 dark:bg-surface-dark-1/50 hover:shadow-lg hover:-translate-y-1'
+              } focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface`}
             onClick={() => fileInputRef.current?.click()}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
@@ -144,9 +143,9 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
             aria-label="Upload photos"
           >
             <motion.div
-              animate={dragActive ? { scale: 1.15, rotate: -4 } : { scale: 1, rotate: 0 }}
+              animate={dragActive ? { scale: 1.2, rotate: -8 } : { scale: 1, rotate: 0 }}
               transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-              className="mb-3"
+              className="mb-4 p-4 rounded-full bg-surface shadow-sm"
             >
               {files.length > 0 ? (
                 <ImagePlus className="w-10 h-10 text-accent" />
@@ -154,14 +153,14 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
                 <Upload className="w-10 h-10 text-accent" />
               )}
             </motion.div>
-            <p className="text-base font-semibold text-text mb-1">
+            <p className="text-lg font-bold text-text mb-2">
               {files.length > 0
                 ? `${files.length} file${files.length > 1 ? 's' : ''} ready`
                 : dragActive
                   ? 'Drop photos here'
                   : 'Drag & drop photos here'}
             </p>
-            <p className="text-sm text-muted">
+            <p className="text-sm font-medium text-muted">
               {files.length > 0
                 ? 'Opening upload confirmation...'
                 : 'or click to select files · JPG / PNG · up to 15 MB'}

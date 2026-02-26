@@ -18,6 +18,10 @@ import { usePagination, useSelection, useGalleryActions, useGalleryDragAndDrop }
 export const GalleryPage = () => {
   const { id } = useParams<{ id: string }>();
   const galleryId = id!;
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [showInitialLoadingState, setShowInitialLoadingState] = useState(false);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
 
   // Use new hooks
   const pagination = usePagination({ pageSize: 100, syncWithUrl: true });
@@ -31,6 +35,7 @@ export const GalleryPage = () => {
     isLoadingPhotos,
     uploadError,
     setUploadError,
+    // ... other props
     isCreatingLink,
     shootingDateInput,
     setShootingDateInput,
@@ -50,17 +55,10 @@ export const GalleryPage = () => {
     handleRenamePhoto,
     handleRenameConfirm,
     handleDeletePhoto,
-    handleDeleteMultiplePhotos,
+    handleDeleteMultiplePhotos: handleDeletePhotos, // Renamed to avoid name clash
   } = useGalleryActions({ galleryId, pagination });
 
-  // State
-  const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [showInitialLoadingState, setShowInitialLoadingState] = useState(false);
-
-  // Refs
-  const gridRef = useRef<HTMLDivElement | null>(null);
-  const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
-
+  // Drag and Drop
   const {
     isPageDragActive,
     handleGalleryDragEnter,
@@ -69,6 +67,7 @@ export const GalleryPage = () => {
     handleGalleryDrop,
   } = useGalleryDragAndDrop(photoUploaderRef);
 
+  // Lightbox
   const { openLightbox, renderLightbox } = usePhotoLightbox({
     photoCardSelector: '[data-photo-card]',
     gridRef,
@@ -79,6 +78,7 @@ export const GalleryPage = () => {
     photoUrls.length > 0 && photoUrls.every((p) => selection.isSelected(p.id));
 
   useEffect(() => {
+    // Determine if this is the initial load (no gallery data yet)
     const isInitial = gallery === null;
     fetchGalleryDetails(pagination.page, isInitial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -105,25 +105,27 @@ export const GalleryPage = () => {
       const photoIds = photoUrls.map((p) => p.id);
       selection.selectRange(photoId, photoIds);
     } else {
-      selection.toggle(photoId);
+      if (selection.isSelected(photoId)) {
+        selection.deselect(photoId);
+      } else {
+        selection.select(photoId);
+      }
     }
   };
 
   // Handler for selecting all photos on current page
   const handleSelectAllPhotos = () => {
     if (areAllOnPageSelected) {
-      // Deselect all on this page
       const pagePhotoIds = photoUrls.map((p) => p.id);
       pagePhotoIds.forEach((id) => selection.deselect(id));
     } else {
-      // Select all on this page
       selection.selectMultiple(photoUrls.map((p) => p.id));
     }
   };
 
   // Handler for deleting multiple photos
   const handleDeleteMultiplePhotosWrapper = () => {
-    handleDeleteMultiplePhotos(selection.selectedIds, () => {
+    handleDeletePhotos(Array.from(selection.selectedIds), () => {
       selection.clear();
       setIsSelectionMode(false);
     });
@@ -131,7 +133,15 @@ export const GalleryPage = () => {
 
   // Photo modal handlers
   const openPhoto = (index: number) => {
-    openLightbox(index);
+    if (!isSelectionMode) {
+      openLightbox(index);
+    } else {
+      // In selection mode, clicking a photo toggles selection
+      const photo = photoUrls[index];
+      if (photo) {
+        handleTogglePhotoSelection(photo.id);
+      }
+    }
   };
 
   if (isInitialLoading && showInitialLoadingState) {
@@ -156,16 +166,16 @@ export const GalleryPage = () => {
   }
 
   return (
-    <>
-      <div
-        className="relative space-y-6"
-        onDragEnter={handleGalleryDragEnter}
-        onDragOver={handleGalleryDragOver}
-        onDragLeave={handleGalleryDragLeave}
-        onDrop={handleGalleryDrop}
-      >
-        <GalleryDragOverlay isActive={isPageDragActive} />
+    <div
+      className="relative min-h-screen pb-20"
+      onDragEnter={handleGalleryDragEnter}
+      onDragOver={handleGalleryDragOver}
+      onDragLeave={handleGalleryDragLeave}
+      onDrop={handleGalleryDrop}
+    >
+      <GalleryDragOverlay isActive={isPageDragActive} />
 
+      <div className="space-y-8">
         {/* Gallery Header */}
         <GalleryHeader
           gallery={gallery}
@@ -192,7 +202,7 @@ export const GalleryPage = () => {
             areAllOnPageSelected,
             selectionCount: selection.count,
             hasSelection: selection.hasSelection,
-            isPhotoSelected: selection.isSelected,
+            isPhotoSelected: (id) => selection.isSelected(id),
             isCoverPhoto: (photoId) => gallery.cover_photo_id === photoId,
           }}
           actions={{
@@ -221,12 +231,15 @@ export const GalleryPage = () => {
             onDeleteMultiplePhotos: handleDeleteMultiplePhotosWrapper,
           }}
         />
-        <ShareLinksSection
-          shareLinks={shareLinks}
-          isCreatingLink={isCreatingLink}
-          onCreateLink={handleCreateShareLink}
-          onDeleteLink={handleDeleteShareLink}
-        />
+
+        {shareLinks.length > 0 && (
+          <ShareLinksSection
+            shareLinks={shareLinks}
+            isCreatingLink={isCreatingLink}
+            onCreateLink={handleCreateShareLink}
+            onDeleteLink={handleDeleteShareLink}
+          />
+        )}
       </div>
 
       {/* Lightbox */}
@@ -240,6 +253,7 @@ export const GalleryPage = () => {
           download: photo.url,
           downloadFilename: photo.filename,
         })),
+        pagination.total,
       )}
 
       {/* Photo Rename Modal */}
@@ -256,6 +270,6 @@ export const GalleryPage = () => {
 
       {/* Confirmation Modal */}
       {ConfirmModal}
-    </>
+    </div>
   );
 };

@@ -93,25 +93,24 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = React.memo(
               </div>
 
               <div className="p-6">
-                <p className="text-text dark:text-muted leading-relaxed">{message}</p>
+                <p className="text-text dark:text-text leading-relaxed">{message}</p>
               </div>
 
-              <div className="flex items-center justify-end gap-3 p-6 border-t border-border">
+              <div className="flex items-center justify-end gap-3 p-6 border-t border-border bg-surface-1/50 dark:bg-surface-dark-1/50">
                 <button
                   onClick={onClose}
                   disabled={isLoading}
-                  className="px-4 py-2.5 text-text dark:text-muted bg-surface-1 dark:bg-surface-dark-1 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-xl border border-border dark:border-border/40 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
+                  className="px-5 py-2.5 text-text dark:text-text bg-surface-1 dark:bg-surface-dark-1 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-xl border border-border dark:border-border/40 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 font-medium"
                 >
                   {cancelText}
                 </button>
                 <button
                   onClick={handleConfirm}
                   disabled={isLoading}
-                  className={`flex items-center gap-2 px-4 py-2.5 text-white rounded-xl shadow-sm hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none disabled:opacity-60 ${
-                    isDangerous
-                      ? 'bg-red-500 hover:bg-red-600 disabled:bg-red-400'
-                      : 'bg-accent hover:bg-accent/90 disabled:bg-accent/60'
-                  }`}
+                  className={`flex items-center gap-2 px-5 py-2.5 text-white rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none disabled:opacity-60 font-medium ${isDangerous
+                    ? 'bg-red-500 hover:bg-red-600 disabled:bg-red-400'
+                    : 'bg-accent hover:bg-accent/90 disabled:bg-accent/60'
+                    }`}
                 >
                   {isLoading ? (
                     <>

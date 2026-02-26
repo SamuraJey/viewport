@@ -23,10 +23,10 @@ const PasswordField = ({
   onToggleShow,
 }: PasswordFieldProps) => (
   <div>
-    <label htmlFor={id} className="block text-sm font-medium text-text mb-2">
+    <label htmlFor={id} className="block text-sm font-semibold text-text mb-2">
       {label}
     </label>
-    <div className="relative">
+    <div className="relative group">
       <input
         id={id}
         type={show ? 'text' : 'password'}
@@ -34,15 +34,19 @@ const PasswordField = ({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="w-full px-4 py-2.5 pr-12 border border-border rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
+        className="w-full px-4 py-3 pr-12 border border-border rounded-xl bg-transparent focus:outline-hidden focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
       />
       <button
         type="button"
         aria-label={show ? 'Hide password' : 'Show password'}
         onClick={onToggleShow}
-        className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded transition-all duration-200 hover:scale-110"
+        className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-lg transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
       >
-        {show ? <EyeOff className="h-5 w-5 text-muted" /> : <Eye className="h-5 w-5 text-muted" />}
+        {show ? (
+          <EyeOff className="h-5 w-5 text-muted group-focus-within:text-accent" />
+        ) : (
+          <Eye className="h-5 w-5 text-muted group-focus-within:text-accent" />
+        )}
       </button>
     </div>
   </div>
@@ -90,7 +94,7 @@ export const ProfilePasswordSection = ({
         <h3 className="text-lg font-semibold text-text">Change Password</h3>
       </div>
 
-      <div className="bg-surface-1 dark:bg-surface-dark-1 rounded-xl p-6 space-y-4 border border-border/40">
+      <div className="bg-surface-1 dark:bg-surface-dark-1 rounded-2xl p-6 space-y-5 border border-border/40 shadow-xs">
         <PasswordField
           id="currentPassword"
           label="Current Password"
@@ -123,16 +127,16 @@ export const ProfilePasswordSection = ({
         <button
           onClick={onChangePassword}
           disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
-          className="w-full px-4 py-2.5 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
+          className="w-full px-4 py-3 bg-accent text-accent-foreground font-semibold rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           {changingPassword ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="w-5 h-5 animate-spin" />
               Changing Password...
             </>
           ) : (
             <>
-              <Lock className="w-4 h-4" />
+              <Lock className="w-5 h-5" />
               Change Password
             </>
           )}

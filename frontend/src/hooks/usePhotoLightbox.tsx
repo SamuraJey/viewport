@@ -96,6 +96,7 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
   // Render the Lightbox component
   const renderLightbox = (slides: PhotoSlide[], totalPhotos?: number) => (
     <Lightbox
+      className="backdrop-blur-md bg-black/95"
       open={lightboxOpen}
       close={closeLightbox}
       index={lightboxIndex}

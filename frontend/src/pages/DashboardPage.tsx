@@ -148,17 +148,23 @@ export const DashboardPage = () => {
     />
   );
   const renderEmptyState = () => (
-    <div className="flex flex-col items-center justify-center h-96">
-      <p className="text-muted text-lg mb-4">No galleries yet</p>
+    <div className="flex flex-col items-center justify-center py-24 px-4 text-center bg-surface-1/50 dark:bg-surface-dark-1/50 rounded-3xl border border-dashed border-border dark:border-border/40">
+      <div className="bg-accent/10 p-4 rounded-full mb-6">
+        <Plus className="h-8 w-8 text-accent" />
+      </div>
+      <h3 className="text-2xl font-semibold text-text mb-2">No galleries yet</h3>
+      <p className="text-muted text-lg mb-8 max-w-md">
+        Create your first gallery to start organizing and sharing your photos.
+      </p>
       {/* Button to create first gallery */}
       <button
         onClick={handleOpenModal}
         disabled={isCreating}
-        className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 border border-accent/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+        className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-8 rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
         aria-label="Create your first gallery"
       >
         {isCreating ? (
-          <div className="w-5 h-5 border-2 border-border/20 border-t-accent rounded-full animate-spin"></div>
+          <div className="w-5 h-5 border-2 border-accent-foreground/20 border-t-accent-foreground rounded-full animate-spin"></div>
         ) : (
           <Plus className="h-5 w-5" />
         )}
@@ -251,11 +257,11 @@ export const DashboardPage = () => {
         <button
           onClick={handleOpenModal}
           disabled={isCreating}
-          className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 border border-accent/20 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+          className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-2.5 px-5 rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
           aria-label="Create new gallery"
         >
           {isCreating ? (
-            <div className="w-5 h-5 border-2 border-border dark:border-border/40 rounded-full animate-spin"></div>
+            <div className="w-5 h-5 border-2 border-accent-foreground/20 border-t-accent-foreground rounded-full animate-spin"></div>
           ) : (
             <Plus className="h-5 w-5" />
           )}

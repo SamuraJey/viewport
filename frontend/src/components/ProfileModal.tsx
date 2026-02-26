@@ -121,7 +121,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
         onClick={onClose}
       />
       <motion.div
-        className="relative bg-surface dark:bg-surface-dark rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto border border-border dark:border-border/40"
+        className="relative bg-surface dark:bg-surface-dark rounded-3xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto border border-border/50 dark:border-border/40"
         data-lenis-prevent
         initial={{ opacity: 0, scale: 0.95, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -130,32 +130,32 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-surface dark:bg-surface-dark border-b border-border dark:border-border/40 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-accent/10 rounded-full flex items-center justify-center">
-              <User className="w-5 h-5 text-accent" />
+        <div className="sticky top-0 bg-surface/95 dark:bg-surface-dark/95 backdrop-blur-md border-b border-border/50 dark:border-border/40 px-6 py-5 flex items-center justify-between rounded-t-3xl z-10">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-accent/10 rounded-2xl flex items-center justify-center">
+              <User className="w-6 h-6 text-accent" />
             </div>
-            <h2 id="profile-modal-title" className="text-2xl font-bold text-text">
+            <h2 id="profile-modal-title" className="text-2xl font-bold text-text tracking-tight">
               Account Settings
             </h2>
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="p-2 hover:bg-surface-1 dark:hover:bg-surface-dark-1 rounded-lg transition-all duration-200 hover:scale-105"
+            className="p-2.5 hover:bg-surface-1 dark:hover:bg-surface-dark-1 rounded-xl transition-all duration-200 hover:scale-105 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
           >
             <X className="w-5 h-5 text-muted hover:text-text transition-colors" />
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 sm:p-8 space-y-8">
           {/* Error Alert */}
           {error && (
-            <div className="bg-danger/10 border border-danger/20 rounded-lg p-4 flex items-start gap-3">
+            <div className="bg-danger/10 border border-danger/20 rounded-xl p-4 flex items-start gap-3 shadow-xs">
               <AlertTriangle className="w-5 h-5 text-danger shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-danger font-medium">Error</p>
-                <p className="text-danger/80 text-sm mt-1">{error}</p>
+                <p className="text-danger font-semibold">Error</p>
+                <p className="text-danger/80 text-sm mt-1 font-medium">{error}</p>
               </div>
             </div>
           )}

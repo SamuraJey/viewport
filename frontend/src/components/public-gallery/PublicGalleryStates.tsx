@@ -5,17 +5,17 @@ export const PublicGallerySkeleton = () => (
     className="min-h-screen bg-surface dark:bg-surface-foreground/5"
     data-testid="skeleton-loader"
   >
-    <div className="h-screen bg-surface-foreground/10 dark:bg-surface/10 animate-pulse flex items-center justify-center">
-      <div className="text-center space-y-4">
-        <div className="h-4 w-32 bg-surface-foreground/20 dark:bg-surface/20 rounded mx-auto" />
-        <div className="h-12 w-80 bg-surface-foreground/20 dark:bg-surface/20 rounded mx-auto" />
-        <div className="h-4 w-48 bg-surface-foreground/20 dark:bg-surface/20 rounded mx-auto" />
+    <div className="h-screen bg-surface-foreground/10 dark:bg-surface/10 animate-pulse flex items-center justify-center rounded-b-3xl">
+      <div className="text-center space-y-5">
+        <div className="h-4 w-32 bg-surface-foreground/20 dark:bg-surface/20 rounded-full mx-auto" />
+        <div className="h-14 w-80 bg-surface-foreground/20 dark:bg-surface/20 rounded-xl mx-auto" />
+        <div className="h-5 w-48 bg-surface-foreground/20 dark:bg-surface/20 rounded-full mx-auto" />
       </div>
     </div>
 
     <div className="w-full px-4 sm:px-6 lg:px-10 py-16">
-      <div className="bg-surface-foreground/5 rounded-2xl p-6 border border-border">
-        <div className="h-8 w-40 bg-surface-foreground/20 dark:bg-surface/20 rounded mb-6 animate-pulse" />
+      <div className="bg-surface-foreground/5 rounded-3xl p-6 sm:p-8 border border-border/50 shadow-xs">
+        <div className="h-8 w-40 bg-surface-foreground/20 dark:bg-surface/20 rounded-lg mb-8 animate-pulse" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {Array.from({ length: 6 }).map((_, i) => (
             <div
@@ -35,17 +35,15 @@ interface PublicGalleryErrorProps {
 }
 
 export const PublicGalleryError = ({ error }: PublicGalleryErrorProps) => (
-  <div className="min-h-screen bg-surface dark:bg-surface-foreground/5">
-    <div className="container mx-auto px-4 py-16">
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <AlertCircle className="w-16 h-16 text-danger mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-text dark:text-accent-foreground mb-2">
-            Gallery Not Available
-          </h1>
-          <p className="text-muted dark:text-text">{error}</p>
-        </div>
+  <div className="min-h-screen bg-surface dark:bg-surface-foreground/5 flex items-center justify-center p-4">
+    <div className="w-full max-w-md bg-surface dark:bg-surface-dark rounded-3xl p-8 sm:p-10 shadow-2xl border border-border/50 dark:border-white/5 text-center">
+      <div className="w-20 h-20 bg-danger/10 rounded-full flex items-center justify-center mx-auto mb-6">
+        <AlertCircle className="w-10 h-10 text-danger" />
       </div>
+      <h1 className="text-3xl font-bold text-text dark:text-accent-foreground mb-3 tracking-tight">
+        Gallery Not Available
+      </h1>
+      <p className="text-muted dark:text-muted-foreground text-lg font-medium">{error}</p>
     </div>
   </div>
 );
