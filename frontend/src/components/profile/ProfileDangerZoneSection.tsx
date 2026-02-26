@@ -58,7 +58,7 @@ export const ProfileDangerZoneSection = ({
             </div>
             <button
               onClick={onLogout}
-              className="flex shrink-0 items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-text shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-2 hover:shadow-md active:translate-y-0 dark:bg-surface-dark dark:hover:bg-surface-dark-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              className="flex shrink-0 items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-text shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-2 active:translate-y-0 dark:bg-surface-dark dark:hover:bg-surface-dark-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
               <LogOut className="h-4 w-4" />
               Logout
@@ -77,7 +77,7 @@ export const ProfileDangerZoneSection = ({
             </div>
             <button
               onClick={onStartDelete}
-              className="flex shrink-0 items-center gap-2 rounded-xl bg-danger px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-danger/90 hover:shadow-md active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              className="flex shrink-0 items-center gap-2 rounded-xl bg-danger px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-danger/90 active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
               <Trash2 className="h-4 w-4" />
               Delete
@@ -141,14 +141,14 @@ export const ProfileDangerZoneSection = ({
         <div className="flex gap-3">
           <button
             onClick={onCancelDelete}
-            className="flex-1 rounded-xl border border-border bg-surface-1 px-4 py-2.5 text-sm font-semibold text-text transition-all duration-200 hover:bg-surface-2 hover:shadow-sm dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="flex-1 rounded-xl border border-border bg-surface-1 px-4 py-2.5 text-sm font-semibold text-text transition-all duration-200 hover:bg-surface-2 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
             Cancel
           </button>
           <button
             onClick={onVerifyDeletePassword}
             disabled={!deletePassword}
-            className="flex-1 rounded-xl bg-danger px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-danger/90 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="flex-1 rounded-xl bg-danger px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
             Continue →
           </button>
@@ -189,14 +189,14 @@ export const ProfileDangerZoneSection = ({
       <div className="flex gap-3">
         <button
           onClick={onCancelDelete}
-          className="flex-1 rounded-xl border border-border bg-surface-1 px-4 py-2.5 text-sm font-semibold text-text transition-all duration-200 hover:bg-surface-2 hover:shadow-sm dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          className="flex-1 rounded-xl border border-border bg-surface-1 px-4 py-2.5 text-sm font-semibold text-text transition-all duration-200 hover:bg-surface-2 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           Cancel
         </button>
         <button
           onClick={onConfirmDelete}
           disabled={deletingAccount}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-danger px-4 py-2.5 text-sm font-bold text-white transition-all duration-200 hover:bg-danger/90 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-danger px-4 py-2.5 text-sm font-bold text-white transition-all duration-200 hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           {deletingAccount ? (
             <>

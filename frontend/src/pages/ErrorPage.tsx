@@ -40,7 +40,7 @@ const ErrorActions = ({ showBackButton, onRetry }: ErrorActionsProps) => (
     {showBackButton && (
       <Link
         to="/"
-        className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/25 no-underline"
+        className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 no-underline"
       >
         <Home className="w-5 h-5" />
         Go Home
@@ -50,7 +50,7 @@ const ErrorActions = ({ showBackButton, onRetry }: ErrorActionsProps) => (
     {onRetry && (
       <button
         onClick={onRetry}
-        className="inline-flex items-center gap-2 bg-surface-foreground/10 hover:bg-surface-foreground/20 text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border border-border"
+        className="inline-flex items-center gap-2 bg-surface-foreground/10 hover:bg-surface-foreground/20 text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:-translate-y-0.5 transition-all duration-200 border border-border"
       >
         <RefreshCw className="w-5 h-5" />
         Try Again
@@ -59,7 +59,7 @@ const ErrorActions = ({ showBackButton, onRetry }: ErrorActionsProps) => (
 
     <button
       onClick={() => window.location.reload()}
-      className="inline-flex items-center gap-2 bg-transparent hover:bg-surface-foreground/10 text-muted hover:text-text font-medium py-3 px-6 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 border border-border hover:border-border/50"
+      className="inline-flex items-center gap-2 bg-transparent hover:bg-surface-foreground/10 text-muted hover:text-text font-medium py-3 px-6 rounded-lg shadow-sm transition-all duration-200 border border-border hover:border-border/50"
     >
       <RefreshCw className="w-5 h-5" />
       Refresh Page

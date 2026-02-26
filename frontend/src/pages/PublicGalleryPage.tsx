@@ -104,7 +104,7 @@ export const PublicGalleryPage = () => {
           <div className="mb-10 text-center">
             <button
               onClick={handleDownloadAll}
-              className="bg-accent hover:bg-accent/90 text-accent-foreground px-8 py-3.5 rounded-xl font-semibold shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 inline-flex items-center gap-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              className="bg-accent hover:bg-accent/90 text-accent-foreground px-8 py-3.5 rounded-xl font-semibold shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 inline-flex items-center gap-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
               <DownloadIcon className="w-5 h-5" />
               Download All Photos

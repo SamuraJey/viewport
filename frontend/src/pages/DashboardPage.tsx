@@ -160,7 +160,7 @@ export const DashboardPage = () => {
       <button
         onClick={handleOpenModal}
         disabled={isCreating}
-        className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-8 rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+        className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-8 rounded-xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
         aria-label="Create your first gallery"
       >
         {isCreating ? (
@@ -222,7 +222,7 @@ export const DashboardPage = () => {
               fetchGalleries(pagination.page - 1);
             }}
             disabled={pagination.isFirstPage || isLoading}
-            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent hover:scale-110 active:scale-95 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark disabled:shadow-none disabled:hover:scale-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent hover:scale-110 active:scale-95 rounded-lg shadow-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark disabled:shadow-none disabled:hover:scale-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             aria-label="Previous page"
           >
             <ChevronLeft className="h-5 w-5" />
@@ -233,7 +233,7 @@ export const DashboardPage = () => {
               fetchGalleries(pagination.page + 1);
             }}
             disabled={pagination.isLastPage || isLoading}
-            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent hover:scale-110 active:scale-95 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark disabled:shadow-none disabled:hover:scale-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+            className="p-2 bg-transparent border-2 border-border dark:border-border/40 text-muted dark:text-muted-dark hover:border-accent hover:text-accent hover:scale-110 active:scale-95 rounded-lg shadow-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border dark:disabled:hover:border-border/40 disabled:hover:text-muted dark:disabled:hover:text-muted-dark disabled:shadow-none disabled:hover:scale-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             aria-label="Next page"
           >
             <ChevronRight className="h-5 w-5" />
@@ -257,7 +257,7 @@ export const DashboardPage = () => {
         <button
           onClick={handleOpenModal}
           disabled={isCreating}
-          className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-2.5 px-5 rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+          className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-2.5 px-5 rounded-xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
           aria-label="Create new gallery"
         >
           {isCreating ? (
