@@ -45,6 +45,10 @@ logger = logging.getLogger(__name__)
 
 _SHARED_POSTGRES_CONTAINER: PostgresContainer | None = None
 _SHARED_POSTGRES_INFO: dict[str, Any] | None = None
+_SHARED_S3_CONTAINER: DockerContainer | None = None
+_SHARED_S3_INFO: dict[str, Any] | None = None
+_SHARED_VALKEY_CONTAINER: DockerContainer | None = None
+_SHARED_VALKEY_INFO: dict[str, Any] | None = None
 
 os.environ.update({"JWT_SECRET_KEY": "supersecretkeysupersecretkeysupersecretkey", "ADMIN_JWT_SECRET_KEY": "adminsecretkeyadminsecretkeyadminsecretkey", "INVITE_CODE": "testinvitecode"})
 
@@ -82,6 +86,51 @@ class PostgresConnectionInfo:
             host=str(data["host"]),
             port=int(data["port"]),
             database=str(data["database"]),
+        )
+
+
+@dataclass(frozen=True)
+class S3ConnectionInfo:
+    host: str
+    port: int
+
+    @property
+    def endpoint_url(self) -> str:
+        return f"http://{self.host}:{self.port}"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "host": self.host,
+            "port": self.port,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "S3ConnectionInfo":
+        return cls(
+            host=str(data["host"]),
+            port=int(data["port"]),
+        )
+
+
+@dataclass(frozen=True)
+class ValkeyConnectionInfo:
+    host: str
+    port: int
+
+    def redis_url(self, db_index: int) -> str:
+        return f"redis://{self.host}:{self.port}/{db_index}"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "host": self.host,
+            "port": self.port,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "ValkeyConnectionInfo":
+        return cls(
+            host=str(data["host"]),
+            port=int(data["port"]),
         )
 
 
@@ -123,38 +172,108 @@ def _connection_info_from_container(container: PostgresContainer) -> PostgresCon
     )
 
 
+def _connection_info_from_s3_container(container: DockerContainer) -> S3ConnectionInfo:
+    return S3ConnectionInfo(
+        host=container.get_container_host_ip(),
+        port=int(container.get_exposed_port(S3_PORT)),
+    )
+
+
+def _connection_info_from_valkey_container(container: DockerContainer) -> ValkeyConnectionInfo:
+    return ValkeyConnectionInfo(
+        host=container.get_container_host_ip(),
+        port=int(container.get_exposed_port(VALKEY_PORT)),
+    )
+
+
+def _build_s3_env(endpoint_url: str, bucket_name: str) -> dict[str, str]:
+    return {
+        "S3_ENDPOINT": endpoint_url,
+        "S3_ACCESS_KEY": S3_ROOT_ACCESS_KEY,
+        "S3_SECRET_KEY": S3_ROOT_SECRET_KEY,
+        "S3_BUCKET": bucket_name,
+        "S3_REGION": "us-east-1",
+        "S3_USE_SSL": "false",
+        "S3_SIGNATURE_VERSION": "s3v4",
+    }
+
+
+def _start_s3_container() -> DockerContainer:
+    container = DockerContainer(S3_IMAGE).with_env("RUSTFS_ACCESS_KEY", S3_ROOT_ACCESS_KEY).with_env("RUSTFS_SECRET_KEY", S3_ROOT_SECRET_KEY).with_exposed_ports(S3_PORT)
+    container.start()
+    return container
+
+
+def _start_valkey_container() -> DockerContainer:
+    container = DockerContainer(VALKEY_IMAGE).with_exposed_ports(VALKEY_PORT)
+    container.start()
+    return container
+
+
+def _worker_redis_db_index(config: pytest.Config) -> int:
+    worker_id = _worker_id_from_config(config)
+    if worker_id == "master":
+        return 0
+
+    match = re.search(r"(\d+)$", worker_id)
+    worker_num = int(match.group(1)) if match else 0
+    return (worker_num % 15) + 1
+
+
 def pytest_configure(config: pytest.Config) -> None:
-    global _SHARED_POSTGRES_CONTAINER, _SHARED_POSTGRES_INFO
+    global _SHARED_POSTGRES_CONTAINER, _SHARED_POSTGRES_INFO, _SHARED_S3_CONTAINER, _SHARED_S3_INFO, _SHARED_VALKEY_CONTAINER, _SHARED_VALKEY_INFO
 
     if _is_worker_process(config) or not _xdist_enabled(config):
         return
 
-    if _SHARED_POSTGRES_CONTAINER is not None:
-        return
+    if _SHARED_POSTGRES_CONTAINER is None:
+        container = PostgresContainer(image=POSTGRES_IMAGE)
+        container.start()
+        _SHARED_POSTGRES_CONTAINER = container
+        _SHARED_POSTGRES_INFO = _connection_info_from_container(container).to_dict()
 
-    container = PostgresContainer(image=POSTGRES_IMAGE)
-    container.start()
-    _SHARED_POSTGRES_CONTAINER = container
-    _SHARED_POSTGRES_INFO = _connection_info_from_container(container).to_dict()
+    if _SHARED_S3_CONTAINER is None:
+        s3_container = _start_s3_container()
+        _SHARED_S3_CONTAINER = s3_container
+        _SHARED_S3_INFO = _connection_info_from_s3_container(s3_container).to_dict()
+
+    if _SHARED_VALKEY_CONTAINER is None:
+        valkey_container = _start_valkey_container()
+        _SHARED_VALKEY_CONTAINER = valkey_container
+        _SHARED_VALKEY_INFO = _connection_info_from_valkey_container(valkey_container).to_dict()
 
 
 def pytest_configure_node(node) -> None:
     if _SHARED_POSTGRES_INFO is not None:
         node.workerinput["shared_postgres"] = _SHARED_POSTGRES_INFO
+    if _SHARED_S3_INFO is not None:
+        node.workerinput["shared_s3"] = _SHARED_S3_INFO
+    if _SHARED_VALKEY_INFO is not None:
+        node.workerinput["shared_valkey"] = _SHARED_VALKEY_INFO
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
-    global _SHARED_POSTGRES_CONTAINER, _SHARED_POSTGRES_INFO
+    global _SHARED_POSTGRES_CONTAINER, _SHARED_POSTGRES_INFO, _SHARED_S3_CONTAINER, _SHARED_S3_INFO, _SHARED_VALKEY_CONTAINER, _SHARED_VALKEY_INFO
 
     if _is_worker_process(config):
         return
 
     if _SHARED_POSTGRES_CONTAINER is None:
-        return
+        pass
+    else:
+        _SHARED_POSTGRES_CONTAINER.stop()
+        _SHARED_POSTGRES_CONTAINER = None
+        _SHARED_POSTGRES_INFO = None
 
-    _SHARED_POSTGRES_CONTAINER.stop()
-    _SHARED_POSTGRES_CONTAINER = None
-    _SHARED_POSTGRES_INFO = None
+    if _SHARED_S3_CONTAINER is not None:
+        _SHARED_S3_CONTAINER.stop()
+        _SHARED_S3_CONTAINER = None
+        _SHARED_S3_INFO = None
+
+    if _SHARED_VALKEY_CONTAINER is not None:
+        _SHARED_VALKEY_CONTAINER.stop()
+        _SHARED_VALKEY_CONTAINER = None
+        _SHARED_VALKEY_INFO = None
 
 
 @contextmanager
@@ -380,76 +499,80 @@ def db_session(engine: Engine) -> Generator[Session]:
 
 
 @pytest.fixture(scope="session")
-def s3_container() -> Generator[DockerContainer]:
-    """Фикстура контейнера S3 с областью видимости на сессию."""
-    container = (
-        DockerContainer(S3_IMAGE).with_env("RUSTFS_ACCESS_KEY", S3_ROOT_ACCESS_KEY).with_env("RUSTFS_SECRET_KEY", S3_ROOT_SECRET_KEY).with_exposed_ports(S3_PORT)
-        # .with_command("server /data --console-address :9001")
-    )
+def s3_container(request: pytest.FixtureRequest) -> Generator[S3ConnectionInfo | DockerContainer]:
+    """S3 testcontainer shared for the entire test session."""
+    worker_input = getattr(request.config, "workerinput", {})
+    shared_info = worker_input.get("shared_s3")
+    default_bucket = f"test-viewport-default-{_worker_id_from_config(request.config)}"
 
-    with container as s3_test_container:
-        host = s3_test_container.get_container_host_ip()
-        port = s3_test_container.get_exposed_port(S3_PORT)
-
-        env_updates = {
-            "S3_ENDPOINT": f"http://{host}:{port}",
-            "S3_ACCESS_KEY": S3_ROOT_ACCESS_KEY,
-            "S3_SECRET_KEY": S3_ROOT_SECRET_KEY,
-            "S3_BUCKET": "test-viewport",
-            "S3_REGION": "us-east-1",
-            "S3_USE_SSL": "false",
-            "S3_SIGNATURE_VERSION": "s3v4",
-        }
-
-        endpoint_url = env_updates["S3_ENDPOINT"]
-        bucket_name = env_updates["S3_BUCKET"]
+    if shared_info:
+        s3_info = S3ConnectionInfo.from_dict(shared_info)
+        env_updates = _build_s3_env(endpoint_url=s3_info.endpoint_url, bucket_name=default_bucket)
 
         with _temporary_env_vars(env_updates):
-            signature_version = env_updates["S3_SIGNATURE_VERSION"]
-            bucket_ready = _ensure_s3_bucket(endpoint_url, bucket_name, signature_version)
+            if not _ensure_s3_bucket(s3_info.endpoint_url, default_bucket, env_updates["S3_SIGNATURE_VERSION"]):
+                raise RuntimeError(f"Unable to ensure S3 bucket {default_bucket} for tests")
+            yield s3_info
+        return
 
-            if not bucket_ready and signature_version != "s3v4":
-                logger.info("Retrying S3 bucket setup with signature v4 due to previous failures")
-                bucket_ready = _ensure_s3_bucket(endpoint_url, bucket_name, "s3v4")
+    container = _start_s3_container()
+    try:
+        s3_info = _connection_info_from_s3_container(container)
+        env_updates = _build_s3_env(endpoint_url=s3_info.endpoint_url, bucket_name=default_bucket)
 
-            if not bucket_ready:
-                raise RuntimeError(f"Unable to ensure S3 bucket {bucket_name} for tests")
-
-            yield s3_test_container
+        with _temporary_env_vars(env_updates):
+            if not _ensure_s3_bucket(s3_info.endpoint_url, default_bucket, env_updates["S3_SIGNATURE_VERSION"]):
+                raise RuntimeError(f"Unable to ensure S3 bucket {default_bucket} for tests")
+            yield container
+    finally:
+        container.stop()
 
 
 @pytest.fixture(autouse=True)
-def _cleanup_s3(request) -> None:
-    """Clear S3 bucket before each S3-related test to ensure isolation."""
+def _s3_test_bucket(request: pytest.FixtureRequest) -> Generator[None]:
+    """Provide isolated S3 bucket per test, avoiding cross-test data pollution."""
     if not _needs_s3_for_request(request):
+        yield
         return
 
     request.getfixturevalue("s3_container")
 
-    from viewport.s3_utils import get_s3_client, get_s3_settings
+    worker_id = _worker_id_from_config(request.config)
+    bucket_name = f"test-viewport-{worker_id}-{uuid.uuid4().hex}"
+    endpoint_url = os.environ["S3_ENDPOINT"]
+    signature_version = os.environ.get("S3_SIGNATURE_VERSION", "s3v4")
 
-    _clear_s3_cache()
-    client = get_s3_client()
-    settings = get_s3_settings()
+    with _temporary_env_vars({"S3_BUCKET": bucket_name}):
+        if not _ensure_s3_bucket(endpoint_url, bucket_name, signature_version):
+            raise RuntimeError(f"Unable to ensure isolated S3 bucket {bucket_name} for test")
 
-    try:
-        paginator = client.get_paginator("list_objects_v2")
-        for page in paginator.paginate(Bucket=settings.bucket):
-            if "Contents" in page:
-                objects = [{"Key": obj["Key"]} for obj in page["Contents"]]
-                client.delete_objects(Bucket=settings.bucket, Delete={"Objects": objects})
-    except Exception as e:
-        logger.warning("Failed to clear S3 bucket during isolation cleanup: %s", e)
+        _clear_s3_cache()
+        _refresh_app_s3_client_instance()
+        try:
+            yield
+        finally:
+            _clear_s3_cache()
+            _refresh_app_s3_client_instance()
 
 
 @pytest.fixture(scope="session")
-def valkey_container() -> Generator[str]:
-    """Start ValKey and return its Redis-style broker URL."""
-    container = DockerContainer(VALKEY_IMAGE).with_exposed_ports(VALKEY_PORT)
-    with container as cont:
-        host = cont.get_container_host_ip()
-        port = cont.get_exposed_port(VALKEY_PORT)
-        yield f"redis://{host}:{port}/0"
+def valkey_container(request: pytest.FixtureRequest) -> Generator[str]:
+    """ValKey container shared per session with worker-specific Redis DB."""
+    worker_input = getattr(request.config, "workerinput", {})
+    shared_info = worker_input.get("shared_valkey")
+    db_index = _worker_redis_db_index(request.config)
+
+    if shared_info:
+        valkey_info = ValkeyConnectionInfo.from_dict(shared_info)
+        yield valkey_info.redis_url(db_index)
+        return
+
+    container = _start_valkey_container()
+    try:
+        valkey_info = _connection_info_from_valkey_container(container)
+        yield valkey_info.redis_url(db_index)
+    finally:
+        container.stop()
 
 
 @pytest.fixture(scope="session", autouse=True)
