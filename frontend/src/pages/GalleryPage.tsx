@@ -232,14 +232,12 @@ export const GalleryPage = () => {
           }}
         />
 
-        {shareLinks.length > 0 && (
-          <ShareLinksSection
-            shareLinks={shareLinks}
-            isCreatingLink={isCreatingLink}
-            onCreateLink={handleCreateShareLink}
-            onDeleteLink={handleDeleteShareLink}
-          />
-        )}
+        <ShareLinksSection
+          shareLinks={shareLinks}
+          isCreatingLink={isCreatingLink}
+          onCreateLink={handleCreateShareLink}
+          onDeleteLink={handleDeleteShareLink}
+        />
       </div>
 
       {/* Lightbox */}

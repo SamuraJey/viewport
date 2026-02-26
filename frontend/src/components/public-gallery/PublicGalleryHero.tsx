@@ -85,7 +85,7 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
 
       {/* Animated text content with parallax */}
       <div className="relative z-10 p-8 w-full max-w-5xl mx-auto flex flex-col justify-end h-full pb-24">
-        <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
+        <div className="flex flex-col items-center text-center">
           {gallery.date && (
             <p className="text-sm sm:text-base font-medium text-white/80 tracking-wider uppercase mb-3">
               {gallery.date}
@@ -101,10 +101,7 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
       </div>
 
       {/* Animated scroll button */}
-      <div
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10"
-        style={{ opacity: Math.max(0, 1 - scrollY / 300) }}
-      >
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
         <div
           className="opacity-0 animate-fade-in"
           style={{ animationDelay: '0.8s', animationFillMode: 'forwards' }}

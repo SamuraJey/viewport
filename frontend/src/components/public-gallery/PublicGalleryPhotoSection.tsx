@@ -66,7 +66,7 @@ export const PublicGalleryPhotoSection = ({
             {photos.map((photo, index) => (
               <div
                 key={photo.photo_id}
-                className={`pg-card relative group overflow-hidden rounded-xl transition-all duration-300 hover:shadow-md hover:-translate-y-1 ${gridLayout === 'uniform' ? 'pg-card--uniform' : ''}`}
+                className={`pg-card relative group overflow-hidden rounded-xl transition-all duration-200 hover:shadow-md ${gridLayout === 'uniform' ? 'pg-card--uniform' : ''}`}
                 data-testid="public-batch"
               >
                 <button
@@ -77,13 +77,12 @@ export const PublicGalleryPhotoSection = ({
                   <LazyImage
                     src={photo.thumbnail_url}
                     alt={`Photo ${photo.photo_id}`}
-                    className={`pg-card__media transition-transform duration-500 group-hover:scale-105 ${gridLayout === 'uniform' ? 'pg-card__media--uniform' : ''}`}
+                    className={`pg-card__media ${gridLayout === 'uniform' ? 'pg-card__media--uniform' : ''}`}
                     imgClassName="pg-card__img"
                     objectFit={gridLayout === 'uniform' ? 'contain' : 'cover'}
                     width={photo.width}
                     height={photo.height}
                   />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 pointer-events-none" />
                 </button>
               </div>
             ))}

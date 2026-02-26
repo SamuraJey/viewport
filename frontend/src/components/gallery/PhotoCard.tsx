@@ -52,7 +52,7 @@ export const PhotoCard = ({
   return (
     <div
       data-photo-card
-      className="group bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-hidden rounded-2xl border border-border/50 dark:border-border/40 shadow-xs transition-all duration-300 hover:shadow-md hover:-translate-y-1 focus-within:shadow-md focus-within:-translate-y-1 dark:hover:border-accent/50 dark:focus-within:border-accent/50"
+      className="group bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-hidden rounded-2xl border border-border/50 dark:border-border/40 shadow-xs transition-all duration-300 hover:shadow-md focus-within:shadow-md dark:hover:border-accent/50 dark:focus-within:border-accent/50"
     >
       {/* Selection checkbox */}
       {isSelectionMode && (
@@ -72,9 +72,11 @@ export const PhotoCard = ({
       )}
 
       {/* Image area */}
-      <div className="relative h-64 sm:h-72 md:h-80 bg-surface-1 dark:bg-surface-dark-2 overflow-hidden">
+      <div className="relative h-64 sm:h-72 md:h-80 bg-surface-1 dark:bg-surface-dark-1 overflow-hidden">
         {/* Action Panel - overlay at the bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-all duration-300 z-20 flex items-center justify-center gap-2 translate-y-4 group-hover:translate-y-0 focus-within:translate-y-0">
+        <div
+          className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/80 via-black/40 to-transparent transition-all duration-200 z-20 flex items-center justify-center gap-2 opacity-0 pointer-events-none translate-y-4 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0"
+        >
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -158,7 +160,7 @@ export const PhotoCard = ({
             src={photo.thumbnail_url}
             alt={`Photo ${photo.id}`}
             crossOrigin="anonymous"
-            className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
+            className="w-full h-full object-contain"
             loading="lazy"
           />
         </button>
