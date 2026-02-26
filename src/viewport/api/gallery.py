@@ -66,7 +66,7 @@ def list_galleries(
 
 
 @router.get("/{gallery_id}", response_model=GalleryDetailResponse)
-async def get_gallery_detail(
+def get_gallery_detail(
     gallery_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
@@ -74,6 +74,10 @@ async def get_gallery_detail(
     limit: int | None = Query(None, ge=1, le=1000, description="Limit number of photos returned (for pagination)"),
     offset: int = Query(0, ge=0, description="Offset for photo pagination"),
 ) -> GalleryDetailResponse:
+    """Get gallery detail with photos.
+
+    NOTE: Sync endpoint - FastAPI handles threadpool automatically for proper DB session lifecycle.
+    """
     import time
 
     start_time = time.monotonic()
@@ -96,9 +100,9 @@ async def get_gallery_detail(
         photos_to_process = repo.get_photos_by_gallery_id(gallery_id)
         logger.info("Gallery %s: DB query took %.3fs, photos count: %s", gallery_id, db_time, photo_count)
 
-    # Use batch method for faster photo URL generation
+    # Use sync method for photo URL generation
     url_start = time.monotonic()
-    photo_responses = await PhotoResponse.from_db_photos_batch(photos_to_process, s3_client)
+    photo_responses = [PhotoResponse.from_db_photo(photo, s3_client) for photo in photos_to_process]
     url_time = time.monotonic() - url_start
 
     # Calculate URLs per second

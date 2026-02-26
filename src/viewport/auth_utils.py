@@ -33,6 +33,12 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
+    """Get current authenticated user from JWT token.
+
+    NOTE: This is intentionally sync (def) not async.
+    FastAPI automatically runs sync dependencies in threadpool when called from async endpoints.
+    This ensures proper DB session lifecycle management.
+    """
     if not credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
 

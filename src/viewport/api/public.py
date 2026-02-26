@@ -25,6 +25,10 @@ def get_sharelink_repository(db: Session = Depends(get_db)) -> ShareLinkReposito
 
 
 def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository)) -> ShareLink:
+    """Get valid sharelink.
+
+    NOTE: Intentionally sync - FastAPI handles threadpool for async endpoints.
+    """
     sharelink = repo.get_valid_sharelink(share_id)
     if not sharelink:
         raise HTTPException(status_code=404, detail="ShareLink not found")
@@ -41,6 +45,11 @@ async def get_photos_by_sharelink(
     sharelink: ShareLink = Depends(get_valid_sharelink),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
 ) -> PublicGalleryResponse:
+    """Get public gallery photos.
+
+    NOTE: Direct DB calls (no run_in_threadpool) to avoid session lifecycle issues.
+    Async is kept for S3 batch operations only.
+    """
     # Photos - ensure deterministic ordering by filename (case-insensitive)
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
     with contextlib.suppress(Exception):
@@ -132,14 +141,16 @@ async def get_photos_by_sharelink(
 
 
 @router.get("/{share_id}/download/all")
-def download_all_photos_zip(
+async def download_all_photos_zip(
     share_id: UUID,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
 ) -> StreamingResponse:
+    """Download all photos as zip - direct DB calls, async wrapper for endpoint signature."""
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
     with contextlib.suppress(Exception):
         photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
+
     if not photos:
         raise HTTPException(status_code=404, detail="No photos found")
 
