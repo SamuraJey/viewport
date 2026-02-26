@@ -37,20 +37,23 @@ export const UploadResultContent = ({ result }: UploadResultContentProps) => {
           <p className="text-sm font-medium text-green-700 dark:text-green-300 mt-1">Successful</p>
         </div>
         <div
-          className={`p-4 rounded-xl text-center border shadow-xs ${result.failed_uploads > 0
+          className={`p-4 rounded-xl text-center border shadow-xs ${
+            result.failed_uploads > 0
               ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20'
               : 'bg-surface-foreground dark:bg-surface border-border'
-            }`}
+          }`}
         >
           <p
-            className={`text-3xl font-bold ${result.failed_uploads > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted'
-              }`}
+            className={`text-3xl font-bold ${
+              result.failed_uploads > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted'
+            }`}
           >
             {result.failed_uploads}
           </p>
           <p
-            className={`text-sm font-medium mt-1 ${result.failed_uploads > 0 ? 'text-red-700 dark:text-red-300' : 'text-muted'
-              }`}
+            className={`text-sm font-medium mt-1 ${
+              result.failed_uploads > 0 ? 'text-red-700 dark:text-red-300' : 'text-muted'
+            }`}
           >
             Failed
           </p>

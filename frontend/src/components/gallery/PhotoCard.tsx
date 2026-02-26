@@ -52,8 +52,20 @@ export const PhotoCard = ({
   return (
     <div
       data-photo-card
-      className="group bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-hidden rounded-2xl border border-border/50 dark:border-border/40 shadow-xs transition-all duration-300 hover:shadow-md focus-within:shadow-md dark:hover:border-accent/50 dark:focus-within:border-accent/50"
+      className={`group bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-hidden rounded-2xl border shadow-xs transition-all duration-300 hover:shadow-md focus-within:shadow-md ${
+        isCover
+          ? 'border-amber-400 dark:border-amber-500 ring-2 ring-amber-400/20 dark:ring-amber-500/20'
+          : 'border-border/50 dark:border-border/40 dark:hover:border-accent/50 dark:focus-within:border-accent/50'
+      }`}
     >
+      {/* Cover indicator */}
+      {isCover && (
+        <div className="absolute top-3 right-3 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/90 text-white text-xs font-semibold backdrop-blur-md shadow-lg">
+          <Star className="h-3 w-3 fill-current" />
+          Cover
+        </div>
+      )}
+
       {/* Selection checkbox */}
       {isSelectionMode && (
         <button
@@ -61,10 +73,11 @@ export const PhotoCard = ({
             e.stopPropagation();
             onToggleSelection(photo.id, e.shiftKey);
           }}
-          className={`absolute top-3 left-3 z-10 p-1.5 rounded-xl transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${isSelected
-            ? 'bg-accent text-accent-foreground shadow-md scale-110'
-            : 'bg-surface/90 dark:bg-surface-dark-1/90 text-muted hover:text-text shadow-sm hover:scale-105 backdrop-blur-md'
-            }`}
+          className={`absolute top-3 left-3 z-10 p-1.5 rounded-xl transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+            isSelected
+              ? 'bg-accent text-accent-foreground shadow-md scale-110'
+              : 'bg-surface/90 dark:bg-surface-dark-1/90 text-muted hover:text-text shadow-sm hover:scale-105 backdrop-blur-md'
+          }`}
           title={isSelected ? 'Deselect' : 'Select'}
         >
           {isSelected ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
@@ -74,9 +87,7 @@ export const PhotoCard = ({
       {/* Image area */}
       <div className="relative h-64 sm:h-72 md:h-80 bg-surface-1 dark:bg-surface-dark-1 overflow-hidden">
         {/* Action Panel - overlay at the bottom */}
-        <div
-          className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/80 via-black/40 to-transparent transition-all duration-200 z-20 flex items-center justify-center gap-2 opacity-0 pointer-events-none translate-y-4 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0"
-        >
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/80 via-black/40 to-transparent transition-all duration-200 z-20 flex items-center justify-center gap-2 opacity-0 pointer-events-none translate-y-4 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0">
           <button
             onClick={(e) => {
               e.stopPropagation();

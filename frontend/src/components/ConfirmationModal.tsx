@@ -107,10 +107,11 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = React.memo(
                 <button
                   onClick={handleConfirm}
                   disabled={isLoading}
-                  className={`flex items-center gap-2 px-5 py-2.5 text-white rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none disabled:opacity-60 font-medium ${isDangerous
-                    ? 'bg-red-500 hover:bg-red-600 disabled:bg-red-400'
-                    : 'bg-accent hover:bg-accent/90 disabled:bg-accent/60'
-                    }`}
+                  className={`flex items-center gap-2 px-5 py-2.5 text-white rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none disabled:opacity-60 font-medium ${
+                    isDangerous
+                      ? 'bg-red-500 hover:bg-red-600 disabled:bg-red-400'
+                      : 'bg-accent hover:bg-accent/90 disabled:bg-accent/60'
+                  }`}
                 >
                   {isLoading ? (
                     <>

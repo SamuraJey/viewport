@@ -109,18 +109,22 @@ describe('PublicGalleryPage', () => {
     expect(container.querySelector('[data-testid="skeleton-loader"]')).not.toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText('Photos (2)')).toBeInTheDocument();
+      expect(screen.getByText('Photos')).toBeInTheDocument();
+      expect(screen.getByText('(2)')).toBeInTheDocument();
     });
   });
 
   it('renders gallery with cover, meta and photos', async () => {
     render(wrapper());
 
-    await waitFor(() => expect(screen.getByText('Photos (2)')).toBeInTheDocument());
+    await waitFor(() => {
+      expect(screen.getByText('Photos')).toBeInTheDocument();
+      expect(screen.getByText('(2)')).toBeInTheDocument();
+    });
 
     // Cover title and photographer
     expect(screen.getByText('Public Gallery')).toBeInTheDocument();
-    expect(screen.getByText('Jane Doe')).toBeInTheDocument();
+    expect(screen.getByText('By Jane Doe')).toBeInTheDocument();
     // Download All button present
     expect(screen.getByRole('button', { name: /download all photos/i })).toBeInTheDocument();
     // Photos rendered
@@ -131,7 +135,10 @@ describe('PublicGalleryPage', () => {
   it('opens photo lightbox when clicking a photo', async () => {
     render(wrapper());
 
-    await waitFor(() => expect(screen.getByText('Photos (2)')).toBeInTheDocument());
+    await waitFor(() => {
+      expect(screen.getByText('Photos')).toBeInTheDocument();
+      expect(screen.getByText('(2)')).toBeInTheDocument();
+    });
 
     const first = screen.getAllByTestId('public-batch')[0];
     const button = within(first).getByRole('button');
@@ -149,7 +156,9 @@ describe('PublicGalleryPage', () => {
     render(wrapper());
 
     await waitFor(() => expect(screen.getByText('No photos in this gallery')).toBeInTheDocument());
-    expect(screen.getByText('This gallery appears to be empty.')).toBeInTheDocument();
+    expect(
+      screen.getByText('This gallery appears to be empty. Check back later for updates.'),
+    ).toBeInTheDocument();
   });
 
   it('shows error state when fetch fails', async () => {
@@ -167,7 +176,10 @@ describe('PublicGalleryPage', () => {
 
     render(wrapper());
 
-    await waitFor(() => expect(screen.getByText('Photos (2)')).toBeInTheDocument());
+    await waitFor(() => {
+      expect(screen.getByText('Photos')).toBeInTheDocument();
+      expect(screen.getByText('(2)')).toBeInTheDocument();
+    });
 
     const btn = screen.getByRole('button', { name: /download all photos/i });
     await userEvent.click(btn);

@@ -61,18 +61,21 @@ export const UploadSelectionContent = ({
           return (
             <div
               key={`${file.name}-${index}`}
-              className={`flex items-center gap-4 p-3 rounded-2xl transition-all duration-200 group ${hasError
+              className={`flex items-center gap-4 p-3 rounded-2xl transition-all duration-200 group ${
+                hasError
                   ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20'
                   : 'bg-surface-1 dark:bg-surface-dark-1 border border-border/50 hover:border-accent/30 hover:shadow-sm hover:-translate-y-0.5'
-                }`}
+              }`}
             >
               <div
-                className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center shadow-sm ${hasError ? 'bg-red-100 dark:bg-red-500/20' : 'bg-surface dark:bg-surface-dark-2'
-                  }`}
+                className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center shadow-sm ${
+                  hasError ? 'bg-red-100 dark:bg-red-500/20' : 'bg-surface dark:bg-surface-dark-2'
+                }`}
               >
                 <FileImage
-                  className={`w-6 h-6 ${hasError ? 'text-red-500 dark:text-red-400' : 'text-accent'
-                    }`}
+                  className={`w-6 h-6 ${
+                    hasError ? 'text-red-500 dark:text-red-400' : 'text-accent'
+                  }`}
                 />
               </div>
 

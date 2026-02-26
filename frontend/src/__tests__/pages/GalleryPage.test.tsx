@@ -154,7 +154,7 @@ describe('GalleryPage', () => {
       expect(screen.getByText('Gallery #1')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('heading', { name: 'Photos (3 of 3)' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Photos 3 of 3' })).toBeInTheDocument();
     expect(screen.getByText('Share Links')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /delete gallery/i })).toBeInTheDocument();
     expect(screen.getAllByRole('img')).toHaveLength(3);
@@ -295,7 +295,7 @@ describe('GalleryPage', () => {
 
       // Wait for initial load to complete
       await waitFor(() => {
-        expect(screen.getByText(/\(3.*of.*3\)/)).toBeInTheDocument();
+        expect(screen.getByText(/3.*of.*3/)).toBeInTheDocument();
       });
 
       const createLinkButton = screen.getByRole('button', { name: /create new share link/i });
@@ -331,7 +331,11 @@ describe('GalleryPage', () => {
         expect(screen.getByText('No photos in this gallery')).toBeInTheDocument();
       });
 
-      expect(screen.getByText('Upload your first photo to get started.')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'Upload your first photo to get started. You can also drag and drop files anywhere on this page.',
+        ),
+      ).toBeInTheDocument();
     });
   });
 });

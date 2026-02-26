@@ -68,10 +68,11 @@ export const PaginationControls = ({ pagination, isLoading = false }: Pagination
                 key={pageNum}
                 onClick={() => pagination.goToPage(pageNum)}
                 disabled={pageNum === pagination.page || isLoading}
-                className={`inline-flex h-10 min-w-10 items-center justify-center rounded-xl px-2 text-sm font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${pageNum === pagination.page
+                className={`inline-flex h-10 min-w-10 items-center justify-center rounded-xl px-2 text-sm font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+                  pageNum === pagination.page
                     ? 'bg-accent text-accent-foreground shadow-sm scale-105'
                     : 'bg-transparent text-text hover:bg-surface-1 dark:hover:bg-surface-dark-1 hover:text-accent'
-                  } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {pageNum}
               </button>

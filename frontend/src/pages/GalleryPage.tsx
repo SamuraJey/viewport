@@ -125,7 +125,7 @@ export const GalleryPage = () => {
 
   // Handler for deleting multiple photos
   const handleDeleteMultiplePhotosWrapper = () => {
-    handleDeletePhotos(Array.from(selection.selectedIds), () => {
+    handleDeletePhotos(selection.selectedIds, () => {
       selection.clear();
       setIsSelectionMode(false);
     });

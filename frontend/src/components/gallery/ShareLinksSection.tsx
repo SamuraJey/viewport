@@ -35,9 +35,15 @@ export const ShareLinksSection = ({
     setTimeout(() => setCopiedLink(null), 2000);
   };
 
-  const totalViews = shareLinks.reduce((sum, link) => sum + (link.views ?? 0), 0);
-  const totalZipDownloads = shareLinks.reduce((sum, link) => sum + (link.zip_downloads ?? 0), 0);
-  const totalDownloads = shareLinks.reduce(
+  const sortedShareLinks = [...shareLinks].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+  const totalViews = sortedShareLinks.reduce((sum, link) => sum + (link.views ?? 0), 0);
+  const totalZipDownloads = sortedShareLinks.reduce(
+    (sum, link) => sum + (link.zip_downloads ?? 0),
+    0,
+  );
+  const totalDownloads = sortedShareLinks.reduce(
     (sum, link) => sum + (link.zip_downloads ?? 0) + (link.single_downloads ?? 0),
     0,
   );
@@ -73,7 +79,7 @@ export const ShareLinksSection = ({
         </button>
       </div>
 
-      {shareLinks.length > 0 ? (
+      {sortedShareLinks.length > 0 ? (
         <>
           <div
             data-testid="share-link-stats-summary"
@@ -102,7 +108,7 @@ export const ShareLinksSection = ({
             })}
           </div>
           <ul className="space-y-3">
-            {shareLinks.map((link) => {
+            {sortedShareLinks.map((link, index) => {
               const fullUrl = `${window.location.origin}/share/${link.id}`;
               const zipDownloads = link.zip_downloads ?? 0;
               const totalLinkDownloads = zipDownloads + (link.single_downloads ?? 0);
@@ -118,6 +124,9 @@ export const ShareLinksSection = ({
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6 flex-1 min-w-0">
                     <div className="flex items-center gap-4 min-w-0">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/15 text-accent font-bold text-sm">
+                        {index + 1}
+                      </div>
                       <LinkIcon className="w-5 h-5 text-accent gallery-link__icon" />
                       <a
                         href={fullUrl}

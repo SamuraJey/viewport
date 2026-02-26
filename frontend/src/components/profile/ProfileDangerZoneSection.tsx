@@ -22,8 +22,9 @@ const StepIndicator = ({ current, total }: { current: number; total: number }) =
     {Array.from({ length: total }, (_, i) => (
       <div
         key={i}
-        className={`h-1.5 rounded-full transition-all duration-300 ${i < current ? 'w-6 bg-danger' : i === current ? 'w-4 bg-danger/60' : 'w-4 bg-border/40'
-          }`}
+        className={`h-1.5 rounded-full transition-all duration-300 ${
+          i < current ? 'w-6 bg-danger' : i === current ? 'w-4 bg-danger/60' : 'w-4 bg-border/40'
+        }`}
       />
     ))}
     <span className="ml-1 text-xs font-semibold text-muted">

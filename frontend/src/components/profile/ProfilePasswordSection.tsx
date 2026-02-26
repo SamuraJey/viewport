@@ -162,8 +162,9 @@ export const ProfilePasswordSection = ({
               {[1, 2, 3, 4, 5].map((n) => (
                 <div
                   key={n}
-                  className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${n <= strength.score ? (strengthBg ?? 'bg-accent') : 'bg-border/30'
-                    }`}
+                  className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                    n <= strength.score ? (strengthBg ?? 'bg-accent') : 'bg-border/30'
+                  }`}
                 />
               ))}
             </div>

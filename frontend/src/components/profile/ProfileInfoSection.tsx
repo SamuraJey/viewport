@@ -93,8 +93,9 @@ export const ProfileInfoSection = ({
             Display name
           </label>
           <span
-            className={`text-xs font-semibold tabular-nums ${isAtLimit ? 'text-danger' : isNearLimit ? 'text-amber-500' : 'text-muted/50'
-              }`}
+            className={`text-xs font-semibold tabular-nums ${
+              isAtLimit ? 'text-danger' : isNearLimit ? 'text-amber-500' : 'text-muted/50'
+            }`}
             aria-live="polite"
           >
             {charsLeft}

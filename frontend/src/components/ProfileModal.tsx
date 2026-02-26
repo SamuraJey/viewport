@@ -241,12 +241,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
                 aria-selected={isActive}
                 aria-controls={`tab-panel-${id}`}
                 onClick={() => setActiveTab(id)}
-                className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset ${isActive
+                className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset ${
+                  isActive
                     ? id === 'account'
                       ? 'border-danger text-danger'
                       : 'border-accent text-accent'
                     : 'border-transparent text-muted hover:text-text'
-                  }`}
+                }`}
               >
                 <Icon className="h-4 w-4" />
                 {label}
