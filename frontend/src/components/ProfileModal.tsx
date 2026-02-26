@@ -41,16 +41,27 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
   const confirmPassRef = useRef<HTMLInputElement>(null);
 
   const [showStorageTooltip, setShowStorageTooltip] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const lastFocusedElementRef = useRef<HTMLElement | null>(null);
 
   // Keyboard events
   useEffect(() => {
     if (!isOpen) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
       }
+
       if (e.key === 'Enter') {
-        if (document.activeElement === confirmPassRef.current) {
+        const activeElement = document.activeElement as HTMLElement | null;
+        const activeElementId = activeElement?.id;
+        const isPasswordField =
+          activeElementId === 'currentPassword' ||
+          activeElementId === 'newPassword' ||
+          activeElementId === 'confirmPassword';
+
+        if (isPasswordField) {
           handlePasswordChange();
         } else {
           handleProfileSave();
@@ -60,6 +71,24 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose, handlePasswordChange, handleProfileSave]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    lastFocusedElementRef.current = document.activeElement as HTMLElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    requestAnimationFrame(() => {
+      firstFieldRef.current?.focus();
+      firstFieldRef.current?.select();
+    });
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      lastFocusedElementRef.current?.focus();
+    };
+  }, [isOpen]);
 
   // In-modal two-step delete flow
   const [deleteStep, setDeleteStep] = useState<'initial' | 'password' | 'confirm'>('initial');
@@ -110,6 +139,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
       role="dialog"
       aria-modal="true"
       aria-labelledby="profile-modal-title"
+      aria-describedby="profile-modal-description"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
     >
       <motion.div
@@ -121,7 +151,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
         onClick={onClose}
       />
       <motion.div
-        className="relative bg-surface dark:bg-surface-dark rounded-3xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto border border-border/50 dark:border-border/40"
+        ref={modalRef}
+        className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-border/50 bg-surface shadow-2xl dark:border-border/40 dark:bg-surface-dark"
         data-lenis-prevent
         initial={{ opacity: 0, scale: 0.95, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -130,14 +161,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 bg-surface/95 dark:bg-surface-dark/95 backdrop-blur-md border-b border-border/50 dark:border-border/40 px-6 py-5 flex items-center justify-between rounded-t-3xl z-10">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/50 bg-surface/95 px-6 py-5 backdrop-blur-md dark:border-border/40 dark:bg-surface-dark/95">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-accent/10 rounded-2xl flex items-center justify-center">
               <User className="w-6 h-6 text-accent" />
             </div>
-            <h2 id="profile-modal-title" className="text-2xl font-bold text-text tracking-tight">
-              Account Settings
-            </h2>
+            <div>
+              <h2 id="profile-modal-title" className="text-2xl font-bold tracking-tight text-text">
+                Account Settings
+              </h2>
+              <p id="profile-modal-description" className="mt-0.5 text-sm font-medium text-muted">
+                Manage your profile, password, and account safety options.
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -148,7 +184,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
           </button>
         </div>
 
-        <div className="p-6 sm:p-8 space-y-8">
+        <div className="overflow-y-auto p-6 sm:p-8 space-y-8">
           {/* Error Alert */}
           {error && (
             <div className="bg-danger/10 border border-danger/20 rounded-xl p-4 flex items-start gap-3 shadow-xs">
