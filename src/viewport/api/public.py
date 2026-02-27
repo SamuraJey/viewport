@@ -141,12 +141,12 @@ async def get_photos_by_sharelink(
 
 
 @router.get("/{share_id}/download/all")
-async def download_all_photos_zip(
+def download_all_photos_zip(
     share_id: UUID,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
 ) -> StreamingResponse:
-    """Download all photos as zip - direct DB calls, async wrapper for endpoint signature."""
+    """Download all photos as zip - direct DB and S3 calls in a sync handler."""
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
     with contextlib.suppress(Exception):
         photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
