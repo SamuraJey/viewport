@@ -26,13 +26,13 @@ export const GalleryMetrics = ({ shareLinks }: GalleryMetricsProps) => {
       {summaryMetrics.map((metric) => (
         <div
           key={metric.label}
-          className="flex items-center gap-4 rounded-xl border border-border bg-surface p-4 dark:border-border/30 dark:bg-surface-foreground/5"
+          className="flex items-center gap-4 rounded-2xl border border-border/50 bg-surface p-5 dark:border-border/30 dark:bg-surface-foreground/5 shadow-xs transition-all duration-200 hover:shadow-sm hover:-translate-y-0.5"
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-accent/10 text-accent">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10 text-accent">
             <metric.icon className="h-6 w-6" />
           </div>
           <div>
-            <p className="text-sm font-medium text-muted">{metric.label}</p>
+            <p className="text-sm font-bold text-muted uppercase tracking-wider">{metric.label}</p>
             <p className="text-2xl font-bold text-text">{numberFormatter.format(metric.value)}</p>
           </div>
         </div>

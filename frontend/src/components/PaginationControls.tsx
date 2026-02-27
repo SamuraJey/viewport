@@ -22,29 +22,33 @@ export const PaginationControls = ({ pagination, isLoading = false }: Pagination
   const to = Math.min(pagination.page * pagination.pageSize, pagination.total);
 
   return (
-    <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
-      <span className="text-sm font-medium text-muted">
-        Page {pagination.page} of {pagination.totalPages}
-        <span className="ml-2 text-xs text-muted/80">
-          {from}-{to} of {pagination.total}
+    <div className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-medium text-text">
+          Page <span className="font-bold">{pagination.page}</span> of{' '}
+          <span className="font-bold">{pagination.totalPages}</span>
         </span>
-      </span>
+        <span className="inline-flex items-center rounded-full bg-surface-1 dark:bg-surface-dark-1 px-3 py-1 text-xs font-bold text-muted border border-border/50 shadow-inner">
+          {from}-{to} of {pagination.total} items
+        </span>
+      </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         <button
           onClick={pagination.previousPage}
           disabled={pagination.isFirstPage || isLoading}
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-accent/20 bg-accent px-3 text-sm font-medium text-accent-foreground shadow-sm transition-shadow duration-200 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-10 items-center gap-1 rounded-xl border border-border/50 bg-surface px-3 text-sm font-bold text-text shadow-xs transition-all duration-200 hover:bg-surface-1 hover:border-accent/30 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface disabled:hover:border-border/50 disabled:hover:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          aria-label="Previous page"
         >
           {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin text-muted" />
           ) : (
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4 text-muted" />
           )}
-          Previous
+          <span className="hidden sm:inline">Prev</span>
         </button>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 px-1">
           {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
             let pageNum: number;
 
@@ -64,10 +68,10 @@ export const PaginationControls = ({ pagination, isLoading = false }: Pagination
                 key={pageNum}
                 onClick={() => pagination.goToPage(pageNum)}
                 disabled={pageNum === pagination.page || isLoading}
-                className={`inline-flex h-9 min-w-9 items-center justify-center rounded-lg px-2 text-sm font-medium transition-colors duration-200 ${
+                className={`inline-flex h-10 min-w-10 items-center justify-center rounded-xl px-2 text-sm font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
                   pageNum === pagination.page
-                    ? 'bg-accent text-accent-foreground shadow-sm'
-                    : 'bg-surface-1 dark:bg-surface-dark-1 text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40'
+                    ? 'bg-accent text-accent-foreground shadow-sm scale-105'
+                    : 'bg-transparent text-text hover:bg-surface-1 dark:hover:bg-surface-dark-1 hover:text-accent'
                 } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {pageNum}
@@ -79,13 +83,14 @@ export const PaginationControls = ({ pagination, isLoading = false }: Pagination
         <button
           onClick={pagination.nextPage}
           disabled={pagination.isLastPage || isLoading}
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-accent/20 bg-accent px-3 text-sm font-medium text-accent-foreground shadow-sm transition-shadow duration-200 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-10 items-center gap-1 rounded-xl border border-border/50 bg-surface px-3 text-sm font-bold text-text shadow-xs transition-all duration-200 hover:bg-surface-1 hover:border-accent/30 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface disabled:hover:border-border/50 disabled:hover:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          aria-label="Next page"
         >
-          Next
+          <span className="hidden sm:inline">Next</span>
           {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin text-muted" />
           ) : (
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4 text-muted" />
           )}
         </button>
       </div>

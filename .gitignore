@@ -27,3 +27,5 @@ temporary/
 docker-compose-true-nas-deploy.yml
 .idea
 frontend/coverage
+
+performance_tests/

@@ -98,20 +98,20 @@ export const CreateGalleryModal = ({
             />
           </div>
         </div>
-        <div className="flex justify-end gap-2 mt-6">
+        <div className="flex justify-end gap-3 mt-8">
           <button
             onClick={onClose}
-            className="px-4 py-2.5 bg-surface-1 dark:bg-surface-dark-1 rounded-xl text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40 shadow-sm hover:shadow-md transition-all duration-200"
+            className="px-5 py-2.5 bg-surface-1 dark:bg-surface-dark-1 rounded-xl text-text hover:bg-surface-2 dark:hover:bg-surface-dark-2 border border-border dark:border-border/40 shadow-sm hover:shadow-md transition-all duration-200 font-medium"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
             disabled={isCreating || !newGalleryName.trim()}
-            className="px-4 py-2.5 bg-accent text-accent-foreground rounded-xl shadow-sm hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-sm"
+            className="px-5 py-2.5 bg-accent text-accent-foreground rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-sm font-medium"
           >
             {isCreating ? (
-              <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+              <div className="w-5 h-5 border-2 border-accent-foreground/20 border-t-accent-foreground rounded-full animate-spin" />
             ) : (
               'Create Gallery'
             )}

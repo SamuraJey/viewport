@@ -127,24 +127,24 @@ export const PhotoUploadConfirmModal = memo(
         />
 
         <motion.div
-          className="relative bg-surface dark:bg-surface-foreground rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden mb-6 sm:mb-8 border border-border dark:border-border/20"
+          className="relative bg-surface dark:bg-surface-foreground rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden mb-6 sm:mb-8 border border-border/50 dark:border-border/20 backdrop-blur-xl"
           initial={{ opacity: 0, scale: 0.95, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-5 sm:p-6 border-b border-border bg-linear-to-r from-surface to-surface/50 dark:from-surface-foreground dark:to-surface-foreground/50">
+          <div className="flex items-center justify-between p-6 sm:p-8 border-b border-border/50 bg-surface/50 dark:bg-surface-foreground/50 backdrop-blur-md sticky top-0 z-10">
             <div>
-              <h2 className="text-lg sm:text-xl font-bold text-text dark:text-white">
+              <h2 className="text-xl sm:text-2xl font-bold text-text dark:text-white tracking-tight">
                 {result
-                  ? '✓ Upload Complete'
+                  ? 'Ready to View'
                   : isUploading
                     ? 'Uploading Photos...'
                     : 'Confirm Photo Upload'}
               </h2>
               {!result && !isUploading && (
-                <p className="text-xs sm:text-sm text-muted mt-1">
+                <p className="text-sm font-medium text-muted mt-1.5">
                   Review your files before uploading
                 </p>
               )}

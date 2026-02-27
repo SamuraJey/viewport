@@ -43,13 +43,13 @@ export const PublicGalleryPhotoSection = ({
 }: PublicGalleryPhotoSectionProps) => {
   return (
     <div
-      className="bg-surface-foreground/5 rounded-2xl p-6 border border-border"
+      className="bg-surface-foreground/5 rounded-3xl p-6 sm:p-8 border border-border/50 shadow-xs"
       {...touchHandlers}
       style={{ touchAction: 'pan-y' }}
     >
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-2xl font-semibold text-text dark:text-accent-foreground">
-          Photos ({totalPhotos})
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-2xl font-bold text-text dark:text-accent-foreground flex items-center gap-2">
+          Photos <span className="text-muted text-lg font-medium">({totalPhotos})</span>
         </h2>
 
         <PublicGalleryGridControls
@@ -66,12 +66,12 @@ export const PublicGalleryPhotoSection = ({
             {photos.map((photo, index) => (
               <div
                 key={photo.photo_id}
-                className={`pg-card relative group ${gridLayout === 'uniform' ? 'pg-card--uniform' : ''}`}
+                className={`pg-card relative group overflow-hidden rounded-xl transition-all duration-200 hover:shadow-md ${gridLayout === 'uniform' ? 'pg-card--uniform' : ''}`}
                 data-testid="public-batch"
               >
                 <button
                   onClick={() => onOpenPhoto(index)}
-                  className="w-full p-0 border-0 bg-transparent cursor-pointer block"
+                  className="w-full h-full p-0 border-0 bg-transparent cursor-pointer block focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
                   aria-label={`Photo ${photo.photo_id}`}
                 >
                   <LazyImage
@@ -91,25 +91,29 @@ export const PublicGalleryPhotoSection = ({
           <div ref={observerTargetRef} className="h-4 mt-4" />
 
           {isLoadingMore && (
-            <div className="flex justify-center items-center py-8">
+            <div className="flex justify-center items-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-accent" />
-              <span className="ml-2 text-muted">Loading more photos...</span>
+              <span className="ml-3 text-muted font-medium">Loading more photos...</span>
             </div>
           )}
 
           {!hasMore && photos.length > 50 && (
-            <div className="text-center py-8 text-muted text-sm">
+            <div className="text-center py-12 text-muted text-sm font-medium">
               All photos loaded ({photos.length} total)
             </div>
           )}
         </>
       ) : (
-        <div className="text-center py-16 border-2 border-dashed border-border dark:border-border/10 rounded-lg">
-          <ImageOff className="mx-auto h-12 w-12 text-muted" />
-          <h3 className="mt-4 text-lg font-medium text-muted dark:text-muted-foreground">
+        <div className="text-center py-20 border-2 border-dashed border-border/50 dark:border-border/10 rounded-2xl bg-surface-1/30">
+          <div className="w-16 h-16 mx-auto bg-surface-foreground/10 rounded-full flex items-center justify-center mb-4">
+            <ImageOff className="h-8 w-8 text-muted" />
+          </div>
+          <h3 className="text-xl font-semibold text-text dark:text-accent-foreground">
             No photos in this gallery
           </h3>
-          <p className="mt-2 text-sm text-muted">This gallery appears to be empty.</p>
+          <p className="mt-2 text-muted max-w-sm mx-auto">
+            This gallery appears to be empty. Check back later for updates.
+          </p>
         </div>
       )}
     </div>

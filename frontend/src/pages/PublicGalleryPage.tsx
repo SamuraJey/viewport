@@ -101,10 +101,10 @@ export const PublicGalleryPage = () => {
 
       <div id="gallery-content" className="w-full px-4 sm:px-6 lg:px-10 py-16">
         {photos.length > 0 && (
-          <div className="mb-8 text-center">
+          <div className="mb-10 text-center">
             <button
               onClick={handleDownloadAll}
-              className="bg-accent hover:bg-accent/90 text-accent-foreground px-6 py-3 rounded-lg font-medium shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] inline-flex items-center gap-2"
+              className="bg-accent hover:bg-accent/90 text-accent-foreground px-8 py-3.5 rounded-xl font-semibold shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 inline-flex items-center gap-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
               <DownloadIcon className="w-5 h-5" />
               Download All Photos
@@ -128,7 +128,7 @@ export const PublicGalleryPage = () => {
           touchHandlers={touchHandlers}
         />
 
-        <div className="text-center mt-12 text-muted dark:text-text text-sm">
+        <div className="text-center mt-16 text-muted dark:text-muted-foreground text-sm font-medium">
           <p>Powered by Viewport - Your Photo Gallery Solution</p>
         </div>
       </div>

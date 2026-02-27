@@ -75,7 +75,7 @@ export const LazyImage = ({
   if (error) {
     return (
       <div
-        className={`bg-red-100 text-red-500 text-sm p-4 flex items-center justify-center ${className}`}
+        className={`bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400 text-sm p-4 flex items-center justify-center rounded-xl border border-red-200 dark:border-red-500/20 ${className}`}
         style={style}
       >
         Failed to load
@@ -85,7 +85,7 @@ export const LazyImage = ({
 
   return (
     <div
-      className={`relative flex items-center justify-center overflow-hidden ${layoutTransitionClass} ${className ?? ''}`}
+      className={`relative flex items-center justify-center overflow-hidden rounded-xl ${layoutTransitionClass} ${className ?? ''}`}
       style={style}
     >
       {imageSrc ? (
@@ -93,22 +93,22 @@ export const LazyImage = ({
           ref={imgRef}
           src={imageSrc}
           alt={alt}
-          className={`w-full h-full ${layoutTransitionClass} ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${imgClassName ?? ''} ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+          className={`w-full h-full ${layoutTransitionClass} ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${imgClassName ?? ''} ${isLoading ? 'opacity-0 scale-105' : 'opacity-100 scale-100'} transition-all duration-500`}
           onLoad={handleLoad}
           onError={handleError}
         />
       ) : (
         <div
           ref={imgRef}
-          className={`w-full bg-surface-foreground dark:bg-surface animate-pulse flex items-center justify-center ${layoutTransitionClass}`}
+          className={`w-full bg-surface-1 dark:bg-surface-dark-1 animate-pulse flex items-center justify-center ${layoutTransitionClass}`}
           style={{ aspectRatio }}
         >
-          <div className="text-muted text-sm">Loading...</div>
+          <div className="text-muted text-sm font-medium">Loading...</div>
         </div>
       )}
       {isLoading && imageSrc && (
-        <div className="absolute inset-0 bg-surface-foreground dark:bg-surface animate-pulse flex items-center justify-center">
-          <div className="text-muted text-sm">Loading...</div>
+        <div className="absolute inset-0 bg-surface-1 dark:bg-surface-dark-1 animate-pulse flex items-center justify-center">
+          <div className="text-muted text-sm font-medium">Loading...</div>
         </div>
       )}
     </div>

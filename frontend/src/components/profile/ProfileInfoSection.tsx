@@ -1,10 +1,10 @@
 import type { RefObject } from 'react';
-import { Loader2, Mail, User, UserCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, Lock, Mail, Save, User } from 'lucide-react';
+
+const DISPLAY_NAME_MAX = 48;
 
 const formatBytes = (bytes: number) => {
-  if (!Number.isFinite(bytes) || bytes <= 0) {
-    return '0 B';
-  }
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let size = bytes;
   let unitIndex = 0;
@@ -16,22 +16,18 @@ const formatBytes = (bytes: number) => {
   return `${size.toFixed(precision)} ${units[unitIndex]}`;
 };
 
-const formatMB = (bytes: number) => {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0.00 MB';
-  const mb = bytes / 1024 / 1024;
-  return `${mb.toFixed(2)} MB`;
-};
-
 interface ProfileInfoSectionProps {
   email: string;
   displayName: string;
   storageUsed: number;
   storageQuota: number;
   storagePercent: number;
+  /** @deprecated kept for API compatibility — tooltip is now always inline */
   showStorageTooltip: boolean;
   savingProfile: boolean;
   firstFieldRef: RefObject<HTMLInputElement | null>;
   setDisplayName: (value: string) => void;
+  /** @deprecated kept for API compatibility */
   setShowStorageTooltip: (show: boolean) => void;
   onProfileSave: () => void;
 }
@@ -42,102 +38,132 @@ export const ProfileInfoSection = ({
   storageUsed,
   storageQuota,
   storagePercent,
-  showStorageTooltip,
   savingProfile,
   firstFieldRef,
   setDisplayName,
-  setShowStorageTooltip,
   onProfileSave,
 }: ProfileInfoSectionProps) => {
-  return (
-    <section className="space-y-4">
-      <div className="flex items-center gap-3 mb-4">
-        <UserCircle className="w-5 h-5 text-accent" />
-        <h3 className="text-lg font-semibold text-text">Profile Information</h3>
-      </div>
+  const charsLeft = DISPLAY_NAME_MAX - displayName.length;
+  const isNearLimit = charsLeft <= 10;
+  const isAtLimit = charsLeft <= 0;
 
-      <div className="bg-surface-1 dark:bg-surface-dark-1 rounded-xl p-6 space-y-4 border border-border/40">
-        <div>
-          <label
-            htmlFor="email"
-            className="flex items-center gap-2 text-sm font-medium text-text mb-2"
-          >
-            <Mail className="w-4 h-4" />
-            Email Address
-          </label>
+  // Dynamic storage bar color
+  const barColor =
+    storagePercent >= 90 ? 'bg-danger' : storagePercent >= 70 ? 'bg-amber-500' : 'bg-accent';
+  const storageLabelColor =
+    storagePercent >= 90 ? 'text-danger' : storagePercent >= 70 ? 'text-amber-500' : 'text-muted';
+
+  return (
+    <div className="space-y-5">
+      {/* Email — read-only */}
+      <div>
+        <label
+          htmlFor="email"
+          className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted mb-2"
+        >
+          <Mail className="h-3.5 w-3.5" />
+          Email address
+        </label>
+        <div className="relative">
           <input
             id="email"
             type="email"
             value={email}
             readOnly
-            className="w-full px-4 py-2.5 border border-border/40 rounded-lg bg-surface/80 dark:bg-muted-dark/20 text-text/50 cursor-not-allowed focus:outline-none"
-            title="Email cannot be changed"
+            aria-readonly="true"
+            tabIndex={-1}
+            className="w-full cursor-not-allowed rounded-xl border border-border/40 bg-surface-1/60 px-4 py-3 pr-10 text-sm text-muted dark:bg-surface-dark-1/40 focus:outline-hidden"
           />
-          <p className="text-xs text-muted/70 mt-1">Email address cannot be changed</p>
+          <Lock
+            className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-border"
+            aria-hidden="true"
+          />
         </div>
+        <p className="mt-1.5 text-xs text-muted/60">Email cannot be changed after registration.</p>
+      </div>
 
-        <div>
+      {/* Display name */}
+      <div>
+        <div className="mb-2 flex items-center justify-between">
           <label
             htmlFor="displayName"
-            className="flex items-center gap-2 text-sm font-medium text-text mb-2"
+            className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted"
           >
-            <User className="w-4 h-4" />
-            Display Name
+            <User className="h-3.5 w-3.5" />
+            Display name
           </label>
-          <input
-            id="displayName"
-            type="text"
-            ref={firstFieldRef}
-            value={displayName}
-            onChange={(event) => setDisplayName(event.target.value)}
-            placeholder="Enter your display name"
-            className="w-full px-4 py-2.5 border border-border rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent transition-all"
+          <span
+            className={`text-xs font-semibold tabular-nums ${
+              isAtLimit ? 'text-danger' : isNearLimit ? 'text-amber-500' : 'text-muted/50'
+            }`}
+            aria-live="polite"
+          >
+            {charsLeft}
+          </span>
+        </div>
+        <input
+          id="displayName"
+          type="text"
+          ref={firstFieldRef}
+          value={displayName}
+          maxLength={DISPLAY_NAME_MAX}
+          onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="Enter your display name"
+          autoComplete="name"
+          className="w-full rounded-xl border border-border bg-transparent px-4 py-3 text-sm transition-all focus:border-transparent focus:outline-hidden focus:ring-2 focus:ring-accent"
+        />
+      </div>
+
+      {/* Storage */}
+      <div className="rounded-xl border border-border/40 bg-surface-1/50 px-5 py-4 dark:bg-surface-dark-1/40">
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm font-semibold text-text">Storage</span>
+          <span className={`text-xs font-bold tabular-nums ${storageLabelColor}`}>
+            {formatBytes(storageUsed)}
+            <span className="font-normal text-muted"> / {formatBytes(storageQuota)}</span>
+          </span>
+        </div>
+        <div
+          className="mt-3 h-2 w-full overflow-hidden rounded-full bg-border/30 dark:bg-border/20"
+          role="progressbar"
+          aria-valuenow={storagePercent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`${storagePercent}% storage used`}
+        >
+          <div
+            className={`h-full rounded-full transition-all duration-500 ease-out ${barColor}`}
+            style={{ width: `${Math.min(storagePercent, 100)}%` }}
           />
         </div>
-
-        <div
-          className="relative rounded-lg border border-border/40 bg-surface dark:bg-muted-dark/20 px-4 py-3 z-0"
-          onMouseEnter={() => setShowStorageTooltip(true)}
-          onMouseLeave={() => setShowStorageTooltip(false)}
-        >
-          {showStorageTooltip && (
-            <div
-              className="absolute left-1/2 -translate-x-1/2 -top-10 bg-surface dark:bg-surface-dark border border-border/40 text-text text-sm rounded-md px-3 py-1 shadow-sm z-10"
-              role="status"
-            >
-              {`${formatMB(storageUsed)} / ${formatMB(storageQuota)} USED`}
-            </div>
-          )}
-          <div className="flex items-center justify-between text-sm font-medium text-text">
-            <span>Storage usage</span>
-            <span>
-              {formatBytes(storageUsed)} / {formatBytes(storageQuota)}
-            </span>
-          </div>
-          <div className="mt-2 h-2 w-full rounded-full bg-border/40 dark:bg-border/20">
-            <div
-              className="h-2 rounded-full bg-accent transition-all"
-              style={{ width: `${storagePercent}%` }}
-            />
-          </div>
-          <p className="mt-1 text-xs text-text/60 dark:text-muted">{storagePercent}% used</p>
-        </div>
-
-        <button
-          onClick={onProfileSave}
-          disabled={savingProfile}
-          className="w-full px-4 py-2.5 bg-accent text-accent-foreground font-medium rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
-        >
-          {savingProfile ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            'Save Profile'
-          )}
-        </button>
+        <p className={`mt-2 text-xs font-medium ${storageLabelColor}`}>
+          {storagePercent >= 90
+            ? `Critical — ${storagePercent}% used`
+            : storagePercent >= 70
+              ? `Getting full — ${storagePercent}% used`
+              : `${storagePercent}% used`}
+        </p>
       </div>
-    </section>
+
+      {/* Save */}
+      <button
+        onClick={onProfileSave}
+        disabled={savingProfile || displayName.trim().length === 0}
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:transform-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+      >
+        {savingProfile ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Saving…
+          </>
+        ) : (
+          <>
+            <Save className="h-4 w-4" />
+            Save Profile
+            {displayName.trim().length > 0 && <CheckCircle2 className="h-4 w-4 opacity-60" />}
+          </>
+        )}
+      </button>
+    </div>
   );
 };

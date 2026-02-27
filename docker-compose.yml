@@ -139,7 +139,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1"
+          cpus: "2"
           memory: 768M
         reservations:
           cpus: "0.50"

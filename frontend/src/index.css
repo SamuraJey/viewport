@@ -363,22 +363,112 @@ html.dark {
   --color-white-rgb: 255 255 255;
   --color-black-rgb: 0 0 0;
 
-  --color-border-rgb: 82 82 91;
+  --color-border-rgb: 113 113 122;
   --color-text-rgb: var(--color-neutral-900-rgb);
-  --color-muted-rgb: var(--color-neutral-700-rgb);
-  --color-muted-dark-rgb: 82 82 91;
+  --color-muted-rgb: 186 195 210;
+  --color-muted-dark-rgb: 148 163 184;
   --color-surface-rgb: 24 24 27;
   --color-surface-1-rgb: 39 39 42;
-  --color-surface-2-rgb: var(--color-neutral-200-rgb);
+  --color-surface-2-rgb: 63 63 70;
   --color-surface-dark-rgb: 24 24 27;
   --color-surface-dark-1-rgb: 39 39 42;
-  --color-surface-dark-2-rgb: var(--color-neutral-200-rgb);
+  --color-surface-dark-2-rgb: 63 63 70;
   --color-surface-foreground-rgb: 39 39 42;
   --color-accent-rgb: var(--color-primary-500-rgb);
   --color-accent-foreground-rgb: var(--color-white-rgb);
   --color-danger-rgb: 248 113 113;
   --color-success-rgb: 34 197 94;
   --color-photo-overlay-rgb: var(--color-black-rgb);
+}
+
+/* ===== THEME SHADOW NORMALIZATION =====
+   Light theme: dark shadows.
+   Dark theme: light shadows. */
+html:not(.dark) .shadow-xs,
+.light .shadow-xs {
+  box-shadow:
+    0 0 0 1px rgb(2 6 23 / 0.05),
+    0 8px 18px rgb(2 6 23 / 0.08);
+}
+
+html:not(.dark) .shadow-sm,
+.light .shadow-sm {
+  box-shadow:
+    0 0 0 1px rgb(2 6 23 / 0.06),
+    0 10px 24px rgb(2 6 23 / 0.1);
+}
+
+html:not(.dark) .shadow-md,
+.light .shadow-md {
+  box-shadow:
+    0 0 0 1px rgb(2 6 23 / 0.07),
+    0 14px 30px rgb(2 6 23 / 0.14);
+}
+
+html:not(.dark) .shadow-lg,
+.light .shadow-lg {
+  box-shadow:
+    0 0 0 1px rgb(2 6 23 / 0.08),
+    0 18px 38px rgb(2 6 23 / 0.18);
+}
+
+html:not(.dark) .shadow-xl,
+.light .shadow-xl,
+html:not(.dark) .shadow-2xl,
+.light .shadow-2xl {
+  box-shadow:
+    0 0 0 1px rgb(2 6 23 / 0.1),
+    0 24px 48px rgb(2 6 23 / 0.22);
+}
+
+html:not(.dark) .shadow-inner,
+.light .shadow-inner {
+  box-shadow: inset 0 1px 2px rgb(2 6 23 / 0.1);
+}
+
+html.dark .shadow-xs,
+.dark .shadow-xs {
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.08),
+    0 8px 18px rgb(255 255 255 / 0.06);
+}
+
+html.dark .shadow-sm,
+.dark .shadow-sm {
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.1),
+    0 10px 24px rgb(255 255 255 / 0.08);
+}
+
+html.dark .shadow-md,
+.dark .shadow-md {
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.12),
+    0 14px 30px rgb(255 255 255 / 0.1),
+    0 0 22px rgb(255 255 255 / 0.06);
+}
+
+html.dark .shadow-lg,
+.dark .shadow-lg {
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.14),
+    0 18px 38px rgb(255 255 255 / 0.12),
+    0 0 26px rgb(255 255 255 / 0.08);
+}
+
+html.dark .shadow-xl,
+.dark .shadow-xl,
+html.dark .shadow-2xl,
+.dark .shadow-2xl {
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.16),
+    0 24px 48px rgb(255 255 255 / 0.14),
+    0 0 30px rgb(255 255 255 / 0.1);
+}
+
+html.dark .shadow-inner,
+.dark .shadow-inner {
+  box-shadow: inset 0 1px 2px rgb(255 255 255 / 0.08);
 }
 
 /* Demo helpers */
@@ -440,12 +530,20 @@ html.dark {
   color: rgb(var(--color-neutral-800-rgb));
   border-color: rgb(var(--color-neutral-400-rgb));
   background-color: rgb(var(--color-neutral-100-rgb));
+  box-shadow: 0 1px 2px rgba(255, 255, 255, 0.08);
 }
 
 .popup-action:hover,
 .popup-action:focus-visible {
   background-color: rgb(var(--color-neutral-50-rgb));
   box-shadow: 0 2px 8px rgba(2, 6, 23, 0.1);
+}
+
+.dark .popup-action:hover,
+:root.dark .popup-action:hover,
+.dark .popup-action:focus-visible,
+:root.dark .popup-action:focus-visible {
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.14);
 }
 
 .popup-action:focus-visible {
@@ -552,7 +650,7 @@ html.dark {
 html.dark .popup-container,
 .dark .popup-container,
 body.dark .popup-container {
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 36px rgba(255, 255, 255, 0.14);
 }
 
 /* Arrow: set border-top color explicitly to match the popup background */
@@ -946,7 +1044,7 @@ html.dark .popup-container,
   background-color: rgb(var(--color-surface-dark-1-rgb) / 0.98) !important;
   color: var(--color-text) !important;
   border-color: rgb(var(--color-border-rgb)) !important;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45) !important;
+  box-shadow: 0 12px 36px rgba(255, 255, 255, 0.14) !important;
 }
 
 html.dark .popup-arrow,

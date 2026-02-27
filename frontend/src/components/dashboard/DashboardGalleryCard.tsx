@@ -46,12 +46,12 @@ export const DashboardGalleryCard = ({
       variants={variants}
       layout
       exit="exit"
-      className="bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-8 border border-border dark:border-border/10 hover:transform hover:scale-101 hover:shadow-2xl "
+      className="group bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-6 border border-border dark:border-border/10 hover:border-accent/30 transition-all duration-200 hover:shadow-lg"
     >
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className="bg-accent/20 p-2 rounded-lg shrink-0 border border-accent/10">
-            <Calendar className="h-6 w-6 text-accent" />
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+          <div className="bg-accent/10 p-3 rounded-xl shrink-0 border border-accent/10 text-accent group-hover:bg-accent group-hover:text-accent-foreground transition-colors duration-300">
+            <Calendar className="h-6 w-6" />
           </div>
           <div className="flex-1 min-w-0">
             {isRenamingThis ? (
@@ -108,30 +108,30 @@ export const DashboardGalleryCard = ({
           </div>
         </div>
         {!isRenamingThis && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200">
             <button
               onClick={() => onBeginRename(gallery)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/20 hover:bg-accent/30 border border-accent/40 text-accent shadow-sm hover:shadow-md hover:scale-110 transition-all duration-200 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-1 hover:bg-accent/10 border border-border hover:border-accent/30 text-muted hover:text-accent shadow-sm transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
               title="Rename Gallery"
               aria-label={`Rename ${gallery.name || `Gallery #${gallery.id}`}`}
             >
-              <Edit3 className="w-4 h-4" />
+              <Edit3 className="h-4 w-4" />
             </button>
             <button
               onClick={() => onDelete(gallery)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-danger/20 hover:bg-danger/30 border border-danger/40 text-danger shadow-sm hover:shadow-md hover:scale-110 transition-all duration-200 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2"
+              className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-1 hover:bg-danger/10 border border-border hover:border-danger/30 text-muted hover:text-danger shadow-sm transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2"
               title="Delete Gallery"
               aria-label={`Delete ${gallery.name || `Gallery #${gallery.id}`}`}
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="h-4 w-4" />
             </button>
           </div>
         )}
       </div>
-      <div>
+      <div className="mt-6">
         <Link
           to={`/galleries/${gallery.id}`}
-          className="block w-full bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg text-center hover:scale-105 active:scale-95 hover:shadow-lg shadow-sm border border-accent/20 no-underline transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+          className="block w-full bg-surface-1 hover:bg-accent text-text hover:text-accent-foreground font-medium py-2.5 px-4 rounded-xl text-center shadow-sm border border-border hover:border-accent/20 no-underline transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
           aria-label={`Manage ${gallery.name || `Gallery #${gallery.id}`}`}
         >
           Manage Gallery

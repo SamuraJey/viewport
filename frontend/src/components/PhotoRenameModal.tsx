@@ -138,18 +138,18 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 p-6 border-t border-border">
+          <div className="flex items-center justify-end gap-3 p-6 border-t border-border bg-surface-1/50 dark:bg-surface-dark-1/50">
             <button
               onClick={handleCancel}
               disabled={isRenaming}
-              className="px-4 py-2 text-text dark:text-muted hover:bg-surface dark:hover:bg-surface-foreground rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
+              className="px-5 py-2.5 text-text dark:text-muted bg-surface-1 dark:bg-surface-dark-1 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-xl border border-border dark:border-border/40 shadow-sm transition-all duration-200 disabled:opacity-50 font-medium"
             >
               Cancel
             </button>
             <button
               onClick={handleRename}
               disabled={isRenaming || !filename.trim() || filename === currentFilename}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none"
+              className="flex items-center gap-2 px-5 py-2.5 bg-accent hover:bg-accent/90 disabled:bg-accent/60 text-white rounded-xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none font-medium"
             >
               {isRenaming ? (
                 <>
