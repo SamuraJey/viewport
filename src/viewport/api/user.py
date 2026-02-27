@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
 
 from viewport.api.auth import hash_password, verify_password
 from viewport.auth_utils import get_current_user
@@ -42,19 +41,17 @@ def update_me(req: UpdateMeRequest, repo: UserRepository = Depends(get_user_repo
 
 
 @router.put("/me/password", status_code=status.HTTP_200_OK)
-async def change_password(req: ChangePasswordRequest, repo: UserRepository = Depends(get_user_repository), current_user: User = Depends(get_current_user)):
+def change_password(req: ChangePasswordRequest, repo: UserRepository = Depends(get_user_repository), current_user: User = Depends(get_current_user)):
     """Change password - async to run bcrypt in threadpool, but DB calls are direct."""
     if req.new_password != req.confirm_password:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password and confirmation do not match")
 
-    # Run CPU-bound bcrypt in a separate thread to avoid blocking the event loop
-    is_valid = await run_in_threadpool(verify_password, req.current_password, current_user.password_hash)
+    is_valid = verify_password(req.current_password, current_user.password_hash)
     if not is_valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 
-    hashed_password = await run_in_threadpool(hash_password, req.new_password)
+    hashed_password = hash_password(req.new_password)
 
-    # Direct synchronous DB operation - no threadpool wrapper needed
     user = repo.update_user_password(current_user.id, hashed_password)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

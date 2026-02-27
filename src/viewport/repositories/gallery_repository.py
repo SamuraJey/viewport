@@ -296,6 +296,7 @@ class GalleryRepository(BaseRepository):
         self.db.commit()
         return True
 
+    # TODO remove this method and use delete_photo with async S3 cleanup instead.
     async def delete_photo_async(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, s3_client: "AsyncS3Client") -> bool:  # type: ignore
         """Delete photo with S3 cleanup
 

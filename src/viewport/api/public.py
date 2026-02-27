@@ -35,11 +35,12 @@ def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depends(get_
     return sharelink
 
 
+# TODO rewrite to be def or fully async.
 @router.get("/{share_id}", response_model=PublicGalleryResponse)
 async def get_photos_by_sharelink(
     share_id: UUID,
     request: Request,
-    limit: int | None = Query(None, ge=1, le=1000, description="Limit number of photos to return"),
+    limit: int | None = Query(None, ge=1, le=500, description="Limit number of photos to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),

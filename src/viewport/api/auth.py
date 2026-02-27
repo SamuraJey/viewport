@@ -6,7 +6,6 @@ import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from starlette.concurrency import run_in_threadpool
 
 from viewport.auth_utils import authsettings
 from viewport.models.db import get_db
@@ -44,14 +43,13 @@ def create_refresh_token(user_id: str) -> str:
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
-async def register_user(request: RegisterRequest, repo: UserRepository = Depends(get_user_repository)):
+def register_user(request: RegisterRequest, repo: UserRepository = Depends(get_user_repository)):
     """Register user - async to run bcrypt in threadpool, but DB calls are direct."""
     # Verify invite code
     if request.invite_code != authsettings.invite_code:
         raise HTTPException(status_code=403, detail="Invalid invite code")
 
-    # Run CPU-bound bcrypt in a separate thread to avoid blocking the event loop
-    hashed_password = await run_in_threadpool(hash_password, request.password)
+    hashed_password = hash_password(request.password)
 
     try:
         # Direct synchronous DB operation - no threadpool wrapper needed
@@ -62,18 +60,17 @@ async def register_user(request: RegisterRequest, repo: UserRepository = Depends
 
 
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
-async def login_user(request: LoginRequest, repo: UserRepository = Depends(get_user_repository)):
+def login_user(request: LoginRequest, repo: UserRepository = Depends(get_user_repository)):
     """Login user - async to run bcrypt in threadpool, but DB calls are direct."""
     # Direct synchronous DB operation
     user = repo.get_user_by_email(request.email)
 
     if not user:
         # Prevent timing attacks by hashing a dummy password
-        await run_in_threadpool(verify_password, request.password, DUMMY_HASH)
+        verify_password(request.password, DUMMY_HASH)
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    # Run CPU-bound bcrypt in a separate thread to avoid blocking the event loop
-    is_valid = await run_in_threadpool(verify_password, request.password, user.password_hash)
+    is_valid = verify_password(request.password, user.password_hash)
     if not is_valid:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 

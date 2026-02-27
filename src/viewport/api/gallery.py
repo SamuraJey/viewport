@@ -163,12 +163,12 @@ def clear_cover_photo(
 
 
 @router.delete("/{gallery_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_gallery(
+def delete_gallery(
     gallery_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    if not await repo.soft_delete_gallery_async(gallery_id, current_user.id):
+    if not repo.soft_delete_gallery(gallery_id, current_user.id):
         raise HTTPException(status_code=404, detail="Gallery not found")
 
     from viewport.background_tasks import delete_gallery_data_task

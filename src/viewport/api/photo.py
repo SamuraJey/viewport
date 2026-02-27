@@ -343,6 +343,7 @@ def batch_confirm_uploads(
     return BatchConfirmUploadResponse(confirmed_count=confirmed_count, failed_count=failed_count)
 
 
+# TODO remove this method and use delete_photo with async S3 cleanup instead.
 @router.delete("/{gallery_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_photo(
     gallery_id: UUID,
