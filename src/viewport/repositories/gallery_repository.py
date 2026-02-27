@@ -130,11 +130,13 @@ class GalleryRepository(BaseRepository):
         return True
 
     async def soft_delete_gallery_async(self, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> bool:
-        """Soft delete gallery (mark as deleted)."""
+        """Soft delete gallery (mark as deleted).
+
+        NOTE: DB calls are direct (no run_in_threadpool) to avoid session lifecycle race conditions.
+        """
         gallery = self.get_gallery_by_id_and_owner(gallery_id, owner_id)
         if not gallery:
             return False
-
         gallery.is_deleted = True
         self.db.commit()
         return True
@@ -294,12 +296,18 @@ class GalleryRepository(BaseRepository):
         self.db.commit()
         return True
 
+    # TODO remove this method and use delete_photo with async S3 cleanup instead.
     async def delete_photo_async(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, s3_client: "AsyncS3Client") -> bool:  # type: ignore
-        """Delete photo with S3 cleanup"""
+        """Delete photo with S3 cleanup
+
+        NOTE: DB calls are direct (no run_in_threadpool) to avoid session lifecycle race conditions.
+        Short DB operations can safely block in async context.
+        """
         photo = self.get_photo_by_id_and_owner(photo_id, owner_id)
         if not photo or photo.gallery_id != gallery_id:
             return False
 
+        # Update storage quota
         user_repo = UserRepository(self.db)
         if photo.status == PhotoUploadStatus.SUCCESSFUL:
             user_repo.decrement_storage_used(owner_id, photo.file_size, commit=False)
@@ -353,7 +361,11 @@ class GalleryRepository(BaseRepository):
         return photo
 
     async def rename_photo_async(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, new_filename: str, s3_client: "AsyncS3Client") -> Photo | None:  # type: ignore
-        """Rename a photo with S3 rename operation"""
+        """Rename a photo with S3 rename operation
+
+        NOTE: DB calls are direct (no run_in_threadpool) to avoid session lifecycle race conditions.
+        Short DB operations can safely block in async context.
+        """
         from viewport.cache_utils import clear_presigned_url_cache
 
         photo = self.get_photo_by_id_and_owner(photo_id, owner_id)

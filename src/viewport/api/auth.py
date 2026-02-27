@@ -1,4 +1,3 @@
-import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -44,34 +43,34 @@ def create_refresh_token(user_id: str) -> str:
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
-async def register_user(request: RegisterRequest, repo: UserRepository = Depends(get_user_repository)):
+def register_user(request: RegisterRequest, repo: UserRepository = Depends(get_user_repository)):
+    """Register user - async to run bcrypt in threadpool, but DB calls are direct."""
     # Verify invite code
     if request.invite_code != authsettings.invite_code:
         raise HTTPException(status_code=403, detail="Invalid invite code")
 
-    # Run CPU-bound bcrypt in a separate thread to avoid blocking the event loop
-    hashed_password = await asyncio.to_thread(hash_password, request.password)
+    hashed_password = hash_password(request.password)
 
     try:
-        # Run synchronous DB operation in a separate thread
-        user = await asyncio.to_thread(repo.create_user, request.email, hashed_password)
+        # Direct synchronous DB operation - no threadpool wrapper needed
+        user = repo.create_user(request.email, hashed_password)
     except IntegrityError as err:
         raise HTTPException(status_code=400, detail="Email already registered") from err
     return RegisterResponse(id=str(user.id), email=user.email)
 
 
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
-async def login_user(request: LoginRequest, repo: UserRepository = Depends(get_user_repository)):
-    # Run synchronous DB operation in a separate thread
-    user = await asyncio.to_thread(repo.get_user_by_email, request.email)
+def login_user(request: LoginRequest, repo: UserRepository = Depends(get_user_repository)):
+    """Login user - async to run bcrypt in threadpool, but DB calls are direct."""
+    # Direct synchronous DB operation
+    user = repo.get_user_by_email(request.email)
 
     if not user:
         # Prevent timing attacks by hashing a dummy password
-        await asyncio.to_thread(verify_password, request.password, DUMMY_HASH)
+        verify_password(request.password, DUMMY_HASH)
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    # Run CPU-bound bcrypt in a separate thread to avoid blocking the event loop
-    is_valid = await asyncio.to_thread(verify_password, request.password, user.password_hash)
+    is_valid = verify_password(request.password, user.password_hash)
     if not is_valid:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
@@ -88,7 +87,8 @@ async def login_user(request: LoginRequest, repo: UserRepository = Depends(get_u
 
 
 @router.post("/refresh", response_model=TokenPair, status_code=status.HTTP_200_OK)
-async def refresh_token(request: RefreshRequest, repo: UserRepository = Depends(get_user_repository)):
+def refresh_token(request: RefreshRequest, repo: UserRepository = Depends(get_user_repository)):
+    """Refresh token - sync endpoint, FastAPI handles threadpool automatically."""
     try:
         # Decode and validate the refresh token
         payload = jwt.decode(request.refresh_token, authsettings.jwt_secret_key, algorithms=[authsettings.jwt_algorithm])
@@ -103,7 +103,7 @@ async def refresh_token(request: RefreshRequest, repo: UserRepository = Depends(
             raise HTTPException(status_code=401, detail="Invalid token")
 
         # Check if user exists
-        user = await asyncio.to_thread(repo.get_user_by_id, uuid.UUID(user_id))
+        user = repo.get_user_by_id(uuid.UUID(user_id))
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
 

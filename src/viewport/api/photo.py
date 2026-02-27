@@ -93,13 +93,17 @@ def get_content_type_from_filename(filename: str | None) -> str:
 
 # GET /galleries/{gallery_id}/photos/urls - Get all photo URLs for a gallery
 @router.get("/{gallery_id}/photos/urls", response_model=list[PhotoResponse])
-async def get_all_photo_urls_for_gallery(
+def get_all_photo_urls_for_gallery(
     gallery_id: UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user=Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> list[PhotoResponse]:
-    """Get presigned URLs for all photos in a gallery for the owner."""
+    """Get presigned URLs for all photos in a gallery for the owner.
+
+    NOTE: This is sync (def) not async. FastAPI automatically runs sync endpoints
+    in threadpool, ensuring proper DB session lifecycle. S3 operations are sync here.
+    """
     # First, verify gallery ownership
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
@@ -108,13 +112,14 @@ async def get_all_photo_urls_for_gallery(
     # Get all photos for the gallery
     photos = repo.get_photos_by_gallery_id(gallery_id)
 
-    photo_responses = await PhotoResponse.from_db_photos_batch(photos, s3_client)
+    # Use sync method for presigned URLs
+    photo_responses = [PhotoResponse.from_db_photo(photo, s3_client) for photo in photos]
 
     return photo_responses
 
 
 @router.post("/{gallery_id}/photos/batch-presigned", response_model=BatchPresignedUploadsResponse)
-async def batch_presigned_uploads(
+def batch_presigned_uploads(
     gallery_id: UUID,
     request: BatchPresignedUploadsRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
@@ -128,6 +133,8 @@ async def batch_presigned_uploads(
     2. Create Photo records for each file
     3. Generate presigned PUT URLs
     4. Return batch response
+
+    NOTE: Sync endpoint - FastAPI handles threadpool automatically.
     """
     # 1. Check gallery ownership
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
@@ -136,8 +143,10 @@ async def batch_presigned_uploads(
 
     valid_files = [file_request for file_request in request.files if file_request.file_size <= MAX_FILE_SIZE]
     bytes_to_reserve = sum(file_request.file_size for file_request in valid_files)
-    if bytes_to_reserve > 0 and not user_repo.reserve_storage(current_user.id, bytes_to_reserve):
-        raise HTTPException(status_code=507, detail="Storage quota exceeded")
+    if bytes_to_reserve > 0:
+        reserved = user_repo.reserve_storage(current_user.id, bytes_to_reserve)
+        if not reserved:
+            raise HTTPException(status_code=507, detail="Storage quota exceeded")
 
     items: list[BatchPresignedUploadItem] = []
     photos_payload: list[dict] = []
@@ -224,7 +233,7 @@ async def batch_presigned_uploads(
 
 
 @router.post("/{gallery_id}/photos/batch-confirm", response_model=BatchConfirmUploadResponse)
-async def batch_confirm_uploads(
+def batch_confirm_uploads(
     gallery_id: UUID,
     request: BatchConfirmUploadRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
@@ -236,6 +245,8 @@ async def batch_confirm_uploads(
     Process multiple photo confirmations in one request.
     Sets status to SUCCESSFUL for confirmed uploads.
     Starts thumbnail processing (S3 verification and fallback-to-FAILED happen in background).
+
+    NOTE: Sync endpoint - FastAPI handles threadpool automatically.
     """
     # 1. Verify gallery ownership
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
@@ -332,6 +343,7 @@ async def batch_confirm_uploads(
     return BatchConfirmUploadResponse(confirmed_count=confirmed_count, failed_count=failed_count)
 
 
+# TODO remove this method and use delete_photo with async S3 cleanup instead.
 @router.delete("/{gallery_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_photo(
     gallery_id: UUID,
@@ -340,7 +352,8 @@ async def delete_photo(
     current_user=Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ):
-    if not repo.delete_photo(photo_id, gallery_id, current_user.id, s3_client):
+    success = await repo.delete_photo_async(photo_id, gallery_id, current_user.id, s3_client)
+    if not success:
         raise HTTPException(status_code=404, detail="Photo not found")
     return
 

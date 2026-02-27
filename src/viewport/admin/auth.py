@@ -1,10 +1,9 @@
 """Admin authentication backend for SQLAdmin."""
 
-import asyncio
-
 from sqladmin.authentication import AuthenticationBackend
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
 from viewport.api.auth import verify_password
@@ -15,20 +14,39 @@ from viewport.models.user import User
 class AdminAuth(AuthenticationBackend):
     """Authentication backend for admin panel using JWT and session."""
 
+    async def authenticate(self, request: Request) -> bool:
+        """Return True if a user is currently authenticated for the admin."""
+        user_id = request.session.get("user_id")
+        if not user_id:
+            return False
+
+        def _is_admin_user() -> bool:
+            db: Session = next(get_db())
+            try:
+                stmt = select(User.is_admin).where(User.id == user_id)
+                is_admin = db.execute(stmt).scalar_one_or_none()
+                return bool(is_admin)
+            finally:
+                db.close()
+
+        return await run_in_threadpool(_is_admin_user)
+
+    async def logout(self, request: Request) -> bool:
+        """Log out the current user by clearing the admin session."""
+        # Remove user_id from the session if it exists
+        request.session.pop("user_id", None)
+        return True
+
     async def login(self, request: Request) -> bool:
         """Authenticate user credentials and store token in session."""
-        return await asyncio.to_thread(self._login_sync, request)
+        return await self._login_async(request)
 
-    def _login_sync(self, request: Request) -> bool:
-        """Synchronous login logic running in thread pool."""
+    async def _login_async(self, request: Request) -> bool:
+        """Asynchronous login logic handling form parsing and DB query."""
         form_dict = {}
         try:
-            loop = asyncio.new_event_loop()
-            try:
-                form = loop.run_until_complete(request.form())
-                form_dict = dict(form)
-            finally:
-                loop.close()
+            form = await request.form()
+            form_dict = dict(form)
         except Exception:
             return False
 
@@ -41,51 +59,32 @@ class AdminAuth(AuthenticationBackend):
         if not email or not password:
             return False
 
-        # Get database session
-        db: Session = next(get_db())
-        try:
-            stmt = select(User).where(User.email == email)
-            user = db.execute(stmt).scalar_one_or_none()
+        # Run DB and crypto operations in threadpool
+        def _check_credentials():
+            db: Session = next(get_db())
+            try:
+                stmt = select(User).where(User.email == email)
+                user = db.execute(stmt).scalar_one_or_none()
 
-            if not user:
-                return False
+                if not user:
+                    return None
 
-            if not verify_password(password, user.password_hash):
-                return False
+                if not verify_password(password, user.password_hash):
+                    return None
 
-            if not user.is_admin:
-                return False
+                if not user.is_admin:
+                    return None
 
+                return str(user.id)
+
+            finally:
+                db.close()
+
+        user_id = await run_in_threadpool(_check_credentials)
+
+        if user_id:
             # Store user_id in session for authentication
-            request.session.update({"user_id": str(user.id)})
+            request.session.update({"user_id": user_id})
             return True
 
-        finally:
-            db.close()
-
-    async def logout(self, request: Request) -> bool:
-        """Clear session on logout."""
-        request.session.clear()
-        return True
-
-    async def authenticate(self, request: Request) -> bool:
-        """Verify that user is authenticated and is an admin."""
-        return await asyncio.to_thread(self._authenticate_sync, request)
-
-    def _authenticate_sync(self, request: Request) -> bool:
-        """Synchronous authentication logic running in thread pool."""
-        user_id = request.session.get("user_id")
-
-        if not user_id:
-            return False
-
-        # Verify user still exists and is admin
-        db: Session = next(get_db())
-        try:
-            stmt = select(User).where(User.id == user_id)
-            user = db.execute(stmt).scalar_one_or_none()
-
-            return bool(user and user.is_admin)
-
-        finally:
-            db.close()
+        return False

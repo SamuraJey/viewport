@@ -25,22 +25,32 @@ def get_sharelink_repository(db: Session = Depends(get_db)) -> ShareLinkReposito
 
 
 def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository)) -> ShareLink:
+    """Get valid sharelink.
+
+    NOTE: Intentionally sync - FastAPI handles threadpool for async endpoints.
+    """
     sharelink = repo.get_valid_sharelink(share_id)
     if not sharelink:
         raise HTTPException(status_code=404, detail="ShareLink not found")
     return sharelink
 
 
+# TODO rewrite to be def or fully async.
 @router.get("/{share_id}", response_model=PublicGalleryResponse)
 async def get_photos_by_sharelink(
     share_id: UUID,
     request: Request,
-    limit: int | None = Query(None, ge=1, le=1000, description="Limit number of photos to return"),
+    limit: int | None = Query(None, ge=1, le=500, description="Limit number of photos to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
 ) -> PublicGalleryResponse:
+    """Get public gallery photos.
+
+    NOTE: Direct DB calls (no run_in_threadpool) to avoid session lifecycle issues.
+    Async is kept for S3 batch operations only.
+    """
     # Photos - ensure deterministic ordering by filename (case-insensitive)
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
     with contextlib.suppress(Exception):
@@ -137,9 +147,11 @@ def download_all_photos_zip(
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
 ) -> StreamingResponse:
+    """Download all photos as zip - direct DB and S3 calls in a sync handler."""
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
     with contextlib.suppress(Exception):
         photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
+
     if not photos:
         raise HTTPException(status_code=404, detail="No photos found")
 
