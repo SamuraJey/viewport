@@ -343,18 +343,37 @@ def batch_confirm_uploads(
     return BatchConfirmUploadResponse(confirmed_count=confirmed_count, failed_count=failed_count)
 
 
-# TODO remove this method and use delete_photo with async S3 cleanup instead.
+# DELETE /galleries/{gallery_id}/photos/{photo_id} - Delete a photo (enqueue background task)
 @router.delete("/{gallery_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_photo(
+def delete_photo(
     gallery_id: UUID,
     photo_id: UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user=Depends(get_current_user),
-    s3_client: AsyncS3Client = Depends(get_s3_client),
 ):
-    success = await repo.delete_photo_async(photo_id, gallery_id, current_user.id, s3_client)
-    if not success:
+    """Delete a photo and enqueue background task for S3 cleanup and DB removal.
+
+    Returns 204 immediately after validation and task enqueue.
+    Actual S3 deletion happens asynchronously in Celery.
+    """
+    # Verify gallery ownership and photo exists
+    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    if not gallery:
+        raise HTTPException(status_code=404, detail="Gallery not found")
+
+    photo = repo.get_photo_by_id_and_owner(photo_id, current_user.id)
+    if not photo or photo.gallery_id != gallery_id:
         raise HTTPException(status_code=404, detail="Photo not found")
+
+    # Enqueue async deletion task
+    from viewport.background_tasks import delete_photo_data_task
+
+    try:
+        delete_photo_data_task.delay(str(photo_id), str(gallery_id), str(current_user.id))
+    except Exception as exc:
+        logger.error("Failed to enqueue delete_photo_data task for photo %s: %s", photo_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to enqueue deletion task") from exc
+
     return
 
 

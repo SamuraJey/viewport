@@ -370,6 +370,59 @@ def delete_gallery_data_task(self, gallery_id: str) -> dict:
         raise self.retry(exc=exc, countdown=30) from exc
 
 
+@celery_app.task(name="delete_photo_data", bind=True, max_retries=3, acks_late=True)
+def delete_photo_data_task(self, photo_id: str, gallery_id: str, owner_id: str) -> dict:
+    """Delete photo from S3 and hard-delete DB record, update storage quota."""
+    try:
+        photo_uuid = uuid.UUID(photo_id)
+        gallery_uuid = uuid.UUID(gallery_id)
+        owner_uuid = uuid.UUID(owner_id)
+
+        # Fetch photo info
+        with task_db_session() as db:
+            photo = db.execute(select(Photo.object_key, Photo.thumbnail_object_key, Photo.file_size, Photo.status).where(Photo.id == photo_uuid, Photo.gallery_id == gallery_uuid)).one_or_none()
+
+            if not photo:
+                logger.warning("Photo %s not found in gallery %s", photo_id, gallery_id)
+                return {"deleted": False, "reason": "Photo not found"}
+
+            object_key, thumbnail_object_key, file_size, status = photo
+
+        # Delete from S3
+        s3_client = get_s3_client()
+        bucket = get_s3_settings().bucket
+
+        try:
+            s3_client.delete_object(Bucket=bucket, Key=object_key)
+        except ClientError as e:
+            logger.warning("Failed to delete photo object %s: %s", object_key, e)
+            if e.response.get("Error", {}).get("Code") != "NoSuchKey":
+                raise
+
+        if thumbnail_object_key and thumbnail_object_key != object_key:
+            try:
+                s3_client.delete_object(Bucket=bucket, Key=thumbnail_object_key)
+            except ClientError as e:
+                logger.warning("Failed to delete thumbnail %s: %s", thumbnail_object_key, e)
+                if e.response.get("Error", {}).get("Code") != "NoSuchKey":
+                    raise
+
+        # Delete from DB and update quota
+        with task_db_session() as db:
+            if status == PhotoUploadStatus.SUCCESSFUL:
+                db.execute(update(User).where(User.id == owner_uuid).values(storage_used=func.greatest(User.storage_used - file_size, 0)))
+            elif status == PhotoUploadStatus.PENDING:
+                db.execute(update(User).where(User.id == owner_uuid).values(storage_reserved=func.greatest(User.storage_reserved - file_size, 0)))
+
+            db.execute(delete(Photo).where(Photo.id == photo_uuid))
+
+        logger.info("Deleted photo %s from gallery %s", photo_id, gallery_id)
+        return {"deleted": True}
+    except Exception as exc:
+        logger.exception("Failed to delete photo %s", photo_id)
+        raise self.retry(exc=exc, countdown=10) from exc
+
+
 @celery_app.task(name="reconcile_storage_quotas")
 def reconcile_storage_quotas_task() -> dict:
     """Recalculate storage_used and storage_reserved for all users to fix any drifts.
