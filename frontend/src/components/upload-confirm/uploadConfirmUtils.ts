@@ -1,6 +1,8 @@
+import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
+
 export const supportedUploadTypes = ['image/jpeg', 'image/png', 'image/jpg'];
 
-export const isFileTooLarge = (file: File) => file.size > 10 * 1024 * 1024;
+export const isFileTooLarge = (file: File) => file.size > MAX_UPLOAD_FILE_SIZE_BYTES;
 
 export const isFileTypeInvalid = (file: File) => !supportedUploadTypes.includes(file.type);
 
@@ -11,11 +13,11 @@ export const getFileUploadErrorText = (file: File) => {
   const invalidType = isFileTypeInvalid(file);
 
   if (tooLarge && invalidType) {
-    return '⚠ File too large (max 10MB) • Invalid format (JPG/PNG only)';
+    return `⚠ File too large (max ${MAX_UPLOAD_FILE_SIZE_MB}MB) • Invalid format (JPG/PNG only)`;
   }
 
   if (tooLarge) {
-    return '⚠ File too large (max 10MB)';
+    return `⚠ File too large (max ${MAX_UPLOAD_FILE_SIZE_MB}MB)`;
   }
 
   if (invalidType) {

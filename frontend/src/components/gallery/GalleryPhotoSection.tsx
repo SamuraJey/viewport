@@ -5,6 +5,7 @@ import { EmptyGalleryState } from './EmptyGalleryState';
 import { PhotoCard } from './PhotoCard';
 import { PhotoSelectionBar } from './PhotoSelectionBar';
 import { PhotoUploader, type PhotoUploaderHandle } from '../PhotoUploader';
+import { MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 import type { PhotoUploadResponse, PhotoResponse } from '../../types';
 
 interface GalleryPagination {
@@ -82,7 +83,7 @@ export const GalleryPhotoSection = ({
           <button
             onClick={() => photoUploaderRef.current?.openFilePicker()}
             className="inline-flex h-11 items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-5 text-sm font-bold text-accent transition-all duration-200 hover:bg-accent/20 hover:border-accent/50 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-            title="Add photos (JPG/PNG up to 15 MB)"
+            title={`Add photos (JPG/PNG up to ${MAX_UPLOAD_FILE_SIZE_MB} MB)`}
           >
             <Upload className="h-4 w-4" />
             Add Photos
@@ -90,11 +91,10 @@ export const GalleryPhotoSection = ({
           {state.photoUrls.length > 0 && (
             <button
               onClick={actions.onToggleSelectionMode}
-              className={`inline-flex h-11 items-center gap-2 rounded-xl border px-5 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
-                state.isSelectionMode
+              className={`inline-flex h-11 items-center gap-2 rounded-xl border px-5 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${state.isSelectionMode
                   ? 'border-accent bg-accent text-accent-foreground shadow-sm hover:brightness-110'
                   : 'border-border/50 bg-surface-1 text-text hover:bg-surface-2 hover:border-border/80 dark:border-border/40 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2'
-              }`}
+                }`}
               title={state.isSelectionMode ? 'Exit selection mode' : 'Enter selection mode'}
             >
               <CheckSquare className="h-4 w-4" />

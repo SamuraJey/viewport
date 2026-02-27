@@ -1,6 +1,6 @@
 # Backend API & Project Structure Overview
 
-This document provides a comprehensive overview of the backend API|| POST   | /galleries/{gallery_id}/photos    | Upload photo (≤ 15 MB) | Bearer JWT |
+This document provides a comprehensive overview of the backend API|| POST   | /galleries/{gallery_id}/photos    | Upload photo (≤ 10 MB) | Bearer JWT |
 | POST   | /galleries/{gallery_id}/share-links | Generate share link  | Bearer JWT |OST   | /galleries/{gallery_id}/photo## Authentication & Authorization
 - Register and login to receive JWT tokens.
 - Pass the `access_token` in the `Authorization` header for protected endpoints.
@@ -11,7 +11,7 @@ This document provides a comprehensive overview of the backend API|| POST   | /g
 ---
 
 ## File Uploads & Downloads
-- Upload photos via `POST /galleries/{gallery_id}/photos` (multipart/form-data, ≤ 15 MB, only JPG/JPEG/PNG).
+- Upload photos via `POST /galleries/{gallery_id}/photos` (multipart/form-data, ≤ 10 MB, only JPG/JPEG/PNG).
 - File validation includes both extension and magic byte checks.
 - Files are stored in S3-compatible storage (rustfs for development).
 - Download single photos or all as ZIP via public endpoints.
@@ -23,7 +23,7 @@ This document provides a comprehensive overview of the backend API|| POST   | /g
 - Share links can have optional expiration dates.
 - Expired links return 404 errors.
 - All access to share links is tracked (views, downloads).
-- Share link UUIDs are used as public identifiers.oad photo (≤ 15 MB) | Bearer JWT |
+- Share link UUIDs are used as public identifiers.oad photo (≤ 10 MB) | Bearer JWT |
 | POST   | /galleries/{gallery_id}/share-links | Generate share link  | Bearer JWT |nd project structure for the photo portfolio site. It is intended for frontend developers to understand how to interact with the backend, use API endpoints, and navigate the codebase.
 
 ---
@@ -133,7 +133,7 @@ project-root/
 | GET    | /me                               | Get current user info  | Bearer JWT |
 | GET    | /galleries                        | List user galleries    | Bearer JWT |
 | POST   | /galleries                        | Create gallery         | Bearer JWT |
-| POST   | /galleries/{id}/photos            | Upload photo (≤ 15 MB) | Bearer JWT |
+| POST   | /galleries/{id}/photos            | Upload photo (≤ 10 MB) | Bearer JWT |
 | POST   | /galleries/{id}/share-links       | Generate share link    | Bearer JWT |
 | GET    | /s/{share_id}                     | Get gallery thumbnails | Public     |
 | GET    | /s/{share_id}/photos/{photo_id}   | Get original photo     | Public     |
@@ -190,7 +190,7 @@ project-root/
 - **Description:** Upload a photo to a specific gallery.
 - **Auth:** Bearer JWT required
 - **Content-Type:** `multipart/form-data`
-- **Body:** File upload (max 15MB, JPG/JPEG/PNG only)
+- **Body:** File upload (max 10MB, JPG/JPEG/PNG only)
 - **Response (201):**
   ```json
   {
@@ -203,7 +203,7 @@ project-root/
   ```
 - **Errors:**
   - **404:** Gallery not found or not owned by user
-  - **413:** File too large (>15MB)
+  - **413:** File too large (>10MB)
 
 ### Share Link Management
 
@@ -345,7 +345,7 @@ Content-Type: application/json
 ---
 
 ## File Uploads & Downloads
-- Upload photos via `POST /galleries/{gallery_id}/photos` (multipart/form-data, ≤ 15 MB, only JPG/JPEG/PNG).
+- Upload photos via `POST /galleries/{gallery_id}/photos` (multipart/form-data, ≤ 10 MB, only JPG/JPEG/PNG).
 - Download single photos or all as ZIP via public endpoints.
 
 ---

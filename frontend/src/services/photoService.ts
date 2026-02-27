@@ -10,8 +10,7 @@ import type {
   ConfirmPhotoUploadItem,
   BatchConfirmUploadResponse,
 } from '../types';
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../constants/upload';
 
 // Re-export types for backward compatibility
 export type { PhotoResponse, PhotoUploadIntentRequest, PhotoUploadResult, PhotoUploadResponse };
@@ -277,11 +276,11 @@ const uploadPhotosPresigned = async (
       });
     };
 
-    const oversizeMessage = `File exceeds maximum size of ${MAX_FILE_SIZE / (1024 * 1024)}MB`;
+    const oversizeMessage = `File exceeds maximum size of ${MAX_UPLOAD_FILE_SIZE_MB}MB`;
     const validFiles: File[] = [];
     const oversizedFiles: File[] = [];
     for (const file of files) {
-      if (file.size > MAX_FILE_SIZE) {
+      if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
         oversizedFiles.push(file);
       } else {
         validFiles.push(file);

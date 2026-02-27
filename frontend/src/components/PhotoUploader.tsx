@@ -2,6 +2,7 @@ import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { Upload, ImagePlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PhotoUploadConfirmModal } from './PhotoUploadConfirmModal';
+import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../constants/upload';
 import type { PhotoUploadResponse } from '../services/photoService';
 
 interface PhotoUploaderProps {
@@ -21,7 +22,6 @@ interface FileWithMeta {
   progress?: number;
 }
 
-const MAX_SIZE_MB = 15;
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
 
 export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>(
@@ -37,8 +37,8 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
         let error = '';
         if (!ACCEPTED_TYPES.includes(file.type)) {
           error = 'Only JPG and PNG files are allowed.';
-        } else if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-          error = `File size must be ≤ ${MAX_SIZE_MB} MB.`;
+        } else if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
+          error = `File size must be ≤ ${MAX_UPLOAD_FILE_SIZE_MB} MB.`;
         }
         return { file, error };
       });
@@ -130,11 +130,10 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
 
         {showDropzone && (
           <div
-            className={`uploader-zone relative flex flex-col items-center justify-center border-2 border-dashed rounded-3xl py-12 px-8 cursor-pointer select-none transition-all duration-300 ${
-              dragActive
+            className={`uploader-zone relative flex flex-col items-center justify-center border-2 border-dashed rounded-3xl py-12 px-8 cursor-pointer select-none transition-all duration-300 ${dragActive
                 ? 'uploader-zone--active border-accent bg-accent/10 dark:bg-accent/10 shadow-inner scale-[1.02]'
                 : 'border-border/50 dark:border-border/30 hover:border-accent/60 hover:bg-accent/5 dark:hover:bg-accent/5 bg-surface-1/50 dark:bg-surface-dark-1/50 hover:-translate-y-1'
-            } focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface`}
+              } focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface`}
             onClick={() => fileInputRef.current?.click()}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
@@ -164,7 +163,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
             <p className="text-sm font-medium text-muted">
               {files.length > 0
                 ? 'Opening upload confirmation...'
-                : 'or click to select files · JPG / PNG · up to 15 MB'}
+                : `or click to select files · JPG / PNG · up to ${MAX_UPLOAD_FILE_SIZE_MB} MB`}
             </p>
           </div>
         )}

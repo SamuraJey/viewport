@@ -1,4 +1,5 @@
 import { AlertTriangle, FileImage, X } from 'lucide-react';
+import { MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 import { formatFileSize } from '../../lib/utils';
 import { getFileUploadErrorText, hasFileUploadError } from './uploadConfirmUtils';
 
@@ -30,7 +31,9 @@ export const UploadSelectionContent = ({
                 ⚠ Warning
               </span>
               <ul className="text-sm font-medium text-yellow-700 dark:text-yellow-300 space-y-1 ml-4 list-disc">
-                {hasLargeFiles && <li>Files larger than 10MB will be rejected</li>}
+                {hasLargeFiles && (
+                  <li>Files larger than {MAX_UPLOAD_FILE_SIZE_MB}MB will be rejected</li>
+                )}
                 {hasInvalidTypes && <li>Only JPG and PNG formats are supported</li>}
               </ul>
             </div>
@@ -61,21 +64,18 @@ export const UploadSelectionContent = ({
           return (
             <div
               key={`${file.name}-${index}`}
-              className={`flex items-center gap-4 p-3 rounded-2xl transition-all duration-200 group ${
-                hasError
+              className={`flex items-center gap-4 p-3 rounded-2xl transition-all duration-200 group ${hasError
                   ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20'
                   : 'bg-surface-1 dark:bg-surface-dark-1 border border-border/50 hover:border-accent/30 hover:shadow-sm hover:-translate-y-0.5'
-              }`}
+                }`}
             >
               <div
-                className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center shadow-sm ${
-                  hasError ? 'bg-red-100 dark:bg-red-500/20' : 'bg-surface dark:bg-surface-dark-2'
-                }`}
+                className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center shadow-sm ${hasError ? 'bg-red-100 dark:bg-red-500/20' : 'bg-surface dark:bg-surface-dark-2'
+                  }`}
               >
                 <FileImage
-                  className={`w-6 h-6 ${
-                    hasError ? 'text-red-500 dark:text-red-400' : 'text-accent'
-                  }`}
+                  className={`w-6 h-6 ${hasError ? 'text-red-500 dark:text-red-400' : 'text-accent'
+                    }`}
                 />
               </div>
 

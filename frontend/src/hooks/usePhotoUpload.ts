@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { photoService } from '../services/photoService';
+import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../constants/upload';
 import type { PhotoUploadResponse } from '../services/photoService';
 
 export interface UploadProgress {
@@ -29,9 +30,9 @@ export const usePhotoUpload = (
   const { totalSize, hasLargeFiles, validUploadCount, hasValidFiles, hasInvalidTypes } =
     useMemo(() => {
       const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-      const hasLargeFiles = files.some((file) => file.size > 10 * 1024 * 1024);
+      const hasLargeFiles = files.some((file) => file.size > MAX_UPLOAD_FILE_SIZE_BYTES);
       const validFiles = files.filter(
-        (file) => file.size <= 10 * 1024 * 1024 && SUPPORTED_TYPES.includes(file.type),
+        (file) => file.size <= MAX_UPLOAD_FILE_SIZE_BYTES && SUPPORTED_TYPES.includes(file.type),
       );
       const validUploadCount = validFiles.length;
       const hasValidFiles = validUploadCount > 0;
