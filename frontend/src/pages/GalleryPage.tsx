@@ -104,11 +104,7 @@ export const GalleryPage = () => {
       const photoIds = photoUrls.map((p) => p.id);
       selection.selectRange(photoId, photoIds);
     } else {
-      if (selection.isSelected(photoId)) {
-        selection.deselect(photoId);
-      } else {
-        selection.select(photoId);
-      }
+      selection.toggle(photoId);
     }
   };
 
