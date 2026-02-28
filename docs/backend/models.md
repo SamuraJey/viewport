@@ -192,6 +192,9 @@ class Photo(Base):
 **Indexes:**
 - `gallery_id` - for fast photo lookups by gallery
 
+**Constraints:**
+- `gallery_id + object_key` must be unique, so photo filenames are unique within a gallery scope
+
 **Storage:**
 - Original images stored in S3 with object_key
 - Thumbnails stored in S3 with thumbnail_object_key

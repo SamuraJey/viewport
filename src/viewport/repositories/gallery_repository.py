@@ -3,7 +3,7 @@ import time
 import uuid
 from datetime import UTC, date, datetime
 
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import exists, func, insert, select, update
 from sqlalchemy.orm import selectinload
 
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
@@ -231,6 +231,13 @@ class GalleryRepository(BaseRepository):
         if commit:
             self.db.commit()
 
+    def photo_object_key_exists(self, gallery_id: uuid.UUID, object_key: str, exclude_photo_id: uuid.UUID | None = None) -> bool:
+        conditions = [Photo.gallery_id == gallery_id, Photo.object_key == object_key]
+        if exclude_photo_id is not None:
+            conditions.append(Photo.id != exclude_photo_id)
+        stmt = select(exists().where(*conditions))
+        return bool(self.db.execute(stmt).scalar())
+
     def create_photo(self, gallery_id: uuid.UUID, object_key: str, thumbnail_object_key: str, file_size: int, width: int | None = None, height: int | None = None) -> Photo:
         photo = Photo(gallery_id=gallery_id, object_key=object_key, thumbnail_object_key=thumbnail_object_key, file_size=file_size, width=width, height=height)
         self.db.add(photo)
@@ -351,6 +358,9 @@ class GalleryRepository(BaseRepository):
             # Fallback if object_key doesn't have the expected format
             new_object_key = f"{gallery_id}/{new_filename}"
 
+        if self.photo_object_key_exists(gallery_id, new_object_key, exclude_photo_id=photo_id):
+            return None
+
         # Clear cached presigned URL for old object key
         clear_presigned_url_cache(photo.object_key)
 
@@ -380,6 +390,9 @@ class GalleryRepository(BaseRepository):
         else:
             # Fallback if object_key doesn't have the expected format
             new_object_key = f"{gallery_id}/{new_filename}"
+
+        if self.photo_object_key_exists(gallery_id, new_object_key, exclude_photo_id=photo_id):
+            return None
 
         # Rename the file in S3 first
         try:

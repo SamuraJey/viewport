@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 from enum import IntEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, SmallInteger, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, SmallInteger, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -64,6 +64,7 @@ class Gallery(Base):
 
 class Photo(Base):
     __tablename__ = "photos"
+    __table_args__ = (UniqueConstraint("gallery_id", "object_key", name="uq_photos_gallery_id_object_key"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     gallery_id: Mapped[uuid.UUID] = mapped_column(

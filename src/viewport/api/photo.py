@@ -1,10 +1,10 @@
 import logging
 import re
-import time
 from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from viewport.auth_utils import get_current_user
@@ -28,6 +28,8 @@ from viewport.schemas.photo import (
 logger = logging.getLogger(__name__)
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
+DUPLICATE_PHOTO_NAME_ERROR = "A photo with this name already exists in this gallery."
 
 # Pre-computed content type mapping for faster lookups
 CONTENT_TYPE_MAP = {
@@ -151,6 +153,7 @@ def batch_presigned_uploads(
     items: list[BatchPresignedUploadItem] = []
     photos_payload: list[dict] = []
     failed_presign_bytes = 0
+    seen_object_keys: set[str] = set()
 
     # 2. Generate Photo records and presigned URLs
     for file_request in request.files:
@@ -165,10 +168,31 @@ def batch_presigned_uploads(
             )
             continue
 
-        timestamp = int(time.time() * 1000)
         safe_filename = sanitize_filename(file_request.filename)
-        object_key = f"{gallery_id}/{timestamp}_{safe_filename}"
+        object_key = f"{gallery_id}/{safe_filename}"
         photo_id = uuid4()
+
+        if object_key in seen_object_keys:
+            items.append(
+                BatchPresignedUploadItem(
+                    filename=file_request.filename,
+                    file_size=file_request.file_size,
+                    success=False,
+                    error=DUPLICATE_PHOTO_NAME_ERROR,
+                )
+            )
+            continue
+
+        if repo.photo_object_key_exists(gallery_id, object_key):
+            items.append(
+                BatchPresignedUploadItem(
+                    filename=file_request.filename,
+                    file_size=file_request.file_size,
+                    success=False,
+                    error=DUPLICATE_PHOTO_NAME_ERROR,
+                )
+            )
+            continue
 
         # Generate presigned PUT signed with exact size and tagging requirements
         try:
@@ -189,6 +213,8 @@ def batch_presigned_uploads(
                 )
             )
             continue
+
+        seen_object_keys.add(object_key)
 
         photos_payload.append(
             {
@@ -223,6 +249,12 @@ def batch_presigned_uploads(
     if photos_payload:
         try:
             repo.create_photos_batch(photos_payload)
+        except IntegrityError as exc:
+            reserved_for_created = bytes_to_reserve - failed_presign_bytes
+            if reserved_for_created > 0:
+                user_repo.release_reserved_storage(current_user.id, reserved_for_created)
+            repo.db.rollback()
+            raise HTTPException(status_code=400, detail=DUPLICATE_PHOTO_NAME_ERROR) from exc
         except Exception:
             reserved_for_created = bytes_to_reserve - failed_presign_bytes
             if reserved_for_created > 0:
@@ -392,8 +424,13 @@ async def rename_photo(
     if not gallery:
         raise HTTPException(status_code=404, detail="Gallery not found")
 
+    sanitized_filename = sanitize_filename(request.filename)
+    new_object_key = f"{gallery_id}/{sanitized_filename}"
+    if repo.photo_object_key_exists(gallery_id, new_object_key, exclude_photo_id=photo_id):
+        raise HTTPException(status_code=400, detail=DUPLICATE_PHOTO_NAME_ERROR)
+
     # Then, verify photo belongs to that gallery and rename it
-    photo = await repo.rename_photo_async(photo_id, gallery_id, current_user.id, request.filename, s3_client)
+    photo = await repo.rename_photo_async(photo_id, gallery_id, current_user.id, sanitized_filename, s3_client)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
 
