@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { AxiosError } from 'axios';
 import { LoginPage } from '../../pages/LoginPage';
 
 // Mock the auth service
@@ -124,6 +125,26 @@ describe('LoginPage', () => {
     expect(authService.login).not.toHaveBeenCalled();
   });
 
+  it('should reject numeric top-level-domain email before submit', async () => {
+    const user = userEvent.setup();
+    render(<LoginPageWrapper />);
+
+    const emailInput = screen.getByLabelText('Email address');
+    const passwordInput = screen.getByLabelText('Password');
+    const submitButton = screen.getByRole('button', { name: /sign in/i });
+
+    await user.type(emailInput, 'fgg@fd.5');
+    await user.type(passwordInput, 'password123');
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Please enter a valid email address')).toBeInTheDocument();
+    });
+
+    const { authService } = await import('../../services/authService');
+    expect(authService.login).not.toHaveBeenCalled();
+  });
+
   it('should require password', async () => {
     const user = userEvent.setup();
     render(<LoginPageWrapper />);
@@ -209,13 +230,21 @@ describe('LoginPage', () => {
 
   it('should handle login error', async () => {
     const user = userEvent.setup();
-    const mockError = {
-      response: {
+    const mockError = new AxiosError(
+      'Request failed with status code 401',
+      undefined,
+      undefined,
+      undefined,
+      {
+        status: 401,
         data: {
           detail: 'Invalid credentials',
         },
-      },
-    };
+        statusText: 'Unauthorized',
+        headers: {},
+        config: {},
+      } as any,
+    );
 
     const { authService } = await import('../../services/authService');
     vi.mocked(authService.login).mockRejectedValue(mockError);
@@ -238,6 +267,48 @@ describe('LoginPage', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
+  it('should render validation message when backend returns structured detail list', async () => {
+    const user = userEvent.setup();
+    const mockError = new AxiosError(
+      'Request failed with status code 422',
+      undefined,
+      undefined,
+      undefined,
+      {
+        status: 422,
+        data: {
+          detail: [
+            {
+              type: 'value_error',
+              loc: ['body', 'email'],
+              msg: 'value is not a valid email address',
+            },
+          ],
+        },
+        statusText: 'Unprocessable Entity',
+        headers: {},
+        config: {},
+      } as any,
+    );
+
+    const { authService } = await import('../../services/authService');
+    vi.mocked(authService.login).mockRejectedValue(mockError);
+
+    render(<LoginPageWrapper />);
+
+    const emailInput = screen.getByLabelText('Email address');
+    const passwordInput = screen.getByLabelText('Password');
+    const submitButton = screen.getByRole('button', { name: /sign in/i });
+
+    await user.type(emailInput, 'test@example.com');
+    await user.type(passwordInput, 'password123');
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('value is not a valid email address')).toBeInTheDocument();
+    });
+  });
+
   it('should handle generic login error', async () => {
     const user = userEvent.setup();
 
@@ -255,7 +326,7 @@ describe('LoginPage', () => {
     await user.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText('Login failed. Please try again.')).toBeInTheDocument();
+      expect(screen.getByText('Network error')).toBeInTheDocument();
     });
   });
 

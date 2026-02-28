@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { validateEmail, validatePassword } from '../lib/utils';
+import { getErrorMessage } from '../lib/errorHandling';
 import { UserPlus, Mail, CheckCircle } from 'lucide-react';
 import { AuthLayout } from '../components/AuthLayout';
 import { AuthCard } from '../components/auth/AuthCard';
@@ -54,8 +55,7 @@ export const RegisterPage = () => {
         });
       }, 2000);
     } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(detail || 'Registration failed. Please try again.');
+      setError(getErrorMessage(err) || 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }

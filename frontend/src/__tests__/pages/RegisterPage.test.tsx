@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { AxiosError } from 'axios';
 import { RegisterPage } from '../../pages/RegisterPage';
 import { authService } from '../../services/authService';
 
@@ -109,6 +110,28 @@ describe('RegisterPage', () => {
     expect(authService.register).not.toHaveBeenCalled();
   });
 
+  it('should reject numeric top-level-domain email before submit', async () => {
+    render(<RegisterPageWrapper />);
+
+    const emailInput = screen.getByLabelText('Email Address');
+    const passwordInput = screen.getByLabelText(/^Password$/);
+    const confirmPasswordInput = screen.getByLabelText('Confirm Password');
+    const inviteCodeInput = screen.getByLabelText('Invite Code');
+    const submitButton = screen.getByRole('button', { name: 'Create Account' });
+
+    await userEvent.type(emailInput, 'fgg@fd.5');
+    await userEvent.type(passwordInput, 'validPassword123');
+    await userEvent.type(confirmPasswordInput, 'validPassword123');
+    await userEvent.type(inviteCodeInput, 'INVITE123');
+    await userEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('Please enter a valid email address.')).toBeInTheDocument();
+    });
+
+    expect(authService.register).not.toHaveBeenCalled();
+  });
+
   it('should validate password strength', async () => {
     const user = userEvent.setup();
     render(<RegisterPageWrapper />);
@@ -178,13 +201,21 @@ describe('RegisterPage', () => {
 
   it('should handle registration error', async () => {
     const user = userEvent.setup();
-    const mockError = {
-      response: {
+    const mockError = new AxiosError(
+      'Request failed with status code 400',
+      undefined,
+      undefined,
+      undefined,
+      {
+        status: 400,
         data: {
           detail: 'Email already exists',
         },
-      },
-    };
+        statusText: 'Bad Request',
+        headers: {},
+        config: {},
+      } as any,
+    );
 
     const { authService } = await import('../../services/authService');
     vi.mocked(authService.register).mockRejectedValue(mockError);
@@ -205,6 +236,51 @@ describe('RegisterPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Email already exists')).toBeInTheDocument();
+    });
+  });
+
+  it('should render validation message when backend returns structured detail list', async () => {
+    const user = userEvent.setup();
+    const mockError = new AxiosError(
+      'Request failed with status code 422',
+      undefined,
+      undefined,
+      undefined,
+      {
+        status: 422,
+        data: {
+          detail: [
+            {
+              type: 'value_error',
+              loc: ['body', 'email'],
+              msg: 'value is not a valid email address',
+            },
+          ],
+        },
+        statusText: 'Unprocessable Entity',
+        headers: {},
+        config: {},
+      } as any,
+    );
+
+    vi.mocked(authService.register).mockRejectedValue(mockError);
+
+    render(<RegisterPageWrapper />);
+
+    const emailInput = screen.getByLabelText('Email Address');
+    const passwordInput = screen.getByLabelText(/^Password$/);
+    const confirmPasswordInput = screen.getByLabelText('Confirm Password');
+    const inviteCodeInput = screen.getByLabelText('Invite Code');
+    const submitButton = screen.getByRole('button', { name: /create account/i });
+
+    await user.type(emailInput, 'test@example.com');
+    await user.type(passwordInput, 'Password123!');
+    await user.type(confirmPasswordInput, 'Password123!');
+    await user.type(inviteCodeInput, 'INVITE123');
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('value is not a valid email address')).toBeInTheDocument();
     });
   });
 

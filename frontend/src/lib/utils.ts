@@ -23,7 +23,8 @@ export function formatDateOnly(date: string | Date): string {
 }
 
 export function validateEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  // Keep this aligned with backend EmailStr by requiring alphabetic TLD (2+ chars).
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/;
   return emailRegex.test(email);
 }
 

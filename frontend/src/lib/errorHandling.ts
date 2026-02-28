@@ -1,10 +1,59 @@
 import { AxiosError } from 'axios';
 
 export interface ApiErrorData {
-  detail?: string;
+  detail?: unknown;
   message?: string;
   errors?: Record<string, string[]>;
 }
+
+const normalizeApiErrorMessage = (data?: ApiErrorData): string | null => {
+  if (!data) return null;
+
+  if (typeof data.detail === 'string' && data.detail.trim()) {
+    return data.detail;
+  }
+
+  if (Array.isArray(data.detail)) {
+    for (const item of data.detail) {
+      if (typeof item === 'string' && item.trim()) {
+        return item;
+      }
+
+      if (
+        item &&
+        typeof item === 'object' &&
+        'msg' in item &&
+        typeof (item as { msg?: unknown }).msg === 'string'
+      ) {
+        return (item as { msg: string }).msg;
+      }
+    }
+  }
+
+  if (
+    data.detail &&
+    typeof data.detail === 'object' &&
+    'msg' in data.detail &&
+    typeof (data.detail as { msg?: unknown }).msg === 'string'
+  ) {
+    return (data.detail as { msg: string }).msg;
+  }
+
+  if (typeof data.message === 'string' && data.message.trim()) {
+    return data.message;
+  }
+
+  if (data.errors && typeof data.errors === 'object') {
+    for (const messages of Object.values(data.errors)) {
+      if (Array.isArray(messages)) {
+        const firstMessage = messages.find((msg) => typeof msg === 'string' && msg.trim());
+        if (firstMessage) return firstMessage;
+      }
+    }
+  }
+
+  return null;
+};
 
 export class ApiError extends Error {
   public statusCode: number;
@@ -20,7 +69,7 @@ export class ApiError extends Error {
   static fromAxiosError(error: AxiosError<ApiErrorData>): ApiError {
     const statusCode = error.response?.status || 500;
     const data = error.response?.data;
-    const message = data?.detail || data?.message || error.message || 'An error occurred';
+    const message = normalizeApiErrorMessage(data) || error.message || 'An error occurred';
 
     return new ApiError(statusCode, message, data);
   }
