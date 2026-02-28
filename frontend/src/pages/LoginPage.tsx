@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { useAuthStore } from '../stores/authStore';
 import { validateEmail } from '../lib/utils';
+import { getErrorMessage } from '../lib/errorHandling';
 import { Mail, LogIn, UserPlus } from 'lucide-react';
 import { AuthLayout } from '../components/AuthLayout';
 import { AuthCard } from '../components/auth/AuthCard';
@@ -50,8 +51,7 @@ export const LoginPage = () => {
       );
       navigate(from, { replace: true });
     } catch (err: unknown) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setError(detail || 'Login failed. Please try again.');
+      setError(getErrorMessage(err) || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }

@@ -68,4 +68,31 @@ describe('errorHandling utilities', () => {
     const message = getErrorMessage(new ApiError(500, 'server down'));
     expect(message).toBe('server down');
   });
+
+  it('extracts FastAPI validation message when detail is an array', () => {
+    const axiosError = new AxiosError(
+      'Request failed with status code 422',
+      undefined,
+      undefined,
+      undefined,
+      {
+        status: 422,
+        data: {
+          detail: [
+            {
+              type: 'value_error',
+              loc: ['body', 'email'],
+              msg: 'value is not a valid email address',
+            },
+          ],
+        },
+        statusText: 'Unprocessable Entity',
+        headers: {},
+        config: {},
+      } as any,
+    );
+
+    const message = getErrorMessage(axiosError);
+    expect(message).toBe('value is not a valid email address');
+  });
 });

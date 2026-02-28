@@ -55,6 +55,7 @@ describe('utils', () => {
       expect(validateEmail('test@')).toBe(false);
       expect(validateEmail('@domain.com')).toBe(false);
       expect(validateEmail('test.domain.com')).toBe(false);
+      expect(validateEmail('fgg@fd.5')).toBe(false);
       expect(validateEmail('')).toBe(false);
     });
   });
