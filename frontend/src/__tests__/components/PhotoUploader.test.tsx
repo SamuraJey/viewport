@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PhotoUploader } from '../../components/PhotoUploader';
+import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../../constants/upload';
 
 describe('PhotoUploader', () => {
   const mockOnUploadComplete = vi.fn();
@@ -71,8 +72,8 @@ describe('PhotoUploader', () => {
 
   it('should reject large files', async () => {
     const user = userEvent.setup();
-    // Create a file that's too large (over 15MB)
-    const largeFile = new File([new ArrayBuffer(16 * 1024 * 1024)], 'large.jpg', {
+    // Create a file that's too large (over upload limit)
+    const largeFile = new File([new ArrayBuffer(MAX_UPLOAD_FILE_SIZE_BYTES + 1024)], 'large.jpg', {
       type: 'image/jpeg',
     });
 

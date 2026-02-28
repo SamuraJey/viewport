@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { photoService } from '../../services/photoService';
 import { api } from '../../lib/api';
+import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 
 vi.mock('../../lib/api', () => ({
   api: {
@@ -150,7 +151,7 @@ describe('photoService', () => {
   });
 
   it('flags oversized files without calling presign', async () => {
-    const oversized = createFile('big.jpg', 11 * 1024 * 1024);
+    const oversized = createFile('big.jpg', MAX_UPLOAD_FILE_SIZE_BYTES + 1);
 
     const result = await photoService.uploadPhotosPresigned('gallery-1', [oversized]);
 
@@ -159,7 +160,7 @@ describe('photoService', () => {
     expect(result.results[0]).toEqual({
       filename: 'big.jpg',
       success: false,
-      error: 'File exceeds maximum size of 10MB',
+      error: `File exceeds maximum size of ${MAX_UPLOAD_FILE_SIZE_MB}MB`,
       retryable: false,
     });
     expect(api.post).not.toHaveBeenCalled();

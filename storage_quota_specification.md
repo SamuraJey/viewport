@@ -201,7 +201,7 @@ storage_settings = StorageSettings()
 ```bash
 # .env
 DEFAULT_STORAGE_QUOTA=5368709120  # 5 GB in bytes
-MAX_FILE_SIZE=15728640            # 15 MB in bytes
+MAX_FILE_SIZE=10728640            # 10 MB in bytes
 ```
 
 ### 5.3 Backend API изменения
@@ -1438,7 +1438,7 @@ LIMIT 10;
 ```bash
 # Storage Settings
 DEFAULT_STORAGE_QUOTA=5368709120  # 5 GB in bytes
-MAX_FILE_SIZE=15728640            # 15 MB in bytes
+MAX_FILE_SIZE=10728640            # 10 MB in bytes
 
 # For different plans (future)
 # FREE_PLAN_QUOTA=5368709120       # 5 GB

@@ -1,4 +1,5 @@
 import { AlertTriangle, FileImage, X } from 'lucide-react';
+import { MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 import { formatFileSize } from '../../lib/utils';
 import { getFileUploadErrorText, hasFileUploadError } from './uploadConfirmUtils';
 
@@ -30,7 +31,9 @@ export const UploadSelectionContent = ({
                 ⚠ Warning
               </span>
               <ul className="text-sm font-medium text-yellow-700 dark:text-yellow-300 space-y-1 ml-4 list-disc">
-                {hasLargeFiles && <li>Files larger than 10MB will be rejected</li>}
+                {hasLargeFiles && (
+                  <li>Files larger than {MAX_UPLOAD_FILE_SIZE_MB}MB will be rejected</li>
+                )}
                 {hasInvalidTypes && <li>Only JPG and PNG formats are supported</li>}
               </ul>
             </div>

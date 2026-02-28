@@ -2,6 +2,7 @@ import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { Upload, ImagePlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PhotoUploadConfirmModal } from './PhotoUploadConfirmModal';
+import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../constants/upload';
 import type { PhotoUploadResponse } from '../services/photoService';
 
 interface PhotoUploaderProps {
@@ -21,7 +22,6 @@ interface FileWithMeta {
   progress?: number;
 }
 
-const MAX_SIZE_MB = 15;
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
 
 export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>(
@@ -37,8 +37,8 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
         let error = '';
         if (!ACCEPTED_TYPES.includes(file.type)) {
           error = 'Only JPG and PNG files are allowed.';
-        } else if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-          error = `File size must be ≤ ${MAX_SIZE_MB} MB.`;
+        } else if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
+          error = `File size must be ≤ ${MAX_UPLOAD_FILE_SIZE_MB} MB.`;
         }
         return { file, error };
       });
@@ -164,7 +164,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
             <p className="text-sm font-medium text-muted">
               {files.length > 0
                 ? 'Opening upload confirmation...'
-                : 'or click to select files · JPG / PNG · up to 15 MB'}
+                : `or click to select files · JPG / PNG · up to ${MAX_UPLOAD_FILE_SIZE_MB} MB`}
             </p>
           </div>
         )}
