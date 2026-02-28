@@ -29,6 +29,7 @@ interface GalleryPhotoSectionProps {
     photoUrls: PhotoResponse[];
     isLoadingPhotos: boolean;
     uploadError: string | null;
+    actionInfo: string | null;
     error: string | null;
     isSelectionMode: boolean;
   };
@@ -42,6 +43,7 @@ interface GalleryPhotoSectionProps {
   actions: {
     onUploadComplete: (result: PhotoUploadResponse) => void;
     onDismissUploadError: () => void;
+    onDismissActionInfo: () => void;
     onDismissError: () => void;
     onToggleSelectionMode: () => void;
     onTogglePhotoSelection: (photoId: string, isShiftKey: boolean) => void;
@@ -121,6 +123,17 @@ export const GalleryPhotoSection = ({
           <button
             onClick={actions.onDismissUploadError}
             className="ml-auto text-xs font-bold text-accent-foreground bg-danger/80 hover:bg-danger px-3 py-1.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+      {state.actionInfo && (
+        <div className="mt-3 text-amber-900 dark:text-amber-200 bg-amber-100/80 dark:bg-amber-900/40 px-4 py-3 rounded-xl text-sm flex items-center gap-3 shadow-xs border border-amber-200/80 dark:border-amber-700/60">
+          {state.actionInfo}
+          <button
+            onClick={actions.onDismissActionInfo}
+            className="ml-auto text-xs font-bold text-amber-900 dark:text-amber-100 bg-amber-200/80 dark:bg-amber-800/70 hover:bg-amber-300 dark:hover:bg-amber-700 px-3 py-1.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
             Dismiss
           </button>

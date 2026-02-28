@@ -4,6 +4,7 @@ import { photoService, type PhotoResponse } from '../services/photoService';
 import type { PhotoUploadResponse } from '../services/photoService';
 import { shareLinkService, type ShareLink } from '../services/shareLinkService';
 import { useErrorHandler, useConfirmation, useModal } from '../hooks';
+import { handleApiError } from '../lib/errorHandling';
 
 interface UseGalleryActionsProps {
   galleryId: string;
@@ -21,6 +22,7 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [actionInfo, setActionInfo] = useState('');
   const [isCreatingLink, setIsCreatingLink] = useState(false);
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
@@ -30,6 +32,15 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
   const renameModal = useModal<{ id: string; filename: string }>();
 
   const { page, pageSize, setTotal } = pagination;
+
+  const isNotFoundError = (error: unknown): boolean => handleApiError(error).statusCode === 404;
+
+  const removePhotoLocally = useCallback((photoId: string) => {
+    setPhotoUrls((prev) => prev.filter((photo) => photo.id !== photoId));
+    setGallery((prev: GalleryDetail | null) =>
+      prev && prev.cover_photo_id === photoId ? { ...prev, cover_photo_id: null } : prev,
+    );
+  }, []);
 
   const fetchGalleryDetails = useCallback(
     async (page: number, isInitial = false) => {
@@ -69,6 +80,7 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
 
     if (result.successful_uploads > 0) {
       try {
+        setActionInfo('');
         setIsLoadingPhotos(true);
         const offset = (page - 1) * pageSize;
         const galleryData = await galleryService.getGallery(galleryId, {
@@ -134,7 +146,13 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
       setGallery((prev: GalleryDetail | null) =>
         prev ? { ...prev, cover_photo_id: photoId } : null,
       );
+      setActionInfo('');
     } catch (err) {
+      if (isNotFoundError(err)) {
+        removePhotoLocally(photoId);
+        setActionInfo('This photo was already deleted.');
+        return;
+      }
       handleError(err);
     }
   };
@@ -205,8 +223,14 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
       onConfirm: async () => {
         try {
           await photoService.deletePhoto(galleryId, photoId);
-          setPhotoUrls((prev) => prev.filter((photo) => photo.id !== photoId));
+          removePhotoLocally(photoId);
+          setActionInfo('');
         } catch (err) {
+          if (isNotFoundError(err)) {
+            removePhotoLocally(photoId);
+            setActionInfo('This photo was already deleted.');
+            return;
+          }
           handleError(err);
           throw err;
         }
@@ -221,15 +245,55 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
       isDangerous: true,
       confirmText: 'Delete',
       onConfirm: async () => {
-        try {
-          await Promise.all(
-            Array.from(selectedIds).map((photoId) => photoService.deletePhoto(galleryId, photoId)),
+        const deletedOrMissingIds: string[] = [];
+        let notFoundCount = 0;
+        let firstUnexpectedError: unknown = null;
+
+        await Promise.all(
+          Array.from(selectedIds).map(async (photoId) => {
+            try {
+              await photoService.deletePhoto(galleryId, photoId);
+              deletedOrMissingIds.push(photoId);
+            } catch (err) {
+              if (isNotFoundError(err)) {
+                deletedOrMissingIds.push(photoId);
+                notFoundCount += 1;
+                return;
+              }
+
+              if (!firstUnexpectedError) {
+                firstUnexpectedError = err;
+              }
+            }
+          }),
+        );
+
+        if (deletedOrMissingIds.length > 0) {
+          const deletedOrMissingSet = new Set(deletedOrMissingIds);
+          setPhotoUrls((prev) => prev.filter((photo) => !deletedOrMissingSet.has(photo.id)));
+          setGallery((prev: GalleryDetail | null) =>
+            prev && prev.cover_photo_id && deletedOrMissingSet.has(prev.cover_photo_id)
+              ? { ...prev, cover_photo_id: null }
+              : prev,
           );
-          setPhotoUrls((prev) => prev.filter((photo) => !selectedIds.has(photo.id)));
+        }
+
+        if (firstUnexpectedError) {
+          handleError(firstUnexpectedError);
+          throw firstUnexpectedError;
+        }
+
+        if (deletedOrMissingIds.length > 0) {
+          if (notFoundCount > 0) {
+            setActionInfo(
+              notFoundCount === 1
+                ? '1 photo was already deleted.'
+                : `${notFoundCount} photos were already deleted.`,
+            );
+          } else {
+            setActionInfo('');
+          }
           clearSelection();
-        } catch (err) {
-          handleError(err);
-          throw err;
         }
       },
     });
@@ -243,6 +307,8 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
     isLoadingPhotos,
     uploadError,
     setUploadError,
+    actionInfo,
+    setActionInfo,
     isCreatingLink,
     shootingDateInput,
     setShootingDateInput,
