@@ -231,6 +231,14 @@ class GalleryRepository(BaseRepository):
         if commit:
             self.db.commit()
 
+    def photo_name_exists_in_gallery(self, gallery_id: uuid.UUID, filename: str, exclude_photo_id: uuid.UUID | None = None) -> bool:
+        """Check whether a filename already exists within a gallery."""
+        object_key = f"{gallery_id}/{filename}"
+        stmt = select(Photo.id).where(Photo.gallery_id == gallery_id, Photo.object_key == object_key)
+        if exclude_photo_id is not None:
+            stmt = stmt.where(Photo.id != exclude_photo_id)
+        return self.db.execute(stmt).scalar_one_or_none() is not None
+
     def create_photo(self, gallery_id: uuid.UUID, object_key: str, thumbnail_object_key: str, file_size: int, width: int | None = None, height: int | None = None) -> Photo:
         photo = Photo(gallery_id=gallery_id, object_key=object_key, thumbnail_object_key=thumbnail_object_key, file_size=file_size, width=width, height=height)
         self.db.add(photo)

@@ -188,6 +188,36 @@ class TestPhotoAPI:
         assert not item["success"]
         assert "File exceeds maximum size" in item["error"]
 
+
+    def test_batch_presigned_uploads_rejects_duplicate_names(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Duplicate filenames within the same gallery are rejected."""
+        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"existing", "existing.jpg")
+
+        payload = {"files": [{"filename": "existing.jpg", "file_size": 128, "content_type": "image/jpeg"}]}
+        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
+
+        assert response.status_code == 200
+        item = response.json()["items"][0]
+        assert item["success"] is False
+        assert item["error"] == "A photo with this name already exists in this gallery."
+
+    def test_batch_presigned_uploads_rejects_duplicate_names_within_request(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Duplicate filenames inside one upload request are rejected for later items."""
+        payload = {
+            "files": [
+                {"filename": "dupe.jpg", "file_size": 128, "content_type": "image/jpeg"},
+                {"filename": "dupe.jpg", "file_size": 256, "content_type": "image/jpeg"},
+            ]
+        }
+
+        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
+
+        assert response.status_code == 200
+        first, second = response.json()["items"]
+        assert first["success"] is True
+        assert second["success"] is False
+        assert second["error"] == "A photo with this name already exists in this gallery."
+
     def test_batch_confirm_uploads_updates_counts_and_triggers_task(self, authenticated_client: TestClient, gallery_id_fixture: str, monkeypatch):
         """Confirming uploads updates counts and schedules thumbnail task."""
         payload = {"files": [{"filename": "confirm.jpg", "file_size": 256, "content_type": "image/jpeg"}]}
@@ -243,6 +273,20 @@ class TestPhotoAPI:
         data = response.json()
         assert data["id"] == photo_id
         assert data["filename"] == "new-name.jpg"
+
+
+    def test_rename_photo_duplicate_name_in_gallery(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Renaming to an existing filename in the same gallery is rejected."""
+        original_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"first", "first.jpg")
+        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"second", "second.jpg")
+
+        response = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/photos/{original_photo_id}/rename",
+            json={"filename": "second.jpg"},
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "A photo with this name already exists in this gallery."
 
     def test_filename_utilities(self):
         """sanitize_filename and content-type helper behave predictably."""
