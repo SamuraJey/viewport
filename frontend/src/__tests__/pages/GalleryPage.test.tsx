@@ -81,6 +81,9 @@ vi.mock('../../services/galleryService', () => ({
   galleryService: {
     getGallery: vi.fn(),
     deleteGallery: vi.fn(),
+    updateGallery: vi.fn(),
+    setCoverPhoto: vi.fn(),
+    clearCoverPhoto: vi.fn(),
   },
 }));
 
@@ -284,6 +287,77 @@ describe('GalleryPage', () => {
       await waitFor(() => {
         expect(screen.queryByAltText('Photo photo1')).not.toBeInTheDocument();
       });
+    });
+
+    it('should treat deleting already-removed photo as successful', async () => {
+      const { photoService } = await import('../../services/photoService');
+      const { ApiError } = await import('../../lib/errorHandling');
+      vi.mocked(photoService.deletePhoto).mockRejectedValue(new ApiError(404, 'Photo not found'));
+
+      render(<GalleryPageWrapper />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(
+          /Photos.*3.*of.*3/,
+        );
+      });
+
+      const photoImages = screen.getAllByAltText(/Photo photo/i);
+      const firstPhoto = photoImages[0];
+      const photoContainer = firstPhoto.closest('.group');
+      expect(photoContainer).toBeInTheDocument();
+
+      const deleteButton = photoContainer!
+        .querySelector('button svg[class*="trash"]')
+        ?.closest('button');
+      expect(deleteButton).toBeInTheDocument();
+
+      await userEvent.hover(photoContainer!);
+      await userEvent.click(deleteButton!);
+      await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+      await waitFor(() => {
+        expect(photoService.deletePhoto).toHaveBeenCalledWith('1', 'photo1');
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByAltText('Photo photo1')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should remove stale photo when setting cover returns 404', async () => {
+      const { galleryService } = await import('../../services/galleryService');
+      const { ApiError } = await import('../../lib/errorHandling');
+      vi.mocked(galleryService.setCoverPhoto).mockRejectedValue(
+        new ApiError(404, 'Photo not found'),
+      );
+
+      render(<GalleryPageWrapper />);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(
+          /Photos.*3.*of.*3/,
+        );
+      });
+
+      const photoImages = screen.getAllByAltText(/Photo photo/i);
+      const firstPhoto = photoImages[0];
+      const photoContainer = firstPhoto.closest('.group');
+      expect(photoContainer).toBeInTheDocument();
+
+      await userEvent.hover(photoContainer!);
+      const setCoverButton = screen.getAllByRole('button', { name: /set as cover/i })[0];
+      await userEvent.click(setCoverButton);
+
+      await waitFor(() => {
+        expect(galleryService.setCoverPhoto).toHaveBeenCalledWith('1', 'photo1');
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByAltText('Photo photo1')).not.toBeInTheDocument();
+      });
+
+      expect(screen.getByText('This photo was already deleted.')).toBeInTheDocument();
     });
   });
 

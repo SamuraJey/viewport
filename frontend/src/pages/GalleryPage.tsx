@@ -35,6 +35,8 @@ export const GalleryPage = () => {
     isLoadingPhotos,
     uploadError,
     setUploadError,
+    actionInfo,
+    setActionInfo,
     isCreatingLink,
     shootingDateInput,
     setShootingDateInput,
@@ -190,6 +192,7 @@ export const GalleryPage = () => {
             photoUrls,
             isLoadingPhotos,
             uploadError,
+            actionInfo,
             error,
             isSelectionMode,
           }}
@@ -203,6 +206,7 @@ export const GalleryPage = () => {
           actions={{
             onUploadComplete: handleUploadComplete,
             onDismissUploadError: () => setUploadError(''),
+            onDismissActionInfo: () => setActionInfo(''),
             onDismissError: clearError,
             onToggleSelectionMode: () => {
               if (isSelectionMode) {

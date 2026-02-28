@@ -95,7 +95,7 @@ services:
     restart: always
     command: >
       valkey-server
-      --maxclients 10000
+      --maxclients 1000
       --tcp-backlog 511
       --timeout 0
       --tcp-keepalive 300
