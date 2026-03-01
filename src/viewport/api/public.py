@@ -25,6 +25,21 @@ def _build_content_disposition(filename: str, disposition_type: str = "inline") 
     return f'{disposition_type}; filename="{safe_filename}"'
 
 
+def _sanitize_zip_entry_name(filename: str, fallback: str) -> str:
+    cleaned = (filename or "").replace("\x00", "").strip()
+    if not cleaned:
+        return fallback
+
+    normalized = cleaned.replace("\\", "/")
+    if "/" in normalized:
+        return fallback
+
+    if normalized in {".", ".."}:
+        return fallback
+
+    return normalized
+
+
 def get_sharelink_repository(db: Session = Depends(get_db)) -> ShareLinkRepository:
     return ShareLinkRepository(db)
 
@@ -168,7 +183,7 @@ def download_all_photos_zip(
 
     for photo in photos:
         key = photo.object_key
-        filename = photo.display_name
+        filename = _sanitize_zip_entry_name(photo.display_name, fallback=f"photo-{photo.id}.jpg")
 
         def file_generator(object_key: str = key):
             client = get_s3_client()

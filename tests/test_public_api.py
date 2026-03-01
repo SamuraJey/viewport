@@ -1,4 +1,5 @@
 import io
+import zipfile
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -94,3 +95,44 @@ class TestPublicAPI:
         r = authenticated_client.get(f"/s/{share_id}/download/all")
         # Should be 404 because no photos
         assert r.status_code == 404
+
+    def test_download_all_zip_sanitizes_path_like_display_name(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        content = b"zip-safe-content"
+        photo_id = _upload_photo(authenticated_client, gallery_id_fixture, content, "safe.jpg")
+
+        rename_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rename",
+            json={"filename": "../...jpg"},
+        )
+        assert rename_resp.status_code == 200
+
+        share_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"},
+        )
+        assert share_resp.status_code == 201
+        share_id = share_resp.json()["id"]
+
+        fake_bucket = "test-bucket"
+        fake_obj = {"Body": io.BytesIO(content), "ContentType": "image/jpeg"}
+
+        with patch("viewport.api.public.get_s3_settings") as mock_get_settings, patch("viewport.api.public.get_s3_client") as mock_get_s3:
+            mock_settings = MagicMock()
+            mock_settings.bucket = fake_bucket
+            mock_get_settings.return_value = mock_settings
+
+            mock_client = MagicMock()
+            mock_client.get_object.return_value = fake_obj
+            mock_get_s3.return_value = mock_client
+
+            response = authenticated_client.get(f"/s/{share_id}/download/all")
+            assert response.status_code == 200
+
+        zip_bytes = io.BytesIO(response.content)
+        with zipfile.ZipFile(zip_bytes) as archive:
+            names = archive.namelist()
+
+        assert len(names) == 1
+        assert names[0] == f"photo-{photo_id}.jpg"
+        assert "/" not in names[0]
+        assert "\\" not in names[0]
