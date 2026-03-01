@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { photoService } from '../../services/photoService';
 import { api } from '../../lib/api';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
+import type { UploadPreparedFile } from '../../types';
 
 vi.mock('../../lib/api', () => ({
   api: {
@@ -88,9 +89,10 @@ class MockXMLHttpRequest {
   }
 }
 
-const createFile = (name: string, size: number, type = 'image/jpeg') => {
+const createFile = (name: string, size: number, type = 'image/jpeg'): UploadPreparedFile => {
   const data = new Uint8Array(size);
-  return new File([data], name, { type });
+  const file = new File([data], name, { type });
+  return { file, filename: name };
 };
 
 describe('photoService', () => {
@@ -238,8 +240,8 @@ describe('photoService', () => {
     });
 
     MockXMLHttpRequest.sendQueue = [
-      { type: 'load', status: 200, progress: fileA.size },
-      { type: 'load', status: 200, progress: fileB.size },
+      { type: 'load', status: 200, progress: fileA.file.size },
+      { type: 'load', status: 200, progress: fileB.file.size },
     ];
 
     const progressSpy = vi.fn();

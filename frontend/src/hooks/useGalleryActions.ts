@@ -206,10 +206,21 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
   const handleRenameConfirm = async (newFilename: string) => {
     if (!renameModal.data) return;
 
-    await photoService.renamePhoto(galleryId, renameModal.data.id, newFilename);
+    const renamedPhoto = await photoService.renamePhoto(
+      galleryId,
+      renameModal.data.id,
+      newFilename,
+    );
     setPhotoUrls((prev) =>
       prev.map((photo) =>
-        photo.id === renameModal.data!.id ? { ...photo, filename: newFilename } : photo,
+        photo.id === renameModal.data!.id
+          ? {
+              ...photo,
+              filename: renamedPhoto.filename,
+              url: renamedPhoto.url,
+              thumbnail_url: renamedPhoto.thumbnail_url,
+            }
+          : photo,
       ),
     );
   };

@@ -72,3 +72,13 @@ export interface BatchConfirmUploadResponse {
   confirmed_count: number;
   failed_count: number;
 }
+
+export interface UploadPreparedFile {
+  file: File;
+  filename: string;
+}
+
+export interface UploadRenameWarning {
+  original: string;
+  unique: string;
+}

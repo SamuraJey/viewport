@@ -20,6 +20,11 @@ from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPh
 router = APIRouter(prefix="/s", tags=["public"])
 
 
+def _build_content_disposition(filename: str, disposition_type: str = "inline") -> str:
+    safe_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
+    return f'{disposition_type}; filename="{safe_filename}"'
+
+
 def get_sharelink_repository(db: Session = Depends(get_db)) -> ShareLinkRepository:
     return ShareLinkRepository(db)
 
@@ -54,24 +59,23 @@ async def get_photos_by_sharelink(
     # Photos - ensure deterministic ordering by filename (case-insensitive)
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
     with contextlib.suppress(Exception):
-        photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
+        photos = sorted(photos, key=lambda p: p.display_name.lower())
 
     # Apply pagination if limit is specified
     photos_to_process = photos[offset : offset + limit] if limit else photos
 
     logger.info(f"Generating public gallery view for share {share_id} with {len(photos_to_process)} photos (offset={offset}, limit={limit}, total={len(photos)})")
 
-    object_keys = []
-    for photo in photos_to_process:
-        object_keys.append(photo.object_key)
-        object_keys.append(photo.thumbnail_object_key)
-
-    url_map = await s3_client.generate_presigned_urls_batch(object_keys)
+    thumbnail_keys = [photo.thumbnail_object_key for photo in photos_to_process]
+    thumb_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys)
 
     photo_list = []
     for photo in photos_to_process:
-        presigned_url = url_map.get(photo.object_key, "")
-        presigned_url_thumb = url_map.get(photo.thumbnail_object_key, "")
+        presigned_url = s3_client.generate_presigned_url(
+            photo.object_key,
+            response_content_disposition=_build_content_disposition(photo.display_name, disposition_type="inline"),
+        )
+        presigned_url_thumb = thumb_url_map.get(photo.thumbnail_object_key, "")
 
         if presigned_url and presigned_url_thumb:
             photo_list.append(
@@ -79,7 +83,7 @@ async def get_photos_by_sharelink(
                     photo_id=str(photo.id),
                     thumbnail_url=presigned_url_thumb,
                     full_url=presigned_url,
-                    filename=(photo.object_key.split("/", 1)[1] if "/" in photo.object_key else photo.object_key),
+                    filename=photo.display_name,
                     width=getattr(photo, "width", None),
                     height=getattr(photo, "height", None),
                 )
@@ -107,9 +111,12 @@ async def get_photos_by_sharelink(
         cover_filename = None
         cover_url = None
         if cover_photo_obj:
-            cover_filename = cover_photo_obj.object_key.split("/", 1)[1] if "/" in cover_photo_obj.object_key else cover_photo_obj.object_key
-            cover_url = url_map.get(cover_photo_obj.object_key)
-            cover_thumb_url = url_map.get(cover_photo_obj.thumbnail_object_key, cover_url)
+            cover_filename = cover_photo_obj.display_name
+            cover_url = s3_client.generate_presigned_url(
+                cover_photo_obj.object_key,
+                response_content_disposition=_build_content_disposition(cover_photo_obj.display_name, disposition_type="inline"),
+            )
+            cover_thumb_url = thumb_url_map.get(cover_photo_obj.thumbnail_object_key, cover_url)
             if cover_url == cover_thumb_url:
                 logger.warning(f"Cover photo {cover_id} presigned URL is the same for full and thumbnail, which may indicate an issue: {cover_url}")
 
@@ -150,7 +157,7 @@ def download_all_photos_zip(
     """Download all photos as zip - direct DB and S3 calls in a sync handler."""
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
     with contextlib.suppress(Exception):
-        photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
+        photos = sorted(photos, key=lambda p: p.display_name.lower())
 
     if not photos:
         raise HTTPException(status_code=404, detail="No photos found")
@@ -161,7 +168,7 @@ def download_all_photos_zip(
 
     for photo in photos:
         key = photo.object_key
-        filename = key.split("/")[-1]
+        filename = photo.display_name
 
         def file_generator(object_key: str = key):
             client = get_s3_client()

@@ -21,6 +21,8 @@ export type {
   ConfirmPhotoUploadItem,
   BatchConfirmUploadRequest,
   BatchConfirmUploadResponse,
+  UploadPreparedFile,
+  UploadRenameWarning,
 } from './photo';
 
 // Share link types

@@ -2,6 +2,7 @@ import logging
 import time
 import uuid
 from datetime import UTC, date, datetime
+from pathlib import Path
 
 from sqlalchemy import func, insert, select, update
 from sqlalchemy.orm import selectinload
@@ -16,6 +17,30 @@ logger = logging.getLogger(__name__)
 
 
 class GalleryRepository(BaseRepository):
+    @staticmethod
+    def _split_name_and_ext(filename: str) -> tuple[str, str]:
+        path = Path(filename)
+        suffix = path.suffix if path.suffix else ""
+        stem = path.stem if path.stem else "file"
+        return stem, suffix
+
+    def _make_unique_display_name(self, gallery_id: uuid.UUID, desired_name: str, exclude_photo_id: uuid.UUID | None = None) -> str:
+        stmt = select(Photo.display_name).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
+        if exclude_photo_id is not None:
+            stmt = stmt.where(Photo.id != exclude_photo_id)
+
+        occupied_names = {name for name in self.db.execute(stmt).scalars().all() if name}
+
+        candidate = desired_name
+        stem, suffix = self._split_name_and_ext(candidate)
+
+        counter = 1
+        while candidate in occupied_names:
+            candidate = f"{stem} ({counter}){suffix}"
+            counter += 1
+
+        return candidate
+
     def create_gallery(self, owner_id: uuid.UUID, name: str, shooting_date: date | None = None) -> Gallery:
         gallery = Gallery(
             id=uuid.uuid4(),
@@ -186,16 +211,20 @@ class GalleryRepository(BaseRepository):
         return self.db.execute(stmt).scalar_one_or_none()
 
     def get_photos_by_gallery_id(self, gallery_id: uuid.UUID) -> list[Photo]:
-        # Sort by object_key (which contains the filename after the gallery prefix)
-        stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(Photo.object_key.asc())
+        stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(Photo.display_name.asc())
         return list(self.db.execute(stmt).scalars().all())
+
+    def get_photo_display_names_by_gallery(self, gallery_id: uuid.UUID) -> set[str]:
+        stmt = select(Photo.display_name).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
+        names = self.db.execute(stmt).scalars().all()
+        return {name for name in names if name}
 
     def get_photo_count_by_gallery(self, gallery_id: uuid.UUID) -> int:
         stmt = select(func.count()).select_from(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
         return int(self.db.execute(stmt).scalar() or 0)
 
     def get_photos_by_gallery_paginated(self, gallery_id: uuid.UUID, limit: int, offset: int) -> list[Photo]:
-        stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(Photo.object_key.asc()).offset(offset).limit(limit)
+        stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(Photo.display_name.asc()).offset(offset).limit(limit)
         return list(self.db.execute(stmt).scalars().all())
 
     def get_photos_by_ids_and_gallery(self, gallery_id: uuid.UUID, photo_ids: list[uuid.UUID]) -> list[Photo]:
@@ -231,8 +260,26 @@ class GalleryRepository(BaseRepository):
         if commit:
             self.db.commit()
 
-    def create_photo(self, gallery_id: uuid.UUID, object_key: str, thumbnail_object_key: str, file_size: int, width: int | None = None, height: int | None = None) -> Photo:
-        photo = Photo(gallery_id=gallery_id, object_key=object_key, thumbnail_object_key=thumbnail_object_key, file_size=file_size, width=width, height=height)
+    def create_photo(
+        self,
+        gallery_id: uuid.UUID,
+        object_key: str,
+        thumbnail_object_key: str,
+        file_size: int,
+        display_name: str | None = None,
+        width: int | None = None,
+        height: int | None = None,
+    ) -> Photo:
+        resolved_display_name = display_name or (object_key.split("/", 1)[1] if "/" in object_key else object_key)
+        photo = Photo(
+            gallery_id=gallery_id,
+            object_key=object_key,
+            thumbnail_object_key=thumbnail_object_key,
+            display_name=resolved_display_name,
+            file_size=file_size,
+            width=width,
+            height=height,
+        )
         self.db.add(photo)
         self.db.commit()
         self.db.refresh(photo)
@@ -245,7 +292,7 @@ class GalleryRepository(BaseRepository):
         """Batch create multiple photos efficiently
 
         Args:
-            photos_data: List of dicts with keys: gallery_id, object_key, thumbnail_object_key,
+            photos_data: List of dicts with keys: gallery_id, object_key, display_name, thumbnail_object_key,
                         file_size, width (optional), height (optional)
 
         Returns:
@@ -258,6 +305,9 @@ class GalleryRepository(BaseRepository):
         now = datetime.now(UTC)
         for data in photos_data:
             data["uploaded_at"] = now
+            if not data.get("display_name"):
+                object_key = str(data.get("object_key", ""))
+                data["display_name"] = object_key.split("/", 1)[1] if "/" in object_key else object_key
 
         logger.info("Starting batch INSERT of %s photos", len(photos_data))
         insert_start = time.time()
@@ -332,68 +382,30 @@ class GalleryRepository(BaseRepository):
         return True
 
     def rename_photo(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, new_filename: str, s3_client: "AsyncS3Client") -> Photo | None:  # type: ignore
-        """Rename a photo by updating its object_key with the new filename
-
-        Note: This is synchronous and doesn't perform S3 rename. Use rename_photo_async for full functionality.
-        """
-        from viewport.cache_utils import clear_presigned_url_cache
+        """Rename a photo by updating its display name only."""
 
         photo = self.get_photo_by_id_and_owner(photo_id, owner_id)
         if not photo or photo.gallery_id != gallery_id:
             return None
 
-        # Extract the gallery_id from the object_key and replace filename
-        # object_key format: "gallery_id/filename"
-        if "/" in photo.object_key:
-            gallery_prefix = photo.object_key.split("/", 1)[0]
-            new_object_key = f"{gallery_prefix}/{new_filename}"
-        else:
-            # Fallback if object_key doesn't have the expected format
-            new_object_key = f"{gallery_id}/{new_filename}"
-
-        # Clear cached presigned URL for old object key
-        clear_presigned_url_cache(photo.object_key)
-
         # Update the database
-        photo.object_key = new_object_key
+        photo.display_name = self._make_unique_display_name(gallery_id, new_filename, exclude_photo_id=photo.id)
         self.db.commit()
         self.db.refresh(photo)
         return photo
 
     async def rename_photo_async(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, new_filename: str, s3_client: "AsyncS3Client") -> Photo | None:  # type: ignore
-        """Rename a photo with S3 rename operation
+        """Rename a photo by updating its display name only.
 
         NOTE: DB calls are direct (no run_in_threadpool) to avoid session lifecycle race conditions.
         Short DB operations can safely block in async context.
         """
-        from viewport.cache_utils import clear_presigned_url_cache
-
         photo = self.get_photo_by_id_and_owner(photo_id, owner_id)
         if not photo or photo.gallery_id != gallery_id:
             return None
 
-        # Extract the gallery_id from the object_key and replace filename
-        # object_key format: "gallery_id/filename"
-        if "/" in photo.object_key:
-            gallery_prefix = photo.object_key.split("/", 1)[0]
-            new_object_key = f"{gallery_prefix}/{new_filename}"
-        else:
-            # Fallback if object_key doesn't have the expected format
-            new_object_key = f"{gallery_id}/{new_filename}"
-
-        # Rename the file in S3 first
-        try:
-            await s3_client.rename_file(photo.object_key, new_object_key)
-        except Exception as e:
-            logger.error("Failed to rename object in S3: %s", e)
-            return None
-
-        # Clear cached presigned URLs for both old and new object keys
-        clear_presigned_url_cache(photo.object_key)
-        clear_presigned_url_cache(new_object_key)
-
-        # Update the database only if S3 operation succeeded
-        photo.object_key = new_object_key
+        # Update the database only, S3 key remains immutable
+        photo.display_name = self._make_unique_display_name(gallery_id, new_filename, exclude_photo_id=photo.id)
         self.db.commit()
         self.db.refresh(photo)
         return photo

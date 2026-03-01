@@ -258,8 +258,9 @@ def test_rename_photo(repo, owner_id, monkeypatch):
 
     renamed = repo.rename_photo(photo_id, gallery.id, owner_id, "new.jpg", DummyAsyncS3Client())
     assert renamed
-    assert renamed.object_key.endswith("/new.jpg")
-    assert cleared
+    assert renamed.object_key.endswith("/old.jpg")
+    assert renamed.display_name == "new.jpg"
+    assert not cleared
 
     assert repo.rename_photo(uuid.uuid4(), gallery.id, owner_id, "fail.jpg", DummyAsyncS3Client()) is None
 
@@ -274,11 +275,15 @@ async def test_rename_photo_async(repo, owner_id, monkeypatch):
     picking = DummyAsyncS3Client()
     result = await repo.rename_photo_async(photo.id, gallery.id, owner_id, "new.jpg", picking)
     assert result
-    assert picking.renamed_pairs
-    assert len(cleared) >= 2
+    assert result.object_key.endswith("/old.jpg")
+    assert result.display_name == "new.jpg"
+    assert not picking.renamed_pairs
+    assert not cleared
 
     failing = RaisingRenameS3Client()
-    assert await repo.rename_photo_async(photo.id, gallery.id, owner_id, "bad.jpg", failing) is None
+    failed_result = await repo.rename_photo_async(photo.id, gallery.id, owner_id, "bad.jpg", failing)
+    assert failed_result is not None
+    assert failed_result.display_name == "bad.jpg"
 
 
 def test_sharelink_management(repo, owner_id):

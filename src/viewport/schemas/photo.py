@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
     from viewport.models.gallery import Photo
+    from viewport.s3_service import AsyncS3Client
 
 
 class PhotoCreateRequest(BaseModel):
@@ -26,8 +27,23 @@ class PhotoResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @staticmethod
+    def _build_content_disposition(filename: str, disposition_type: str = "inline") -> str:
+        safe_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
+        return f'{disposition_type}; filename="{safe_filename}"'
+
+    @staticmethod
+    def _resolve_filename(photo) -> str:
+        display_name = getattr(photo, "display_name", None)
+        if isinstance(display_name, str) and display_name:
+            return display_name
+        object_key = str(getattr(photo, "object_key", ""))
+        if "/" in object_key:
+            return object_key.split("/", 1)[1]
+        return object_key or "file"
+
     @classmethod
-    def from_db_photo(cls, photo, s3_client) -> "PhotoResponse":
+    def from_db_photo(cls, photo: "Photo", s3_client: AsyncS3Client) -> "PhotoResponse":
         """Create PhotoResponse from database Photo model with presigned URL
 
         Args:
@@ -38,10 +54,13 @@ class PhotoResponse(BaseModel):
             PhotoResponse with presigned URLs
         """
         # Generate presigned URL directly for S3 access (2 hour expiration)
-        presigned_url = s3_client.generate_presigned_url(photo.object_key, expires_in=7200)
+        filename = cls._resolve_filename(photo)
+        presigned_url = s3_client.generate_presigned_url(
+            photo.object_key,
+            expires_in=7200,
+            response_content_disposition=cls._build_content_disposition(filename, disposition_type="inline"),
+        )
         thumbnail_url = s3_client.generate_presigned_url(photo.thumbnail_object_key, expires_in=7200)
-        # Extract filename from object_key (format: gallery_id/filename)
-        filename = photo.object_key.split("/", 1)[1] if "/" in photo.object_key else photo.object_key
 
         return cls(
             id=photo.id,
@@ -56,7 +75,7 @@ class PhotoResponse(BaseModel):
         )
 
     @classmethod
-    async def from_db_photos_batch(cls, photos: list["Photo"], s3_client) -> list["PhotoResponse"]:
+    async def from_db_photos_batch(cls, photos: list["Photo"], s3_client: AsyncS3Client) -> list["PhotoResponse"]:
         """Create PhotoResponse list from database Photo models with batched presigned URLs
 
         This is much faster than calling from_db_photo for each photo individually,
@@ -73,25 +92,27 @@ class PhotoResponse(BaseModel):
             return []
 
         # Collect all object keys (original + thumbnail for each photo)
-        object_keys = []
-        for photo in photos:
-            object_keys.append(photo.object_key)
-            object_keys.append(photo.thumbnail_object_key)
+        thumbnail_keys = [photo.thumbnail_object_key for photo in photos]
 
-        # Generate all presigned URLs concurrently (in batches if needed, 2 hour expiration)
-        url_map = await s3_client.generate_presigned_urls_batch(object_keys, expires_in=7200)
+        # Generate all thumbnail presigned URLs concurrently (2 hour expiration)
+        thumbnail_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys, expires_in=7200)
 
         # Build PhotoResponse objects
         results = []
         for photo in photos:
-            filename = photo.object_key.split("/", 1)[1] if "/" in photo.object_key else photo.object_key
+            filename = cls._resolve_filename(photo)
+            full_url = s3_client.generate_presigned_url(
+                photo.object_key,
+                expires_in=7200,
+                response_content_disposition=cls._build_content_disposition(filename, disposition_type="inline"),
+            )
 
             results.append(
                 cls(
                     id=photo.id,
                     gallery_id=photo.gallery_id,
-                    url=url_map.get(photo.object_key, ""),
-                    thumbnail_url=url_map.get(photo.thumbnail_object_key, ""),
+                    url=full_url,
+                    thumbnail_url=thumbnail_url_map.get(photo.thumbnail_object_key, ""),
                     filename=filename,
                     width=photo.width,
                     height=photo.height,

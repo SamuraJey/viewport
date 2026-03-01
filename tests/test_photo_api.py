@@ -1,6 +1,7 @@
 """Tests for photo API endpoints."""
 
 from typing import TYPE_CHECKING, Never
+from urllib.parse import unquote
 from uuid import UUID, uuid4
 
 import pytest
@@ -178,6 +179,44 @@ class TestPhotoAPI:
         assert item["presigned_data"]["headers"]["Content-Type"] == "image/png"
         assert item["presigned_data"]["url"].startswith("http")
 
+    def test_batch_presigned_uploads_assigns_unique_display_names_and_uuid_object_keys(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: Session):
+        payload = {
+            "files": [
+                {"filename": "котик.jpg", "file_size": 101, "content_type": "image/jpeg"},
+                {"filename": "котик.jpg", "file_size": 102, "content_type": "image/jpeg"},
+                {"filename": "котик.jpg", "file_size": 103, "content_type": "image/jpeg"},
+            ]
+        }
+
+        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
+        assert response.status_code == 200
+
+        items = response.json()["items"]
+        assert [item["filename"] for item in items] == ["котик.jpg", "котик (1).jpg", "котик (2).jpg"]
+
+        gallery_prefix = f"{gallery_id_fixture}/"
+        for expected_name, item in zip(["котик.jpg", "котик (1).jpg", "котик (2).jpg"], items, strict=True):
+            assert item["success"] is True
+            photo_id = UUID(item["photo_id"])
+            photo = db_session.get(Photo, photo_id)
+            assert photo is not None
+            assert photo.display_name == expected_name
+            assert photo.object_key == f"{gallery_prefix}{photo_id}.jpg"
+            assert photo.thumbnail_object_key == photo.object_key
+
+    def test_get_all_photo_urls_for_gallery_contains_content_disposition_header(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"content-disposition", "котик.jpg")
+
+        response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/urls")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+
+        presigned_url = data[0]["url"]
+        decoded_url = unquote(presigned_url)
+        assert "response-content-disposition=" in presigned_url.lower()
+        assert 'inline; filename="котик.jpg"' in decoded_url
+
     def test_batch_presigned_uploads_size_limit(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Files that exceed MAX_FILE_SIZE are rejected."""
         payload = {"files": [{"filename": "huge.jpg", "file_size": MAX_FILE_SIZE + 1, "content_type": "image/jpeg"}]}
@@ -243,6 +282,41 @@ class TestPhotoAPI:
         data = response.json()
         assert data["id"] == photo_id
         assert data["filename"] == "new-name.jpg"
+
+    def test_rename_photo_updates_display_name_without_changing_object_key(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: Session):
+        photo_id = UUID(upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"rename-immutable", "rename.jpg"))
+        before = db_session.get(Photo, photo_id)
+        assert before is not None
+        original_object_key = before.object_key
+
+        response = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rename",
+            json={"filename": "переименовано.jpg"},
+        )
+        assert response.status_code == 200
+
+        db_session.expire_all()
+        after = db_session.get(Photo, photo_id)
+        assert after is not None
+        assert after.object_key == original_object_key
+        assert after.display_name == "переименовано.jpg"
+
+    def test_rename_photo_makes_name_unique_when_conflict_exists(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        first_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"first", "1.JPG")
+        second_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"second", "2.JPG")
+
+        response = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/photos/{second_photo_id}/rename",
+            json={"filename": "1.JPG"},
+        )
+        assert response.status_code == 200
+        assert response.json()["filename"] == "1 (1).JPG"
+
+        list_response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/urls")
+        assert list_response.status_code == 200
+        filenames = {item["id"]: item["filename"] for item in list_response.json()}
+        assert filenames[first_photo_id] == "1.JPG"
+        assert filenames[second_photo_id] == "1 (1).JPG"
 
     def test_filename_utilities(self):
         """sanitize_filename and content-type helper behave predictably."""
