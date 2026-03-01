@@ -381,7 +381,7 @@ class GalleryRepository(BaseRepository):
         self.db.commit()
         return True
 
-    def rename_photo(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, new_filename: str, s3_client: "AsyncS3Client") -> Photo | None:  # type: ignore
+    def rename_photo(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, new_filename: str) -> Photo | None:  # type: ignore
         """Rename a photo by updating its display name only."""
 
         photo = self.get_photo_by_id_and_owner(photo_id, owner_id)
@@ -394,7 +394,7 @@ class GalleryRepository(BaseRepository):
         self.db.refresh(photo)
         return photo
 
-    async def rename_photo_async(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, new_filename: str, s3_client: "AsyncS3Client") -> Photo | None:  # type: ignore
+    async def rename_photo_async(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, new_filename: str) -> Photo | None:  # type: ignore
         """Rename a photo by updating its display name only.
 
         NOTE: DB calls are direct (no run_in_threadpool) to avoid session lifecycle race conditions.

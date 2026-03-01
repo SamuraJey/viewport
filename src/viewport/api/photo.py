@@ -413,7 +413,7 @@ async def rename_photo(
         raise HTTPException(status_code=404, detail="Gallery not found")
 
     # Then, verify photo belongs to that gallery and rename it
-    photo = await repo.rename_photo_async(photo_id, gallery_id, current_user.id, request.filename, s3_client)
+    photo = await repo.rename_photo_async(photo_id, gallery_id, current_user.id, request.filename)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
 

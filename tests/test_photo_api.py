@@ -291,7 +291,7 @@ class TestPhotoAPI:
 
         response = authenticated_client.patch(
             f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rename",
-            json={"filename": "переименовано.jpg"},
+            json={"filename": "renamed.jpg"},
         )
         assert response.status_code == 200
 
@@ -299,7 +299,7 @@ class TestPhotoAPI:
         after = db_session.get(Photo, photo_id)
         assert after is not None
         assert after.object_key == original_object_key
-        assert after.display_name == "переименовано.jpg"
+        assert after.display_name == "renamed.jpg"
 
     def test_rename_photo_makes_name_unique_when_conflict_exists(self, authenticated_client: TestClient, gallery_id_fixture: str):
         first_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"first", "1.JPG")
