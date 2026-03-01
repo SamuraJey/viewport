@@ -182,9 +182,9 @@ class TestPhotoAPI:
     def test_batch_presigned_uploads_assigns_unique_display_names_and_uuid_object_keys(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: Session):
         payload = {
             "files": [
-                {"filename": "котик.jpg", "file_size": 101, "content_type": "image/jpeg"},
-                {"filename": "котик.jpg", "file_size": 102, "content_type": "image/jpeg"},
-                {"filename": "котик.jpg", "file_size": 103, "content_type": "image/jpeg"},
+                {"filename": "kitty.jpg", "file_size": 101, "content_type": "image/jpeg"},
+                {"filename": "kitty.jpg", "file_size": 102, "content_type": "image/jpeg"},
+                {"filename": "kitty.jpg", "file_size": 103, "content_type": "image/jpeg"},
             ]
         }
 
@@ -192,10 +192,10 @@ class TestPhotoAPI:
         assert response.status_code == 200
 
         items = response.json()["items"]
-        assert [item["filename"] for item in items] == ["котик.jpg", "котик (1).jpg", "котик (2).jpg"]
+        assert [item["filename"] for item in items] == ["kitty.jpg", "kitty (1).jpg", "kitty (2).jpg"]
 
         gallery_prefix = f"{gallery_id_fixture}/"
-        for expected_name, item in zip(["котик.jpg", "котик (1).jpg", "котик (2).jpg"], items, strict=True):
+        for expected_name, item in zip(["kitty.jpg", "kitty (1).jpg", "kitty (2).jpg"], items, strict=True):
             assert item["success"] is True
             photo_id = UUID(item["photo_id"])
             photo = db_session.get(Photo, photo_id)
@@ -205,7 +205,7 @@ class TestPhotoAPI:
             assert photo.thumbnail_object_key == photo.object_key
 
     def test_get_all_photo_urls_for_gallery_contains_content_disposition_header(self, authenticated_client: TestClient, gallery_id_fixture: str):
-        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"content-disposition", "котик.jpg")
+        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"content-disposition", "kitty.jpg")
 
         response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/urls")
         assert response.status_code == 200
@@ -215,7 +215,7 @@ class TestPhotoAPI:
         presigned_url = data[0]["url"]
         decoded_url = unquote(presigned_url)
         assert "response-content-disposition=" in presigned_url.lower()
-        assert 'inline; filename="котик.jpg"' in decoded_url
+        assert 'inline; filename="kitty.jpg"' in decoded_url
 
     def test_batch_presigned_uploads_size_limit(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Files that exceed MAX_FILE_SIZE are rejected."""
