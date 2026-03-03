@@ -161,6 +161,7 @@ describe('photoService', () => {
     expect(result.successful_uploads).toBe(0);
     expect(result.results[0]).toEqual({
       filename: 'big.jpg',
+      original_filename: 'big.jpg',
       success: false,
       error: `File exceeds maximum size of ${MAX_UPLOAD_FILE_SIZE_MB}MB`,
       retryable: false,
@@ -195,6 +196,7 @@ describe('photoService', () => {
     expect(result.failed_uploads).toBe(1);
     expect(result.results[0]).toEqual({
       filename: 'photo.jpg',
+      original_filename: 'photo.jpg',
       success: false,
       error: 'File rejected',
     });
@@ -313,6 +315,7 @@ describe('photoService', () => {
     expect(result.successful_uploads).toBe(0);
     expect(result.results[0]).toEqual({
       filename: 'empty.jpg',
+      original_filename: 'empty.jpg',
       success: false,
       error: 'Cannot upload empty file',
     });

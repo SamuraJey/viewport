@@ -109,7 +109,7 @@ export const usePhotoUpload = (
 
       failedFilesRef.current = uploadResult.results
         .filter((r) => !r.success && r.retryable !== false)
-        .map((r) => preparedByName.get(r.filename))
+        .map((r) => preparedByName.get(r.original_filename || r.filename))
         .filter((item) => item !== undefined) as UploadPreparedFile[];
 
       setResult(uploadResult);

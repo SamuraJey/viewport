@@ -292,6 +292,7 @@ const uploadPhotosPresigned = async (
       failedUploads++;
       results.push({
         filename: item.filename,
+        original_filename: item.filename,
         success: false,
         error: oversizeMessage,
         retryable: false,
@@ -327,6 +328,7 @@ const uploadPhotosPresigned = async (
           failedUploads++;
           results.push({
             filename: item.filename,
+            original_filename: item.filename,
             success: false,
             error: 'Failed to get presigned URL',
           });
@@ -354,7 +356,8 @@ const uploadPhotosPresigned = async (
         if (!item || !item.success || !item.presigned_data) {
           failedUploads++;
           results.push({
-            filename: file.filename,
+            filename: item?.filename ?? file.filename,
+            original_filename: file.filename,
             success: false,
             error: item?.error ?? 'File rejected by server',
           });
@@ -386,6 +389,7 @@ const uploadPhotosPresigned = async (
 
           results.push({
             filename: item.filename || file.filename,
+            original_filename: file.filename,
             success: true,
           });
         } catch (error) {
@@ -401,6 +405,7 @@ const uploadPhotosPresigned = async (
 
             results.push({
               filename: item.filename || file.filename,
+              original_filename: file.filename,
               success: false,
               error: error instanceof Error ? error.message : 'Upload failed',
             });

@@ -15,6 +15,7 @@ export interface PhotoResponse {
 
 export interface PhotoUploadResult {
   filename: string;
+  original_filename?: string;
   success: boolean;
   error?: string;
   photo?: PhotoResponse;
