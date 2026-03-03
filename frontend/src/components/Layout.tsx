@@ -10,36 +10,19 @@ import { AnimatePresence } from 'framer-motion';
 
 /** Returns up to 2 uppercase initials for a display name or email. */
 const getUserInitials = (name?: string | null, email?: string): string => {
-  if (name) {
-    return name
-      .split(' ')
-      .filter(Boolean)
-      .map((n) => n[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
-  }
-  if (email) return email[0].toUpperCase();
-  return 'U';
+  const src = name?.trim() || email || '';
+  const parts = src.split(/[\s@._-]+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return src.slice(0, 2).toUpperCase();
 };
 
-/** Deterministic color class based on a string hash. */
-const getAvatarColor = (identifier: string): string => {
-  const palette = [
-    'bg-blue-500',
-    'bg-violet-500',
-    'bg-emerald-500',
-    'bg-amber-500',
-    'bg-rose-500',
-    'bg-indigo-500',
-    'bg-teal-500',
-    'bg-orange-500',
-  ];
-  let hash = 0;
-  for (let i = 0; i < identifier.length; i++) {
-    hash = identifier.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return palette[Math.abs(hash) % palette.length];
+// TODO - Add user-uploaded avatars and use initials-based ones as fallback
+// And do not duplicate for initials (see same logic in ProfileModal) - maybe move to a shared util function.
+/** Deterministic hue from a string for the avatar background. */
+const stringToHue = (s: string): number => {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffffff;
+  return h % 360;
 };
 
 interface LayoutProps {
@@ -60,7 +43,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const closeProfile = () => setProfileOpen(false);
 
   const initials = useMemo(() => getUserInitials(user?.display_name, user?.email), [user]);
-  const avatarColor = useMemo(() => getAvatarColor(user?.email ?? 'user'), [user?.email]);
+  const avatarHue = useMemo(() => stringToHue(user?.email || user?.display_name || 'user'), [user]);
 
   return (
     <div className="min-h-screen bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
@@ -86,7 +69,8 @@ export const Layout = ({ children }: LayoutProps) => {
                   className="hidden min-w-0 items-center gap-2.5 rounded-xl border border-border/40 bg-surface-1 px-3 py-2 text-text shadow-sm transition-all duration-200 hover:border-accent/50 hover:bg-surface-2 hover:-translate-y-0.5 hover:shadow-md sm:flex dark:border-border/60 dark:bg-surface-dark-1 dark:text-text dark:hover:bg-surface-dark-2"
                 >
                   <span
-                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white text-xs font-bold select-none ${avatarColor}`}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white text-xs font-bold select-none"
+                    style={{ background: `hsl(${avatarHue} 55% 50%)` }}
                   >
                     {initials}
                   </span>
@@ -98,7 +82,8 @@ export const Layout = ({ children }: LayoutProps) => {
                   onClick={openProfile}
                   title="Account Settings"
                   aria-label="Open account settings"
-                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm ring-2 ring-transparent ring-offset-1 ring-offset-surface transition-all duration-200 hover:scale-105 hover:shadow-md hover:ring-accent/40 active:scale-95 sm:hidden dark:ring-offset-surface-dark ${avatarColor}`}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm ring-2 ring-transparent ring-offset-1 ring-offset-surface transition-all duration-200 hover:scale-105 hover:shadow-md hover:ring-accent/40 active:scale-95 sm:hidden dark:ring-offset-surface-dark"
+                  style={{ background: `hsl(${avatarHue} 55% 50%)` }}
                 >
                   {initials}
                 </button>
