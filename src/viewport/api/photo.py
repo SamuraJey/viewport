@@ -115,7 +115,7 @@ def get_content_type_from_filename(filename: str | None) -> str:
 def get_all_photo_urls_for_gallery(
     gallery_id: UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> list[PhotoResponse]:
     """Get presigned URLs for all photos in a gallery for the owner.
@@ -143,7 +143,7 @@ def batch_presigned_uploads(
     request: BatchPresignedUploadsRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
     user_repo: UserRepository = Depends(get_user_repository),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> BatchPresignedUploadsResponse:
     """Generate presigned URLs for batch upload (max 100 files)
@@ -259,7 +259,7 @@ def batch_confirm_uploads(
     request: BatchConfirmUploadRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
     user_repo: UserRepository = Depends(get_user_repository),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> BatchConfirmUploadResponse:
     """Confirm batch photo uploads to S3
 
@@ -370,8 +370,8 @@ def delete_photo(
     gallery_id: UUID,
     photo_id: UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> None:
     """Delete a photo and enqueue background task for S3 cleanup and DB removal.
 
     Returns 204 immediately after validation and task enqueue.

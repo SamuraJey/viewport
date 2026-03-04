@@ -33,7 +33,7 @@ class PhotoResponse(BaseModel):
         return f'{disposition_type}; filename="{safe_filename}"'
 
     @staticmethod
-    def _resolve_filename(photo) -> str:
+    def _resolve_filename(photo: "Photo") -> str:
         display_name = getattr(photo, "display_name", None)
         if isinstance(display_name, str) and display_name:
             return display_name

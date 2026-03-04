@@ -43,7 +43,7 @@ def create_refresh_token(user_id: str) -> str:
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
-def register_user(request: RegisterRequest, repo: UserRepository = Depends(get_user_repository)):
+def register_user(request: RegisterRequest, repo: UserRepository = Depends(get_user_repository)) -> RegisterResponse:
     """Register user - async to run bcrypt in threadpool, but DB calls are direct."""
     # Verify invite code
     if request.invite_code != authsettings.invite_code:
@@ -60,7 +60,7 @@ def register_user(request: RegisterRequest, repo: UserRepository = Depends(get_u
 
 
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
-def login_user(request: LoginRequest, repo: UserRepository = Depends(get_user_repository)):
+def login_user(request: LoginRequest, repo: UserRepository = Depends(get_user_repository)) -> LoginResponse:
     """Login user - async to run bcrypt in threadpool, but DB calls are direct."""
     # Direct synchronous DB operation
     user = repo.get_user_by_email(request.email)
@@ -87,7 +87,7 @@ def login_user(request: LoginRequest, repo: UserRepository = Depends(get_user_re
 
 
 @router.post("/refresh", response_model=TokenPair, status_code=status.HTTP_200_OK)
-def refresh_token(request: RefreshRequest, repo: UserRepository = Depends(get_user_repository)):
+def refresh_token(request: RefreshRequest, repo: UserRepository = Depends(get_user_repository)) -> TokenPair:
     """Refresh token - sync endpoint, FastAPI handles threadpool automatically."""
     try:
         # Decode and validate the refresh token
