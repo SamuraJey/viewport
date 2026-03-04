@@ -223,6 +223,43 @@ def test_create_photos_batch(repo: GalleryRepository, owner_id):
     assert len(photos) == 2
 
 
+def test_create_photos_batch_retry_dedupes_case_insensitive_collisions_within_batch(repo: GalleryRepository, owner_id):
+    gallery = repo.create_gallery(owner_id, "Batch Collision Retry")
+
+    # Existing DB row forces retry path when one of incoming names collides.
+    repo.create_photo(
+        gallery.id,
+        f"{gallery.id}/existing.jpg",
+        f"{gallery.id}/existing.jpg",
+        10,
+        display_name="dup.jpg",
+    )
+
+    photos = repo.create_photos_batch(
+        [
+            {
+                "gallery_id": gallery.id,
+                "object_key": f"{gallery.id}/new-1.jpg",
+                "thumbnail_object_key": f"{gallery.id}/new-1.jpg",
+                "file_size": 10,
+                "display_name": "dup.jpg",
+            },
+            {
+                "gallery_id": gallery.id,
+                "object_key": f"{gallery.id}/new-2.jpg",
+                "thumbnail_object_key": f"{gallery.id}/new-2.jpg",
+                "file_size": 10,
+                "display_name": "Dup.JPG",
+            },
+        ],
+    )
+
+    assert len(photos) == 2
+    lower_names = {photo.display_name.lower() for photo in photos}
+    assert len(lower_names) == 2
+    assert "dup.jpg" not in lower_names
+
+
 def test_delete_photo(repo: GalleryRepository, owner_id):
     gallery = repo.create_gallery(owner_id, "Del Photo")
     photo_id = _create_photo(repo, gallery.id, "delete.jpg", owner_id)
@@ -265,6 +302,15 @@ def test_rename_photo(repo: GalleryRepository, owner_id, monkeypatch):
     assert repo.rename_photo(uuid.uuid4(), gallery.id, owner_id, "fail.jpg") is None
 
 
+def test_rename_photo_sanitizes_unsafe_filename(repo: GalleryRepository, owner_id):
+    gallery = repo.create_gallery(owner_id, "Rename sanitize")
+    photo = repo.create_photo(gallery.id, f"{gallery.id}/old.jpg", f"{gallery.id}/old.jpg", 5)
+
+    renamed = repo.rename_photo(photo.id, gallery.id, owner_id, "../bad\\name\x00?.jpg")
+    assert renamed is not None
+    assert renamed.display_name == "badname.jpg"
+
+
 @pytest.mark.asyncio
 async def test_rename_photo_async(repo: GalleryRepository, owner_id, monkeypatch):
     gallery = repo.create_gallery(owner_id, "Async Rename")
@@ -281,6 +327,16 @@ async def test_rename_photo_async(repo: GalleryRepository, owner_id, monkeypatch
     failed_result = await repo.rename_photo_async(photo.id, gallery.id, owner_id, "bad.jpg")
     assert failed_result is not None
     assert failed_result.display_name == "bad.jpg"
+
+
+@pytest.mark.asyncio
+async def test_rename_photo_async_sanitizes_unsafe_filename(repo: GalleryRepository, owner_id):
+    gallery = repo.create_gallery(owner_id, "Async Rename sanitize")
+    photo = repo.create_photo(gallery.id, f"{gallery.id}/old.jpg", f"{gallery.id}/thumb-old.jpg", 5)
+
+    renamed = await repo.rename_photo_async(photo.id, gallery.id, owner_id, "/\\\x00??")
+    assert renamed is not None
+    assert renamed.display_name == "file"
 
 
 def test_sharelink_management(repo: GalleryRepository, owner_id):

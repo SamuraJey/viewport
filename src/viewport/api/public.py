@@ -52,6 +52,7 @@ _FORBIDDEN_ZIP_CHARS_RE = re.compile(r'[<>:"|?*\x00-\x1F]')
 _WHITESPACE_RE = re.compile(r"\s+")
 _WINDOWS_DRIVE_PREFIX_RE = re.compile(r"^[A-Za-z]:")
 _MAX_ZIP_ENTRY_NAME_BYTES = 255
+_EXTENSION_ONLY_TOKENS = {ext.lstrip(".") for ext in CONTENT_TYPE_MAP}
 
 
 def _build_content_disposition(filename: str, disposition_type: str = "inline") -> str:
@@ -109,6 +110,9 @@ def _sanitize_zip_entry_name(filename: str, fallback: str) -> str:
     sanitized = _WHITESPACE_RE.sub(" ", sanitized).strip(" .")
 
     if not sanitized or sanitized in {".", ".."}:
+        return fallback
+
+    if "." not in sanitized and sanitized.casefold() in _EXTENSION_ONLY_TOKENS:
         return fallback
 
     stem, _ = _split_name_and_ext(sanitized)

@@ -8,6 +8,7 @@ from sqlalchemy import func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
+from viewport.filename_utils import sanitize_filename
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
 from viewport.repositories.base_repository import BaseRepository
@@ -343,11 +344,33 @@ class GalleryRepository(BaseRepository):
                     raise
 
                 logger.warning("Integrity error during batch insert, retrying with unique names (attempt %s)", attempt + 1)
-                # Re-calculate unique display names based on the current state of the DB
+                # Re-calculate unique display names based on current DB state and
+                # names already assigned within this batch retry (case-insensitive).
+                occupied_names_by_gallery: dict[uuid.UUID, set[str]] = {}
+
                 for data in photos_data:
                     gallery_id = data["gallery_id"]
-                    current_name = data["display_name"]
-                    data["display_name"] = self._make_unique_display_name(gallery_id, current_name)
+                    if gallery_id in occupied_names_by_gallery:
+                        continue
+
+                    stmt = select(Photo.display_name).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
+                    occupied_names_by_gallery[gallery_id] = {name.lower() for name in self.db.execute(stmt).scalars().all() if name}
+
+                for data in photos_data:
+                    gallery_id = data["gallery_id"]
+                    desired_name = data["display_name"]
+
+                    occupied_names_lower = occupied_names_by_gallery[gallery_id]
+                    candidate = desired_name
+                    stem, suffix = self._split_name_and_ext(candidate)
+
+                    counter = 1
+                    while candidate.lower() in occupied_names_lower:
+                        candidate = f"{stem} ({counter}){suffix}"
+                        counter += 1
+
+                    data["display_name"] = candidate
+                    occupied_names_lower.add(candidate.lower())
 
         return []  # Should not reach here due to raise
 
@@ -410,8 +433,8 @@ class GalleryRepository(BaseRepository):
         if not photo or photo.gallery_id != gallery_id:
             return None
 
-        # Update the database
-        photo.display_name = self._make_unique_display_name(gallery_id, new_filename, exclude_photo_id=photo.id)
+        sanitized_filename = sanitize_filename(new_filename)
+        photo.display_name = self._make_unique_display_name(gallery_id, sanitized_filename, exclude_photo_id=photo.id)
         self.db.commit()
         self.db.refresh(photo)
         return photo
@@ -426,8 +449,8 @@ class GalleryRepository(BaseRepository):
         if not photo or photo.gallery_id != gallery_id:
             return None
 
-        # Update the database only, S3 key remains immutable
-        photo.display_name = self._make_unique_display_name(gallery_id, new_filename, exclude_photo_id=photo.id)
+        sanitized_filename = sanitize_filename(new_filename)
+        photo.display_name = self._make_unique_display_name(gallery_id, sanitized_filename, exclude_photo_id=photo.id)
         self.db.commit()
         self.db.refresh(photo)
         return photo

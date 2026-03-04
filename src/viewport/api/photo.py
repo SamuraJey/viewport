@@ -1,5 +1,4 @@
 import logging
-import re
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -9,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from viewport.auth_utils import get_current_user
 from viewport.dependencies import get_s3_client
+from viewport.filename_utils import sanitize_filename
 from viewport.models.db import get_db
 from viewport.models.gallery import PhotoUploadStatus
 from viewport.models.user import User
@@ -48,32 +48,6 @@ def get_gallery_repository(db: Session = Depends(get_db)) -> GalleryRepository:
 
 def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
     return UserRepository(db)
-
-
-def sanitize_filename(filename: str) -> str:
-    """Sanitize filename while preserving readability and Cyrillic characters.
-
-    Removes path separators and null bytes,
-    keeps alphanumeric (Latin + Cyrillic), spaces, dots, dashes, underscores, and parentheses.
-    """
-    if not filename:
-        return "file"
-
-    # Remove path separators and null bytes
-    filename = filename.replace("\\", "").replace("/", "").replace("\0", "")
-
-    # Keep safe characters: alphanumeric (Latin + Cyrillic), spaces, dots, dashes, underscores, parentheses
-    # \u0400-\u04FF covers Cyrillic block (а-я, А-Я, ё, Ё, etc.)
-    filename = re.sub(r"[^a-zA-Z0-9._\-() а-яА-ЯёЁ]", "", filename)
-
-    # Remove leading/trailing dots and dashes
-    filename = filename.strip(" .-")
-
-    # Ensure we have a filename
-    if not filename:
-        filename = "file"
-
-    return filename
 
 
 def split_name_and_ext(filename: str) -> tuple[str, str]:

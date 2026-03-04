@@ -143,6 +143,8 @@ class TestPublicAPI:
         ("raw_name", "fallback", "expected"),
         [
             ("image.jpg", "fallback.jpg", "image.jpg"),
+            ("jpg", "fallback.jpg", "fallback.jpg"),
+            ("PNG", "fallback.jpg", "fallback.jpg"),
             ("  spaced   name   .jpg  ", "fallback.jpg", "spaced name .jpg"),
             ("bad?.jpg", "fallback.jpg", "bad_.jpg"),
             ("\x00evil.jpg", "fallback.jpg", "evil.jpg"),
