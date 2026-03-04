@@ -11,6 +11,7 @@ from viewport.auth_utils import get_current_user
 from viewport.dependencies import get_s3_client
 from viewport.models.db import get_db
 from viewport.models.gallery import PhotoUploadStatus
+from viewport.models.user import User
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.user_repository import UserRepository
 from viewport.s3_service import AsyncS3Client
@@ -403,7 +404,7 @@ async def rename_photo(
     photo_id: UUID,
     request: PhotoRenameRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> PhotoResponse:
     """Rename a photo in a gallery"""
@@ -416,5 +417,7 @@ async def rename_photo(
     photo = await repo.rename_photo_async(photo_id, gallery_id, current_user.id, request.filename)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
-
+    # TODO do we really need to fetch the photo again here? we already have it in the repo.rename_photo_async method, we can just return it from there instead of fetching it again. this would save us
+    # one db call and one s3 call, since we can generate the presigned url in the rename_photo_async method as well. let's refactor that method to return the renamed photo with the new presigned url,
+    # and then we can just return it here without fetching it again.
     return PhotoResponse.from_db_photo(photo, s3_client)

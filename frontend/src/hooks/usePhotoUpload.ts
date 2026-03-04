@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { photoService } from '../services/photoService';
 import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../constants/upload';
+import { getSafeNameAndExtension } from '../lib/filenameUtils';
 import type { PhotoUploadResponse } from '../services/photoService';
 import type { UploadPreparedFile, UploadRenameWarning } from '../types';
 
@@ -35,19 +36,13 @@ export const usePhotoUpload = (
     const warnings: UploadRenameWarning[] = [];
 
     const splitNameAndExt = (filename: string): { stem: string; ext: string } => {
-      const dotIndex = filename.lastIndexOf('.');
-      if (dotIndex <= 0 || dotIndex === filename.length - 1) {
-        return { stem: filename, ext: '' };
-      }
-      return {
-        stem: filename.slice(0, dotIndex),
-        ext: filename.slice(dotIndex),
-      };
+      const { stem, ext } = getSafeNameAndExtension(filename);
+      return { stem, ext };
     };
 
     for (const file of files) {
       const { stem, ext } = splitNameAndExt(file.name);
-      let uniqueName = file.name;
+      let uniqueName = `${stem}${ext}`;
       let counter = 1;
 
       while (occupied.has(uniqueName)) {
