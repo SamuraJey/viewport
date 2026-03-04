@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 from enum import IntEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, SmallInteger, String, event
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, SmallInteger, String, event, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -92,6 +92,15 @@ class Photo(Base):
 
     # Disambiguate relationship via this model's gallery_id
     gallery: Mapped["Gallery"] = relationship("Gallery", back_populates="photos", foreign_keys=[gallery_id])
+
+    __table_args__ = (
+        Index(
+            "ix_photos_gallery_id_display_name_lower",
+            gallery_id,
+            func.lower(display_name),
+            unique=True,
+        ),
+    )
 
 
 @event.listens_for(Photo, "before_insert")

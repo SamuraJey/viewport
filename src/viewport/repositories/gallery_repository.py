@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 from sqlalchemy import func, insert, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
@@ -25,17 +26,19 @@ class GalleryRepository(BaseRepository):
         return stem, suffix
 
     def _make_unique_display_name(self, gallery_id: uuid.UUID, desired_name: str, exclude_photo_id: uuid.UUID | None = None) -> str:
+        # Get all occupied names in case-insensitive way for this gallery
         stmt = select(Photo.display_name).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
         if exclude_photo_id is not None:
             stmt = stmt.where(Photo.id != exclude_photo_id)
 
-        occupied_names = {name for name in self.db.execute(stmt).scalars().all() if name}
+        # Store names in a lowercase set for fast case-insensitive lookup
+        occupied_names_lower = {name.lower() for name in self.db.execute(stmt).scalars().all() if name}
 
         candidate = desired_name
         stem, suffix = self._split_name_and_ext(candidate)
 
         counter = 1
-        while candidate in occupied_names:
+        while candidate.lower() in occupied_names_lower:
             candidate = f"{stem} ({counter}){suffix}"
             counter += 1
 
@@ -298,7 +301,6 @@ class GalleryRepository(BaseRepository):
         Returns:
             List of created Photo objects
         """
-
         start_time = time.time()
 
         # Add timestamps to all records
@@ -312,22 +314,42 @@ class GalleryRepository(BaseRepository):
         logger.info("Starting batch INSERT of %s photos", len(photos_data))
         insert_start = time.time()
 
-        # Single INSERT with RETURNING - much faster than bulk_insert_mappings + SELECT
-        stmt = insert(Photo).values(photos_data).returning(Photo)
-        result = self.db.execute(stmt)
-        photos = list(result.scalars().all())
+        max_retries = 3
+        for attempt in range(max_retries):
+            # Try to perform the batch insert
+            savepoint = self.db.begin_nested()
+            try:
+                # Single INSERT with RETURNING
+                stmt = insert(Photo).values(photos_data).returning(Photo)
+                result = self.db.execute(stmt)
+                photos = list(result.scalars().all())
+                savepoint.commit()
 
-        insert_duration = time.time() - insert_start
-        logger.info("INSERT completed in %.2fs", insert_duration)
+                insert_duration = time.time() - insert_start
+                logger.info("INSERT completed in %.2fs (attempt %s)", insert_duration, attempt + 1)
 
-        commit_start = time.time()
-        self.db.commit()
-        commit_duration = time.time() - commit_start
+                commit_start = time.time()
+                self.db.commit()
+                commit_duration = time.time() - commit_start
 
-        total_duration = time.time() - start_time
-        logger.info("Batch INSERT total: %.2fs (INSERT: %.2fs, COMMIT: %.2fs)", total_duration, insert_duration, commit_duration)
+                total_duration = time.time() - start_time
+                logger.info("Batch INSERT total: %.2fs (INSERT: %.2fs, COMMIT: %.2fs)", total_duration, insert_duration, commit_duration)
 
-        return photos
+                return photos
+            except IntegrityError:
+                savepoint.rollback()
+                if attempt == max_retries - 1:
+                    logger.error("Batch INSERT failed after %s attempts due to integrity error", max_retries)
+                    raise
+
+                logger.warning("Integrity error during batch insert, retrying with unique names (attempt %s)", attempt + 1)
+                # Re-calculate unique display names based on the current state of the DB
+                for data in photos_data:
+                    gallery_id = data["gallery_id"]
+                    current_name = data["display_name"]
+                    data["display_name"] = self._make_unique_display_name(gallery_id, current_name)
+
+        return []  # Should not reach here due to raise
 
     def delete_photo(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, s3_client: "AsyncS3Client") -> bool:  # type: ignore
         photo = self.get_photo_by_id_and_owner(photo_id, owner_id)
