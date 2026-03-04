@@ -8,6 +8,7 @@ import type { PhotoUploadResponse } from '../services/photoService';
 interface PhotoUploaderProps {
   galleryId: string;
   onUploadComplete: (result: PhotoUploadResponse) => void;
+  existingFilenames?: string[];
   showDropzone?: boolean;
 }
 
@@ -25,7 +26,7 @@ interface FileWithMeta {
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
 
 export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>(
-  ({ galleryId, onUploadComplete, showDropzone = true }, ref) => {
+  ({ galleryId, onUploadComplete, existingFilenames = [], showDropzone = true }, ref) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [dragActive, setDragActive] = useState(false);
     const [files, setFiles] = useState<FileWithMeta[]>([]);
@@ -186,6 +187,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
               isOpen={showConfirmModal}
               onClose={handleCloseConfirmModal}
               files={files.filter((f) => !f.error).map((f) => f.file)}
+              existingFilenames={existingFilenames}
               galleryId={galleryId}
               onUploadComplete={handleUploadComplete}
               onFilesChange={handleFilesChange}

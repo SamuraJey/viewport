@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -16,7 +17,7 @@ class GalleryUpdateRequest(BaseModel):
     shooting_date: date | None = Field(None, description="Displayed shooting date (YYYY-MM-DD)")
 
     @model_validator(mode="after")
-    def validate_payload(self):
+    def validate_payload(self) -> Self:
         if self.name is None and self.shooting_date is None:
             raise ValueError("At least one field must be provided for update")
         return self

@@ -1,9 +1,12 @@
 import io
+import zipfile
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from tests.helpers import upload_photo_via_presigned
+from viewport.api.public import _build_zip_fallback_name, _make_unique_zip_entry_name, _sanitize_zip_entry_name
 
 
 def _upload_photo(client: TestClient, gallery_id: str, content: bytes, filename: str = "photo.jpg") -> str:
@@ -94,3 +97,180 @@ class TestPublicAPI:
         r = authenticated_client.get(f"/s/{share_id}/download/all")
         # Should be 404 because no photos
         assert r.status_code == 404
+
+    def test_download_all_zip_sanitizes_path_like_display_name(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        content = b"zip-safe-content"
+        photo_id = _upload_photo(authenticated_client, gallery_id_fixture, content, "safe.jpg")
+
+        rename_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rename",
+            json={"filename": "../...jpg"},
+        )
+        assert rename_resp.status_code == 200
+
+        share_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"},
+        )
+        assert share_resp.status_code == 201
+        share_id = share_resp.json()["id"]
+
+        fake_bucket = "test-bucket"
+        fake_obj = {"Body": io.BytesIO(content), "ContentType": "image/jpeg"}
+
+        with patch("viewport.api.public.get_s3_settings") as mock_get_settings, patch("viewport.api.public.get_s3_client") as mock_get_s3:
+            mock_settings = MagicMock()
+            mock_settings.bucket = fake_bucket
+            mock_get_settings.return_value = mock_settings
+
+            mock_client = MagicMock()
+            mock_client.get_object.return_value = fake_obj
+            mock_get_s3.return_value = mock_client
+
+            response = authenticated_client.get(f"/s/{share_id}/download/all")
+            assert response.status_code == 200
+
+        zip_bytes = io.BytesIO(response.content)
+        with zipfile.ZipFile(zip_bytes) as archive:
+            names = archive.namelist()
+
+        assert len(names) == 1
+        assert names[0] == f"photo-{photo_id}.jpg"
+        assert "/" not in names[0]
+        assert "\\" not in names[0]
+
+    @pytest.mark.parametrize(
+        ("raw_name", "fallback", "expected"),
+        [
+            ("image.jpg", "fallback.jpg", "image.jpg"),
+            ("jpg", "fallback.jpg", "fallback.jpg"),
+            ("PNG", "fallback.jpg", "fallback.jpg"),
+            ("  spaced   name   .jpg  ", "fallback.jpg", "spaced name .jpg"),
+            ("bad?.jpg", "fallback.jpg", "bad_.jpg"),
+            ("\x00evil.jpg", "fallback.jpg", "evil.jpg"),
+            ("safe\u202egpj.exe", "fallback.jpg", "safegpj.exe"),
+            ("...hidden...", "fallback.jpg", "hidden"),
+            ("", "fallback.jpg", "fallback.jpg"),
+            ("   ", "fallback.jpg", "fallback.jpg"),
+            (".", "fallback.jpg", "fallback.jpg"),
+            ("..", "fallback.jpg", "fallback.jpg"),
+            ("../escape.jpg", "fallback.jpg", "fallback.jpg"),
+            ("..\\escape.jpg", "fallback.jpg", "fallback.jpg"),
+            ("/abs/path.jpg", "fallback.jpg", "fallback.jpg"),
+            ("C:evil.jpg", "fallback.jpg", "fallback.jpg"),
+            ("C:\\temp\\a.jpg", "fallback.jpg", "fallback.jpg"),
+            ("\\\\server\\share\\a.jpg", "fallback.jpg", "fallback.jpg"),
+            ("CON.txt", "fallback.jpg", "fallback.jpg"),
+            ("CoM1.log", "fallback.jpg", "fallback.jpg"),
+            ("nul", "fallback.jpg", "fallback.jpg"),
+            ("safe.jpg:payload.exe", "fallback.jpg", "safe.jpg_payload.exe"),
+            ("／etc／passwd", "fallback.jpg", "fallback.jpg"),
+            ("\u2215etc\u2215passwd", "fallback.jpg", "fallback.jpg"),
+        ],
+    )
+    def test_sanitize_zip_entry_name_attack_matrix(self, raw_name: str, fallback: str, expected: str):
+        assert _sanitize_zip_entry_name(raw_name, fallback=fallback) == expected
+
+    def test_sanitize_zip_entry_name_truncates_long_names(self):
+        long_name = f"{'я' * 400}.jpeg"
+        sanitized = _sanitize_zip_entry_name(long_name, fallback="fallback.jpg")
+
+        assert sanitized.endswith(".jpeg")
+        assert len(sanitized.encode("utf-8")) <= 255
+
+    def test_make_unique_zip_entry_name_is_case_insensitive(self):
+        used: set[str] = set()
+        first = _make_unique_zip_entry_name("A.jpg", used)
+        second = _make_unique_zip_entry_name("a.jpg", used)
+        third = _make_unique_zip_entry_name("a.jpg", used)
+
+        assert first == "A.jpg"
+        assert second == "a (1).jpg"
+        assert third == "a (2).jpg"
+
+    @pytest.mark.parametrize(
+        ("raw_name", "object_key", "fallback_stem", "expected"),
+        [
+            ("../name.png", "g/id.jpg", "photo-1", "photo-1.png"),
+            ("C:\\temp\\name.WEBP", "g/id.jpg", "photo-2", "photo-2.webp"),
+            ("reserved.CON", "g/id.gif", "photo-3", "photo-3.gif"),
+            ("noext", "g/id.jpg", "photo-4", "photo-4.jpg"),
+            ("noext", "g/id.webp", "photo-5", "photo-5.webp"),
+        ],
+    )
+    def test_build_zip_fallback_name_uses_allowed_extensions(self, raw_name: str, object_key: str, fallback_stem: str, expected: str):
+        assert _build_zip_fallback_name(raw_name, object_key, fallback_stem) == expected
+
+    def test_download_all_zip_preserves_png_extension_in_fallback(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        content = b"zip-safe-content"
+        photo_id = _upload_photo(authenticated_client, gallery_id_fixture, content, "safe.png")
+
+        rename_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rename",
+            json={"filename": "../...png"},
+        )
+        assert rename_resp.status_code == 200
+
+        share_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"},
+        )
+        assert share_resp.status_code == 201
+        share_id = share_resp.json()["id"]
+
+        fake_bucket = "test-bucket"
+        fake_obj = {"Body": io.BytesIO(content), "ContentType": "image/png"}
+
+        with patch("viewport.api.public.get_s3_settings") as mock_get_settings, patch("viewport.api.public.get_s3_client") as mock_get_s3:
+            mock_settings = MagicMock()
+            mock_settings.bucket = fake_bucket
+            mock_get_settings.return_value = mock_settings
+
+            mock_client = MagicMock()
+            mock_client.get_object.return_value = fake_obj
+            mock_get_s3.return_value = mock_client
+
+            response = authenticated_client.get(f"/s/{share_id}/download/all")
+            assert response.status_code == 200
+
+        zip_bytes = io.BytesIO(response.content)
+        with zipfile.ZipFile(zip_bytes) as archive:
+            names = archive.namelist()
+
+        assert len(names) == 1
+        assert names[0] == f"photo-{photo_id}.png"
+
+    def test_download_all_zip_avoids_case_insensitive_filename_collisions(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        _upload_photo(authenticated_client, gallery_id_fixture, b"one", "A.jpg")
+        _upload_photo(authenticated_client, gallery_id_fixture, b"two", "a.jpg")
+
+        share_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"},
+        )
+        assert share_resp.status_code == 201
+        share_id = share_resp.json()["id"]
+
+        fake_bucket = "test-bucket"
+
+        def _fake_get_object(*args, **kwargs):
+            return {"Body": io.BytesIO(b"zip-content"), "ContentType": "image/jpeg"}
+
+        with patch("viewport.api.public.get_s3_settings") as mock_get_settings, patch("viewport.api.public.get_s3_client") as mock_get_s3:
+            mock_settings = MagicMock()
+            mock_settings.bucket = fake_bucket
+            mock_get_settings.return_value = mock_settings
+
+            mock_client = MagicMock()
+            mock_client.get_object.side_effect = _fake_get_object
+            mock_get_s3.return_value = mock_client
+
+            response = authenticated_client.get(f"/s/{share_id}/download/all")
+            assert response.status_code == 200
+
+        zip_bytes = io.BytesIO(response.content)
+        with zipfile.ZipFile(zip_bytes) as archive:
+            names = archive.namelist()
+
+        assert len(names) == 2
+        assert len({name.casefold() for name in names}) == 2

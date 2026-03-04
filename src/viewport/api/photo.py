@@ -1,6 +1,5 @@
 import logging
-import re
-import time
+from pathlib import Path
 from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
@@ -9,8 +8,10 @@ from sqlalchemy.orm import Session
 
 from viewport.auth_utils import get_current_user
 from viewport.dependencies import get_s3_client
+from viewport.filename_utils import sanitize_filename
 from viewport.models.db import get_db
 from viewport.models.gallery import PhotoUploadStatus
+from viewport.models.user import User
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.user_repository import UserRepository
 from viewport.s3_service import AsyncS3Client
@@ -49,33 +50,25 @@ def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
     return UserRepository(db)
 
 
-def sanitize_filename(filename: str) -> str:
-    """Sanitize filename while preserving readability and Cyrillic characters
+def split_name_and_ext(filename: str) -> tuple[str, str]:
+    path = Path(filename)
+    suffix = path.suffix if path.suffix else ""
+    stem = path.stem if path.stem else "file"
+    return stem, suffix
 
-    Removes path separators and null bytes, replaces spaces with underscores,
-    keeps alphanumeric (Latin + Cyrillic), dots, dashes, and underscores.
-    """
-    if not filename:
-        return "file"
 
-    # Remove path separators and null bytes
-    filename = filename.replace("\\", "").replace("/", "").replace("\0", "")
+def make_unique_display_name(filename: str, occupied_names: set[str]) -> str:
+    candidate = sanitize_filename(filename)
+    stem, suffix = split_name_and_ext(candidate)
 
-    # Replace spaces with underscores
-    filename = filename.replace(" ", "_")
+    unique_name = candidate
+    counter = 1
+    while unique_name in occupied_names:
+        unique_name = f"{stem} ({counter}){suffix}"
+        counter += 1
 
-    # Keep safe characters: alphanumeric (Latin + Cyrillic), dots, dashes, underscores
-    # \u0400-\u04FF covers Cyrillic block (а-я, А-Я, ё, Ё, etc.)
-    filename = re.sub(r"[^a-zA-Z0-9._\-а-яА-ЯёЁ]", "", filename)
-
-    # Remove leading/trailing dots and dashes
-    filename = filename.strip(".-")
-
-    # Ensure we have a filename
-    if not filename:
-        filename = "file"
-
-    return filename
+    occupied_names.add(unique_name)
+    return unique_name
 
 
 def get_content_type_from_filename(filename: str | None) -> str:
@@ -96,7 +89,7 @@ def get_content_type_from_filename(filename: str | None) -> str:
 def get_all_photo_urls_for_gallery(
     gallery_id: UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> list[PhotoResponse]:
     """Get presigned URLs for all photos in a gallery for the owner.
@@ -124,7 +117,7 @@ def batch_presigned_uploads(
     request: BatchPresignedUploadsRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
     user_repo: UserRepository = Depends(get_user_repository),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> BatchPresignedUploadsResponse:
     """Generate presigned URLs for batch upload (max 100 files)
@@ -151,6 +144,7 @@ def batch_presigned_uploads(
     items: list[BatchPresignedUploadItem] = []
     photos_payload: list[dict] = []
     failed_presign_bytes = 0
+    occupied_display_names = repo.get_photo_display_names_by_gallery(gallery_id)
 
     # 2. Generate Photo records and presigned URLs
     for file_request in request.files:
@@ -165,10 +159,10 @@ def batch_presigned_uploads(
             )
             continue
 
-        timestamp = int(time.time() * 1000)
-        safe_filename = sanitize_filename(file_request.filename)
-        object_key = f"{gallery_id}/{timestamp}_{safe_filename}"
         photo_id = uuid4()
+        display_name = make_unique_display_name(file_request.filename, occupied_display_names)
+        _, extension = split_name_and_ext(display_name)
+        object_key = f"{gallery_id}/{photo_id}{extension.lower()}"
 
         # Generate presigned PUT signed with exact size and tagging requirements
         try:
@@ -195,6 +189,7 @@ def batch_presigned_uploads(
                 "id": photo_id,
                 "gallery_id": gallery_id,
                 "object_key": object_key,
+                "display_name": display_name,
                 "thumbnail_object_key": object_key,
                 "file_size": file_request.file_size,
                 "status": PhotoUploadStatus.PENDING,
@@ -205,7 +200,7 @@ def batch_presigned_uploads(
 
         items.append(
             BatchPresignedUploadItem(
-                filename=file_request.filename,
+                filename=display_name,
                 file_size=file_request.file_size,
                 success=True,
                 photo_id=photo_id,
@@ -238,7 +233,7 @@ def batch_confirm_uploads(
     request: BatchConfirmUploadRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
     user_repo: UserRepository = Depends(get_user_repository),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> BatchConfirmUploadResponse:
     """Confirm batch photo uploads to S3
 
@@ -349,8 +344,8 @@ def delete_photo(
     gallery_id: UUID,
     photo_id: UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
-    current_user=Depends(get_current_user),
-):
+    current_user: User = Depends(get_current_user),
+) -> None:
     """Delete a photo and enqueue background task for S3 cleanup and DB removal.
 
     Returns 204 immediately after validation and task enqueue.
@@ -383,7 +378,7 @@ async def rename_photo(
     photo_id: UUID,
     request: PhotoRenameRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> PhotoResponse:
     """Rename a photo in a gallery"""
@@ -393,8 +388,10 @@ async def rename_photo(
         raise HTTPException(status_code=404, detail="Gallery not found")
 
     # Then, verify photo belongs to that gallery and rename it
-    photo = await repo.rename_photo_async(photo_id, gallery_id, current_user.id, request.filename, s3_client)
+    photo = await repo.rename_photo_async(photo_id, gallery_id, current_user.id, request.filename)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
-
+    # TODO do we really need to fetch the photo again here? we already have it in the repo.rename_photo_async method, we can just return it from there instead of fetching it again. this would save us
+    # one db call and one s3 call, since we can generate the presigned url in the rename_photo_async method as well. let's refactor that method to return the renamed photo with the new presigned url,
+    # and then we can just return it here without fetching it again.
     return PhotoResponse.from_db_photo(photo, s3_client)

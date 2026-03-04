@@ -15,6 +15,7 @@ export interface PhotoResponse {
 
 export interface PhotoUploadResult {
   filename: string;
+  original_filename?: string;
   success: boolean;
   error?: string;
   photo?: PhotoResponse;
@@ -71,4 +72,14 @@ export interface BatchConfirmUploadRequest {
 export interface BatchConfirmUploadResponse {
   confirmed_count: number;
   failed_count: number;
+}
+
+export interface UploadPreparedFile {
+  file: File;
+  filename: string;
+}
+
+export interface UploadRenameWarning {
+  original: string;
+  unique: string;
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { X, FileText, Check } from 'lucide-react';
+import { sanitizeFilenameStem, isValidFilenameStem } from '../lib/filenameUtils';
 
 export interface PhotoRenameModalProps {
   isOpen: boolean;
@@ -11,36 +12,42 @@ export interface PhotoRenameModalProps {
 
 export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
   ({ isOpen, onClose, currentFilename, onRename }) => {
-    const [filename, setFilename] = useState('');
+    const [nameWithoutExtension, setNameWithoutExtension] = useState('');
+    const [extension, setExtension] = useState('');
     const [isRenaming, setIsRenaming] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
       if (isOpen) {
-        setFilename(currentFilename);
+        const lastDotIndex = currentFilename.lastIndexOf('.');
+        if (lastDotIndex > 0) {
+          setNameWithoutExtension(currentFilename.slice(0, lastDotIndex));
+          setExtension(currentFilename.slice(lastDotIndex));
+        } else {
+          setNameWithoutExtension(currentFilename);
+          setExtension('');
+        }
         setError(null);
         setTimeout(() => {
           if (inputRef.current) {
             inputRef.current.focus();
-            const lastDotIndex = currentFilename.lastIndexOf('.');
-            if (lastDotIndex > 0) {
-              inputRef.current.setSelectionRange(0, lastDotIndex);
-            } else {
-              inputRef.current.select();
-            }
+            inputRef.current.select();
           }
         }, 100);
       }
     }, [isOpen, currentFilename]);
 
     const handleRename = useCallback(async () => {
-      if (!filename.trim()) {
-        setError('Filename cannot be empty');
+      if (!isValidFilenameStem(nameWithoutExtension)) {
+        setError('Filename must contain valid characters, not just dots');
         return;
       }
 
-      if (filename === currentFilename) {
+      const sanitizedStem = sanitizeFilenameStem(nameWithoutExtension);
+      const newFilename = `${sanitizedStem}${extension}`;
+
+      if (newFilename === currentFilename) {
         onClose();
         return;
       }
@@ -48,7 +55,7 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
       setIsRenaming(true);
       setError(null);
       try {
-        await onRename(filename.trim());
+        await onRename(newFilename);
         onClose();
       } catch (err: unknown) {
         const message =
@@ -58,7 +65,7 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
       } finally {
         setIsRenaming(false);
       }
-    }, [filename, currentFilename, onClose, onRename]);
+    }, [nameWithoutExtension, extension, currentFilename, onClose, onRename]);
 
     useEffect(() => {
       if (!isOpen) return;
@@ -118,16 +125,21 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
                 >
                   Filename
                 </label>
-                <input
-                  ref={inputRef}
-                  id="filename"
-                  type="text"
-                  value={filename}
-                  onChange={(e) => setFilename(e.target.value)}
-                  disabled={isRenaming}
-                  className="w-full px-3 py-2 border border-border dark:border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-accent dark:bg-surface-foreground dark:text-accent-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-                  placeholder="Enter new filename"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={inputRef}
+                    id="filename"
+                    type="text"
+                    value={nameWithoutExtension}
+                    onChange={(e) => setNameWithoutExtension(e.target.value)}
+                    disabled={isRenaming}
+                    className="flex-1 px-3 py-2 border border-border dark:border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-accent dark:bg-surface-foreground dark:text-accent-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                    placeholder="Enter new filename"
+                  />
+                  {extension && (
+                    <span className="text-muted font-medium py-2 px-1">{extension}</span>
+                  )}
+                </div>
               </div>
 
               {error && (
@@ -148,7 +160,11 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
             </button>
             <button
               onClick={handleRename}
-              disabled={isRenaming || !filename.trim() || filename === currentFilename}
+              disabled={
+                isRenaming ||
+                !nameWithoutExtension.trim() ||
+                `${sanitizeFilenameStem(nameWithoutExtension)}${extension}` === currentFilename
+              }
               className="flex items-center gap-2 px-5 py-2.5 bg-accent hover:bg-accent/90 disabled:bg-accent/60 text-white rounded-xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none font-medium"
             >
               {isRenaming ? (

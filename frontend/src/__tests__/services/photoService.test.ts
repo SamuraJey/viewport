@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { photoService } from '../../services/photoService';
 import { api } from '../../lib/api';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
+import type { UploadPreparedFile } from '../../types';
 
 vi.mock('../../lib/api', () => ({
   api: {
@@ -88,9 +89,10 @@ class MockXMLHttpRequest {
   }
 }
 
-const createFile = (name: string, size: number, type = 'image/jpeg') => {
+const createFile = (name: string, size: number, type = 'image/jpeg'): UploadPreparedFile => {
   const data = new Uint8Array(size);
-  return new File([data], name, { type });
+  const file = new File([data], name, { type });
+  return { file, filename: name };
 };
 
 describe('photoService', () => {
@@ -159,6 +161,7 @@ describe('photoService', () => {
     expect(result.successful_uploads).toBe(0);
     expect(result.results[0]).toEqual({
       filename: 'big.jpg',
+      original_filename: 'big.jpg',
       success: false,
       error: `File exceeds maximum size of ${MAX_UPLOAD_FILE_SIZE_MB}MB`,
       retryable: false,
@@ -193,6 +196,7 @@ describe('photoService', () => {
     expect(result.failed_uploads).toBe(1);
     expect(result.results[0]).toEqual({
       filename: 'photo.jpg',
+      original_filename: 'photo.jpg',
       success: false,
       error: 'File rejected',
     });
@@ -238,8 +242,8 @@ describe('photoService', () => {
     });
 
     MockXMLHttpRequest.sendQueue = [
-      { type: 'load', status: 200, progress: fileA.size },
-      { type: 'load', status: 200, progress: fileB.size },
+      { type: 'load', status: 200, progress: fileA.file.size },
+      { type: 'load', status: 200, progress: fileB.file.size },
     ];
 
     const progressSpy = vi.fn();
@@ -311,6 +315,7 @@ describe('photoService', () => {
     expect(result.successful_uploads).toBe(0);
     expect(result.results[0]).toEqual({
       filename: 'empty.jpg',
+      original_filename: 'empty.jpg',
       success: false,
       error: 'Cannot upload empty file',
     });

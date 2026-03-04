@@ -181,20 +181,19 @@ def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (1000, 1000
 def generate_thumbnail_object_key(original_object_key: str) -> str:
     """Generate thumbnail object key from original object key.
 
-    Converts to AVIF format extension regardless of original format.
+    Converts photo key to `{gallery_id}/{photo_id}_thumbnail.avif` format.
 
     Args:
-        original_object_key: Original object key (e.g., 'gallery_id/filename.jpg')
+        original_object_key: Original object key (e.g., 'gallery_id/photo_id.jpg')
 
     Returns:
-        Thumbnail object key in AVIF format (e.g., 'gallery_id/thumbnails/filename.avif')
+        Thumbnail object key in AVIF format (e.g., 'gallery_id/photo_id_thumbnail.avif')
     """
     if "/" in original_object_key:
         gallery_id, filename = original_object_key.split("/", 1)
-        # Replace file extension with .avif
-        base_name = ".".join(filename.split(".")[:-1]) if "." in filename else filename
-        return f"{gallery_id}/thumbnails/{base_name}.avif"
+        photo_id = filename.rsplit(".", 1)[0] if "." in filename else filename
+        return f"{gallery_id}/{photo_id}_thumbnail.avif"
     else:
         # Fallback if no gallery_id prefix
-        base_name = ".".join(original_object_key.split(".")[:-1]) if "." in original_object_key else original_object_key
-        return f"thumbnails/{base_name}.avif"
+        photo_id = original_object_key.rsplit(".", 1)[0] if "." in original_object_key else original_object_key
+        return f"{photo_id}_thumbnail.avif"

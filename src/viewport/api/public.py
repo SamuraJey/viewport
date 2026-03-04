@@ -1,4 +1,7 @@
 import contextlib
+import re
+import unicodedata
+from pathlib import Path
 from uuid import UUID
 
 import zipstream
@@ -7,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from viewport.api.photo import CONTENT_TYPE_MAP
 from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.logger import logger
 from viewport.models.db import get_db
@@ -18,6 +22,140 @@ from viewport.s3_utils import get_s3_client, get_s3_settings
 from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto
 
 router = APIRouter(prefix="/s", tags=["public"])
+
+_WINDOWS_RESERVED_NAMES = {
+    "con",
+    "prn",
+    "aux",
+    "nul",
+    "com1",
+    "com2",
+    "com3",
+    "com4",
+    "com5",
+    "com6",
+    "com7",
+    "com8",
+    "com9",
+    "lpt1",
+    "lpt2",
+    "lpt3",
+    "lpt4",
+    "lpt5",
+    "lpt6",
+    "lpt7",
+    "lpt8",
+    "lpt9",
+}
+_SEPARATOR_LIKE_CHARS = {"/", "\\", "\u2215", "\u2044"}
+_FORBIDDEN_ZIP_CHARS_RE = re.compile(r'[<>:"|?*\x00-\x1F]')
+_WHITESPACE_RE = re.compile(r"\s+")
+_WINDOWS_DRIVE_PREFIX_RE = re.compile(r"^[A-Za-z]:")
+_MAX_ZIP_ENTRY_NAME_BYTES = 255
+_EXTENSION_ONLY_TOKENS = {ext.lstrip(".") for ext in CONTENT_TYPE_MAP}
+
+
+def _build_content_disposition(filename: str, disposition_type: str = "inline") -> str:
+    safe_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
+    return f'{disposition_type}; filename="{safe_filename}"'
+
+
+def _split_name_and_ext(filename: str) -> tuple[str, str]:
+    path = Path(filename)
+    suffix = path.suffix if path.suffix else ""
+    stem = path.stem if path.stem else "file"
+    return stem, suffix
+
+
+def _truncate_utf8(value: str, max_bytes: int) -> str:
+    if max_bytes <= 0:
+        return ""
+    encoded = value.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return value
+    truncated = encoded[:max_bytes]
+    return truncated.decode("utf-8", errors="ignore")
+
+
+def _truncate_preserving_extension(filename: str, max_bytes: int = _MAX_ZIP_ENTRY_NAME_BYTES) -> str:
+    if len(filename.encode("utf-8")) <= max_bytes:
+        return filename
+
+    stem, suffix = _split_name_and_ext(filename)
+    suffix_bytes = len(suffix.encode("utf-8"))
+
+    if suffix_bytes >= max_bytes:
+        return _truncate_utf8(stem, max_bytes)
+
+    stem_max_bytes = max_bytes - suffix_bytes
+    truncated_stem = _truncate_utf8(stem, stem_max_bytes).rstrip(" .")
+    if not truncated_stem:
+        truncated_stem = "file"
+    return f"{truncated_stem}{suffix}"
+
+
+def _sanitize_zip_entry_name(filename: str, fallback: str) -> str:
+    normalized = unicodedata.normalize("NFKC", filename or "")
+    cleaned = "".join(ch for ch in normalized if unicodedata.category(ch)[0] != "C").strip()
+    if not cleaned:
+        return fallback
+
+    if any(separator in cleaned for separator in _SEPARATOR_LIKE_CHARS):
+        return fallback
+
+    if _WINDOWS_DRIVE_PREFIX_RE.match(cleaned):
+        return fallback
+
+    sanitized = _FORBIDDEN_ZIP_CHARS_RE.sub("_", cleaned)
+    sanitized = _WHITESPACE_RE.sub(" ", sanitized).strip(" .")
+
+    if not sanitized or sanitized in {".", ".."}:
+        return fallback
+
+    if "." not in sanitized and sanitized.casefold() in _EXTENSION_ONLY_TOKENS:
+        return fallback
+
+    stem, _ = _split_name_and_ext(sanitized)
+    if stem.casefold() in _WINDOWS_RESERVED_NAMES:
+        return fallback
+
+    sanitized = _truncate_preserving_extension(sanitized)
+    if not sanitized or sanitized in {".", ".."}:
+        return fallback
+
+    return sanitized
+
+
+def _build_zip_fallback_name(filename: str, object_key: str, fallback_stem: str) -> str:
+    normalized = unicodedata.normalize("NFKC", filename or "")
+    leaf = normalized.replace("\\", "/").rsplit("/", 1)[-1]
+    extension = Path(leaf).suffix.lower()
+    if extension in CONTENT_TYPE_MAP:
+        return f"{fallback_stem}{extension}"
+
+    object_key_extension = Path(object_key).suffix.lower()
+    if object_key_extension in CONTENT_TYPE_MAP:
+        return f"{fallback_stem}{object_key_extension}"
+
+    return f"{fallback_stem}.jpg"
+
+
+def _make_unique_zip_entry_name(filename: str, used_names: set[str]) -> str:
+    candidate = filename
+    stem, suffix = _split_name_and_ext(filename)
+    counter = 1
+
+    while candidate.casefold() in used_names:
+        suffix_part = f" ({counter})"
+        stem_budget = _MAX_ZIP_ENTRY_NAME_BYTES - len(suffix.encode("utf-8"))
+        candidate_stem = _truncate_utf8(f"{stem}{suffix_part}", stem_budget).rstrip(" .")
+        if not candidate_stem:
+            candidate_stem = "file"
+        candidate = f"{candidate_stem}{suffix}"
+        counter += 1
+
+    used_names.add(candidate.casefold())
+    return candidate
 
 
 def get_sharelink_repository(db: Session = Depends(get_db)) -> ShareLinkRepository:
@@ -54,24 +192,23 @@ async def get_photos_by_sharelink(
     # Photos - ensure deterministic ordering by filename (case-insensitive)
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
     with contextlib.suppress(Exception):
-        photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
+        photos = sorted(photos, key=lambda p: p.display_name.lower())
 
     # Apply pagination if limit is specified
     photos_to_process = photos[offset : offset + limit] if limit else photos
 
     logger.info(f"Generating public gallery view for share {share_id} with {len(photos_to_process)} photos (offset={offset}, limit={limit}, total={len(photos)})")
 
-    object_keys = []
-    for photo in photos_to_process:
-        object_keys.append(photo.object_key)
-        object_keys.append(photo.thumbnail_object_key)
-
-    url_map = await s3_client.generate_presigned_urls_batch(object_keys)
+    thumbnail_keys = [photo.thumbnail_object_key for photo in photos_to_process]
+    thumb_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys)
 
     photo_list = []
     for photo in photos_to_process:
-        presigned_url = url_map.get(photo.object_key, "")
-        presigned_url_thumb = url_map.get(photo.thumbnail_object_key, "")
+        presigned_url = s3_client.generate_presigned_url(
+            photo.object_key,
+            response_content_disposition=_build_content_disposition(photo.display_name, disposition_type="inline"),
+        )
+        presigned_url_thumb = thumb_url_map.get(photo.thumbnail_object_key, "")
 
         if presigned_url and presigned_url_thumb:
             photo_list.append(
@@ -79,7 +216,7 @@ async def get_photos_by_sharelink(
                     photo_id=str(photo.id),
                     thumbnail_url=presigned_url_thumb,
                     full_url=presigned_url,
-                    filename=(photo.object_key.split("/", 1)[1] if "/" in photo.object_key else photo.object_key),
+                    filename=photo.display_name,
                     width=getattr(photo, "width", None),
                     height=getattr(photo, "height", None),
                 )
@@ -107,9 +244,12 @@ async def get_photos_by_sharelink(
         cover_filename = None
         cover_url = None
         if cover_photo_obj:
-            cover_filename = cover_photo_obj.object_key.split("/", 1)[1] if "/" in cover_photo_obj.object_key else cover_photo_obj.object_key
-            cover_url = url_map.get(cover_photo_obj.object_key)
-            cover_thumb_url = url_map.get(cover_photo_obj.thumbnail_object_key, cover_url)
+            cover_filename = cover_photo_obj.display_name
+            cover_url = s3_client.generate_presigned_url(
+                cover_photo_obj.object_key,
+                response_content_disposition=_build_content_disposition(cover_photo_obj.display_name, disposition_type="inline"),
+            )
+            cover_thumb_url = thumb_url_map.get(cover_photo_obj.thumbnail_object_key, cover_url)
             if cover_url == cover_thumb_url:
                 logger.warning(f"Cover photo {cover_id} presigned URL is the same for full and thumbnail, which may indicate an issue: {cover_url}")
 
@@ -150,7 +290,7 @@ def download_all_photos_zip(
     """Download all photos as zip - direct DB and S3 calls in a sync handler."""
     photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
     with contextlib.suppress(Exception):
-        photos = sorted(photos, key=lambda p: (p.object_key.split("/", 1)[1].lower() if "/" in p.object_key else p.object_key.lower()))
+        photos = sorted(photos, key=lambda p: p.display_name.lower())
 
     if not photos:
         raise HTTPException(status_code=404, detail="No photos found")
@@ -158,10 +298,13 @@ def download_all_photos_zip(
     settings = get_s3_settings()
 
     z = zipstream.ZipStream()
+    used_names: set[str] = set()
 
     for photo in photos:
         key = photo.object_key
-        filename = key.split("/")[-1]
+        fallback = _build_zip_fallback_name(photo.display_name, object_key=key, fallback_stem=f"photo-{photo.id}")
+        filename = _sanitize_zip_entry_name(photo.display_name, fallback=fallback)
+        filename = _make_unique_zip_entry_name(filename, used_names)
 
         def file_generator(object_key: str = key):
             client = get_s3_client()

@@ -115,6 +115,7 @@ export const GalleryPhotoSection = ({
         ref={photoUploaderRef}
         galleryId={galleryId}
         onUploadComplete={actions.onUploadComplete}
+        existingFilenames={state.photoUrls.map((photo) => photo.filename)}
         showDropzone={false}
       />
       {state.uploadError && (

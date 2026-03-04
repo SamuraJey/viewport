@@ -1,7 +1,9 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { photoService } from '../services/photoService';
 import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../constants/upload';
+import { getSafeNameAndExtension } from '../lib/filenameUtils';
 import type { PhotoUploadResponse } from '../services/photoService';
+import type { UploadPreparedFile, UploadRenameWarning } from '../types';
 
 export interface UploadProgress {
   loaded: number;
@@ -19,13 +21,46 @@ const SUPPORTED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
 export const usePhotoUpload = (
   galleryId: string,
   files: File[],
+  existingFilenames: string[] = [],
   onFilesChange?: (files: File[]) => void,
 ) => {
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [result, setResult] = useState<PhotoUploadResponse | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const failedFilesRef = useRef<File[]>([]);
+  const failedFilesRef = useRef<UploadPreparedFile[]>([]);
+
+  const { preparedFiles, renameWarnings } = useMemo(() => {
+    const occupied = new Set(existingFilenames);
+    const planned: UploadPreparedFile[] = [];
+    const warnings: UploadRenameWarning[] = [];
+
+    const splitNameAndExt = (filename: string): { stem: string; ext: string } => {
+      const { stem, ext } = getSafeNameAndExtension(filename);
+      return { stem, ext };
+    };
+
+    for (const file of files) {
+      const { stem, ext } = splitNameAndExt(file.name);
+      let uniqueName = `${stem}${ext}`;
+      let counter = 1;
+
+      while (occupied.has(uniqueName)) {
+        uniqueName = `${stem} (${counter})${ext}`;
+        counter += 1;
+      }
+
+      occupied.add(uniqueName);
+
+      if (uniqueName !== file.name) {
+        warnings.push({ original: file.name, unique: uniqueName });
+      }
+
+      planned.push({ file, filename: uniqueName });
+    }
+
+    return { preparedFiles: planned, renameWarnings: warnings };
+  }, [files, existingFilenames]);
 
   const { totalSize, hasLargeFiles, validUploadCount, hasValidFiles, hasInvalidTypes } =
     useMemo(() => {
@@ -41,8 +76,8 @@ export const usePhotoUpload = (
     }, [files]);
 
   const handleRemoveFile = useCallback(
-    (fileName: string) => {
-      const updatedFiles = files.filter((f) => f.name !== fileName);
+    (fileIndex: number) => {
+      const updatedFiles = files.filter((_, index) => index !== fileIndex);
       onFilesChange?.(updatedFiles);
     },
     [files, onFilesChange],
@@ -60,38 +95,40 @@ export const usePhotoUpload = (
     try {
       const uploadResult = await photoService.uploadPhotosPresigned(
         galleryId,
-        files,
+        preparedFiles,
         setProgress,
         abortControllerRef.current.signal,
       );
 
+      const preparedByName = new Map(preparedFiles.map((item) => [item.filename, item]));
+
       failedFilesRef.current = uploadResult.results
         .filter((r) => !r.success && r.retryable !== false)
-        .map((r) => files.find((f) => f.name === r.filename))
-        .filter((f) => f !== undefined) as File[];
+        .map((r) => preparedByName.get(r.original_filename || r.filename))
+        .filter((item) => item !== undefined) as UploadPreparedFile[];
 
       setResult(uploadResult);
     } catch (error) {
       if (!(error instanceof Error && error.message.includes('cancelled'))) {
         console.error('Upload failed:', error);
         setResult({
-          results: files.map((file) => ({
-            filename: file.name,
+          results: preparedFiles.map((item) => ({
+            filename: item.filename,
             success: false,
             error: 'Upload failed',
           })),
-          total_files: files.length,
+          total_files: preparedFiles.length,
           successful_uploads: 0,
-          failed_uploads: files.length,
+          failed_uploads: preparedFiles.length,
         });
-        failedFilesRef.current = files;
+        failedFilesRef.current = preparedFiles;
       }
     } finally {
       setIsUploading(false);
       setProgress(null);
       abortControllerRef.current = null;
     }
-  }, [galleryId, files, hasValidFiles]);
+  }, [galleryId, hasValidFiles, preparedFiles]);
 
   const handleRetryFailed = useCallback(async () => {
     if (failedFilesRef.current.length === 0) return;
@@ -110,18 +147,20 @@ export const usePhotoUpload = (
         abortControllerRef.current.signal,
       );
 
+      const retryByName = new Map(failedFilesRef.current.map((item) => [item.filename, item]));
+
       failedFilesRef.current = retryResult.results
         .filter((r) => !r.success && r.retryable !== false)
-        .map((r) => files.find((f) => f.name === r.filename))
-        .filter((f) => f !== undefined) as File[];
+        .map((r) => retryByName.get(r.filename))
+        .filter((item) => item !== undefined) as UploadPreparedFile[];
 
       setResult(retryResult);
     } catch (error) {
       if (!(error instanceof Error && error.message.includes('cancelled'))) {
         console.error('Retry failed:', error);
         setResult({
-          results: failedFilesRef.current.map((file) => ({
-            filename: file.name,
+          results: failedFilesRef.current.map((item) => ({
+            filename: item.filename,
             success: false,
             error: 'Retry failed',
           })),
@@ -135,7 +174,7 @@ export const usePhotoUpload = (
       setProgress(null);
       abortControllerRef.current = null;
     }
-  }, [galleryId, files]);
+  }, [galleryId]);
 
   const cancelUpload = useCallback(() => {
     if (abortControllerRef.current) {
@@ -157,6 +196,7 @@ export const usePhotoUpload = (
     validUploadCount,
     hasValidFiles,
     hasInvalidTypes,
+    renameWarnings,
     handleRemoveFile,
     handleUpload,
     handleRetryFailed,

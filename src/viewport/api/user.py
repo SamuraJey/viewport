@@ -16,7 +16,7 @@ def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
 
 
 @router.get("/me", response_model=MeResponse)
-def get_me(current_user: User = Depends(get_current_user)):
+def get_me(current_user: User = Depends(get_current_user)) -> MeResponse:
     return {
         "id": str(current_user.id),
         "email": current_user.email,
@@ -27,7 +27,7 @@ def get_me(current_user: User = Depends(get_current_user)):
 
 
 @router.put("/me", response_model=MeResponse)
-def update_me(req: UpdateMeRequest, repo: UserRepository = Depends(get_user_repository), current_user: User = Depends(get_current_user)):
+def update_me(req: UpdateMeRequest, repo: UserRepository = Depends(get_user_repository), current_user: User = Depends(get_current_user)) -> MeResponse:
     user = repo.update_user_display_name(current_user.id, req.display_name)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -41,7 +41,7 @@ def update_me(req: UpdateMeRequest, repo: UserRepository = Depends(get_user_repo
 
 
 @router.put("/me/password", status_code=status.HTTP_200_OK)
-def change_password(req: ChangePasswordRequest, repo: UserRepository = Depends(get_user_repository), current_user: User = Depends(get_current_user)):
+def change_password(req: ChangePasswordRequest, repo: UserRepository = Depends(get_user_repository), current_user: User = Depends(get_current_user)) -> dict[str, str]:
     """Change password - async to run bcrypt in threadpool, but DB calls are direct."""
     if req.new_password != req.confirm_password:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password and confirmation do not match")

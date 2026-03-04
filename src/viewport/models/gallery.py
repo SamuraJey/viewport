@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 from enum import IntEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, SmallInteger, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, SmallInteger, String, event, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -45,7 +45,7 @@ class Gallery(Base):
         back_populates="gallery",
         passive_deletes=True,
         foreign_keys="Photo.gallery_id",
-        order_by="Photo.object_key",
+        order_by="Photo.display_name",
     )
     # Optional relationship to the cover photo (may be None)
     cover_photo: Mapped["Photo | None"] = relationship(
@@ -81,6 +81,8 @@ class Photo(Base):
     )
     # S3 object key (e.g., gallery_id/filename)
     object_key: Mapped[str] = mapped_column(String, nullable=False)
+    # Original filename of the uploaded photo
+    display_name: Mapped[str] = mapped_column(String, nullable=False)
     thumbnail_object_key: Mapped[str] = mapped_column(String, nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
     # Optional stored dimensions (filled from S3 metadata during upload)
@@ -90,3 +92,20 @@ class Photo(Base):
 
     # Disambiguate relationship via this model's gallery_id
     gallery: Mapped["Gallery"] = relationship("Gallery", back_populates="photos", foreign_keys=[gallery_id])
+
+    __table_args__ = (
+        Index(
+            "ix_photos_gallery_id_display_name_lower",
+            gallery_id,
+            func.lower(display_name),
+            unique=True,
+        ),
+    )
+
+
+@event.listens_for(Photo, "before_insert")
+def _set_default_display_name_before_insert(_, __, target: Photo) -> None:
+    if target.display_name:
+        return
+    object_key = target.object_key or ""
+    target.display_name = object_key.split("/", 1)[1] if "/" in object_key else (object_key or "file")

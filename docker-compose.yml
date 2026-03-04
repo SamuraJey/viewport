@@ -118,7 +118,7 @@ services:
       dockerfile: Dockerfile-backend
     container_name: viewport_celery_worker
     restart: always
-    command: celery -A src.viewport.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=500 --beat
+    command: celery -A src.viewport.celery_app worker --loglevel=info --concurrency=4 --max-tasks-per-child=500 --beat
     env_file:
       - .env.prod
     depends_on:
@@ -139,7 +139,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2"
+          cpus: "4"
           memory: 768M
         reservations:
           cpus: "0.50"

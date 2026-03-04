@@ -12,6 +12,7 @@ interface PhotoUploadConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
   files: File[];
+  existingFilenames?: string[];
   galleryId: string;
   onUploadComplete: (result: PhotoUploadResponse) => void;
   onFilesChange?: (files: File[]) => void;
@@ -22,6 +23,7 @@ export const PhotoUploadConfirmModal = memo(
     isOpen,
     onClose,
     files,
+    existingFilenames = [],
     galleryId,
     onUploadComplete,
     onFilesChange,
@@ -36,12 +38,13 @@ export const PhotoUploadConfirmModal = memo(
       validUploadCount,
       hasValidFiles,
       hasInvalidTypes,
+      renameWarnings,
       handleRemoveFile,
       handleUpload,
       handleRetryFailed,
       cancelUpload,
       failedFilesRef,
-    } = usePhotoUpload(galleryId, files, onFilesChange);
+    } = usePhotoUpload(galleryId, files, existingFilenames, onFilesChange);
 
     const [showCancelWarning, setShowCancelWarning] = useState(false);
     const uploadButtonRef = useRef<HTMLButtonElement>(null);
@@ -176,6 +179,7 @@ export const PhotoUploadConfirmModal = memo(
                 totalSize={totalSize}
                 hasLargeFiles={hasLargeFiles}
                 hasInvalidTypes={hasInvalidTypes}
+                renameWarnings={renameWarnings}
                 isUploading={isUploading}
                 onRemoveFile={handleRemoveFile}
               />

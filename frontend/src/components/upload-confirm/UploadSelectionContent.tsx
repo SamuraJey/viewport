@@ -8,8 +8,9 @@ interface UploadSelectionContentProps {
   totalSize: number;
   hasLargeFiles: boolean;
   hasInvalidTypes: boolean;
+  renameWarnings: Array<{ original: string; unique: string }>;
   isUploading: boolean;
-  onRemoveFile: (fileName: string) => void;
+  onRemoveFile: (fileIndex: number) => void;
 }
 
 export const UploadSelectionContent = ({
@@ -17,12 +18,13 @@ export const UploadSelectionContent = ({
   totalSize,
   hasLargeFiles,
   hasInvalidTypes,
+  renameWarnings,
   isUploading,
   onRemoveFile,
 }: UploadSelectionContentProps) => {
   return (
     <>
-      {(hasLargeFiles || hasInvalidTypes) && (
+      {(hasLargeFiles || hasInvalidTypes || renameWarnings.length > 0) && (
         <div className="p-4 bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 rounded-2xl shadow-xs">
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 shrink-0 text-yellow-600 dark:text-yellow-400 mt-0.5" />
@@ -35,6 +37,21 @@ export const UploadSelectionContent = ({
                   <li>Files larger than {MAX_UPLOAD_FILE_SIZE_MB}MB will be rejected</li>
                 )}
                 {hasInvalidTypes && <li>Only JPG and PNG formats are supported</li>}
+                {renameWarnings.length > 0 && (
+                  <li>
+                    Duplicate names will be renamed before upload:
+                    <ul className="ml-4 mt-1 space-y-1 list-disc">
+                      {renameWarnings.slice(0, 5).map((warning, index) => (
+                        <li key={`${warning.original}-${warning.unique}-${index}`}>
+                          {warning.original} → {warning.unique}
+                        </li>
+                      ))}
+                      {renameWarnings.length > 5 && (
+                        <li>...and {renameWarnings.length - 5} more</li>
+                      )}
+                    </ul>
+                  </li>
+                )}
               </ul>
             </div>
           </div>
@@ -100,7 +117,7 @@ export const UploadSelectionContent = ({
               </div>
 
               <button
-                onClick={() => onRemoveFile(file.name)}
+                onClick={() => onRemoveFile(index)}
                 disabled={isUploading}
                 className="shrink-0 p-2.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-all duration-200 text-muted hover:text-danger hover:bg-danger/10 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger"
                 title="Remove file"

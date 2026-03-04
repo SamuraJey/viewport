@@ -4,6 +4,7 @@ import type {
   PhotoUploadIntentRequest,
   PhotoUploadResult,
   PhotoUploadResponse,
+  UploadPreparedFile,
   BatchPresignedUploadsRequest,
   BatchPresignedUploadsResponse,
   BatchPresignedUploadItem,
@@ -36,14 +37,14 @@ const renamePhoto = async (
 // Batch presigned upload methods
 const batchCreateUploadIntents = async (
   galleryId: string,
-  files: File[],
+  files: UploadPreparedFile[],
   signal?: AbortSignal,
 ): Promise<BatchPresignedUploadsResponse> => {
   const request: BatchPresignedUploadsRequest = {
-    files: files.map((file) => ({
-      filename: file.name,
-      file_size: file.size,
-      content_type: file.type,
+    files: files.map((item) => ({
+      filename: item.filename,
+      file_size: item.file.size,
+      content_type: item.file.type,
     })),
   };
 
@@ -198,7 +199,7 @@ const uploadToS3 = async (
  */
 const retryFailedUploads = async (
   galleryId: string,
-  failedFiles: File[],
+  failedFiles: UploadPreparedFile[],
   onProgress?: (progress: {
     loaded: number;
     total: number;
@@ -228,7 +229,7 @@ const retryFailedUploads = async (
  */
 const uploadPhotosPresigned = async (
   galleryId: string,
-  files: File[],
+  files: UploadPreparedFile[],
   onProgress?: (progress: {
     loaded: number;
     total: number;
@@ -253,7 +254,7 @@ const uploadPhotosPresigned = async (
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   return (async () => {
-    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+    const totalSize = files.reduce((sum, item) => sum + item.file.size, 0);
     const results: PhotoUploadResult[] = [];
     let successfulUploads = 0;
     let failedUploads = 0;
@@ -277,26 +278,27 @@ const uploadPhotosPresigned = async (
     };
 
     const oversizeMessage = `File exceeds maximum size of ${MAX_UPLOAD_FILE_SIZE_MB}MB`;
-    const validFiles: File[] = [];
-    const oversizedFiles: File[] = [];
-    for (const file of files) {
-      if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
-        oversizedFiles.push(file);
+    const validFiles: UploadPreparedFile[] = [];
+    const oversizedFiles: UploadPreparedFile[] = [];
+    for (const item of files) {
+      if (item.file.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
+        oversizedFiles.push(item);
       } else {
-        validFiles.push(file);
+        validFiles.push(item);
       }
     }
 
-    for (const file of oversizedFiles) {
+    for (const item of oversizedFiles) {
       failedUploads++;
       results.push({
-        filename: file.name,
+        filename: item.filename,
+        original_filename: item.filename,
         success: false,
         error: oversizeMessage,
         retryable: false,
       });
-      completedBytes += file.size;
-      emitProgress(file.name);
+      completedBytes += item.file.size;
+      emitProgress(item.filename);
     }
 
     if (validFiles.length === 0) {
@@ -322,13 +324,15 @@ const uploadPhotosPresigned = async (
       } catch {
         // Batch request failed
         for (const file of batch) {
+          const item = file;
           failedUploads++;
           results.push({
-            filename: file.name,
+            filename: item.filename,
+            original_filename: item.filename,
             success: false,
             error: 'Failed to get presigned URL',
           });
-          completedBytes += file.size;
+          completedBytes += item.file.size;
         }
         continue;
       }
@@ -352,43 +356,45 @@ const uploadPhotosPresigned = async (
         if (!item || !item.success || !item.presigned_data) {
           failedUploads++;
           results.push({
-            filename: file.name,
+            filename: item?.filename ?? file.filename,
+            original_filename: file.filename,
             success: false,
             error: item?.error ?? 'File rejected by server',
           });
-          completedBytes += file.size;
-          emitProgress(file.name);
+          completedBytes += file.file.size;
+          emitProgress(file.filename);
           await wait(INTER_UPLOAD_DELAY_MS);
           continue;
         }
 
-        fileProgress.set(file.name, 0);
+        fileProgress.set(file.filename, 0);
 
         try {
           await uploadToS3(
             item.presigned_data,
-            file,
+            file.file,
             (percentage) => {
-              fileProgress.set(file.name, Math.round((file.size * percentage) / 100));
-              emitProgress(file.name);
+              fileProgress.set(file.filename, Math.round((file.file.size * percentage) / 100));
+              emitProgress(file.filename);
             },
             signal,
           );
 
-          fileProgress.delete(file.name);
-          completedBytes += file.size;
+          fileProgress.delete(file.filename);
+          completedBytes += file.file.size;
           successfulUploads++;
           if (item.photo_id) {
             batchSuccessfulPhotoIds.push(item.photo_id);
           }
 
           results.push({
-            filename: file.name,
+            filename: item.filename || file.filename,
+            original_filename: file.filename,
             success: true,
           });
         } catch (error) {
-          fileProgress.delete(file.name);
-          completedBytes += file.size;
+          fileProgress.delete(file.filename);
+          completedBytes += file.file.size;
 
           // Don't add cancelled uploads to failed list
           if (!(error instanceof Error && error.message === 'Upload cancelled')) {
@@ -398,14 +404,15 @@ const uploadPhotosPresigned = async (
             }
 
             results.push({
-              filename: file.name,
+              filename: item.filename || file.filename,
+              original_filename: file.filename,
               success: false,
               error: error instanceof Error ? error.message : 'Upload failed',
             });
           }
         }
 
-        emitProgress(file.name);
+        emitProgress(file.filename);
         await wait(INTER_UPLOAD_DELAY_MS);
       }
 
