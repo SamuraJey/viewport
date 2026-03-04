@@ -228,7 +228,7 @@ def batch_presigned_uploads(
 
 
 @router.post("/{gallery_id}/photos/batch-confirm", response_model=BatchConfirmUploadResponse)
-def batch_confirm_uploads(
+async def batch_confirm_uploads(
     gallery_id: UUID,
     request: BatchConfirmUploadRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
@@ -325,7 +325,7 @@ def batch_confirm_uploads(
         from viewport.background_tasks import create_thumbnails_batch_task
 
         try:
-            create_thumbnails_batch_task.delay(photos_to_process)
+            await create_thumbnails_batch_task.kiq(photos_to_process)
         except Exception as exc:
             # Statuses are already committed; periodic reconciler will requeue.
             logger.warning(
@@ -340,7 +340,7 @@ def batch_confirm_uploads(
 
 # DELETE /galleries/{gallery_id}/photos/{photo_id} - Delete a photo (enqueue background task)
 @router.delete("/{gallery_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_photo(
+async def delete_photo(
     gallery_id: UUID,
     photo_id: UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
@@ -349,7 +349,7 @@ def delete_photo(
     """Delete a photo and enqueue background task for S3 cleanup and DB removal.
 
     Returns 204 immediately after validation and task enqueue.
-    Actual S3 deletion happens asynchronously in Celery.
+    Actual S3 deletion happens asynchronously in Taskiq worker.
     """
     # Verify gallery ownership and photo exists
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
@@ -364,7 +364,7 @@ def delete_photo(
     from viewport.background_tasks import delete_photo_data_task
 
     try:
-        delete_photo_data_task.delay(str(photo_id), str(gallery_id), str(current_user.id))
+        await delete_photo_data_task.kiq(str(photo_id), str(gallery_id), str(current_user.id))
     except Exception as exc:
         logger.error("Failed to enqueue delete_photo_data task for photo %s: %s", photo_id, exc)
         raise HTTPException(status_code=500, detail="Failed to enqueue deletion task") from exc

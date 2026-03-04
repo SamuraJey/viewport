@@ -1,34 +1,29 @@
 #!/bin/bash
-# Celery queue management script
+# Taskiq queue management script
 
 case "$1" in
-  purge)
-    echo "Purging all tasks from Celery queue..."
-    docker exec viewport_celery_worker celery -A src.viewport.background_tasks purge -f
+  stream-len)
+    echo "Task stream length..."
+    docker exec viewport_redis redis-cli XLEN viewport_tasks
     ;;
 
-  stats)
-    echo "Celery worker statistics..."
-    docker exec viewport_celery_worker celery -A src.viewport.background_tasks inspect stats
+  pending)
+    echo "Pending entries (last 20)..."
+    docker exec viewport_redis redis-cli XREVRANGE viewport_tasks + - COUNT 20
     ;;
 
-  active)
-    echo "Active tasks..."
-    docker exec viewport_celery_worker celery -A src.viewport.background_tasks inspect active
+  groups)
+    echo "Consumer groups..."
+    docker exec viewport_redis redis-cli XINFO GROUPS viewport_tasks
     ;;
 
-  scheduled)
-    echo "Scheduled tasks..."
-    docker exec viewport_celery_worker celery -A src.viewport.background_tasks inspect scheduled
-    ;;
-
-  queue-length)
-    echo "Queue length..."
-    docker exec viewport_redis redis-cli LLEN celery
+  consumers)
+    echo "Consumers in viewport_workers group..."
+    docker exec viewport_redis redis-cli XINFO CONSUMERS viewport_tasks viewport_workers
     ;;
 
   *)
-    echo "Usage: $0 {purge|stats|active|scheduled|queue-length}"
+    echo "Usage: $0 {stream-len|pending|groups|consumers}"
     exit 1
     ;;
 esac

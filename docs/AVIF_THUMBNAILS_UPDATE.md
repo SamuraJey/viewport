@@ -91,7 +91,7 @@ Cache-Control: public, max-age=31536000, immutable
 
 ## Тестирование
 
-1. Запустите Celery worker: `docker-compose up celery_worker`
+1. Запустите Taskiq worker и scheduler: `docker-compose up taskiq_worker taskiq_scheduler`
 2. Загрузите новое фото через фронтенд
 3. Проверьте, что thumbnail был создан в AVIF формате:
    ```bash

@@ -241,10 +241,10 @@ class TestPhotoAPI:
 
         captured: dict[str, list] = {}
 
-        def fake_delay(batch: list[dict]):
+        async def fake_kiq(batch: list[dict]):
             captured["batch"] = batch
 
-        monkeypatch.setattr("viewport.background_tasks.create_thumbnails_batch_task.delay", fake_delay)
+        monkeypatch.setattr("viewport.background_tasks.create_thumbnails_batch_task.kiq", fake_kiq)
 
         confirm_payload = {
             "items": [
@@ -332,10 +332,10 @@ class TestPhotoAPI:
         item = presigned.json()["items"][0]
         photo_id = UUID(item["photo_id"])
 
-        def fake_delay(batch: list[dict]) -> None:
+        async def fake_kiq(batch: list[dict]) -> None:
             return None
 
-        monkeypatch.setattr("viewport.background_tasks.create_thumbnails_batch_task.delay", fake_delay)
+        monkeypatch.setattr("viewport.background_tasks.create_thumbnails_batch_task.kiq", fake_kiq)
 
         me_resp = authenticated_client.get("/me")
         assert me_resp.status_code == 200
@@ -371,10 +371,10 @@ class TestPhotoAPI:
         assert me_resp.status_code == 200
         user_id = UUID(me_resp.json()["id"])
 
-        def fail_delay(batch: list[dict]) -> Never:
+        async def fail_kiq(batch: list[dict]) -> Never:
             raise RuntimeError("broker unavailable")
 
-        monkeypatch.setattr("viewport.background_tasks.create_thumbnails_batch_task.delay", fail_delay)
+        monkeypatch.setattr("viewport.background_tasks.create_thumbnails_batch_task.kiq", fail_kiq)
 
         response = authenticated_client.post(
             f"/galleries/{gallery_id_fixture}/photos/batch-confirm",

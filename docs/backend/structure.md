@@ -19,7 +19,8 @@ src/viewport/
 ├── s3_utils.py               # S3 file operations
 ├── s3_service.py                # S3 service abstraction
 ├── background_tasks.py          # Background task definitions
-├── celery_app.py                # Celery configuration
+├── tkq.py                       # Taskiq broker + scheduler configuration
+├── tasks/                       # Task modules (photo + maintenance)
 ├── dependencies.py              # FastAPI dependency injection
 │
 ├── api/                         # API route handlers (blueprints)
@@ -330,7 +331,7 @@ def get_gallery(gallery_id: UUID) -> Gallery:
 - **psycopg**: PostgreSQL driver
 
 ### Async/Queue
-- **Celery**: Task queue
+- **Taskiq**: Task queue and scheduler
 - **Redis**: Message broker & cache
 - **aioboto3**: Async S3 client
 

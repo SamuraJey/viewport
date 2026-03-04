@@ -577,26 +577,24 @@ def valkey_container(request: pytest.FixtureRequest) -> Generator[str]:
 
 @pytest.fixture(scope="session", autouse=True)
 def celery_env(valkey_container):
-    """Configure Celery to use the test ValKey container.
+    """Configure Taskiq to use the test ValKey container.
 
-    This fixture sets environment variables before any Celery modules are imported,
-    ensuring the Celery app is configured with the test broker/backend from the start.
+    This fixture sets environment variables before Taskiq modules are imported,
+    ensuring broker/result backend use the test Redis endpoint from the start.
     The environment variables remain set for the entire test session.
     """
     overrides = {
-        "CELERY_BROKER_URL": valkey_container,
-        "CELERY_RESULT_BACKEND": valkey_container,
+        "TASKIQ_REDIS_URL": valkey_container,
+        "TASKIQ_RESULT_TTL_SECONDS": "120",
     }
 
     with _temporary_env_vars(overrides):
-        # The celery_app module reads from environment variables when imported.
-        # Tests that import celery_app will get the test configuration automatically.
         yield
 
 
 @pytest.fixture(scope="session")
 def celery_config(valkey_container, celery_env):
-    """Configure pytest-celery to use the ValKey container as broker/backend."""
+    """Backward-compatible fixture name for legacy tests."""
     return {"broker_url": valkey_container, "result_backend": valkey_container}
 
 

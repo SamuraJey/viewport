@@ -340,16 +340,14 @@ def test_reconcile_successful_uploads_selects_correct_photos(engine: Engine, s3_
             photo3.width = None
             session.flush()
 
-        # Mock delay to capture the call without actually queuing
+        # Mock Taskiq enqueue to capture the call without actually queuing
         captured_calls = []
 
-        original_delay = create_thumbnails_batch_task.delay
-
-        def mock_delay(photos):
+        async def mock_kiq(photos):
             captured_calls.append(photos)
-            return original_delay(photos)
+            return None
 
-        monkeypatch.setattr(create_thumbnails_batch_task, "delay", mock_delay)
+        monkeypatch.setattr("viewport.tasks.maintenance_tasks.create_thumbnails_batch_task.kiq", mock_kiq)
 
         result = reconcile_successful_uploads_task.run()
 
@@ -385,13 +383,11 @@ def test_reconcile_successful_uploads_filters_deleted_galleries(engine: Engine, 
 
         captured_calls = []
 
-        original_delay = create_thumbnails_batch_task.delay
-
-        def mock_delay(photos):
+        async def mock_kiq(photos):
             captured_calls.append(photos)
-            return original_delay(photos)
+            return None
 
-        monkeypatch.setattr(create_thumbnails_batch_task, "delay", mock_delay)
+        monkeypatch.setattr("viewport.tasks.maintenance_tasks.create_thumbnails_batch_task.kiq", mock_kiq)
 
         result = reconcile_successful_uploads_task.run()
 
@@ -443,13 +439,11 @@ def test_reconcile_successful_uploads_max_batch_limit(engine: Engine, s3_contain
 
         captured_calls = []
 
-        original_delay = create_thumbnails_batch_task.delay
-
-        def mock_delay(photos_batch):
+        async def mock_kiq(photos_batch):
             captured_calls.append(photos_batch)
-            return original_delay(photos_batch)
+            return None
 
-        monkeypatch.setattr(create_thumbnails_batch_task, "delay", mock_delay)
+        monkeypatch.setattr("viewport.tasks.maintenance_tasks.create_thumbnails_batch_task.kiq", mock_kiq)
 
         result = reconcile_successful_uploads_task.run()
 
@@ -506,13 +500,11 @@ def test_reconcile_successful_uploads_missing_metadata_criteria(engine: Engine, 
 
         captured_calls = []
 
-        original_delay = create_thumbnails_batch_task.delay
-
-        def mock_delay(photos_batch):
+        async def mock_kiq(photos_batch):
             captured_calls.append(photos_batch)
-            return original_delay(photos_batch)
+            return None
 
-        monkeypatch.setattr(create_thumbnails_batch_task, "delay", mock_delay)
+        monkeypatch.setattr("viewport.tasks.maintenance_tasks.create_thumbnails_batch_task.kiq", mock_kiq)
 
         result = reconcile_successful_uploads_task.run()
 
@@ -546,10 +538,10 @@ def test_reconcile_successful_uploads_requeue_then_process_keeps_successful_stat
 
         captured_calls: list[list[dict[str, str]]] = []
 
-        def mock_delay(photos_batch):
+        async def mock_kiq(photos_batch):
             captured_calls.append(photos_batch)
 
-        monkeypatch.setattr(create_thumbnails_batch_task, "delay", mock_delay)
+        monkeypatch.setattr("viewport.tasks.maintenance_tasks.create_thumbnails_batch_task.kiq", mock_kiq)
 
         requeue_result = reconcile_successful_uploads_task.run()
 

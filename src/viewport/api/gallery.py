@@ -163,7 +163,7 @@ def clear_cover_photo(
 
 
 @router.delete("/{gallery_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_gallery(
+async def delete_gallery(
     gallery_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
@@ -173,7 +173,7 @@ def delete_gallery(
 
     from viewport.background_tasks import delete_gallery_data_task
 
-    delete_gallery_data_task.delay(str(gallery_id))
+    await delete_gallery_data_task.kiq(str(gallery_id))
 
 
 @router.patch("/{gallery_id}", response_model=GalleryResponse)

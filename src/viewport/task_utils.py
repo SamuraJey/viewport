@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 @contextmanager
 def task_db_session() -> Generator[Session]:
-    """Context manager for database sessions in Celery tasks."""
+    """Context manager for database sessions in background tasks."""
     session_maker = get_session_maker()
     with session_maker() as session:
         try:
