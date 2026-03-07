@@ -1,6 +1,7 @@
 import contextlib
 import re
 import unicodedata
+from asyncio import run as asyncio_run
 from pathlib import Path
 from uuid import UUID
 
@@ -170,7 +171,6 @@ async def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depend
     return sharelink
 
 
-# TODO rewrite to be def or fully async.
 @router.get("/{share_id}", response_model=PublicGalleryResponse)
 async def get_photos_by_sharelink(
     share_id: UUID,
@@ -190,7 +190,7 @@ async def get_photos_by_sharelink(
     # Apply pagination if limit is specified
     photos_to_process = photos[offset : offset + limit] if limit else photos
 
-    logger.info(f"Generating public gallery view for share {share_id} with {len(photos_to_process)} photos (offset={offset}, limit={limit}, total={len(photos)})")
+    logger.info("Generating public gallery view for share %s with %s photos (offset=%s, limit=%s, total=%s)", share_id, len(photos_to_process), offset, limit, len(photos))
 
     thumbnail_keys = [photo.thumbnail_object_key for photo in photos_to_process]
     thumb_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys)
@@ -219,7 +219,7 @@ async def get_photos_by_sharelink(
     cover_id = str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None
     cover = None
 
-    logger.info(f"Public gallery {gallery.id}: cover_photo_id={cover_id}")
+    logger.info("Public gallery %s: cover_photo_id=%s", gallery.id, cover_id)
 
     if cover_id:
         # Explicitly fetch the cover photo from database instead of relying on viewonly relationship
@@ -230,9 +230,9 @@ async def get_photos_by_sharelink(
             cover_photo_obj = (await repo.db.execute(stmt)).scalar_one_or_none()
 
             if cover_photo_obj:
-                logger.info(f"Found cover photo: {cover_photo_obj.object_key}")
+                logger.info("Found cover photo: %s", cover_photo_obj.object_key)
             else:
-                logger.warning(f"Cover photo {cover_id} not found in database")
+                logger.warning("Cover photo %s not found in database", cover_id)
 
         cover_filename = None
         cover_url = None
@@ -244,13 +244,13 @@ async def get_photos_by_sharelink(
             )
             cover_thumb_url = thumb_url_map.get(cover_photo_obj.thumbnail_object_key, cover_url)
             if cover_url == cover_thumb_url:
-                logger.warning(f"Cover photo {cover_id} presigned URL is the same for full and thumbnail, which may indicate an issue: {cover_url}")
+                logger.warning("Cover photo %s presigned URL is the same for full and thumbnail, which may indicate an issue: %s", cover_id, cover_url)
 
         if cover_url:
             cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_thumb_url, filename=cover_filename)
-            logger.info(f"Cover set successfully: {cover_filename}")
+            logger.info("Cover set successfully: %s", cover_filename)
         else:
-            logger.warning(f"Cover URL not generated for photo {cover_id}")
+            logger.warning("Cover URL not generated for photo %s", cover_id)
 
     photographer = getattr(gallery.owner, "display_name", None) or ""
     gallery_name = getattr(gallery, "name", "")
@@ -274,14 +274,16 @@ async def get_photos_by_sharelink(
     )
 
 
+# intetionally not async
 @router.get("/{share_id}/download/all")
-async def download_all_photos_zip(
+def download_all_photos_zip(
     share_id: UUID,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
 ) -> StreamingResponse:
     """Download all photos as zip."""
-    photos = await repo.get_photos_by_gallery_id(sharelink.gallery_id)
+    photos = asyncio_run(repo.get_photos_by_gallery_id(sharelink.gallery_id))
+
     with contextlib.suppress(Exception):
         photos = sorted(photos, key=lambda p: p.display_name.lower())
 
@@ -306,7 +308,7 @@ async def download_all_photos_zip(
 
         z.add(arcname=filename, data=file_generator())
 
-    await repo.increment_zip_downloads(share_id)
+    asyncio_run(repo.increment_zip_downloads(share_id))
     logger.log_event("download_zip", share_id=str(sharelink.id), extra={"photo_count": len(photos)})
 
     headers = {"Content-Disposition": f'attachment; filename="gallery_{share_id}.zip"'}
