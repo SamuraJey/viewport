@@ -1,7 +1,6 @@
 """Tests for photo API endpoints."""
 
 from typing import TYPE_CHECKING, Never
-from urllib.parse import unquote
 from uuid import UUID, uuid4
 
 import pytest
@@ -14,7 +13,7 @@ from viewport.models.gallery import Photo, PhotoUploadStatus
 from viewport.models.user import User
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TestPhotoAPI:
@@ -76,34 +75,6 @@ class TestPhotoAPI:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    def test_get_all_photo_urls_for_gallery_not_found(self, authenticated_client: TestClient):
-        """Test getting URLs from a non-existent gallery."""
-        fake_gallery_id = str(uuid4())
-        response = authenticated_client.get(f"/galleries/{fake_gallery_id}/photos/urls")
-        assert response.status_code == 404
-
-    def test_get_all_photo_urls_for_gallery_unauthorized(self, client: TestClient):
-        """Test getting URLs without authentication."""
-        fake_gallery_id = str(uuid4())
-        response = client.get(f"/galleries/{fake_gallery_id}/photos/urls")
-        assert response.status_code == 401
-
-    def test_get_all_photo_urls_for_gallery_empty(self, authenticated_client: TestClient, gallery_id_fixture: str):
-        """Test getting URLs from a gallery with no photos."""
-        response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/urls")
-        assert response.status_code == 200
-        data = response.json()
-        assert isinstance(data, list)
-        assert len(data) == 0
-
-    def test_get_all_photo_urls_for_gallery_different_user(self, client: TestClient, gallery_id_fixture: str):
-        """Test getting URLs from another user's gallery."""
-        different_user_token = register_and_login(client, "different@example.com", "password123", "testinvitecode")
-        client.headers.update({"Authorization": f"Bearer {different_user_token}"})
-
-        response = client.get(f"/galleries/{gallery_id_fixture}/photos/urls")
-        assert response.status_code == 404
-
     def test_rename_photo_not_found(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test renaming non-existent photo."""
         fake_photo_id = str(uuid4())
@@ -150,21 +121,6 @@ class TestPhotoAPI:
         response = authenticated_client.patch(f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rename", json=rename_data)
         assert response.status_code == 422  # Validation error
 
-    def test_get_all_photo_urls_for_gallery_with_photos(self, authenticated_client: TestClient, gallery_id_fixture: str):
-        """Getting photo URLs returns uploaded photos."""
-        payload = b"test bytes"
-        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, payload, "capture.jpg")
-
-        response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/urls")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        photo = data[0]
-        assert photo["id"] == photo_id
-        assert photo["file_size"] == len(payload)
-        assert photo["url"].startswith("http")
-        assert photo["thumbnail_url"].startswith("http")
-
     def test_batch_presigned_uploads_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Batch presigned uploads returns valid PUT instructions."""
         payload = {"files": [{"filename": "picture.png", "file_size": 1024, "content_type": "image/png"}]}
@@ -179,7 +135,8 @@ class TestPhotoAPI:
         assert item["presigned_data"]["headers"]["Content-Type"] == "image/png"
         assert item["presigned_data"]["url"].startswith("http")
 
-    def test_batch_presigned_uploads_assigns_unique_display_names_and_uuid_object_keys(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: Session):
+    @pytest.mark.asyncio
+    async def test_batch_presigned_uploads_assigns_unique_display_names_and_uuid_object_keys(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession):
         payload = {
             "files": [
                 {"filename": "kitty.jpg", "file_size": 101, "content_type": "image/jpeg"},
@@ -198,24 +155,11 @@ class TestPhotoAPI:
         for expected_name, item in zip(["kitty.jpg", "kitty (1).jpg", "kitty (2).jpg"], items, strict=True):
             assert item["success"] is True
             photo_id = UUID(item["photo_id"])
-            photo = db_session.get(Photo, photo_id)
+            photo = await db_session.get(Photo, photo_id)
             assert photo is not None
             assert photo.display_name == expected_name
             assert photo.object_key == f"{gallery_prefix}{photo_id}.jpg"
             assert photo.thumbnail_object_key == photo.object_key
-
-    def test_get_all_photo_urls_for_gallery_contains_content_disposition_header(self, authenticated_client: TestClient, gallery_id_fixture: str):
-        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"content-disposition", "kitty.jpg")
-
-        response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/urls")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-
-        presigned_url = data[0]["url"]
-        decoded_url = unquote(presigned_url)
-        assert "response-content-disposition=" in presigned_url.lower()
-        assert 'inline; filename="kitty.jpg"' in decoded_url
 
     def test_batch_presigned_uploads_size_limit(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Files that exceed MAX_FILE_SIZE are rejected."""
@@ -283,9 +227,10 @@ class TestPhotoAPI:
         assert data["id"] == photo_id
         assert data["filename"] == "new-name.jpg"
 
-    def test_rename_photo_updates_display_name_without_changing_object_key(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: Session):
+    @pytest.mark.asyncio
+    async def test_rename_photo_updates_display_name_without_changing_object_key(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession):
         photo_id = UUID(upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"rename-immutable", "rename.jpg"))
-        before = db_session.get(Photo, photo_id)
+        before = await db_session.get(Photo, photo_id)
         assert before is not None
         original_object_key = before.object_key
 
@@ -296,7 +241,7 @@ class TestPhotoAPI:
         assert response.status_code == 200
 
         db_session.expire_all()
-        after = db_session.get(Photo, photo_id)
+        after = await db_session.get(Photo, photo_id)
         assert after is not None
         assert after.object_key == original_object_key
         assert after.display_name == "renamed.jpg"
@@ -312,9 +257,9 @@ class TestPhotoAPI:
         assert response.status_code == 200
         assert response.json()["filename"] == "1 (1).JPG"
 
-        list_response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/urls")
+        list_response = authenticated_client.get(f"/galleries/{gallery_id_fixture}")
         assert list_response.status_code == 200
-        filenames = {item["id"]: item["filename"] for item in list_response.json()}
+        filenames = {item["id"]: item["filename"] for item in list_response.json()["photos"]}
         assert filenames[first_photo_id] == "1.JPG"
         assert filenames[second_photo_id] == "1 (1).JPG"
 
@@ -325,7 +270,8 @@ class TestPhotoAPI:
         assert get_content_type_from_filename("photo.webp") == "image/webp"
         assert get_content_type_from_filename(None) == "image/jpeg"
 
-    def test_batch_confirm_missing_s3_object_is_accepted_and_finalized(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: Session, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_batch_confirm_missing_s3_object_is_accepted_and_finalized(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession, monkeypatch):
         payload = {"files": [{"filename": "missing-object.jpg", "file_size": 256, "content_type": "image/jpeg"}]}
         presigned = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
         assert presigned.status_code == 200
@@ -352,15 +298,16 @@ class TestPhotoAPI:
         assert result["failed_count"] == 0
 
         db_session.expire_all()
-        user = db_session.get(User, user_id)
-        photo = db_session.get(Photo, photo_id)
+        user = await db_session.get(User, user_id)
+        photo = await db_session.get(Photo, photo_id)
         assert user is not None
         assert photo is not None
         assert user.storage_used == 256
         assert user.storage_reserved == 0
         assert photo.status == PhotoUploadStatus.SUCCESSFUL
 
-    def test_batch_confirm_delay_failure_does_not_rollback_db_state(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: Session, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_batch_confirm_delay_failure_does_not_rollback_db_state(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession, monkeypatch):
         payload = {"files": [{"filename": "rollback.jpg", "file_size": 256, "content_type": "image/jpeg"}]}
         presigned = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
         assert presigned.status_code == 200
@@ -383,8 +330,8 @@ class TestPhotoAPI:
         assert response.status_code == 200
 
         db_session.expire_all()
-        user: User = db_session.get(User, user_id)
-        photo: Photo = db_session.get(Photo, photo_id)
+        user: User = await db_session.get(User, user_id)
+        photo: Photo = await db_session.get(Photo, photo_id)
         assert user is not None
         assert photo is not None
         assert user.storage_used == 256

@@ -26,7 +26,7 @@ dependencies = [
     "uvloop>=0.22.1,<0.23.0",
     "taskiq>=0.12.1",
     "taskiq-fastapi>=0.4.0",
-    "taskiq-redis>=1.2.2",
+    "taskiq-redis>=1.2.2"
 ]
 
 [dependency-groups]
@@ -150,6 +150,7 @@ line-ending = "auto"
 [tool.pytest.ini_options]
 pythonpath = "."
 addopts = ["--import-mode=importlib", "-v"]
+asyncio_mode = "auto"
 testpaths = ["/tests"]
 norecursedirs = [
     "postgres_data",

@@ -10,7 +10,8 @@ from taskiq.schedule_sources import LabelScheduleSource
 from taskiq_redis import RedisAsyncResultBackend, RedisStreamBroker
 
 from viewport.models.db import get_session_maker
-from viewport.s3_utils import get_s3_client, get_s3_settings
+from viewport.s3_service import AsyncS3Client
+from viewport.s3_utils import get_s3_settings
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,8 @@ class TaskiqSettings(BaseSettings):
 
 
 settings = TaskiqSettings()
+result_backend: RedisAsyncResultBackend | None = None
+scheduler: TaskiqScheduler | None = None
 
 # Use InMemoryBroker for testing, RedisStreamBroker for production
 env = os.environ.get("ENVIRONMENT")
@@ -63,7 +66,7 @@ taskiq_fastapi.init(broker, APP_MODULE)
 async def on_worker_startup(state: Any) -> None:
     logger.info("Taskiq worker startup: initializing shared resources")
     state.session_maker = get_session_maker()
-    state.s3_client = get_s3_client()
+    state.s3_client = AsyncS3Client()
     state.s3_bucket = get_s3_settings().bucket
 
 
@@ -74,7 +77,7 @@ async def on_worker_shutdown(state: Any) -> None:
     close = getattr(s3_client, "close", None)
     if callable(close):
         try:
-            close()
+            await close()
         except Exception:
             logger.exception("Failed to close sync S3 client on worker shutdown")
 

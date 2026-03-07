@@ -10,46 +10,50 @@ from viewport.repositories.base_repository import BaseRepository
 
 
 class ShareLinkRepository(BaseRepository):  # pragma: no cover # TODO tests
-    def get_sharelink_by_id(self, sharelink_id: uuid.UUID) -> ShareLink | None:
+    async def get_sharelink_by_id(self, sharelink_id: uuid.UUID) -> ShareLink | None:
         stmt = select(ShareLink).where(ShareLink.id == sharelink_id)
-        return self.db.execute(stmt).scalar_one_or_none()
+        sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
+        return await self._finish_read(sharelink)
 
-    def get_valid_sharelink(self, sharelink_id: uuid.UUID) -> ShareLink | None:
+    async def get_valid_sharelink(self, sharelink_id: uuid.UUID) -> ShareLink | None:
         """Get sharelink with eager loading of gallery and gallery.owner to avoid lazy loading issues."""
         from viewport.models.gallery import Gallery
 
         stmt = select(ShareLink).where(ShareLink.id == sharelink_id).options(selectinload(ShareLink.gallery).selectinload(Gallery.owner))
-        sharelink = self.db.execute(stmt).scalar_one_or_none()
+        sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
+        await self._finish_read(None)
         if not sharelink:
             return None
         if sharelink.expires_at and sharelink.expires_at.timestamp() < datetime.now(UTC).timestamp():
             return None
         return sharelink
 
-    def get_photos_by_gallery_id(self, gallery_id: uuid.UUID) -> list[Photo]:
+    async def get_photos_by_gallery_id(self, gallery_id: uuid.UUID) -> list[Photo]:
         # Ensure consistent ordering by filename/object_key for public listings
         from viewport.models.gallery import Gallery
 
         stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(Photo.object_key.asc())
-        return list(self.db.execute(stmt).scalars().all())
+        photos = list((await self.db.execute(stmt)).scalars().all())
+        return await self._finish_read(photos)
 
-    def get_photo_by_id_and_gallery(self, photo_id: uuid.UUID, gallery_id: uuid.UUID) -> Photo | None:
+    async def get_photo_by_id_and_gallery(self, photo_id: uuid.UUID, gallery_id: uuid.UUID) -> Photo | None:
         from viewport.models.gallery import Gallery
 
         stmt = select(Photo).join(Photo.gallery).where(Photo.id == photo_id, Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
-        return self.db.execute(stmt).scalar_one_or_none()
+        photo = (await self.db.execute(stmt)).scalar_one_or_none()
+        return await self._finish_read(photo)
 
-    def increment_views(self, sharelink_id: uuid.UUID) -> None:
+    async def increment_views(self, sharelink_id: uuid.UUID) -> None:
         stmt = update(ShareLink).where(ShareLink.id == sharelink_id).values(views=ShareLink.views + 1)
-        self.db.execute(stmt)
-        self.db.commit()
+        await self.db.execute(stmt)
+        await self.db.commit()
 
-    def increment_zip_downloads(self, sharelink_id: uuid.UUID) -> None:
+    async def increment_zip_downloads(self, sharelink_id: uuid.UUID) -> None:
         stmt = update(ShareLink).where(ShareLink.id == sharelink_id).values(zip_downloads=ShareLink.zip_downloads + 1)
-        self.db.execute(stmt)
-        self.db.commit()
+        await self.db.execute(stmt)
+        await self.db.commit()
 
-    def increment_single_downloads(self, sharelink_id: uuid.UUID) -> None:
+    async def increment_single_downloads(self, sharelink_id: uuid.UUID) -> None:
         stmt = update(ShareLink).where(ShareLink.id == sharelink_id).values(single_downloads=ShareLink.single_downloads + 1)
-        self.db.execute(stmt)
-        self.db.commit()
+        await self.db.execute(stmt)
+        await self.db.commit()

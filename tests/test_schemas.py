@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 from pydantic import ValidationError
@@ -251,7 +251,8 @@ class TestPhotoSchemas:
         assert response.file_size == 2048
         assert response.uploaded_at == uploaded_at
 
-    def test_photo_response_from_db_photo(self):
+    @pytest.mark.asyncio
+    async def test_photo_response_from_db_photo(self):
         """Test creating PhotoResponse from database photo."""
         mock_photo = Mock()
         mock_photo.id = uuid.uuid4()
@@ -266,15 +267,17 @@ class TestPhotoSchemas:
         # Mock s3_client
         mock_s3_client = MagicMock()
         expected_url = f"https://example.com/presigned-url/{mock_photo.id}"
-        mock_s3_client.generate_presigned_url.return_value = expected_url
+        expected_thumbnail_url = f"https://example.com/thumbnail-url/{mock_photo.id}"
+        mock_s3_client.generate_presigned_url_async = AsyncMock(side_effect=[expected_url, expected_thumbnail_url])
 
-        response = PhotoResponse.from_db_photo(mock_photo, mock_s3_client)
+        response = await PhotoResponse.from_db_photo(mock_photo, mock_s3_client)
 
         assert response.id == mock_photo.id
         assert response.gallery_id == mock_photo.gallery_id
         assert response.file_size == mock_photo.file_size
         assert response.uploaded_at == mock_photo.uploaded_at
         assert response.url == expected_url
+        assert response.thumbnail_url == expected_thumbnail_url
 
     def test_photo_list_response_valid(self):
         """Test valid photo list response."""

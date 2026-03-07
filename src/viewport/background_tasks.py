@@ -1,7 +1,7 @@
 import asyncio
 import inspect
-from collections.abc import Awaitable, Callable
-from typing import Any
+from collections.abc import Awaitable, Callable, Coroutine
+from typing import Any, cast
 
 import viewport.tasks.photo_tasks as _photo_tasks
 from viewport.tasks.maintenance_tasks import (
@@ -45,7 +45,7 @@ class TaskCompat:
     def run(self, *args: Any, **kwargs: Any) -> Any:
         result = self._run_impl(*args, **kwargs)
         if inspect.isawaitable(result):
-            return asyncio.run(result)
+            return asyncio.run(cast(Coroutine[Any, Any, Any], result))
         return result
 
     def delay(self, *args: Any, **kwargs: Any) -> Any:
@@ -57,14 +57,14 @@ class TaskCompat:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(enqueue_call)
-        return loop.create_task(enqueue_call)
+            return asyncio.run(cast(Coroutine[Any, Any, Any], enqueue_call))
+        return loop.create_task(cast(Coroutine[Any, Any, Any], enqueue_call))
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         return self.run(*args, **kwargs)
 
 
-def _create_thumbnails_batch_task_run_impl(photos: list[dict]) -> dict:
+def _create_thumbnails_batch_task_run_impl(photos: list[dict]) -> Coroutine[Any, Any, dict[str, Any]]:
     _photo_tasks._is_valid_image = _is_valid_image
     _photo_tasks._get_existing_photo_ids = _get_existing_photo_ids
     _photo_tasks._process_single_photo = _process_single_photo

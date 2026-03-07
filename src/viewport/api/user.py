@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from viewport.api.auth import hash_password, verify_password
 from viewport.auth_utils import get_current_user
@@ -11,48 +12,48 @@ from viewport.schemas.auth import ChangePasswordRequest, MeResponse, UpdateMeReq
 router = APIRouter(tags=["user"])
 
 
-def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
+def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
     return UserRepository(db)
 
 
 @router.get("/me", response_model=MeResponse)
-def get_me(current_user: User = Depends(get_current_user)) -> MeResponse:
-    return {
-        "id": str(current_user.id),
-        "email": current_user.email,
-        "display_name": current_user.display_name,
-        "storage_used": current_user.storage_used,
-        "storage_quota": current_user.storage_quota,
-    }
+async def get_me(current_user: User = Depends(get_current_user)) -> MeResponse:
+    return MeResponse(
+        id=str(current_user.id),
+        email=current_user.email,
+        display_name=current_user.display_name,
+        storage_used=current_user.storage_used,
+        storage_quota=current_user.storage_quota,
+    )
 
 
 @router.put("/me", response_model=MeResponse)
-def update_me(req: UpdateMeRequest, repo: UserRepository = Depends(get_user_repository), current_user: User = Depends(get_current_user)) -> MeResponse:
-    user = repo.update_user_display_name(current_user.id, req.display_name)
+async def update_me(req: UpdateMeRequest, repo: UserRepository = Depends(get_user_repository), current_user: User = Depends(get_current_user)) -> MeResponse:
+    user = await repo.update_user_display_name(current_user.id, req.display_name)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return {
-        "id": str(user.id),
-        "email": user.email,
-        "display_name": user.display_name,
-        "storage_used": user.storage_used,
-        "storage_quota": user.storage_quota,
-    }
+    return MeResponse(
+        id=str(user.id),
+        email=user.email,
+        display_name=user.display_name,
+        storage_used=user.storage_used,
+        storage_quota=user.storage_quota,
+    )
 
 
 @router.put("/me/password", status_code=status.HTTP_200_OK)
-def change_password(req: ChangePasswordRequest, repo: UserRepository = Depends(get_user_repository), current_user: User = Depends(get_current_user)) -> dict[str, str]:
-    """Change password - async to run bcrypt in threadpool, but DB calls are direct."""
+async def change_password(req: ChangePasswordRequest, repo: UserRepository = Depends(get_user_repository), current_user: User = Depends(get_current_user)) -> dict[str, str]:
+    """Change password."""
     if req.new_password != req.confirm_password:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password and confirmation do not match")
 
-    is_valid = verify_password(req.current_password, current_user.password_hash)
+    is_valid = await run_in_threadpool(verify_password, req.current_password, current_user.password_hash)
     if not is_valid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 
-    hashed_password = hash_password(req.new_password)
+    hashed_password = await run_in_threadpool(hash_password, req.new_password)
 
-    user = repo.update_user_password(current_user.id, hashed_password)
+    user = await repo.update_user_password(current_user.id, hashed_password)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "Password updated successfully"}

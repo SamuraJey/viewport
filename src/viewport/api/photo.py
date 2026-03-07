@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from viewport.auth_utils import get_current_user
 from viewport.dependencies import get_s3_client
@@ -42,11 +42,11 @@ CONTENT_TYPE_MAP = {
 router = APIRouter(prefix="/galleries", tags=["photos"])
 
 
-def get_gallery_repository(db: Session = Depends(get_db)) -> GalleryRepository:
+def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
     return GalleryRepository(db)
 
 
-def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
+def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
     return UserRepository(db)
 
 
@@ -84,35 +84,8 @@ def get_content_type_from_filename(filename: str | None) -> str:
     return "image/jpeg"
 
 
-# GET /galleries/{gallery_id}/photos/urls - Get all photo URLs for a gallery
-@router.get("/{gallery_id}/photos/urls", response_model=list[PhotoResponse])
-def get_all_photo_urls_for_gallery(
-    gallery_id: UUID,
-    repo: GalleryRepository = Depends(get_gallery_repository),
-    current_user: User = Depends(get_current_user),
-    s3_client: AsyncS3Client = Depends(get_s3_client),
-) -> list[PhotoResponse]:
-    """Get presigned URLs for all photos in a gallery for the owner.
-
-    NOTE: This is sync (def) not async. FastAPI automatically runs sync endpoints
-    in threadpool, ensuring proper DB session lifecycle. S3 operations are sync here.
-    """
-    # First, verify gallery ownership
-    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
-    if not gallery:
-        raise HTTPException(status_code=404, detail="Gallery not found")
-
-    # Get all photos for the gallery
-    photos = repo.get_photos_by_gallery_id(gallery_id)
-
-    # Use sync method for presigned URLs
-    photo_responses = [PhotoResponse.from_db_photo(photo, s3_client) for photo in photos]
-
-    return photo_responses
-
-
 @router.post("/{gallery_id}/photos/batch-presigned", response_model=BatchPresignedUploadsResponse)
-def batch_presigned_uploads(
+async def batch_presigned_uploads(
     gallery_id: UUID,
     request: BatchPresignedUploadsRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
@@ -127,24 +100,23 @@ def batch_presigned_uploads(
     3. Generate presigned PUT URLs
     4. Return batch response
 
-    NOTE: Sync endpoint - FastAPI handles threadpool automatically.
     """
     # 1. Check gallery ownership
-    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
         raise HTTPException(404, "Gallery not found")
 
     valid_files = [file_request for file_request in request.files if file_request.file_size <= MAX_FILE_SIZE]
     bytes_to_reserve = sum(file_request.file_size for file_request in valid_files)
     if bytes_to_reserve > 0:
-        reserved = user_repo.reserve_storage(current_user.id, bytes_to_reserve)
+        reserved = await user_repo.reserve_storage(current_user.id, bytes_to_reserve)
         if not reserved:
             raise HTTPException(status_code=507, detail="Storage quota exceeded")
 
     items: list[BatchPresignedUploadItem] = []
     photos_payload: list[dict] = []
     failed_presign_bytes = 0
-    occupied_display_names = repo.get_photo_display_names_by_gallery(gallery_id)
+    occupied_display_names = await repo.get_photo_display_names_by_gallery(gallery_id)
 
     # 2. Generate Photo records and presigned URLs
     for file_request in request.files:
@@ -213,15 +185,15 @@ def batch_presigned_uploads(
         )
 
     if failed_presign_bytes > 0:
-        user_repo.release_reserved_storage(current_user.id, failed_presign_bytes)
+        await user_repo.release_reserved_storage(current_user.id, failed_presign_bytes)
 
     if photos_payload:
         try:
-            repo.create_photos_batch(photos_payload)
+            await repo.create_photos_batch(photos_payload)
         except Exception:
             reserved_for_created = bytes_to_reserve - failed_presign_bytes
             if reserved_for_created > 0:
-                user_repo.release_reserved_storage(current_user.id, reserved_for_created)
+                await user_repo.release_reserved_storage(current_user.id, reserved_for_created)
             raise
 
     return BatchPresignedUploadsResponse(items=items)
@@ -244,13 +216,13 @@ async def batch_confirm_uploads(
     NOTE: Sync endpoint - FastAPI handles threadpool automatically.
     """
     # 1. Verify gallery ownership
-    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
         raise HTTPException(403, "Access denied")
 
     # 2. Batch fetch all photos
     photo_ids = [item.photo_id for item in request.items]
-    photos = repo.get_photos_by_ids_and_gallery(gallery_id, photo_ids)
+    photos = await repo.get_photos_by_ids_and_gallery(gallery_id, photo_ids)
     photo_map = {p.id: p for p in photos}
 
     confirmed_count = 0
@@ -312,12 +284,12 @@ async def batch_confirm_uploads(
 
     # 4. Commit statuses and quota updates atomically
     try:
-        repo.set_photos_statuses(photo_map, status_updates, commit=False)
+        await repo.set_photos_statuses(photo_map, status_updates, commit=False)
         if bytes_to_finalize or bytes_to_release:
-            user_repo.finalize_and_release_reserved_storage(current_user.id, bytes_to_finalize, bytes_to_release, commit=False)
-        repo.db.commit()
+            await user_repo.finalize_and_release_reserved_storage(current_user.id, bytes_to_finalize, bytes_to_release, commit=False)
+        await repo.db.commit()
     except Exception:
-        repo.db.rollback()
+        await repo.db.rollback()
         raise
 
     # 5. Start batch thumbnail processing (will retry tagging if needed)
@@ -352,11 +324,11 @@ async def delete_photo(
     Actual S3 deletion happens asynchronously in Taskiq worker.
     """
     # Verify gallery ownership and photo exists
-    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
         raise HTTPException(status_code=404, detail="Gallery not found")
 
-    photo = repo.get_photo_by_id_and_owner(photo_id, current_user.id)
+    photo = await repo.get_photo_by_id_and_owner(photo_id, current_user.id)
     if not photo or photo.gallery_id != gallery_id:
         raise HTTPException(status_code=404, detail="Photo not found")
 
@@ -383,7 +355,7 @@ async def rename_photo(
 ) -> PhotoResponse:
     """Rename a photo in a gallery"""
     # First, verify gallery ownership
-    gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
         raise HTTPException(status_code=404, detail="Gallery not found")
 
@@ -394,4 +366,4 @@ async def rename_photo(
     # TODO do we really need to fetch the photo again here? we already have it in the repo.rename_photo_async method, we can just return it from there instead of fetching it again. this would save us
     # one db call and one s3 call, since we can generate the presigned url in the rename_photo_async method as well. let's refactor that method to return the renamed photo with the new presigned url,
     # and then we can just return it here without fetching it again.
-    return PhotoResponse.from_db_photo(photo, s3_client)
+    return await PhotoResponse.from_db_photo(photo, s3_client)

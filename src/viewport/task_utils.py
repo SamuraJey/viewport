@@ -1,25 +1,25 @@
 import logging
-from collections.abc import Generator
-from contextlib import contextmanager
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from viewport.models.db import get_session_maker
 
 logger = logging.getLogger(__name__)
 
 
-@contextmanager
-def task_db_session() -> Generator[Session]:
+@asynccontextmanager
+async def task_db_session() -> AsyncGenerator[AsyncSession]:
     """Context manager for database sessions in background tasks."""
     session_maker = get_session_maker()
-    with session_maker() as session:
+    async with session_maker() as session:
         try:
             yield session
-            session.commit()
+            await session.commit()
         except Exception:
-            session.rollback()
+            await session.rollback()
             raise
 
 

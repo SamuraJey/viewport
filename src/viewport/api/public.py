@@ -8,7 +8,7 @@ import zipstream
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from viewport.api.photo import CONTENT_TYPE_MAP
 from viewport.dependencies import get_s3_client as get_async_s3_client
@@ -158,16 +158,13 @@ def _make_unique_zip_entry_name(filename: str, used_names: set[str]) -> str:
     return candidate
 
 
-def get_sharelink_repository(db: Session = Depends(get_db)) -> ShareLinkRepository:
+def get_sharelink_repository(db: AsyncSession = Depends(get_db)) -> ShareLinkRepository:
     return ShareLinkRepository(db)
 
 
-def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository)) -> ShareLink:
-    """Get valid sharelink.
-
-    NOTE: Intentionally sync - FastAPI handles threadpool for async endpoints.
-    """
-    sharelink = repo.get_valid_sharelink(share_id)
+async def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository)) -> ShareLink:
+    """Get valid sharelink."""
+    sharelink = await repo.get_valid_sharelink(share_id)
     if not sharelink:
         raise HTTPException(status_code=404, detail="ShareLink not found")
     return sharelink
@@ -184,13 +181,9 @@ async def get_photos_by_sharelink(
     sharelink: ShareLink = Depends(get_valid_sharelink),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
 ) -> PublicGalleryResponse:
-    """Get public gallery photos.
-
-    NOTE: Direct DB calls (no run_in_threadpool) to avoid session lifecycle issues.
-    Async is kept for S3 batch operations only.
-    """
+    """Get public gallery photos."""
     # Photos - ensure deterministic ordering by filename (case-insensitive)
-    photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
+    photos = await repo.get_photos_by_gallery_id(sharelink.gallery_id)
     with contextlib.suppress(Exception):
         photos = sorted(photos, key=lambda p: p.display_name.lower())
 
@@ -201,13 +194,13 @@ async def get_photos_by_sharelink(
 
     thumbnail_keys = [photo.thumbnail_object_key for photo in photos_to_process]
     thumb_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys)
+    full_url_map = await s3_client.generate_presigned_urls_batch_for_dispositions(
+        {photo.object_key: _build_content_disposition(photo.display_name, disposition_type="inline") for photo in photos_to_process}
+    )
 
     photo_list = []
     for photo in photos_to_process:
-        presigned_url = s3_client.generate_presigned_url(
-            photo.object_key,
-            response_content_disposition=_build_content_disposition(photo.display_name, disposition_type="inline"),
-        )
+        presigned_url = full_url_map.get(photo.object_key, "")
         presigned_url_thumb = thumb_url_map.get(photo.thumbnail_object_key, "")
 
         if presigned_url and presigned_url_thumb:
@@ -234,7 +227,7 @@ async def get_photos_by_sharelink(
         cover_photo_obj = None
         if gallery.cover_photo_id:
             stmt = select(Photo).where(Photo.id == gallery.cover_photo_id)
-            cover_photo_obj = repo.db.execute(stmt).scalar_one_or_none()
+            cover_photo_obj = (await repo.db.execute(stmt)).scalar_one_or_none()
 
             if cover_photo_obj:
                 logger.info(f"Found cover photo: {cover_photo_obj.object_key}")
@@ -245,7 +238,7 @@ async def get_photos_by_sharelink(
         cover_url = None
         if cover_photo_obj:
             cover_filename = cover_photo_obj.display_name
-            cover_url = s3_client.generate_presigned_url(
+            cover_url = full_url_map.get(cover_photo_obj.object_key) or await s3_client.generate_presigned_url_async(
                 cover_photo_obj.object_key,
                 response_content_disposition=_build_content_disposition(cover_photo_obj.display_name, disposition_type="inline"),
             )
@@ -268,7 +261,7 @@ async def get_photos_by_sharelink(
 
     # Increment views only on first page load (offset=0)
     if offset == 0:
-        repo.increment_views(share_id)
+        await repo.increment_views(share_id)
 
     return PublicGalleryResponse(
         photos=photo_list,
@@ -282,13 +275,13 @@ async def get_photos_by_sharelink(
 
 
 @router.get("/{share_id}/download/all")
-def download_all_photos_zip(
+async def download_all_photos_zip(
     share_id: UUID,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
 ) -> StreamingResponse:
-    """Download all photos as zip - direct DB and S3 calls in a sync handler."""
-    photos = repo.get_photos_by_gallery_id(sharelink.gallery_id)
+    """Download all photos as zip."""
+    photos = await repo.get_photos_by_gallery_id(sharelink.gallery_id)
     with contextlib.suppress(Exception):
         photos = sorted(photos, key=lambda p: p.display_name.lower())
 
@@ -313,7 +306,7 @@ def download_all_photos_zip(
 
         z.add(arcname=filename, data=file_generator())
 
-    repo.increment_zip_downloads(share_id)
+    await repo.increment_zip_downloads(share_id)
     logger.log_event("download_zip", share_id=str(sharelink.id), extra={"photo_count": len(photos)})
 
     headers = {"Content-Disposition": f'attachment; filename="gallery_{share_id}.zip"'}

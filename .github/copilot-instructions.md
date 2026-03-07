@@ -3,6 +3,7 @@
 ## Big picture
 - Monorepo: FastAPI backend in `src/viewport/` + React/Vite frontend in `frontend/`.
 - Backend layers: routers in `src/viewport/api/` → repository layer in `src/viewport/repositories/` (SQLAlchemy `Session`) → Postgres models in `src/viewport/models/`.
+- Backend database access now uses SQLAlchemy `AsyncSession` end-to-end in app code, repositories, auth dependencies, and Taskiq tasks.
 - Storage/URLs: originals + thumbnails live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them **in-process** (see `src/viewport/cache_utils.py`).
 - Background work: Taskiq tasks live in `src/viewport/tasks/` and are exported via `src/viewport/background_tasks.py`; Docker Compose runs `taskiq_worker` + `taskiq_scheduler`.
 - uv is used as package manager.
@@ -19,7 +20,7 @@
   - Initializes a singleton `AsyncS3Client` in `lifespan()` and exposes it via DI (`src/viewport/dependencies.py`).
 - Auth: endpoints in `src/viewport/api/auth.py`; request auth uses `get_current_user()` from `src/viewport/auth_utils.py` (HTTP Bearer, consistent 401s).
 - Repositories:
-  - Constructed per-request from `db: Session = Depends(get_db)` (`src/viewport/models/db.py`).
+  - Constructed per-request from `db: AsyncSession = Depends(get_db)` (`src/viewport/models/db.py`).
   - Keep business logic close to repository methods when it’s DB/S3 orchestration (e.g. async delete/rename in `GalleryRepository`).
 - Photo upload performance pattern:
   - **Two-step upload**:

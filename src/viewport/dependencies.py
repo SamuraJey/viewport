@@ -6,21 +6,20 @@ The client is initialized once during application startup and shared across all 
 """
 
 import logging
-from collections.abc import AsyncGenerator, Generator
-from contextlib import contextmanager
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import Request
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from taskiq import TaskiqDepends
 
 from viewport.models.db import get_session_maker
 from viewport.s3_service import AsyncS3Client
-from viewport.s3_utils import get_s3_client as get_sync_s3_client
 
 logger = logging.getLogger(__name__)
 
-TASKIQ_REQUEST_DEP = TaskiqDepends()
+TASKIQ_REQUEST_DEP: Any = TaskiqDepends()
 
 # Global instance of the S3 client (initialized during app startup)
 _s3_client_instance: AsyncS3Client | None = None
@@ -89,25 +88,26 @@ def get_task_context(request: Request = TASKIQ_REQUEST_DEP) -> dict[str, Any]:
     }
 
 
-@contextmanager
-def get_task_db_session() -> Generator[Session]:
+@asynccontextmanager
+async def get_task_db_session() -> AsyncGenerator[AsyncSession]:
     from viewport.tkq import broker
 
     broker_state = getattr(broker, "state", None)
     session_maker = getattr(broker_state, "session_maker", None) or get_session_maker()
-    session = session_maker()
-    try:
-        yield session
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
+    async with session_maker() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
 
 
 def get_task_s3_client() -> Any:
     from viewport.tkq import broker
 
     broker_state = getattr(broker, "state", None)
-    return getattr(broker_state, "s3_client", None) or get_sync_s3_client()
+    client = getattr(broker_state, "s3_client", None)
+    if client is not None:
+        return client
+    return get_s3_client_instance()

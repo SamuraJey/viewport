@@ -2,7 +2,7 @@ import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from viewport.auth_utils import get_current_user
 from viewport.dependencies import get_s3_client
@@ -18,17 +18,17 @@ router = APIRouter(prefix="/galleries", tags=["galleries"])
 logger = logging.getLogger(__name__)
 
 
-def get_gallery_repository(db: Session = Depends(get_db)) -> GalleryRepository:
+def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
     return GalleryRepository(db)
 
 
 @router.post("", response_model=GalleryResponse, status_code=status.HTTP_201_CREATED)
-def create_gallery(
+async def create_gallery(
     request: GalleryCreateRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> GalleryResponse:
-    gallery = repo.create_gallery(current_user.id, request.name, request.shooting_date)
+    gallery = await repo.create_gallery(current_user.id, request.name, request.shooting_date)
     return GalleryResponse(
         id=str(gallery.id),
         owner_id=str(gallery.owner_id),
@@ -40,13 +40,13 @@ def create_gallery(
 
 
 @router.get("", response_model=GalleryListResponse)
-def list_galleries(
+async def list_galleries(
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
 ) -> GalleryListResponse:
-    galleries, total = repo.get_galleries_by_owner(current_user.id, page, size)
+    galleries, total = await repo.get_galleries_by_owner(current_user.id, page, size)
     return GalleryListResponse(
         galleries=[
             GalleryResponse(
@@ -66,7 +66,7 @@ def list_galleries(
 
 
 @router.get("/{gallery_id}", response_model=GalleryDetailResponse)
-def get_gallery_detail(
+async def get_gallery_detail(
     gallery_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
@@ -74,35 +74,32 @@ def get_gallery_detail(
     limit: int | None = Query(None, ge=1, le=1000, description="Limit number of photos returned (for pagination)"),
     offset: int = Query(0, ge=0, description="Offset for photo pagination"),
 ) -> GalleryDetailResponse:
-    """Get gallery detail with photos.
-
-    NOTE: Sync endpoint - FastAPI handles threadpool automatically for proper DB session lifecycle.
-    """
+    """Get gallery detail with photos."""
     import time
 
     start_time = time.monotonic()
 
     db_start = time.monotonic()
     # Use eager loading for share_links to avoid lazy loading after session closes
-    gallery = repo.get_gallery_by_id_and_owner_with_sharelinks(gallery_id, current_user.id)
+    gallery = await repo.get_gallery_by_id_and_owner_with_sharelinks(gallery_id, current_user.id)
     db_time = time.monotonic() - db_start
 
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
 
     # Use repository methods that perform efficient DB queries instead of loading the whole relationship
-    photo_count = repo.get_photo_count_by_gallery(gallery_id)
+    photo_count = await repo.get_photo_count_by_gallery(gallery_id)
 
     if limit is not None:
-        photos_to_process = repo.get_photos_by_gallery_paginated(gallery_id, limit, offset)
+        photos_to_process = await repo.get_photos_by_gallery_paginated(gallery_id, limit, offset)
         logger.info("Gallery %s: DB query took %.3fs, total photos: %s, returning: %s (offset=%s, limit=%s)", gallery_id, db_time, photo_count, len(photos_to_process), offset, limit)
     else:
-        photos_to_process = repo.get_photos_by_gallery_id(gallery_id)
+        photos_to_process = await repo.get_photos_by_gallery_id(gallery_id)
         logger.info("Gallery %s: DB query took %.3fs, photos count: %s", gallery_id, db_time, photo_count)
 
-    # Use sync method for photo URL generation
+    # Generate presigned URLs without blocking the request event loop.
     url_start = time.monotonic()
-    photo_responses = [PhotoResponse.from_db_photo(photo, s3_client) for photo in photos_to_process]
+    photo_responses = await PhotoResponse.from_db_photos_batch(photos_to_process, s3_client)
     url_time = time.monotonic() - url_start
 
     # Calculate URLs per second
@@ -126,7 +123,7 @@ def get_gallery_detail(
 
 
 @router.post("/{gallery_id}/cover/{photo_id}", response_model=GalleryResponse)
-def set_cover_photo(
+async def set_cover_photo(
     gallery_id: uuid.UUID,
     photo_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
@@ -134,7 +131,7 @@ def set_cover_photo(
 ) -> GalleryResponse:
     logger.info("Setting cover photo for gallery %s, photo %s, user %s", gallery_id, photo_id, current_user.id)
 
-    gallery = repo.set_cover_photo(gallery_id, photo_id, current_user.id)
+    gallery = await repo.set_cover_photo(gallery_id, photo_id, current_user.id)
     if not gallery:
         logger.warning("Gallery %s or photo %s not found", gallery_id, photo_id)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery or photo not found")
@@ -152,12 +149,12 @@ def set_cover_photo(
 
 
 @router.delete("/{gallery_id}/cover", status_code=status.HTTP_204_NO_CONTENT)
-def clear_cover_photo(
+async def clear_cover_photo(
     gallery_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    gallery = repo.clear_cover_photo(gallery_id, current_user.id)
+    gallery = await repo.clear_cover_photo(gallery_id, current_user.id)
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
 
@@ -168,7 +165,7 @@ async def delete_gallery(
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    if not repo.soft_delete_gallery(gallery_id, current_user.id):
+    if not await repo.soft_delete_gallery(gallery_id, current_user.id):
         raise HTTPException(status_code=404, detail="Gallery not found")
 
     from viewport.background_tasks import delete_gallery_data_task
@@ -177,13 +174,13 @@ async def delete_gallery(
 
 
 @router.patch("/{gallery_id}", response_model=GalleryResponse)
-def update_gallery(
+async def update_gallery(
     gallery_id: uuid.UUID,
     request: GalleryUpdateRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> GalleryResponse:
-    gallery = repo.update_gallery(gallery_id, current_user.id, name=request.name, shooting_date=request.shooting_date)
+    gallery = await repo.update_gallery(gallery_id, current_user.id, name=request.name, shooting_date=request.shooting_date)
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
     return GalleryResponse(

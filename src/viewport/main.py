@@ -20,7 +20,7 @@ from viewport.dependencies import get_s3_client_instance, set_s3_client_instance
 # Configure logging early: uvicorn imports this module when starting the app
 from viewport.logging_config import configure_logging
 from viewport.metrics import setup_metrics
-from viewport.models.db import get_engine
+from viewport.models.db import get_session_maker
 from viewport.s3_service import AsyncS3Client
 
 # Configure logging for the whole process (uvicorn imports this module when
@@ -114,7 +114,7 @@ setup_metrics(app)
 authentication_backend = AdminAuth(secret_key=authsettings.jwt_secret_key)
 admin = Admin(
     app,
-    get_engine(),
+    session_maker=get_session_maker(),
     base_url="/admin",
     authentication_backend=authentication_backend,
     title="Viewport Admin",
