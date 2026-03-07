@@ -1,5 +1,6 @@
 """Tests for photo API endpoints."""
 
+import asyncio
 from typing import TYPE_CHECKING, Never
 from uuid import UUID, uuid4
 
@@ -188,7 +189,8 @@ class TestPhotoAPI:
         async def fake_kiq(batch: list[dict]):
             captured["batch"] = batch
 
-        monkeypatch.setattr("viewport.background_tasks.create_thumbnails_batch_task.kiq", fake_kiq)
+        monkeypatch.setattr("viewport.api.photo.asyncio.create_task", lambda coro: asyncio.get_running_loop().create_task(coro))
+        monkeypatch.setattr("viewport.api.photo.create_thumbnails_batch_task.kiq", fake_kiq)
 
         confirm_payload = {
             "items": [
@@ -281,7 +283,8 @@ class TestPhotoAPI:
         async def fake_kiq(batch: list[dict]) -> None:
             return None
 
-        monkeypatch.setattr("viewport.background_tasks.create_thumbnails_batch_task.kiq", fake_kiq)
+        monkeypatch.setattr("viewport.api.photo.asyncio.create_task", lambda coro: asyncio.get_running_loop().create_task(coro))
+        monkeypatch.setattr("viewport.api.photo.create_thumbnails_batch_task.kiq", fake_kiq)
 
         me_resp = authenticated_client.get("/me")
         assert me_resp.status_code == 200
@@ -321,7 +324,8 @@ class TestPhotoAPI:
         async def fail_kiq(batch: list[dict]) -> Never:
             raise RuntimeError("broker unavailable")
 
-        monkeypatch.setattr("viewport.background_tasks.create_thumbnails_batch_task.kiq", fail_kiq)
+        monkeypatch.setattr("viewport.api.photo.asyncio.create_task", lambda coro: asyncio.get_running_loop().create_task(coro))
+        monkeypatch.setattr("viewport.api.photo.create_thumbnails_batch_task.kiq", fail_kiq)
 
         response = authenticated_client.post(
             f"/galleries/{gallery_id_fixture}/photos/batch-confirm",

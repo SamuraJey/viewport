@@ -5,7 +5,7 @@
 - Backend layers: routers in `src/viewport/api/` → repository layer in `src/viewport/repositories/` (SQLAlchemy `Session`) → Postgres models in `src/viewport/models/`.
 - Backend database access now uses SQLAlchemy `AsyncSession` end-to-end in app code, repositories, auth dependencies, and Taskiq tasks.
 - Storage/URLs: originals + thumbnails live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them **in-process** (see `src/viewport/cache_utils.py`).
-- Background work: Taskiq tasks live in `src/viewport/tasks/` and are exported via `src/viewport/background_tasks.py`; Docker Compose runs `taskiq_worker` + `taskiq_scheduler`.
+- Background work: Taskiq tasks live in `src/viewport/tasks/` and are re-exported from `src/viewport/tasks/__init__.py`; application code should use direct Taskiq task objects and `await task.kiq(...)` instead of any compatibility wrapper. Docker Compose runs `taskiq_worker` + `taskiq_scheduler`.
 - uv is used as package manager.
 
 ## How to run (preferred workflows)
@@ -31,6 +31,7 @@
   - **Garbage collection**: A Taskiq scheduled task (`cleanup_orphaned_uploads`) runs hourly to delete `PENDING` photo records older than 30 minutes and their corresponding S3 objects to prevent storage leaks from unconfirmed uploads.
   - **Gallery deletion**: `galleries.is_deleted` is a soft-delete flag. Deleting a gallery hides it from queries and enqueues a background task to purge S3 objects and hard-delete DB rows.
   - **Storage quotas**: User storage is tracked on `users` (`storage_quota`, `storage_used`, `storage_reserved`). Reserve bytes on `/batch-presigned`, finalize on confirm, and release on failures/orphan cleanup; only admins edit quota via SQLAdmin.
+  - **Taskiq style**: Do not add project-local task compatibility APIs like `run()`/`delay()` wrappers. Call Taskiq tasks directly from `src/viewport/tasks/` or `src/viewport/tasks/__init__.py`, use `await task.kiq(...)` when you need broker acknowledgement, and only detach enqueue from the response path intentionally.
 - No direct SQL in routers; use repositories for all DB access.
 
 ## Frontend conventions (React)

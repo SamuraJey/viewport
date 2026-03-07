@@ -27,7 +27,7 @@
 - **Новый параметр**: добавлена поддержка `cache_control` параметра для установки Cache-Control заголовка
 - Используется при загрузке thumbnails с `cache_control="public, max-age=31536000, immutable"`
 
-### 2. `src/viewport/background_tasks.py`
+### 2. `src/viewport/tasks/photo_tasks.py`
 
 #### `_process_single_photo()` функция
 - **Content-Type**: изменён с `image/jpeg` на `image/avif` при загрузке thumbnail в S3

@@ -18,9 +18,8 @@ src/viewport/
 ├── cache_utils.py               # Redis caching utilities
 ├── s3_utils.py               # S3 file operations
 ├── s3_service.py                # S3 service abstraction
-├── background_tasks.py          # Background task definitions
 ├── tkq.py                       # Taskiq broker + scheduler configuration
-├── tasks/                       # Task modules (photo + maintenance)
+├── tasks/                       # Taskiq task modules and direct task re-exports
 ├── dependencies.py              # FastAPI dependency injection
 │
 ├── api/                         # API route handlers (blueprints)

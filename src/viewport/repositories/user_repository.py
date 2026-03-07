@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
@@ -66,18 +66,20 @@ class UserRepository(BaseRepository):
         if bytes_to_reserve <= 0:
             return True
 
-        stmt = select(User).where(User.id == user_id).with_for_update()
-        user = (await self.db.execute(stmt)).scalar_one_or_none()
-        if not user:
-            return False
-
-        available = user.storage_quota - user.storage_used - user.storage_reserved
-        if bytes_to_reserve > available:
+        stmt = (
+            update(User)
+            .where(
+                User.id == user_id,
+                (User.storage_quota - User.storage_used - User.storage_reserved) >= bytes_to_reserve,
+            )
+            .values(storage_reserved=User.storage_reserved + bytes_to_reserve)
+            .returning(User.id)
+        )
+        result = await self.db.execute(stmt)
+        if result.scalar_one_or_none() is None:
             await self.db.rollback()
             return False
 
-        user.storage_reserved += bytes_to_reserve
-        self.db.add(user)
         await self.db.commit()
         return True
 
@@ -85,13 +87,8 @@ class UserRepository(BaseRepository):
         if bytes_to_release <= 0:
             return
 
-        stmt = select(User).where(User.id == user_id).with_for_update()
-        user = (await self.db.execute(stmt)).scalar_one_or_none()
-        if not user:
-            return
-
-        user.storage_reserved = max(user.storage_reserved - bytes_to_release, 0)
-        self.db.add(user)
+        stmt = update(User).where(User.id == user_id).values(storage_reserved=func.greatest(User.storage_reserved - bytes_to_release, 0))
+        await self.db.execute(stmt)
         if commit:
             await self.db.commit()
 
@@ -99,14 +96,15 @@ class UserRepository(BaseRepository):
         if bytes_to_finalize <= 0:
             return
 
-        stmt = select(User).where(User.id == user_id).with_for_update()
-        user = (await self.db.execute(stmt)).scalar_one_or_none()
-        if not user:
-            return
-
-        user.storage_reserved = max(user.storage_reserved - bytes_to_finalize, 0)
-        user.storage_used += bytes_to_finalize
-        self.db.add(user)
+        stmt = (
+            update(User)
+            .where(User.id == user_id)
+            .values(
+                storage_reserved=func.greatest(User.storage_reserved - bytes_to_finalize, 0),
+                storage_used=User.storage_used + bytes_to_finalize,
+            )
+        )
+        await self.db.execute(stmt)
         if commit:
             await self.db.commit()
 
@@ -114,19 +112,16 @@ class UserRepository(BaseRepository):
         if bytes_to_finalize <= 0 and bytes_to_release <= 0:
             return
 
-        stmt = select(User).where(User.id == user_id).with_for_update()
-        user = (await self.db.execute(stmt)).scalar_one_or_none()
-        if not user:
-            return
-
-        if bytes_to_finalize > 0:
-            user.storage_reserved = max(user.storage_reserved - bytes_to_finalize, 0)
-            user.storage_used += bytes_to_finalize
-
-        if bytes_to_release > 0:
-            user.storage_reserved = max(user.storage_reserved - bytes_to_release, 0)
-
-        self.db.add(user)
+        total_reserved_delta = bytes_to_finalize + bytes_to_release
+        stmt = (
+            update(User)
+            .where(User.id == user_id)
+            .values(
+                storage_reserved=func.greatest(User.storage_reserved - total_reserved_delta, 0),
+                storage_used=User.storage_used + bytes_to_finalize,
+            )
+        )
+        await self.db.execute(stmt)
         if commit:
             await self.db.commit()
 
@@ -134,13 +129,8 @@ class UserRepository(BaseRepository):
         if bytes_to_decrement <= 0:
             return
 
-        stmt = select(User).where(User.id == user_id).with_for_update()
-        user = (await self.db.execute(stmt)).scalar_one_or_none()
-        if not user:
-            return
-
-        user.storage_used = max(user.storage_used - bytes_to_decrement, 0)
-        self.db.add(user)
+        stmt = update(User).where(User.id == user_id).values(storage_used=func.greatest(User.storage_used - bytes_to_decrement, 0))
+        await self.db.execute(stmt)
         if commit:
             await self.db.commit()
 

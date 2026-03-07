@@ -9,7 +9,8 @@ Relevant backend modules:
 - `src/viewport/api/photo.py`
 - `src/viewport/repositories/user_repository.py`
 - `src/viewport/repositories/gallery_repository.py`
-- `src/viewport/background_tasks.py`
+- `src/viewport/tasks/photo_tasks.py`
+- `src/viewport/tasks/maintenance_tasks.py`
 - `src/viewport/models/user.py`
 - `src/viewport/models/gallery.py`
 

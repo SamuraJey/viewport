@@ -13,6 +13,7 @@ from viewport.s3_service import AsyncS3Client
 from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse, GalleryUpdateRequest
 from viewport.schemas.photo import PhotoResponse
 from viewport.schemas.sharelink import ShareLinkResponse
+from viewport.tasks import delete_gallery_data_task
 
 router = APIRouter(prefix="/galleries", tags=["galleries"])
 logger = logging.getLogger(__name__)
@@ -167,8 +168,6 @@ async def delete_gallery(
 ) -> None:
     if not await repo.soft_delete_gallery(gallery_id, current_user.id):
         raise HTTPException(status_code=404, detail="Gallery not found")
-
-    from viewport.background_tasks import delete_gallery_data_task
 
     await delete_gallery_data_task.kiq(str(gallery_id))
 

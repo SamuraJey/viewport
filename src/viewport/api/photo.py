@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -25,6 +26,7 @@ from viewport.schemas.photo import (
     PhotoResponse,
     PresignedUploadData,
 )
+from viewport.tasks import create_thumbnails_batch_task, delete_photo_data_task
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,18 @@ CONTENT_TYPE_MAP = {
 }
 
 router = APIRouter(prefix="/galleries", tags=["photos"])
+
+
+def _log_thumbnail_enqueue_result(task: asyncio.Task[object], gallery_id: UUID, photo_count: int) -> None:
+    with_context = {"gallery_id": str(gallery_id), "photo_count": photo_count}
+    try:
+        exc = task.exception()
+    except asyncio.CancelledError:
+        logger.warning("Thumbnail task enqueue cancelled", extra=with_context)
+        return
+
+    if exc is not None:
+        logger.warning("Failed to enqueue thumbnail task", extra=with_context, exc_info=exc)
 
 
 def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
@@ -294,18 +308,8 @@ async def batch_confirm_uploads(
 
     # 5. Start batch thumbnail processing (will retry tagging if needed)
     if photos_to_process:
-        from viewport.background_tasks import create_thumbnails_batch_task
-
-        try:
-            await create_thumbnails_batch_task.kiq(photos_to_process)
-        except Exception as exc:
-            # Statuses are already committed; periodic reconciler will requeue.
-            logger.warning(
-                "Failed to enqueue thumbnail task for gallery %s (%s photos): %s",
-                gallery_id,
-                len(photos_to_process),
-                exc,
-            )
+        enqueue_task = asyncio.create_task(create_thumbnails_batch_task.kiq(photos_to_process))
+        enqueue_task.add_done_callback(lambda task: _log_thumbnail_enqueue_result(task, gallery_id, len(photos_to_process)))
 
     return BatchConfirmUploadResponse(confirmed_count=confirmed_count, failed_count=failed_count)
 
@@ -333,8 +337,6 @@ async def delete_photo(
         raise HTTPException(status_code=404, detail="Photo not found")
 
     # Enqueue async deletion task
-    from viewport.background_tasks import delete_photo_data_task
-
     try:
         await delete_photo_data_task.kiq(str(photo_id), str(gallery_id), str(current_user.id))
     except Exception as exc:

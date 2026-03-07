@@ -500,6 +500,47 @@ class AsyncS3Client:
         """Generate a presigned URL without blocking the event loop."""
         return await asyncio.to_thread(self.generate_presigned_url, key, expires_in, response_content_disposition)
 
+    def _generate_presigned_urls_sync(
+        self,
+        keys: list[str],
+        expires_in: int = 7200,
+        response_content_disposition: str | None = None,
+    ) -> dict[str, str]:
+        """Generate multiple presigned URLs in one synchronous batch.
+
+        Presigning is local CPU work, not network I/O. Running the whole batch in one
+        worker thread avoids the overhead of spawning hundreds of `to_thread` jobs.
+        """
+        urls: dict[str, str] = {}
+        for key in keys:
+            try:
+                urls[key] = self.generate_presigned_url(
+                    key,
+                    expires_in=expires_in,
+                    response_content_disposition=response_content_disposition,
+                )
+            except Exception as exc:
+                logger.warning("Failed to generate presigned URL for %s: %s", key, exc)
+        return urls
+
+    def _generate_presigned_urls_with_dispositions_sync(
+        self,
+        key_dispositions: list[tuple[str, str | None]],
+        expires_in: int = 7200,
+    ) -> dict[str, str]:
+        """Generate multiple presigned URLs with per-key content disposition in one batch."""
+        urls: dict[str, str] = {}
+        for key, response_content_disposition in key_dispositions:
+            try:
+                urls[key] = self.generate_presigned_url(
+                    key,
+                    expires_in=expires_in,
+                    response_content_disposition=response_content_disposition,
+                )
+            except Exception as exc:
+                logger.warning("Failed to generate presigned URL for %s: %s", key, exc)
+        return urls
+
     async def generate_presigned_urls_batch(
         self,
         keys: list[str],
@@ -535,25 +576,17 @@ class AsyncS3Client:
         else:
             logger.debug("All %s presigned URLs from cache", len(urls))
 
-        # Generate presigned URLs for uncached keys without blocking the event loop.
+        # Presigning is local signing work, so a single background-thread batch is
+        # faster than spawning one thread-task per URL.
         if to_generate:
-            generated = await asyncio.gather(
-                *[
-                    self.generate_presigned_url_async(
-                        key,
-                        expires_in,
-                        response_content_disposition=response_content_disposition,
-                    )
-                    for key in to_generate
-                ],
-                return_exceptions=True,
+            urls.update(
+                await asyncio.to_thread(
+                    self._generate_presigned_urls_sync,
+                    to_generate,
+                    expires_in,
+                    response_content_disposition,
+                )
             )
-
-            for key, result in zip(to_generate, generated, strict=True):
-                if isinstance(result, BaseException):
-                    logger.warning("Failed to generate presigned URL for %s: %s", key, result)
-                    continue
-                urls[key] = result
 
         return urls
 
@@ -575,16 +608,13 @@ class AsyncS3Client:
                 to_generate.append((key, response_content_disposition))
 
         if to_generate:
-            generated = await asyncio.gather(
-                *[self.generate_presigned_url_async(key, expires_in, response_content_disposition) for key, response_content_disposition in to_generate],
-                return_exceptions=True,
+            urls.update(
+                await asyncio.to_thread(
+                    self._generate_presigned_urls_with_dispositions_sync,
+                    to_generate,
+                    expires_in,
+                )
             )
-
-            for (key, _), result in zip(to_generate, generated, strict=True):
-                if isinstance(result, BaseException):
-                    logger.warning("Failed to generate presigned URL for %s: %s", key, result)
-                    continue
-                urls[key] = result
 
         return urls
 
