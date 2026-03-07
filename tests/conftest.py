@@ -4,7 +4,7 @@ import os
 import re
 import time
 import uuid
-from collections.abc import Generator, Mapping
+from collections.abc import AsyncGenerator, Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -491,7 +491,7 @@ def _cleanup_database(engine: AsyncEngine, request) -> None:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def db_session(engine: AsyncEngine) -> Generator[AsyncSession]:
+async def db_session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     """Фикстура сессии базы данных с изоляцией на каждый тест."""
     session_factory = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with session_factory() as session:
@@ -584,7 +584,11 @@ def _db_session_holder() -> dict[str, AsyncSession | None]:
 
 
 @pytest.fixture(scope="session")
-def app_client(_db_session_holder: dict[str, AsyncSession | None]):
+def app_client(
+    postgres_container: PostgresConnectionInfo,
+    s3_container: S3ConnectionInfo | DockerContainer,
+    _db_session_holder: dict[str, AsyncSession | None],
+):
     """Session-scoped TestClient with dynamic DB session override."""
 
     from viewport.main import app
