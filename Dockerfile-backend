@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG PYTHON_VERSION=3.14
-ARG UV_VERSION=0.10.4
+ARG UV_VERSION=0.10.9
 
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 

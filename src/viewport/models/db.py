@@ -1,13 +1,12 @@
 import logging
-from collections.abc import Generator
+from collections.abc import AsyncGenerator
 from functools import lru_cache
 
 from fastapi import HTTPException
 from fastapi.exceptions import RequestValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from sqlalchemy import create_engine
-from sqlalchemy.engine.base import Engine
-from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +40,7 @@ def get_database_url() -> str:  # pragma: no cover
 
 
 @lru_cache(maxsize=5)
-def _get_engine_and_sessionmaker() -> tuple[Engine, sessionmaker[Session]]:  # pragma: no cover
+def _get_engine_and_sessionmaker() -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:  # pragma: no cover
     """Create and cache the SQLAlchemy engine and sessionmaker lazily."""
     database_url = get_database_url()
     connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
@@ -63,8 +62,8 @@ def _get_engine_and_sessionmaker() -> tuple[Engine, sessionmaker[Session]]:  # p
         "pool_pre_ping": True,  # Verify connection health before using
     }
 
-    eng = create_engine(database_url, future=True, connect_args=connect_args, **pool_config)
-    sess = sessionmaker(bind=eng, future=True)
+    eng = create_async_engine(database_url, connect_args=connect_args, **pool_config)
+    sess = async_sessionmaker(bind=eng, expire_on_commit=False)
 
     return eng, sess
 
@@ -77,7 +76,7 @@ def get_session_maker():  # pragma: no cover - simple accessor
     return _get_engine_and_sessionmaker()[1]
 
 
-def get_db() -> Generator[Session]:  # pragma: no cover
+async def get_db() -> AsyncGenerator[AsyncSession]:  # pragma: no cover
     """Dependency injection for database sessions.
 
     The context manager automatically closes the session,
@@ -86,28 +85,27 @@ def get_db() -> Generator[Session]:  # pragma: no cover
     import time
 
     session_maker = get_session_maker()
-    session = session_maker()
     session_start = time.time()
 
-    try:
-        yield session
-    except HTTPException as http_exc:
-        status_code = getattr(http_exc, "status_code", None)
-        log_method = logger.info if isinstance(status_code, int) and status_code < 500 else logger.warning
-        log_method("Session HTTP exception after %.3fs: %s", time.time() - session_start, http_exc)
-        session.rollback()
-        raise
-    except RequestValidationError as validation_exc:
-        # Invalid request payloads (422) are expected user errors, not server crashes.
-        logger.info("Session validation exception after %.3fs: %s", time.time() - session_start, validation_exc)
-        session.rollback()
-        raise
-    except Exception as e:
-        logger.warning("Session error after %.3fs: %s", time.time() - session_start, e, exc_info=True)
-        session.rollback()
-        raise
-    finally:
-        duration = time.time() - session_start
-        if duration > 1.0:  # Log sessions longer than 1 second
-            logger.warning("Long-lived session: %.3fs", duration)
-        session.close()
+    async with session_maker() as session:
+        try:
+            yield session
+        except HTTPException as http_exc:
+            status_code = getattr(http_exc, "status_code", None)
+            log_method = logger.info if isinstance(status_code, int) and status_code < 500 else logger.warning
+            log_method("Session HTTP exception after %.3fs: %s", time.time() - session_start, http_exc)
+            await session.rollback()
+            raise
+        except RequestValidationError as validation_exc:
+            # Invalid request payloads (422) are expected user errors, not server crashes.
+            logger.info("Session validation exception after %.3fs: %s", time.time() - session_start, validation_exc)
+            await session.rollback()
+            raise
+        except Exception as e:
+            logger.warning("Session error after %.3fs: %s", time.time() - session_start, e, exc_info=True)
+            await session.rollback()
+            raise
+        finally:
+            duration = time.time() - session_start
+            if duration > 1.0:  # Log sessions longer than 1 second
+                logger.warning("Long-lived session: %.3fs", duration)

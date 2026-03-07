@@ -6,7 +6,7 @@ participant "Frontend" as FE
 participant "FastAPI /photo" as API
 database "Postgres" as DB
 participant "S3 (RustFS)" as S3
-participant "Celery" as C
+participant "Taskiq" as C
 
 User -> FE: Select files
 FE -> API: POST /galleries/{id}/photos/batch-presigned
@@ -27,7 +27,7 @@ activate API
 API -> DB: Set photo statuses
 API -> DB: finalize_reserved_storage(success_bytes)
 API -> DB: release_reserved_storage(failed_bytes)
-API -> C: create_thumbnails_batch_task.delay(...)
+API -> C: await create_thumbnails_batch_task.kiq(...)
 API --> FE: confirmed_count / failed_count
 deactivate API
 

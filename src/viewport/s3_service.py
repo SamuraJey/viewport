@@ -9,6 +9,7 @@ singleton via dependency injection.
 import asyncio
 import io
 import logging
+from collections.abc import Mapping
 from contextlib import AbstractAsyncContextManager
 from typing import TYPE_CHECKING, Any, BinaryIO, cast
 
@@ -210,6 +211,8 @@ class AsyncS3Client:
             except Exception as e:
                 logger.error("Failed to upload object %s: %s", key, e)
                 raise
+
+        raise RuntimeError(f"Failed to upload object {key} after {max_retries} attempts")
 
     async def upload_bytes(
         self,
@@ -493,6 +496,51 @@ class AsyncS3Client:
             logger.error("Failed to generate presigned URL for %s: %s", key, e)
             raise
 
+    async def generate_presigned_url_async(self, key: str, expires_in: int = 7200, response_content_disposition: str | None = None) -> str:
+        """Generate a presigned URL without blocking the event loop."""
+        return await asyncio.to_thread(self.generate_presigned_url, key, expires_in, response_content_disposition)
+
+    def _generate_presigned_urls_sync(
+        self,
+        keys: list[str],
+        expires_in: int = 7200,
+        response_content_disposition: str | None = None,
+    ) -> dict[str, str]:
+        """Generate multiple presigned URLs in one synchronous batch.
+
+        Presigning is local CPU work, not network I/O. Running the whole batch in one
+        worker thread avoids the overhead of spawning hundreds of `to_thread` jobs.
+        """
+        urls: dict[str, str] = {}
+        for key in keys:
+            try:
+                urls[key] = self.generate_presigned_url(
+                    key,
+                    expires_in=expires_in,
+                    response_content_disposition=response_content_disposition,
+                )
+            except Exception as exc:
+                logger.warning("Failed to generate presigned URL for %s: %s", key, exc)
+        return urls
+
+    def _generate_presigned_urls_with_dispositions_sync(
+        self,
+        key_dispositions: list[tuple[str, str | None]],
+        expires_in: int = 7200,
+    ) -> dict[str, str]:
+        """Generate multiple presigned URLs with per-key content disposition in one batch."""
+        urls: dict[str, str] = {}
+        for key, response_content_disposition in key_dispositions:
+            try:
+                urls[key] = self.generate_presigned_url(
+                    key,
+                    expires_in=expires_in,
+                    response_content_disposition=response_content_disposition,
+                )
+            except Exception as exc:
+                logger.warning("Failed to generate presigned URL for %s: %s", key, exc)
+        return urls
+
     async def generate_presigned_urls_batch(
         self,
         keys: list[str],
@@ -528,15 +576,89 @@ class AsyncS3Client:
         else:
             logger.debug("All %s presigned URLs from cache", len(urls))
 
-        # Generate presigned URLs for uncached keys
-        for key in to_generate:
-            try:
-                url = self.generate_presigned_url(key, expires_in, response_content_disposition=response_content_disposition)
-                urls[key] = url
-            except Exception as e:
-                logger.warning("Failed to generate presigned URL for %s: %s", key, e)
+        # Presigning is local signing work, so a single background-thread batch is
+        # faster than spawning one thread-task per URL.
+        if to_generate:
+            urls.update(
+                await asyncio.to_thread(
+                    self._generate_presigned_urls_sync,
+                    to_generate,
+                    expires_in,
+                    response_content_disposition,
+                )
+            )
 
         return urls
+
+    async def generate_presigned_urls_batch_for_dispositions(
+        self,
+        key_dispositions: Mapping[str, str | None],
+        expires_in: int = 7200,
+    ) -> dict[str, str]:
+        """Generate presigned URLs for multiple objects with per-object content disposition."""
+        urls: dict[str, str] = {}
+        to_generate: list[tuple[str, str | None]] = []
+
+        for key, response_content_disposition in key_dispositions.items():
+            cache_key = self._presign_cache_key(key, response_content_disposition)
+            cached = get_cached_presigned_url(cache_key)
+            if cached:
+                urls[key] = cached
+            else:
+                to_generate.append((key, response_content_disposition))
+
+        if to_generate:
+            urls.update(
+                await asyncio.to_thread(
+                    self._generate_presigned_urls_with_dispositions_sync,
+                    to_generate,
+                    expires_in,
+                )
+            )
+
+        return urls
+
+    async def list_object_keys(self, prefix: str) -> list[str]:
+        """List all object keys for a prefix."""
+        object_keys: list[str] = []
+        continuation_token: str | None = None
+
+        async with self._get_s3_client() as s3:
+            while True:
+                list_params: dict[str, Any] = {
+                    "Bucket": self.settings.bucket,
+                    "Prefix": prefix,
+                }
+                if continuation_token:
+                    list_params["ContinuationToken"] = continuation_token
+
+                response = await s3.list_objects_v2(**list_params)
+                object_keys.extend(obj["Key"] for obj in response.get("Contents", []))
+
+                if not response.get("IsTruncated"):
+                    break
+                continuation_token = response.get("NextContinuationToken")
+
+        return object_keys
+
+    async def delete_objects(self, keys: list[str]) -> int:
+        """Delete multiple objects from S3 and return deleted count."""
+        if not keys:
+            return 0
+
+        deleted_count = 0
+        async with self._get_s3_client() as s3:
+            for i in range(0, len(keys), 1000):
+                batch = keys[i : i + 1000]
+                delete_request = {"Objects": [{"Key": key} for key in batch]}
+                response = await s3.delete_objects(Bucket=self.settings.bucket, Delete=delete_request)
+                errors = response.get("Errors") or []
+                if errors:
+                    logger.error("Partial delete errors from S3: %s", errors)
+                    raise RuntimeError(f"S3 partial delete errors: {errors}")
+                deleted_count += len(response.get("Deleted") or [])
+
+        return deleted_count
 
     def generate_presigned_put(
         self,

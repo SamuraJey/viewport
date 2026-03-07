@@ -1,9 +1,9 @@
 # Repositories package
 
-from .base_repository import BaseRepository
-from .gallery_repository import GalleryRepository
-from .sharelink_repository import ShareLinkRepository
-from .user_repository import UserRepository
+from viewport.repositories.base_repository import BaseRepository
+from viewport.repositories.gallery_repository import GalleryRepository
+from viewport.repositories.sharelink_repository import ShareLinkRepository
+from viewport.repositories.user_repository import UserRepository
 
 __all__ = [
     "BaseRepository",

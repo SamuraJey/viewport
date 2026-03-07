@@ -8,7 +8,7 @@ PROJECT_NAME := "viewport"
 create-venv:
     test -d {{ VENV }} || python{{ PYTHON_VERSION }} -m venv {{ VENV }} --upgrade-deps
     {{ VENV }}/bin/python -m ensurepip --upgrade
-    {{ VENV }}/bin/python -m pip install uv==0.10.4
+    {{ VENV }}/bin/python -m pip install uv==0.10.9
 
 # Sync dependencies with uv
 install-deps:
@@ -62,3 +62,15 @@ test:
 # Run tests with coverage
 test-cov:
     {{ VENV }}/bin/pytest -n 4 ./tests --cov={{ PROJECT_NAME }} --cov-branch --cov-fail-under=85
+
+# Run Taskiq worker
+worker:
+    {{ VENV }}/bin/taskiq worker viewport.tkq:broker --workers 4
+
+# Run Taskiq scheduler
+scheduler:
+    {{ VENV }}/bin/taskiq scheduler viewport.tkq:scheduler
+
+# Run single-worker Taskiq in dev
+worker-dev:
+    {{ VENV }}/bin/taskiq worker viewport.tkq:broker --workers 1 --reload

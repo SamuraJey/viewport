@@ -2,17 +2,21 @@
 
 from sqladmin.authentication import AuthenticationBackend
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
 from viewport.api.auth import verify_password
-from viewport.models.db import get_db
+from viewport.models.db import get_session_maker
 from viewport.models.user import User
 
 
 class AdminAuth(AuthenticationBackend):
     """Authentication backend for admin panel using JWT and session."""
+
+    def __init__(self, secret_key: str):
+        super().__init__(secret_key)
+        self._session_maker: async_sessionmaker[AsyncSession] = get_session_maker()
 
     async def authenticate(self, request: Request) -> bool:
         """Return True if a user is currently authenticated for the admin."""
@@ -20,16 +24,10 @@ class AdminAuth(AuthenticationBackend):
         if not user_id:
             return False
 
-        def _is_admin_user() -> bool:
-            db: Session = next(get_db())
-            try:
-                stmt = select(User.is_admin).where(User.id == user_id)
-                is_admin = db.execute(stmt).scalar_one_or_none()
-                return bool(is_admin)
-            finally:
-                db.close()
-
-        return await run_in_threadpool(_is_admin_user)
+        async with self._session_maker() as session:
+            stmt = select(User.is_admin).where(User.id == user_id)
+            is_admin = (await session.execute(stmt)).scalar_one_or_none()
+            return bool(is_admin)
 
     async def logout(self, request: Request) -> bool:
         """Log out the current user by clearing the admin session."""
@@ -59,29 +57,18 @@ class AdminAuth(AuthenticationBackend):
         if not email or not password:
             return False
 
-        # Run DB and crypto operations in threadpool
-        def _check_credentials():
-            db: Session = next(get_db())
-            try:
-                stmt = select(User).where(User.email == email)
-                user = db.execute(stmt).scalar_one_or_none()
+        async with self._session_maker() as session:
+            stmt = select(User).where(User.email == email)
+            user = (await session.execute(stmt)).scalar_one_or_none()
 
-                if not user:
-                    return None
+        if not user:
+            return False
 
-                if not verify_password(password, user.password_hash):
-                    return None
+        is_valid = await run_in_threadpool(verify_password, password, user.password_hash)
+        if not is_valid or not user.is_admin:
+            return False
 
-                if not user.is_admin:
-                    return None
-
-                return str(user.id)
-
-            finally:
-                db.close()
-
-        user_id = await run_in_threadpool(_check_credentials)
-
+        user_id = str(user.id)
         if user_id:
             # Store user_id in session for authentication
             request.session.update({"user_id": user_id})

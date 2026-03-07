@@ -121,7 +121,7 @@ See [Production Deployment Guide](./production.md)
 - Lifecycle policies for old files
 
 ### Application
-- Async task queue (Celery)
+- Async task queue (Taskiq)
 - Load balancing across instances
 - Rate limiting
 

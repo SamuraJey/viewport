@@ -4,31 +4,32 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import inspect
+import pytest_asyncio
+from sqlalchemy import delete, inspect, select
 
 from viewport.models.gallery import Gallery, Photo
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
 
 
-@pytest.fixture
-def user_fixture(db_session) -> User:
+@pytest_asyncio.fixture
+async def user_fixture(db_session) -> User:
     user = User(email="photo@example.com", password_hash="hash")
     db_session.add(user)
-    db_session.commit()
+    await db_session.commit()
     return user
 
 
-@pytest.fixture
-def gallery_fixture(db_session, user_fixture: User) -> Gallery:
+@pytest_asyncio.fixture
+async def gallery_fixture(db_session, user_fixture: User) -> Gallery:
     gallery = Gallery(owner=user_fixture)
     db_session.add(gallery)
-    db_session.commit()
+    await db_session.commit()
     return gallery
 
 
-@pytest.fixture
-def photo_fixture(db_session, gallery_fixture: Gallery) -> Photo:
+@pytest_asyncio.fixture
+async def photo_fixture(db_session, gallery_fixture: Gallery) -> Photo:
     photo = Photo(
         gallery=gallery_fixture,
         object_key="photos/test.jpg",
@@ -36,22 +37,22 @@ def photo_fixture(db_session, gallery_fixture: Gallery) -> Photo:
         file_size=2048,
     )
     db_session.add(photo)
-    db_session.commit()
+    await db_session.commit()
     return photo
 
 
-@pytest.fixture
-def sharelink_fixture(db_session, gallery_fixture: Gallery) -> ShareLink:
+@pytest_asyncio.fixture
+async def sharelink_fixture(db_session, gallery_fixture: Gallery) -> ShareLink:
     sharelink = ShareLink(gallery=gallery_fixture)
     db_session.add(sharelink)
-    db_session.commit()
+    await db_session.commit()
     return sharelink
 
 
 class TestUserModel:
     """Test User model."""
 
-    def test_user_creation(self, user_fixture: User):
+    async def test_user_creation(self, user_fixture: User):
         """Test creating a user (via fixture)."""
         user = user_fixture
 
@@ -62,35 +63,35 @@ class TestUserModel:
         assert user.created_at is not None
         assert isinstance(user.created_at, datetime)
 
-    def test_user_email_unique_constraint(self, db_session):
+    async def test_user_email_unique_constraint(self, db_session):
         """Test email unique constraint."""
         user1 = User(email="duplicate@example.com", password_hash="hash1")
         user2 = User(email="duplicate@example.com", password_hash="hash2")
 
         db_session.add(user1)
-        db_session.commit()
+        await db_session.commit()
 
         db_session.add(user2)
         with pytest.raises(Exception):  # noqa: B017
-            db_session.commit()
+            await db_session.commit()
 
-    def test_user_id_auto_generated(self, db_session):
+    async def test_user_id_auto_generated(self, db_session):
         """Test user ID is auto-generated."""
         user = User(email="auto@example.com", password_hash="hash")
         assert user.id is None  # Not set before adding to session
 
         db_session.add(user)
-        db_session.flush()  # Flush to generate ID
+        await db_session.flush()  # Flush to generate ID
 
         assert user.id is not None
         assert isinstance(user.id, uuid.UUID)
 
-    def test_user_created_at_auto_generated(self, db_session):
+    async def test_user_created_at_auto_generated(self, db_session):
         """Test created_at is auto-generated."""
         user = User(email="time@example.com", password_hash="hash")
 
         db_session.add(user)
-        db_session.commit()
+        await db_session.commit()
 
         assert isinstance(user.created_at, datetime)
 
@@ -102,11 +103,11 @@ class TestUserModel:
             ("user3@test.com", "hash3"),
         ],
     )
-    def test_user_multiple_instances(self, db_session, email, password_hash):
+    async def test_user_multiple_instances(self, db_session, email, password_hash):
         """Test creating multiple users."""
         user = User(email=email, password_hash=password_hash)
         db_session.add(user)
-        db_session.commit()
+        await db_session.commit()
 
         assert user.email == email
         assert user.password_hash == password_hash
@@ -120,20 +121,21 @@ class TestUserModel:
         for col in expected_columns:
             assert col in columns
 
-    def test_user_relationships(self, gallery_fixture: Gallery, user_fixture: User):
+    async def test_user_relationships(self, db_session, gallery_fixture: Gallery, user_fixture: User):
         """Test user relationships with galleries (via fixtures)."""
         gallery = gallery_fixture
         user = user_fixture
 
         # Test relationship
         assert gallery.owner == user
-        assert gallery in user.galleries
+        galleries = (await db_session.execute(select(Gallery).where(Gallery.owner_id == user.id))).scalars().all()
+        assert gallery.id in {saved_gallery.id for saved_gallery in galleries}
 
 
 class TestGalleryModel:
     """Test Gallery model."""
 
-    def test_gallery_creation(self, gallery_fixture: Gallery, user_fixture: User):
+    async def test_gallery_creation(self, gallery_fixture: Gallery, user_fixture: User):
         """Test creating a gallery (via fixture)."""
         gallery = gallery_fixture
         user = user_fixture
@@ -143,7 +145,7 @@ class TestGalleryModel:
         assert gallery.owner_id == user.id
         assert gallery.created_at is not None
 
-    def test_gallery_owner_relationship(self, gallery_fixture: Gallery, user_fixture: User):
+    async def test_gallery_owner_relationship(self, gallery_fixture: Gallery, user_fixture: User):
         """Test gallery-owner relationship (via fixtures)."""
         gallery = gallery_fixture
         user = user_fixture
@@ -151,52 +153,55 @@ class TestGalleryModel:
         assert gallery.owner == user
         assert gallery.owner_id == user.id
 
-    def test_gallery_cascade_delete_from_user(self, db_session):
+    async def test_gallery_cascade_delete_from_user(self, db_session):
         """Test gallery is deleted when user is deleted."""
         user = User(email="cascade@example.com", password_hash="hash")
         gallery = Gallery(owner=user)
 
         db_session.add(user)
         db_session.add(gallery)
-        db_session.commit()
+        await db_session.commit()
 
         gallery_id = gallery.id
 
         # Delete user
-        db_session.delete(user)
-        db_session.commit()
+        await db_session.execute(delete(User).where(User.id == user.id))
+        await db_session.commit()
+        db_session.expunge_all()
 
         # Gallery should be deleted too
-        deleted_gallery = db_session.get(Gallery, gallery_id)
+        deleted_gallery = await db_session.get(Gallery, gallery_id)
         assert deleted_gallery is None
 
-    def test_gallery_photos_relationship(self, db_session, gallery_fixture: Gallery):
+    async def test_gallery_photos_relationship(self, db_session, gallery_fixture: Gallery):
         """Test gallery-photos relationship using gallery fixture and a new photo."""
         gallery = gallery_fixture
         photo = Photo(gallery=gallery, object_key="test.jpg", thumbnail_object_key="test.jpg", file_size=1024)
 
         db_session.add(photo)
-        db_session.commit()
+        await db_session.commit()
 
-        assert photo in gallery.photos
+        photos = (await db_session.execute(select(Photo).where(Photo.gallery_id == gallery.id))).scalars().all()
+        assert photo.id in {saved_photo.id for saved_photo in photos}
         assert photo.gallery == gallery
 
-    def test_gallery_sharelinks_relationship(self, db_session, gallery_fixture: Gallery):
+    async def test_gallery_sharelinks_relationship(self, db_session, gallery_fixture: Gallery):
         """Test gallery-sharelinks relationship using gallery fixture and a new sharelink."""
         gallery = gallery_fixture
         sharelink = ShareLink(gallery=gallery)
 
         db_session.add(sharelink)
-        db_session.commit()
+        await db_session.commit()
 
-        assert sharelink in gallery.share_links
+        sharelinks = (await db_session.execute(select(ShareLink).where(ShareLink.gallery_id == gallery.id))).scalars().all()
+        assert sharelink.id in {saved_sharelink.id for saved_sharelink in sharelinks}
         assert sharelink.gallery == gallery
 
 
 class TestPhotoModel:
     """Test Photo model."""
 
-    def test_photo_creation(self, photo_fixture: Photo, gallery_fixture: Gallery):
+    async def test_photo_creation(self, photo_fixture: Photo, gallery_fixture: Gallery):
         """Test creating a photo (via fixture)."""
         photo = photo_fixture
         gallery = gallery_fixture
@@ -217,7 +222,7 @@ class TestPhotoModel:
             ("测试图片.jpg", 1536),
         ],
     )
-    def test_photo_different_keys_and_sizes(self, db_session, object_key, file_size):
+    async def test_photo_different_keys_and_sizes(self, db_session, object_key, file_size):
         """Test photos with different object keys and sizes."""
         user = User(email="multi@example.com", password_hash="hash")
         gallery = Gallery(owner=user)
@@ -226,12 +231,12 @@ class TestPhotoModel:
         db_session.add(user)
         db_session.add(gallery)
         db_session.add(photo)
-        db_session.commit()
+        await db_session.commit()
 
         assert photo.object_key == object_key
         assert photo.file_size == file_size
 
-    def test_photo_cascade_delete_from_gallery(self, db_session):
+    async def test_photo_cascade_delete_from_gallery(self, db_session):
         """Test photo is deleted when gallery is deleted."""
         user = User(email="cascade2@example.com", password_hash="hash")
         gallery = Gallery(owner=user)
@@ -240,19 +245,20 @@ class TestPhotoModel:
         db_session.add(user)
         db_session.add(gallery)
         db_session.add(photo)
-        db_session.commit()
+        await db_session.commit()
 
         photo_id = photo.id
 
         # Delete gallery
-        db_session.delete(gallery)
-        db_session.commit()
+        await db_session.execute(delete(Gallery).where(Gallery.id == gallery.id))
+        await db_session.commit()
+        db_session.expunge_all()
 
         # Photo should be deleted too
-        deleted_photo = db_session.get(Photo, photo_id)
+        deleted_photo = await db_session.get(Photo, photo_id)
         assert deleted_photo is None
 
-    def test_photo_uploaded_at_auto_generated(self, photo_fixture: Photo):
+    async def test_photo_uploaded_at_auto_generated(self, photo_fixture: Photo):
         """Test uploaded_at is set (via fixture)."""
         photo = photo_fixture
         assert isinstance(photo.uploaded_at, datetime)
@@ -261,14 +267,14 @@ class TestPhotoModel:
 class TestShareLinkModel:
     """Test ShareLink model."""
 
-    def test_sharelink_creation(self, db_session, gallery_fixture: Gallery):
+    async def test_sharelink_creation(self, db_session, gallery_fixture: Gallery):
         """Test creating a share link with expiry using gallery fixture."""
         gallery = gallery_fixture
         expires_at = datetime.now(UTC) + timedelta(days=1)
         sharelink = ShareLink(gallery=gallery, expires_at=expires_at)
 
         db_session.add(sharelink)
-        db_session.commit()
+        await db_session.commit()
 
         assert sharelink.id is not None
         assert isinstance(sharelink.id, uuid.UUID)
@@ -280,7 +286,7 @@ class TestShareLinkModel:
         assert sharelink.single_downloads == 0
         assert sharelink.created_at is not None
 
-    def test_sharelink_without_expiry(self, sharelink_fixture: ShareLink):
+    async def test_sharelink_without_expiry(self, sharelink_fixture: ShareLink):
         """Test creating a share link without expiry (via fixture)."""
         sharelink = sharelink_fixture
         assert sharelink.expires_at is None
@@ -293,27 +299,28 @@ class TestShareLinkModel:
             (100, 50, 200),
         ],
     )
-    def test_sharelink_counters(self, db_session, gallery_fixture: Gallery, views, zip_downloads, single_downloads):
+    async def test_sharelink_counters(self, db_session, gallery_fixture: Gallery, views, zip_downloads, single_downloads):
         """Test share link with different counter values."""
         gallery = gallery_fixture
         sharelink = ShareLink(gallery=gallery, views=views, zip_downloads=zip_downloads, single_downloads=single_downloads)
 
         db_session.add(sharelink)
-        db_session.commit()
+        await db_session.commit()
 
         assert sharelink.views == views
         assert sharelink.zip_downloads == zip_downloads
         assert sharelink.single_downloads == single_downloads
 
-    def test_sharelink_gallery_relationship(self, sharelink_fixture: ShareLink, gallery_fixture: Gallery):
+    async def test_sharelink_gallery_relationship(self, db_session, sharelink_fixture: ShareLink, gallery_fixture: Gallery):
         """Test sharelink-gallery relationship (via fixtures)."""
         sharelink = sharelink_fixture
         gallery = gallery_fixture
 
         assert sharelink.gallery == gallery
-        assert sharelink in gallery.share_links
+        sharelinks = (await db_session.execute(select(ShareLink).where(ShareLink.gallery_id == gallery.id))).scalars().all()
+        assert sharelink.id in {saved_sharelink.id for saved_sharelink in sharelinks}
 
-    def test_sharelink_created_at_auto_generated(self, sharelink_fixture: ShareLink):
+    async def test_sharelink_created_at_auto_generated(self, sharelink_fixture: ShareLink):
         """Test created_at is auto-generated (via fixture)."""
         sharelink = sharelink_fixture
         assert isinstance(sharelink.created_at, datetime)
@@ -322,7 +329,7 @@ class TestShareLinkModel:
 class TestModelRelationships:
     """Test relationships between models."""
 
-    def test_complete_model_relationships(self, db_session):
+    async def test_complete_model_relationships(self, db_session):
         """Test complete relationships between all models."""
         # Create a user
         user = User(email="complete@example.com", password_hash="hash")
@@ -344,23 +351,28 @@ class TestModelRelationships:
         db_session.add(photo2)
         db_session.add(sharelink1)
         db_session.add(sharelink2)
-        db_session.commit()
+        await db_session.commit()
 
         # Test all relationships
         assert gallery.owner == user
-        assert gallery in user.galleries
+        galleries = (await db_session.execute(select(Gallery).where(Gallery.owner_id == user.id))).scalars().all()
+        assert gallery.id in {saved_gallery.id for saved_gallery in galleries}
 
-        assert photo1 in gallery.photos
-        assert photo2 in gallery.photos
+        photos = (await db_session.execute(select(Photo).where(Photo.gallery_id == gallery.id))).scalars().all()
+        photo_ids = {saved_photo.id for saved_photo in photos}
+        assert photo1.id in photo_ids
+        assert photo2.id in photo_ids
         assert photo1.gallery == gallery
         assert photo2.gallery == gallery
 
-        assert sharelink1 in gallery.share_links
-        assert sharelink2 in gallery.share_links
+        sharelinks = (await db_session.execute(select(ShareLink).where(ShareLink.gallery_id == gallery.id))).scalars().all()
+        sharelink_ids = {saved_sharelink.id for saved_sharelink in sharelinks}
+        assert sharelink1.id in sharelink_ids
+        assert sharelink2.id in sharelink_ids
         assert sharelink1.gallery == gallery
         assert sharelink2.gallery == gallery
 
-    def test_cascade_delete_complete_chain(self, db_session):
+    async def test_cascade_delete_complete_chain(self, db_session):
         """Test cascade deletion throughout the model chain."""
         user = User(email="cascade_all@example.com", password_hash="hash")
         gallery = Gallery(owner=user)
@@ -371,7 +383,7 @@ class TestModelRelationships:
         db_session.add(gallery)
         db_session.add(photo)
         db_session.add(sharelink)
-        db_session.commit()
+        await db_session.commit()
 
         # Store IDs for checking deletion
         gallery_id = gallery.id
@@ -379,10 +391,11 @@ class TestModelRelationships:
         sharelink_id = sharelink.id
 
         # Delete user - should cascade to everything
-        db_session.delete(user)
-        db_session.commit()
+        await db_session.execute(delete(User).where(User.id == user.id))
+        await db_session.commit()
+        db_session.expunge_all()
 
         # Everything should be deleted
-        assert db_session.get(Gallery, gallery_id) is None
-        assert db_session.get(Photo, photo_id) is None
-        assert db_session.get(ShareLink, sharelink_id) is None
+        assert await db_session.get(Gallery, gallery_id) is None
+        assert await db_session.get(Photo, photo_id) is None
+        assert await db_session.get(ShareLink, sharelink_id) is None

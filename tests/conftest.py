@@ -1,9 +1,10 @@
+import asyncio
 import logging
 import os
 import re
 import time
 import uuid
-from collections.abc import Generator, Mapping
+from collections.abc import AsyncGenerator, Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -12,19 +13,18 @@ from typing import Any
 import boto3
 import jwt
 import pytest
+import pytest_asyncio
 from botocore.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
-from sqlalchemy.engine.base import Engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm.session import Session
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from testcontainers.core.container import DockerContainer
 from testcontainers.postgres import PostgresContainer
 
 POSTGRES_IMAGE = "postgres:17-alpine"
 
-S3_IMAGE = "rustfs/rustfs:1.0.0-alpha.83"
+S3_IMAGE = "rustfs/rustfs:1.0.0-alpha.85"
 S3_ROOT_ACCESS_KEY = "testaccesskey"
 S3_ROOT_SECRET_KEY = "testsecretkey"
 S3_PORT = 9000
@@ -50,7 +50,14 @@ _SHARED_S3_INFO: dict[str, Any] | None = None
 _SHARED_VALKEY_CONTAINER: DockerContainer | None = None
 _SHARED_VALKEY_INFO: dict[str, Any] | None = None
 
-os.environ.update({"JWT_SECRET_KEY": "supersecretkeysupersecretkeysupersecretkey", "ADMIN_JWT_SECRET_KEY": "adminsecretkeyadminsecretkeyadminsecretkey", "INVITE_CODE": "testinvitecode"})
+os.environ.update(
+    {
+        "JWT_SECRET_KEY": "supersecretkeysupersecretkeysupersecretkey",
+        "ADMIN_JWT_SECRET_KEY": "adminsecretkeyadminsecretkeyadminsecretkey",
+        "INVITE_CODE": "testinvitecode",
+        "ENVIRONMENT": "pytest",  # Use InMemoryBroker for tasks in tests
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -227,20 +234,29 @@ def pytest_configure(config: pytest.Config) -> None:
         return
 
     if _SHARED_POSTGRES_CONTAINER is None:
-        container = PostgresContainer(image=POSTGRES_IMAGE)
-        container.start()
-        _SHARED_POSTGRES_CONTAINER = container
-        _SHARED_POSTGRES_INFO = _connection_info_from_container(container).to_dict()
+        try:
+            container = PostgresContainer(image=POSTGRES_IMAGE)
+            container.start()
+            _SHARED_POSTGRES_CONTAINER = container
+            _SHARED_POSTGRES_INFO = _connection_info_from_container(container).to_dict()
+        except Exception:
+            pass  # Docker not available, skip shared container
 
     if _SHARED_S3_CONTAINER is None:
-        s3_container = _start_s3_container()
-        _SHARED_S3_CONTAINER = s3_container
-        _SHARED_S3_INFO = _connection_info_from_s3_container(s3_container).to_dict()
+        try:
+            s3_container = _start_s3_container()
+            _SHARED_S3_CONTAINER = s3_container
+            _SHARED_S3_INFO = _connection_info_from_s3_container(s3_container).to_dict()
+        except Exception:
+            pass  # Docker not available, skip shared container
 
     if _SHARED_VALKEY_CONTAINER is None:
-        valkey_container = _start_valkey_container()
-        _SHARED_VALKEY_CONTAINER = valkey_container
-        _SHARED_VALKEY_INFO = _connection_info_from_valkey_container(valkey_container).to_dict()
+        try:
+            valkey_container = _start_valkey_container()
+            _SHARED_VALKEY_CONTAINER = valkey_container
+            _SHARED_VALKEY_INFO = _connection_info_from_valkey_container(valkey_container).to_dict()
+        except Exception:
+            pass  # Docker not available, skip shared container
 
 
 def pytest_configure_node(node) -> None:
@@ -416,6 +432,13 @@ def postgres_container(_postgres_server: PostgresConnectionInfo, request: pytest
     )
 
     with _temporary_env_vars(env_updates):
+        # Clear the database connection caches after environment is set up
+        # This ensures tasks get the correct test database connection
+        from viewport.models.db import _get_engine_and_sessionmaker, get_database_url
+
+        get_database_url.cache_clear()
+        _get_engine_and_sessionmaker.cache_clear()
+
         try:
             yield worker_connection
         finally:
@@ -429,73 +452,53 @@ def postgres_container(_postgres_server: PostgresConnectionInfo, request: pytest
 
 
 @pytest.fixture(scope="session")
-def engine(postgres_container: PostgresConnectionInfo) -> Generator[Engine]:
+def engine(postgres_container: PostgresConnectionInfo) -> Generator[AsyncEngine]:
     """Фикстура движка SQLAlchemy с областью видимости на сессию."""
 
     from viewport.models import Gallery, Photo, ShareLink, User  # noqa: F401
     from viewport.models.db import Base
 
     db_url = postgres_container.get_connection_url(driver="psycopg")
-    engine = create_engine(db_url)
-    # Create all tables once at session startup
-    Base.metadata.create_all(engine)
+    engine = create_async_engine(db_url)
+
+    async def _create_all() -> None:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    asyncio.run(_create_all())
     yield engine
-    # Drop all tables and dispose engine at session teardown
-    Base.metadata.drop_all(engine)
-    engine.dispose()
+
+    async def _drop_all() -> None:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+        await engine.dispose()
+
+    asyncio.run(_drop_all())
 
 
 @pytest.fixture(autouse=True)
-def _cleanup_database(engine: Engine, request) -> None:
-    """Clear all tables for tests that do not use transactional DB fixtures."""
-    transactional_fixtures = {
-        "db_session",
-        "client",
-        "authenticated_client",
-        "auth_token",
-        "gallery_fixture",
-        "sharelink_fixture",
-        "gallery_id_fixture",
-        "sharelink_data",
-    }
-
-    if transactional_fixtures.intersection(request.fixturenames):
-        return
-
+def _cleanup_database(engine: AsyncEngine, request) -> None:
+    """Clear all tables before each test to keep isolation simple with AsyncSession."""
     from viewport.models.db import Base
 
-    with engine.begin() as conn:
-        table_names = [table.name for table in Base.metadata.tables.values()]
-        if table_names:
-            conn.execute(text(f"TRUNCATE {', '.join(table_names)} CASCADE;"))
+    async def _truncate() -> None:
+        async with engine.begin() as conn:
+            table_names = [table.name for table in Base.metadata.tables.values()]
+            if table_names:
+                await conn.execute(text(f"TRUNCATE {', '.join(table_names)} CASCADE;"))
+
+    asyncio.run(_truncate())
 
 
-@pytest.fixture(scope="function")
-def db_session(engine: Engine) -> Generator[Session]:
+@pytest_asyncio.fixture(scope="function")
+async def db_session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     """Фикстура сессии базы данных с изоляцией на каждый тест."""
-    connection = engine.connect()
-    outer_transaction = connection.begin()
-    session_factory = sessionmaker(bind=connection)
-    session = session_factory()
-    session.begin_nested()
-
-    @event.listens_for(session, "after_transaction_end")
-    def _restart_savepoint(_session: Session, ended_transaction) -> None:
-        parent = getattr(ended_transaction, "parent", None)
-        if parent is None:
-            parent = getattr(ended_transaction, "_parent", None)
-
-        if ended_transaction.nested and not (parent and parent.nested):
-            _session.begin_nested()
-
-    try:
-        yield session
-    finally:
-        event.remove(session, "after_transaction_end", _restart_savepoint)
-        session.close()
-        if outer_transaction.is_active:
-            outer_transaction.rollback()
-        connection.close()
+    session_factory = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with session_factory() as session:
+        try:
+            yield session
+        finally:
+            await session.rollback()
 
 
 @pytest.fixture(scope="session")
@@ -575,44 +578,23 @@ def valkey_container(request: pytest.FixtureRequest) -> Generator[str]:
         container.stop()
 
 
-@pytest.fixture(scope="session", autouse=True)
-def celery_env(valkey_container):
-    """Configure Celery to use the test ValKey container.
-
-    This fixture sets environment variables before any Celery modules are imported,
-    ensuring the Celery app is configured with the test broker/backend from the start.
-    The environment variables remain set for the entire test session.
-    """
-    overrides = {
-        "CELERY_BROKER_URL": valkey_container,
-        "CELERY_RESULT_BACKEND": valkey_container,
-    }
-
-    with _temporary_env_vars(overrides):
-        # The celery_app module reads from environment variables when imported.
-        # Tests that import celery_app will get the test configuration automatically.
-        yield
-
-
 @pytest.fixture(scope="session")
-def celery_config(valkey_container, celery_env):
-    """Configure pytest-celery to use the ValKey container as broker/backend."""
-    return {"broker_url": valkey_container, "result_backend": valkey_container}
-
-
-@pytest.fixture(scope="session")
-def _db_session_holder() -> dict[str, Session | None]:
+def _db_session_holder() -> dict[str, AsyncSession | None]:
     return {"session": None}
 
 
 @pytest.fixture(scope="session")
-def app_client(_db_session_holder: dict[str, Session | None]):
+def app_client(
+    postgres_container: PostgresConnectionInfo,
+    s3_container: S3ConnectionInfo | DockerContainer,
+    _db_session_holder: dict[str, AsyncSession | None],
+):
     """Session-scoped TestClient with dynamic DB session override."""
 
     from viewport.main import app
     from viewport.models.db import get_db
 
-    def override_get_db():
+    async def override_get_db():
         session = _db_session_holder["session"]
         if session is None:
             raise RuntimeError("db_session is not set for current test")
@@ -629,8 +611,28 @@ def app_client(_db_session_holder: dict[str, Session | None]):
         app.dependency_overrides.clear()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _taskiq_test_setup(app_client: TestClient):
+    """Populate Taskiq dependency context for InMemoryBroker testing.
+
+    This fixture initializes the dependency context that Taskiq uses to resolve
+    task dependencies when using InMemoryBroker. This is required for tasks to
+    access FastAPI dependencies during testing.
+    """
+    import taskiq_fastapi
+
+    from viewport.main import app
+    from viewport.tkq import broker
+
+    # Populate dependency context for InMemoryBroker
+    taskiq_fastapi.populate_dependency_context(broker, app)
+    yield
+    # Clean up dependency context
+    broker.custom_dependency_context = {}
+
+
 @pytest.fixture(scope="function")
-def client(db_session: Session, app_client: TestClient, _db_session_holder: dict[str, Session | None], request: pytest.FixtureRequest):
+def client(db_session: AsyncSession, app_client: TestClient, _db_session_holder: dict[str, AsyncSession | None], request: pytest.FixtureRequest):
     """Фикстура тестового клиента FastAPI с очисткой состояния между тестами."""
     _db_session_holder["session"] = db_session
     default_headers = dict(app_client.headers)

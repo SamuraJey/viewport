@@ -2,6 +2,7 @@ import uuid
 from datetime import UTC, date, datetime
 
 import pytest
+import pytest_asyncio
 
 from viewport.models.gallery import PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
@@ -9,16 +10,16 @@ from viewport.models.user import User
 from viewport.repositories.gallery_repository import GalleryRepository
 
 
-@pytest.fixture
-def owner_id(db_session) -> uuid.UUID:
+@pytest_asyncio.fixture
+async def owner_id(db_session) -> uuid.UUID:
     owner = User(email=f"owner-{uuid.uuid4()}@example.com", password_hash="testpassword", display_name="test user")
     db_session.add(owner)
-    db_session.commit()
+    await db_session.commit()
     return owner.id
 
 
-@pytest.fixture
-def repo(db_session) -> GalleryRepository:
+@pytest_asyncio.fixture
+async def repo(db_session) -> GalleryRepository:
     return GalleryRepository(db_session)
 
 
@@ -43,50 +44,56 @@ class RaisingRenameS3Client(DummyAsyncS3Client):
         raise RuntimeError("rename failed")
 
 
-def test_create_and_fetch_gallery(repo: GalleryRepository, owner_id):
-    gallery = repo.create_gallery(owner_id, "Holiday")
+@pytest.mark.asyncio
+async def test_create_and_fetch_gallery(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Holiday")
 
-    fetched, total = repo.get_galleries_by_owner(owner_id, page=1, size=10)
+    fetched, total = await repo.get_galleries_by_owner(owner_id, page=1, size=10)
     assert total == 1
     assert fetched[0].id == gallery.id
+    assert repo.db.in_transaction() is False
 
-    assert repo.get_gallery_by_id_and_owner(gallery.id, owner_id)
+    assert await repo.get_gallery_by_id_and_owner(gallery.id, owner_id)
+    assert repo.db.in_transaction() is False
 
 
-def test_update_gallery(repo: GalleryRepository, owner_id):
-    gallery = repo.create_gallery(owner_id, "Trip")
-    updated = repo.update_gallery(gallery.id, owner_id, name="Summer Trip", shooting_date=date(2023, 1, 1))
+@pytest.mark.asyncio
+async def test_update_gallery(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Trip")
+    updated = await repo.update_gallery(gallery.id, owner_id, name="Summer Trip", shooting_date=date(2023, 1, 1))
     assert updated is not None
     assert updated.name == "Summer Trip"
     assert updated.shooting_date == date(2023, 1, 1)
 
-    unchanged = repo.update_gallery(gallery.id, owner_id)
+    unchanged = await repo.update_gallery(gallery.id, owner_id)
     assert unchanged is not None
     assert unchanged.name == "Summer Trip"
 
 
-def test_delete_gallery(repo: GalleryRepository, owner_id):
-    gallery = repo.create_gallery(owner_id, "To Delete")
+@pytest.mark.asyncio
+async def test_delete_gallery(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "To Delete")
     dummy = DummyAsyncS3Client()
-    assert repo.delete_gallery(gallery.id, owner_id, dummy)
-    assert repo.get_gallery_by_id_and_owner(gallery.id, owner_id) is None
-    assert repo.delete_gallery(gallery.id, owner_id, dummy) is False
+    assert await repo.delete_gallery(gallery.id, owner_id, dummy)
+    assert await repo.get_gallery_by_id_and_owner(gallery.id, owner_id) is None
+    assert await repo.delete_gallery(gallery.id, owner_id, dummy) is False
 
 
-def test_delete_gallery_uses_single_transaction_for_quota_updates(repo: GalleryRepository, owner_id, monkeypatch):
-    gallery = repo.create_gallery(owner_id, "Tx Delete")
+@pytest.mark.asyncio
+async def test_delete_gallery_uses_single_transaction_for_quota_updates(repo: GalleryRepository, owner_id, monkeypatch):
+    gallery = await repo.create_gallery(owner_id, "Tx Delete")
     calls: list[tuple[str, int, bool]] = []
 
-    def _mock_decrement_storage_used(self, user_id, bytes_to_decrement, commit=True):
+    async def _mock_decrement_storage_used(self, user_id, bytes_to_decrement, commit=True):
         calls.append(("used", int(bytes_to_decrement), commit))
 
-    def _mock_release_reserved_storage(self, user_id, bytes_to_release, commit=True):
+    async def _mock_release_reserved_storage(self, user_id, bytes_to_release, commit=True):
         calls.append(("reserved", int(bytes_to_release), commit))
 
     monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.decrement_storage_used", _mock_decrement_storage_used)
     monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.release_reserved_storage", _mock_release_reserved_storage)
 
-    assert repo.delete_gallery(gallery.id, owner_id, DummyAsyncS3Client()) is True
+    assert await repo.delete_gallery(gallery.id, owner_id, DummyAsyncS3Client()) is True
     assert ("used", 0, False) in calls
     assert ("reserved", 0, False) in calls
 
@@ -98,40 +105,41 @@ async def test_delete_gallery_async_missing(repo: GalleryRepository, owner_id):
     assert dummy.deleted_folders == []
 
 
-def test_delete_photo_uses_single_transaction_for_quota_updates(repo: GalleryRepository, owner_id, monkeypatch):
-    gallery = repo.create_gallery(owner_id, "Photo Tx")
-    photo = repo.create_photo(gallery.id, f"{gallery.id}/photo.jpg", f"{gallery.id}/photo.jpg", 1024)
+@pytest.mark.asyncio
+async def test_delete_photo_uses_single_transaction_for_quota_updates(repo: GalleryRepository, owner_id, monkeypatch):
+    gallery = await repo.create_gallery(owner_id, "Photo Tx")
+    photo = await repo.create_photo(gallery.id, f"{gallery.id}/photo.jpg", f"{gallery.id}/photo.jpg", 1024)
     photo.status = PhotoUploadStatus.SUCCESSFUL
     repo.db.add(photo)
-    repo.db.commit()
+    await repo.db.commit()
 
     calls: list[tuple[str, int, bool]] = []
 
-    def _mock_decrement_storage_used(self, user_id, bytes_to_decrement, commit=True):
+    async def _mock_decrement_storage_used(self, user_id, bytes_to_decrement, commit=True):
         calls.append(("used", int(bytes_to_decrement), commit))
 
-    def _mock_release_reserved_storage(self, user_id, bytes_to_release, commit=True):
+    async def _mock_release_reserved_storage(self, user_id, bytes_to_release, commit=True):
         calls.append(("reserved", int(bytes_to_release), commit))
 
     monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.decrement_storage_used", _mock_decrement_storage_used)
     monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.release_reserved_storage", _mock_release_reserved_storage)
 
-    assert repo.delete_photo(photo.id, gallery.id, owner_id, DummyAsyncS3Client()) is True
+    assert await repo.delete_photo(photo.id, gallery.id, owner_id, DummyAsyncS3Client()) is True
     assert ("used", 1024, False) in calls
     assert not any(c[0] == "reserved" for c in calls)
 
 
 @pytest.mark.asyncio
 async def test_delete_photo_async_uses_single_transaction_for_quota_updates(repo: GalleryRepository, owner_id, monkeypatch):
-    gallery = repo.create_gallery(owner_id, "Photo Async Tx")
-    photo = repo.create_photo(gallery.id, f"{gallery.id}/async.jpg", f"{gallery.id}/async.jpg", 2048)
+    gallery = await repo.create_gallery(owner_id, "Photo Async Tx")
+    photo = await repo.create_photo(gallery.id, f"{gallery.id}/async.jpg", f"{gallery.id}/async.jpg", 2048)
 
     calls: list[tuple[str, int, bool]] = []
 
-    def _mock_decrement_storage_used(self, user_id, bytes_to_decrement, commit=True):
+    async def _mock_decrement_storage_used(self, user_id, bytes_to_decrement, commit=True):
         calls.append(("used", int(bytes_to_decrement), commit))
 
-    def _mock_release_reserved_storage(self, user_id, bytes_to_release, commit=True):
+    async def _mock_release_reserved_storage(self, user_id, bytes_to_release, commit=True):
         calls.append(("reserved", int(bytes_to_release), commit))
 
     monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.decrement_storage_used", _mock_decrement_storage_used)
@@ -144,13 +152,13 @@ async def test_delete_photo_async_uses_single_transaction_for_quota_updates(repo
 
 @pytest.mark.asyncio
 async def test_delete_gallery_async_uses_single_transaction_for_quota_updates(repo: GalleryRepository, owner_id, monkeypatch):
-    gallery = repo.create_gallery(owner_id, "Tx Async Delete")
+    gallery = await repo.create_gallery(owner_id, "Tx Async Delete")
     calls: list[tuple[str, int, bool]] = []
 
-    def _mock_decrement_storage_used(self, user_id, bytes_to_decrement, commit=True):
+    async def _mock_decrement_storage_used(self, user_id, bytes_to_decrement, commit=True):
         calls.append(("used", int(bytes_to_decrement), commit))
 
-    def _mock_release_reserved_storage(self, user_id, bytes_to_release, commit=True):
+    async def _mock_release_reserved_storage(self, user_id, bytes_to_release, commit=True):
         calls.append(("reserved", int(bytes_to_release), commit))
 
     monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.decrement_storage_used", _mock_decrement_storage_used)
@@ -161,50 +169,55 @@ async def test_delete_gallery_async_uses_single_transaction_for_quota_updates(re
     assert ("reserved", 0, False) in calls
 
 
-def _create_photo(repo: GalleryRepository, gallery_id: uuid.UUID, filename: str, owner_id: uuid.UUID) -> uuid.UUID:
-    photo = repo.create_photo(gallery_id, f"{gallery_id}/{filename}", f"{gallery_id}/thumb-{filename}", 1024, width=10, height=10)
+async def _create_photo(repo: GalleryRepository, gallery_id: uuid.UUID, filename: str, owner_id: uuid.UUID) -> uuid.UUID:
+    photo = await repo.create_photo(gallery_id, f"{gallery_id}/{filename}", f"{gallery_id}/thumb-{filename}", 1024, width=10, height=10)
     return photo.id
 
 
-def test_photo_queries(repo: GalleryRepository, owner_id):
-    gallery = repo.create_gallery(owner_id, "Album")
-    photo_id = _create_photo(repo, gallery.id, "photo.jpg", owner_id)
+@pytest.mark.asyncio
+async def test_photo_queries(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Album")
+    photo_id = await _create_photo(repo, gallery.id, "photo.jpg", owner_id)
 
-    assert repo.get_photo_by_id_and_gallery(photo_id, gallery.id)
-    assert repo.get_photo_by_id_and_owner(photo_id, owner_id)
-    photos = repo.get_photos_by_gallery_id(gallery.id)
+    assert await repo.get_photo_by_id_and_gallery(photo_id, gallery.id)
+    assert await repo.get_photo_by_id_and_owner(photo_id, owner_id)
+    photos = await repo.get_photos_by_gallery_id(gallery.id)
     assert len(photos) == 1
+    assert repo.db.in_transaction() is False
 
-    assert repo.get_photos_by_ids_and_gallery(gallery.id, []) == []
-
-
-def test_cover_photo(repo: GalleryRepository, owner_id):
-    gallery = repo.create_gallery(owner_id, "Cover")
-    photo_id = _create_photo(repo, gallery.id, "cover.jpg", owner_id)
-
-    assert repo.set_cover_photo(gallery.id, photo_id, owner_id)
-    assert repo.clear_cover_photo(gallery.id, owner_id)
-    assert repo.set_cover_photo(gallery.id, uuid.uuid4(), owner_id) is None
-    assert repo.set_cover_photo(gallery.id, photo_id, uuid.uuid4()) is None
+    assert await repo.get_photos_by_ids_and_gallery(gallery.id, []) == []
 
 
-def test_photo_status_updates(repo: GalleryRepository, owner_id):
-    gallery = repo.create_gallery(owner_id, "Status")
-    photo_id = _create_photo(repo, gallery.id, "status.jpg", owner_id)
-    photo = repo.get_photo_by_id_and_gallery(photo_id, gallery.id)
+@pytest.mark.asyncio
+async def test_cover_photo(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Cover")
+    photo_id = await _create_photo(repo, gallery.id, "cover.jpg", owner_id)
+
+    assert await repo.set_cover_photo(gallery.id, photo_id, owner_id)
+    assert await repo.clear_cover_photo(gallery.id, owner_id)
+    assert await repo.set_cover_photo(gallery.id, uuid.uuid4(), owner_id) is None
+    assert await repo.set_cover_photo(gallery.id, photo_id, uuid.uuid4()) is None
+
+
+@pytest.mark.asyncio
+async def test_photo_status_updates(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Status")
+    photo_id = await _create_photo(repo, gallery.id, "status.jpg", owner_id)
+    photo = await repo.get_photo_by_id_and_gallery(photo_id, gallery.id)
     assert photo
 
-    updated = repo.set_photo_status(photo, PhotoUploadStatus.SUCCESSFUL)
+    updated = await repo.set_photo_status(photo, PhotoUploadStatus.SUCCESSFUL)
     assert updated.status == PhotoUploadStatus.SUCCESSFUL
 
-    repo.set_photos_statuses({photo.id: photo}, {})
-    repo.set_photos_statuses({photo.id: photo}, {photo.id: PhotoUploadStatus.FAILED})
+    await repo.set_photos_statuses({photo.id: photo}, {})
+    await repo.set_photos_statuses({photo.id: photo}, {photo.id: PhotoUploadStatus.FAILED})
     assert photo.status == PhotoUploadStatus.FAILED
 
 
-def test_create_photos_batch(repo: GalleryRepository, owner_id):
-    gallery = repo.create_gallery(owner_id, "Batch")
-    photos = repo.create_photos_batch(
+@pytest.mark.asyncio
+async def test_create_photos_batch(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Batch")
+    photos = await repo.create_photos_batch(
         [
             {
                 "gallery_id": gallery.id,
@@ -223,11 +236,12 @@ def test_create_photos_batch(repo: GalleryRepository, owner_id):
     assert len(photos) == 2
 
 
-def test_create_photos_batch_retry_dedupes_case_insensitive_collisions_within_batch(repo: GalleryRepository, owner_id):
-    gallery = repo.create_gallery(owner_id, "Batch Collision Retry")
+@pytest.mark.asyncio
+async def test_create_photos_batch_retry_dedupes_case_insensitive_collisions_within_batch(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Batch Collision Retry")
 
     # Existing DB row forces retry path when one of incoming names collides.
-    repo.create_photo(
+    await repo.create_photo(
         gallery.id,
         f"{gallery.id}/existing.jpg",
         f"{gallery.id}/existing.jpg",
@@ -235,7 +249,7 @@ def test_create_photos_batch_retry_dedupes_case_insensitive_collisions_within_ba
         display_name="dup.jpg",
     )
 
-    photos = repo.create_photos_batch(
+    photos = await repo.create_photos_batch(
         [
             {
                 "gallery_id": gallery.id,
@@ -260,20 +274,21 @@ def test_create_photos_batch_retry_dedupes_case_insensitive_collisions_within_ba
     assert "dup.jpg" not in lower_names
 
 
-def test_delete_photo(repo: GalleryRepository, owner_id):
-    gallery = repo.create_gallery(owner_id, "Del Photo")
-    photo_id = _create_photo(repo, gallery.id, "delete.jpg", owner_id)
+@pytest.mark.asyncio
+async def test_delete_photo(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Del Photo")
+    photo_id = await _create_photo(repo, gallery.id, "delete.jpg", owner_id)
     dummy = DummyAsyncS3Client()
 
-    assert repo.delete_photo(photo_id, gallery.id, owner_id, dummy)
-    assert repo.delete_photo(photo_id, gallery.id, owner_id, dummy) is False
+    assert await repo.delete_photo(photo_id, gallery.id, owner_id, dummy)
+    assert await repo.delete_photo(photo_id, gallery.id, owner_id, dummy) is False
 
 
 @pytest.mark.asyncio
 async def test_delete_photo_async(repo: GalleryRepository, owner_id):
-    gallery = repo.create_gallery(owner_id, "Async Photo")
-    photo_id = repo.create_photo(gallery.id, f"{gallery.id}/async.jpg", f"{gallery.id}/thumb-async.jpg", 5).id
-    photo = repo.get_photo_by_id_and_gallery(photo_id, gallery.id)
+    gallery = await repo.create_gallery(owner_id, "Async Photo")
+    photo_id = (await repo.create_photo(gallery.id, f"{gallery.id}/async.jpg", f"{gallery.id}/thumb-async.jpg", 5)).id
+    photo = await repo.get_photo_by_id_and_gallery(photo_id, gallery.id)
     assert photo
 
     dummy = DummyAsyncS3Client()
@@ -286,35 +301,37 @@ async def test_delete_photo_async(repo: GalleryRepository, owner_id):
     assert missing is False
 
 
-def test_rename_photo(repo: GalleryRepository, owner_id, monkeypatch):
-    gallery = repo.create_gallery(owner_id, "Rename")
-    photo_id = repo.create_photo(gallery.id, f"{gallery.id}/old.jpg", f"{gallery.id}/old.jpg", 5).id
+@pytest.mark.asyncio
+async def test_rename_photo(repo: GalleryRepository, owner_id, monkeypatch):
+    gallery = await repo.create_gallery(owner_id, "Rename")
+    photo_id = (await repo.create_photo(gallery.id, f"{gallery.id}/old.jpg", f"{gallery.id}/old.jpg", 5)).id
     cleared = []
 
     monkeypatch.setattr("viewport.cache_utils.clear_presigned_url_cache", lambda key: cleared.append(key))
 
-    renamed = repo.rename_photo(photo_id, gallery.id, owner_id, "new.jpg")
+    renamed = await repo.rename_photo(photo_id, gallery.id, owner_id, "new.jpg")
     assert renamed
     assert renamed.object_key.endswith("/old.jpg")
     assert renamed.display_name == "new.jpg"
     assert not cleared
 
-    assert repo.rename_photo(uuid.uuid4(), gallery.id, owner_id, "fail.jpg") is None
+    assert await repo.rename_photo(uuid.uuid4(), gallery.id, owner_id, "fail.jpg") is None
 
 
-def test_rename_photo_sanitizes_unsafe_filename(repo: GalleryRepository, owner_id):
-    gallery = repo.create_gallery(owner_id, "Rename sanitize")
-    photo = repo.create_photo(gallery.id, f"{gallery.id}/old.jpg", f"{gallery.id}/old.jpg", 5)
+@pytest.mark.asyncio
+async def test_rename_photo_sanitizes_unsafe_filename(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Rename sanitize")
+    photo = await repo.create_photo(gallery.id, f"{gallery.id}/old.jpg", f"{gallery.id}/old.jpg", 5)
 
-    renamed = repo.rename_photo(photo.id, gallery.id, owner_id, "../bad\\name\x00?.jpg")
+    renamed = await repo.rename_photo(photo.id, gallery.id, owner_id, "../bad\\name\x00?.jpg")
     assert renamed is not None
     assert renamed.display_name == "badname.jpg"
 
 
 @pytest.mark.asyncio
 async def test_rename_photo_async(repo: GalleryRepository, owner_id, monkeypatch):
-    gallery = repo.create_gallery(owner_id, "Async Rename")
-    photo = repo.create_photo(gallery.id, f"{gallery.id}/old.jpg", f"{gallery.id}/thumb-old.jpg", 5)
+    gallery = await repo.create_gallery(owner_id, "Async Rename")
+    photo = await repo.create_photo(gallery.id, f"{gallery.id}/old.jpg", f"{gallery.id}/thumb-old.jpg", 5)
     cleared = []
     monkeypatch.setattr("viewport.cache_utils.clear_presigned_url_cache", lambda key: cleared.append(key))
 
@@ -331,19 +348,20 @@ async def test_rename_photo_async(repo: GalleryRepository, owner_id, monkeypatch
 
 @pytest.mark.asyncio
 async def test_rename_photo_async_sanitizes_unsafe_filename(repo: GalleryRepository, owner_id):
-    gallery = repo.create_gallery(owner_id, "Async Rename sanitize")
-    photo = repo.create_photo(gallery.id, f"{gallery.id}/old.jpg", f"{gallery.id}/thumb-old.jpg", 5)
+    gallery = await repo.create_gallery(owner_id, "Async Rename sanitize")
+    photo = await repo.create_photo(gallery.id, f"{gallery.id}/old.jpg", f"{gallery.id}/thumb-old.jpg", 5)
 
     renamed = await repo.rename_photo_async(photo.id, gallery.id, owner_id, "/\\\x00??")
     assert renamed is not None
     assert renamed.display_name == "file"
 
 
-def test_sharelink_management(repo: GalleryRepository, owner_id):
-    gallery = repo.create_gallery(owner_id, "Share")
-    link = repo.create_sharelink(gallery.id, datetime.now(UTC))
+@pytest.mark.asyncio
+async def test_sharelink_management(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Share")
+    link = await repo.create_sharelink(gallery.id, datetime.now(UTC))
     assert isinstance(link, ShareLink)
 
-    assert repo.delete_sharelink(link.id, gallery.id, owner_id)
-    assert not repo.delete_sharelink(link.id, gallery.id, owner_id)
-    assert not repo.delete_sharelink(uuid.uuid4(), gallery.id, uuid.uuid4())
+    assert await repo.delete_sharelink(link.id, gallery.id, owner_id)
+    assert not await repo.delete_sharelink(link.id, gallery.id, owner_id)
+    assert not await repo.delete_sharelink(uuid.uuid4(), gallery.id, uuid.uuid4())

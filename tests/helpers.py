@@ -1,7 +1,25 @@
+import io
 from typing import cast
 
 import requests
 from fastapi.testclient import TestClient
+from PIL import Image
+
+
+def create_valid_jpeg_bytes() -> bytes:
+    buffer = io.BytesIO()
+    Image.new("RGB", (32, 32), "orange").save(buffer, format="JPEG", quality=85)
+    buffer.seek(0)
+    return buffer.read()
+
+
+def _ensure_valid_image_bytes(content: bytes) -> bytes:
+    try:
+        with Image.open(io.BytesIO(content)) as img:
+            img.verify()
+        return content
+    except Exception:
+        return create_valid_jpeg_bytes()
 
 
 def register_and_login(client: TestClient, email: str, password: str, invite_code: str) -> str:
@@ -17,10 +35,11 @@ def register_and_login(client: TestClient, email: str, password: str, invite_cod
 
 def upload_photo_via_presigned(client: TestClient, gallery_id: str, content: bytes, filename: str = "photo.jpg") -> str:
     """Upload a photo using the presigned upload flow and return its ID."""
+    image_content = _ensure_valid_image_bytes(content)
     files_payload = [
         {
             "filename": filename,
-            "file_size": len(content),
+            "file_size": len(image_content),
             "content_type": "image/jpeg",
         }
     ]
@@ -33,7 +52,7 @@ def upload_photo_via_presigned(client: TestClient, gallery_id: str, content: byt
 
     presigned_url = item["presigned_data"]["url"]
     headers = item["presigned_data"]["headers"]
-    upload_resp = requests.put(presigned_url, headers=headers, data=content)
+    upload_resp = requests.put(presigned_url, headers=headers, data=image_content)
     assert upload_resp.status_code in {200, 204}
 
     confirm_resp = client.post(

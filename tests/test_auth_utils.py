@@ -34,12 +34,12 @@ class TestJWTAuthentication:
             "e678abe2-7b7a-4173-ab2c-855681542c0e",
         ],
     )
-    def test_get_current_user_valid_token(self, db_session, user_id):
+    async def test_get_current_user_valid_token(self, db_session, user_id):
         """Test getting current user with valid token."""
         # Create a user in the database
         user = User(id=uuid.UUID(user_id), email="test@example.com", password_hash="hashed_password")
         db_session.add(user)
-        db_session.commit()
+        await db_session.commit()
 
         # Create a valid token
         payload = {"sub": user_id}
@@ -49,11 +49,12 @@ class TestJWTAuthentication:
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
         # Test get_current_user
-        result = get_current_user(credentials, db_session)
+        result = await get_current_user(credentials, db_session)
         assert result.id == uuid.UUID(user_id)
         assert result.email == "test@example.com"
+        assert db_session.in_transaction() is False
 
-    def test_get_current_user_no_user_id_in_token(self, db_session):
+    async def test_get_current_user_no_user_id_in_token(self, db_session):
         """Test token without user ID."""
         # Create token without 'sub' field
         payload = {"name": "test"}
@@ -62,12 +63,12 @@ class TestJWTAuthentication:
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
         with pytest.raises(HTTPException) as exc_info:
-            get_current_user(credentials, db_session)
+            await get_current_user(credentials, db_session)
 
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail == "Invalid token"
 
-    def test_get_current_user_user_not_found(self, db_session):
+    async def test_get_current_user_user_not_found(self, db_session):
         """Test token with non-existent user ID."""
         non_existent_user_id = str(uuid.uuid4())
         payload = {"sub": non_existent_user_id}
@@ -76,12 +77,13 @@ class TestJWTAuthentication:
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
         with pytest.raises(HTTPException) as exc_info:
-            get_current_user(credentials, db_session)
+            await get_current_user(credentials, db_session)
 
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail == "User not found"
+        assert db_session.in_transaction() is False
 
-    def test_get_current_user_expired_token(self, db_session):
+    async def test_get_current_user_expired_token(self, db_session):
         """Test expired token."""
         user_id = str(uuid.uuid4())
         expired_payload = {
@@ -93,7 +95,7 @@ class TestJWTAuthentication:
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
         with pytest.raises(HTTPException) as exc_info:
-            get_current_user(credentials, db_session)
+            await get_current_user(credentials, db_session)
 
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail == "Token expired"
@@ -108,17 +110,17 @@ class TestJWTAuthentication:
             "completely_wrong_format",
         ],
     )
-    def test_get_current_user_invalid_token_format(self, db_session, invalid_token):
+    async def test_get_current_user_invalid_token_format(self, db_session, invalid_token):
         """Test various invalid token formats."""
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=invalid_token)
 
         with pytest.raises(HTTPException) as exc_info:
-            get_current_user(credentials, db_session)
+            await get_current_user(credentials, db_session)
 
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail == "Invalid token"
 
-    def test_get_current_user_wrong_secret(self, db_session):
+    async def test_get_current_user_wrong_secret(self, db_session):
         """Test token signed with wrong secret."""
         user_id = str(uuid.uuid4())
         payload = {"sub": user_id}
@@ -128,12 +130,12 @@ class TestJWTAuthentication:
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
         with pytest.raises(HTTPException) as exc_info:
-            get_current_user(credentials, db_session)
+            await get_current_user(credentials, db_session)
 
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail == "Invalid token"
 
-    def test_get_current_user_wrong_algorithm(self, db_session):
+    async def test_get_current_user_wrong_algorithm(self, db_session):
         """Test token signed with wrong algorithm."""
         user_id = str(uuid.uuid4())
         payload = {"sub": user_id}
@@ -143,7 +145,7 @@ class TestJWTAuthentication:
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
         with pytest.raises(HTTPException) as exc_info:
-            get_current_user(credentials, db_session)
+            await get_current_user(credentials, db_session)
 
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail == "Invalid token"

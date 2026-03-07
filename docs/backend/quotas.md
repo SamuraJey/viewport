@@ -1,6 +1,6 @@
 # Storage Quotas & Upload Accounting
 
-This document describes how storage quotas are enforced in the backend, how upload bytes move between counters, and how Celery tasks keep data consistent.
+This document describes how storage quotas are enforced in the backend, how upload bytes move between counters, and how Taskiq tasks keep data consistent.
 
 ## Scope
 
@@ -9,7 +9,8 @@ Relevant backend modules:
 - `src/viewport/api/photo.py`
 - `src/viewport/repositories/user_repository.py`
 - `src/viewport/repositories/gallery_repository.py`
-- `src/viewport/background_tasks.py`
+- `src/viewport/tasks/photo_tasks.py`
+- `src/viewport/tasks/maintenance_tasks.py`
 - `src/viewport/models/user.py`
 - `src/viewport/models/gallery.py`
 
@@ -100,7 +101,7 @@ Purpose:
 
 ### 5) Gallery delete path
 
-API soft-deletes gallery, then Celery task `delete_gallery_data_task`:
+API soft-deletes gallery, then Taskiq task `delete_gallery_data_task`:
 
 - Deletes all S3 objects under `gallery_id/` prefix.
 - Hard-deletes gallery rows (`photos`, `share_links`, `gallery`).
@@ -115,7 +116,7 @@ sequenceDiagram
     participant API as FastAPI
     participant DB as Postgres
     participant S3 as S3/RustFS
-    participant W as Celery Worker
+    participant W as Taskiq Worker
 
     U->>FE: Select files
     FE->>API: POST /batch-presigned (sizes/types)

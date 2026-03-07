@@ -3,15 +3,17 @@
 ## Big picture
 - Monorepo: FastAPI backend in `src/viewport/` + React/Vite frontend in `frontend/`.
 - Backend layers: routers in `src/viewport/api/` → repository layer in `src/viewport/repositories/` (SQLAlchemy `Session`) → Postgres models in `src/viewport/models/`.
+- Backend database access now uses SQLAlchemy `AsyncSession` end-to-end in app code, repositories, auth dependencies, and Taskiq tasks.
 - Storage/URLs: originals + thumbnails live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them **in-process** (see `src/viewport/cache_utils.py`).
-- Background work: Celery tasks in `src/viewport/background_tasks.py` create thumbnails after uploads; Docker Compose runs a separate `celery_worker`.
+- Background work: Taskiq tasks live in `src/viewport/tasks/` and are re-exported from `src/viewport/tasks/__init__.py`; application code should use direct Taskiq task objects and `await task.kiq(...)` instead of any compatibility wrapper. Docker Compose runs `taskiq_worker` + `taskiq_scheduler`.
+  - Retry and rate-limit semantics migrated from Celery must be preserved explicitly with Taskiq middleware/task labels; photo thumbnail creation and background delete tasks rely on retries for transient failures, and thumbnail batch processing keeps the Celery-era task rate limit.
 - uv is used as package manager.
 
 ## How to run (preferred workflows)
-- Containers (recommended): `docker-compose up -d` (services: backend, postgres, rustfs, redis, celery).
+- Containers (recommended): `docker-compose up -d` (services: backend, postgres, rustfs, redis, taskiq_worker, taskiq_scheduler).
 - Backend local tooling uses `uv` + venv via `just init` or `make init` (see `Justfile`, `Makefile`).
 - Backend dev server (preferred local dev): `uvicorn viewport.main:app --reload`.
-  - Note: Docker/Celery commands use `src.viewport.*` module paths (see `Dockerfile-backend`, `docker-compose.yml`).
+  - Note: Docker/Taskiq commands use `src.viewport.*` module paths (see `Dockerfile-backend`, `docker-compose.yml`).
 - Frontend dev server: `cd frontend && npm install && npm run dev`.
 
 ## Backend conventions (FastAPI)
@@ -19,17 +21,18 @@
   - Initializes a singleton `AsyncS3Client` in `lifespan()` and exposes it via DI (`src/viewport/dependencies.py`).
 - Auth: endpoints in `src/viewport/api/auth.py`; request auth uses `get_current_user()` from `src/viewport/auth_utils.py` (HTTP Bearer, consistent 401s).
 - Repositories:
-  - Constructed per-request from `db: Session = Depends(get_db)` (`src/viewport/models/db.py`).
+  - Constructed per-request from `db: AsyncSession = Depends(get_db)` (`src/viewport/models/db.py`).
   - Keep business logic close to repository methods when it’s DB/S3 orchestration (e.g. async delete/rename in `GalleryRepository`).
 - Photo upload performance pattern:
   - **Two-step upload**:
     1. `/batch-presigned`: Creates `PENDING` DB records and returns presigned PUT URLs. Client uploads directly to S3.
     2. `/batch-confirm`: Verifies upload by applying `upload-status: confirmed` tag to S3 objects.
-  - **Confirmation logic**: Existence check is performed via `put_object_tagging`. `NoSuchKey` errors result in `FAILED` status. Successful tagging triggers Celery thumbnail batches.
+  - **Confirmation logic**: Existence check is performed via `put_object_tagging`. `NoSuchKey` errors result in `FAILED` status. Successful tagging triggers Taskiq thumbnail batches.
   - **Presigned URLs**: Avoid generating presigned URLs during batch upload; fetch URLs separately via `/photos/urls` endpoints.
-  - **Garbage collection**: A Celery beat task (`cleanup_orphaned_uploads`) runs hourly to delete `PENDING` photo records older than 30 minutes and their corresponding S3 objects to prevent storage leaks from unconfirmed uploads.
+  - **Garbage collection**: A Taskiq scheduled task (`cleanup_orphaned_uploads`) runs hourly to delete `PENDING` photo records older than 30 minutes and their corresponding S3 objects to prevent storage leaks from unconfirmed uploads.
   - **Gallery deletion**: `galleries.is_deleted` is a soft-delete flag. Deleting a gallery hides it from queries and enqueues a background task to purge S3 objects and hard-delete DB rows.
   - **Storage quotas**: User storage is tracked on `users` (`storage_quota`, `storage_used`, `storage_reserved`). Reserve bytes on `/batch-presigned`, finalize on confirm, and release on failures/orphan cleanup; only admins edit quota via SQLAdmin.
+  - **Taskiq style**: Do not add project-local task compatibility APIs like `run()`/`delay()` wrappers. Call Taskiq tasks directly from `src/viewport/tasks/` or `src/viewport/tasks/__init__.py`, use `await task.kiq(...)` when you need broker acknowledgement, and only detach enqueue from the response path intentionally.
 - No direct SQL in routers; use repositories for all DB access.
 
 ## Frontend conventions (React)

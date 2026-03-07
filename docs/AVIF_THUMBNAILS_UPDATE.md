@@ -27,7 +27,7 @@
 - **Новый параметр**: добавлена поддержка `cache_control` параметра для установки Cache-Control заголовка
 - Используется при загрузке thumbnails с `cache_control="public, max-age=31536000, immutable"`
 
-### 2. `src/viewport/background_tasks.py`
+### 2. `src/viewport/tasks/photo_tasks.py`
 
 #### `_process_single_photo()` функция
 - **Content-Type**: изменён с `image/jpeg` на `image/avif` при загрузке thumbnail в S3
@@ -91,7 +91,7 @@ Cache-Control: public, max-age=31536000, immutable
 
 ## Тестирование
 
-1. Запустите Celery worker: `docker-compose up celery_worker`
+1. Запустите Taskiq worker и scheduler: `docker-compose up taskiq_worker taskiq_scheduler`
 2. Загрузите новое фото через фронтенд
 3. Проверьте, что thumbnail был создан в AVIF формате:
    ```bash

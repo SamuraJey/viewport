@@ -5,7 +5,7 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from viewport.models.db import get_db
 from viewport.models.user import User
@@ -29,16 +29,11 @@ authsettings = AuthSettings()
 security = HTTPBearer(auto_error=False)
 
 
-def get_current_user(
+async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> User:
-    """Get current authenticated user from JWT token.
-
-    NOTE: This is intentionally sync (def) not async.
-    FastAPI automatically runs sync dependencies in threadpool when called from async endpoints.
-    This ensures proper DB session lifecycle management.
-    """
+    """Get current authenticated user from JWT token."""
     if not credentials:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
@@ -56,7 +51,9 @@ def get_current_user(
             raise HTTPException(status_code=401, detail="User not found") from None
 
         stmt = select(User).where(User.id == user_id)
-        user = db.execute(stmt).scalar_one_or_none()
+        user = (await db.execute(stmt)).scalar_one_or_none()
+        if db.in_transaction():
+            await db.commit()
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
         return user
