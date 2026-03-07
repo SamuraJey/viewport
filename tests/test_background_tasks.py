@@ -11,15 +11,18 @@ from botocore.exceptions import ClientError
 from PIL import Image
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from taskiq.message import TaskiqMessage
 
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
 from viewport.s3_utils import S3Settings, get_s3_client, upload_fileobj
+from viewport.task_rate_limits import TaskRateLimitMiddleware, parse_rate_limit
 from viewport.task_utils import BatchTaskResult
 from viewport.tasks import photo_tasks
-from viewport.tasks.maintenance_tasks import delete_gallery_data_task_impl, reconcile_storage_quotas_task_impl, reconcile_successful_uploads_task_impl
-from viewport.tasks.photo_tasks import _batch_update_photo_results, create_thumbnails_batch_task_impl
+from viewport.tasks.maintenance_tasks import delete_gallery_data_task, delete_gallery_data_task_impl, reconcile_storage_quotas_task_impl, reconcile_successful_uploads_task_impl
+from viewport.tasks.photo_tasks import _batch_update_photo_results, create_thumbnails_batch_task, create_thumbnails_batch_task_impl, delete_photo_data_task
+from viewport.tkq import broker
 
 IMAGE_SIZE = (640, 480)
 
@@ -177,6 +180,137 @@ async def test_create_thumbnails_batch_task_invalid_image_deletes_record_when_mo
         bucket = S3Settings().bucket
         with pytest.raises(ClientError):
             s3_client.head_object(Bucket=bucket, Key=ctx.object_key)
+
+
+@pytest.mark.asyncio
+async def test_taskiq_broker_has_retry_middleware() -> None:
+    assert any(middleware.__class__.__name__ == "SmartRetryMiddleware" for middleware in broker.middlewares)
+
+
+@pytest.mark.asyncio
+async def test_taskiq_broker_has_rate_limit_middleware() -> None:
+    assert any(middleware.__class__.__name__ == "TaskRateLimitMiddleware" for middleware in broker.middlewares)
+
+
+def test_parse_rate_limit_supports_celery_style_per_second() -> None:
+    assert parse_rate_limit("10/s") == (10, 1.0)
+
+
+@pytest.mark.asyncio
+async def test_task_rate_limit_middleware_throttles_matching_task(monkeypatch) -> None:
+    middleware = TaskRateLimitMiddleware()
+    now = 100.0
+    sleep_calls: list[float] = []
+
+    def fake_now() -> float:
+        return now
+
+    async def fake_sleep(delay_seconds: float) -> None:
+        nonlocal now
+        sleep_calls.append(delay_seconds)
+        now += delay_seconds
+
+    monkeypatch.setattr(middleware, "_now", fake_now)
+    monkeypatch.setattr(middleware, "_sleep", fake_sleep)
+
+    message = TaskiqMessage(
+        task_id="task-1",
+        task_name="create_thumbnails_batch",
+        labels={"rate_limit": "1/s"},
+        labels_types=None,
+        args=[],
+        kwargs={},
+    )
+
+    await middleware.pre_execute(message)
+    await middleware.pre_execute(message)
+
+    assert sleep_calls == [1.0]
+
+
+def test_create_thumbnails_batch_task_has_rate_limit_label() -> None:
+    assert create_thumbnails_batch_task.labels["rate_limit"] == "10/s"
+
+
+@pytest.mark.asyncio
+async def test_create_thumbnails_batch_task_retries_transient_failure(monkeypatch) -> None:
+    attempts = 0
+
+    async def flaky_impl(photos: list[dict], s3_client=None, bucket=None) -> dict:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("temporary thumbnail failure")
+        return {"successful": 1, "failed": 0, "skipped": 0, "results": [], "total": 1, "status": "complete"}
+
+    original_delay = create_thumbnails_batch_task.labels.get("delay")
+    create_thumbnails_batch_task.labels["delay"] = "0"
+    monkeypatch.setattr(photo_tasks, "create_thumbnails_batch_task_impl", flaky_impl)
+    try:
+        task = await create_thumbnails_batch_task.kiq([{"photo_id": str(uuid4()), "object_key": "gallery/photo.jpg"}])
+        result = await task.wait_result(timeout=1)
+    finally:
+        if original_delay is None:
+            create_thumbnails_batch_task.labels.pop("delay", None)
+        else:
+            create_thumbnails_batch_task.labels["delay"] = original_delay
+
+    assert result.return_value["successful"] == 1
+    assert attempts == 2
+
+
+@pytest.mark.asyncio
+async def test_delete_photo_data_task_retries_transient_failure(monkeypatch) -> None:
+    attempts = 0
+
+    async def flaky_impl(photo_id: str, gallery_id: str, owner_id: str) -> dict:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("temporary photo delete failure")
+        return {"deleted": True}
+
+    original_delay = delete_photo_data_task.labels.get("delay")
+    delete_photo_data_task.labels["delay"] = "0"
+    monkeypatch.setattr(photo_tasks, "delete_photo_data_task_impl", flaky_impl)
+    try:
+        task = await delete_photo_data_task.kiq(str(uuid4()), str(uuid4()), str(uuid4()))
+        result = await task.wait_result(timeout=1)
+    finally:
+        if original_delay is None:
+            delete_photo_data_task.labels.pop("delay", None)
+        else:
+            delete_photo_data_task.labels["delay"] = original_delay
+
+    assert result.return_value == {"deleted": True}
+    assert attempts == 2
+
+
+@pytest.mark.asyncio
+async def test_delete_gallery_data_task_retries_transient_failure(monkeypatch) -> None:
+    attempts = 0
+
+    async def flaky_impl(gallery_id: str, s3_client=None, bucket=None) -> dict:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("temporary gallery delete failure")
+        return {"deleted_objects": 3}
+
+    original_delay = delete_gallery_data_task.labels.get("delay")
+    delete_gallery_data_task.labels["delay"] = "0"
+    monkeypatch.setattr("viewport.tasks.maintenance_tasks.delete_gallery_data_task_impl", flaky_impl)
+    try:
+        task = await delete_gallery_data_task.kiq(str(uuid4()))
+        result = await task.wait_result(timeout=1)
+    finally:
+        if original_delay is None:
+            delete_gallery_data_task.labels.pop("delay", None)
+        else:
+            delete_gallery_data_task.labels["delay"] = original_delay
+
+    assert result.return_value == {"deleted_objects": 3}
+    assert attempts == 2
 
 
 @pytest.mark.asyncio

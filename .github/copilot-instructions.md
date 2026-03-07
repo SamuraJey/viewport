@@ -6,6 +6,7 @@
 - Backend database access now uses SQLAlchemy `AsyncSession` end-to-end in app code, repositories, auth dependencies, and Taskiq tasks.
 - Storage/URLs: originals + thumbnails live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them **in-process** (see `src/viewport/cache_utils.py`).
 - Background work: Taskiq tasks live in `src/viewport/tasks/` and are re-exported from `src/viewport/tasks/__init__.py`; application code should use direct Taskiq task objects and `await task.kiq(...)` instead of any compatibility wrapper. Docker Compose runs `taskiq_worker` + `taskiq_scheduler`.
+  - Retry and rate-limit semantics migrated from Celery must be preserved explicitly with Taskiq middleware/task labels; photo thumbnail creation and background delete tasks rely on retries for transient failures, and thumbnail batch processing keeps the Celery-era task rate limit.
 - uv is used as package manager.
 
 ## How to run (preferred workflows)

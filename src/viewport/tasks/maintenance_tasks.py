@@ -144,7 +144,7 @@ async def delete_gallery_data_task_impl(gallery_id: str, s3_client: AsyncS3Clien
     return {"deleted_objects": deleted_objects}
 
 
-@broker.task(task_name="delete_gallery_data")
+@broker.task(task_name="delete_gallery_data", retry_on_error=True, max_retries=3, delay=60)
 async def delete_gallery_data_task(
     gallery_id: str,
     s3_client=TASK_S3_DEP,

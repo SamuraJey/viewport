@@ -209,7 +209,7 @@ async def create_thumbnails_batch_task_impl(photos: list[dict], s3_client: Async
     return result_tracker.to_dict()
 
 
-@broker.task(task_name="create_thumbnails_batch")
+@broker.task(task_name="create_thumbnails_batch", retry_on_error=True, max_retries=3, rate_limit="10/s")
 async def create_thumbnails_batch_task(
     photos: list[dict],
     s3_client: Any = TASK_S3_DEP,
@@ -265,6 +265,6 @@ async def delete_photo_data_task_impl(photo_id: str, gallery_id: str, owner_id: 
     return {"deleted": True}
 
 
-@broker.task(task_name="delete_photo_data")
+@broker.task(task_name="delete_photo_data", retry_on_error=True, max_retries=3, delay=10)
 async def delete_photo_data_task(photo_id: str, gallery_id: str, owner_id: str) -> dict:
     return await delete_photo_data_task_impl(photo_id, gallery_id, owner_id)

@@ -5,13 +5,14 @@ from typing import Any
 import taskiq_fastapi
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from taskiq import AsyncBroker, InMemoryBroker, TaskiqEvents, TaskiqScheduler
+from taskiq import AsyncBroker, InMemoryBroker, SmartRetryMiddleware, TaskiqEvents, TaskiqScheduler
 from taskiq.schedule_sources import LabelScheduleSource
 from taskiq_redis import RedisAsyncResultBackend, RedisStreamBroker
 
 from viewport.models.db import get_session_maker
 from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_settings
+from viewport.task_rate_limits import TaskRateLimitMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +31,20 @@ settings = TaskiqSettings()
 result_backend: RedisAsyncResultBackend | None = None
 scheduler: TaskiqScheduler | None = None
 
+retry_middleware = SmartRetryMiddleware(
+    default_retry_count=0,
+    default_delay=0,
+    use_jitter=False,
+    use_delay_exponent=False,
+)
+rate_limit_middleware = TaskRateLimitMiddleware()
+
 # Use InMemoryBroker for testing, RedisStreamBroker for production
 env = os.environ.get("ENVIRONMENT")
 
 if env == "pytest":
     # InMemoryBroker for testing: executes tasks synchronously without Redis
-    broker: AsyncBroker = InMemoryBroker(await_inplace=True)
+    broker: AsyncBroker = InMemoryBroker(await_inplace=True).with_middlewares(rate_limit_middleware, retry_middleware)
 else:
     # Production: use Redis for distributed task processing
     result_backend = RedisAsyncResultBackend(
@@ -43,11 +52,15 @@ else:
         result_ex_time=settings.result_ttl_seconds,
     )
 
-    broker = RedisStreamBroker(
-        url=settings.redis_url,
-        queue_name="viewport_tasks",
-        consumer_group_name="viewport_workers",
-    ).with_result_backend(result_backend)
+    broker = (
+        RedisStreamBroker(
+            url=settings.redis_url,
+            queue_name="viewport_tasks",
+            consumer_group_name="viewport_workers",
+        )
+        .with_middlewares(rate_limit_middleware, retry_middleware)
+        .with_result_backend(result_backend)
+    )
 
 # Only create scheduler for production (not needed for InMemoryBroker)
 if env != "pytest":
