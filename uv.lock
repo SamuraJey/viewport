@@ -434,7 +434,7 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.128.8"
+version = "0.135.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -443,9 +443,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/01/72/0df5c58c954742f31a7054e2dd1143bae0b408b7f36b59b85f928f9b456c/fastapi-0.128.8.tar.gz", hash = "sha256:3171f9f328c4a218f0a8d2ba8310ac3a55d1ee12c28c949650288aee25966007", size = 375523, upload-time = "2026-02-11T15:19:36.69Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e7/7b/f8e0211e9380f7195ba3f3d40c292594fd81ba8ec4629e3854c353aaca45/fastapi-0.135.1.tar.gz", hash = "sha256:d04115b508d936d254cea545b7312ecaa58a7b3a0f84952535b4c9afae7668cd", size = 394962, upload-time = "2026-03-01T18:18:29.369Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9f/37/37b07e276f8923c69a5df266bfcb5bac4ba8b55dfe4a126720f8c48681d1/fastapi-0.128.8-py3-none-any.whl", hash = "sha256:5618f492d0fe973a778f8fec97723f598aa9deee495040a8d51aaf3cf123ecf1", size = 103630, upload-time = "2026-02-11T15:19:35.209Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/72/42e900510195b23a56bde950d26a51f8b723846bfcaa0286e90287f0422b/fastapi-0.135.1-py3-none-any.whl", hash = "sha256:46e2fc5745924b7c840f71ddd277382af29ce1cdb7d5eab5bf697e3fb9999c9e", size = 116999, upload-time = "2026-03-01T18:18:30.831Z" },
 ]
 
 [[package]]
@@ -1621,7 +1621,7 @@ requires-dist = [
     { name = "bcrypt", specifier = ">=4.3.0,<5.0.0" },
     { name = "boto3", specifier = ">=1.39.9,<1.42" },
     { name = "botocore", specifier = ">=1.39.9,<1.42" },
-    { name = "fastapi", specifier = ">=0.126,<0.129" },
+    { name = "fastapi", specifier = ">=0.135,<0.136" },
     { name = "pillow", specifier = ">=12.1.1,<13.0.0" },
     { name = "prometheus-fastapi-instrumentator", specifier = ">=7.1.0,<8.0.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.10,<4.0.0" },
