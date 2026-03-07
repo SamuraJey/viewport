@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from viewport.models.db import Base
 
 if TYPE_CHECKING:
-    from .sharelink import ShareLink
+    from viewport.models.sharelink import ShareLink
 
 
 class PhotoUploadStatus(IntEnum):

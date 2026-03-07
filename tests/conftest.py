@@ -50,7 +50,14 @@ _SHARED_S3_INFO: dict[str, Any] | None = None
 _SHARED_VALKEY_CONTAINER: DockerContainer | None = None
 _SHARED_VALKEY_INFO: dict[str, Any] | None = None
 
-os.environ.update({"JWT_SECRET_KEY": "supersecretkeysupersecretkeysupersecretkey", "ADMIN_JWT_SECRET_KEY": "adminsecretkeyadminsecretkeyadminsecretkey", "INVITE_CODE": "testinvitecode"})
+os.environ.update(
+    {
+        "JWT_SECRET_KEY": "supersecretkeysupersecretkeysupersecretkey",
+        "ADMIN_JWT_SECRET_KEY": "adminsecretkeyadminsecretkeyadminsecretkey",
+        "INVITE_CODE": "testinvitecode",
+        "ENVIRONMENT": "pytest",  # Use InMemoryBroker for tasks in tests
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -227,20 +234,29 @@ def pytest_configure(config: pytest.Config) -> None:
         return
 
     if _SHARED_POSTGRES_CONTAINER is None:
-        container = PostgresContainer(image=POSTGRES_IMAGE)
-        container.start()
-        _SHARED_POSTGRES_CONTAINER = container
-        _SHARED_POSTGRES_INFO = _connection_info_from_container(container).to_dict()
+        try:
+            container = PostgresContainer(image=POSTGRES_IMAGE)
+            container.start()
+            _SHARED_POSTGRES_CONTAINER = container
+            _SHARED_POSTGRES_INFO = _connection_info_from_container(container).to_dict()
+        except Exception:
+            pass  # Docker not available, skip shared container
 
     if _SHARED_S3_CONTAINER is None:
-        s3_container = _start_s3_container()
-        _SHARED_S3_CONTAINER = s3_container
-        _SHARED_S3_INFO = _connection_info_from_s3_container(s3_container).to_dict()
+        try:
+            s3_container = _start_s3_container()
+            _SHARED_S3_CONTAINER = s3_container
+            _SHARED_S3_INFO = _connection_info_from_s3_container(s3_container).to_dict()
+        except Exception:
+            pass  # Docker not available, skip shared container
 
     if _SHARED_VALKEY_CONTAINER is None:
-        valkey_container = _start_valkey_container()
-        _SHARED_VALKEY_CONTAINER = valkey_container
-        _SHARED_VALKEY_INFO = _connection_info_from_valkey_container(valkey_container).to_dict()
+        try:
+            valkey_container = _start_valkey_container()
+            _SHARED_VALKEY_CONTAINER = valkey_container
+            _SHARED_VALKEY_INFO = _connection_info_from_valkey_container(valkey_container).to_dict()
+        except Exception:
+            pass  # Docker not available, skip shared container
 
 
 def pytest_configure_node(node) -> None:
@@ -416,6 +432,13 @@ def postgres_container(_postgres_server: PostgresConnectionInfo, request: pytest
     )
 
     with _temporary_env_vars(env_updates):
+        # Clear the database connection caches after environment is set up
+        # This ensures tasks get the correct test database connection
+        from viewport.models.db import _get_engine_and_sessionmaker, get_database_url
+
+        get_database_url.cache_clear()
+        _get_engine_and_sessionmaker.cache_clear()
+
         try:
             yield worker_connection
         finally:
@@ -575,29 +598,6 @@ def valkey_container(request: pytest.FixtureRequest) -> Generator[str]:
         container.stop()
 
 
-@pytest.fixture(scope="session", autouse=True)
-def celery_env(valkey_container):
-    """Configure Taskiq to use the test ValKey container.
-
-    This fixture sets environment variables before Taskiq modules are imported,
-    ensuring broker/result backend use the test Redis endpoint from the start.
-    The environment variables remain set for the entire test session.
-    """
-    overrides = {
-        "TASKIQ_REDIS_URL": valkey_container,
-        "TASKIQ_RESULT_TTL_SECONDS": "120",
-    }
-
-    with _temporary_env_vars(overrides):
-        yield
-
-
-@pytest.fixture(scope="session")
-def celery_config(valkey_container, celery_env):
-    """Backward-compatible fixture name for legacy tests."""
-    return {"broker_url": valkey_container, "result_backend": valkey_container}
-
-
 @pytest.fixture(scope="session")
 def _db_session_holder() -> dict[str, Session | None]:
     return {"session": None}
@@ -625,6 +625,26 @@ def app_client(_db_session_holder: dict[str, Session | None]):
             yield test_client
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _taskiq_test_setup(app_client: TestClient):
+    """Populate Taskiq dependency context for InMemoryBroker testing.
+
+    This fixture initializes the dependency context that Taskiq uses to resolve
+    task dependencies when using InMemoryBroker. This is required for tasks to
+    access FastAPI dependencies during testing.
+    """
+    import taskiq_fastapi
+
+    from viewport.main import app
+    from viewport.tkq import broker
+
+    # Populate dependency context for InMemoryBroker
+    taskiq_fastapi.populate_dependency_context(broker, app)
+    yield
+    # Clean up dependency context
+    broker.custom_dependency_context = {}
 
 
 @pytest.fixture(scope="function")

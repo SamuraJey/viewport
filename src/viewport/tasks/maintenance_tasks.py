@@ -6,13 +6,13 @@ from typing import TYPE_CHECKING, cast
 from sqlalchemy import delete, func, or_, select, update
 from taskiq import TaskiqDepends
 
-from ..dependencies import get_task_context, get_task_s3_client
-from ..models.gallery import Gallery, Photo, PhotoUploadStatus
-from ..models.sharelink import ShareLink
-from ..models.user import User
-from ..task_utils import task_db_session
-from ..tkq import broker
-from .photo_tasks import create_thumbnails_batch_task
+from viewport.dependencies import get_task_context, get_task_s3_client
+from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
+from viewport.models.sharelink import ShareLink
+from viewport.models.user import User
+from viewport.task_utils import task_db_session
+from viewport.tasks.photo_tasks import create_thumbnails_batch_task
+from viewport.tkq import broker
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ def cleanup_orphaned_uploads_task_impl(s3_client=None, bucket: str | None = None
     threshold = datetime.now(UTC) - timedelta(minutes=30)
     logger.info("Starting orphaned uploads cleanup (threshold: %s)", threshold)
 
-    from ..s3_utils import get_s3_client, get_s3_settings
+    from viewport.s3_utils import get_s3_client, get_s3_settings
 
     if s3_client is None:
         s3_client = get_s3_client()
@@ -106,7 +106,7 @@ def cleanup_orphaned_uploads_task(
 
 
 def delete_gallery_data_task_impl(gallery_id: str, s3_client=None, bucket: str | None = None) -> dict:
-    from ..s3_utils import get_s3_client, get_s3_settings
+    from viewport.s3_utils import get_s3_client, get_s3_settings
 
     if s3_client is None:
         s3_client = get_s3_client()

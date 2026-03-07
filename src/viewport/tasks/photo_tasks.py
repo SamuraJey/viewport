@@ -1,5 +1,6 @@
 import io
 import logging
+import time
 import uuid
 from typing import TYPE_CHECKING, Any, cast
 
@@ -8,13 +9,13 @@ from PIL import Image, UnidentifiedImageError
 from sqlalchemy import delete, func, select, update
 from taskiq import TaskiqDepends
 
-from ..cache_utils import clear_presigned_urls_batch
-from ..dependencies import get_task_context, get_task_s3_client
-from ..models.gallery import Gallery, Photo, PhotoUploadStatus
-from ..models.user import User
-from ..s3_utils import create_thumbnail, generate_thumbnail_object_key
-from ..task_utils import BatchTaskResult, task_db_session
-from ..tkq import broker
+from viewport.cache_utils import clear_presigned_urls_batch
+from viewport.dependencies import get_task_context, get_task_s3_client
+from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
+from viewport.models.user import User
+from viewport.s3_utils import create_thumbnail, generate_thumbnail_object_key
+from viewport.task_utils import BatchTaskResult, task_db_session
+from viewport.tkq import broker
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,8 @@ if TYPE_CHECKING:
 
 TASK_S3_DEP = TaskiqDepends(get_task_s3_client)
 TASK_CONTEXT_DEP = TaskiqDepends(get_task_context)
+
+S3_READ_RETRY_DELAYS_SECONDS = (0.2, 0.5, 1.0)
 
 
 def _is_valid_image(image_bytes: bytes) -> bool:
@@ -69,26 +72,42 @@ def _process_single_photo(
             return
 
         try:
+            s3_client.put_object_tagging(Bucket=bucket, Key=object_key, Tagging={"TagSet": [{"Key": "upload-status", "Value": "confirmed"}]})
+        except ClientError as tag_error:
+            logger.warning("Failed to update S3 tag for %s: %s", object_key, tag_error)
+        except Exception as tag_general_error:
+            logger.warning("Unexpected error updating S3 tag for %s: %s", object_key, tag_general_error)
+
+        image_bytes = None
+        for attempt, delay_seconds in enumerate((*S3_READ_RETRY_DELAYS_SECONDS, None), start=1):
             try:
-                s3_client.put_object_tagging(Bucket=bucket, Key=object_key, Tagging={"TagSet": [{"Key": "upload-status", "Value": "confirmed"}]})
-            except ClientError as tag_error:
-                logger.warning("Failed to update S3 tag for %s: %s", object_key, tag_error)
-            except Exception as tag_general_error:
-                logger.warning("Unexpected error updating S3 tag for %s: %s", object_key, tag_general_error)
+                response = s3_client.get_object(Bucket=bucket, Key=object_key)
+                image_bytes = response["Body"].read()
+                break
+            except Exception as s3_error:
+                error_response = cast(dict[str, Any], getattr(s3_error, "response", {}) or {})
+                error_code = cast(str, error_response.get("Error", {}).get("Code", ""))
 
-            response = s3_client.get_object(Bucket=bucket, Key=object_key)
-            image_bytes = response["Body"].read()
-        except Exception as s3_error:
-            error_response = cast(dict[str, Any], getattr(s3_error, "response", {}) or {})
-            error_code = cast(str, error_response.get("Error", {}).get("Code", ""))
+                if error_code != "NoSuchKey":
+                    logger.error("S3 error for photo %s: %s", photo_id, str(s3_error))
+                    raise
 
-            if error_code == "NoSuchKey":
-                logger.warning("File %s not found in S3, marking as failed", object_key)
-                result_tracker.add_error(photo_id, "File not found in S3")
-                return
+                if delay_seconds is None:
+                    logger.warning("File %s not found in S3 after retries, marking as failed", object_key)
+                    result_tracker.add_error(photo_id, "File not found in S3")
+                    return
 
-            logger.error("S3 error for photo %s: %s", photo_id, str(s3_error))
-            raise
+                logger.warning(
+                    "File %s not found in S3 (attempt %s), retrying in %.1fs",
+                    object_key,
+                    attempt,
+                    delay_seconds,
+                )
+                time.sleep(delay_seconds)
+
+        if image_bytes is None:
+            result_tracker.add_error(photo_id, "File not found in S3")
+            return
 
         if not _is_valid_image(image_bytes):
             logger.warning("Object %s for photo %s is not a valid image", object_key, photo_id)
@@ -174,7 +193,7 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
 def create_thumbnails_batch_task_impl(photos: list[dict], s3_client: "S3Client" | None = None, bucket: str | None = None) -> dict:
     logger.info("Starting batch thumbnail creation for %s photos", len(photos))
 
-    from ..s3_utils import get_s3_client, get_s3_settings
+    from viewport.s3_utils import get_s3_client, get_s3_settings
 
     if s3_client is None:
         s3_client = get_s3_client()
@@ -221,7 +240,7 @@ def delete_photo_data_task_impl(photo_id: str, gallery_id: str, owner_id: str) -
 
         object_key, thumbnail_object_key, file_size, status = photo
 
-    from ..s3_utils import get_s3_client, get_s3_settings
+    from viewport.s3_utils import get_s3_client, get_s3_settings
 
     s3_client = get_s3_client()
     bucket = get_s3_settings().bucket

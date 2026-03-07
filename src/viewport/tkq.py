@@ -1,15 +1,16 @@
 import logging
+import os
 from typing import Any
 
 import taskiq_fastapi
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from taskiq import TaskiqEvents, TaskiqScheduler
+from taskiq import AsyncBroker, InMemoryBroker, TaskiqEvents, TaskiqScheduler
 from taskiq.schedule_sources import LabelScheduleSource
 from taskiq_redis import RedisAsyncResultBackend, RedisStreamBroker
 
-from .models.db import get_session_maker
-from .s3_utils import get_s3_client, get_s3_settings
+from viewport.models.db import get_session_maker
+from viewport.s3_utils import get_s3_client, get_s3_settings
 
 logger = logging.getLogger(__name__)
 
@@ -26,24 +27,34 @@ class TaskiqSettings(BaseSettings):
 
 settings = TaskiqSettings()
 
-result_backend = RedisAsyncResultBackend(
-    redis_url=settings.redis_url,
-    result_ex_time=settings.result_ttl_seconds,
-)
+# Use InMemoryBroker for testing, RedisStreamBroker for production
+env = os.environ.get("ENVIRONMENT")
 
-broker = RedisStreamBroker(
-    url=settings.redis_url,
-    queue_name="viewport_tasks",
-    consumer_group_name="viewport_workers",
-).with_result_backend(result_backend)
+if env == "pytest":
+    # InMemoryBroker for testing: executes tasks synchronously without Redis
+    broker: AsyncBroker = InMemoryBroker(await_inplace=True)
+else:
+    # Production: use Redis for distributed task processing
+    result_backend = RedisAsyncResultBackend(
+        redis_url=settings.redis_url,
+        result_ex_time=settings.result_ttl_seconds,
+    )
 
-scheduler = TaskiqScheduler(
-    broker=broker,
-    sources=[LabelScheduleSource(broker)],
-)
+    broker = RedisStreamBroker(
+        url=settings.redis_url,
+        queue_name="viewport_tasks",
+        consumer_group_name="viewport_workers",
+    ).with_result_backend(result_backend)
+
+# Only create scheduler for production (not needed for InMemoryBroker)
+if env != "pytest":
+    scheduler = TaskiqScheduler(
+        broker=broker,
+        sources=[LabelScheduleSource(broker)],
+    )
 
 
-APP_MODULE = f"{__package__}.main:app"
+APP_MODULE = "viewport.main:app"
 
 taskiq_fastapi.init(broker, APP_MODULE)
 
@@ -68,6 +79,6 @@ async def on_worker_shutdown(state: Any) -> None:
             logger.exception("Failed to close sync S3 client on worker shutdown")
 
 
-from .tasks import maintenance_tasks, photo_tasks  # noqa: E402,F401
+from viewport.tasks import maintenance_tasks, photo_tasks  # noqa: E402,F401
 
 __all__ = ["broker", "scheduler", "result_backend", "TaskiqSettings"]

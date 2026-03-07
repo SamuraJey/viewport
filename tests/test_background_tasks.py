@@ -58,7 +58,7 @@ def photo_context(engine: Engine, gallery_name: str, filename: str, content: byt
         content = _create_dummy_jpeg_bytes()
 
     with session_scope(engine) as session:
-        user = User(email=f"celery-{uuid4()}@example.com", password_hash="hashed", display_name="celery")
+        user = User(email=f"user-{uuid4()}@example.com", password_hash="hashed", display_name="TestUser")
         session.add(user)
         session.flush()
 
@@ -90,7 +90,7 @@ def photo_context(engine: Engine, gallery_name: str, filename: str, content: byt
 
 
 def _execute_thumbnail_task(photo_id: str, object_key: str):
-    """Import the Celery task lazily so fixtures can configure the environment first."""
+    """Import the task lazily so fixtures can configure the environment first."""
     from viewport.background_tasks import create_thumbnails_batch_task
 
     return create_thumbnails_batch_task.run([{"photo_id": photo_id, "object_key": object_key}])
@@ -103,7 +103,7 @@ def assert_batch_counts(result, successful=0, failed=0, skipped=0):
 
 
 def test_create_thumbnails_batch_task_creates_thumbnail(engine: Engine, s3_container) -> None:
-    with photo_context(engine, "celery-test", "celery-original.jpg") as ctx:
+    with photo_context(engine, "thumbnail-test", "test-original.jpg") as ctx:
         result = _execute_thumbnail_task(str(ctx.photo_id), ctx.object_key)
 
         assert_batch_counts(result, successful=1)
@@ -111,7 +111,7 @@ def test_create_thumbnails_batch_task_creates_thumbnail(engine: Engine, s3_conta
         with session_scope(engine) as session:
             updated_photo = session.get(Photo, ctx.photo_id)
             assert updated_photo is not None
-            assert updated_photo.thumbnail_object_key.endswith("celery-original_thumbnail.avif")
+            assert updated_photo.thumbnail_object_key.endswith("test-original_thumbnail.avif")
             assert updated_photo.width is not None and updated_photo.height is not None
 
             s3_client = get_s3_client()
@@ -784,10 +784,10 @@ def test_delete_gallery_data_task_exception_retry(engine: Engine, s3_container, 
 
         monkeypatch.setattr(s3_client, "list_objects_v2", mock_list_objects_v2)
 
-        # Task should raise exception (which triggers Celery retry)
+        # Task should raise exception
         _task = delete_gallery_data_task
         with pytest.raises(Exception, match="S3 service unavailable"):
-            # Call the underlying function directly to avoid Celery retry logic
+            # Call the underlying function directly
 
             # Manually invoke the task function
             delete_gallery_data_task.run(gallery_id_str)

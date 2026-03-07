@@ -118,7 +118,7 @@ services:
       dockerfile: Dockerfile-backend
     container_name: viewport_taskiq_worker
     restart: always
-    command: taskiq worker viewport.tkq:broker --workers 4
+    command: taskiq worker viewport.tkq:broker --workers 2
     env_file:
       - .env.prod
     depends_on:
@@ -139,7 +139,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "4"
+          cpus: "2"
           memory: 768M
         reservations:
           cpus: "0.50"
@@ -173,7 +173,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1"
+          cpus: "0.25"
           memory: 384M
         reservations:
           cpus: "0.10"
