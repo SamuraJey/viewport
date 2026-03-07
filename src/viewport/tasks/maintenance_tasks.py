@@ -10,7 +10,6 @@ from viewport.dependencies import get_task_context, get_task_s3_client
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
-from viewport.s3_service import AsyncS3Client
 from viewport.task_utils import task_db_session
 from viewport.tasks.photo_tasks import create_thumbnails_batch_task
 from viewport.tkq import broker
@@ -18,7 +17,7 @@ from viewport.tkq import broker
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    pass
+    from viewport.s3_service import AsyncS3Client
 
 
 TASK_S3_DEP = TaskiqDepends(get_task_s3_client)

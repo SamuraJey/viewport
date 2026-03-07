@@ -8,16 +8,19 @@ The client is initialized once during application startup and shared across all 
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from taskiq import TaskiqDepends
 
 from viewport.models.db import get_session_maker
-from viewport.s3_service import AsyncS3Client
 
 logger = logging.getLogger(__name__)
+
+
+if TYPE_CHECKING:
+    from viewport.s3_service import AsyncS3Client
 
 TASKIQ_REQUEST_DEP: Any = TaskiqDepends()
 
@@ -103,11 +106,11 @@ async def get_task_db_session() -> AsyncGenerator[AsyncSession]:
             raise
 
 
-def get_task_s3_client() -> Any:
+def get_task_s3_client() -> AsyncS3Client:
     from viewport.tkq import broker
 
     broker_state = getattr(broker, "state", None)
     client = getattr(broker_state, "s3_client", None)
     if client is not None:
-        return client
+        return cast(AsyncS3Client, client)
     return get_s3_client_instance()
