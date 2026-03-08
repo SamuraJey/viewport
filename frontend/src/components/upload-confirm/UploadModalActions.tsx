@@ -68,53 +68,68 @@ export const UploadModalFooter = ({
   onUpload,
   uploadButtonRef,
 }: UploadModalFooterProps) => (
-  <div className="flex justify-end gap-3 p-5 sm:p-6 border-t border-border bg-surface-1/50 dark:bg-surface-dark-1/50">
-    {result && (
-      <>
-        {failedCount > 0 && (
-          <button
-            onClick={onRetryFailed}
-            disabled={isUploading}
-            className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-600 disabled:bg-surface-foreground disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95 disabled:opacity-50 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
-          >
-            <Upload className="w-4 h-4" />
-            Retry {failedCount}
-          </button>
-        )}
-        <button
-          onClick={onClose}
-          className="px-5 py-2.5 bg-accent hover:bg-accent/90 text-white text-sm font-medium rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
-        >
-          Close
-        </button>
-      </>
-    )}
-
-    {!result && !isUploading && (
-      <>
-        <button
-          onClick={onCancel}
-          className="px-5 py-2.5 text-text dark:text-muted bg-surface-1 dark:bg-surface-dark-1 hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-sm font-medium rounded-xl border border-border dark:border-border/40 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
-        >
-          Cancel
-        </button>
-        <button
-          ref={uploadButtonRef}
-          onClick={onUpload}
-          disabled={filesCount === 0 || !hasValidFiles}
-          className="px-5 py-2.5 bg-accent hover:bg-accent/90 disabled:bg-surface-foreground disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:shadow-sm disabled:hover:translate-y-0 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
-        >
-          <Upload className="w-4 h-4" />
-          Upload {validUploadCount}
-        </button>
-      </>
-    )}
-
-    {isUploading && (
-      <div className="flex items-center gap-2 text-muted text-xs sm:text-sm font-medium">
-        <div className="w-4 h-4 border-2 border-muted border-t-text rounded-full animate-spin" />
-        Upload in progress...
+  <div className="sticky bottom-0 flex flex-col gap-4 border-t border-border/60 bg-surface/95 px-5 py-4 backdrop-blur-md sm:px-6 dark:bg-surface-foreground/95">
+    {!result && (
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <p className="text-muted">
+          {hasValidFiles
+            ? `${validUploadCount} file${validUploadCount !== 1 ? 's are' : ' is'} ready to upload.`
+            : 'No valid files to upload yet.'}
+        </p>
+        <p className="rounded-full border border-border/50 bg-surface-1/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted dark:bg-surface-dark-1/70">
+          {filesCount} selected
+        </p>
       </div>
     )}
+
+    <div className="flex flex-wrap justify-end gap-3">
+      {result && (
+        <>
+          {failedCount > 0 && (
+            <button
+              onClick={onRetryFailed}
+              disabled={isUploading}
+              className="px-5 py-3 bg-yellow-500 hover:bg-yellow-600 disabled:bg-surface-foreground disabled:cursor-not-allowed text-white text-sm font-medium rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95 disabled:opacity-50 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
+            >
+              <Upload className="w-4 h-4" />
+              Retry {failedCount}
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="px-5 py-3 bg-accent hover:bg-accent/90 text-white text-sm font-medium rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
+          >
+            Close
+          </button>
+        </>
+      )}
+
+      {!result && !isUploading && (
+        <>
+          <button
+            onClick={onCancel}
+            className="px-5 py-3 text-text dark:text-muted bg-surface-1 dark:bg-surface-dark-1 hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-sm font-medium rounded-2xl border border-border dark:border-border/40 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
+          >
+            Cancel
+          </button>
+          <button
+            ref={uploadButtonRef}
+            onClick={onUpload}
+            disabled={filesCount === 0 || !hasValidFiles}
+            className="px-5 py-3 bg-accent hover:bg-accent/90 disabled:bg-surface-foreground disabled:cursor-not-allowed text-white text-sm font-medium rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:shadow-sm disabled:hover:translate-y-0 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
+          >
+            <Upload className="w-4 h-4" />
+            Upload {validUploadCount}
+          </button>
+        </>
+      )}
+
+      {isUploading && (
+        <div className="flex items-center gap-2 text-muted text-xs sm:text-sm font-medium">
+          <div className="w-4 h-4 border-2 border-muted border-t-text rounded-full animate-spin" />
+          Upload in progress...
+        </div>
+      )}
+    </div>
   </div>
 );
