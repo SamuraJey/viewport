@@ -48,7 +48,7 @@ class S3Settings(BaseSettings):
 def get_s3_client() -> "S3Client":
     """Get a boto3 S3 client configured for the current environment (sync client).
 
-    Used for operations that don't need async, like thumbnail uploads in Taskiq tasks.
+    Used for operations that don't need async, like thumbnail uploads in Celery tasks.
     The result is cached to avoid recreating the client and connection pool.
     """
     settings = get_s3_settings()
@@ -97,7 +97,7 @@ def upload_fileobj(
     content_type: str | None = None,
     cache_control: str | None = None,
 ) -> str:
-    """Upload file object to S3 (sync version for background tasks).
+    """Upload file object to S3 (sync version for Celery tasks).
 
     Args:
         fileobj: File-like object or bytes to upload

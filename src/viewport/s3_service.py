@@ -45,15 +45,15 @@ class AsyncS3Client:
         self._session: aioboto3.Session | None = None
         self._endpoint_url = self._get_endpoint_url()
         # Use aggressive connection pooling configuration:
-        # - Small pool size (10 connections max)
+        # - Small pool size (15 connections max)
         # - Read timeout forces connections to close after idle period
         # - Standard retries with exponential backoff for transient errors
         self._config = Config(
             signature_version=self.settings.signature_version,
-            max_pool_connections=10,  # Small pool to avoid memory bloat
+            max_pool_connections=15,  # Small pool to avoid memory bloat
             retries={"max_attempts": 3, "mode": "standard"},
             connect_timeout=10,
-            read_timeout=30,  # Shorter timeout to close idle connections faster
+            read_timeout=10,  # Shorter timeout to close idle connections faster
             s3={"addressing_style": "path"},
         )
         self._presign_client = None

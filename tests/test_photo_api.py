@@ -1,6 +1,5 @@
 """Tests for photo API endpoints."""
 
-import asyncio
 from typing import TYPE_CHECKING, Never
 from uuid import UUID, uuid4
 
@@ -186,11 +185,10 @@ class TestPhotoAPI:
 
         captured: dict[str, list] = {}
 
-        async def fake_kiq(batch: list[dict]):
+        def fake_delay(batch: list[dict]):
             captured["batch"] = batch
 
-        monkeypatch.setattr("viewport.api.photo.asyncio.create_task", lambda coro: asyncio.get_running_loop().create_task(coro))
-        monkeypatch.setattr("viewport.api.photo.create_thumbnails_batch_task.kiq", fake_kiq)
+        monkeypatch.setattr("viewport.api.photo.create_thumbnails_batch_task.delay", fake_delay)
 
         confirm_payload = {
             "items": [
@@ -280,11 +278,10 @@ class TestPhotoAPI:
         item = presigned.json()["items"][0]
         photo_id = UUID(item["photo_id"])
 
-        async def fake_kiq(batch: list[dict]) -> None:
+        def fake_delay(batch: list[dict]) -> None:
             return None
 
-        monkeypatch.setattr("viewport.api.photo.asyncio.create_task", lambda coro: asyncio.get_running_loop().create_task(coro))
-        monkeypatch.setattr("viewport.api.photo.create_thumbnails_batch_task.kiq", fake_kiq)
+        monkeypatch.setattr("viewport.api.photo.create_thumbnails_batch_task.delay", fake_delay)
 
         me_resp = authenticated_client.get("/me")
         assert me_resp.status_code == 200
@@ -321,11 +318,10 @@ class TestPhotoAPI:
         assert me_resp.status_code == 200
         user_id = UUID(me_resp.json()["id"])
 
-        async def fail_kiq(batch: list[dict]) -> Never:
+        def fail_delay(batch: list[dict]) -> Never:
             raise RuntimeError("broker unavailable")
 
-        monkeypatch.setattr("viewport.api.photo.asyncio.create_task", lambda coro: asyncio.get_running_loop().create_task(coro))
-        monkeypatch.setattr("viewport.api.photo.create_thumbnails_batch_task.kiq", fail_kiq)
+        monkeypatch.setattr("viewport.api.photo.create_thumbnails_batch_task.delay", fail_delay)
 
         response = authenticated_client.post(
             f"/galleries/{gallery_id_fixture}/photos/batch-confirm",

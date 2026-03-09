@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -6,8 +5,10 @@ from uuid import UUID, uuid4
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from viewport.auth_utils import get_current_user
+from viewport.background_tasks import create_thumbnails_batch_task, delete_photo_data_task
 from viewport.dependencies import get_s3_client
 from viewport.filename_utils import sanitize_filename
 from viewport.models.db import get_db
@@ -26,7 +27,6 @@ from viewport.schemas.photo import (
     PhotoResponse,
     PresignedUploadData,
 )
-from viewport.tasks import create_thumbnails_batch_task, delete_photo_data_task
 
 logger = logging.getLogger(__name__)
 
@@ -42,18 +42,6 @@ CONTENT_TYPE_MAP = {
 }
 
 router = APIRouter(prefix="/galleries", tags=["photos"])
-
-
-def _log_thumbnail_enqueue_result(task: asyncio.Task[object], gallery_id: UUID, photo_count: int) -> None:
-    with_context = {"gallery_id": str(gallery_id), "photo_count": photo_count}
-    try:
-        exc = task.exception()
-    except asyncio.CancelledError:
-        logger.warning("Thumbnail task enqueue cancelled", extra=with_context)
-        return
-
-    if exc is not None:
-        logger.warning("Failed to enqueue thumbnail task", extra=with_context, exc_info=exc)
 
 
 def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
@@ -227,7 +215,7 @@ async def batch_confirm_uploads(
     Sets status to SUCCESSFUL for confirmed uploads.
     Starts thumbnail processing (S3 verification and fallback-to-FAILED happen in background).
 
-    NOTE: Sync endpoint - FastAPI handles threadpool automatically.
+    Thumbnail processing is queued to Celery after the DB transaction commits.
     """
     # 1. Verify gallery ownership
     gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
@@ -308,8 +296,14 @@ async def batch_confirm_uploads(
 
     # 5. Start batch thumbnail processing (will retry tagging if needed)
     if photos_to_process:
-        enqueue_task = asyncio.create_task(create_thumbnails_batch_task.kiq(photos_to_process))
-        enqueue_task.add_done_callback(lambda task: _log_thumbnail_enqueue_result(task, gallery_id, len(photos_to_process)))
+        try:
+            await run_in_threadpool(create_thumbnails_batch_task.delay, photos_to_process)
+        except Exception:
+            logger.warning(
+                "Failed to enqueue thumbnail task",
+                extra={"gallery_id": str(gallery_id), "photo_count": len(photos_to_process)},
+                exc_info=True,
+            )
 
     return BatchConfirmUploadResponse(confirmed_count=confirmed_count, failed_count=failed_count)
 
@@ -325,7 +319,7 @@ async def delete_photo(
     """Delete a photo and enqueue background task for S3 cleanup and DB removal.
 
     Returns 204 immediately after validation and task enqueue.
-    Actual S3 deletion happens asynchronously in Taskiq worker.
+    Actual S3 deletion happens asynchronously in a Celery worker.
     """
     # Verify gallery ownership and photo exists
     gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
@@ -338,7 +332,7 @@ async def delete_photo(
 
     # Enqueue async deletion task
     try:
-        await delete_photo_data_task.kiq(str(photo_id), str(gallery_id), str(current_user.id))
+        await run_in_threadpool(delete_photo_data_task.delay, str(photo_id), str(gallery_id), str(current_user.id))
     except Exception as exc:
         logger.error("Failed to enqueue delete_photo_data task for photo %s: %s", photo_id, exc)
         raise HTTPException(status_code=500, detail="Failed to enqueue deletion task") from exc

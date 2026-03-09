@@ -5,8 +5,10 @@ from functools import lru_cache
 from fastapi import HTTPException
 from fastapi.exceptions import RequestValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 logger = logging.getLogger(__name__)
 
@@ -68,12 +70,40 @@ def _get_engine_and_sessionmaker() -> tuple[AsyncEngine, async_sessionmaker[Asyn
     return eng, sess
 
 
+@lru_cache(maxsize=5)
+def _get_sync_engine_and_sessionmaker() -> tuple[Engine, sessionmaker[Session]]:  # pragma: no cover
+    """Create sync engine/sessionmaker for Celery workers running outside the event loop."""
+    database_url = get_database_url()
+    connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
+
+    pool_config = {
+        "pool_size": 20,
+        "max_overflow": 20,
+        "pool_timeout": 5,
+        "pool_recycle": 1800,
+        "pool_pre_ping": True,
+    }
+
+    eng = create_engine(database_url, future=True, connect_args=connect_args, **pool_config)
+    sess = sessionmaker(bind=eng, future=True)
+
+    return eng, sess
+
+
 def get_engine():  # pragma: no cover - simple accessor
     return _get_engine_and_sessionmaker()[0]
 
 
 def get_session_maker():  # pragma: no cover - simple accessor
     return _get_engine_and_sessionmaker()[1]
+
+
+def get_sync_engine():  # pragma: no cover - simple accessor
+    return _get_sync_engine_and_sessionmaker()[0]
+
+
+def get_sync_session_maker():  # pragma: no cover - simple accessor
+    return _get_sync_engine_and_sessionmaker()[1]
 
 
 async def get_db() -> AsyncGenerator[AsyncSession]:  # pragma: no cover

@@ -169,10 +169,7 @@ class GalleryRepository(BaseRepository):
         return True
 
     async def soft_delete_gallery_async(self, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> bool:
-        """Soft delete gallery (mark as deleted).
-
-        NOTE: DB calls are direct (no run_in_threadpool) to avoid session lifecycle race conditions.
-        """
+        """Soft delete gallery (mark as deleted)."""
         gallery = await self.get_gallery_by_id_and_owner(gallery_id, owner_id)
         if not gallery:
             return False
@@ -402,41 +399,6 @@ class GalleryRepository(BaseRepository):
 
         # Note: S3 deletion is done asynchronously in a background task
         # This method only deletes from database
-        await self.db.delete(photo)
-        await self.db.commit()
-        return True
-
-    # TODO remove this method and use delete_photo with async S3 cleanup instead.
-    async def delete_photo_async(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID, s3_client: "AsyncS3Client") -> bool:  # type: ignore
-        """Delete photo with S3 cleanup
-
-        NOTE: DB calls are direct (no run_in_threadpool) to avoid session lifecycle race conditions.
-        Short DB operations can safely block in async context.
-        """
-        photo = await self.get_photo_by_id_and_owner(photo_id, owner_id)
-        if not photo or photo.gallery_id != gallery_id:
-            return False
-
-        # Update storage quota
-        user_repo = UserRepository(self.db)
-        if photo.status == PhotoUploadStatus.SUCCESSFUL:
-            await user_repo.decrement_storage_used(owner_id, photo.file_size, commit=False)
-        elif photo.status == PhotoUploadStatus.PENDING:
-            await user_repo.release_reserved_storage(owner_id, photo.file_size, commit=False)
-
-        # Delete both original and thumbnail from S3
-        try:
-            await s3_client.delete_file(photo.object_key)
-        except Exception as e:
-            logger.warning("Failed to delete original photo %s: %s", photo.object_key, e)
-
-        if photo.thumbnail_object_key != photo.object_key:  # Only delete if different
-            try:
-                await s3_client.delete_file(photo.thumbnail_object_key)
-            except Exception as e:
-                logger.warning("Failed to delete thumbnail %s: %s", photo.thumbnail_object_key, e)
-
-        # Delete from database
         await self.db.delete(photo)
         await self.db.commit()
         return True

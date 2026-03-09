@@ -16,7 +16,7 @@ import pytest
 import pytest_asyncio
 from botocore.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from testcontainers.core.container import DockerContainer
@@ -55,7 +55,7 @@ os.environ.update(
         "JWT_SECRET_KEY": "supersecretkeysupersecretkeysupersecretkey",
         "ADMIN_JWT_SECRET_KEY": "adminsecretkeyadminsecretkeyadminsecretkey",
         "INVITE_CODE": "testinvitecode",
-        "ENVIRONMENT": "pytest",  # Use InMemoryBroker for tasks in tests
+        "ENVIRONMENT": "pytest",
     }
 )
 
@@ -434,10 +434,11 @@ def postgres_container(_postgres_server: PostgresConnectionInfo, request: pytest
     with _temporary_env_vars(env_updates):
         # Clear the database connection caches after environment is set up
         # This ensures tasks get the correct test database connection
-        from viewport.models.db import _get_engine_and_sessionmaker, get_database_url
+        from viewport.models.db import _get_engine_and_sessionmaker, _get_sync_engine_and_sessionmaker, get_database_url
 
         get_database_url.cache_clear()
         _get_engine_and_sessionmaker.cache_clear()
+        _get_sync_engine_and_sessionmaker.cache_clear()
 
         try:
             yield worker_connection
@@ -452,7 +453,7 @@ def postgres_container(_postgres_server: PostgresConnectionInfo, request: pytest
 
 
 @pytest.fixture(scope="session")
-def engine(postgres_container: PostgresConnectionInfo) -> Generator[AsyncEngine]:
+def async_engine(postgres_container: PostgresConnectionInfo) -> Generator[AsyncEngine]:
     """Фикстура движка SQLAlchemy с областью видимости на сессию."""
 
     from viewport.models import Gallery, Photo, ShareLink, User  # noqa: F401
@@ -476,13 +477,29 @@ def engine(postgres_container: PostgresConnectionInfo) -> Generator[AsyncEngine]
     asyncio.run(_drop_all())
 
 
+@pytest.fixture(scope="session")
+def engine(async_engine: AsyncEngine) -> Generator[AsyncEngine]:
+    yield async_engine
+
+
+@pytest.fixture(scope="session")
+def sync_engine(postgres_container: PostgresConnectionInfo) -> Generator[Engine]:
+    """Sync engine for Celery task tests against the same test database."""
+    db_url = postgres_container.get_connection_url(driver="psycopg")
+    sync_db_engine = create_engine(db_url)
+    try:
+        yield sync_db_engine
+    finally:
+        sync_db_engine.dispose()
+
+
 @pytest.fixture(autouse=True)
-def _cleanup_database(engine: AsyncEngine, request) -> None:
+def _cleanup_database(async_engine: AsyncEngine, request) -> None:
     """Clear all tables before each test to keep isolation simple with AsyncSession."""
     from viewport.models.db import Base
 
     async def _truncate() -> None:
-        async with engine.begin() as conn:
+        async with async_engine.begin() as conn:
             table_names = [table.name for table in Base.metadata.tables.values()]
             if table_names:
                 await conn.execute(text(f"TRUNCATE {', '.join(table_names)} CASCADE;"))
@@ -491,9 +508,9 @@ def _cleanup_database(engine: AsyncEngine, request) -> None:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def db_session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
+async def db_session(async_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     """Фикстура сессии базы данных с изоляцией на каждый тест."""
-    session_factory = async_sessionmaker(bind=engine, expire_on_commit=False)
+    session_factory = async_sessionmaker(bind=async_engine, expire_on_commit=False)
     async with session_factory() as session:
         try:
             yield session
@@ -609,26 +626,6 @@ def app_client(
             yield test_client
     finally:
         app.dependency_overrides.clear()
-
-
-@pytest.fixture(scope="session", autouse=True)
-def _taskiq_test_setup(app_client: TestClient):
-    """Populate Taskiq dependency context for InMemoryBroker testing.
-
-    This fixture initializes the dependency context that Taskiq uses to resolve
-    task dependencies when using InMemoryBroker. This is required for tasks to
-    access FastAPI dependencies during testing.
-    """
-    import taskiq_fastapi
-
-    from viewport.main import app
-    from viewport.tkq import broker
-
-    # Populate dependency context for InMemoryBroker
-    taskiq_fastapi.populate_dependency_context(broker, app)
-    yield
-    # Clean up dependency context
-    broker.custom_dependency_context = {}
 
 
 @pytest.fixture(scope="function")
