@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Any, BinaryIO, cast
 
 import aioboto3
 import boto3
-from aiobotocore.config import AioConfig
 from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -24,8 +23,6 @@ from viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
 from viewport.s3_utils import S3Settings
 
 logger = logging.getLogger(__name__)
-
-_DNS_CACHE_TTL_SECONDS = 300
 
 if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
@@ -51,21 +48,13 @@ class AsyncS3Client:
         # - Small pool size (15 connections max)
         # - Read timeout forces connections to close after idle period
         # - Standard retries with exponential backoff for transient errors
-        base_config = {
-            "signature_version": self.settings.signature_version,
-            "max_pool_connections": 15,  # Small pool to avoid memory bloat
-            "retries": {"max_attempts": 3, "mode": "standard"},
-            "connect_timeout": 10,
-            "read_timeout": 10,  # Shorter timeout to close idle connections faster
-            "s3": {"addressing_style": "path"},
-        }
-        self._config = Config(**base_config)
-        self._async_config = AioConfig(
-            **base_config,
-            connector_args={
-                "use_dns_cache": True,
-                "ttl_dns_cache": _DNS_CACHE_TTL_SECONDS,
-            },
+        self._config = Config(
+            signature_version=self.settings.signature_version,
+            max_pool_connections=15,  # Small pool to avoid memory bloat
+            retries={"max_attempts": 3, "mode": "standard"},
+            connect_timeout=10,
+            read_timeout=10,  # Shorter timeout to close idle connections faster
+            s3={"addressing_style": "path"},
         )
         self._presign_client = None
         # Optimized transfer config for faster uploads:
@@ -117,7 +106,7 @@ class AsyncS3Client:
 
         Usage: async with self._get_s3_client() as s3:
         """
-        return cast(AbstractAsyncContextManager[Any], self.session.client("s3", endpoint_url=self._endpoint_url, config=self._async_config))
+        return cast(AbstractAsyncContextManager[Any], self.session.client("s3", endpoint_url=self._endpoint_url, config=self._config))
 
     def _get_presign_client(self) -> "S3Client":
         if self._presign_client is None:

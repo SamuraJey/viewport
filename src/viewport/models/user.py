@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from viewport.models.db import Base
 
 if TYPE_CHECKING:
-    from .gallery import Gallery
+    from viewport.models.gallery import Gallery
 
 
 class User(Base):

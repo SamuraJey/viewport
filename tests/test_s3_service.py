@@ -54,11 +54,6 @@ class TestAsyncS3ClientInit:
         session2 = s3_client.session
         assert session1 is session2  # Shared session for memory efficiency
 
-    def test_async_client_uses_extended_dns_cache(self, s3_client):
-        """Test that async S3 clients use aiohttp DNS caching via AioConfig."""
-        assert s3_client._async_config.connector_args["use_dns_cache"] is True
-        assert s3_client._async_config.connector_args["ttl_dns_cache"] == 300
-
 
 class TestAsyncS3ClientUploadFileobj:
     """Tests for upload_fileobj method."""
