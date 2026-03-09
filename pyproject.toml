@@ -24,10 +24,7 @@ dependencies = [
     "aioboto3>=15.1.0,<16.0.0",
     "zipstream-ng>=1.9.0,<2.0.0",
     "uvloop>=0.22.1,<0.23.0",
-    "taskiq>=0.12.1",
-    "taskiq-fastapi>=0.4.0",
-    "taskiq-redis>=1.2.2",
-    "aiodns>=4.0.0",
+    "celery>=5.4.0,<6.0.0",
 ]
 
 [dependency-groups]

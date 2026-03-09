@@ -6,22 +6,6 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 
-def create_valid_jpeg_bytes() -> bytes:
-    buffer = io.BytesIO()
-    Image.new("RGB", (32, 32), "orange").save(buffer, format="JPEG", quality=85)
-    buffer.seek(0)
-    return buffer.read()
-
-
-def _ensure_valid_image_bytes(content: bytes) -> bytes:
-    try:
-        with Image.open(io.BytesIO(content)) as img:
-            img.verify()
-        return content
-    except Exception:
-        return create_valid_jpeg_bytes()
-
-
 def register_and_login(client: TestClient, email: str, password: str, invite_code: str) -> str:
     """Register a user and return their access token."""
     reg_payload = {"email": email, "password": password, "invite_code": invite_code}
@@ -33,14 +17,32 @@ def register_and_login(client: TestClient, email: str, password: str, invite_cod
     return cast(str, login_response.json()["tokens"]["access_token"])
 
 
+def _build_valid_image_upload(filename: str, fallback_content: bytes) -> tuple[bytes, str]:
+    suffix = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
+    format_map = {
+        "jpg": ("JPEG", "image/jpeg"),
+        "jpeg": ("JPEG", "image/jpeg"),
+        "png": ("PNG", "image/png"),
+        "webp": ("WEBP", "image/webp"),
+        "gif": ("GIF", "image/gif"),
+    }
+    image_format, content_type = format_map.get(suffix, ("JPEG", "image/jpeg"))
+
+    width = max(1, min(64, len(fallback_content) or 1))
+    buffer = io.BytesIO()
+    Image.new("RGB", (width, 1), "white").save(buffer, format=image_format)
+    return buffer.getvalue(), content_type
+
+
 def upload_photo_via_presigned(client: TestClient, gallery_id: str, content: bytes, filename: str = "photo.jpg") -> str:
     """Upload a photo using the presigned upload flow and return its ID."""
-    image_content = _ensure_valid_image_bytes(content)
+    upload_content, content_type = _build_valid_image_upload(filename, content)
+
     files_payload = [
         {
             "filename": filename,
-            "file_size": len(image_content),
-            "content_type": "image/jpeg",
+            "file_size": len(upload_content),
+            "content_type": content_type,
         }
     ]
 
@@ -52,7 +54,7 @@ def upload_photo_via_presigned(client: TestClient, gallery_id: str, content: byt
 
     presigned_url = item["presigned_data"]["url"]
     headers = item["presigned_data"]["headers"]
-    upload_resp = requests.put(presigned_url, headers=headers, data=image_content)
+    upload_resp = requests.put(presigned_url, headers=headers, data=upload_content)
     assert upload_resp.status_code in {200, 204}
 
     confirm_resp = client.post(

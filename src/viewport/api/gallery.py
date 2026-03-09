@@ -3,8 +3,10 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from viewport.auth_utils import get_current_user
+from viewport.background_tasks import delete_gallery_data_task
 from viewport.dependencies import get_s3_client
 from viewport.models.db import get_db
 from viewport.models.user import User
@@ -13,7 +15,6 @@ from viewport.s3_service import AsyncS3Client
 from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse, GalleryUpdateRequest
 from viewport.schemas.photo import PhotoResponse
 from viewport.schemas.sharelink import ShareLinkResponse
-from viewport.tasks import delete_gallery_data_task
 
 router = APIRouter(prefix="/galleries", tags=["galleries"])
 logger = logging.getLogger(__name__)
@@ -169,7 +170,7 @@ async def delete_gallery(
     if not await repo.soft_delete_gallery(gallery_id, current_user.id):
         raise HTTPException(status_code=404, detail="Gallery not found")
 
-    await delete_gallery_data_task.kiq(str(gallery_id))
+    await run_in_threadpool(delete_gallery_data_task.delay, str(gallery_id))
 
 
 @router.patch("/{gallery_id}", response_model=GalleryResponse)
