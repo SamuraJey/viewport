@@ -276,7 +276,7 @@ export const UploadSelectionContent = ({
           ref={fileInputRef}
           type="file"
           multiple
-          accept="image/jpeg,image/png,image/jpg,"
+          accept="image/jpeg,image/png,image/jpg"
           onChange={handleFileInput}
           className="hidden"
         />
@@ -386,7 +386,7 @@ export const UploadSelectionContent = ({
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/*"
+        accept="image/jpeg,image/png,image/jpg"
         onChange={handleFileInput}
         className="hidden"
       />
