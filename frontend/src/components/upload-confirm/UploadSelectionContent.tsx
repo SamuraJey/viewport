@@ -78,7 +78,9 @@ const FileCard = memo(
         }`}
       >
         <div className="relative aspect-4/3 w-full shrink-0 overflow-hidden bg-surface-1 dark:bg-surface-dark-2 border-b border-border/30">
-          {!shouldLoad && <ThumbSkeleton />}
+          {(!shouldLoad || (shouldLoad && !thumbUrl && file.type.startsWith('image/'))) && (
+            <ThumbSkeleton />
+          )}
           {shouldLoad && thumbUrl ? (
             <img
               src={thumbUrl}
@@ -88,7 +90,7 @@ const FileCard = memo(
               }`}
               decoding="async"
             />
-          ) : shouldLoad && !thumbUrl ? (
+          ) : shouldLoad && !thumbUrl && !file.type.startsWith('image/') ? (
             <div className="w-full h-full flex items-center justify-center">
               <ImageOff className="w-8 h-8 text-muted/60" />
             </div>
@@ -239,7 +241,12 @@ export const UploadSelectionContent = ({
   // Empty state when no files
   if (files.length === 0) {
     return (
-      <div className="space-y-6">
+      <div
+        className={`space-y-6 transition-all duration-200 ${isDragOver ? 'scale-[1.01]' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-border/40">
           <div>
             <h3 className="text-lg font-bold text-text dark:text-white tracking-tight">
@@ -251,7 +258,21 @@ export const UploadSelectionContent = ({
           </div>
         </div>
 
-        <div className="flex flex-col items-center justify-center py-16 px-8">
+        <div
+          className={`relative flex flex-col items-center justify-center py-16 px-8 rounded-2xl border-2 border-dashed transition-all duration-200 ${
+            isDragOver ? 'border-accent bg-accent/5' : 'border-border/40 hover:border-accent/40'
+          }`}
+        >
+          {isDragOver && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-accent/10 backdrop-blur-sm rounded-2xl">
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-accent/20 flex items-center justify-center">
+                  <Upload className="w-8 h-8 text-accent" />
+                </div>
+                <p className="text-lg font-semibold text-text dark:text-white">Drop images here</p>
+              </div>
+            </div>
+          )}
           <div className="w-24 h-24 rounded-full bg-surface-1 dark:bg-surface-dark-1 border-2 border-dashed border-border/50 flex items-center justify-center mb-6">
             <Images className="w-10 h-10 text-muted" />
           </div>
