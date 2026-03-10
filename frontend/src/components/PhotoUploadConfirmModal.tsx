@@ -16,6 +16,7 @@ interface PhotoUploadConfirmModalProps {
   galleryId: string;
   onUploadComplete: (result: PhotoUploadResponse) => void;
   onFilesChange?: (files: File[]) => void;
+  onModalStateChange?: (isOpen: boolean) => void;
 }
 
 export const PhotoUploadConfirmModal = memo(
@@ -27,6 +28,7 @@ export const PhotoUploadConfirmModal = memo(
     galleryId,
     onUploadComplete,
     onFilesChange,
+    onModalStateChange,
   }: PhotoUploadConfirmModalProps) => {
     const {
       isUploading,
@@ -68,7 +70,8 @@ export const PhotoUploadConfirmModal = memo(
       cancelUpload();
       setShowCancelWarning(false);
       onClose();
-    }, [onClose, cancelUpload]);
+      onModalStateChange?.(false);
+    }, [onClose, cancelUpload, onModalStateChange]);
 
     // Handle cancel attempt - show warning first, then close on second attempt
     const handleCancelAttempt = useCallback(() => {
@@ -89,11 +92,25 @@ export const PhotoUploadConfirmModal = memo(
         onClose();
         setResult(null);
         setShowCancelWarning(false);
+        onModalStateChange?.(false);
+      } else if (files.length === 0) {
+        // No files selected - close without warning
+        onClose();
+        setShowCancelWarning(false);
+        onModalStateChange?.(false);
       } else {
         // Show confirmation before closing
         handleCancelAttempt();
       }
-    }, [result, onUploadComplete, onClose, setResult, handleCancelAttempt]);
+    }, [
+      result,
+      files.length,
+      onUploadComplete,
+      onClose,
+      setResult,
+      handleCancelAttempt,
+      onModalStateChange,
+    ]);
 
     // Handle Escape key
     useEffect(() => {
@@ -144,7 +161,7 @@ export const PhotoUploadConfirmModal = memo(
         />
 
         <motion.div
-          className="relative my-4 sm:my-8 flex w-full max-w-5xl min-h-0 max-h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-[2rem] border border-border/50 bg-surface/95 shadow-2xl backdrop-blur-xl sm:max-h-[calc(100vh-3rem)] dark:border-border/20 dark:bg-surface-foreground/95"
+          className="relative my-4 sm:my-8 flex w-full max-w-5xl min-h-0 max-h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-4xl border border-border/50 bg-surface/95 shadow-2xl backdrop-blur-xl sm:max-h-[calc(100vh-3rem)] dark:border-border/20 dark:bg-surface-foreground/95"
           initial={{ opacity: 0, scale: 0.95, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
@@ -214,6 +231,7 @@ export const PhotoUploadConfirmModal = memo(
                 renameWarnings={renameWarnings}
                 isUploading={isUploading}
                 onRemoveFile={handleRemoveFile}
+                onFilesChange={onFilesChange}
               />
             )}
 

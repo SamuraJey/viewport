@@ -10,6 +10,7 @@ interface PhotoUploaderProps {
   onUploadComplete: (result: PhotoUploadResponse) => void;
   existingFilenames?: string[];
   showDropzone?: boolean;
+  onModalStateChange?: (isOpen: boolean) => void;
 }
 
 export interface PhotoUploaderHandle {
@@ -26,7 +27,16 @@ interface FileWithMeta {
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
 
 export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>(
-  ({ galleryId, onUploadComplete, existingFilenames = [], showDropzone = true }, ref) => {
+  (
+    {
+      galleryId,
+      onUploadComplete,
+      existingFilenames = [],
+      showDropzone = true,
+      onModalStateChange,
+    },
+    ref,
+  ) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [dragActive, setDragActive] = useState(false);
     const [files, setFiles] = useState<FileWithMeta[]>([]);
@@ -53,6 +63,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
       if (validFiles.length > 0) {
         setFiles(validated);
         setShowConfirmModal(true);
+        onModalStateChange?.(true);
       } else {
         // Show only error files if any
         const errorFiles = validated.filter((f) => f.error);
@@ -94,6 +105,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+      onModalStateChange?.(false);
       // Call parent handler with result
       onUploadComplete(result);
     };
@@ -191,6 +203,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
               galleryId={galleryId}
               onUploadComplete={handleUploadComplete}
               onFilesChange={handleFilesChange}
+              onModalStateChange={onModalStateChange}
             />
           )}
         </AnimatePresence>

@@ -123,7 +123,7 @@ export const UploadModalFooter = ({
             ref={uploadButtonRef}
             onClick={onUpload}
             disabled={!hasValidFiles || isUploading}
-            className="px-5 py-2.5 bg-text hover:bg-text/90 text-surface dark:bg-white dark:text-black text-sm font-medium rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-w-[120px] justify-center shadow-xs focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
+            className="px-5 py-2.5 bg-text hover:bg-text/90 text-surface dark:bg-white dark:text-black text-sm font-medium rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-w-30 justify-center shadow-xs focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
           >
             {!isUploading && <Upload className="w-4 h-4" />}
             {isUploading ? 'Uploading...' : 'Upload'}
