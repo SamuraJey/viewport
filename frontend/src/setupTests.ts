@@ -16,8 +16,8 @@ Object.defineProperty(window, 'IntersectionObserver', {
         this as unknown as IntersectionObserver,
       );
     }
-    unobserve() { }
-    disconnect() { }
+    unobserve() {}
+    disconnect() {}
     takeRecords() {
       return [];
     }
@@ -66,8 +66,6 @@ Object.defineProperty(window, 'location', {
     reload: vi.fn(),
   },
 });
-
-
 
 // Mock window.confirm
 Object.defineProperty(window, 'confirm', {

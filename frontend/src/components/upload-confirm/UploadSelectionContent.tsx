@@ -62,7 +62,7 @@ const useThumbnails = (files: File[]) => {
   }, [files]);
 
   // RequestThumb becomes a no-op as URLs are created instantly
-  const requestThumb = useCallback(() => { }, []);
+  const requestThumb = useCallback(() => {}, []);
 
   useEffect(() => {
     const entries = entriesRef.current;
@@ -112,7 +112,7 @@ const FileCard = memo(
             observer.disconnect();
           }
         },
-        { rootMargin: '100px' }
+        { rootMargin: '100px' },
       );
       if (cardRef.current) observer.observe(cardRef.current);
       return () => observer.disconnect();
@@ -123,10 +123,11 @@ const FileCard = memo(
     return (
       <div
         ref={cardRef}
-        className={`relative overflow-hidden rounded-[1.75rem] border transition-all duration-200 group ${hasError
+        className={`relative overflow-hidden rounded-[1.75rem] border transition-all duration-200 group ${
+          hasError
             ? 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/20'
             : 'bg-surface-1 dark:bg-surface-dark-1 border-border/50 hover:border-accent/30 hover:shadow-lg hover:-translate-y-1'
-          }`}
+        }`}
       >
         <div className="relative aspect-4/3 overflow-hidden border-b border-border/40 bg-surface dark:bg-surface-dark-2">
           {/* Skeleton while not yet scrolled into view */}
@@ -138,8 +139,9 @@ const FileCard = memo(
               <img
                 src={thumbUrl}
                 alt={`Preview of ${file.name}`}
-                className={`w-full h-full object-cover animate-in fade-in duration-300 transition-transform group-hover:scale-[1.03] ${hasError ? 'opacity-60 saturate-75' : ''
-                  }`}
+                className={`w-full h-full object-cover animate-in fade-in duration-300 transition-transform group-hover:scale-[1.03] ${
+                  hasError ? 'opacity-60 saturate-75' : ''
+                }`}
                 decoding="async"
               />
               {hasError && (
@@ -161,8 +163,9 @@ const FileCard = memo(
           {shouldLoad && (
             <div className="absolute left-3 top-3">
               <span
-                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] backdrop-blur-sm ${hasError ? 'bg-red-600/85 text-white' : 'bg-emerald-600/85 text-white'
-                  }`}
+                className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] backdrop-blur-sm ${
+                  hasError ? 'bg-red-600/85 text-white' : 'bg-emerald-600/85 text-white'
+                }`}
               >
                 {hasError ? 'Fix required' : 'Ready'}
               </span>

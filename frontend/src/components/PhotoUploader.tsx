@@ -131,10 +131,11 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
 
         {showDropzone && (
           <div
-            className={`uploader-zone relative flex flex-col items-center justify-center border-2 border-dashed rounded-3xl py-12 px-8 cursor-pointer select-none transition-all duration-300 ${dragActive
+            className={`uploader-zone relative flex flex-col items-center justify-center border-2 border-dashed rounded-3xl py-12 px-8 cursor-pointer select-none transition-all duration-300 ${
+              dragActive
                 ? 'uploader-zone--active border-accent bg-accent/10 dark:bg-accent/10 shadow-inner scale-[1.02]'
                 : 'border-border/50 dark:border-border/30 hover:border-accent/60 hover:bg-accent/5 dark:hover:bg-accent/5 bg-surface-1/50 dark:bg-surface-dark-1/50 hover:-translate-y-1'
-              } focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface`}
+            } focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface`}
             onClick={() => fileInputRef.current?.click()}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
