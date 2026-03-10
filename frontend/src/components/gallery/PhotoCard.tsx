@@ -1,8 +1,8 @@
 import { CheckSquare, Square, Search, Star, StarOff, Pencil, Download, Trash2 } from 'lucide-react';
-import type { PhotoResponse } from '../../types';
+import type { GalleryPhoto } from '../../types';
 
 interface PhotoCardProps {
-  photo: PhotoResponse;
+  photo: GalleryPhoto;
   index: number;
   isSelectionMode: boolean;
   isSelected: boolean;
@@ -52,11 +52,10 @@ export const PhotoCard = ({
   return (
     <div
       data-photo-card
-      className={`group bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-hidden rounded-2xl border shadow-xs transition-all duration-300 hover:shadow-md focus-within:shadow-md ${
-        isCover
+      className={`group bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-hidden rounded-2xl border shadow-xs transition-all duration-300 hover:shadow-md focus-within:shadow-md ${isCover
           ? 'border-amber-400 dark:border-amber-500 ring-2 ring-amber-400/20 dark:ring-amber-500/20'
           : 'border-border/50 dark:border-border/40 dark:hover:border-accent/50 dark:focus-within:border-accent/50'
-      }`}
+        }`}
     >
       {/* Cover indicator */}
       {isCover && (
@@ -73,11 +72,10 @@ export const PhotoCard = ({
             e.stopPropagation();
             onToggleSelection(photo.id, e.shiftKey);
           }}
-          className={`absolute top-3 left-3 z-10 p-1.5 rounded-xl transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
-            isSelected
+          className={`absolute top-3 left-3 z-10 p-1.5 rounded-xl transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${isSelected
               ? 'bg-accent text-accent-foreground shadow-md scale-110'
               : 'bg-surface/90 dark:bg-surface-dark-1/90 text-muted hover:text-text shadow-sm hover:scale-105 backdrop-blur-md'
-          }`}
+            }`}
           title={isSelected ? 'Deselect' : 'Select'}
         >
           {isSelected ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
