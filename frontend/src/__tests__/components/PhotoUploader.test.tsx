@@ -42,8 +42,46 @@ describe('PhotoUploader', () => {
       await user.upload(fileInput as HTMLInputElement, [file1, file2]);
 
       // Should show selected files
-      expect(screen.getByText('test1.jpg')).toBeInTheDocument();
-      expect(screen.getByText('test2.png')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('test1.jpg')).toBeInTheDocument();
+        expect(screen.getByText('test2.png')).toBeInTheDocument();
+      });
+
+      // Thumbnails are generated via native Blob URLs lazy-loaded by IntersectionObserver
+      await waitFor(() => {
+        expect(screen.getByAltText('Preview of test1.jpg')).toBeInTheDocument();
+        expect(screen.getByAltText('Preview of test2.png')).toBeInTheDocument();
+      });
+
+      // 1 call per file: for the thumbnail blob URL
+      expect(URL.createObjectURL).toHaveBeenCalled();
+    }
+  });
+
+  it('should revoke preview URL when a selected file is removed', async () => {
+    const user = userEvent.setup();
+    const file = new File(['image'], 'remove-me.jpg', { type: 'image/jpeg' });
+
+    render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
+
+    const fileInput = document.querySelector('input[type="file"]');
+    expect(fileInput).toBeInTheDocument();
+
+    if (fileInput) {
+      await user.upload(fileInput as HTMLInputElement, file);
+
+      // Thumbnail is generated asynchronously — wait for the img tag to appear
+      await waitFor(() => {
+        expect(screen.getByAltText('Preview of remove-me.jpg')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByLabelText('Remove remove-me.jpg'));
+
+      await waitFor(() => {
+        expect(screen.queryByAltText('Preview of remove-me.jpg')).not.toBeInTheDocument();
+      });
+
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
     }
   });
 
@@ -96,7 +134,7 @@ describe('PhotoUploader', () => {
     }
   });
 
-  it('should handle drag and drop events', () => {
+  it('should handle drag and drop events', async () => {
     const file = new File(['image'], 'dropped.jpg', { type: 'image/jpeg' });
 
     render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
@@ -118,7 +156,9 @@ describe('PhotoUploader', () => {
     });
 
     // Should show the dropped file
-    expect(screen.getByText('dropped.jpg')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('dropped.jpg')).toBeInTheDocument();
+    });
   });
 
   it('should trigger onUpload when files are ready and conditions are met', async () => {
@@ -135,7 +175,9 @@ describe('PhotoUploader', () => {
       await user.upload(fileInput as HTMLInputElement, [file]);
 
       // The component should show the file is selected
-      expect(screen.getByText('test.jpg')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('test.jpg')).toBeInTheDocument();
+      });
     }
   });
 

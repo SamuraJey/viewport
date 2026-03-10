@@ -3,7 +3,7 @@ import { photoService } from '../services/photoService';
 import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../constants/upload';
 import { getSafeNameAndExtension } from '../lib/filenameUtils';
 import type { PhotoUploadResponse } from '../services/photoService';
-import type { UploadPreparedFile, UploadRenameWarning } from '../types';
+import type { UploadPreparedFile, UploadRenameWarning, PhotoUploadResult } from '../types';
 
 export interface UploadProgress {
   loaded: number;
@@ -29,6 +29,7 @@ export const usePhotoUpload = (
   const [result, setResult] = useState<PhotoUploadResponse | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const failedFilesRef = useRef<UploadPreparedFile[]>([]);
+  const sessionResultRef = useRef<PhotoUploadResponse | null>(null);
 
   const { preparedFiles, renameWarnings } = useMemo(() => {
     const occupied = new Set(existingFilenames);
@@ -107,20 +108,25 @@ export const usePhotoUpload = (
         .map((r) => preparedByName.get(r.original_filename || r.filename))
         .filter((item) => item !== undefined) as UploadPreparedFile[];
 
+      sessionResultRef.current = uploadResult;
       setResult(uploadResult);
     } catch (error) {
       if (!(error instanceof Error && error.message.includes('cancelled'))) {
         console.error('Upload failed:', error);
-        setResult({
-          results: preparedFiles.map((item) => ({
-            filename: item.filename,
-            success: false,
-            error: 'Upload failed',
-          })),
+        const errRes: PhotoUploadResponse = {
+          results: preparedFiles.map(
+            (item): PhotoUploadResult => ({
+              filename: item.filename,
+              success: false,
+              error: 'Upload failed',
+            }),
+          ),
           total_files: preparedFiles.length,
           successful_uploads: 0,
           failed_uploads: preparedFiles.length,
-        });
+        };
+        sessionResultRef.current = errRes;
+        setResult(errRes);
         failedFilesRef.current = preparedFiles;
       }
     } finally {
@@ -132,6 +138,9 @@ export const usePhotoUpload = (
 
   const handleRetryFailed = useCallback(async () => {
     if (failedFilesRef.current.length === 0) return;
+
+    // Capture previous results for merging and in case of cancel
+    const prevResult = sessionResultRef.current;
 
     setIsUploading(true);
     setProgress(null);
@@ -151,23 +160,80 @@ export const usePhotoUpload = (
 
       failedFilesRef.current = retryResult.results
         .filter((r) => !r.success && r.retryable !== false)
-        .map((r) => retryByName.get(r.filename))
+        .map((r) => retryByName.get(r.original_filename || r.filename))
         .filter((item) => item !== undefined) as UploadPreparedFile[];
 
-      setResult(retryResult);
+      let mergedResult = retryResult;
+      if (prevResult) {
+        const newResults = [...prevResult.results];
+        retryResult.results.forEach((retryItem) => {
+          const index = newResults.findIndex(
+            (r) =>
+              (r.original_filename || r.filename) ===
+              (retryItem.original_filename || retryItem.filename),
+          );
+          if (index !== -1) {
+            newResults[index] = retryItem;
+          } else {
+            newResults.push(retryItem);
+          }
+        });
+        mergedResult = {
+          results: newResults,
+          total_files: newResults.length,
+          successful_uploads: newResults.filter((r) => r.success).length,
+          failed_uploads: newResults.filter((r) => !r.success).length,
+        };
+      }
+
+      sessionResultRef.current = mergedResult;
+      setResult(mergedResult);
     } catch (error) {
-      if (!(error instanceof Error && error.message.includes('cancelled'))) {
+      if (error instanceof Error && error.message.includes('cancelled')) {
+        // If cancelled, restore the previous state so the user sees the existing successes/failures
+        if (prevResult) {
+          sessionResultRef.current = prevResult;
+          setResult(prevResult);
+        }
+      } else {
         console.error('Retry failed:', error);
-        setResult({
-          results: failedFilesRef.current.map((item) => ({
-            filename: item.filename,
-            success: false,
-            error: 'Retry failed',
-          })),
+        let mergedErrorResult: PhotoUploadResponse = {
+          results: failedFilesRef.current.map(
+            (item): PhotoUploadResult => ({
+              filename: item.filename,
+              success: false,
+              error: 'Retry failed',
+            }),
+          ),
           total_files: failedFilesRef.current.length,
           successful_uploads: 0,
           failed_uploads: failedFilesRef.current.length,
-        });
+        };
+
+        if (prevResult) {
+          const newErrorResults = [...prevResult.results];
+          mergedErrorResult.results.forEach((retryItem) => {
+            const index = newErrorResults.findIndex(
+              (r) =>
+                (r.original_filename || r.filename) ===
+                (retryItem.original_filename || retryItem.filename),
+            );
+            if (index !== -1) {
+              newErrorResults[index] = retryItem;
+            } else {
+              newErrorResults.push(retryItem);
+            }
+          });
+          mergedErrorResult = {
+            results: newErrorResults,
+            total_files: newErrorResults.length,
+            successful_uploads: newErrorResults.filter((r) => r.success).length,
+            failed_uploads: newErrorResults.filter((r) => !r.success).length,
+          };
+        }
+
+        sessionResultRef.current = mergedErrorResult;
+        setResult(mergedErrorResult);
       }
     } finally {
       setIsUploading(false);

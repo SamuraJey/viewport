@@ -166,7 +166,7 @@ class PhotoUploadIntentRequest(BaseModel):
 
     filename: str = Field(..., min_length=1, max_length=255)
     file_size: int = Field(..., gt=0)
-    content_type: str = Field(..., pattern=r"^image/(jpeg|jpg|png|webp|gif)$")
+    content_type: str = Field(..., pattern=r"^image/(jpeg|jpg|png)$")
 
 
 class PresignedUploadData(BaseModel):

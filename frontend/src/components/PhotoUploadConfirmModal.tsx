@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { X } from 'lucide-react';
+import { CheckCircle2, Images, Upload, X } from 'lucide-react';
 import type { PhotoUploadResponse } from '../services/photoService';
 import { usePhotoUpload } from '../hooks';
 import { UploadSelectionContent } from './upload-confirm/UploadSelectionContent';
@@ -16,6 +16,7 @@ interface PhotoUploadConfirmModalProps {
   galleryId: string;
   onUploadComplete: (result: PhotoUploadResponse) => void;
   onFilesChange?: (files: File[]) => void;
+  onModalStateChange?: (isOpen: boolean) => void;
 }
 
 export const PhotoUploadConfirmModal = memo(
@@ -27,6 +28,7 @@ export const PhotoUploadConfirmModal = memo(
     galleryId,
     onUploadComplete,
     onFilesChange,
+    onModalStateChange,
   }: PhotoUploadConfirmModalProps) => {
     const {
       isUploading,
@@ -68,7 +70,8 @@ export const PhotoUploadConfirmModal = memo(
       cancelUpload();
       setShowCancelWarning(false);
       onClose();
-    }, [onClose, cancelUpload]);
+      onModalStateChange?.(false);
+    }, [onClose, cancelUpload, onModalStateChange]);
 
     // Handle cancel attempt - show warning first, then close on second attempt
     const handleCancelAttempt = useCallback(() => {
@@ -81,11 +84,39 @@ export const PhotoUploadConfirmModal = memo(
       }
     }, [showCancelWarning, handleForceClose]);
 
+    // Close modal and clean up
+    const handleClose = useCallback(() => {
+      if (result) {
+        // Upload is complete - call onUploadComplete and close
+        onUploadComplete(result);
+        onClose();
+        setResult(null);
+        setShowCancelWarning(false);
+        onModalStateChange?.(false);
+      } else if (files.length === 0) {
+        // No files selected - close without warning
+        onClose();
+        setShowCancelWarning(false);
+        onModalStateChange?.(false);
+      } else {
+        // Show confirmation before closing
+        handleCancelAttempt();
+      }
+    }, [
+      result,
+      files.length,
+      onUploadComplete,
+      onClose,
+      setResult,
+      handleCancelAttempt,
+      onModalStateChange,
+    ]);
+
     // Handle Escape key
     useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape' && isOpen) {
-          handleCancelAttempt();
+          handleClose();
         }
       };
 
@@ -93,36 +124,36 @@ export const PhotoUploadConfirmModal = memo(
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
       }
-    }, [isOpen, isUploading, showCancelWarning, result, handleCancelAttempt]);
-
-    // Close modal and clean up
-    const handleClose = () => {
-      if (result) {
-        // Upload is complete - call onUploadComplete and close
-        onUploadComplete(result);
-        onClose();
-        setResult(null);
-        setShowCancelWarning(false);
-      } else {
-        // Show confirmation before closing
-        handleCancelAttempt();
-      }
-    };
+    }, [isOpen, handleClose]);
 
     const handleBackdropClick = (event: React.MouseEvent) => {
       if (event.target === event.currentTarget) {
-        handleCancelAttempt();
+        handleClose();
       }
     };
 
+    const modalTitle = result
+      ? 'Upload complete'
+      : isUploading
+        ? 'Uploading your photos'
+        : 'Review and upload photos';
+
+    const modalSubtitle = result
+      ? 'Check the result and close the window when you are ready.'
+      : isUploading
+        ? 'Keep this window open while the selected files are transferred.'
+        : `${validUploadCount} of ${files.length} file${files.length !== 1 ? 's' : ''} ready to upload.`;
+
+    if (!isOpen) return null;
+
     return (
       <div
-        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto pt-4 sm:pt-8 p-4"
+        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:p-6"
         role="dialog"
         aria-modal="true"
       >
         <motion.div
-          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-md"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -130,36 +161,51 @@ export const PhotoUploadConfirmModal = memo(
         />
 
         <motion.div
-          className="relative bg-surface dark:bg-surface-foreground rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden mb-6 sm:mb-8 border border-border/50 dark:border-border/20 backdrop-blur-xl"
+          className="relative my-4 sm:my-8 flex w-full max-w-5xl min-h-0 max-h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-4xl border border-border/50 bg-surface/95 shadow-2xl backdrop-blur-xl sm:max-h-[calc(100vh-3rem)] dark:border-border/20 dark:bg-surface-foreground/95"
           initial={{ opacity: 0, scale: 0.95, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-6 sm:p-8 border-b border-border/50 bg-surface/50 dark:bg-surface-foreground/50 backdrop-blur-md sticky top-0 z-10">
-            <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-text dark:text-white tracking-tight">
-                {result
-                  ? 'Ready to View'
-                  : isUploading
-                    ? 'Uploading Photos...'
-                    : 'Confirm Photo Upload'}
-              </h2>
-              {!result && !isUploading && (
-                <p className="text-sm font-medium text-muted mt-1.5">
-                  Review your files before uploading
-                </p>
-              )}
-            </div>
-            {!isUploading && result && (
+          <div className="sticky top-0 z-10 border-b border-border/50 bg-linear-to-r from-surface via-surface to-accent/5 px-5 py-5 backdrop-blur-md sm:px-7 sm:py-6 dark:from-surface-foreground dark:via-surface-foreground dark:to-accent/10">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-border/50 bg-surface/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted dark:bg-surface-dark-1/70">
+                    {result ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                    ) : isUploading ? (
+                      <Upload className="h-3.5 w-3.5 text-accent" />
+                    ) : (
+                      <Images className="h-3.5 w-3.5 text-accent" />
+                    )}
+                    {result ? 'Done' : isUploading ? 'In progress' : 'Ready to review'}
+                  </span>
+                  {!result && (
+                    <span className="inline-flex items-center rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">
+                      {files.length} file{files.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-2xl sm:text-3xl font-bold text-text dark:text-white tracking-tight">
+                    {modalTitle}
+                  </h2>
+                  <p className="mt-1.5 max-w-3xl text-sm sm:text-base text-muted">
+                    {modalSubtitle}
+                  </p>
+                </div>
+              </div>
+
               <button
                 onClick={handleClose}
-                className="p-2 text-muted hover:text-text dark:text-muted dark:hover:text-accent-foreground transition-all duration-200 hover:scale-110 hover:bg-surface-foreground dark:hover:bg-surface rounded-lg"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-border/50 bg-surface/80 text-muted transition-all duration-200 hover:scale-[1.03] hover:text-text hover:shadow-sm dark:bg-surface-dark-1/70 dark:hover:text-white"
+                aria-label="Close upload dialog"
               >
                 <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
-            )}
+            </div>
           </div>
 
           {/* Cancel Warning */}
@@ -172,7 +218,10 @@ export const PhotoUploadConfirmModal = memo(
           )}
 
           {/* Content */}
-          <div data-lenis-prevent className="p-5 sm:p-6 overflow-y-auto max-h-96 space-y-4">
+          <div
+            data-lenis-prevent
+            className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 lg:px-7 lg:py-7"
+          >
             {!result && !isUploading && (
               <UploadSelectionContent
                 files={files}
@@ -182,6 +231,7 @@ export const PhotoUploadConfirmModal = memo(
                 renameWarnings={renameWarnings}
                 isUploading={isUploading}
                 onRemoveFile={handleRemoveFile}
+                onFilesChange={onFilesChange}
               />
             )}
 
@@ -199,10 +249,9 @@ export const PhotoUploadConfirmModal = memo(
             failedCount={failedFilesRef.current.length}
             validUploadCount={validUploadCount}
             hasValidFiles={hasValidFiles}
-            filesCount={files.length}
             onRetryFailed={handleRetryFailed}
             onClose={handleClose}
-            onCancel={onClose}
+            onCancel={handleClose}
             onUpload={handleUpload}
             uploadButtonRef={uploadButtonRef}
           />

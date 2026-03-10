@@ -25,6 +25,7 @@ interface GalleryPhotoSectionProps {
   pagination: GalleryPagination;
   gridRef: MutableRefObject<HTMLDivElement | null>;
   photoUploaderRef: RefObject<PhotoUploaderHandle | null>;
+  onModalStateChange?: (isOpen: boolean) => void;
   state: {
     photoUrls: PhotoResponse[];
     isLoadingPhotos: boolean;
@@ -63,6 +64,7 @@ export const GalleryPhotoSection = ({
   pagination,
   gridRef,
   photoUploaderRef,
+  onModalStateChange,
   state,
   selection,
   actions,
@@ -117,6 +119,7 @@ export const GalleryPhotoSection = ({
         onUploadComplete={actions.onUploadComplete}
         existingFilenames={state.photoUrls.map((photo) => photo.filename)}
         showDropzone={false}
+        onModalStateChange={onModalStateChange}
       />
       {state.uploadError && (
         <div className="mt-3 text-danger bg-danger/10 dark:bg-danger/20 px-4 py-3 rounded-xl text-sm flex items-center gap-3 shadow-xs">

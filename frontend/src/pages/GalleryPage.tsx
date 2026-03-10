@@ -20,6 +20,7 @@ export const GalleryPage = () => {
   const galleryId = id!;
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showInitialLoadingState, setShowInitialLoadingState] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
 
@@ -165,10 +166,10 @@ export const GalleryPage = () => {
   return (
     <div
       className="relative min-h-screen pb-20"
-      onDragEnter={handleGalleryDragEnter}
-      onDragOver={handleGalleryDragOver}
-      onDragLeave={handleGalleryDragLeave}
-      onDrop={handleGalleryDrop}
+      onDragEnter={isModalOpen ? undefined : handleGalleryDragEnter}
+      onDragOver={isModalOpen ? undefined : handleGalleryDragOver}
+      onDragLeave={isModalOpen ? undefined : handleGalleryDragLeave}
+      onDrop={isModalOpen ? undefined : handleGalleryDrop}
     >
       <GalleryDragOverlay isActive={isPageDragActive} />
 
@@ -188,6 +189,7 @@ export const GalleryPage = () => {
           pagination={pagination}
           gridRef={gridRef}
           photoUploaderRef={photoUploaderRef}
+          onModalStateChange={setIsModalOpen}
           state={{
             photoUrls,
             isLoadingPhotos,

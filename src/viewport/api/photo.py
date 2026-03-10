@@ -37,8 +37,6 @@ CONTENT_TYPE_MAP = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".png": "image/png",
-    ".webp": "image/webp",
-    ".gif": "image/gif",
 }
 
 router = APIRouter(prefix="/galleries", tags=["photos"])

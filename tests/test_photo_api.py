@@ -267,7 +267,7 @@ class TestPhotoAPI:
         """sanitize_filename and content-type helper behave predictably."""
         assert sanitize_filename(".hidden/file?.png") == "hiddenfile.png"
         assert sanitize_filename("") == "file"
-        assert get_content_type_from_filename("photo.webp") == "image/webp"
+        assert get_content_type_from_filename("photo.jpg") == "image/jpeg"
         assert get_content_type_from_filename(None) == "image/jpeg"
 
     @pytest.mark.asyncio
