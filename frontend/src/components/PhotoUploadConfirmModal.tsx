@@ -81,22 +81,8 @@ export const PhotoUploadConfirmModal = memo(
       }
     }, [showCancelWarning, handleForceClose]);
 
-    // Handle Escape key
-    useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && isOpen) {
-          handleCancelAttempt();
-        }
-      };
-
-      if (isOpen) {
-        document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-      }
-    }, [isOpen, isUploading, showCancelWarning, result, handleCancelAttempt]);
-
     // Close modal and clean up
-    const handleClose = () => {
+    const handleClose = useCallback(() => {
       if (result) {
         // Upload is complete - call onUploadComplete and close
         onUploadComplete(result);
@@ -107,11 +93,25 @@ export const PhotoUploadConfirmModal = memo(
         // Show confirmation before closing
         handleCancelAttempt();
       }
-    };
+    }, [result, onUploadComplete, onClose, setResult, handleCancelAttempt]);
+
+    // Handle Escape key
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape' && isOpen) {
+          handleClose();
+        }
+      };
+
+      if (isOpen) {
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+      }
+    }, [isOpen, handleClose]);
 
     const handleBackdropClick = (event: React.MouseEvent) => {
       if (event.target === event.currentTarget) {
-        handleCancelAttempt();
+        handleClose();
       }
     };
 
