@@ -5,16 +5,6 @@ import { MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 import { formatFileSize } from '../../lib/utils';
 import { getFileUploadErrorText, hasFileUploadError } from './uploadConfirmUtils';
 
-const sanitizeForDisplay = (text: string): string => {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;');
-};
-
 interface UploadSelectionContentProps {
   files: File[];
   totalSize: number;
@@ -92,7 +82,7 @@ const FileCard = memo(
           {shouldLoad && thumbUrl ? (
             <img
               src={thumbUrl}
-              alt={`Preview of ${sanitizeForDisplay(file.name)}`}
+              alt={`Preview of ${file.name}`}
               className={`w-full h-full object-cover transition-opacity duration-300 ${
                 hasError ? 'opacity-40 saturate-50' : ''
               }`}
@@ -112,11 +102,8 @@ const FileCard = memo(
         </div>
 
         <div className="flex-1 p-3 min-w-0 flex flex-col">
-          <p
-            className="text-sm font-medium text-text dark:text-white truncate"
-            title={sanitizeForDisplay(file.name)}
-          >
-            {sanitizeForDisplay(file.name)}
+          <p className="text-sm font-medium text-text dark:text-white truncate" title={file.name}>
+            {file.name}
           </p>
           <span className="text-xs text-muted font-medium mt-0.5">{formatFileSize(file.size)}</span>
 
@@ -130,10 +117,10 @@ const FileCard = memo(
           {!hasError && renameWarning && (
             <div
               className="mt-2 text-xs text-yellow-600 dark:text-yellow-400 font-medium flex items-start gap-1"
-              title={`Will be renamed to ${sanitizeForDisplay(renameWarning)}`}
+              title={`Will be renamed to ${renameWarning}`}
             >
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              <span className="truncate">Rename: {sanitizeForDisplay(renameWarning)}</span>
+              <span className="truncate">Rename: {renameWarning}</span>
             </div>
           )}
         </div>
@@ -141,7 +128,7 @@ const FileCard = memo(
         <button
           onClick={() => onRemoveFile(index)}
           disabled={isUploading}
-          aria-label={`Remove ${sanitizeForDisplay(file.name)}`}
+          aria-label={`Remove ${file.name}`}
           className="absolute top-2 right-2 p-1.5 bg-black/40 text-white hover:bg-red-500 hover:text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-hidden backdrop-blur-md"
         >
           <X className="w-4 h-4" />
