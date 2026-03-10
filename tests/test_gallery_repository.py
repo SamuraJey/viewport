@@ -129,46 +129,6 @@ async def test_delete_photo_uses_single_transaction_for_quota_updates(repo: Gall
     assert not any(c[0] == "reserved" for c in calls)
 
 
-@pytest.mark.asyncio
-async def test_delete_photo_async_uses_single_transaction_for_quota_updates(repo: GalleryRepository, owner_id, monkeypatch):
-    gallery = await repo.create_gallery(owner_id, "Photo Async Tx")
-    photo = await repo.create_photo(gallery.id, f"{gallery.id}/async.jpg", f"{gallery.id}/async.jpg", 2048)
-
-    calls: list[tuple[str, int, bool]] = []
-
-    async def _mock_decrement_storage_used(self, user_id, bytes_to_decrement, commit=True):
-        calls.append(("used", int(bytes_to_decrement), commit))
-
-    async def _mock_release_reserved_storage(self, user_id, bytes_to_release, commit=True):
-        calls.append(("reserved", int(bytes_to_release), commit))
-
-    monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.decrement_storage_used", _mock_decrement_storage_used)
-    monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.release_reserved_storage", _mock_release_reserved_storage)
-
-    assert await repo.delete_photo_async(photo.id, gallery.id, owner_id, DummyAsyncS3Client()) is True
-    assert ("reserved", 2048, False) in calls
-    assert not any(c[0] == "used" for c in calls)
-
-
-@pytest.mark.asyncio
-async def test_delete_gallery_async_uses_single_transaction_for_quota_updates(repo: GalleryRepository, owner_id, monkeypatch):
-    gallery = await repo.create_gallery(owner_id, "Tx Async Delete")
-    calls: list[tuple[str, int, bool]] = []
-
-    async def _mock_decrement_storage_used(self, user_id, bytes_to_decrement, commit=True):
-        calls.append(("used", int(bytes_to_decrement), commit))
-
-    async def _mock_release_reserved_storage(self, user_id, bytes_to_release, commit=True):
-        calls.append(("reserved", int(bytes_to_release), commit))
-
-    monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.decrement_storage_used", _mock_decrement_storage_used)
-    monkeypatch.setattr("viewport.repositories.gallery_repository.UserRepository.release_reserved_storage", _mock_release_reserved_storage)
-
-    assert await repo.delete_gallery_async(gallery.id, owner_id, DummyAsyncS3Client()) is True
-    assert ("used", 0, False) in calls
-    assert ("reserved", 0, False) in calls
-
-
 async def _create_photo(repo: GalleryRepository, gallery_id: uuid.UUID, filename: str, owner_id: uuid.UUID) -> uuid.UUID:
     photo = await repo.create_photo(gallery_id, f"{gallery_id}/{filename}", f"{gallery_id}/thumb-{filename}", 1024, width=10, height=10)
     return photo.id
@@ -282,23 +242,6 @@ async def test_delete_photo(repo: GalleryRepository, owner_id):
 
     assert await repo.delete_photo(photo_id, gallery.id, owner_id, dummy)
     assert await repo.delete_photo(photo_id, gallery.id, owner_id, dummy) is False
-
-
-@pytest.mark.asyncio
-async def test_delete_photo_async(repo: GalleryRepository, owner_id):
-    gallery = await repo.create_gallery(owner_id, "Async Photo")
-    photo_id = (await repo.create_photo(gallery.id, f"{gallery.id}/async.jpg", f"{gallery.id}/thumb-async.jpg", 5)).id
-    photo = await repo.get_photo_by_id_and_gallery(photo_id, gallery.id)
-    assert photo
-
-    dummy = DummyAsyncS3Client()
-    result = await repo.delete_photo_async(photo.id, gallery.id, owner_id, dummy)
-    assert result is True
-    assert f"{gallery.id}/async.jpg" in dummy.deleted_files
-    assert f"{gallery.id}/thumb-async.jpg" in dummy.deleted_files
-
-    missing = await repo.delete_photo_async(photo.id, gallery.id, owner_id, dummy)
-    assert missing is False
 
 
 @pytest.mark.asyncio

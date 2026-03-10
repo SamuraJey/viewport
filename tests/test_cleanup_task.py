@@ -3,32 +3,34 @@ from uuid import uuid4
 
 import pytest
 from freezegun.api import FrozenDateTimeFactory
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.orm import Session
 
+from viewport.background_tasks import cleanup_orphaned_uploads_task
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.user import User
 from viewport.s3_utils import get_s3_client, get_s3_settings
-from viewport.tasks.maintenance_tasks import cleanup_orphaned_uploads_task_impl
+
+
+@pytest.fixture
+def engine(sync_engine):
+    return sync_engine
 
 
 class TestCleanupTask:
-    @pytest.mark.asyncio
-    async def test_cleanup_orphaned_uploads_task(self, engine, s3_container, freezer: FrozenDateTimeFactory):
+    def test_cleanup_orphaned_uploads_task(self, engine, s3_container, freezer: FrozenDateTimeFactory):
         # 0. Set initial time
         initial_time = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         freezer.move_to(initial_time)
 
-        session_factory = async_sessionmaker(engine, expire_on_commit=False)
-
         # Setup: Create a user and a gallery
-        async with session_factory() as session:
+        with Session(engine) as session:
             user = User(email=f"cleanup-{uuid4()}@example.com", password_hash="hashed", display_name="cleanup")
             session.add(user)
-            await session.flush()
+            session.flush()
 
             gallery = Gallery(owner_id=user.id, name="Test Gallery")
             session.add(gallery)
-            await session.flush()
+            session.flush()
 
             # Capture IDs before commit
             gallery_id = gallery.id
@@ -54,7 +56,7 @@ class TestCleanupTask:
                 file_size=100,
             )
             session.add(failed_photo)
-            await session.commit()
+            session.commit()
 
             orphaned_id = orphaned_photo.id
             orphaned_key = orphaned_photo.object_key
@@ -70,18 +72,18 @@ class TestCleanupTask:
         s3_client.put_object(Bucket=bucket, Key=failed_thumb_key, Body=b"dummy")
 
         # 2. Verify it's NOT deleted yet if we run cleanup now (it's new)
-        result = await cleanup_orphaned_uploads_task_impl()
+        result = cleanup_orphaned_uploads_task()
         assert result["deleted_count"] == 0
 
-        async with session_factory() as session:
-            assert await session.get(Photo, orphaned_id) is not None
-            assert await session.get(Photo, failed_id) is not None
+        with Session(engine) as session:
+            assert session.get(Photo, orphaned_id) is not None
+            assert session.get(Photo, failed_id) is not None
 
         # 3. Simulate time passing (1 hour and 1 minute)
         freezer.tick(timedelta(hours=1, minutes=1))
 
         # 4. Create another recent PENDING photo (should NOT be deleted)
-        async with session_factory() as session:
+        with Session(engine) as session:
             recent_photo = Photo(
                 id=uuid4(),
                 gallery_id=gallery_id,
@@ -91,24 +93,24 @@ class TestCleanupTask:
                 file_size=100,
             )
             session.add(recent_photo)
-            await session.commit()
+            session.commit()
             recent_id = recent_photo.id
             recent_key = recent_photo.object_key
 
         s3_client.put_object(Bucket=bucket, Key=recent_key, Body=b"dummy")
 
         # 5. Run the cleanup task again
-        result = await cleanup_orphaned_uploads_task_impl()
+        result = cleanup_orphaned_uploads_task()
         assert result["deleted_count"] >= 2  # At least orphaned and failed
 
         # 6. Verify results
-        async with session_factory() as session:
+        with Session(engine) as session:
             # Orphaned photo should be gone
-            assert await session.get(Photo, orphaned_id) is None
+            assert session.get(Photo, orphaned_id) is None
             # Failed photo should be gone
-            assert await session.get(Photo, failed_id) is None
+            assert session.get(Photo, failed_id) is None
             # Recent photo should still exist
-            assert await session.get(Photo, recent_id) is not None
+            assert session.get(Photo, recent_id) is not None
 
         # Verify S3 cleanup
         for key in [orphaned_key, failed_key, failed_thumb_key]:
@@ -122,14 +124,11 @@ class TestCleanupTask:
         # Recent S3 object should still exist
         s3_client.head_object(Bucket=bucket, Key=recent_key)
 
-    @pytest.mark.asyncio
-    async def test_cleanup_releases_reserved_only_for_pending(self, engine, s3_container, freezer: FrozenDateTimeFactory):
+    def test_cleanup_releases_reserved_only_for_pending(self, engine, s3_container, freezer: FrozenDateTimeFactory):
         initial_time = datetime(2025, 2, 1, 10, 0, 0, tzinfo=UTC)
         freezer.move_to(initial_time)
 
-        session_factory = async_sessionmaker(engine, expire_on_commit=False)
-
-        async with session_factory() as session:
+        with Session(engine) as session:
             user = User(
                 email=f"cleanup-reserved-{uuid4()}@example.com",
                 password_hash="hashed",
@@ -138,11 +137,11 @@ class TestCleanupTask:
                 storage_used=120,
             )
             session.add(user)
-            await session.flush()
+            session.flush()
 
             gallery = Gallery(owner_id=user.id, name="Reserved Cleanup Gallery")
             session.add(gallery)
-            await session.flush()
+            session.flush()
 
             pending_photo = Photo(
                 id=uuid4(),
@@ -162,7 +161,7 @@ class TestCleanupTask:
             )
             session.add(pending_photo)
             session.add(failed_photo)
-            await session.commit()
+            session.commit()
 
             pending_key = pending_photo.object_key
             failed_key = failed_photo.object_key
@@ -177,11 +176,11 @@ class TestCleanupTask:
 
         freezer.tick(timedelta(hours=1, minutes=5))
 
-        result = await cleanup_orphaned_uploads_task_impl()
+        result = cleanup_orphaned_uploads_task()
         assert result["deleted_count"] == 2
 
-        async with session_factory() as session:
-            refreshed_user = await session.get(User, user_id)
+        with Session(engine) as session:
+            refreshed_user = session.get(User, user_id)
             assert refreshed_user is not None
             assert refreshed_user.storage_reserved == 50
             assert refreshed_user.storage_used == 120
