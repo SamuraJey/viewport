@@ -249,7 +249,6 @@ export const PhotoUploadConfirmModal = memo(
             failedCount={failedFilesRef.current.length}
             validUploadCount={validUploadCount}
             hasValidFiles={hasValidFiles}
-            filesCount={files.length}
             onRetryFailed={handleRetryFailed}
             onClose={handleClose}
             onCancel={handleClose}

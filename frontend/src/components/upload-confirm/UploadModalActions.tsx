@@ -47,7 +47,6 @@ interface UploadModalFooterProps {
   failedCount: number;
   validUploadCount: number;
   hasValidFiles: boolean;
-  filesCount: number;
   onRetryFailed: () => void;
   onClose: () => void;
   onCancel: () => void;
