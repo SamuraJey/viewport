@@ -7,7 +7,6 @@ import type {
   UploadPreparedFile,
   BatchPresignedUploadsRequest,
   BatchPresignedUploadsResponse,
-  BatchPresignedUploadItem,
   ConfirmPhotoUploadItem,
   BatchConfirmUploadResponse,
 } from '../types';
@@ -317,49 +316,70 @@ const uploadPhotosPresigned = async (
       const batchFailedPhotoIds: string[] = [];
 
       // 1. Get presigned URLs for batch
-      let batchItems: BatchPresignedUploadItem[] = [];
-      try {
-        const response = await batchCreateUploadIntents(galleryId, batch, signal);
-        batchItems = response.items;
-      } catch {
+      const filesToPresign = batch.filter(
+        (f) =>
+          !f.presigned_data ||
+          !f.presigned_expires_at ||
+          f.presigned_expires_at < Date.now() + 60000,
+      );
+
+      let presignFailed = false;
+      if (filesToPresign.length > 0) {
+        try {
+          const response = await batchCreateUploadIntents(galleryId, filesToPresign, signal);
+          const maxPresignLen = Math.max(filesToPresign.length, response.items.length);
+          if (response.items.length !== filesToPresign.length) {
+            console.warn('Batch presigned response length mismatch.');
+          }
+
+          for (let k = 0; k < maxPresignLen; k++) {
+            const returnedItem = response.items[k];
+            const file = filesToPresign[k];
+            if (!file) continue;
+
+            if (returnedItem && returnedItem.success && returnedItem.presigned_data) {
+              file.presigned_data = returnedItem.presigned_data;
+              file.photo_id = returnedItem.photo_id;
+              file.presigned_expires_at = returnedItem.expires_in
+                ? Date.now() + returnedItem.expires_in * 1000
+                : undefined;
+            } else {
+              // Store error to show in UI
+              file._presignError = returnedItem?.error || 'File rejected by server';
+            }
+          }
+        } catch {
+          presignFailed = true;
+        }
+      }
+
+      if (presignFailed) {
         // Batch request failed
-        for (const file of batch) {
-          const item = file;
+        for (const file of filesToPresign) {
           failedUploads++;
           results.push({
-            filename: item.filename,
-            original_filename: item.filename,
+            filename: file.filename,
+            original_filename: file.filename,
             success: false,
             error: 'Failed to get presigned URL',
           });
-          completedBytes += item.file.size;
+          completedBytes += file.file.size;
         }
-        continue;
-      }
-
-      const maxLen = Math.max(batch.length, batchItems.length);
-      if (batchItems.length !== batch.length) {
-        console.warn(
-          'Batch presigned response length mismatch: some files may have been rejected by the server.',
-        );
       }
 
       // 2. Upload files to S3, skipping rejected entries
-      for (let j = 0; j < maxLen; j++) {
-        const file = batch[j];
-        const item = batchItems[j];
-
-        if (!file) {
+      for (const file of batch) {
+        if (presignFailed && filesToPresign.includes(file)) {
           continue;
         }
 
-        if (!item || !item.success || !item.presigned_data) {
+        if (!file.presigned_data) {
           failedUploads++;
           results.push({
-            filename: item?.filename ?? file.filename,
+            filename: file.filename,
             original_filename: file.filename,
             success: false,
-            error: item?.error ?? 'File rejected by server',
+            error: file._presignError || 'File rejected by server',
           });
           completedBytes += file.file.size;
           emitProgress(file.filename);
@@ -371,7 +391,7 @@ const uploadPhotosPresigned = async (
 
         try {
           await uploadToS3(
-            item.presigned_data,
+            file.presigned_data,
             file.file,
             (percentage) => {
               fileProgress.set(file.filename, Math.round((file.file.size * percentage) / 100));
@@ -383,12 +403,12 @@ const uploadPhotosPresigned = async (
           fileProgress.delete(file.filename);
           completedBytes += file.file.size;
           successfulUploads++;
-          if (item.photo_id) {
-            batchSuccessfulPhotoIds.push(item.photo_id);
+          if (file.photo_id) {
+            batchSuccessfulPhotoIds.push(file.photo_id);
           }
 
           results.push({
-            filename: item.filename || file.filename,
+            filename: file.filename,
             original_filename: file.filename,
             success: true,
           });
@@ -399,12 +419,12 @@ const uploadPhotosPresigned = async (
           // Don't add cancelled uploads to failed list
           if (!(error instanceof Error && error.message === 'Upload cancelled')) {
             failedUploads++;
-            if (item.photo_id) {
-              batchFailedPhotoIds.push(item.photo_id);
+            if (file.photo_id) {
+              batchFailedPhotoIds.push(file.photo_id);
             }
 
             results.push({
-              filename: item.filename || file.filename,
+              filename: file.filename,
               original_filename: file.filename,
               success: false,
               error: error instanceof Error ? error.message : 'Upload failed',

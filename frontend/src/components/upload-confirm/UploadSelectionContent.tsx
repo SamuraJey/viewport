@@ -26,100 +26,113 @@ interface FileCardProps {
   index: number;
   isUploading: boolean;
   onRemoveFile: (index: number) => void;
+  renameWarning?: string;
 }
 
-const FileCard = memo(({ file, index, isUploading, onRemoveFile }: FileCardProps) => {
-  const hasError = hasFileUploadError(file);
-  const fileErrorText = getFileUploadErrorText(file);
-  const [shouldLoad, setShouldLoad] = useState(false);
-  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
+const FileCard = memo(
+  ({ file, index, isUploading, onRemoveFile, renameWarning }: FileCardProps) => {
+    const hasError = hasFileUploadError(file);
+    const fileErrorText = getFileUploadErrorText(file);
+    const [shouldLoad, setShouldLoad] = useState(false);
+    const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+    const cardRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          setShouldLoad(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: '100px' },
-    );
-    if (cardRef.current) observer.observe(cardRef.current);
-    return () => observer.disconnect();
-  }, []);
+    useEffect(() => {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting) {
+            setShouldLoad(true);
+            observer.disconnect();
+          }
+        },
+        { rootMargin: '100px' },
+      );
+      if (cardRef.current) observer.observe(cardRef.current);
+      return () => observer.disconnect();
+    }, []);
 
-  useEffect(() => {
-    if (shouldLoad && file.type.startsWith('image/')) {
-      const url = URL.createObjectURL(file);
-      setThumbUrl(url);
-      return () => URL.revokeObjectURL(url);
-    }
-  }, [shouldLoad, file]);
+    useEffect(() => {
+      if (shouldLoad && file.type.startsWith('image/')) {
+        const url = URL.createObjectURL(file);
+        setThumbUrl(url);
+        return () => URL.revokeObjectURL(url);
+      }
+    }, [shouldLoad, file]);
 
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.8 }}
-      transition={{ duration: 0.2 }}
-      ref={cardRef}
-      className={`relative flex flex-col rounded-2xl border group overflow-hidden ${
-        hasError
-          ? 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30'
-          : 'bg-surface dark:bg-surface-dark-1 border-border/40 hover:border-accent/40 hover:shadow-sm'
-      }`}
-    >
-      <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-surface-1 dark:bg-surface-dark-2 border-b border-border/30">
-        {!shouldLoad && <ThumbSkeleton />}
-        {shouldLoad && thumbUrl ? (
-          <img
-            src={thumbUrl}
-            alt={`Preview of ${file.name}`}
-            className={`w-full h-full object-cover transition-opacity duration-300 ${
-              hasError ? 'opacity-40 saturate-50' : ''
-            }`}
-            decoding="async"
-          />
-        ) : shouldLoad && !thumbUrl ? (
-          <div className="w-full h-full flex items-center justify-center">
-            <ImageOff className="w-8 h-8 text-muted/60" />
-          </div>
-        ) : null}
-
-        {hasError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-red-900/10 backdrop-blur-[2px]">
-            <AlertTriangle className="w-8 h-8 text-red-500 drop-shadow-md" />
-          </div>
-        )}
-      </div>
-
-      <div className="flex-1 p-3 min-w-0 flex flex-col">
-        <p className="text-sm font-medium text-text dark:text-white truncate" title={file.name}>
-          {file.name}
-        </p>
-        <span className="text-xs text-muted font-medium mt-0.5">{formatFileSize(file.size)}</span>
-
-        {hasError && fileErrorText && (
-          <div className="mt-2 text-xs text-red-600 dark:text-red-400 font-semibold flex items-start gap-1">
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            <span>Won't upload: {fileErrorText}</span>
-          </div>
-        )}
-      </div>
-
-      <button
-        onClick={() => onRemoveFile(index)}
-        disabled={isUploading}
-        aria-label={`Remove ${file.name}`}
-        className="absolute top-2 right-2 p-1.5 bg-black/40 text-white hover:bg-red-500 hover:text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-hidden backdrop-blur-md"
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.8 }}
+        transition={{ duration: 0.2 }}
+        ref={cardRef}
+        className={`relative flex flex-col rounded-2xl border group overflow-hidden ${
+          hasError
+            ? 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30'
+            : 'bg-surface dark:bg-surface-dark-1 border-border/40 hover:border-accent/40 hover:shadow-sm'
+        }`}
       >
-        <X className="w-4 h-4" />
-      </button>
-    </motion.div>
-  );
-});
+        <div className="relative aspect-[4/3] w-full shrink-0 overflow-hidden bg-surface-1 dark:bg-surface-dark-2 border-b border-border/30">
+          {!shouldLoad && <ThumbSkeleton />}
+          {shouldLoad && thumbUrl ? (
+            <img
+              src={thumbUrl}
+              alt={`Preview of ${file.name}`}
+              className={`w-full h-full object-cover transition-opacity duration-300 ${
+                hasError ? 'opacity-40 saturate-50' : ''
+              }`}
+              decoding="async"
+            />
+          ) : shouldLoad && !thumbUrl ? (
+            <div className="w-full h-full flex items-center justify-center">
+              <ImageOff className="w-8 h-8 text-muted/60" />
+            </div>
+          ) : null}
+
+          {hasError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-red-900/10 backdrop-blur-[2px]">
+              <AlertTriangle className="w-8 h-8 text-red-500 drop-shadow-md" />
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 p-3 min-w-0 flex flex-col">
+          <p className="text-sm font-medium text-text dark:text-white truncate" title={file.name}>
+            {file.name}
+          </p>
+          <span className="text-xs text-muted font-medium mt-0.5">{formatFileSize(file.size)}</span>
+
+          {hasError && fileErrorText && (
+            <div className="mt-2 text-xs text-red-600 dark:text-red-400 font-semibold flex items-start gap-1">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>Won't upload: {fileErrorText}</span>
+            </div>
+          )}
+
+          {!hasError && renameWarning && (
+            <div
+              className="mt-2 text-xs text-yellow-600 dark:text-yellow-400 font-medium flex items-start gap-1"
+              title={`Will be renamed to ${renameWarning}`}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span className="truncate">Rename: {renameWarning}</span>
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={() => onRemoveFile(index)}
+          disabled={isUploading}
+          aria-label={`Remove ${file.name}`}
+          className="absolute top-2 right-2 p-1.5 bg-black/40 text-white hover:bg-red-500 hover:text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-hidden backdrop-blur-md"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </motion.div>
+    );
+  },
+);
 FileCard.displayName = 'FileCard';
 
 const BATCH_SIZE = 30;
@@ -206,15 +219,19 @@ export const UploadSelectionContent = ({
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         <AnimatePresence>
-          {visibleFiles.map((file, index) => (
-            <FileCard
-              key={`${file.name}-${file.size}-${file.lastModified}`}
-              file={file}
-              index={index}
-              isUploading={isUploading}
-              onRemoveFile={onRemoveFile}
-            />
-          ))}
+          {visibleFiles.map((file, index) => {
+            const renameWarning = renameWarnings.find((w) => w.original === file.name);
+            return (
+              <FileCard
+                key={`${file.name}-${file.size}-${file.lastModified}`}
+                file={file}
+                index={index}
+                isUploading={isUploading}
+                onRemoveFile={onRemoveFile}
+                renameWarning={renameWarning?.unique}
+              />
+            );
+          })}
         </AnimatePresence>
       </div>
 

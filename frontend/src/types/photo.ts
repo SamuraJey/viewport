@@ -77,6 +77,10 @@ export interface BatchConfirmUploadResponse {
 export interface UploadPreparedFile {
   file: File;
   filename: string;
+  presigned_data?: PresignedUploadData;
+  photo_id?: string;
+  presigned_expires_at?: number;
+  _presignError?: string;
 }
 
 export interface UploadRenameWarning {
