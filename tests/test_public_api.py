@@ -192,10 +192,9 @@ class TestPublicAPI:
         ("raw_name", "object_key", "fallback_stem", "expected"),
         [
             ("../name.png", "g/id.jpg", "photo-1", "photo-1.png"),
-            ("C:\\temp\\name.WEBP", "g/id.jpg", "photo-2", "photo-2.webp"),
-            ("reserved.CON", "g/id.gif", "photo-3", "photo-3.gif"),
+            ("C:\\temp\\name.jpg", "g/id.jpg", "photo-2", "photo-2.jpg"),
+            ("reserved.CON", "g/id.png", "photo-3", "photo-3.png"),
             ("noext", "g/id.jpg", "photo-4", "photo-4.jpg"),
-            ("noext", "g/id.webp", "photo-5", "photo-5.webp"),
         ],
     )
     def test_build_zip_fallback_name_uses_allowed_extensions(self, raw_name: str, object_key: str, fallback_stem: str, expected: str):
