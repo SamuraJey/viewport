@@ -3,8 +3,7 @@ from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
-from viewport.schemas.photo import PhotoResponse
-from viewport.schemas.sharelink import ShareLinkResponse
+from viewport.schemas.photo import GalleryPhotoResponse
 
 
 class GalleryCreateRequest(BaseModel):
@@ -39,8 +38,7 @@ class GalleryDetailResponse(BaseModel):
     created_at: datetime
     shooting_date: date
     cover_photo_id: str | None = Field(None, description="Optional cover photo id")
-    photos: list[PhotoResponse]
-    share_links: list[ShareLinkResponse]
+    photos: list[GalleryPhotoResponse]
     total_photos: int = Field(..., description="Total number of photos in the gallery")
 
 

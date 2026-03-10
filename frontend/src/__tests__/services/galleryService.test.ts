@@ -78,21 +78,15 @@ describe('galleryService', () => {
           owner_id: 'user1',
           created_at: '2025-01-01T00:00:00Z',
           shooting_date: '2025-01-01',
+          total_photos: 1,
           photos: [
             {
               id: 'photo1',
-              gallery_id: galleryId,
               url: '/photos/photo1',
+              thumbnail_url: '/photos/photo1-thumb',
+              filename: 'photo1.jpg',
               file_size: 1024,
               uploaded_at: '2025-01-01T00:00:00Z',
-            },
-          ],
-          share_links: [
-            {
-              id: 'link1',
-              gallery_id: galleryId,
-              url: 'https://example.com/share/link1',
-              created_at: '2025-01-01T00:00:00Z',
             },
           ],
         },

@@ -38,7 +38,6 @@ describe('ShareLinksSection', () => {
   const mockShareLinks: ShareLink[] = [
     {
       id: 'link-1',
-      gallery_id: 'gallery-1',
       created_at: '2024-01-01T10:00:00Z',
       expires_at: null,
       views: 10,
@@ -47,7 +46,6 @@ describe('ShareLinksSection', () => {
     },
     {
       id: 'link-2',
-      gallery_id: 'gallery-1',
       created_at: '2024-01-02T10:00:00Z',
       expires_at: null,
       views: 5,
@@ -56,7 +54,6 @@ describe('ShareLinksSection', () => {
     },
     {
       id: 'link-3',
-      gallery_id: 'gallery-1',
       created_at: '2024-01-03T10:00:00Z',
       expires_at: null,
       views: 20,
@@ -190,7 +187,6 @@ describe('ShareLinksSection', () => {
     const linksWithNulls: ShareLink[] = [
       {
         id: 'link-null',
-        gallery_id: 'gallery-1',
         created_at: '2024-01-01T10:00:00Z',
         expires_at: null,
         views: 0,
@@ -204,5 +200,29 @@ describe('ShareLinksSection', () => {
     // Should display 0 for null values in the metrics
     const metricsContainer = screen.getByTestId('share-link-link-null-metrics');
     expect(metricsContainer).toHaveTextContent('0');
+  });
+
+  it('should render loading state when share links are still loading', () => {
+    render(<ShareLinksSection {...defaultProps} shareLinks={[]} isLoading={true} />);
+
+    expect(screen.getByText('Loading share links...')).toBeInTheDocument();
+  });
+
+  it('should render retry state when share links fail to load', async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+
+    render(
+      <ShareLinksSection
+        {...defaultProps}
+        shareLinks={[]}
+        error="Failed to load share links"
+        onRetry={onRetry}
+      />,
+    );
+
+    expect(screen.getByText('Failed to load share links')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /retry/i }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

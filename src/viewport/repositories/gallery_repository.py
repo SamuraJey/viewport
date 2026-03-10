@@ -6,7 +6,6 @@ from pathlib import Path
 
 from sqlalchemy import func, insert, select, update
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload
 
 from viewport.filename_utils import sanitize_filename
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
@@ -73,11 +72,19 @@ class GalleryRepository(BaseRepository):
         gallery = (await self.db.execute(stmt)).scalar_one_or_none()
         return await self._finish_read(gallery)
 
-    async def get_gallery_by_id_and_owner_with_sharelinks(self, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> Gallery | None:
-        """Get gallery with eagerly loaded share_links to avoid lazy loading after commit."""
-        stmt = select(Gallery).where(Gallery.id == gallery_id, Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False)).options(selectinload(Gallery.share_links))
-        gallery = (await self.db.execute(stmt)).scalar_one_or_none()
-        return await self._finish_read(gallery)
+    async def get_sharelinks_by_gallery(self, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> list[ShareLink]:
+        stmt = (
+            select(ShareLink)
+            .join(ShareLink.gallery)
+            .where(
+                ShareLink.gallery_id == gallery_id,
+                Gallery.owner_id == owner_id,
+                Gallery.is_deleted.is_(False),
+            )
+            .order_by(ShareLink.created_at.asc())
+        )
+        sharelinks = list((await self.db.execute(stmt)).scalars().all())
+        return await self._finish_read(sharelinks)
 
     async def update_gallery(self, gallery_id: uuid.UUID, owner_id: uuid.UUID, name: str | None = None, shooting_date: date | None = None) -> Gallery | None:
         gallery = await self.get_gallery_by_id_and_owner(gallery_id, owner_id)

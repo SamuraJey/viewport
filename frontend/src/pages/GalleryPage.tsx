@@ -34,6 +34,8 @@ export const GalleryPage = () => {
     shareLinks,
     isInitialLoading,
     isLoadingPhotos,
+    isLoadingShareLinks,
+    shareLinksError,
     uploadError,
     setUploadError,
     actionInfo,
@@ -47,6 +49,7 @@ export const GalleryPage = () => {
     ConfirmModal,
     renameModal,
     fetchGalleryDetails,
+    fetchShareLinks,
     handleUploadComplete,
     handleSaveShootingDate,
     handleDeleteGallery,
@@ -235,6 +238,9 @@ export const GalleryPage = () => {
 
         <ShareLinksSection
           shareLinks={shareLinks}
+          isLoading={isLoadingShareLinks}
+          error={shareLinksError}
+          onRetry={fetchShareLinks}
           isCreatingLink={isCreatingLink}
           onCreateLink={handleCreateShareLink}
           onDeleteLink={handleDeleteShareLink}

@@ -129,9 +129,9 @@ class TestGalleryAPI:
         assert "created_at" in data
         assert "shooting_date" in data
         assert "photos" in data
-        assert "share_links" in data
+        assert "share_links" not in data
+        assert "total_photos" in data
         assert isinstance(data["photos"], list)
-        assert isinstance(data["share_links"], list)
 
     def test_get_gallery_not_found(self, authenticated_client: TestClient):
         """Test retrieving non-existent gallery."""

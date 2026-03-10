@@ -28,7 +28,7 @@ describe('shareLinkService', () => {
 
   it('creates and deletes a share link', async () => {
     const galleryId = 'g1';
-    const createdLink = { id: 's2', gallery_id: galleryId };
+    const createdLink = { id: 's2' };
     vi.mocked(api.post).mockResolvedValue({ data: createdLink } as any);
     vi.mocked(api.delete).mockResolvedValue({} as any);
 
@@ -36,7 +36,6 @@ describe('shareLinkService', () => {
     await shareLinkService.deleteShareLink(galleryId, created.id);
 
     expect(api.post).toHaveBeenCalledWith(`/galleries/${galleryId}/share-links`, {
-      gallery_id: galleryId,
       expires_at: null,
     });
     expect(api.delete).toHaveBeenCalledWith(`/galleries/${galleryId}/share-links/${created.id}`);

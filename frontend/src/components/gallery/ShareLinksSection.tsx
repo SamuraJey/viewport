@@ -14,6 +14,9 @@ import type { ShareLink } from '../../types';
 
 interface ShareLinksSectionProps {
   shareLinks: ShareLink[];
+  isLoading?: boolean;
+  error?: string;
+  onRetry?: () => void;
   isCreatingLink: boolean;
   onCreateLink: () => void;
   onDeleteLink: (linkId: string) => void;
@@ -23,6 +26,9 @@ const numberFormatter = new Intl.NumberFormat();
 
 export const ShareLinksSection = ({
   shareLinks,
+  isLoading = false,
+  error,
+  onRetry,
   isCreatingLink,
   onCreateLink,
   onDeleteLink,
@@ -79,7 +85,24 @@ export const ShareLinksSection = ({
         </button>
       </div>
 
-      {sortedShareLinks.length > 0 ? (
+      {error ? (
+        <div className="rounded-2xl border border-danger/30 bg-danger/5 p-4 text-sm text-danger">
+          <p>{error}</p>
+          {onRetry ? (
+            <button
+              onClick={onRetry}
+              className="mt-3 inline-flex items-center gap-2 rounded-xl border border-danger/30 px-3 py-2 font-semibold transition-colors hover:bg-danger/10"
+            >
+              Retry
+            </button>
+          ) : null}
+        </div>
+      ) : isLoading ? (
+        <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-surface-1 px-4 py-5 text-sm text-muted dark:border-border/40 dark:bg-surface-dark-1 dark:text-muted-dark">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Loading share links...</span>
+        </div>
+      ) : sortedShareLinks.length > 0 ? (
         <>
           <div
             data-testid="share-link-stats-summary"

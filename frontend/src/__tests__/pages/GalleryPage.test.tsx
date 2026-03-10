@@ -35,7 +35,6 @@ const mockGalleryData = {
       id: 'photo1',
       url: '/api/photos/photo1.jpg',
       thumbnail_url: '/api/photos/photo1_thumb.jpg',
-      gallery_id: '1',
       filename: 'photo1.jpg',
       created_at: '2024-01-01T10:00:00Z',
       file_size: 12345,
@@ -45,7 +44,6 @@ const mockGalleryData = {
       id: 'photo2',
       url: '/api/photos/photo2.jpg',
       thumbnail_url: '/api/photos/photo2_thumb.jpg',
-      gallery_id: '1',
       filename: 'photo2.jpg',
       created_at: '2024-01-01T10:00:00Z',
       file_size: 12345,
@@ -55,20 +53,17 @@ const mockGalleryData = {
       id: 'photo3',
       url: '/api/photos/photo3.jpg',
       thumbnail_url: '/api/photos/photo3_thumb.jpg',
-      gallery_id: '1',
       filename: 'photo3.jpg',
       created_at: '2024-01-01T10:00:00Z',
       file_size: 12345,
       uploaded_at: '2024-01-01T10:00:00Z',
     },
   ],
-  share_links: [],
   total_photos: 3,
 };
 
 const mockShareLink = {
   id: 'link1',
-  gallery_id: '1',
   created_at: '2024-01-01T10:00:00Z',
   expires_at: null,
   views: 128,
@@ -98,6 +93,7 @@ vi.mock('../../services/photoService', () => ({
 
 vi.mock('../../services/shareLinkService', () => ({
   shareLinkService: {
+    getShareLinks: vi.fn(),
     createShareLink: vi.fn(),
     deleteShareLink: vi.fn(),
   },
@@ -142,6 +138,7 @@ describe('GalleryPage', () => {
     const { shareLinkService } = await import('../../services/shareLinkService');
 
     vi.mocked(galleryService.getGallery).mockResolvedValue(mockGalleryData);
+    vi.mocked(shareLinkService.getShareLinks).mockResolvedValue([]);
     vi.mocked(shareLinkService.createShareLink).mockResolvedValue(mockShareLink);
     vi.mocked(window.confirm).mockReturnValue(true);
   });
@@ -362,6 +359,16 @@ describe('GalleryPage', () => {
   });
 
   describe('Share Link Features', () => {
+    it('should fetch share links separately from gallery details', async () => {
+      const { shareLinkService } = await import('../../services/shareLinkService');
+
+      render(<GalleryPageWrapper />);
+
+      await waitFor(() => {
+        expect(shareLinkService.getShareLinks).toHaveBeenCalledWith('1');
+      });
+    });
+
     it('should create share link', async () => {
       const { shareLinkService } = await import('../../services/shareLinkService');
 
@@ -377,6 +384,10 @@ describe('GalleryPage', () => {
 
       await waitFor(() => {
         expect(shareLinkService.createShareLink).toHaveBeenCalledWith('1');
+      });
+
+      await waitFor(() => {
+        expect(shareLinkService.getShareLinks).toHaveBeenCalledTimes(2);
       });
 
       // Wait for the new link to appear in the UI to avoid act() warning
