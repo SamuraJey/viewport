@@ -5,6 +5,16 @@ import { MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 import { formatFileSize } from '../../lib/utils';
 import { getFileUploadErrorText, hasFileUploadError } from './uploadConfirmUtils';
 
+const sanitizeForDisplay = (text: string): string => {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
+};
+
 interface UploadSelectionContentProps {
   files: File[];
   totalSize: number;
@@ -68,21 +78,19 @@ const FileCard = memo(
         exit={{ opacity: 0, scale: 0.8 }}
         transition={{ duration: 0.2 }}
         ref={cardRef}
-        className={`relative flex flex-col rounded-2xl border group overflow-hidden ${
-          hasError
+        className={`relative flex flex-col rounded-2xl border group overflow-hidden ${hasError
             ? 'bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30'
             : 'bg-surface dark:bg-surface-dark-1 border-border/40 hover:border-accent/40 hover:shadow-sm'
-        }`}
+          }`}
       >
         <div className="relative aspect-4/3 w-full shrink-0 overflow-hidden bg-surface-1 dark:bg-surface-dark-2 border-b border-border/30">
           {!shouldLoad && <ThumbSkeleton />}
           {shouldLoad && thumbUrl ? (
             <img
               src={thumbUrl}
-              alt={`Preview of ${file.name}`}
-              className={`w-full h-full object-cover transition-opacity duration-300 ${
-                hasError ? 'opacity-40 saturate-50' : ''
-              }`}
+              alt={`Preview of ${sanitizeForDisplay(file.name)}`}
+              className={`w-full h-full object-cover transition-opacity duration-300 ${hasError ? 'opacity-40 saturate-50' : ''
+                }`}
               decoding="async"
             />
           ) : shouldLoad && !thumbUrl ? (
@@ -99,8 +107,8 @@ const FileCard = memo(
         </div>
 
         <div className="flex-1 p-3 min-w-0 flex flex-col">
-          <p className="text-sm font-medium text-text dark:text-white truncate" title={file.name}>
-            {file.name}
+          <p className="text-sm font-medium text-text dark:text-white truncate" title={sanitizeForDisplay(file.name)}>
+            {sanitizeForDisplay(file.name)}
           </p>
           <span className="text-xs text-muted font-medium mt-0.5">{formatFileSize(file.size)}</span>
 
@@ -114,10 +122,10 @@ const FileCard = memo(
           {!hasError && renameWarning && (
             <div
               className="mt-2 text-xs text-yellow-600 dark:text-yellow-400 font-medium flex items-start gap-1"
-              title={`Will be renamed to ${renameWarning}`}
+              title={`Will be renamed to ${sanitizeForDisplay(renameWarning)}`}
             >
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              <span className="truncate">Rename: {renameWarning}</span>
+              <span className="truncate">Rename: {sanitizeForDisplay(renameWarning)}</span>
             </div>
           )}
         </div>
@@ -125,7 +133,7 @@ const FileCard = memo(
         <button
           onClick={() => onRemoveFile(index)}
           disabled={isUploading}
-          aria-label={`Remove ${file.name}`}
+          aria-label={`Remove ${sanitizeForDisplay(file.name)}`}
           className="absolute top-2 right-2 p-1.5 bg-black/40 text-white hover:bg-red-500 hover:text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-hidden backdrop-blur-md"
         >
           <X className="w-4 h-4" />
@@ -322,11 +330,10 @@ export const UploadSelectionContent = ({
       )}
 
       <div
-        className={`relative rounded-2xl border-2 border-dashed transition-all duration-200 ${
-          isDragOver
+        className={`relative rounded-2xl border-2 border-dashed transition-all duration-200 ${isDragOver
             ? 'border-accent bg-accent/5 scale-[1.02]'
             : 'border-border/40 hover:border-accent/40'
-        }`}
+          }`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
