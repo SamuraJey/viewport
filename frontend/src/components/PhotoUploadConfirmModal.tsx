@@ -136,7 +136,7 @@ export const PhotoUploadConfirmModal = memo(
         aria-modal="true"
       >
         <motion.div
-          className="absolute inset-0 bg-slate-950/60 backdrop-blur-md"
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-md"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -144,7 +144,7 @@ export const PhotoUploadConfirmModal = memo(
         />
 
         <motion.div
-          className="relative my-4 sm:my-8 flex w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] border border-border/50 bg-surface/95 shadow-2xl backdrop-blur-xl dark:border-border/20 dark:bg-surface-foreground/95"
+          className="relative my-4 sm:my-8 flex w-full max-w-5xl min-h-0 max-h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-[2rem] border border-border/50 bg-surface/95 shadow-2xl backdrop-blur-xl sm:max-h-[calc(100vh-3rem)] dark:border-border/20 dark:bg-surface-foreground/95"
           initial={{ opacity: 0, scale: 0.95, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
@@ -203,7 +203,7 @@ export const PhotoUploadConfirmModal = memo(
           {/* Content */}
           <div
             data-lenis-prevent
-            className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 lg:px-7 lg:py-7 max-h-[calc(100vh-14rem)]"
+            className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 lg:px-7 lg:py-7"
           >
             {!result && !isUploading && (
               <UploadSelectionContent

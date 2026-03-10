@@ -61,35 +61,41 @@ export const UploadModalFooter = ({
   failedCount,
   validUploadCount,
   hasValidFiles,
-  filesCount,
   onRetryFailed,
   onClose,
   onCancel,
   onUpload,
   uploadButtonRef,
 }: UploadModalFooterProps) => (
-  <div className="sticky bottom-0 flex flex-col gap-4 border-t border-border/60 bg-surface/95 px-5 py-4 backdrop-blur-md sm:px-6 dark:bg-surface-foreground/95">
-    {!result && (
-      <div className="flex items-center justify-between gap-3 text-sm">
-        <p className="text-muted">
-          {hasValidFiles
-            ? `${validUploadCount} file${validUploadCount !== 1 ? 's are' : ' is'} ready to upload.`
-            : 'No valid files to upload yet.'}
-        </p>
-        <p className="rounded-full border border-border/50 bg-surface-1/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted dark:bg-surface-dark-1/70">
-          {filesCount} selected
-        </p>
-      </div>
-    )}
+  <div className="sticky bottom-0 flex justify-between items-center gap-4 border-t border-border/40 bg-surface/95 px-5 py-4 backdrop-blur-md sm:px-6 dark:bg-surface-foreground/95">
+    {/* Left side text */}
+    <div className="text-sm font-medium">
+      {!result ? (
+        <span className={hasValidFiles ? 'text-text dark:text-white' : 'text-muted'}>
+          {hasValidFiles ? `${validUploadCount} ready to upload` : 'No valid files to upload'}
+        </span>
+      ) : (
+        <span
+          className={
+            failedCount === 0
+              ? 'text-emerald-600 dark:text-emerald-400'
+              : 'text-yellow-600 dark:text-yellow-400'
+          }
+        >
+          {failedCount === 0 ? 'All finished successfully' : `${failedCount} failed to upload`}
+        </span>
+      )}
+    </div>
 
-    <div className="flex flex-wrap justify-end gap-3">
+    {/* Actions */}
+    <div className="flex flex-wrap items-center justify-end gap-3">
       {result && (
         <>
           {failedCount > 0 && (
             <button
               onClick={onRetryFailed}
               disabled={isUploading}
-              className="px-5 py-3 bg-yellow-500 hover:bg-yellow-600 disabled:bg-surface-foreground disabled:cursor-not-allowed text-white text-sm font-medium rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95 disabled:opacity-50 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
+              className="px-4 py-2 bg-surface-1 dark:bg-surface-dark-1 border border-border/50 hover:bg-surface-2 dark:hover:bg-surface-dark-2 disabled:opacity-50 text-text dark:text-white text-sm font-medium rounded-xl transition-all duration-200 active:scale-95 flex items-center gap-2"
             >
               <Upload className="w-4 h-4" />
               Retry {failedCount}
@@ -97,38 +103,32 @@ export const UploadModalFooter = ({
           )}
           <button
             onClick={onClose}
-            className="px-5 py-3 bg-accent hover:bg-accent/90 text-white text-sm font-medium rounded-2xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
+            className="px-5 py-2.5 bg-accent hover:bg-accent/90 text-white text-sm font-medium rounded-xl transition-all duration-200 active:scale-95"
           >
-            Close
+            Done
           </button>
         </>
       )}
 
-      {!result && !isUploading && (
+      {!result && (
         <>
           <button
             onClick={onCancel}
-            className="px-5 py-3 text-text dark:text-muted bg-surface-1 dark:bg-surface-dark-1 hover:bg-surface-2 dark:hover:bg-surface-dark-2 text-sm font-medium rounded-2xl border border-border dark:border-border/40 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
+            disabled={isUploading}
+            className="px-5 py-2.5 bg-transparent hover:bg-surface-1 dark:hover:bg-surface-dark-1 text-muted hover:text-text dark:hover:text-white text-sm font-medium rounded-xl transition-all duration-200 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             ref={uploadButtonRef}
             onClick={onUpload}
-            disabled={filesCount === 0 || !hasValidFiles}
-            className="px-5 py-3 bg-accent hover:bg-accent/90 disabled:bg-surface-foreground disabled:cursor-not-allowed text-white text-sm font-medium rounded-2xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-50 disabled:shadow-sm disabled:hover:translate-y-0 flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
+            disabled={!hasValidFiles || isUploading}
+            className="px-5 py-2.5 bg-text hover:bg-text/90 text-surface dark:bg-white dark:text-black text-sm font-medium rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-w-[120px] justify-center shadow-xs focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
           >
-            <Upload className="w-4 h-4" />
-            Upload {validUploadCount}
+            {!isUploading && <Upload className="w-4 h-4" />}
+            {isUploading ? 'Uploading...' : 'Upload'}
           </button>
         </>
-      )}
-
-      {isUploading && (
-        <div className="flex items-center gap-2 text-muted text-xs sm:text-sm font-medium">
-          <div className="w-4 h-4 border-2 border-muted border-t-text rounded-full animate-spin" />
-          Upload in progress...
-        </div>
       )}
     </div>
   </div>
