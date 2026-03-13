@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { GALLERY_NAME_MAX_LENGTH } from '../../constants/gallery';
 
 interface CreateGalleryModalProps {
   isOpen: boolean;
@@ -26,6 +27,10 @@ export const CreateGalleryModal = ({
   if (!isOpen) {
     return null;
   }
+
+  const charsLeft = GALLERY_NAME_MAX_LENGTH - newGalleryName.length;
+  const isNearLimit = charsLeft <= 12;
+  const isAtLimit = charsLeft <= 0;
 
   return (
     <motion.div
@@ -63,11 +68,20 @@ export const CreateGalleryModal = ({
             >
               Gallery name
             </label>
+            <p
+              className={`text-xs mb-1.5 ${
+                isAtLimit ? 'text-danger' : isNearLimit ? 'text-amber-500' : 'text-muted'
+              }`}
+              aria-live="polite"
+            >
+              Up to {GALLERY_NAME_MAX_LENGTH} characters. {charsLeft} left.
+            </p>
             <input
               id="gallery-name-input"
               ref={inputRef}
               type="text"
               value={newGalleryName}
+              maxLength={GALLERY_NAME_MAX_LENGTH}
               onChange={(event) => onNameChange(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
@@ -107,7 +121,11 @@ export const CreateGalleryModal = ({
           </button>
           <button
             onClick={onConfirm}
-            disabled={isCreating || !newGalleryName.trim()}
+            disabled={
+              isCreating ||
+              !newGalleryName.trim() ||
+              newGalleryName.length > GALLERY_NAME_MAX_LENGTH
+            }
             className="px-5 py-2.5 bg-accent text-accent-foreground rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-sm font-medium"
           >
             {isCreating ? (

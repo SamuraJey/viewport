@@ -1,0 +1,1 @@
+export const GALLERY_NAME_MAX_LENGTH = 128;
