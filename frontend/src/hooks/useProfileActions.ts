@@ -14,7 +14,7 @@ export const useProfileActions = (isOpen: boolean, onClose: () => void) => {
   const [changingPassword, setChangingPassword] = useState(false);
 
   const navigate = useNavigate();
-  const { user, tokens, login, logout } = useAuthStore();
+  const { user, setUser, logout } = useAuthStore();
 
   const storageUsed = user?.storage_used ?? 0;
   const storageQuota = user?.storage_quota ?? 0;
@@ -31,18 +31,13 @@ export const useProfileActions = (isOpen: boolean, onClose: () => void) => {
       .then((fetchedUser) => {
         setEmail(fetchedUser.email);
         setDisplayName(fetchedUser.display_name || '');
-        if (tokens) {
-          login(
-            {
-              id: fetchedUser.id,
-              email: fetchedUser.email,
-              display_name: fetchedUser.display_name,
-              storage_used: fetchedUser.storage_used,
-              storage_quota: fetchedUser.storage_quota,
-            },
-            tokens,
-          );
-        }
+        setUser({
+          id: fetchedUser.id,
+          email: fetchedUser.email,
+          display_name: fetchedUser.display_name,
+          storage_used: fetchedUser.storage_used,
+          storage_quota: fetchedUser.storage_quota,
+        });
       })
       .catch((err: unknown) => {
         const status = (err as { response?: { status?: number } })?.response?.status;
@@ -53,25 +48,20 @@ export const useProfileActions = (isOpen: boolean, onClose: () => void) => {
           setError('Failed to load profile');
         }
       });
-  }, [isOpen, tokens, login, logout, navigate]);
+  }, [isOpen, setUser, logout, navigate]);
 
   const handleProfileSave = useCallback(async () => {
     setError(null);
     setSavingProfile(true);
     try {
       const updated = await authService.updateProfile({ display_name: displayName });
-      if (tokens) {
-        login(
-          {
-            id: updated.id,
-            email: updated.email,
-            display_name: updated.display_name,
-            storage_used: updated.storage_used,
-            storage_quota: updated.storage_quota,
-          },
-          tokens,
-        );
-      }
+      setUser({
+        id: updated.id,
+        email: updated.email,
+        display_name: updated.display_name,
+        storage_used: updated.storage_used,
+        storage_quota: updated.storage_quota,
+      });
       onClose();
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
@@ -84,7 +74,7 @@ export const useProfileActions = (isOpen: boolean, onClose: () => void) => {
     } finally {
       setSavingProfile(false);
     }
-  }, [displayName, tokens, login, onClose, logout, navigate]);
+  }, [displayName, setUser, onClose, logout, navigate]);
 
   const handlePasswordChange = useCallback(async () => {
     setError(null);

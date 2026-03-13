@@ -3,9 +3,47 @@ import type { AxiosError } from 'axios';
 import { useAuthStore } from '../stores/authStore';
 import { NetworkError } from './errorHandling';
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:8000');
+
+let refreshPromise: Promise<string> | null = null;
+
+const isRefreshRequest = (url?: string): boolean => {
+  if (!url) return false;
+  return url.includes('/auth/refresh');
+};
+
+const getRefreshedAccessToken = async (): Promise<string> => {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    const { tokens } = useAuthStore.getState();
+    if (!tokens?.refresh_token) {
+      throw new Error('Missing refresh token');
+    }
+
+    const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
+      refresh_token: tokens.refresh_token,
+    });
+
+    const newTokens = response.data;
+    useAuthStore.getState().updateTokens(newTokens);
+
+    return newTokens.access_token;
+  })();
+
+  try {
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
+  }
+};
+
 // Create axios instance
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:8000'),
+  baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -33,26 +71,22 @@ api.interceptors.response.use(
     const originalRequest = error.config;
 
     // Handle 401 errors with token refresh
-    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !isRefreshRequest(originalRequest.url)
+    ) {
       originalRequest._retry = true;
 
       try {
-        const { tokens } = useAuthStore.getState();
-        if (tokens?.refresh_token) {
-          const response = await axios.post(
-            `${import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:8000')}/auth/refresh`,
-            { refresh_token: tokens.refresh_token },
-          );
+        const accessToken = await getRefreshedAccessToken();
 
-          const newTokens = response.data;
-          useAuthStore.getState().updateTokens(newTokens);
-
-          // Retry original request with new token
-          if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${newTokens.access_token}`;
-          }
-          return api(originalRequest);
+        // Retry original request with fresh access token.
+        if (originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         }
+        return api(originalRequest);
       } catch (refreshError) {
         // Refresh failed, logout user and redirect to login
         useAuthStore.getState().logout();

@@ -17,7 +17,7 @@ class AuthSettings(BaseSettings):
     jwt_secret_key: str
     admin_jwt_secret_key: str
     jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
+    access_token_expire_minutes: int = 1
     refresh_token_expire_minutes: int = 7200
     invite_code: str = "testinvitecode"  # Default invite code for tests
 
