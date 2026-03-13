@@ -1,8 +1,8 @@
 import { CheckSquare, Square, Search, Star, StarOff, Pencil, Download, Trash2 } from 'lucide-react';
-import type { PhotoResponse } from '../../types';
+import type { GalleryPhoto } from '../../types';
 
 interface PhotoCardProps {
-  photo: PhotoResponse;
+  photo: GalleryPhoto;
   index: number;
   isSelectionMode: boolean;
   isSelected: boolean;

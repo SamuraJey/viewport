@@ -4,7 +4,6 @@
 
 export interface ShareLink {
   id: string;
-  gallery_id: string;
   expires_at: string | null;
   views: number;
   zip_downloads: number;

@@ -11,6 +11,7 @@ export type { Gallery, GalleryDetail, GalleryListResponse } from './gallery';
 // Photo types
 export type {
   PhotoResponse,
+  GalleryPhoto,
   PhotoUploadResult,
   PhotoUploadResponse,
   PhotoUploadIntentRequest,

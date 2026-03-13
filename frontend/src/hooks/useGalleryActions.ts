@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { galleryService, type GalleryDetail } from '../services/galleryService';
-import { photoService, type PhotoResponse } from '../services/photoService';
+import { photoService } from '../services/photoService';
 import type { PhotoUploadResponse } from '../services/photoService';
 import { shareLinkService, type ShareLink } from '../services/shareLinkService';
 import { useErrorHandler, useConfirmation, useModal } from '../hooks';
@@ -17,10 +17,12 @@ interface UseGalleryActionsProps {
 
 export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsProps) => {
   const [gallery, setGallery] = useState<GalleryDetail | null>(null);
-  const [photoUrls, setPhotoUrls] = useState<PhotoResponse[]>([]);
+  const [photoUrls, setPhotoUrls] = useState<GalleryDetail['photos']>([]);
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isLoadingPhotos, setIsLoadingPhotos] = useState(false);
+  const [isLoadingShareLinks, setIsLoadingShareLinks] = useState(false);
+  const [shareLinksError, setShareLinksError] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [actionInfo, setActionInfo] = useState('');
   const [isCreatingLink, setIsCreatingLink] = useState(false);
@@ -34,6 +36,26 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
   const { page, pageSize, setTotal } = pagination;
 
   const isNotFoundError = (error: unknown): boolean => handleApiError(error).statusCode === 404;
+
+  const fetchShareLinks = useCallback(
+    async (isInitial = true) => {
+      if (isInitial) {
+        setIsLoadingShareLinks(true);
+      }
+      setShareLinksError('');
+      try {
+        const links = await shareLinkService.getShareLinks(galleryId);
+        setShareLinks(links);
+      } catch (err) {
+        setShareLinksError(handleApiError(err).message || 'Failed to load share links');
+      } finally {
+        if (isInitial) {
+          setIsLoadingShareLinks(false);
+        }
+      }
+    },
+    [galleryId],
+  );
 
   const removePhotoLocally = useCallback((photoId: string) => {
     setPhotoUrls((prev) => prev.filter((photo) => photo.id !== photoId));
@@ -56,12 +78,15 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
           limit: pageSize,
           offset,
         });
+        const shouldRefreshShareLinks = gallery?.id !== galleryData.id;
         setGallery(galleryData);
         setPhotoUrls(galleryData.photos || []);
-        setShareLinks(galleryData.share_links || []);
         setTotal(galleryData.total_photos);
         const fallbackDate = galleryData.shooting_date || galleryData.created_at || '';
         setShootingDateInput(fallbackDate.slice(0, 10));
+        if (shouldRefreshShareLinks) {
+          void fetchShareLinks(false);
+        }
       } catch (err) {
         handleError(err);
       } finally {
@@ -72,7 +97,7 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
         }
       }
     },
-    [galleryId, pageSize, setTotal, clearError, handleError],
+    [gallery?.id, galleryId, pageSize, setTotal, clearError, handleError, fetchShareLinks],
   );
 
   const handleUploadComplete = async (result: PhotoUploadResponse) => {
@@ -171,15 +196,14 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
     clearError();
     try {
       await shareLinkService.createShareLink(galleryId);
-      const galleryData = await galleryService.getGallery(galleryId, { limit: 1, offset: 0 });
-      setShareLinks(galleryData.share_links || []);
+      await fetchShareLinks(false);
     } catch (err) {
       handleError(err);
     } finally {
       setIsCreatingLink(false);
     }
   };
-
+  // TODO May be add check of response status code. But later.
   const handleDeleteShareLink = (linkId: string) => {
     openConfirm({
       title: 'Delete Share Link',
@@ -189,8 +213,7 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
       onConfirm: async () => {
         try {
           await shareLinkService.deleteShareLink(galleryId, linkId);
-          const galleryData = await galleryService.getGallery(galleryId, { limit: 1, offset: 0 });
-          setShareLinks(galleryData.share_links || []);
+          await fetchShareLinks(false);
         } catch (err) {
           handleError(err);
           throw err;
@@ -316,6 +339,8 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
     shareLinks,
     isInitialLoading,
     isLoadingPhotos,
+    isLoadingShareLinks,
+    shareLinksError,
     uploadError,
     setUploadError,
     actionInfo,
@@ -329,6 +354,7 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
     ConfirmModal,
     renameModal,
     fetchGalleryDetails,
+    fetchShareLinks,
     handleUploadComplete,
     handleSaveShootingDate,
     handleDeleteGallery,

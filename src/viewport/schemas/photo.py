@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import Mapping
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -14,6 +14,58 @@ if TYPE_CHECKING:
 class PhotoCreateRequest(BaseModel):
     file_size: int = Field(..., ge=1)
     # file will be handled as UploadFile in endpoint, not in schema
+
+
+def _build_content_disposition(filename: str, disposition_type: str = "inline") -> str:
+    safe_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
+    return f'{disposition_type}; filename="{safe_filename}"'
+
+
+def _resolve_filename(photo: "Photo") -> str:
+    display_name = getattr(photo, "display_name", None)
+    if isinstance(display_name, str) and display_name:
+        return display_name
+    object_key = str(getattr(photo, "object_key", ""))
+    if "/" in object_key:
+        return object_key.split("/", 1)[1]
+    return object_key or "file"
+
+
+async def _generate_url_maps(
+    photos: list["Photo"],
+    s3_client: "AsyncS3Client",
+) -> tuple[Mapping[str, str], Mapping[str, str]]:
+    thumbnail_keys = [photo.thumbnail_object_key for photo in photos]
+    original_key_dispositions: Mapping[str, str | None] = {photo.object_key: _build_content_disposition(_resolve_filename(photo), disposition_type="inline") for photo in photos}
+
+    thumbnail_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys, expires_in=7200)
+    full_url_map = await s3_client.generate_presigned_urls_batch_for_dispositions(
+        original_key_dispositions,
+        expires_in=7200,
+    )
+    return thumbnail_url_map, full_url_map
+
+
+def _build_photo_response_payload(
+    photo: "Photo",
+    full_url_map: Mapping[str, str],
+    thumbnail_url_map: Mapping[str, str],
+    *,
+    include_gallery_id: bool,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "id": photo.id,
+        "url": full_url_map.get(photo.object_key, ""),
+        "thumbnail_url": thumbnail_url_map.get(photo.thumbnail_object_key, ""),
+        "filename": _resolve_filename(photo),
+        "width": photo.width,
+        "height": photo.height,
+        "file_size": photo.file_size,
+        "uploaded_at": photo.uploaded_at,
+    }
+    if include_gallery_id:
+        payload["gallery_id"] = photo.gallery_id
+    return payload
 
 
 class PhotoResponse(BaseModel):
@@ -31,37 +83,23 @@ class PhotoResponse(BaseModel):
 
     @staticmethod
     def _build_content_disposition(filename: str, disposition_type: str = "inline") -> str:
-        safe_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
-        return f'{disposition_type}; filename="{safe_filename}"'
+        return _build_content_disposition(filename, disposition_type)
 
     @staticmethod
     def _resolve_filename(photo: "Photo") -> str:
-        display_name = getattr(photo, "display_name", None)
-        if isinstance(display_name, str) and display_name:
-            return display_name
-        object_key = str(getattr(photo, "object_key", ""))
-        if "/" in object_key:
-            return object_key.split("/", 1)[1]
-        return object_key or "file"
+        return _resolve_filename(photo)
 
     @classmethod
-    async def from_db_photo(cls, photo: "Photo", s3_client: AsyncS3Client) -> "PhotoResponse":
-        """Create PhotoResponse from database Photo model with presigned URL
-
-        Args:
-            photo: Photo database model
-            s3_client: AsyncS3Client instance
-
-        Returns:
-            PhotoResponse with presigned URLs
-        """
-        # Generate presigned URL directly for S3 access (2 hour expiration)
+    async def from_db_photo(cls, photo: "Photo", s3_client: "AsyncS3Client") -> "PhotoResponse":
         filename = cls._resolve_filename(photo)
         presigned_url, thumbnail_url = await asyncio.gather(
             s3_client.generate_presigned_url_async(
                 photo.object_key,
                 expires_in=7200,
-                response_content_disposition=cls._build_content_disposition(filename, disposition_type="inline"),
+                response_content_disposition=cls._build_content_disposition(
+                    filename,
+                    disposition_type="inline",
+                ),
             ),
             s3_client.generate_presigned_url_async(photo.thumbnail_object_key, expires_in=7200),
         )
@@ -79,48 +117,59 @@ class PhotoResponse(BaseModel):
         )
 
     @classmethod
-    async def from_db_photos_batch(cls, photos: list["Photo"], s3_client: AsyncS3Client) -> list["PhotoResponse"]:
-        """Create PhotoResponse list from database Photo models with batched presigned URLs
-
-        This is much faster than calling from_db_photo for each photo individually,
-        especially for large numbers of photos (e.g., 800 photos: ~5s -> ~0.5s)
-
-        Args:
-            photos: List of Photo database models
-            s3_client: AsyncS3Client instance
-
-        Returns:
-            List of PhotoResponse objects with presigned URLs
-        """
+    async def from_db_photos_batch(
+        cls,
+        photos: list["Photo"],
+        s3_client: "AsyncS3Client",
+    ) -> list["PhotoResponse"]:
         if not photos:
             return []
 
-        # Batch thumbnail URLs and original URLs separately because originals carry per-file Content-Disposition.
-        thumbnail_keys = [photo.thumbnail_object_key for photo in photos]
-        original_key_dispositions: Mapping[str, str | None] = {photo.object_key: cls._build_content_disposition(cls._resolve_filename(photo), disposition_type="inline") for photo in photos}
-
-        thumbnail_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys, expires_in=7200)
-        full_url_map = await s3_client.generate_presigned_urls_batch_for_dispositions(original_key_dispositions, expires_in=7200)
-
-        # Build PhotoResponse objects
-        results = []
-        for photo in photos:
-            filename = cls._resolve_filename(photo)
-            results.append(
-                cls(
-                    id=photo.id,
-                    gallery_id=photo.gallery_id,
-                    url=full_url_map.get(photo.object_key, ""),
-                    thumbnail_url=thumbnail_url_map.get(photo.thumbnail_object_key, ""),
-                    filename=filename,
-                    width=photo.width,
-                    height=photo.height,
-                    file_size=photo.file_size,
-                    uploaded_at=photo.uploaded_at,
+        thumbnail_url_map, full_url_map = await _generate_url_maps(photos, s3_client)
+        return [
+            cls(
+                **_build_photo_response_payload(
+                    photo,
+                    full_url_map,
+                    thumbnail_url_map,
+                    include_gallery_id=True,
                 )
             )
+            for photo in photos
+        ]
 
-        return results
+
+class GalleryPhotoResponse(BaseModel):
+    id: UUID
+    url: str
+    thumbnail_url: str
+    filename: str
+    width: int | None = None
+    height: int | None = None
+    file_size: int
+    uploaded_at: datetime
+
+    @classmethod
+    async def from_db_photos_batch(
+        cls,
+        photos: list["Photo"],
+        s3_client: "AsyncS3Client",
+    ) -> list["GalleryPhotoResponse"]:
+        if not photos:
+            return []
+
+        thumbnail_url_map, full_url_map = await _generate_url_maps(photos, s3_client)
+        return [
+            cls(
+                **_build_photo_response_payload(
+                    photo,
+                    full_url_map,
+                    thumbnail_url_map,
+                    include_gallery_id=False,
+                )
+            )
+            for photo in photos
+        ]
 
 
 class PhotoListResponse(BaseModel):
@@ -221,20 +270,14 @@ class BatchPresignedUploadsResponse(BaseModel):
 
 
 class ConfirmPhotoUploadItem(BaseModel):
-    """Single item in batch confirm upload request"""
-
     photo_id: UUID
     success: bool = True
 
 
 class BatchConfirmUploadRequest(BaseModel):
-    """Request to confirm multiple photo uploads"""
-
     items: list[ConfirmPhotoUploadItem] = Field(..., min_length=1, max_length=100)
 
 
 class BatchConfirmUploadResponse(BaseModel):
-    """Response for batch upload confirmation"""
-
     confirmed_count: int
     failed_count: int

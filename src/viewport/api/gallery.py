@@ -13,8 +13,7 @@ from viewport.models.user import User
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse, GalleryUpdateRequest
-from viewport.schemas.photo import PhotoResponse
-from viewport.schemas.sharelink import ShareLinkResponse
+from viewport.schemas.photo import GalleryPhotoResponse
 
 router = APIRouter(prefix="/galleries", tags=["galleries"])
 logger = logging.getLogger(__name__)
@@ -82,8 +81,7 @@ async def get_gallery_detail(
     start_time = time.monotonic()
 
     db_start = time.monotonic()
-    # Use eager loading for share_links to avoid lazy loading after session closes
-    gallery = await repo.get_gallery_by_id_and_owner_with_sharelinks(gallery_id, current_user.id)
+    gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     db_time = time.monotonic() - db_start
 
     if not gallery:
@@ -101,7 +99,7 @@ async def get_gallery_detail(
 
     # Generate presigned URLs without blocking the request event loop.
     url_start = time.monotonic()
-    photo_responses = await PhotoResponse.from_db_photos_batch(photos_to_process, s3_client)
+    photo_responses = await GalleryPhotoResponse.from_db_photos_batch(photos_to_process, s3_client)
     url_time = time.monotonic() - url_start
 
     # Calculate URLs per second
@@ -119,7 +117,6 @@ async def get_gallery_detail(
         shooting_date=gallery.shooting_date,
         cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
         photos=photo_responses,
-        share_links=[ShareLinkResponse.model_validate(link) for link in gallery.share_links],
         total_photos=photo_count,
     )
 

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   Share2,
   Loader2,
@@ -14,6 +15,9 @@ import type { ShareLink } from '../../types';
 
 interface ShareLinksSectionProps {
   shareLinks: ShareLink[];
+  isLoading?: boolean;
+  error?: string;
+  onRetry?: () => void;
   isCreatingLink: boolean;
   onCreateLink: () => void;
   onDeleteLink: (linkId: string) => void;
@@ -21,8 +25,11 @@ interface ShareLinksSectionProps {
 
 const numberFormatter = new Intl.NumberFormat();
 
-export const ShareLinksSection = ({
+const ShareLinksSectionComponent = ({
   shareLinks,
+  isLoading = false,
+  error,
+  onRetry,
   isCreatingLink,
   onCreateLink,
   onDeleteLink,
@@ -79,7 +86,24 @@ export const ShareLinksSection = ({
         </button>
       </div>
 
-      {sortedShareLinks.length > 0 ? (
+      {error ? (
+        <div className="rounded-2xl border border-danger/30 bg-danger/5 p-4 text-sm text-danger">
+          <p>{error}</p>
+          {onRetry ? (
+            <button
+              onClick={onRetry}
+              className="mt-3 inline-flex items-center gap-2 rounded-xl border border-danger/30 px-3 py-2 font-semibold transition-colors hover:bg-danger/10"
+            >
+              Retry
+            </button>
+          ) : null}
+        </div>
+      ) : isLoading ? (
+        <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-surface-1 px-4 py-5 text-sm text-muted dark:border-border/40 dark:bg-surface-dark-1 dark:text-muted-dark">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Loading share links...</span>
+        </div>
+      ) : sortedShareLinks.length > 0 ? (
         <>
           <div
             data-testid="share-link-stats-summary"
@@ -108,88 +132,95 @@ export const ShareLinksSection = ({
             })}
           </div>
           <ul className="space-y-3">
-            {sortedShareLinks.map((link, index) => {
-              const fullUrl = `${window.location.origin}/share/${link.id}`;
-              const zipDownloads = link.zip_downloads ?? 0;
-              const totalLinkDownloads = zipDownloads + (link.single_downloads ?? 0);
-              const linkMetrics = [
-                { label: 'Views', value: link.views ?? 0, icon: Eye },
-                { label: 'ZIP', value: zipDownloads, icon: DownloadCloud },
-                { label: 'Total', value: totalLinkDownloads, icon: Download },
-              ];
-              return (
-                <li
-                  key={link.id}
-                  className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-2xl border border-border/50 dark:border-border/40 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between shadow-xs transition-all duration-200 hover:shadow-sm hover:border-accent/30"
-                >
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6 flex-1 min-w-0">
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/15 text-accent font-bold text-sm">
-                        {index + 1}
+            <AnimatePresence>
+              {sortedShareLinks.map((link, index) => {
+                const fullUrl = `${window.location.origin}/share/${link.id}`;
+                const zipDownloads = link.zip_downloads ?? 0;
+                const totalLinkDownloads = zipDownloads + (link.single_downloads ?? 0);
+                const linkMetrics = [
+                  { label: 'Views', value: link.views ?? 0, icon: Eye },
+                  { label: 'ZIP', value: zipDownloads, icon: DownloadCloud },
+                  { label: 'Total', value: totalLinkDownloads, icon: Download },
+                ];
+                return (
+                  <motion.li
+                    key={link.id}
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                    layout
+                    className="bg-surface-1 dark:bg-surface-dark-1 p-4 rounded-2xl border border-border/50 dark:border-border/40 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between shadow-xs transition-all duration-200 hover:shadow-sm hover:border-accent/30"
+                  >
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6 flex-1 min-w-0">
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/15 text-accent font-bold text-sm">
+                          {index + 1}
+                        </div>
+                        <LinkIcon className="w-5 h-5 text-accent gallery-link__icon" />
+                        <a
+                          href={fullUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent hover:underline truncate gallery-link__anchor font-medium focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent rounded-md px-1 -mx-1"
+                        >
+                          {fullUrl}
+                        </a>
                       </div>
-                      <LinkIcon className="w-5 h-5 text-accent gallery-link__icon" />
-                      <a
-                        href={fullUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-accent hover:underline truncate gallery-link__anchor font-medium focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent rounded-md px-1 -mx-1"
+                      <div
+                        data-testid={`share-link-${link.id}-metrics`}
+                        className="grid w-full gap-2 text-xs sm:text-sm min-[420px]:grid-cols-2 lg:flex lg:flex-wrap lg:w-auto lg:items-center"
                       >
-                        {fullUrl}
-                      </a>
-                    </div>
-                    <div
-                      data-testid={`share-link-${link.id}-metrics`}
-                      className="grid w-full gap-2 text-xs sm:text-sm min-[420px]:grid-cols-2 lg:flex lg:flex-wrap lg:w-auto lg:items-center"
-                    >
-                      {linkMetrics.map((metric) => {
-                        const Icon = metric.icon;
-                        return (
-                          <div
-                            key={metric.label}
-                            className="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-surface-1/80 px-3 py-2 leading-tight dark:border-border/50 dark:bg-surface-dark-2/70"
-                          >
-                            <span className="flex items-center gap-1.5">
-                              <Icon
-                                className="h-4 w-4 text-text/70 dark:text-accent-foreground/80"
-                                aria-hidden="true"
-                              />
-                              <span className="text-[0.7rem] font-bold uppercase tracking-wider text-text/70 dark:text-accent-foreground/75">
-                                {metric.label}
+                        {linkMetrics.map((metric) => {
+                          const Icon = metric.icon;
+                          return (
+                            <div
+                              key={metric.label}
+                              className="flex items-center justify-between gap-2 rounded-xl border border-border/70 bg-surface-1/80 px-3 py-2 leading-tight dark:border-border/50 dark:bg-surface-dark-2/70"
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <Icon
+                                  className="h-4 w-4 text-text/70 dark:text-accent-foreground/80"
+                                  aria-hidden="true"
+                                />
+                                <span className="text-[0.7rem] font-bold uppercase tracking-wider text-text/70 dark:text-accent-foreground/75">
+                                  {metric.label}
+                                </span>
                               </span>
-                            </span>
-                            <span className="text-sm font-bold text-text dark:text-accent-foreground">
-                              {numberFormatter.format(metric.value)}
-                            </span>
-                          </div>
-                        );
-                      })}
+                              <span className="text-sm font-bold text-text dark:text-accent-foreground">
+                                {numberFormatter.format(metric.value)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => copyToClipboard(fullUrl)}
-                      className="flex items-center justify-center w-10 h-10 p-2 bg-success/10 hover:bg-success/20 text-success rounded-xl transition-all duration-200 border border-success/20 gallery-copy__btn cursor-pointer hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-95"
-                      title="Copy link"
-                      aria-label="Copy link"
-                    >
-                      {copiedLink === fullUrl ? (
-                        <Check className="w-5 h-5 text-success" />
-                      ) : (
-                        <Copy className="w-5 h-5 text-success" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => onDeleteLink(link.id)}
-                      className="flex items-center justify-center w-10 h-10 p-2 bg-danger/10 hover:bg-danger/20 text-danger rounded-xl transition-all duration-200 border border-danger/20 gallery-delete__btn cursor-pointer hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-95"
-                      title="Delete link"
-                      aria-label="Delete link"
-                    >
-                      <Trash2 className="w-5 h-5 text-danger" />
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => copyToClipboard(fullUrl)}
+                        className="flex items-center justify-center w-10 h-10 p-2 bg-success/10 hover:bg-success/20 text-success rounded-xl transition-all duration-200 border border-success/20 gallery-copy__btn cursor-pointer hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-95"
+                        title="Copy link"
+                        aria-label="Copy link"
+                      >
+                        {copiedLink === fullUrl ? (
+                          <Check className="w-5 h-5 text-success" />
+                        ) : (
+                          <Copy className="w-5 h-5 text-success" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => onDeleteLink(link.id)}
+                        className="flex items-center justify-center w-10 h-10 p-2 bg-danger/10 hover:bg-danger/20 text-danger rounded-xl transition-all duration-200 border border-danger/20 gallery-delete__btn cursor-pointer hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-95"
+                        title="Delete link"
+                        aria-label="Delete link"
+                      >
+                        <Trash2 className="w-5 h-5 text-danger" />
+                      </button>
+                    </div>
+                  </motion.li>
+                );
+              })}
+            </AnimatePresence>
           </ul>
         </>
       ) : (
@@ -203,3 +234,5 @@ export const ShareLinksSection = ({
     </div>
   );
 };
+
+export const ShareLinksSection = memo(ShareLinksSectionComponent);

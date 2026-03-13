@@ -11,7 +11,6 @@ const getShareLinks = async (galleryId: string): Promise<ShareLink[]> => {
 
 const createShareLink = async (galleryId: string): Promise<ShareLink> => {
   const response = await api.post<ShareLink>(`/galleries/${galleryId}/share-links`, {
-    gallery_id: galleryId,
     expires_at: null,
   });
   return response.data;

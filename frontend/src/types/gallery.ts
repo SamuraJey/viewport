@@ -2,8 +2,7 @@
  * Gallery-related types
  */
 
-import type { PhotoResponse } from './photo';
-import type { ShareLink } from './sharelink';
+import type { GalleryPhoto } from './photo';
 
 export interface Gallery {
   id: string;
@@ -15,8 +14,7 @@ export interface Gallery {
 }
 
 export interface GalleryDetail extends Gallery {
-  photos: PhotoResponse[];
-  share_links: ShareLink[];
+  photos: GalleryPhoto[];
   total_photos: number;
 }
 

@@ -6,7 +6,7 @@ import { PhotoCard } from './PhotoCard';
 import { PhotoSelectionBar } from './PhotoSelectionBar';
 import { PhotoUploader, type PhotoUploaderHandle } from '../PhotoUploader';
 import { MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
-import type { PhotoUploadResponse, PhotoResponse } from '../../types';
+import type { PhotoUploadResponse, GalleryPhoto } from '../../types';
 
 interface GalleryPagination {
   page: number;
@@ -27,7 +27,7 @@ interface GalleryPhotoSectionProps {
   photoUploaderRef: RefObject<PhotoUploaderHandle | null>;
   onModalStateChange?: (isOpen: boolean) => void;
   state: {
-    photoUrls: PhotoResponse[];
+    photoUrls: GalleryPhoto[];
     isLoadingPhotos: boolean;
     uploadError: string | null;
     actionInfo: string | null;

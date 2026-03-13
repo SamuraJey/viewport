@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
 from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse
-from viewport.schemas.photo import PhotoCreateRequest, PhotoListResponse, PhotoResponse
+from viewport.schemas.photo import GalleryPhotoResponse, PhotoCreateRequest, PhotoListResponse, PhotoResponse
 from viewport.schemas.sharelink import ShareLinkCreateRequest, ShareLinkResponse
 
 
@@ -147,9 +147,8 @@ class TestGallerySchemas:
         shooting_date = created_at.date()
 
         photos = []
-        share_links = []
 
-        data = {"id": gallery_id, "owner_id": owner_id, "created_at": created_at, "shooting_date": shooting_date, "photos": photos, "share_links": share_links, "total_photos": 0}
+        data = {"id": gallery_id, "owner_id": owner_id, "created_at": created_at, "shooting_date": shooting_date, "photos": photos, "total_photos": 0}
         response = GalleryDetailResponse(**data)
 
         assert response.id == gallery_id
@@ -157,7 +156,6 @@ class TestGallerySchemas:
         assert response.created_at == created_at
         assert response.shooting_date == shooting_date
         assert response.photos == []
-        assert response.share_links == []
 
     # what the hell this test even is. i need to review llm suggestions more carefully.
     @pytest.mark.skip(reason="This test seems redundant")
@@ -251,6 +249,27 @@ class TestPhotoSchemas:
         assert response.file_size == 2048
         assert response.uploaded_at == uploaded_at
 
+    def test_gallery_photo_response_valid(self):
+        """Test valid gallery-scoped photo response."""
+        photo_id = uuid.uuid4()
+        uploaded_at = datetime.now(UTC)
+
+        data = {
+            "id": photo_id,
+            "url": "/photos/test.jpg",
+            "thumbnail_url": "/photos/thumbnails/test.avif",
+            "filename": "test.jpg",
+            "file_size": 2048,
+            "uploaded_at": uploaded_at,
+        }
+        response = GalleryPhotoResponse(**data)
+
+        assert response.id == photo_id
+        assert response.url == "/photos/test.jpg"
+        assert response.filename == "test.jpg"
+        assert response.file_size == 2048
+        assert response.uploaded_at == uploaded_at
+
     @pytest.mark.asyncio
     async def test_photo_response_from_db_photo(self):
         """Test creating PhotoResponse from database photo."""
@@ -312,23 +331,18 @@ class TestShareLinkSchemas:
 
     def test_sharelink_create_request_valid(self):
         """Test valid share link create request."""
-        gallery_id = uuid.uuid4()
         expires_at = datetime.now(UTC) + timedelta(days=1)
 
-        data = {"gallery_id": gallery_id, "expires_at": expires_at}
+        data = {"expires_at": expires_at}
         request = ShareLinkCreateRequest(**data)
 
-        assert request.gallery_id == gallery_id
         assert request.expires_at == expires_at
 
     def test_sharelink_create_request_no_expiry(self):
         """Test share link create request without expiry."""
-        gallery_id = uuid.uuid4()
-
-        data = {"gallery_id": gallery_id}
+        data = {}
         request = ShareLinkCreateRequest(**data)
 
-        assert request.gallery_id == gallery_id
         assert request.expires_at is None
 
     def test_sharelink_response_valid(self):
@@ -374,24 +388,11 @@ class TestShareLinkSchemas:
 class TestSchemaEdgeCases:
     """Test edge cases and error handling in schemas."""
 
-    def test_uuid_string_conversion(self):
-        """Test UUID fields accept string representations."""
-        gallery_id = uuid.uuid4()
-        data = {
-            "gallery_id": str(gallery_id),
-            "expires_at": None,
-        }
-        request = ShareLinkCreateRequest(**data)
-
-        assert request.gallery_id == gallery_id
-
     def test_datetime_iso_string_conversion(self):
         """Test datetime fields accept ISO string representations."""
-        gallery_id = uuid.uuid4()
         expires_at = datetime.now(UTC) + timedelta(days=1)
 
         data = {
-            "gallery_id": gallery_id,
             "expires_at": expires_at.isoformat(),  # ISO string
         }
         request = ShareLinkCreateRequest(**data)

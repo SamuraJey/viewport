@@ -13,6 +13,8 @@ export interface PhotoResponse {
   uploaded_at: string;
 }
 
+export type GalleryPhoto = Omit<PhotoResponse, 'gallery_id'>;
+
 export interface PhotoUploadResult {
   filename: string;
   original_filename?: string;
