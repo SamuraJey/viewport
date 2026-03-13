@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { galleryService, type GalleryDetail } from '../services/galleryService';
 import { photoService } from '../services/photoService';
 import type { PhotoUploadResponse } from '../services/photoService';
@@ -29,6 +29,8 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
 
+  const prevShareLinksRef = useRef<ShareLink[]>([]);
+
   const { error, clearError, handleError } = useErrorHandler();
   const { openConfirm, ConfirmModal } = useConfirmation();
   const renameModal = useModal<{ id: string; filename: string }>();
@@ -37,18 +39,28 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
 
   const isNotFoundError = (error: unknown): boolean => handleApiError(error).statusCode === 404;
 
-  const fetchShareLinks = useCallback(async () => {
-    setIsLoadingShareLinks(true);
-    setShareLinksError('');
-    try {
-      const links = await shareLinkService.getShareLinks(galleryId);
-      setShareLinks(links);
-    } catch (err) {
-      setShareLinksError(handleApiError(err).message || 'Failed to load share links');
-    } finally {
-      setIsLoadingShareLinks(false);
-    }
-  }, [galleryId]);
+  const fetchShareLinks = useCallback(
+    async (isInitial = true) => {
+      if (isInitial) {
+        setIsLoadingShareLinks(true);
+      }
+      setShareLinksError('');
+      try {
+        const links = await shareLinkService.getShareLinks(galleryId);
+        if (JSON.stringify(links) !== JSON.stringify(prevShareLinksRef.current)) {
+          setShareLinks(links);
+          prevShareLinksRef.current = links;
+        }
+      } catch (err) {
+        setShareLinksError(handleApiError(err).message || 'Failed to load share links');
+      } finally {
+        if (isInitial) {
+          setIsLoadingShareLinks(false);
+        }
+      }
+    },
+    [galleryId],
+  );
 
   const removePhotoLocally = useCallback((photoId: string) => {
     setPhotoUrls((prev) => prev.filter((photo) => photo.id !== photoId));
@@ -78,7 +90,7 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
         const fallbackDate = galleryData.shooting_date || galleryData.created_at || '';
         setShootingDateInput(fallbackDate.slice(0, 10));
         if (shouldRefreshShareLinks) {
-          void fetchShareLinks();
+          void fetchShareLinks(false);
         }
       } catch (err) {
         handleError(err);
@@ -188,8 +200,8 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
     setIsCreatingLink(true);
     clearError();
     try {
-      const newLink = await shareLinkService.createShareLink(galleryId);
-      setShareLinks((prev) => [...prev, newLink]);
+      await shareLinkService.createShareLink(galleryId);
+      await fetchShareLinks(false);
     } catch (err) {
       handleError(err);
     } finally {
@@ -206,7 +218,7 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
       onConfirm: async () => {
         try {
           await shareLinkService.deleteShareLink(galleryId, linkId);
-          setShareLinks((prev) => prev.filter((link) => link.id !== linkId));
+          await fetchShareLinks(false);
         } catch (err) {
           handleError(err);
           throw err;
