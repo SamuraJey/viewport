@@ -235,12 +235,4 @@ const ShareLinksSectionComponent = ({
   );
 };
 
-export const ShareLinksSection = memo(ShareLinksSectionComponent, (prevProps, nextProps) => {
-  // Avoid re-render if shareLinks are the same (deep comparison)
-  return (
-    JSON.stringify(prevProps.shareLinks) === JSON.stringify(nextProps.shareLinks) &&
-    prevProps.isLoading === nextProps.isLoading &&
-    prevProps.error === nextProps.error &&
-    prevProps.isCreatingLink === nextProps.isCreatingLink
-  );
-});
+export const ShareLinksSection = memo(ShareLinksSectionComponent);

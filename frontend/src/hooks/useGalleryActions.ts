@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback } from 'react';
 import { galleryService, type GalleryDetail } from '../services/galleryService';
 import { photoService } from '../services/photoService';
 import type { PhotoUploadResponse } from '../services/photoService';
@@ -29,8 +29,6 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
 
-  const prevShareLinksRef = useRef<ShareLink[]>([]);
-
   const { error, clearError, handleError } = useErrorHandler();
   const { openConfirm, ConfirmModal } = useConfirmation();
   const renameModal = useModal<{ id: string; filename: string }>();
@@ -47,10 +45,7 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
       setShareLinksError('');
       try {
         const links = await shareLinkService.getShareLinks(galleryId);
-        if (JSON.stringify(links) !== JSON.stringify(prevShareLinksRef.current)) {
-          setShareLinks(links);
-          prevShareLinksRef.current = links;
-        }
+        setShareLinks(links);
       } catch (err) {
         setShareLinksError(handleApiError(err).message || 'Failed to load share links');
       } finally {

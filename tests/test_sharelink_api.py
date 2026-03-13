@@ -15,7 +15,7 @@ class TestSharelinkAPI:
     def test_create_sharelink_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test successful sharelink creation."""
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
-        payload = {"expires_at": expires_at, "gallery_id": gallery_id_fixture}
+        payload = {"expires_at": expires_at}
 
         response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json=payload)
         assert response.status_code == 201
@@ -33,7 +33,7 @@ class TestSharelinkAPI:
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
         authenticated_client.post(
             f"/galleries/{gallery_id_fixture}/share-links",
-            json={"expires_at": expires_at, "gallery_id": gallery_id_fixture},
+            json={"expires_at": expires_at},
         )
 
         response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/share-links")
@@ -90,7 +90,7 @@ class TestSharelinkAPI:
         client.headers.update({"Authorization": f"Bearer {different_user_token}"})
 
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
-        payload = {"expires_at": expires_at, "gallery_id": gallery_id_fixture}
+        payload = {"expires_at": expires_at}
 
         response = client.post(f"/galleries/{gallery_id_fixture}/share-links", json=payload)
         assert response.status_code == 404
@@ -98,7 +98,7 @@ class TestSharelinkAPI:
 
     def test_create_sharelink_invalid_expiration(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test creating sharelink with invalid expiration date format."""
-        payload = {"expires_at": "invalid-date", "gallery_id": gallery_id_fixture}
+        payload = {"expires_at": "invalid-date"}
 
         response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json=payload)
         assert response.status_code == 422
@@ -107,7 +107,7 @@ class TestSharelinkAPI:
         """Test successful sharelink deletion."""
         # Create a sharelink first
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()
-        payload = {"expires_at": expires_at, "gallery_id": gallery_id_fixture}
+        payload = {"expires_at": expires_at}
 
         create_response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json=payload)
         assert create_response.status_code == 201
@@ -161,7 +161,7 @@ class TestSharelinkAPI:
         sharelink_ids = []
         for i in range(3):
             expires_at = (datetime.now(UTC) + timedelta(days=i + 1)).isoformat()
-            payload = {"expires_at": expires_at, "gallery_id": gallery_id_fixture}
+            payload = {"expires_at": expires_at}
 
             response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json=payload)
             assert response.status_code == 201

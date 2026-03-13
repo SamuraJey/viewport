@@ -271,7 +271,7 @@ class BatchPresignedUploadsResponse(BaseModel):
 
 class ConfirmPhotoUploadItem(BaseModel):
     photo_id: UUID
-    success: bool | None = None
+    success: bool = True
 
 
 class BatchConfirmUploadRequest(BaseModel):
