@@ -7,6 +7,7 @@ from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, Smal
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH
 from viewport.models.db import Base
 
 if TYPE_CHECKING:
@@ -26,7 +27,7 @@ class Gallery(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    name: Mapped[str] = mapped_column(String, nullable=False, default="")  # Custom name for the gallery
+    name: Mapped[str] = mapped_column(String(GALLERY_NAME_MAX_LENGTH), nullable=False, default="")  # Custom name for the gallery
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     # Displayed shooting date (defaults to gallery creation date)

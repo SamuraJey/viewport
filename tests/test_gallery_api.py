@@ -6,6 +6,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from tests.helpers import register_and_login
+from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH
 
 
 class TestGalleryAPI:
@@ -252,6 +253,15 @@ class TestGalleryAPI:
         assert "name" in data
         assert data["name"] == name
 
+    def test_create_gallery_name_too_long(self, authenticated_client: TestClient):
+        """Custom names longer than the limit are rejected."""
+        name = "A" * (GALLERY_NAME_MAX_LENGTH + 1)
+        response = authenticated_client.post("/galleries", json={"name": name})
+        assert response.status_code == 422
+        detail = response.json().get("detail")
+        assert detail is not None
+        assert str(GALLERY_NAME_MAX_LENGTH) in str(detail)
+
     def test_create_gallery_with_shooting_date(self, authenticated_client: TestClient):
         shooting_date = date(2023, 7, 15)
         response = authenticated_client.post("/galleries", json={"shooting_date": shooting_date.isoformat()})
@@ -290,6 +300,15 @@ class TestGalleryAPI:
         data = response.json()
         assert data["id"] == gallery_id_fixture
         assert data["name"] == new_name
+
+    def test_update_gallery_name_too_long(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """Updates with names beyond the limit are rejected."""
+        long_name = "B" * (GALLERY_NAME_MAX_LENGTH + 1)
+        response = authenticated_client.patch(f"/galleries/{gallery_id_fixture}", json={"name": long_name})
+        assert response.status_code == 422
+        detail = response.json().get("detail")
+        assert detail is not None
+        assert str(GALLERY_NAME_MAX_LENGTH) in str(detail)
 
     def test_update_gallery_shooting_date(self, authenticated_client: TestClient, gallery_id_fixture: str):
         new_date = date(2024, 5, 12)
