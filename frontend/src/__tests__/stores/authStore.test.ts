@@ -193,8 +193,30 @@ describe('authStore', () => {
       const state = useAuthStore.getState();
 
       expect(typeof state.login).toBe('function');
+      expect(typeof state.setUser).toBe('function');
       expect(typeof state.logout).toBe('function');
       expect(typeof state.updateTokens).toBe('function');
+    });
+  });
+
+  describe('setUser', () => {
+    it('should update user without changing tokens', () => {
+      const mockUser = createMockUser();
+      const updatedUser = createMockUser({ display_name: 'Updated Name' });
+      const mockTokens: AuthTokens = {
+        access_token: 'access-token',
+        refresh_token: 'refresh-token',
+        token_type: 'Bearer',
+      };
+
+      const { login, setUser } = useAuthStore.getState();
+      login(mockUser, mockTokens);
+      setUser(updatedUser);
+
+      const state = useAuthStore.getState();
+      expect(state.user).toEqual(updatedUser);
+      expect(state.tokens).toEqual(mockTokens);
+      expect(state.isAuthenticated).toBe(true);
     });
   });
 
