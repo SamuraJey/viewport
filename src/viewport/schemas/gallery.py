@@ -3,16 +3,17 @@ from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
+from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH
 from viewport.schemas.photo import GalleryPhotoResponse
 
 
 class GalleryCreateRequest(BaseModel):
-    name: str = Field("", description="Custom name for the gallery")
+    name: str = Field("", max_length=GALLERY_NAME_MAX_LENGTH, description="Custom name for the gallery")
     shooting_date: date | None = Field(None, description="Displayed shooting date (YYYY-MM-DD)")
 
 
 class GalleryUpdateRequest(BaseModel):
-    name: str | None = Field(None, description="New name for the gallery")
+    name: str | None = Field(None, max_length=GALLERY_NAME_MAX_LENGTH, description="New name for the gallery")
     shooting_date: date | None = Field(None, description="Displayed shooting date (YYYY-MM-DD)")
 
     @model_validator(mode="after")

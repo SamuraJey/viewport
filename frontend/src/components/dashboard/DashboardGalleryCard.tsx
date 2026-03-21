@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Calendar, Check, Edit3, Trash2, X } from 'lucide-react';
 import { formatDateOnly } from '../../lib/utils';
+import { GALLERY_NAME_MAX_LENGTH } from '../../constants/gallery';
 import type { Gallery } from '../../services/galleryService';
 
 interface DashboardGalleryCardProps {
@@ -60,6 +61,7 @@ export const DashboardGalleryCard = ({
                   ref={renameInputRef}
                   className="flex-1 px-3 py-2 border-2 border-accent/50 dark:border-accent/40 rounded-lg min-w-0 text-base bg-surface-1 dark:bg-surface-dark-1 text-text dark:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-accent shadow-sm hover:border-accent/70 transition-all duration-200"
                   value={renameInput}
+                  maxLength={GALLERY_NAME_MAX_LENGTH}
                   onChange={(event) => onRenameInputChange(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
