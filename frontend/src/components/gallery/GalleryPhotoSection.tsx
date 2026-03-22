@@ -6,6 +6,7 @@ import { PhotoCard } from './PhotoCard';
 import { PhotoSelectionBar } from './PhotoSelectionBar';
 import { PhotoUploader, type PhotoUploaderHandle } from '../PhotoUploader';
 import { MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
+import { formatFileSize } from '../../lib/utils';
 import type { PhotoUploadResponse, GalleryPhoto } from '../../types';
 
 interface GalleryPagination {
@@ -28,6 +29,7 @@ interface GalleryPhotoSectionProps {
   onModalStateChange?: (isOpen: boolean) => void;
   state: {
     photoUrls: GalleryPhoto[];
+    gallerySizeBytes: number;
     isLoadingPhotos: boolean;
     isDownloadingZip?: boolean;
     uploadError: string | null;
@@ -38,6 +40,7 @@ interface GalleryPhotoSectionProps {
   selection: {
     areAllOnPageSelected: boolean;
     selectionCount: number;
+    selectedSizeBytes: number;
     hasSelection: boolean;
     isPhotoSelected: (photoId: string) => boolean;
     isCoverPhoto: (photoId: string) => boolean;
@@ -100,7 +103,7 @@ export const GalleryPhotoSection = ({
               onClick={actions.onDownloadGallery}
               disabled={state.isDownloadingZip}
               className="inline-flex h-11 items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-5 text-sm font-bold text-text transition-all duration-200 hover:bg-surface-2 hover:border-accent/40 hover:text-accent hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-surface-1 disabled:hover:text-text disabled:hover:translate-y-0 disabled:hover:shadow-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
-              title="Download entire gallery as ZIP"
+              title={`Download entire gallery as ZIP (${formatFileSize(state.gallerySizeBytes)})`}
             >
               <Download className="h-4 w-4" />
               Download ZIP
@@ -109,11 +112,10 @@ export const GalleryPhotoSection = ({
           {state.photoUrls.length > 0 && (
             <button
               onClick={actions.onToggleSelectionMode}
-              className={`inline-flex h-11 items-center gap-2 rounded-xl border px-5 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
-                state.isSelectionMode
-                  ? 'border-accent bg-accent text-accent-foreground shadow-sm hover:brightness-110'
-                  : 'border-border/50 bg-surface-1 text-text hover:bg-surface-2 hover:border-border/80 dark:border-border/40 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2'
-              }`}
+              className={`inline-flex h-11 items-center gap-2 rounded-xl border px-5 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${state.isSelectionMode
+                ? 'border-accent bg-accent text-accent-foreground shadow-sm hover:brightness-110'
+                : 'border-border/50 bg-surface-1 text-text hover:bg-surface-2 hover:border-border/80 dark:border-border/40 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2'
+                }`}
               title={state.isSelectionMode ? 'Exit selection mode' : 'Enter selection mode'}
             >
               <CheckSquare className="h-4 w-4" />
@@ -180,6 +182,7 @@ export const GalleryPhotoSection = ({
       isSelectionMode={state.isSelectionMode}
       hasSelection={selection.hasSelection}
       selectionCount={selection.selectionCount}
+      selectedSizeLabel={formatFileSize(selection.selectedSizeBytes)}
       isDownloadingZip={state.isDownloadingZip}
       areAllOnPageSelected={selection.areAllOnPageSelected}
       onSelectAll={actions.onSelectAllPhotos}

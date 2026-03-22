@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Check, Loader2, Trash2 } from 'lucide-react';
-import { formatDateOnly } from '../../lib/utils';
+import { ArrowLeft, Check, HardDrive, Loader2, Trash2 } from 'lucide-react';
+import { formatDateOnly, formatFileSize } from '../../lib/utils';
 import type { GalleryDetail } from '../../types';
 
 interface GalleryHeaderProps {
@@ -22,8 +22,8 @@ export const GalleryHeader = ({
 }: GalleryHeaderProps) => {
   return (
     <div className="rounded-3xl border border-border/50 bg-surface p-6 dark:border-border/30 dark:bg-surface-foreground/5 sm:p-8 shadow-xs">
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-5">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-5 min-w-0 max-w-full">
           <Link
             to="/"
             className="inline-flex h-10 w-fit items-center gap-2.5 rounded-xl border border-border/60 bg-surface-1 px-4 text-sm font-semibold text-muted transition-all duration-200 hover:border-accent/40 hover:text-accent hover:bg-accent/5 hover:-translate-y-0.5 hover:shadow-sm dark:border-border/40 dark:bg-surface-dark-1 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
@@ -31,12 +31,12 @@ export const GalleryHeader = ({
             <ArrowLeft className="h-4 w-4" />
             Back to Galleries
           </Link>
-          <h1 className="font-oswald text-4xl font-bold leading-tight tracking-wide text-text uppercase sm:text-5xl drop-shadow-xs">
+          <h1 className="max-w-full whitespace-normal [overflow-wrap:anywhere] break-words font-oswald text-4xl font-bold leading-tight tracking-wide text-text uppercase sm:text-5xl drop-shadow-xs">
             {gallery.name || `Gallery #${gallery.id}`}
           </h1>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex w-full flex-wrap items-center gap-4 lg:w-auto lg:justify-end">
           <label className="sr-only" htmlFor="gallery-shooting-date">
             Shooting date
           </label>
@@ -70,6 +70,13 @@ export const GalleryHeader = ({
           </div>
 
           <div className="flex items-center gap-4 ml-auto lg:ml-0">
+            <span
+              className="inline-flex items-center gap-2 text-xs font-semibold text-accent bg-accent/10 px-3 py-1.5 rounded-lg border border-accent/30"
+              title={`Total gallery size: ${formatFileSize(gallery.total_size_bytes ?? 0)}`}
+            >
+              <HardDrive className="h-3.5 w-3.5" />
+              {formatFileSize(gallery.total_size_bytes ?? 0)}
+            </span>
             <span className="text-xs font-medium text-muted bg-surface-1 dark:bg-surface-dark-1 px-3 py-1.5 rounded-lg border border-border/30">
               Created {formatDateOnly(gallery.created_at)}
             </span>

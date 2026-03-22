@@ -41,6 +41,7 @@ class GalleryDetailResponse(BaseModel):
     cover_photo_id: str | None = Field(None, description="Optional cover photo id")
     photos: list[GalleryPhotoResponse]
     total_photos: int = Field(..., description="Total number of photos in the gallery")
+    total_size_bytes: int = Field(..., description="Total size of photos in bytes")
 
 
 class GalleryListResponse(BaseModel):

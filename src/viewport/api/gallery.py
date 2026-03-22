@@ -95,6 +95,7 @@ async def get_gallery_detail(
 
     # Use repository methods that perform efficient DB queries instead of loading the whole relationship
     photo_count = await repo.get_photo_count_by_gallery(gallery_id)
+    total_size_bytes = await repo.get_photo_total_size_by_gallery(gallery_id)
 
     if limit is not None:
         photos_to_process = await repo.get_photos_by_gallery_paginated(gallery_id, limit, offset)
@@ -124,6 +125,7 @@ async def get_gallery_detail(
         cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
         photos=photo_responses,
         total_photos=photo_count,
+        total_size_bytes=total_size_bytes,
     )
 
 

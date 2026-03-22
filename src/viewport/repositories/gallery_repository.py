@@ -245,6 +245,11 @@ class GalleryRepository(BaseRepository):
         count = int((await self.db.execute(stmt)).scalar() or 0)
         return await self._finish_read(count)
 
+    async def get_photo_total_size_by_gallery(self, gallery_id: uuid.UUID) -> int:
+        stmt = select(func.coalesce(func.sum(Photo.file_size), 0)).select_from(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
+        total_size = int((await self.db.execute(stmt)).scalar() or 0)
+        return await self._finish_read(total_size)
+
     async def get_photos_by_gallery_paginated(self, gallery_id: uuid.UUID, limit: int, offset: int) -> list[Photo]:
         stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(Photo.display_name.asc()).offset(offset).limit(limit)
         photos = list((await self.db.execute(stmt)).scalars().all())

@@ -16,6 +16,7 @@ export interface Gallery {
 export interface GalleryDetail extends Gallery {
   photos: GalleryPhoto[];
   total_photos: number;
+  total_size_bytes?: number;
 }
 
 export interface GalleryListResponse {

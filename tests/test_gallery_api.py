@@ -135,6 +135,7 @@ class TestGalleryAPI:
         assert "photos" in data
         assert "share_links" not in data
         assert "total_photos" in data
+        assert "total_size_bytes" in data
         assert isinstance(data["photos"], list)
 
     def test_get_gallery_not_found(self, authenticated_client: TestClient):

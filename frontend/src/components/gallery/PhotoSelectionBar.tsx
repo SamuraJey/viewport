@@ -4,6 +4,7 @@ interface PhotoSelectionBarProps {
   isSelectionMode: boolean;
   hasSelection: boolean;
   selectionCount: number;
+  selectedSizeLabel?: string;
   isDownloadingZip?: boolean;
   areAllOnPageSelected: boolean;
   onSelectAll: () => void;
@@ -16,6 +17,7 @@ export const PhotoSelectionBar = ({
   isSelectionMode,
   hasSelection,
   selectionCount,
+  selectedSizeLabel,
   isDownloadingZip,
   areAllOnPageSelected,
   onSelectAll,
@@ -66,6 +68,7 @@ export const PhotoSelectionBar = ({
         >
           <Download className="w-4 h-4" />
           Download {selectionCount > 0 ? `(${selectionCount})` : ''}
+          {selectedSizeLabel ? ` ${selectedSizeLabel}` : ''}
         </button>
         <button
           onClick={onDeleteMultiple}
