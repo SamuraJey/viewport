@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, ConnectionClosedError, ConnectTimeoutError, EndpointConnectionError, ReadTimeoutError, SSLError
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy import delete, func, or_, select, update
 
@@ -17,6 +17,36 @@ from viewport.s3_utils import create_thumbnail, generate_thumbnail_object_key, g
 from viewport.task_utils import BatchTaskResult, task_db_session
 
 logger = logging.getLogger(__name__)
+
+RETRYABLE_S3_ERROR_CODES = {
+    "RequestTimeout",
+    "RequestTimeTooSkewed",
+    "SlowDown",
+    "InternalError",
+    "ServiceUnavailable",
+    "Throttling",
+    "ThrottlingException",
+    "TooManyRequestsException",
+}
+
+
+class ThumbnailTransientError(Exception):
+    """Retryable transient thumbnail processing error."""
+
+
+def _is_retryable_s3_error(error: Exception) -> bool:
+    if isinstance(error, (EndpointConnectionError, ConnectionClosedError, ConnectTimeoutError, ReadTimeoutError, SSLError)):
+        return True
+
+    if not isinstance(error, ClientError):
+        return False
+
+    error_response = cast(dict[str, Any], getattr(error, "response", {}) or {})
+    error_data = cast(dict[str, Any], error_response.get("Error", {}) or {})
+    error_code = cast(str, error_data.get("Code", ""))
+    status_code = cast(int | None, error_response.get("ResponseMetadata", {}).get("HTTPStatusCode"))
+    return error_code in RETRYABLE_S3_ERROR_CODES or status_code in {429, 500, 502, 503, 504}
+
 
 if TYPE_CHECKING:
     from mypy_boto3_s3.client import S3Client
@@ -52,13 +82,15 @@ def _release_reserved_for_photos(db, photo_ids: list[str]) -> None:
         db.execute(update(User).where(User.id == owner_id).values(storage_reserved=func.greatest(User.storage_reserved - total, 0)))
 
 
-def _decrement_used_for_photos(db, photo_ids: list[str]) -> None:
+def _decrement_used_for_photos(db, photo_ids: list[str], statuses: list[PhotoUploadStatus] | None = None) -> None:
     if not photo_ids:
         return
 
-    stmt = (
-        select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0)).select_from(Photo).join(Gallery, Photo.gallery_id == Gallery.id).where(Photo.id.in_(photo_ids)).group_by(Gallery.owner_id)
-    )
+    stmt = select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0)).select_from(Photo).join(Gallery, Photo.gallery_id == Gallery.id).where(Photo.id.in_(photo_ids))
+    if statuses:
+        stmt = stmt.where(Photo.status.in_(statuses))
+    stmt = stmt.group_by(Gallery.owner_id)
+
     for owner_id, total in db.execute(stmt).all():
         db.execute(update(User).where(User.id == owner_id).values(storage_used=func.greatest(User.storage_used - total, 0)))
 
@@ -87,8 +119,12 @@ def _process_single_photo(
             try:
                 s3_client.put_object_tagging(Bucket=bucket, Key=object_key, Tagging={"TagSet": [{"Key": "upload-status", "Value": "confirmed"}]})
             except ClientError as tag_error:
+                if _is_retryable_s3_error(tag_error):
+                    raise ThumbnailTransientError(f"Retryable S3 tag error for {photo_id}") from tag_error
                 logger.warning("Failed to update S3 tag for %s: %s", object_key, tag_error)
             except Exception as tag_general_error:
+                if _is_retryable_s3_error(tag_general_error):
+                    raise ThumbnailTransientError(f"Retryable S3 tag error for {photo_id}") from tag_general_error
                 logger.warning("Unexpected error updating S3 tag for %s: %s", object_key, tag_general_error)
 
             response = s3_client.get_object(Bucket=bucket, Key=object_key)
@@ -103,9 +139,12 @@ def _process_single_photo(
                 result_tracker.add_error(photo_id, "File not found in S3")
                 return
 
-            # Re-raise session/connection errors to let Celery retry the whole batch
-            logger.error("S3 error for photo %s: %s", photo_id, str(s3_error))
-            raise
+            if _is_retryable_s3_error(s3_error):
+                raise ThumbnailTransientError(f"Retryable S3 read error for {photo_id}") from s3_error
+
+            logger.error("S3 non-retryable error for photo %s: %s", photo_id, str(s3_error))
+            result_tracker.add_error(photo_id, "S3 read failed")
+            return
 
         # Validate image magic bytes before processing
         if not _is_valid_image(image_bytes):
@@ -151,20 +190,27 @@ def _process_single_photo(
 
         # Upload thumbnail with aggressive caching (immutable content)
         thumbnail_io = io.BytesIO(thumbnail_bytes)
-        s3_client.upload_fileobj(
-            thumbnail_io,
-            bucket,
-            thumbnail_object_key,
-            ExtraArgs={
-                "ContentType": "image/avif",
-                "CacheControl": "public, max-age=31536000, immutable",  # 1 year, never changes
-            },
-        )
+        try:
+            s3_client.upload_fileobj(
+                thumbnail_io,
+                bucket,
+                thumbnail_object_key,
+                ExtraArgs={
+                    "ContentType": "image/avif",
+                    "CacheControl": "public, max-age=31536000, immutable",  # 1 year, never changes
+                },
+            )
+        except Exception as upload_error:
+            if _is_retryable_s3_error(upload_error):
+                raise ThumbnailTransientError(f"Retryable S3 upload error for {photo_id}") from upload_error
+            raise
         del thumbnail_bytes
 
         logger.info("Successfully created thumbnail for photo %s", photo_id)
         result_tracker.add_success(photo_id, thumbnail_object_key=thumbnail_object_key, width=width, height=height)
 
+    except ThumbnailTransientError:
+        raise
     except Exception as e:
         logger.exception("Failed to create thumbnail for photo %s: %s", photo_id, e)
         result_tracker.add_error(photo_id, "Processing failed", exception=e)
@@ -180,7 +226,16 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
         with task_db_session() as db:
             # 1. Update metadata for successful photos
             if successful_results:
-                update_mappings = [{"id": r["photo_id"], "thumbnail_object_key": r["thumbnail_object_key"], "width": r["width"], "height": r["height"]} for r in successful_results]
+                update_mappings = [
+                    {
+                        "id": r["photo_id"],
+                        "thumbnail_object_key": r["thumbnail_object_key"],
+                        "width": r["width"],
+                        "height": r["height"],
+                        "status": PhotoUploadStatus.SUCCESSFUL,
+                    }
+                    for r in successful_results
+                ]
                 logger.info("Batch updating %s photos with metadata in DB", len(update_mappings))
                 db.execute(update(Photo), update_mappings)
 
@@ -188,8 +243,15 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
             if failed_results:
                 failed_ids = [r["photo_id"] for r in failed_results]
                 logger.info("Batch marking %s photos as FAILED in DB", len(failed_ids))
-                db.execute(update(Photo).where(Photo.id.in_(failed_ids)).values(status=PhotoUploadStatus.FAILED))
-                _decrement_used_for_photos(db, failed_ids)
+                db.execute(
+                    update(Photo)
+                    .where(
+                        Photo.id.in_(failed_ids),
+                        Photo.status.in_([PhotoUploadStatus.THUMBNAIL_CREATING, PhotoUploadStatus.SUCCESSFUL]),
+                    )
+                    .values(status=PhotoUploadStatus.FAILED)
+                )
+                _decrement_used_for_photos(db, failed_ids, [PhotoUploadStatus.THUMBNAIL_CREATING, PhotoUploadStatus.SUCCESSFUL])
 
         # Invalidate cache for successful thumbnails
         if successful_results:
@@ -206,7 +268,17 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
             r["message"] = f"Database update failed: {db_error}"
 
 
-@celery_app.task(name="create_thumbnails_batch", bind=True, max_retries=3, rate_limit="50/s", acks_late=True)
+@celery_app.task(
+    name="create_thumbnails_batch",
+    bind=True,
+    max_retries=5,
+    rate_limit="50/s",
+    acks_late=True,
+    autoretry_for=(ThumbnailTransientError,),
+    retry_backoff=True,
+    retry_backoff_max=120,
+    retry_jitter=True,
+)
 def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
     """Background task to create thumbnails for multiple photos in one batch"""
     logger.info("Starting batch thumbnail creation for %s photos", len(photos))
@@ -348,7 +420,7 @@ def delete_gallery_data_task(self, gallery_id: str) -> dict:
                 used_bytes = db.execute(
                     select(func.coalesce(func.sum(Photo.file_size), 0)).where(
                         Photo.gallery_id == gallery_uuid,
-                        Photo.status == PhotoUploadStatus.SUCCESSFUL,
+                        Photo.status.in_([PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING]),
                     )
                 ).scalar_one()
                 reserved_bytes = db.execute(
@@ -409,7 +481,7 @@ def delete_photo_data_task(self, photo_id: str, gallery_id: str, owner_id: str) 
 
         # Delete from DB and update quota
         with task_db_session() as db:
-            if status == PhotoUploadStatus.SUCCESSFUL:
+            if status in (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING):
                 db.execute(update(User).where(User.id == owner_uuid).values(storage_used=func.greatest(User.storage_used - file_size, 0)))
             elif status == PhotoUploadStatus.PENDING:
                 db.execute(update(User).where(User.id == owner_uuid).values(storage_reserved=func.greatest(User.storage_reserved - file_size, 0)))
@@ -444,7 +516,10 @@ def reconcile_storage_quotas_task() -> dict:
             )
             .select_from(Photo)
             .join(Gallery, Photo.gallery_id == Gallery.id)
-            .where(Gallery.is_deleted.is_(False), Photo.status.in_([PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.PENDING]))
+            .where(
+                Gallery.is_deleted.is_(False),
+                Photo.status.in_([PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING, PhotoUploadStatus.PENDING]),
+            )
             .group_by(Gallery.owner_id, Photo.status)
         ).all()
 
@@ -452,7 +527,7 @@ def reconcile_storage_quotas_task() -> dict:
         reserved_by_user: dict[uuid.UUID, int] = {}
 
         for owner_id, status, total_size in usage_rows:
-            if status == PhotoUploadStatus.SUCCESSFUL:
+            if status in (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING):
                 used_by_user[owner_id] = used_by_user.get(owner_id, 0) + total_size
             elif status == PhotoUploadStatus.PENDING:
                 reserved_by_user[owner_id] = reserved_by_user.get(owner_id, 0) + total_size
@@ -508,7 +583,7 @@ def reconcile_successful_uploads_task() -> dict:
             select(Photo.id, Photo.object_key)
             .join(Photo.gallery)
             .where(
-                Photo.status == PhotoUploadStatus.SUCCESSFUL,
+                Photo.status.in_([PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING]),
                 Gallery.is_deleted.is_(False),
                 Photo.uploaded_at < threshold,
                 or_(

@@ -210,7 +210,7 @@ async def batch_confirm_uploads(
     """Confirm batch photo uploads to S3
 
     Process multiple photo confirmations in one request.
-    Sets status to SUCCESSFUL for confirmed uploads.
+    Sets status to THUMBNAIL_CREATING for confirmed uploads.
     Starts thumbnail processing (S3 verification and fallback-to-FAILED happen in background).
 
     Thumbnail processing is queued to Celery after the DB transaction commits.
@@ -253,7 +253,7 @@ async def batch_confirm_uploads(
             failed_count += 1
             continue
 
-        if photo.status == PhotoUploadStatus.SUCCESSFUL:
+        if photo.status in (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING):
             # Idempotent retry path: if metadata/thumbnail are still missing,
             # enqueue background processing again.
             if photo.thumbnail_object_key == photo.object_key or photo.width is None or photo.height is None:
@@ -265,7 +265,7 @@ async def batch_confirm_uploads(
             failed_count += 1
             continue
 
-        status_updates[photo.id] = PhotoUploadStatus.SUCCESSFUL
+        status_updates[photo.id] = PhotoUploadStatus.THUMBNAIL_CREATING
         confirmed_count += 1
         # TODO find all places where we use dicts like this, and replace it with DTOs.
         photos_to_process.append({"photo_id": str(photo.id), "object_key": photo.object_key})
@@ -277,7 +277,7 @@ async def batch_confirm_uploads(
         if not photo:
             continue
         previous_status = previous_status_map.get(photo_id)
-        if photo_status == PhotoUploadStatus.SUCCESSFUL and previous_status == PhotoUploadStatus.PENDING:
+        if photo_status == PhotoUploadStatus.THUMBNAIL_CREATING and previous_status == PhotoUploadStatus.PENDING:
             bytes_to_finalize += photo.file_size
         elif photo_status == PhotoUploadStatus.FAILED and previous_status == PhotoUploadStatus.PENDING:
             bytes_to_release += photo.file_size

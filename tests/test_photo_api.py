@@ -304,7 +304,7 @@ class TestPhotoAPI:
         assert photo is not None
         assert user.storage_used == 256
         assert user.storage_reserved == 0
-        assert photo.status == PhotoUploadStatus.SUCCESSFUL
+        assert photo.status == PhotoUploadStatus.THUMBNAIL_CREATING
 
     @pytest.mark.asyncio
     async def test_batch_confirm_delay_failure_does_not_rollback_db_state(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession, monkeypatch):
@@ -336,4 +336,4 @@ class TestPhotoAPI:
         assert photo is not None
         assert user.storage_used == 256
         assert user.storage_reserved == 0
-        assert photo.status == PhotoUploadStatus.SUCCESSFUL
+        assert photo.status == PhotoUploadStatus.THUMBNAIL_CREATING

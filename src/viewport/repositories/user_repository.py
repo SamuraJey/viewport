@@ -146,7 +146,7 @@ class UserRepository(BaseRepository):
             .where(
                 Gallery.owner_id == user_id,
                 Gallery.is_deleted.is_(False),
-                Photo.status == PhotoUploadStatus.SUCCESSFUL,
+                Photo.status.in_([PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING]),
             )
         )
         reserved_stmt = (

@@ -20,6 +20,7 @@ class PhotoUploadStatus(IntEnum):
     PENDING = 1  # Presigned URL issued, awaiting upload
     SUCCESSFUL = 2  # File successfully uploaded to S3
     FAILED = 3  # Upload failed
+    THUMBNAIL_CREATING = 4  # Upload confirmed, thumbnail generation in progress
 
 
 class Gallery(Base):
