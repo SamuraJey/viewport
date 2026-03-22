@@ -41,15 +41,17 @@ export const DashboardGalleryCard = ({
   onDelete,
   variants,
 }: DashboardGalleryCardProps) => {
+  const galleryTitle = gallery.name || `Gallery #${gallery.id}`;
+
   return (
     <motion.div
       key={gallery.id}
       variants={variants}
       layout
       exit="exit"
-      className="group bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-6 border border-border dark:border-border/10 hover:border-accent/30 transition-all duration-200 hover:shadow-lg"
+      className="group flex h-full flex-col bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl p-6 border border-border dark:border-border/10 hover:border-accent/30 transition-all duration-200 hover:shadow-lg"
     >
-      <div className="flex items-start justify-between mb-4">
+      <div className="mb-4 flex flex-1 items-start justify-between">
         <div className="flex items-center gap-4 flex-1 min-w-0">
           <div className="bg-accent/10 p-3 rounded-xl shrink-0 border border-accent/10 text-accent group-hover:bg-accent group-hover:text-accent-foreground transition-colors duration-300">
             <Calendar className="h-6 w-6" />
@@ -99,8 +101,11 @@ export const DashboardGalleryCard = ({
               </div>
             ) : (
               <>
-                <h3 className="font-oswald text-base font-bold uppercase tracking-wide text-text wrap-break-word">
-                  {gallery.name || `Gallery #${gallery.id}`}
+                <h3
+                  className="min-h-6 font-oswald text-base font-bold uppercase tracking-wide leading-tight text-text wrap-break-word line-clamp-2"
+                  title={galleryTitle}
+                >
+                  {galleryTitle}
                 </h3>
                 <p className="text-muted text-sm font-cuprum">
                   {formatDateOnly(gallery.shooting_date || gallery.created_at)}
@@ -130,7 +135,7 @@ export const DashboardGalleryCard = ({
           </div>
         )}
       </div>
-      <div className="mt-6">
+      <div className="mt-auto pt-6">
         <Link
           to={`/galleries/${gallery.id}`}
           className="block w-full bg-surface-1 hover:bg-accent text-text hover:text-accent-foreground font-medium py-2.5 px-4 rounded-xl text-center shadow-sm border border-border hover:border-accent/20 no-underline transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"

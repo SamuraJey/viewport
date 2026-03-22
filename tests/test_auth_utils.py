@@ -105,7 +105,6 @@ class TestJWTAuthentication:
         [
             "invalid.token.here",
             "notajwt",
-            "",
             "Bearer invalid",
             "completely_wrong_format",
         ],

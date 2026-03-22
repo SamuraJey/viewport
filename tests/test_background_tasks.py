@@ -251,6 +251,13 @@ def test_reconcile_storage_quotas_recomputes_from_active_successful_and_pending(
                 ),
                 Photo(
                     gallery_id=active_gallery.id,
+                    object_key=f"{active_gallery.id}/creating.jpg",
+                    thumbnail_object_key=f"{active_gallery.id}/creating.jpg",
+                    file_size=60,
+                    status=PhotoUploadStatus.THUMBNAIL_CREATING,
+                ),
+                Photo(
+                    gallery_id=active_gallery.id,
                     object_key=f"{active_gallery.id}/failed.jpg",
                     thumbnail_object_key=f"{active_gallery.id}/failed.jpg",
                     file_size=999,
@@ -274,7 +281,7 @@ def test_reconcile_storage_quotas_recomputes_from_active_successful_and_pending(
     with session_scope(engine) as session:
         refreshed = session.get(User, user_id)
         assert refreshed is not None
-        assert refreshed.storage_used == 120
+        assert refreshed.storage_used == 180
         assert refreshed.storage_reserved == 80
 
 
@@ -319,13 +326,13 @@ def test_reconcile_storage_quotas_includes_users_without_photos(engine: Engine) 
 
 
 def test_reconcile_successful_uploads_selects_correct_photos(engine: Engine, s3_container, monkeypatch) -> None:
-    """Test that reconcile_successful_uploads_task selects only SUCCESSFUL photos older than threshold with missing metadata."""
+    """Test that reconcile_successful_uploads_task selects processable photos older than threshold with missing metadata."""
 
     with photo_context(engine, "reconcile-test", "photo1.jpg") as ctx1, photo_context(engine, "reconcile-test", "photo2.jpg") as ctx2, photo_context(engine, "reconcile-test", "photo3.jpg") as ctx3:
         with session_scope(engine) as session:
-            # Photo 1: SUCCESSFUL, old, missing width (should match)
+            # Photo 1: THUMBNAIL_CREATING, old, missing width (should match)
             photo1 = session.get(Photo, ctx1.photo_id)
-            photo1.status = 2  # SUCCESSFUL
+            photo1.status = PhotoUploadStatus.THUMBNAIL_CREATING
             photo1.uploaded_at = datetime.now(UTC) - timedelta(minutes=10)
             photo1.width = None
             photo1.height = 480
@@ -333,7 +340,7 @@ def test_reconcile_successful_uploads_selects_correct_photos(engine: Engine, s3_
 
             # Photo 2: SUCCESSFUL, old, but has all metadata (should NOT match)
             photo2 = session.get(Photo, ctx2.photo_id)
-            photo2.status = 2  # SUCCESSFUL
+            photo2.status = PhotoUploadStatus.SUCCESSFUL
             photo2.uploaded_at = datetime.now(UTC) - timedelta(minutes=10)
             photo2.width = 640
             photo2.height = 480
@@ -342,7 +349,7 @@ def test_reconcile_successful_uploads_selects_correct_photos(engine: Engine, s3_
 
             # Photo 3: SUCCESSFUL, but recent (within threshold, should NOT match)
             photo3 = session.get(Photo, ctx3.photo_id)
-            photo3.status = 2  # SUCCESSFUL
+            photo3.status = PhotoUploadStatus.SUCCESSFUL
             photo3.uploaded_at = datetime.now(UTC) - timedelta(minutes=1)
             photo3.width = None
             session.flush()

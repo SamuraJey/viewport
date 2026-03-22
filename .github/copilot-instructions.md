@@ -27,7 +27,7 @@
   - **Two-step upload**:
     1. `/batch-presigned`: Creates `PENDING` DB records and returns presigned PUT URLs. Client uploads directly to S3.
     2. `/batch-confirm`: Verifies upload by applying `upload-status: confirmed` tag to S3 objects.
-  - **Confirmation logic**: Existence check is performed via `put_object_tagging`. `NoSuchKey` errors result in `FAILED` status. Successful tagging triggers Taskiq thumbnail batches.
+  - **Confirmation logic**: `/batch-confirm` transitions photos from `PENDING` to `THUMBNAIL_CREATING`, finalizes reserved quota, and enqueues thumbnail generation. Thumbnail workers move records to `SUCCESSFUL` on metadata/thumbnail success or to `FAILED` on permanent errors.
   - **Presigned URLs**: Avoid generating presigned URLs during batch upload; fetch URLs separately via `/photos/urls` endpoints.
   - **Garbage collection**: A Taskiq scheduled task (`cleanup_orphaned_uploads`) runs hourly to delete `PENDING` photo records older than 30 minutes and their corresponding S3 objects to prevent storage leaks from unconfirmed uploads.
   - **Gallery deletion**: `galleries.is_deleted` is a soft-delete flag. Deleting a gallery hides it from queries and enqueues a background task to purge S3 objects and hard-delete DB rows.

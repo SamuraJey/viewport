@@ -26,6 +26,7 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
   const [uploadError, setUploadError] = useState('');
   const [actionInfo, setActionInfo] = useState('');
   const [isCreatingLink, setIsCreatingLink] = useState(false);
+  const [isDownloadingZip, setIsDownloadingZip] = useState(false);
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
 
@@ -163,6 +164,44 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
         }
       },
     });
+  };
+
+  const releaseZipDownloadLock = useCallback(() => {
+    window.setTimeout(() => {
+      setIsDownloadingZip(false);
+    }, 400);
+  }, []);
+
+  const handleDownloadGallery = async () => {
+    setIsDownloadingZip(true);
+    clearError();
+    setActionInfo('');
+
+    try {
+      await photoService.downloadGalleryZip(galleryId);
+    } catch (err) {
+      handleError(err);
+    } finally {
+      releaseZipDownloadLock();
+    }
+  };
+
+  const handleDownloadSelectedPhotos = async (selectedIds: Set<string>) => {
+    if (selectedIds.size === 0) {
+      return;
+    }
+
+    setIsDownloadingZip(true);
+    clearError();
+    setActionInfo('');
+
+    try {
+      await photoService.downloadSelectedPhotosZip(galleryId, Array.from(selectedIds));
+    } catch (err) {
+      handleError(err);
+    } finally {
+      releaseZipDownloadLock();
+    }
   };
 
   const handleSetCover = async (photoId: string) => {
@@ -346,6 +385,7 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
     actionInfo,
     setActionInfo,
     isCreatingLink,
+    isDownloadingZip,
     shootingDateInput,
     setShootingDateInput,
     isSavingShootingDate,
@@ -358,6 +398,8 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
     handleUploadComplete,
     handleSaveShootingDate,
     handleDeleteGallery,
+    handleDownloadGallery,
+    handleDownloadSelectedPhotos,
     handleSetCover,
     handleClearCover,
     handleCreateShareLink,

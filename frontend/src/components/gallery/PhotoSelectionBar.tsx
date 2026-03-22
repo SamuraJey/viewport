@@ -1,12 +1,15 @@
-import { CheckSquare, Square, Trash2 } from 'lucide-react';
+import { CheckSquare, Download, Square, Trash2 } from 'lucide-react';
 
 interface PhotoSelectionBarProps {
   isSelectionMode: boolean;
   hasSelection: boolean;
   selectionCount: number;
+  selectedSizeLabel?: string;
+  isDownloadingZip?: boolean;
   areAllOnPageSelected: boolean;
   onSelectAll: () => void;
   onCancel: () => void;
+  onDownloadSelected: () => void;
   onDeleteMultiple: () => void;
 }
 
@@ -14,9 +17,12 @@ export const PhotoSelectionBar = ({
   isSelectionMode,
   hasSelection,
   selectionCount,
+  selectedSizeLabel,
+  isDownloadingZip,
   areAllOnPageSelected,
   onSelectAll,
   onCancel,
+  onDownloadSelected,
   onDeleteMultiple,
 }: PhotoSelectionBarProps) => {
   if (!isSelectionMode && !hasSelection) return null;
@@ -56,9 +62,18 @@ export const PhotoSelectionBar = ({
           Cancel
         </button>
         <button
+          onClick={onDownloadSelected}
+          disabled={!hasSelection || isDownloadingZip}
+          className="inline-flex h-10 items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-5 text-sm font-bold text-accent transition-all duration-200 hover:bg-accent/20 hover:border-accent/50 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-accent/10 disabled:hover:border-accent/30 disabled:hover:shadow-none disabled:hover:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+        >
+          <Download className="w-4 h-4" />
+          Download {selectionCount > 0 ? `(${selectionCount})` : ''}
+          {selectedSizeLabel ? ` ${selectedSizeLabel}` : ''}
+        </button>
+        <button
           onClick={onDeleteMultiple}
           disabled={!hasSelection}
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-danger/20 bg-danger px-5 text-sm font-bold text-accent-foreground shadow-sm transition-all duration-200 hover:shadow-md hover:brightness-110 hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100 disabled:hover:shadow-sm disabled:hover:-translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          className="inline-flex h-10 items-center gap-2 rounded-xl border border-danger/20 bg-danger px-5 text-sm font-bold text-accent-foreground shadow-sm transition-all duration-200 hover:shadow-md hover:brightness-110 hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100 disabled:hover:shadow-sm disabled:hover:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           <Trash2 className="w-4 h-4" />
           Delete {selectionCount > 0 ? `(${selectionCount})` : ''}

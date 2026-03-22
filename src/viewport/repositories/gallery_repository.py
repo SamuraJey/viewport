@@ -113,7 +113,7 @@ class GalleryRepository(BaseRepository):
             await self.db.execute(
                 select(func.coalesce(func.sum(Photo.file_size), 0)).where(
                     Photo.gallery_id == gallery_id,
-                    Photo.status == PhotoUploadStatus.SUCCESSFUL,
+                    Photo.status.in_([PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING]),
                 )
             )
         ).scalar_one()
@@ -144,7 +144,7 @@ class GalleryRepository(BaseRepository):
             await self.db.execute(
                 select(func.coalesce(func.sum(Photo.file_size), 0)).where(
                     Photo.gallery_id == gallery_id,
-                    Photo.status == PhotoUploadStatus.SUCCESSFUL,
+                    Photo.status.in_([PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING]),
                 )
             )
         ).scalar_one()
@@ -244,6 +244,11 @@ class GalleryRepository(BaseRepository):
         stmt = select(func.count()).select_from(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
         count = int((await self.db.execute(stmt)).scalar() or 0)
         return await self._finish_read(count)
+
+    async def get_photo_total_size_by_gallery(self, gallery_id: uuid.UUID) -> int:
+        stmt = select(func.coalesce(func.sum(Photo.file_size), 0)).select_from(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
+        total_size = int((await self.db.execute(stmt)).scalar() or 0)
+        return await self._finish_read(total_size)
 
     async def get_photos_by_gallery_paginated(self, gallery_id: uuid.UUID, limit: int, offset: int) -> list[Photo]:
         stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(Photo.display_name.asc()).offset(offset).limit(limit)
@@ -399,7 +404,7 @@ class GalleryRepository(BaseRepository):
             return False
 
         user_repo = UserRepository(self.db)
-        if photo.status == PhotoUploadStatus.SUCCESSFUL:
+        if photo.status in (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING):
             await user_repo.decrement_storage_used(owner_id, photo.file_size, commit=False)
         elif photo.status == PhotoUploadStatus.PENDING:
             await user_repo.release_reserved_storage(owner_id, photo.file_size, commit=False)

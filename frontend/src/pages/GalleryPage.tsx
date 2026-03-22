@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
@@ -21,6 +21,7 @@ export const GalleryPage = () => {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showInitialLoadingState, setShowInitialLoadingState] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [photoSizeById, setPhotoSizeById] = useState<Record<string, number>>({});
   const gridRef = useRef<HTMLDivElement | null>(null);
   const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
 
@@ -41,6 +42,7 @@ export const GalleryPage = () => {
     actionInfo,
     setActionInfo,
     isCreatingLink,
+    isDownloadingZip,
     shootingDateInput,
     setShootingDateInput,
     isSavingShootingDate,
@@ -53,6 +55,8 @@ export const GalleryPage = () => {
     handleUploadComplete,
     handleSaveShootingDate,
     handleDeleteGallery,
+    handleDownloadGallery,
+    handleDownloadSelectedPhotos,
     handleSetCover,
     handleClearCover,
     handleCreateShareLink,
@@ -81,6 +85,31 @@ export const GalleryPage = () => {
   // Derived state
   const areAllOnPageSelected =
     photoUrls.length > 0 && photoUrls.every((p) => selection.isSelected(p.id));
+
+  useEffect(() => {
+    if (photoUrls.length === 0) {
+      return;
+    }
+
+    setPhotoSizeById((prev) => {
+      const next = { ...prev };
+      for (const photo of photoUrls) {
+        next[photo.id] = photo.file_size || 0;
+      }
+      return next;
+    });
+  }, [photoUrls]);
+
+  const selectedSizeBytes = useMemo(() => {
+    if (selection.selectedIds.size === 0) {
+      return 0;
+    }
+
+    return Array.from(selection.selectedIds).reduce(
+      (total, photoId) => total + (photoSizeById[photoId] || 0),
+      0,
+    );
+  }, [photoSizeById, selection.selectedIds]);
 
   useEffect(() => {
     // Determine if this is the initial load (no gallery data yet)
@@ -130,6 +159,10 @@ export const GalleryPage = () => {
       selection.clear();
       setIsSelectionMode(false);
     });
+  };
+
+  const handleDownloadSelectedPhotosWrapper = () => {
+    void handleDownloadSelectedPhotos(selection.selectedIds);
   };
 
   // Photo modal handlers
@@ -195,15 +228,18 @@ export const GalleryPage = () => {
           onModalStateChange={setIsModalOpen}
           state={{
             photoUrls,
+            gallerySizeBytes: gallery.total_size_bytes ?? 0,
             isLoadingPhotos,
             uploadError,
             actionInfo,
             error,
             isSelectionMode,
+            isDownloadingZip,
           }}
           selection={{
             areAllOnPageSelected,
             selectionCount: selection.count,
+            selectedSizeBytes,
             hasSelection: selection.hasSelection,
             isPhotoSelected: (id) => selection.isSelected(id),
             isCoverPhoto: (photoId) => gallery.cover_photo_id === photoId,
@@ -227,6 +263,8 @@ export const GalleryPage = () => {
             onClearCover: handleClearCover,
             onRenamePhoto: handleRenamePhoto,
             onDeletePhoto: handleDeletePhoto,
+            onDownloadGallery: handleDownloadGallery,
+            onDownloadSelectedPhotos: handleDownloadSelectedPhotosWrapper,
             onSelectAllPhotos: handleSelectAllPhotos,
             onCancelSelection: () => {
               selection.clear();

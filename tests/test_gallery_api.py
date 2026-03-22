@@ -1,11 +1,14 @@
 """Tests for gallery API endpoints."""
 
+import io
+import zipfile
 from datetime import date
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from tests.helpers import register_and_login
+from tests.helpers import register_and_login, upload_photo_via_presigned
 from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH
 
 
@@ -132,6 +135,7 @@ class TestGalleryAPI:
         assert "photos" in data
         assert "share_links" not in data
         assert "total_photos" in data
+        assert "total_size_bytes" in data
         assert isinstance(data["photos"], list)
 
     def test_get_gallery_not_found(self, authenticated_client: TestClient):
@@ -340,3 +344,149 @@ class TestGalleryAPI:
         fake_id = str(uuid4())
         response = client.patch(f"/galleries/{fake_id}", json={"name": "Name"})
         assert response.status_code == 401
+
+    def test_download_whole_gallery_as_zip(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        first_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"first-bytes", "first.jpg")
+        second_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"second-bytes", "second.jpg")
+
+        fake_bucket = "test-bucket"
+
+        with patch("viewport.api.gallery.get_s3_settings") as mock_get_settings, patch("viewport.api.gallery.get_sync_s3_client") as mock_get_s3:
+            mock_settings = MagicMock()
+            mock_settings.bucket = fake_bucket
+            mock_get_settings.return_value = mock_settings
+
+            mock_client = MagicMock()
+            mock_client.get_object.side_effect = lambda Bucket, Key: {"Body": io.BytesIO(f"payload-{Key}".encode())}
+            mock_get_s3.return_value = mock_client
+
+            response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/download/all")
+
+        assert response.status_code == 200
+        assert response.headers.get("Content-Type") == "application/zip"
+
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            names = archive.namelist()
+
+        assert len(names) == 2
+        assert "first.jpg" in names
+        assert "second.jpg" in names
+        assert first_photo_id != second_photo_id
+
+    def test_download_whole_gallery_as_zip_accepts_form_access_token(self, client: TestClient, auth_token: str):
+        client.headers.update({"Authorization": f"Bearer {auth_token}"})
+        gallery_response = client.post("/galleries", json={})
+        assert gallery_response.status_code == 201
+        gallery_id = gallery_response.json()["id"]
+        upload_photo_via_presigned(client, gallery_id, b"first-bytes", "first.jpg")
+        client.headers.pop("Authorization", None)
+
+        fake_bucket = "test-bucket"
+
+        with patch("viewport.api.gallery.get_s3_settings") as mock_get_settings, patch("viewport.api.gallery.get_sync_s3_client") as mock_get_s3:
+            mock_settings = MagicMock()
+            mock_settings.bucket = fake_bucket
+            mock_get_settings.return_value = mock_settings
+
+            mock_client = MagicMock()
+            mock_client.get_object.side_effect = lambda Bucket, Key: {"Body": io.BytesIO(f"payload-{Key}".encode())}
+            mock_get_s3.return_value = mock_client
+
+            response = client.post(
+                f"/galleries/{gallery_id}/download/all",
+                data={"access_token": auth_token},
+            )
+
+        assert response.status_code == 200
+        assert response.headers.get("Content-Type") == "application/zip"
+
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            assert archive.namelist() == ["first.jpg"]
+
+    def test_download_whole_gallery_as_zip_rejects_query_param_access_token(self, client: TestClient, auth_token: str):
+        client.headers.update({"Authorization": f"Bearer {auth_token}"})
+        gallery_response = client.post("/galleries", json={})
+        assert gallery_response.status_code == 201
+        gallery_id = gallery_response.json()["id"]
+        upload_photo_via_presigned(client, gallery_id, b"first-bytes", "first.jpg")
+        client.headers.pop("Authorization", None)
+
+        response = client.post(f"/galleries/{gallery_id}/download/all?access_token={auth_token}")
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Not authenticated"
+
+    def test_download_selected_photos_as_zip(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        selected_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"selected-bytes", "selected.jpg")
+        _other_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"other-bytes", "other.jpg")
+
+        fake_bucket = "test-bucket"
+
+        with patch("viewport.api.gallery.get_s3_settings") as mock_get_settings, patch("viewport.api.gallery.get_sync_s3_client") as mock_get_s3:
+            mock_settings = MagicMock()
+            mock_settings.bucket = fake_bucket
+            mock_get_settings.return_value = mock_settings
+
+            mock_client = MagicMock()
+            mock_client.get_object.side_effect = lambda Bucket, Key: {"Body": io.BytesIO(f"payload-{Key}".encode())}
+            mock_get_s3.return_value = mock_client
+
+            response = authenticated_client.post(
+                f"/galleries/{gallery_id_fixture}/download/selected",
+                json={"photo_ids": [selected_photo_id]},
+            )
+
+        assert response.status_code == 200
+        assert response.headers.get("Content-Type") == "application/zip"
+
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            names = archive.namelist()
+
+        assert names == ["selected.jpg"]
+
+    def test_download_selected_photos_as_zip_accepts_form_body_and_access_token(self, client: TestClient, auth_token: str):
+        client.headers.update({"Authorization": f"Bearer {auth_token}"})
+        gallery_response = client.post("/galleries", json={})
+        assert gallery_response.status_code == 201
+        gallery_id = gallery_response.json()["id"]
+        selected_photo_id = upload_photo_via_presigned(client, gallery_id, b"selected-bytes", "selected.jpg")
+        upload_photo_via_presigned(client, gallery_id, b"other-bytes", "other.jpg")
+        client.headers.pop("Authorization", None)
+
+        fake_bucket = "test-bucket"
+
+        with patch("viewport.api.gallery.get_s3_settings") as mock_get_settings, patch("viewport.api.gallery.get_sync_s3_client") as mock_get_s3:
+            mock_settings = MagicMock()
+            mock_settings.bucket = fake_bucket
+            mock_get_settings.return_value = mock_settings
+
+            mock_client = MagicMock()
+            mock_client.get_object.side_effect = lambda Bucket, Key: {"Body": io.BytesIO(f"payload-{Key}".encode())}
+            mock_get_s3.return_value = mock_client
+
+            response = client.post(
+                f"/galleries/{gallery_id}/download/selected",
+                data={"access_token": auth_token, "photo_ids": [selected_photo_id]},
+            )
+
+        assert response.status_code == 200
+        assert response.headers.get("Content-Type") == "application/zip"
+
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            assert archive.namelist() == ["selected.jpg"]
+
+    def test_download_selected_photos_returns_404_for_unknown_photo(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+    ):
+        valid_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"known-bytes", "known.jpg")
+        unknown_photo_id = str(uuid4())
+
+        response = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/download/selected",
+            json={"photo_ids": [valid_photo_id, unknown_photo_id]},
+        )
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
