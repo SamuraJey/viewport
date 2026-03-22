@@ -16,8 +16,6 @@ import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../constant
 // Re-export types for backward compatibility
 export type { PhotoResponse, PhotoUploadIntentRequest, PhotoUploadResult, PhotoUploadResponse };
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:8000');
 const DOWNLOAD_TARGET_NAME = 'viewport-browser-download';
 const DOWNLOAD_TARGET_ID = 'viewport-browser-download-frame';
 
@@ -52,9 +50,10 @@ const getDownloadAccessToken = (): string => {
 };
 
 const submitBrowserDownload = (path: string, fields: Record<string, string | string[]>): void => {
+  const apiBaseUrl = api.defaults?.baseURL ?? '';
   const form = document.createElement('form');
   form.method = 'POST';
-  form.action = `${API_BASE_URL}${path}`;
+  form.action = `${apiBaseUrl}${path}`;
   form.target = ensureDownloadTarget();
   form.style.display = 'none';
 

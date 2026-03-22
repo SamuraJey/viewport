@@ -170,7 +170,7 @@ async def _parse_selected_photos_request(request: Request) -> DownloadSelectedPh
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.errors()) from exc
 
 
-@router.api_route("/{gallery_id}/download/all", methods=["GET", "POST"])
+@router.post("/{gallery_id}/download/all")
 def download_gallery_zip(
     gallery_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),

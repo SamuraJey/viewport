@@ -360,7 +360,7 @@ class TestGalleryAPI:
             mock_client.get_object.side_effect = lambda Bucket, Key: {"Body": io.BytesIO(f"payload-{Key}".encode())}
             mock_get_s3.return_value = mock_client
 
-            response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/download/all")
+            response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/download/all")
 
         assert response.status_code == 200
         assert response.headers.get("Content-Type") == "application/zip"
@@ -402,6 +402,19 @@ class TestGalleryAPI:
 
         with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
             assert archive.namelist() == ["first.jpg"]
+
+    def test_download_whole_gallery_as_zip_rejects_query_param_access_token(self, client: TestClient, auth_token: str):
+        client.headers.update({"Authorization": f"Bearer {auth_token}"})
+        gallery_response = client.post("/galleries", json={})
+        assert gallery_response.status_code == 201
+        gallery_id = gallery_response.json()["id"]
+        upload_photo_via_presigned(client, gallery_id, b"first-bytes", "first.jpg")
+        client.headers.pop("Authorization", None)
+
+        response = client.post(f"/galleries/{gallery_id}/download/all?access_token={auth_token}")
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Not authenticated"
 
     def test_download_selected_photos_as_zip(self, authenticated_client: TestClient, gallery_id_fixture: str):
         selected_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"selected-bytes", "selected.jpg")

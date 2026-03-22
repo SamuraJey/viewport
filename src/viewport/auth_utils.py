@@ -76,13 +76,11 @@ async def get_current_user_for_download(
     """Resolve auth for browser-managed downloads.
 
     Browser form submissions cannot set the Authorization header, so for
-    download endpoints we also accept an access token from query params or
-    form body.
+    download endpoints we also accept an access token from form body.
+    Query-string tokens are intentionally not supported to avoid leaking
+    bearer credentials via URLs.
     """
     token = credentials.credentials if credentials else None
-
-    if not token:
-        token = request.query_params.get("access_token")
 
     if not token and request.method not in {"GET", "HEAD"}:
         form = await request.form()
