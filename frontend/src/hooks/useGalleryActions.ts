@@ -166,29 +166,11 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
     });
   };
 
-  const makeZipFilename = useCallback(
-    (suffix: 'all' | 'selected') => {
-      const galleryName = (gallery?.name || `gallery-${galleryId}`).trim();
-      const normalizedName = galleryName
-        .replace(/[^a-zA-Z0-9_-]+/g, '_')
-        .replace(/^_+|_+$/g, '')
-        .toLowerCase();
-      const safeName = normalizedName || `gallery-${galleryId}`;
-      return suffix === 'selected' ? `${safeName}_selected.zip` : `${safeName}.zip`;
-    },
-    [gallery?.name, galleryId],
-  );
-
-  const triggerBlobDownload = (blob: Blob, filename: string) => {
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-  };
+  const releaseZipDownloadLock = useCallback(() => {
+    window.setTimeout(() => {
+      setIsDownloadingZip(false);
+    }, 400);
+  }, []);
 
   const handleDownloadGallery = async () => {
     setIsDownloadingZip(true);
@@ -196,12 +178,11 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
     setActionInfo('');
 
     try {
-      const blob = await photoService.downloadGalleryZip(galleryId);
-      triggerBlobDownload(blob, makeZipFilename('all'));
+      await photoService.downloadGalleryZip(galleryId);
     } catch (err) {
       handleError(err);
     } finally {
-      setIsDownloadingZip(false);
+      releaseZipDownloadLock();
     }
   };
 
@@ -215,12 +196,11 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
     setActionInfo('');
 
     try {
-      const blob = await photoService.downloadSelectedPhotosZip(galleryId, Array.from(selectedIds));
-      triggerBlobDownload(blob, makeZipFilename('selected'));
+      await photoService.downloadSelectedPhotosZip(galleryId, Array.from(selectedIds));
     } catch (err) {
       handleError(err);
     } finally {
-      setIsDownloadingZip(false);
+      releaseZipDownloadLock();
     }
   };
 

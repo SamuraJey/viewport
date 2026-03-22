@@ -1,7 +1,7 @@
 import uuid
 
 import jwt
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import select
@@ -29,15 +29,11 @@ authsettings = AuthSettings()
 security = HTTPBearer(auto_error=False)
 
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    """Get current authenticated user from JWT token."""
-    if not credentials:
+async def _get_user_from_token(token: str | None, db: AsyncSession) -> User:
+    """Resolve the current user from a JWT access token."""
+    if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    token = credentials.credentials
     try:
         payload = jwt.decode(token, authsettings.jwt_secret_key, algorithms=[authsettings.jwt_algorithm])
         user_id = payload.get("sub")
@@ -61,3 +57,37 @@ async def get_current_user(
         raise HTTPException(status_code=401, detail="Token expired") from None
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token") from None
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """Get current authenticated user from JWT token."""
+    token = credentials.credentials if credentials else None
+    return await _get_user_from_token(token, db)
+
+
+async def get_current_user_for_download(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """Resolve auth for browser-managed downloads.
+
+    Browser form submissions cannot set the Authorization header, so for
+    download endpoints we also accept an access token from query params or
+    form body.
+    """
+    token = credentials.credentials if credentials else None
+
+    if not token:
+        token = request.query_params.get("access_token")
+
+    if not token and request.method not in {"GET", "HEAD"}:
+        form = await request.form()
+        token_value = form.get("access_token")
+        if isinstance(token_value, str):
+            token = token_value
+
+    return await _get_user_from_token(token, db)

@@ -3,13 +3,14 @@ import uuid
 from asyncio import run as asyncio_run
 
 import zipstream
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from viewport.api.public import _build_zip_fallback_name, _make_unique_zip_entry_name, _sanitize_zip_entry_name
-from viewport.auth_utils import get_current_user
+from viewport.auth_utils import get_current_user, get_current_user_for_download
 from viewport.background_tasks import delete_gallery_data_task
 from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.models.db import get_db
@@ -155,11 +156,25 @@ def _build_gallery_zip_response(gallery_id: uuid.UUID, photos: list, archive_nam
     return StreamingResponse(z, media_type="application/zip", headers=headers)
 
 
-@router.get("/{gallery_id}/download/all")
+async def _parse_selected_photos_request(request: Request) -> DownloadSelectedPhotosRequest:
+    content_type = (request.headers.get("content-type") or "").lower()
+
+    try:
+        if "application/json" in content_type:
+            payload = await request.json()
+            return DownloadSelectedPhotosRequest.model_validate(payload)
+
+        form = await request.form()
+        return DownloadSelectedPhotosRequest.model_validate({"photo_ids": form.getlist("photo_ids")})
+    except ValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.errors()) from exc
+
+
+@router.api_route("/{gallery_id}/download/all", methods=["GET", "POST"])
 def download_gallery_zip(
     gallery_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_for_download),
 ) -> StreamingResponse:
     gallery = asyncio_run(repo.get_gallery_by_id_and_owner(gallery_id, current_user.id))
     if not gallery:
@@ -172,15 +187,15 @@ def download_gallery_zip(
 @router.post("/{gallery_id}/download/selected")
 def download_selected_photos_zip(
     gallery_id: uuid.UUID,
-    request: DownloadSelectedPhotosRequest,
+    parsed_request: DownloadSelectedPhotosRequest = Depends(_parse_selected_photos_request),
     repo: GalleryRepository = Depends(get_gallery_repository),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_for_download),
 ) -> StreamingResponse:
     gallery = asyncio_run(repo.get_gallery_by_id_and_owner(gallery_id, current_user.id))
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
 
-    ordered_photo_ids = list(dict.fromkeys(request.photo_ids))
+    ordered_photo_ids = list(dict.fromkeys(parsed_request.photo_ids))
     photos = asyncio_run(repo.get_photos_by_ids_and_gallery(gallery_id, ordered_photo_ids))
     photo_by_id = {photo.id: photo for photo in photos}
 

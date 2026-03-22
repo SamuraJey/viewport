@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { photoService } from '../../services/photoService';
 import { api } from '../../lib/api';
+import { useAuthStore } from '../../stores/authStore';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 import type { UploadPreparedFile } from '../../types';
 
@@ -98,6 +99,14 @@ const createFile = (name: string, size: number, type = 'image/jpeg'): UploadPrep
 describe('photoService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useAuthStore.setState({
+      user: null,
+      tokens: {
+        access_token: 'test-access-token',
+        refresh_token: 'test-refresh-token',
+      },
+      isAuthenticated: true,
+    });
     vi.stubGlobal('XMLHttpRequest', MockXMLHttpRequest as unknown as typeof XMLHttpRequest);
     MockXMLHttpRequest.sendQueue = [];
     MockXMLHttpRequest.instances = [];
@@ -106,7 +115,13 @@ describe('photoService', () => {
   });
 
   afterEach(() => {
+    useAuthStore.setState({
+      user: null,
+      tokens: null,
+      isAuthenticated: false,
+    });
     vi.restoreAllMocks();
+    document.body.innerHTML = '';
   });
 
   it('deletes photo by gallery and photo id', async () => {
@@ -140,33 +155,61 @@ describe('photoService', () => {
     expect(result).toEqual(response.data);
   });
 
-  it('downloads whole gallery zip as blob', async () => {
-    const blob = new Blob(['zip-bytes'], { type: 'application/zip' });
-    vi.mocked(api.get).mockResolvedValue({ data: blob } as any);
+  it('submits whole gallery zip download through browser form', async () => {
+    const submitSpy = vi
+      .spyOn(HTMLFormElement.prototype, 'submit')
+      .mockImplementation(() => undefined);
 
-    const result = await photoService.downloadGalleryZip('gallery-1');
+    await photoService.downloadGalleryZip('gallery-1');
 
-    expect(api.get).toHaveBeenCalledWith('/galleries/gallery-1/download/all', {
-      responseType: 'blob',
-    });
-    expect(result).toBe(blob);
+    expect(api.get).not.toHaveBeenCalled();
+    expect(submitSpy).toHaveBeenCalledTimes(1);
+
+    const form = document.querySelector('form');
+    expect(form?.getAttribute('method')).toBe('POST');
+    expect(form?.getAttribute('action')).toContain('/galleries/gallery-1/download/all');
+
+    const accessTokenField = form?.querySelector(
+      'input[name="access_token"]',
+    ) as HTMLInputElement | null;
+    expect(accessTokenField?.value).toBe('test-access-token');
+
+    const iframe = document.getElementById('viewport-browser-download-frame');
+    expect(iframe).not.toBeNull();
   });
 
-  it('downloads selected photos zip as blob', async () => {
-    const blob = new Blob(['selected-zip'], { type: 'application/zip' });
-    vi.mocked(api.post).mockResolvedValue({ data: blob } as any);
+  it('submits selected photos zip download through browser form body', async () => {
+    const submitSpy = vi
+      .spyOn(HTMLFormElement.prototype, 'submit')
+      .mockImplementation(() => undefined);
 
-    const result = await photoService.downloadSelectedPhotosZip('gallery-1', [
-      'photo-1',
-      'photo-2',
-    ]);
+    await photoService.downloadSelectedPhotosZip('gallery-1', ['photo-1', 'photo-2']);
 
-    expect(api.post).toHaveBeenCalledWith(
-      '/galleries/gallery-1/download/selected',
-      { photo_ids: ['photo-1', 'photo-2'] },
-      { responseType: 'blob' },
-    );
-    expect(result).toBe(blob);
+    expect(api.post).not.toHaveBeenCalled();
+    expect(submitSpy).toHaveBeenCalledTimes(1);
+
+    const form = document.querySelector('form');
+    expect(form?.getAttribute('action')).toContain('/galleries/gallery-1/download/selected');
+
+    const photoIdFields = Array.from(
+      form?.querySelectorAll('input[name="photo_ids"]') ?? [],
+    ) as HTMLInputElement[];
+    expect(photoIdFields.map((field) => field.value)).toEqual(['photo-1', 'photo-2']);
+
+    const accessTokenField = form?.querySelector(
+      'input[name="access_token"]',
+    ) as HTMLInputElement | null;
+    expect(accessTokenField?.value).toBe('test-access-token');
+  });
+
+  it('throws when zip download starts without auth token', async () => {
+    useAuthStore.setState({
+      user: null,
+      tokens: null,
+      isAuthenticated: false,
+    });
+
+    await expect(photoService.downloadGalleryZip('gallery-1')).rejects.toThrow('Not authenticated');
   });
 
   it('returns empty response when no files provided', async () => {

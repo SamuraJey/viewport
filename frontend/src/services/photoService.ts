@@ -1,4 +1,5 @@
 import { api } from '../lib/api';
+import { useAuthStore } from '../stores/authStore';
 import type {
   PhotoResponse,
   PhotoUploadIntentRequest,
@@ -14,6 +15,64 @@ import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../constant
 
 // Re-export types for backward compatibility
 export type { PhotoResponse, PhotoUploadIntentRequest, PhotoUploadResult, PhotoUploadResponse };
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:8000');
+const DOWNLOAD_TARGET_NAME = 'viewport-browser-download';
+const DOWNLOAD_TARGET_ID = 'viewport-browser-download-frame';
+
+const appendHiddenField = (form: HTMLFormElement, name: string, value: string) => {
+  const input = document.createElement('input');
+  input.type = 'hidden';
+  input.name = name;
+  input.value = value;
+  form.appendChild(input);
+};
+
+const ensureDownloadTarget = (): string => {
+  let iframe = document.getElementById(DOWNLOAD_TARGET_ID) as HTMLIFrameElement | null;
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.id = DOWNLOAD_TARGET_ID;
+    iframe.name = DOWNLOAD_TARGET_NAME;
+    iframe.hidden = true;
+    document.body.appendChild(iframe);
+  }
+
+  return iframe.name;
+};
+
+const getDownloadAccessToken = (): string => {
+  const accessToken = useAuthStore.getState().tokens?.access_token;
+  if (!accessToken) {
+    throw new Error('Not authenticated');
+  }
+
+  return accessToken;
+};
+
+const submitBrowserDownload = (path: string, fields: Record<string, string | string[]>): void => {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = `${API_BASE_URL}${path}`;
+  form.target = ensureDownloadTarget();
+  form.style.display = 'none';
+
+  Object.entries(fields).forEach(([name, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => appendHiddenField(form, name, item));
+      return;
+    }
+
+    appendHiddenField(form, name, value);
+  });
+
+  document.body.appendChild(form);
+  form.submit();
+  window.setTimeout(() => {
+    form.remove();
+  }, 0);
+};
 
 const deletePhoto = async (galleryId: string, photoId: string): Promise<void> => {
   await api.delete(`/galleries/${galleryId}/photos/${photoId}`);
@@ -33,20 +92,17 @@ const renamePhoto = async (
   return response.data;
 };
 
-const downloadGalleryZip = async (galleryId: string): Promise<Blob> => {
-  const response = await api.get<Blob>(`/galleries/${galleryId}/download/all`, {
-    responseType: 'blob',
+const downloadGalleryZip = async (galleryId: string): Promise<void> => {
+  submitBrowserDownload(`/galleries/${galleryId}/download/all`, {
+    access_token: getDownloadAccessToken(),
   });
-  return response.data;
 };
 
-const downloadSelectedPhotosZip = async (galleryId: string, photoIds: string[]): Promise<Blob> => {
-  const response = await api.post<Blob>(
-    `/galleries/${galleryId}/download/selected`,
-    { photo_ids: photoIds },
-    { responseType: 'blob' },
-  );
-  return response.data;
+const downloadSelectedPhotosZip = async (galleryId: string, photoIds: string[]): Promise<void> => {
+  submitBrowserDownload(`/galleries/${galleryId}/download/selected`, {
+    access_token: getDownloadAccessToken(),
+    photo_ids: photoIds,
+  });
 };
 
 // Batch presigned upload methods
