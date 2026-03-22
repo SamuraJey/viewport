@@ -19,7 +19,7 @@ export const LoginPage = () => {
   const location = useLocation();
   const { login } = useAuthStore();
 
-  const from = location.state?.from?.pathname || '/';
+  const from = location.state?.from?.pathname || '/dashboard';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

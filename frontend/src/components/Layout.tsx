@@ -50,7 +50,7 @@ export const Layout = ({ children }: LayoutProps) => {
       <header className="sticky top-0 z-40 border-b border-border bg-surface/95 py-2 backdrop-blur-lg dark:bg-surface-dark/95 sm:py-3">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-3 sm:px-4">
           <Link
-            to="/"
+            to="/dashboard"
             className="flex min-w-0 items-center gap-2 font-oswald text-lg font-bold uppercase tracking-wide text-text transition-opacity hover:opacity-80 sm:gap-3 sm:text-xl sm:tracking-wider dark:text-accent-foreground"
             aria-label="Go to home"
           >

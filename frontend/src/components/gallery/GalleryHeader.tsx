@@ -69,7 +69,7 @@ export const GalleryHeader = ({
       <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-5 min-w-0 max-w-full">
           <Link
-            to="/"
+            to="/dashboard"
             className="inline-flex h-10 w-fit items-center gap-2.5 rounded-xl border border-border/60 bg-surface-1 px-4 text-sm font-semibold text-muted transition-all duration-200 hover:border-accent/40 hover:text-accent hover:bg-accent/5 hover:-translate-y-0.5 hover:shadow-sm dark:border-border/40 dark:bg-surface-dark-1 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
             <ArrowLeft className="h-4 w-4" />
