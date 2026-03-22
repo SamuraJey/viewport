@@ -327,7 +327,7 @@ class TestPhotoAPI:
             f"/galleries/{gallery_id_fixture}/photos/batch-confirm",
             json={"items": [{"photo_id": str(photo_id), "success": True}]},
         )
-        assert response.status_code == 200
+        assert response.status_code == 503
 
         db_session.expire_all()
         user: User = await db_session.get(User, user_id)

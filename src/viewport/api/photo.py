@@ -296,12 +296,15 @@ async def batch_confirm_uploads(
     if photos_to_process:
         try:
             await run_in_threadpool(create_thumbnails_batch_task.delay, photos_to_process)
-        except Exception:
+        except Exception as exc:
             logger.warning(
                 "Failed to enqueue thumbnail task",
                 extra={"gallery_id": str(gallery_id), "photo_count": len(photos_to_process)},
                 exc_info=True,
             )
+            # DB state is already committed; return 503 so client can retry confirm
+            # and re-enqueue idempotently.
+            raise HTTPException(status_code=503, detail="Failed to enqueue thumbnail task") from exc
 
     return BatchConfirmUploadResponse(confirmed_count=confirmed_count, failed_count=failed_count)
 

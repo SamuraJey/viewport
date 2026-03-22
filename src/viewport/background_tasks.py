@@ -82,16 +82,8 @@ def _release_reserved_for_photos(db, photo_ids: list[str]) -> None:
         db.execute(update(User).where(User.id == owner_id).values(storage_reserved=func.greatest(User.storage_reserved - total, 0)))
 
 
-def _decrement_used_for_photos(db, photo_ids: list[str], statuses: list[PhotoUploadStatus] | None = None) -> None:
-    if not photo_ids:
-        return
-
-    stmt = select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0)).select_from(Photo).join(Gallery, Photo.gallery_id == Gallery.id).where(Photo.id.in_(photo_ids))
-    if statuses:
-        stmt = stmt.where(Photo.status.in_(statuses))
-    stmt = stmt.group_by(Gallery.owner_id)
-
-    for owner_id, total in db.execute(stmt).all():
+def _decrement_used_for_owner_totals(db, owner_totals: list[tuple[uuid.UUID, int]]) -> None:
+    for owner_id, total in owner_totals:
         db.execute(update(User).where(User.id == owner_id).values(storage_used=func.greatest(User.storage_used - total, 0)))
 
 
@@ -104,7 +96,7 @@ def _process_single_photo(
 ) -> None:
     """Process a single photo: download, resize, and upload thumbnail."""
 
-    photo_id = photo_data["photo_id"]  # aaaaa
+    photo_id = photo_data["photo_id"]
     object_key = photo_data["object_key"]
 
     try:
@@ -243,6 +235,19 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
             if failed_results:
                 failed_ids = [r["photo_id"] for r in failed_results]
                 logger.info("Batch marking %s photos as FAILED in DB", len(failed_ids))
+
+                # Capture affected totals before status update to keep storage_used consistent.
+                owner_totals = db.execute(
+                    select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0))
+                    .select_from(Photo)
+                    .join(Gallery, Photo.gallery_id == Gallery.id)
+                    .where(
+                        Photo.id.in_(failed_ids),
+                        Photo.status.in_([PhotoUploadStatus.THUMBNAIL_CREATING, PhotoUploadStatus.SUCCESSFUL]),
+                    )
+                    .group_by(Gallery.owner_id)
+                ).all()
+
                 db.execute(
                     update(Photo)
                     .where(
@@ -251,7 +256,7 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
                     )
                     .values(status=PhotoUploadStatus.FAILED)
                 )
-                _decrement_used_for_photos(db, failed_ids, [PhotoUploadStatus.THUMBNAIL_CREATING, PhotoUploadStatus.SUCCESSFUL])
+                _decrement_used_for_owner_totals(db, owner_totals)
 
         # Invalidate cache for successful thumbnails
         if successful_results:
@@ -304,8 +309,16 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
     return result_tracker.to_dict()
 
 
-@celery_app.task(name="cleanup_orphaned_uploads")
-def cleanup_orphaned_uploads_task() -> dict:
+@celery_app.task(
+    name="cleanup_orphaned_uploads",
+    bind=True,
+    max_retries=5,
+    autoretry_for=(ThumbnailTransientError,),
+    retry_backoff=True,
+    retry_backoff_max=120,
+    retry_jitter=True,
+)
+def cleanup_orphaned_uploads_task(self) -> dict:
     """
     Remove PENDING photo records older than 30 minutes and cleanup their S3 objects.
     """
@@ -355,12 +368,16 @@ def cleanup_orphaned_uploads_task() -> dict:
                         errors = response.get("Errors") or []
                         if errors:
                             logger.error("Partial delete errors from S3: %s", errors)
-                            # Raise to trigger task retry; we haven't modified the DB yet
-                            raise Exception(f"S3 partial delete errors: {errors}")
+                            # Raise retryable error; DB is untouched yet.
+                            raise ThumbnailTransientError(f"S3 partial delete errors: {errors}")
                         logger.info("Deleted %s objects from S3", len(batch))
                     except Exception as e:
-                        # Re-raise to trigger task retry; we haven't modified the DB yet
+                        # Re-raise transient failures to trigger retry; DB is untouched yet.
                         logger.error("Failed to delete batch from S3: %s", e)
+                        if _is_retryable_s3_error(e):
+                            raise ThumbnailTransientError("Retryable S3 delete_objects error") from e
+                        if isinstance(e, ThumbnailTransientError):
+                            raise
                         raise
 
             # 2. Update DB and release quota only after S3 confirms deletion
