@@ -33,6 +33,22 @@ const renamePhoto = async (
   return response.data;
 };
 
+const downloadGalleryZip = async (galleryId: string): Promise<Blob> => {
+  const response = await api.get<Blob>(`/galleries/${galleryId}/download/all`, {
+    responseType: 'blob',
+  });
+  return response.data;
+};
+
+const downloadSelectedPhotosZip = async (galleryId: string, photoIds: string[]): Promise<Blob> => {
+  const response = await api.post<Blob>(
+    `/galleries/${galleryId}/download/selected`,
+    { photo_ids: photoIds },
+    { responseType: 'blob' },
+  );
+  return response.data;
+};
+
 // Batch presigned upload methods
 const batchCreateUploadIntents = async (
   galleryId: string,
@@ -464,6 +480,8 @@ const uploadPhotosPresigned = async (
 export const photoService = {
   deletePhoto,
   renamePhoto,
+  downloadGalleryZip,
+  downloadSelectedPhotosZip,
   uploadPhotosPresigned,
   retryFailedUploads,
 };

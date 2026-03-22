@@ -140,6 +140,35 @@ describe('photoService', () => {
     expect(result).toEqual(response.data);
   });
 
+  it('downloads whole gallery zip as blob', async () => {
+    const blob = new Blob(['zip-bytes'], { type: 'application/zip' });
+    vi.mocked(api.get).mockResolvedValue({ data: blob } as any);
+
+    const result = await photoService.downloadGalleryZip('gallery-1');
+
+    expect(api.get).toHaveBeenCalledWith('/galleries/gallery-1/download/all', {
+      responseType: 'blob',
+    });
+    expect(result).toBe(blob);
+  });
+
+  it('downloads selected photos zip as blob', async () => {
+    const blob = new Blob(['selected-zip'], { type: 'application/zip' });
+    vi.mocked(api.post).mockResolvedValue({ data: blob } as any);
+
+    const result = await photoService.downloadSelectedPhotosZip('gallery-1', [
+      'photo-1',
+      'photo-2',
+    ]);
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/galleries/gallery-1/download/selected',
+      { photo_ids: ['photo-1', 'photo-2'] },
+      { responseType: 'blob' },
+    );
+    expect(result).toBe(blob);
+  });
+
   it('returns empty response when no files provided', async () => {
     const result = await photoService.uploadPhotosPresigned('gallery-1', []);
 

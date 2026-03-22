@@ -281,3 +281,7 @@ class BatchConfirmUploadRequest(BaseModel):
 class BatchConfirmUploadResponse(BaseModel):
     confirmed_count: int
     failed_count: int
+
+
+class DownloadSelectedPhotosRequest(BaseModel):
+    photo_ids: list[UUID] = Field(..., min_length=1)

@@ -26,6 +26,7 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
   const [uploadError, setUploadError] = useState('');
   const [actionInfo, setActionInfo] = useState('');
   const [isCreatingLink, setIsCreatingLink] = useState(false);
+  const [isDownloadingZip, setIsDownloadingZip] = useState(false);
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
 
@@ -163,6 +164,64 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
         }
       },
     });
+  };
+
+  const makeZipFilename = useCallback(
+    (suffix: 'all' | 'selected') => {
+      const galleryName = (gallery?.name || `gallery-${galleryId}`).trim();
+      const normalizedName = galleryName
+        .replace(/[^a-zA-Z0-9_-]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .toLowerCase();
+      const safeName = normalizedName || `gallery-${galleryId}`;
+      return suffix === 'selected' ? `${safeName}_selected.zip` : `${safeName}.zip`;
+    },
+    [gallery?.name, galleryId],
+  );
+
+  const triggerBlobDownload = (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadGallery = async () => {
+    setIsDownloadingZip(true);
+    clearError();
+    setActionInfo('');
+
+    try {
+      const blob = await photoService.downloadGalleryZip(galleryId);
+      triggerBlobDownload(blob, makeZipFilename('all'));
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setIsDownloadingZip(false);
+    }
+  };
+
+  const handleDownloadSelectedPhotos = async (selectedIds: Set<string>) => {
+    if (selectedIds.size === 0) {
+      return;
+    }
+
+    setIsDownloadingZip(true);
+    clearError();
+    setActionInfo('');
+
+    try {
+      const blob = await photoService.downloadSelectedPhotosZip(galleryId, Array.from(selectedIds));
+      triggerBlobDownload(blob, makeZipFilename('selected'));
+    } catch (err) {
+      handleError(err);
+    } finally {
+      setIsDownloadingZip(false);
+    }
   };
 
   const handleSetCover = async (photoId: string) => {
@@ -346,6 +405,7 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
     actionInfo,
     setActionInfo,
     isCreatingLink,
+    isDownloadingZip,
     shootingDateInput,
     setShootingDateInput,
     isSavingShootingDate,
@@ -358,6 +418,8 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
     handleUploadComplete,
     handleSaveShootingDate,
     handleDeleteGallery,
+    handleDownloadGallery,
+    handleDownloadSelectedPhotos,
     handleSetCover,
     handleClearCover,
     handleCreateShareLink,

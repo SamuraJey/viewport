@@ -1,4 +1,4 @@
-import { CheckSquare, Loader2, Upload } from 'lucide-react';
+import { CheckSquare, Download, Loader2, Upload } from 'lucide-react';
 import type { MutableRefObject, RefObject } from 'react';
 import { PaginationControls } from '../PaginationControls';
 import { EmptyGalleryState } from './EmptyGalleryState';
@@ -29,6 +29,7 @@ interface GalleryPhotoSectionProps {
   state: {
     photoUrls: GalleryPhoto[];
     isLoadingPhotos: boolean;
+    isDownloadingZip?: boolean;
     uploadError: string | null;
     actionInfo: string | null;
     error: string | null;
@@ -53,6 +54,8 @@ interface GalleryPhotoSectionProps {
     onClearCover: () => void;
     onRenamePhoto: (photoId: string, filename: string) => void;
     onDeletePhoto: (photoId: string) => void;
+    onDownloadGallery: () => void;
+    onDownloadSelectedPhotos: () => void;
     onSelectAllPhotos: () => void;
     onCancelSelection: () => void;
     onDeleteMultiplePhotos: () => void;
@@ -92,6 +95,17 @@ export const GalleryPhotoSection = ({
             <Upload className="h-4 w-4" />
             Add Photos
           </button>
+          {state.photoUrls.length > 0 && (
+            <button
+              onClick={actions.onDownloadGallery}
+              disabled={state.isDownloadingZip}
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-5 text-sm font-bold text-text transition-all duration-200 hover:bg-surface-2 hover:border-accent/40 hover:text-accent hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-surface-1 disabled:hover:text-text disabled:hover:translate-y-0 disabled:hover:shadow-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
+              title="Download entire gallery as ZIP"
+            >
+              <Download className="h-4 w-4" />
+              Download ZIP
+            </button>
+          )}
           {state.photoUrls.length > 0 && (
             <button
               onClick={actions.onToggleSelectionMode}
@@ -166,9 +180,11 @@ export const GalleryPhotoSection = ({
       isSelectionMode={state.isSelectionMode}
       hasSelection={selection.hasSelection}
       selectionCount={selection.selectionCount}
+      isDownloadingZip={state.isDownloadingZip}
       areAllOnPageSelected={selection.areAllOnPageSelected}
       onSelectAll={actions.onSelectAllPhotos}
       onCancel={actions.onCancelSelection}
+      onDownloadSelected={actions.onDownloadSelectedPhotos}
       onDeleteMultiple={actions.onDeleteMultiplePhotos}
     />
 

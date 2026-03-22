@@ -41,6 +41,7 @@ export const GalleryPage = () => {
     actionInfo,
     setActionInfo,
     isCreatingLink,
+    isDownloadingZip,
     shootingDateInput,
     setShootingDateInput,
     isSavingShootingDate,
@@ -53,6 +54,8 @@ export const GalleryPage = () => {
     handleUploadComplete,
     handleSaveShootingDate,
     handleDeleteGallery,
+    handleDownloadGallery,
+    handleDownloadSelectedPhotos,
     handleSetCover,
     handleClearCover,
     handleCreateShareLink,
@@ -132,6 +135,10 @@ export const GalleryPage = () => {
     });
   };
 
+  const handleDownloadSelectedPhotosWrapper = () => {
+    void handleDownloadSelectedPhotos(selection.selectedIds);
+  };
+
   // Photo modal handlers
   const openPhoto = (index: number) => {
     if (!isSelectionMode) {
@@ -200,6 +207,7 @@ export const GalleryPage = () => {
             actionInfo,
             error,
             isSelectionMode,
+            isDownloadingZip,
           }}
           selection={{
             areAllOnPageSelected,
@@ -227,6 +235,8 @@ export const GalleryPage = () => {
             onClearCover: handleClearCover,
             onRenamePhoto: handleRenamePhoto,
             onDeletePhoto: handleDeletePhoto,
+            onDownloadGallery: handleDownloadGallery,
+            onDownloadSelectedPhotos: handleDownloadSelectedPhotosWrapper,
             onSelectAllPhotos: handleSelectAllPhotos,
             onCancelSelection: () => {
               selection.clear();
