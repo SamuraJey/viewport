@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
@@ -144,14 +144,14 @@ export const GalleryPage = () => {
   };
 
   // Handler for selecting all photos on current page
-  const handleSelectAllPhotos = () => {
+  const handleSelectAllPhotos = useCallback(() => {
     if (areAllOnPageSelected) {
       const pagePhotoIds = photoUrls.map((p) => p.id);
       pagePhotoIds.forEach((id) => selection.deselect(id));
     } else {
       selection.selectMultiple(photoUrls.map((p) => p.id));
     }
-  };
+  }, [areAllOnPageSelected, photoUrls, selection]);
 
   useEffect(() => {
     if (!isSelectionMode) {
@@ -198,7 +198,7 @@ export const GalleryPage = () => {
     return () => {
       window.removeEventListener('keydown', handler);
     };
-  }, [isSelectionMode, areAllOnPageSelected, photoUrls, selection]);
+  }, [isSelectionMode, handleSelectAllPhotos, selection]);
 
   // Handler for deleting multiple photos
   const handleDeleteMultiplePhotosWrapper = () => {
