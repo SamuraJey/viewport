@@ -81,7 +81,8 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
 
     const cs = getComputedStyle(grid);
     const rowHeight = parseFloat(cs.getPropertyValue('grid-auto-rows')) || 8;
-    const rowGap = parseFloat(cs.getPropertyValue('row-gap')) || parseFloat(cs.getPropertyValue('gap')) || 20;
+    const rowGap =
+      parseFloat(cs.getPropertyValue('row-gap')) || parseFloat(cs.getPropertyValue('gap')) || 20;
 
     const items = Array.from(grid.children) as HTMLElement[];
     items.forEach((item, index) => {

@@ -239,6 +239,7 @@ class DemoServiceStore {
         return makeDemoTokens();
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async login(_: LoginRequest): Promise<LoginResponse> {
         return {
             ...this.user,
@@ -253,6 +254,7 @@ class DemoServiceStore {
         };
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async refreshToken(_: string): Promise<AuthTokens> {
         return this.getDemoTokens();
     }
@@ -270,6 +272,7 @@ class DemoServiceStore {
         return this.getDemoUser();
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async changePassword(_: {
         current_password: string;
         new_password: string;
@@ -391,7 +394,9 @@ class DemoServiceStore {
     }
 
     private findByShareId(shareId: string): DemoGalleryState | null {
-        return this.galleries.find((entry) => entry.shareLinks.some((link) => link.id === shareId)) || null;
+        return (
+            this.galleries.find((entry) => entry.shareLinks.some((link) => link.id === shareId)) || null
+        );
     }
 
     async getSharedGallery(
@@ -444,7 +449,10 @@ class DemoServiceStore {
         };
     }
 
-    async getPublicPhotoUrl(shareId: string, photoId: string): Promise<{ url: string; expires_in: number }> {
+    async getPublicPhotoUrl(
+        shareId: string,
+        photoId: string,
+    ): Promise<{ url: string; expires_in: number }> {
         const state = this.findByShareId(shareId);
         if (!state) {
             throw this.createNotFoundError('Share link not found');

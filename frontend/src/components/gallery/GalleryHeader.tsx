@@ -30,8 +30,8 @@ export const GalleryHeader = ({
       return;
     }
 
-    const minSize = 20;
-    const maxLines = 2;
+    const minSize = 16;
+    const maxLines = 3;
 
     const recalc = () => {
       let nextSize = window.innerWidth >= 640 ? 48 : 36;
@@ -78,7 +78,7 @@ export const GalleryHeader = ({
           <h1
             ref={titleRef}
             style={{ fontSize: `${titleFontSizePx}px` }}
-            className="max-w-full whitespace-normal wrap-anywhere font-oswald font-bold leading-tight tracking-wide text-text uppercase drop-shadow-xs"
+            className="max-w-full whitespace-normal wrap-break-word font-oswald font-bold leading-tight tracking-wide text-text uppercase drop-shadow-xs"
           >
             {gallery.name || `Gallery #${gallery.id}`}
           </h1>
