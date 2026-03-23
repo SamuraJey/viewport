@@ -153,6 +153,53 @@ export const GalleryPage = () => {
     }
   };
 
+  useEffect(() => {
+    if (!isSelectionMode) {
+      return;
+    }
+
+    const handler = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      const isTypingTarget =
+        tagName === 'INPUT' ||
+        tagName === 'TEXTAREA' ||
+        tagName === 'SELECT' ||
+        Boolean(target?.isContentEditable);
+
+      if (isTypingTarget) {
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        selection.clear();
+        setIsSelectionMode(false);
+        return;
+      }
+
+      const isSelectAllShortcut =
+        (event.ctrlKey || event.metaKey) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === 'a';
+
+      if (isSelectAllShortcut) {
+        event.preventDefault();
+        handleSelectAllPhotos();
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+    };
+  }, [isSelectionMode, areAllOnPageSelected, photoUrls, selection]);
+
   // Handler for deleting multiple photos
   const handleDeleteMultiplePhotosWrapper = () => {
     handleDeletePhotos(selection.selectedIds, () => {
@@ -206,6 +253,7 @@ export const GalleryPage = () => {
       onDragOver={isModalOpen ? undefined : handleGalleryDragOver}
       onDragLeave={isModalOpen ? undefined : handleGalleryDragLeave}
       onDrop={isModalOpen ? undefined : handleGalleryDrop}
+      aria-label={isSelectionMode ? 'Selection mode active' : undefined}
     >
       <GalleryDragOverlay isActive={isPageDragActive} />
 
