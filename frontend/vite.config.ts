@@ -29,20 +29,20 @@ export default defineConfig(({ mode }) => {
 
   const proxyConfig: Record<string, ProxyOptions> | undefined = enableProxy
     ? {
-        [apiProxyKey]: {
-          target: backendUrl,
-          changeOrigin: true,
-          rewrite: (path) => path.replace(apiRewritePattern, ''),
-        },
-        '^/photos/.*': {
-          target: backendUrl,
-          changeOrigin: true,
-        },
-        '^/s/.*': {
-          target: backendUrl,
-          changeOrigin: true,
-        },
-      }
+      [apiProxyKey]: {
+        target: backendUrl,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(apiRewritePattern, ''),
+      },
+      '^/photos/.*': {
+        target: backendUrl,
+        changeOrigin: true,
+      },
+      '^/s/.*': {
+        target: backendUrl,
+        changeOrigin: true,
+      },
+    }
     : undefined;
 
   return {
@@ -50,6 +50,19 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), tailwindcss()],
     server: {
       port: devPort,
+      devtools: true,
+      forwardConsole: {
+        unhandledErrors: true,
+        logLevels: ['warn', 'error'],
+      },
+      warmup: {
+        clientFiles: [
+          './src/main.tsx',
+          './src/App.tsx',
+          './src/pages/DashboardPage.tsx',
+          './src/pages/GalleryPage.tsx',
+        ],
+      },
       ...(proxyConfig ? { proxy: proxyConfig } : {}),
     },
     preview: {
@@ -65,7 +78,7 @@ export default defineConfig(({ mode }) => {
           drop_debugger: mode === 'production',
         },
       },
-      rollupOptions: {
+      rolldownOptions: {
         output: {
           manualChunks(id) {
             if (!id.includes('node_modules')) {
