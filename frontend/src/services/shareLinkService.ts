@@ -1,6 +1,6 @@
 import { api } from '../lib/api';
 import { isDemoModeEnabled } from '../lib/demoMode';
-import { demoService } from './demoService';
+import { getDemoService } from './demoService';
 import type { ShareLink, PublicPhoto, SharedGallery } from '../types';
 
 // Re-export types for backward compatibility
@@ -8,7 +8,7 @@ export type { ShareLink, PublicPhoto, SharedGallery };
 
 const getShareLinks = async (galleryId: string): Promise<ShareLink[]> => {
   if (isDemoModeEnabled()) {
-    return demoService.getShareLinks(galleryId);
+    return getDemoService().getShareLinks(galleryId);
   }
 
   const response = await api.get<ShareLink[]>(`/galleries/${galleryId}/share-links`);
@@ -17,7 +17,7 @@ const getShareLinks = async (galleryId: string): Promise<ShareLink[]> => {
 
 const createShareLink = async (galleryId: string): Promise<ShareLink> => {
   if (isDemoModeEnabled()) {
-    return demoService.createShareLink(galleryId);
+    return getDemoService().createShareLink(galleryId);
   }
 
   const response = await api.post<ShareLink>(`/galleries/${galleryId}/share-links`, {
@@ -28,7 +28,7 @@ const createShareLink = async (galleryId: string): Promise<ShareLink> => {
 
 const deleteShareLink = async (galleryId: string, shareLinkId: string): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await demoService.deleteShareLink(galleryId, shareLinkId);
+    await getDemoService().deleteShareLink(galleryId, shareLinkId);
     return;
   }
 
@@ -40,7 +40,7 @@ const getSharedGallery = async (
   options?: { limit?: number; offset?: number },
 ): Promise<SharedGallery> => {
   if (isDemoModeEnabled()) {
-    return demoService.getSharedGallery(shareId, options);
+    return getDemoService().getSharedGallery(shareId, options);
   }
 
   const params = new URLSearchParams();
@@ -63,7 +63,7 @@ const getPublicPhotoUrl = async (
   photoId: string,
 ): Promise<{ url: string; expires_in: number }> => {
   if (isDemoModeEnabled()) {
-    return demoService.getPublicPhotoUrl(shareId, photoId);
+    return getDemoService().getPublicPhotoUrl(shareId, photoId);
   }
 
   const response = await api.get(`/s/${shareId}/photos/${photoId}/url`);
@@ -72,7 +72,7 @@ const getPublicPhotoUrl = async (
 
 const getAllPublicPhotoUrls = async (shareId: string): Promise<PublicPhoto[]> => {
   if (isDemoModeEnabled()) {
-    return demoService.getAllPublicPhotoUrls(shareId);
+    return getDemoService().getAllPublicPhotoUrls(shareId);
   }
 
   const response = await api.get(`/s/${shareId}/photos/urls`);

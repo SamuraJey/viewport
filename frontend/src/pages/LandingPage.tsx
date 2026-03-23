@@ -18,7 +18,7 @@ import { DashboardGalleryCard } from '../components/dashboard/DashboardGalleryCa
 import { AuthCard } from '../components/auth/AuthCard';
 import type { Gallery } from '../types';
 import { useAuthStore } from '../stores/authStore';
-import { demoService } from '../services/demoService';
+import { getDemoService } from '../services/demoService';
 import { enableDemoMode } from '../lib/demoMode';
 
 const featureItems = [
@@ -112,6 +112,7 @@ export const LandingPage = () => {
 
   const handleOpenDemoCabinet = () => {
     enableDemoMode();
+    const demoService = getDemoService();
     login(demoService.getDemoUser(), demoService.getDemoTokens());
     navigate('/dashboard');
   };

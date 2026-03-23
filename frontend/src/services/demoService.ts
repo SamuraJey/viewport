@@ -16,6 +16,7 @@ import type {
   UploadPreparedFile,
 } from '../types';
 import { ApiError } from '../lib/errorHandling';
+import { isDemoModeEnabled } from '../lib/demoMode';
 
 interface DemoGalleryState {
   gallery: Gallery;
@@ -159,10 +160,13 @@ class DemoServiceStore {
     this.galleries = restored?.galleries || seedState();
     this.user = restored?.user || { ...demoUser };
     this.recalculateStorageUsed();
-    this.persistState();
+    if (isDemoModeEnabled()) {
+      this.persistState();
+    }
   }
 
   private restoreState(): DemoPersistedState | null {
+    if (!isDemoModeEnabled()) return null;
     if (typeof window === 'undefined') return null;
 
     try {
@@ -181,6 +185,7 @@ class DemoServiceStore {
   }
 
   private persistState(): void {
+    if (!isDemoModeEnabled()) return;
     if (typeof window === 'undefined') return;
 
     try {
@@ -640,4 +645,12 @@ class DemoServiceStore {
   }
 }
 
-export const demoService = new DemoServiceStore();
+let demoServiceStore: DemoServiceStore | null = null;
+
+export const getDemoService = (): DemoServiceStore => {
+  if (!demoServiceStore) {
+    demoServiceStore = new DemoServiceStore();
+  }
+
+  return demoServiceStore;
+};

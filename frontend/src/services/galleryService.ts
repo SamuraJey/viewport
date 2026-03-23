@@ -1,6 +1,6 @@
 import { api } from '../lib/api';
 import { isDemoModeEnabled } from '../lib/demoMode';
-import { demoService } from './demoService';
+import { getDemoService } from './demoService';
 import type { Gallery, GalleryDetail, GalleryListResponse } from '../types';
 
 // Re-export types for backward compatibility
@@ -8,7 +8,7 @@ export type { Gallery, GalleryDetail, GalleryListResponse };
 
 const getGalleries = async (page = 1, size = 10): Promise<GalleryListResponse> => {
   if (isDemoModeEnabled()) {
-    return demoService.getGalleries(page, size);
+    return getDemoService().getGalleries(page, size);
   }
 
   const response = await api.get(`/galleries?page=${page}&size=${size}`);
@@ -20,7 +20,7 @@ const getGallery = async (
   options?: { limit?: number; offset?: number },
 ): Promise<GalleryDetail> => {
   if (isDemoModeEnabled()) {
-    return demoService.getGallery(id, options);
+    return getDemoService().getGallery(id, options);
   }
 
   const params = new URLSearchParams();
@@ -38,7 +38,7 @@ const createGallery = async (payload: CreateGalleryPayload): Promise<Gallery> =>
   const body = typeof payload === 'string' ? { name: payload } : payload;
 
   if (isDemoModeEnabled()) {
-    return demoService.createGallery(body ?? {});
+    return getDemoService().createGallery(body ?? {});
   }
 
   const response = await api.post<Gallery>('/galleries', body ?? {});
@@ -47,7 +47,7 @@ const createGallery = async (payload: CreateGalleryPayload): Promise<Gallery> =>
 
 const deleteGallery = async (id: string): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await demoService.deleteGallery(id);
+    await getDemoService().deleteGallery(id);
     return;
   }
 
@@ -60,7 +60,7 @@ const updateGallery = async (id: string, payload: UpdateGalleryPayload): Promise
   const body = typeof payload === 'string' ? { name: payload } : payload;
 
   if (isDemoModeEnabled()) {
-    return demoService.updateGallery(id, body ?? {});
+    return getDemoService().updateGallery(id, body ?? {});
   }
 
   const response = await api.patch<Gallery>(`/galleries/${id}`, body ?? {});
@@ -69,7 +69,7 @@ const updateGallery = async (id: string, payload: UpdateGalleryPayload): Promise
 
 const setCoverPhoto = async (galleryId: string, photoId: string): Promise<Gallery> => {
   if (isDemoModeEnabled()) {
-    return demoService.setCoverPhoto(galleryId, photoId);
+    return getDemoService().setCoverPhoto(galleryId, photoId);
   }
 
   const response = await api.post<Gallery>(`/galleries/${galleryId}/cover/${photoId}`);
@@ -78,7 +78,7 @@ const setCoverPhoto = async (galleryId: string, photoId: string): Promise<Galler
 
 const clearCoverPhoto = async (galleryId: string): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await demoService.clearCoverPhoto(galleryId);
+    await getDemoService().clearCoverPhoto(galleryId);
     return;
   }
 

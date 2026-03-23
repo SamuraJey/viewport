@@ -9,7 +9,7 @@ import { AuthLayout } from '../components/AuthLayout';
 import { AuthCard } from '../components/auth/AuthCard';
 import { AuthPasswordField, AuthTextField } from '../components/auth/AuthFields';
 import { disableDemoMode, enableDemoMode } from '../lib/demoMode';
-import { demoService } from '../services/demoService';
+import { getDemoService } from '../services/demoService';
 
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -63,6 +63,7 @@ export const LoginPage = () => {
 
   const handleDemoLogin = () => {
     enableDemoMode();
+    const demoService = getDemoService();
     login(demoService.getDemoUser(), demoService.getDemoTokens());
     navigate('/dashboard', { replace: true });
   };
