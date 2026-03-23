@@ -3,7 +3,7 @@
 ## Big picture
 - Monorepo: FastAPI backend in `src/viewport/` + React/Vite frontend in `frontend/`.
 - Backend layers: routers in `src/viewport/api/` → repository layer in `src/viewport/repositories/` (SQLAlchemy `Session`) → Postgres models in `src/viewport/models/`.
-- Backend database access now uses SQLAlchemy `AsyncSession` end-to-end in app code, repositories, auth dependencies, and Celery tasks.
+- Backend database access uses SQLAlchemy `AsyncSession` in app code, repositories, and auth dependencies, while Celery background tasks currently use a sync SQLAlchemy `Session` via `task_db_session()`.
 - Storage/URLs: originals + thumbnails live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them **in-process** (see `src/viewport/cache_utils.py`).
 - uv is used as package manager.
 
