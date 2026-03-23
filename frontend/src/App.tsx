@@ -15,6 +15,9 @@ const RegisterPage = lazy(() =>
 const DashboardPage = lazy(() =>
   import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })),
 );
+const LandingPage = lazy(() =>
+  import('./pages/LandingPage').then((module) => ({ default: module.LandingPage })),
+);
 const GalleryPage = lazy(() =>
   import('./pages/GalleryPage').then((module) => ({ default: module.GalleryPage })),
 );
@@ -46,19 +49,21 @@ function App() {
           {/* Public routes */}
           <Route
             path="/auth/login"
-            element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
+            element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />}
           />
           <Route
             path="/auth/register"
-            element={isAuthenticated ? <Navigate to="/" replace /> : <RegisterPage />}
+            element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />}
           />
+
+          <Route path="/" element={<LandingPage />} />
 
           {/* Public gallery sharing route */}
           <Route path="/share/:shareId" element={<PublicGalleryPage />} />
 
           {/* Protected routes */}
           <Route element={<ProtectedLayout />}>
-            <Route path="/" element={<DashboardPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/galleries/:id" element={<GalleryPage />} />
           </Route>
 

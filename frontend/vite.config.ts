@@ -3,6 +3,7 @@ import { defineConfig, loadEnv } from 'vite';
 import type { ProxyOptions } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { compression } from 'vite-plugin-compression2';
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -47,9 +48,28 @@ export default defineConfig(({ mode }) => {
 
   return {
     base,
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(),
+      tailwindcss(),
+      compression({
+        algorithms: ['gzip'],
+      }),
+    ],
     server: {
       port: devPort,
+      devtools: true,
+      forwardConsole: {
+        unhandledErrors: true,
+        logLevels: ['warn', 'error'],
+      },
+      warmup: {
+        clientFiles: [
+          './src/main.tsx',
+          './src/App.tsx',
+          './src/pages/DashboardPage.tsx',
+          './src/pages/GalleryPage.tsx',
+        ],
+      },
       ...(proxyConfig ? { proxy: proxyConfig } : {}),
     },
     preview: {
@@ -58,7 +78,16 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: env.VITE_BUILD_OUT_DIR ?? 'dist',
       sourcemap: env.VITE_BUILD_SOURCEMAP === 'true',
-      rollupOptions: {
+      target: 'es2022',
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: mode === 'production',
+          drop_debugger: mode === 'production',
+          passes: 1, // Reduce compression passes for faster builds
+        },
+      },
+      rolldownOptions: {
         output: {
           manualChunks(id) {
             if (!id.includes('node_modules')) {
@@ -131,9 +160,6 @@ export default defineConfig(({ mode }) => {
           'src/hooks/useTheme.ts',
         ],
       },
-    },
-    esbuild: {
-      drop: mode === 'production' ? ['console', 'debugger'] : [],
     },
   };
 });

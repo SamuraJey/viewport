@@ -6,7 +6,7 @@ participant "Frontend" as FE
 participant "FastAPI /photo" as API
 database "Postgres" as DB
 participant "S3 (RustFS)" as S3
-participant "Taskiq" as C
+participant "Celery" as C
 
 User -> FE: Select files
 FE -> API: POST /galleries/{id}/photos/batch-presigned

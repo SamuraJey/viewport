@@ -1,3 +1,4 @@
+import React from 'react';
 import { CheckSquare, Download, Loader2, Upload } from 'lucide-react';
 import type { MutableRefObject, RefObject } from 'react';
 import { PaginationControls } from '../PaginationControls';
@@ -65,7 +66,7 @@ interface GalleryPhotoSectionProps {
   };
 }
 
-export const GalleryPhotoSection = ({
+const GalleryPhotoSectionComponent = ({
   galleryId,
   pagination,
   gridRef,
@@ -231,3 +232,5 @@ export const GalleryPhotoSection = ({
     )}
   </div>
 );
+
+export const GalleryPhotoSection = React.memo(GalleryPhotoSectionComponent);

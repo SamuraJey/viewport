@@ -1,3 +1,4 @@
+import React from 'react';
 import { CheckSquare, Square, Search, Star, StarOff, Pencil, Download, Trash2 } from 'lucide-react';
 import type { GalleryPhoto } from '../../types';
 
@@ -15,7 +16,7 @@ interface PhotoCardProps {
   onDeletePhoto: (photoId: string) => void;
 }
 
-export const PhotoCard = ({
+const PhotoCardComponent = ({
   photo,
   index,
   isSelectionMode,
@@ -186,3 +187,5 @@ export const PhotoCard = ({
     </div>
   );
 };
+
+export const PhotoCard = React.memo(PhotoCardComponent);

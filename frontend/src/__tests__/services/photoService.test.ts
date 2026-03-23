@@ -1,9 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { photoService } from '../../services/photoService';
+import { getDemoService } from '../../services/demoService';
 import { api } from '../../lib/api';
+import { isDemoModeEnabled } from '../../lib/demoMode';
 import { useAuthStore } from '../../stores/authStore';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 import type { UploadPreparedFile } from '../../types';
+
+vi.mock('../../lib/demoMode', () => ({
+  isDemoModeEnabled: vi.fn(() => false),
+}));
 
 vi.mock('../../lib/api', () => ({
   api: {
@@ -99,6 +105,7 @@ const createFile = (name: string, size: number, type = 'image/jpeg'): UploadPrep
 describe('photoService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(isDemoModeEnabled).mockReturnValue(false);
     useAuthStore.setState({
       user: null,
       tokens: {
@@ -454,5 +461,63 @@ describe('photoService', () => {
       successful_uploads: 0,
       failed_uploads: 0,
     });
+  });
+
+  it('uses demo upload flow and skips API requests when demo mode is enabled', async () => {
+    vi.mocked(isDemoModeEnabled).mockReturnValue(true);
+
+    const file = createFile('demo-upload.jpg', 2048);
+    const result = await photoService.uploadPhotosPresigned('demo-gallery-fashion', [file]);
+
+    expect(result).toMatchObject({
+      total_files: 1,
+      successful_uploads: 1,
+      failed_uploads: 0,
+    });
+    expect(result.results[0]).toMatchObject({
+      filename: 'demo-upload.jpg',
+      success: true,
+    });
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('uses demo rename/delete flow and skips API calls when demo mode is enabled', async () => {
+    vi.mocked(isDemoModeEnabled).mockReturnValue(true);
+
+    const store = getDemoService();
+    const seeded = await store.getGallery('demo-gallery-fashion', { limit: 1, offset: 0 });
+    const targetPhotoId = seeded.photos[0]?.id;
+
+    expect(targetPhotoId).toBeTruthy();
+
+    const renamed = await photoService.renamePhoto(
+      'demo-gallery-fashion',
+      targetPhotoId as string,
+      'renamed-demo.jpg',
+    );
+    await photoService.deletePhoto('demo-gallery-fashion', targetPhotoId as string);
+
+    expect(renamed.filename).toBe('renamed-demo.jpg');
+    expect(api.patch).not.toHaveBeenCalled();
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('uses demo download flow and does not submit browser form when demo mode is enabled', async () => {
+    vi.mocked(isDemoModeEnabled).mockReturnValue(true);
+    const submitSpy = vi
+      .spyOn(HTMLFormElement.prototype, 'submit')
+      .mockImplementation(() => undefined);
+
+    const createObjectURLSpy = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:demo-download-url');
+    const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+
+    await photoService.downloadGalleryZip('demo-gallery-fashion');
+
+    expect(submitSpy).not.toHaveBeenCalled();
+    expect(createObjectURLSpy).toHaveBeenCalled();
+    expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:demo-download-url');
+    expect(api.get).not.toHaveBeenCalled();
   });
 });

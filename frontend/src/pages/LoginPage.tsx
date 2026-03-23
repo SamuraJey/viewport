@@ -8,6 +8,8 @@ import { Mail, LogIn, UserPlus } from 'lucide-react';
 import { AuthLayout } from '../components/AuthLayout';
 import { AuthCard } from '../components/auth/AuthCard';
 import { AuthPasswordField, AuthTextField } from '../components/auth/AuthFields';
+import { disableDemoMode, enableDemoMode } from '../lib/demoMode';
+import { getDemoService } from '../services/demoService';
 
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -19,7 +21,7 @@ export const LoginPage = () => {
   const location = useLocation();
   const { login } = useAuthStore();
 
-  const from = location.state?.from?.pathname || '/';
+  const from = location.state?.from?.pathname || '/dashboard';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +37,8 @@ export const LoginPage = () => {
       return;
     }
 
+    // Explicitly leave demo mode when user signs in with real credentials.
+    disableDemoMode();
     setIsLoading(true);
 
     try {
@@ -55,6 +59,13 @@ export const LoginPage = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleDemoLogin = () => {
+    enableDemoMode();
+    const demoService = getDemoService();
+    login(demoService.getDemoUser(), demoService.getDemoTokens());
+    navigate('/dashboard', { replace: true });
   };
 
   return (
@@ -111,6 +122,14 @@ export const LoginPage = () => {
                   Sign in
                 </>
               )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDemoLogin}
+              className="w-full border border-border bg-surface-1 text-text font-semibold py-3.5 px-6 rounded-xl shadow-xs hover:border-accent/40 hover:text-accent hover:-translate-y-0.5 transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            >
+              Open Demo Cabinet
             </button>
 
             <div className="relative my-8">

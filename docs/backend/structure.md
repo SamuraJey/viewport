@@ -18,8 +18,6 @@ src/viewport/
 ├── cache_utils.py               # Redis caching utilities
 ├── s3_utils.py               # S3 file operations
 ├── s3_service.py                # S3 service abstraction
-├── tkq.py                       # Taskiq broker + scheduler configuration
-├── tasks/                       # Taskiq task modules and direct task re-exports
 ├── dependencies.py              # FastAPI dependency injection
 │
 ├── api/                         # API route handlers (blueprints)
@@ -330,7 +328,7 @@ def get_gallery(gallery_id: UUID) -> Gallery:
 - **psycopg**: PostgreSQL driver
 
 ### Async/Queue
-- **Taskiq**: Task queue and scheduler
+- **Celery**: Task queue and scheduler
 - **Redis**: Message broker & cache
 - **aioboto3**: Async S3 client
 

@@ -196,7 +196,7 @@ describe('LoginPage', () => {
       { access_token: 'token123', refresh_token: 'refresh123', token_type: 'Bearer' },
     );
 
-    expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true });
+    expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true });
   });
 
   it('should redirect to original location after login', async () => {

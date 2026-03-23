@@ -19,7 +19,7 @@ A modern, full-stack photo portfolio sharing platform that enables photographers
 - **Database:** PostgreSQL with SQLAlchemy ORM
 - **Migrations:** Alembic
 - **Storage:** S3-compatible (AWS S3 / rustfs)
-- **Queue:** Taskiq with Redis
+- **Queue:** Celery with Redis
 - **Authentication:** JWT (Python-JWT)
 - **API Documentation:** OpenAPI/Swagger
 
@@ -102,7 +102,6 @@ Complete documentation is organized into the following sections:
 - [Database Models](./docs/backend/models.md)
 - [Authentication & Authorization](./docs/backend/auth.md)
 - [File Handling & S3](./docs/backend/storage.md)
-- [Taskiq Migration & Background Tasks](./docs/backend/taskiq-migration.md)
 - [Testing](./docs/backend/testing.md)
 
 ### 🐳 [Deployment](./docs/deployment/README.md)
@@ -145,7 +144,6 @@ viewport/
 │   ├── auth_utils.py               # JWT & password utilities
 │   ├── db.py                       # Database configuration
 │   ├── rustfs_utils.py              # S3/rustfs utilities
-│   ├── tkq.py                      # Taskiq broker and scheduler setup
 │   ├── cache_utils.py              # Redis caching utilities
 │   ├── metrics.py                  # Prometheus metrics
 │   └── logger.py                   # Logging configuration
@@ -206,7 +204,6 @@ viewport/
 - ✅ Comprehensive test coverage
 - ✅ Docker containerization for easy deployment
 - ✅ Database migrations with Alembic
-- ✅ Async operations with Taskiq
 - ✅ Type-safe code with TypeScript/Pydantic
 
 ## 📊 Database Schema

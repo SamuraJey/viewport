@@ -9,6 +9,20 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
   const [isHeroFullLoaded, setIsHeroFullLoaded] = useState(false);
   const heroImgRef = useRef<HTMLImageElement>(null);
   const heroUrl = gallery?.cover?.full_url;
+  const galleryTitle = gallery?.gallery_name || 'Shared Gallery';
+  const titleLength = galleryTitle.length;
+  const emptyTitleSizeClass =
+    titleLength > 80
+      ? 'text-2xl sm:text-3xl'
+      : titleLength > 46
+        ? 'text-3xl sm:text-4xl'
+        : 'text-4xl sm:text-5xl';
+  const heroTitleSizeClass =
+    titleLength > 90
+      ? 'text-2xl sm:text-4xl md:text-5xl'
+      : titleLength > 60
+        ? 'text-3xl sm:text-5xl md:text-6xl'
+        : 'text-4xl sm:text-6xl md:text-7xl';
 
   useLayoutEffect(() => {
     if (!heroUrl) {
@@ -48,8 +62,10 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
   if (!gallery?.cover) {
     return (
       <div className="text-center py-24 px-6 bg-surface-foreground/5 dark:bg-surface-1/30 rounded-3xl border border-border/50 shadow-xs mb-8">
-        <h1 className="text-4xl sm:text-5xl font-bold text-text dark:text-accent-foreground mb-4 tracking-tight">
-          {gallery?.gallery_name || 'Shared Gallery'}
+        <h1
+          className={`${emptyTitleSizeClass} font-bold text-text dark:text-accent-foreground mb-4 tracking-tight wrap-break-word`}
+        >
+          {galleryTitle}
         </h1>
         {gallery?.photographer && (
           <p className="text-muted dark:text-muted text-lg sm:text-xl font-medium">
@@ -91,8 +107,10 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
               {gallery.date}
             </p>
           )}
-          <h1 className="text-4xl sm:text-6xl md:text-7xl font-bold text-white drop-shadow-xl tracking-tight leading-tight">
-            {gallery.gallery_name || 'Shared Gallery'}
+          <h1
+            className={`${heroTitleSizeClass} font-bold text-white drop-shadow-xl tracking-tight leading-tight wrap-break-word max-w-full`}
+          >
+            {galleryTitle}
           </h1>
           <div className="mt-4 sm:mt-6 text-lg sm:text-xl font-medium text-white/90 drop-shadow-md">
             {gallery.photographer && <span>By {gallery.photographer}</span>}

@@ -46,7 +46,7 @@ export const GalleryNotFoundState = () => (
     <div className="text-center space-y-6 bg-surface dark:bg-surface-foreground/5 p-10 rounded-3xl border border-border/50 dark:border-border/30 shadow-xs">
       <div className="text-muted dark:text-muted-dark text-xl font-bold">Gallery not found</div>
       <Link
-        to="/"
+        to="/dashboard"
         className="inline-flex items-center gap-2 text-accent hover:text-accent/80 font-bold transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent rounded-lg px-2 py-1"
       >
         ← Back to Dashboard

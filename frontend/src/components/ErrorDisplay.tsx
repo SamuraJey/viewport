@@ -60,7 +60,7 @@ export const ErrorDisplay = ({
       ) : (
         <>
           <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0" />
+            <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 shrink-0" />
             <span className="text-sm font-medium">{error}</span>
           </div>
           <div className="flex items-center gap-3">

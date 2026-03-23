@@ -7,6 +7,7 @@ import { useState, useMemo } from 'react';
 import { ProfileModal } from './ProfileModal';
 import { NetworkStatus } from './ErrorDisplay';
 import { AnimatePresence } from 'framer-motion';
+import { isDemoModeEnabled } from '../lib/demoMode';
 
 /** Returns up to 2 uppercase initials for a display name or email. */
 const getUserInitials = (name?: string | null, email?: string): string => {
@@ -33,6 +34,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const [isProfileOpen, setProfileOpen] = useState(false);
+  const demoModeEnabled = isDemoModeEnabled();
 
   const handleLogout = () => {
     logout();
@@ -50,7 +52,7 @@ export const Layout = ({ children }: LayoutProps) => {
       <header className="sticky top-0 z-40 border-b border-border bg-surface/95 py-2 backdrop-blur-lg dark:bg-surface-dark/95 sm:py-3">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-3 sm:px-4">
           <Link
-            to="/"
+            to="/dashboard"
             className="flex min-w-0 items-center gap-2 font-oswald text-lg font-bold uppercase tracking-wide text-text transition-opacity hover:opacity-80 sm:gap-3 sm:text-xl sm:tracking-wider dark:text-accent-foreground"
             aria-label="Go to home"
           >
@@ -59,6 +61,11 @@ export const Layout = ({ children }: LayoutProps) => {
           </Link>
 
           <nav className="flex items-center gap-2 sm:gap-3" aria-label="Top navigation">
+            {demoModeEnabled ? (
+              <span className="hidden md:inline-flex items-center rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-accent">
+                Demo Mode
+              </span>
+            ) : null}
             <ThemeSwitch variant="inline" />
             {user ? (
               <>
