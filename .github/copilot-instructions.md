@@ -45,6 +45,8 @@
   - Theme preference is persisted under `localStorage['theme-preference']` with values `light|dark|system`.
   - Auth header is injected from `authStore`, and 401 triggers refresh via `/auth/refresh`.
 - **API calls**: Live in `frontend/src/services/*Service.ts` and use shared Axios instance `frontend/src/lib/api.ts`.
+  - Demo environment: `frontend/src/services/demoService.ts` is the in-memory source of truth for demo data. Service methods should branch through `isDemoModeEnabled()` (`frontend/src/lib/demoMode.ts`) so Dashboard/Gallery/Profile/Public flows can run without backend auth.
+  - Demo entry points: use one-click demo access from auth/landing UI by enabling demo mode in localStorage (`viewport-demo-mode`) and logging into `authStore` with mock user/tokens.
 - **Dev API routing**: Vite proxy rewrites `VITE_DEV_API_PREFIX` (default `/api`) to the backend (see `frontend/vite.config.ts`).
 - **Pages**: In `frontend/src/pages/`, use custom hooks for pagination/selection/modals instead of manual state (see DashboardPage.tsx, GalleryPage.tsx for examples).
   - Keep pages as orchestration layers and prefer route-level lazy loading (`React.lazy` + `Suspense`) in `frontend/src/App.tsx` for main page components to control bundle size.

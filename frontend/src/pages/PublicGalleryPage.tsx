@@ -8,6 +8,8 @@ import { PublicGalleryError } from '../components/public-gallery/PublicGallerySt
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import { usePublicGallery } from '../hooks';
 import { usePublicGalleryGrid } from '../hooks/usePublicGalleryGrid';
+import { isDemoModeEnabled } from '../lib/demoMode';
+import { demoService } from '../services/demoService';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -66,6 +68,11 @@ export const PublicGalleryPage = () => {
 
   const handleDownloadAll = () => {
     if (!shareId) return;
+    if (isDemoModeEnabled()) {
+      demoService.downloadSharedGalleryZip(shareId);
+      return;
+    }
+
     window.open(`${API_BASE_URL}/s/${shareId}/download/all`, '_blank');
   };
 

@@ -1,4 +1,6 @@
 import { api } from '../lib/api';
+import { isDemoModeEnabled } from '../lib/demoMode';
+import { demoService } from './demoService';
 import { useAuthStore } from '../stores/authStore';
 import type {
   PhotoResponse,
@@ -74,6 +76,11 @@ const submitBrowserDownload = (path: string, fields: Record<string, string | str
 };
 
 const deletePhoto = async (galleryId: string, photoId: string): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    await demoService.deletePhoto(galleryId, photoId);
+    return;
+  }
+
   await api.delete(`/galleries/${galleryId}/photos/${photoId}`);
 };
 
@@ -82,6 +89,10 @@ const renamePhoto = async (
   photoId: string,
   filename: string,
 ): Promise<PhotoResponse> => {
+  if (isDemoModeEnabled()) {
+    return demoService.renamePhoto(galleryId, photoId, filename);
+  }
+
   const response = await api.patch<PhotoResponse>(
     `/galleries/${galleryId}/photos/${photoId}/rename`,
     {
@@ -92,12 +103,22 @@ const renamePhoto = async (
 };
 
 const downloadGalleryZip = async (galleryId: string): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    await demoService.downloadGalleryZip(galleryId);
+    return;
+  }
+
   submitBrowserDownload(`/galleries/${galleryId}/download/all`, {
     access_token: getDownloadAccessToken(),
   });
 };
 
 const downloadSelectedPhotosZip = async (galleryId: string, photoIds: string[]): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    await demoService.downloadSelectedPhotosZip(galleryId, photoIds);
+    return;
+  }
+
   submitBrowserDownload(`/galleries/${galleryId}/download/selected`, {
     access_token: getDownloadAccessToken(),
     photo_ids: photoIds,
@@ -280,6 +301,10 @@ const retryFailedUploads = async (
   }) => void,
   signal?: AbortSignal,
 ): Promise<PhotoUploadResponse> => {
+  if (isDemoModeEnabled()) {
+    return demoService.retryFailedUploads(galleryId, failedFiles, onProgress);
+  }
+
   if (failedFiles.length === 0) {
     return {
       results: [],
@@ -310,6 +335,10 @@ const uploadPhotosPresigned = async (
   }) => void,
   signal?: AbortSignal,
 ): Promise<PhotoUploadResponse> => {
+  if (isDemoModeEnabled()) {
+    return demoService.uploadPhotosPresigned(galleryId, files, onProgress);
+  }
+
   if (files.length === 0) {
     return {
       results: [],

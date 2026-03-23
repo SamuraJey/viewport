@@ -34,6 +34,16 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchHandledRef = useRef(false);
 
+  const scheduleComputeSpans = useCallback(
+    (compute: () => void) => {
+      if (computeSpansDebounceRef.current) {
+        cancelAnimationFrame(computeSpansDebounceRef.current);
+      }
+      computeSpansDebounceRef.current = requestAnimationFrame(() => compute());
+    },
+    [],
+  );
+
   const computeSpans = useCallback(() => {
     if (gridLayout !== 'masonry') return;
     const grid = gridRef.current;
@@ -41,24 +51,27 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
 
     const cs = getComputedStyle(grid);
     const rowHeight = parseFloat(cs.getPropertyValue('grid-auto-rows')) || 8;
-    const rowGap = parseFloat(cs.getPropertyValue('gap')) || 20;
-
-    const gridWidth = grid.offsetWidth;
-    const gridColStyle = cs.getPropertyValue('grid-template-columns');
-    const numCols = gridColStyle.split(' ').filter((s) => s.trim() !== '').length || 1;
-    const colWidth = (gridWidth - (numCols - 1) * rowGap) / numCols;
+    const rowGap = parseFloat(cs.getPropertyValue('row-gap')) || parseFloat(cs.getPropertyValue('gap')) || 20;
 
     const items = Array.from(grid.children) as HTMLElement[];
     items.forEach((item, index) => {
       const photo = photos[index];
       if (!photo) return;
 
-      const width = photo.width || 4;
-      const height = photo.height || 3;
-      const ratio = width / height;
+      // Fallback to loaded image natural size when API dimensions are unavailable.
+      const image = item.querySelector('img');
+      const naturalWidth = image instanceof HTMLImageElement ? image.naturalWidth : 0;
+      const naturalHeight = image instanceof HTMLImageElement ? image.naturalHeight : 0;
 
-      const targetHeight = colWidth / ratio;
-      const span = Math.ceil((targetHeight + rowGap) / (rowHeight + rowGap));
+      const width = (photo.width && photo.width > 0 ? photo.width : naturalWidth) || 4;
+      const height = (photo.height && photo.height > 0 ? photo.height : naturalHeight) || 3;
+      const ratioCandidate = width / height;
+      const ratio = Number.isFinite(ratioCandidate) && ratioCandidate > 0 ? ratioCandidate : 4 / 3;
+      const itemWidth = item.getBoundingClientRect().width || item.offsetWidth || 0;
+      if (itemWidth <= 0) return;
+
+      const targetHeight = itemWidth / ratio;
+      const span = Math.max(1, Math.ceil((targetHeight + rowGap) / (rowHeight + rowGap)));
       const next = `span ${span}`;
       if (item.style.gridRowEnd !== next) item.style.gridRowEnd = next;
     });
@@ -69,34 +82,39 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
     const grid = gridRef.current;
     if (!grid) return undefined;
 
-    const schedule = () => {
-      if (computeSpansDebounceRef.current) cancelAnimationFrame(computeSpansDebounceRef.current);
-      computeSpansDebounceRef.current = requestAnimationFrame(() => computeSpans());
-    };
+    const schedule = () => scheduleComputeSpans(computeSpans);
 
     const resizeObserver = new ResizeObserver(() => schedule());
     resizeObserver.observe(grid);
 
+    const handleImageLoad = (event: Event) => {
+      const target = event.target;
+      if (target instanceof HTMLImageElement) {
+        schedule();
+      }
+    };
+    grid.addEventListener('load', handleImageLoad, true);
+
     return () => {
+      grid.removeEventListener('load', handleImageLoad, true);
       resizeObserver.disconnect();
       if (computeSpansDebounceRef.current) {
         cancelAnimationFrame(computeSpansDebounceRef.current);
         computeSpansDebounceRef.current = null;
       }
     };
-  }, [photos, gridLayout, computeSpans]);
+  }, [photos, gridLayout, computeSpans, scheduleComputeSpans]);
 
   useEffect(() => {
     if (gridLayout !== 'masonry') return;
-    if (computeSpansDebounceRef.current) cancelAnimationFrame(computeSpansDebounceRef.current);
-    computeSpansDebounceRef.current = requestAnimationFrame(() => computeSpans());
+    scheduleComputeSpans(computeSpans);
     return () => {
       if (computeSpansDebounceRef.current) {
         cancelAnimationFrame(computeSpansDebounceRef.current);
         computeSpansDebounceRef.current = null;
       }
     };
-  }, [gridLayout, gridDensity, photos.length, computeSpans]);
+  }, [gridLayout, gridDensity, photos.length, computeSpans, scheduleComputeSpans]);
 
   const clearGridRowSpans = useCallback(() => {
     const grid = gridRef.current;

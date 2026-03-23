@@ -7,6 +7,7 @@ import { useState, useMemo } from 'react';
 import { ProfileModal } from './ProfileModal';
 import { NetworkStatus } from './ErrorDisplay';
 import { AnimatePresence } from 'framer-motion';
+import { isDemoModeEnabled } from '../lib/demoMode';
 
 /** Returns up to 2 uppercase initials for a display name or email. */
 const getUserInitials = (name?: string | null, email?: string): string => {
@@ -33,6 +34,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const [isProfileOpen, setProfileOpen] = useState(false);
+  const demoModeEnabled = isDemoModeEnabled();
 
   const handleLogout = () => {
     logout();
@@ -59,6 +61,11 @@ export const Layout = ({ children }: LayoutProps) => {
           </Link>
 
           <nav className="flex items-center gap-2 sm:gap-3" aria-label="Top navigation">
+            {demoModeEnabled ? (
+              <span className="hidden md:inline-flex items-center rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-accent">
+                Demo Mode
+              </span>
+            ) : null}
             <ThemeSwitch variant="inline" />
             {user ? (
               <>

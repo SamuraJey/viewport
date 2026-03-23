@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
     ArrowRight,
@@ -15,47 +15,42 @@ import {
 } from 'lucide-react';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { DashboardGalleryCard } from '../components/dashboard/DashboardGalleryCard';
-import { PublicGalleryGridControls } from '../components/public-gallery/PublicGalleryGridControls';
 import { AuthCard } from '../components/auth/AuthCard';
 import type { Gallery } from '../types';
-import type { PublicGridDensity, PublicGridLayout } from '../hooks/usePublicGalleryGrid';
+import { useAuthStore } from '../stores/authStore';
+import { demoService } from '../services/demoService';
+import { enableDemoMode } from '../lib/demoMode';
 
 const featureItems = [
     {
         icon: UploadCloud,
-        title: 'Двухшаговая загрузка фото',
-        description:
-            'Viewport сначала резервирует место и выдает presigned URL, а после подтверждения запускает обработку.',
+        title: 'Быстрая загрузка фото',
+        description: 'Добавляйте целые серии снимков без лишних шагов и задержек.',
     },
     {
         icon: Sparkles,
-        title: 'Авто-миниатюры в фоне',
-        description:
-            'Генерация превью уходит в background задачи, чтобы интерфейс оставался быстрым даже на больших объемах.',
+        title: 'Превью без ручной рутины',
+        description: 'Галереи быстро становятся удобными для просмотра сразу после загрузки.',
     },
     {
         icon: Share2,
-        title: 'Публичные ссылки на галереи',
-        description:
-            'Открывайте клиентские галереи по защищенной ссылке и давайте скачивать фото единым архивом.',
+        title: 'Публичные галереи для клиентов',
+        description: 'Делитесь съемками по ссылке и презентуйте материал в аккуратном формате.',
     },
     {
         icon: HardDrive,
-        title: 'Контроль квот и хранения',
-        description:
-            'Система отслеживает reserved и used storage, чтобы загрузки оставались предсказуемыми для команды.',
+        title: 'Порядок в медиатеке',
+        description: 'Храните проекты структурированно и возвращайтесь к нужным кадрам за секунды.',
     },
     {
         icon: ShieldCheck,
-        title: 'Надежная авторизация',
-        description:
-            'Bearer auth, refresh-токены и строгие ответы API помогают держать доступ под контролем.',
+        title: 'Доступ по уникальной ссылке',
+        description: 'Делитесь галереей по ссылке: открыть ее может любой, у кого есть ссылка.',
     },
     {
         icon: Clock3,
-        title: 'Авто-очистка сиротских upload',
-        description:
-            'Старые неподтвержденные загрузки автоматически удаляются по расписанию и не раздувают storage.',
+        title: 'Стабильная работа каждый день',
+        description: 'Сервис остается отзывчивым даже когда проектов становится больше.',
     },
 ];
 
@@ -83,10 +78,10 @@ const subscriptionCards = [
 ];
 
 const flowSteps = [
-    'Создаете галерею и загружаете пакет фото напрямую в S3-совместимое хранилище.',
-    'Подтверждаете загрузку, и система фиксирует объем и ставит задачи обработки.',
-    'Фоновые воркеры создают миниатюры, валидируют контент и обновляют статусы.',
-    'Открываете галерею клиентам по публичной ссылке и контролируете доступ из кабинета.',
+    'Создаете галерею и добавляете фотографии в пару кликов.',
+    'Viewport готовит материалы к просмотру, пока вы занимаетесь следующими задачами.',
+    'Проверяете результат и приводите галерею к нужной подаче.',
+    'Отправляете ссылку клиенту и получаете понятный, приятный опыт просмотра.',
 ];
 
 const previewGallery: Gallery = {
@@ -111,9 +106,15 @@ const previewCardVariants = {
 
 export const LandingPage = () => {
     const prefersReducedMotion = useReducedMotion();
+    const navigate = useNavigate();
+    const login = useAuthStore((state) => state.login);
     const renameInputRef = useRef<HTMLInputElement>(null);
-    const [gridLayout, setGridLayout] = useState<PublicGridLayout>('masonry');
-    const [gridDensity, setGridDensity] = useState<PublicGridDensity>('large');
+
+    const handleOpenDemoCabinet = () => {
+        enableDemoMode();
+        login(demoService.getDemoUser(), demoService.getDemoTokens());
+        navigate('/dashboard');
+    };
 
     return (
         <div className="relative min-h-screen overflow-hidden bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
@@ -173,8 +174,8 @@ export const LandingPage = () => {
                             до первой фотографии
                         </h1>
                         <p className="max-w-2xl text-lg text-muted sm:text-xl">
-                            Viewport объединяет загрузку, хранение, обработку и публикацию галерей в одном
-                            интерфейсе. Быстро для клиента, предсказуемо для вашей команды, надежно для бизнеса.
+                            Viewport помогает собрать весь путь работы с галереями в одном месте: от первых кадров
+                            до финальной презентации клиенту. Быстро, аккуратно и без лишней рутины.
                         </p>
                         <div className="flex flex-wrap items-center gap-3">
                             <Link
@@ -184,23 +185,22 @@ export const LandingPage = () => {
                                 Начать бесплатно
                                 <ArrowRight className="h-4 w-4" />
                             </Link>
-                            <Link
-                                to="/auth/login"
+                            <button
+                                type="button"
+                                onClick={handleOpenDemoCabinet}
                                 className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface-1 px-6 py-3.5 font-semibold text-text hover:border-accent/40 hover:text-accent transition-all"
                             >
                                 Открыть демо-кабинет
-                            </Link>
+                            </button>
                         </div>
                         <div className="grid max-w-xl grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
                             <div className="rounded-2xl border border-border/60 bg-surface/70 p-4 dark:bg-surface-dark/40">
-                                <p className="font-oswald text-3xl font-bold uppercase">2-step</p>
-                                <p className="text-sm text-muted">Подготовка и подтверждение upload без потерь.</p>
+                                <p className="font-oswald text-3xl font-bold uppercase">Fast</p>
+                                <p className="text-sm text-muted">Галерея готова к показу за считанные минуты.</p>
                             </div>
                             <div className="rounded-2xl border border-border/60 bg-surface/70 p-4 dark:bg-surface-dark/40">
                                 <p className="font-oswald text-3xl font-bold uppercase">24/7</p>
-                                <p className="text-sm text-muted">
-                                    Фоновые задачи и чистка orphaned uploads по расписанию.
-                                </p>
+                                <p className="text-sm text-muted">Стабильный сервис, который не отвлекает от съемки.</p>
                             </div>
                         </div>
                     </motion.div>
@@ -248,8 +248,7 @@ export const LandingPage = () => {
                             Возможности платформы
                         </h2>
                         <p className="mt-3 text-lg text-muted">
-                            Только реальные функции из текущего Viewport: загрузка, обработка, шаринг, контроль
-                            ресурсов и стабильная работа под нагрузкой.
+                            Все, что нужно для красивой выдачи фотографий клиентам и уверенной работы команды.
                         </p>
                     </div>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -276,40 +275,22 @@ export const LandingPage = () => {
                     transition={{ duration: 0.45, ease: 'easeOut' }}
                     className="mx-auto w-full max-w-7xl px-4 pb-18 sm:px-6"
                 >
-                    <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
-                        <div className="rounded-3xl border border-border/60 bg-surface/80 p-6 dark:bg-surface-foreground/8 sm:p-8">
-                            <h2 className="font-oswald text-4xl font-bold uppercase tracking-wide sm:text-5xl">
-                                Как это работает
-                            </h2>
-                            <div className="mt-8 space-y-4">
-                                {flowSteps.map((step, index) => (
-                                    <div
-                                        key={step}
-                                        className="flex items-start gap-4 rounded-xl border border-border/40 bg-surface-1/50 p-4 dark:bg-surface-dark/45"
-                                    >
-                                        <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground">
-                                            {index + 1}
-                                        </span>
-                                        <p className="text-sm leading-relaxed text-muted sm:text-base">{step}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="space-y-4 rounded-3xl border border-border/60 bg-surface/80 p-6 dark:bg-surface-foreground/8 sm:p-8">
-                            <h3 className="font-oswald text-3xl font-bold uppercase tracking-wide">
-                                Контроль интерфейса
-                            </h3>
-                            <p className="text-sm text-muted">
-                                Этот блок использует реальные контролы Public Gallery из проекта, чтобы показать
-                                единый визуальный стиль продукта.
-                            </p>
-                            <PublicGalleryGridControls
-                                gridLayout={gridLayout}
-                                gridDensity={gridDensity}
-                                onLayoutChange={setGridLayout}
-                                onDensityChange={setGridDensity}
-                            />
+                    <div className="rounded-3xl border border-border/60 bg-surface/80 p-6 dark:bg-surface-foreground/8 sm:p-8">
+                        <h2 className="font-oswald text-4xl font-bold uppercase tracking-wide sm:text-5xl">
+                            Как это работает
+                        </h2>
+                        <div className="mt-8 space-y-4">
+                            {flowSteps.map((step, index) => (
+                                <div
+                                    key={step}
+                                    className="flex items-start gap-4 rounded-xl border border-border/40 bg-surface-1/50 p-4 dark:bg-surface-dark/45"
+                                >
+                                    <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground">
+                                        {index + 1}
+                                    </span>
+                                    <p className="text-sm leading-relaxed text-muted sm:text-base">{step}</p>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </motion.section>
@@ -369,7 +350,7 @@ export const LandingPage = () => {
                     <div className="rounded-3xl border border-border/60 bg-surface/85 p-6 dark:bg-surface-foreground/8 sm:p-8">
                         <AuthCard
                             title="Готовы показать клиентам идеальный опыт?"
-                            subtitle="Запустите Viewport и соберите полный путь от upload до шаринга в одном месте"
+                            subtitle="Запустите Viewport и соберите весь клиентский путь в одном аккуратном пространстве"
                         >
                             <div className="space-y-4">
                                 <Link

@@ -8,6 +8,8 @@ import { Mail, LogIn, UserPlus } from 'lucide-react';
 import { AuthLayout } from '../components/AuthLayout';
 import { AuthCard } from '../components/auth/AuthCard';
 import { AuthPasswordField, AuthTextField } from '../components/auth/AuthFields';
+import { enableDemoMode } from '../lib/demoMode';
+import { demoService } from '../services/demoService';
 
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -55,6 +57,12 @@ export const LoginPage = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleDemoLogin = () => {
+    enableDemoMode();
+    login(demoService.getDemoUser(), demoService.getDemoTokens());
+    navigate('/dashboard', { replace: true });
   };
 
   return (
@@ -111,6 +119,14 @@ export const LoginPage = () => {
                   Sign in
                 </>
               )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDemoLogin}
+              className="w-full border border-border bg-surface-1 text-text font-semibold py-3.5 px-6 rounded-xl shadow-xs hover:border-accent/40 hover:text-accent hover:-translate-y-0.5 transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            >
+              Open Demo Cabinet
             </button>
 
             <div className="relative my-8">

@@ -1,15 +1,25 @@
 import { api } from '../lib/api';
+import { isDemoModeEnabled } from '../lib/demoMode';
+import { demoService } from './demoService';
 import type { ShareLink, PublicPhoto, SharedGallery } from '../types';
 
 // Re-export types for backward compatibility
 export type { ShareLink, PublicPhoto, SharedGallery };
 
 const getShareLinks = async (galleryId: string): Promise<ShareLink[]> => {
+  if (isDemoModeEnabled()) {
+    return demoService.getShareLinks(galleryId);
+  }
+
   const response = await api.get<ShareLink[]>(`/galleries/${galleryId}/share-links`);
   return response.data;
 };
 
 const createShareLink = async (galleryId: string): Promise<ShareLink> => {
+  if (isDemoModeEnabled()) {
+    return demoService.createShareLink(galleryId);
+  }
+
   const response = await api.post<ShareLink>(`/galleries/${galleryId}/share-links`, {
     expires_at: null,
   });
@@ -17,6 +27,11 @@ const createShareLink = async (galleryId: string): Promise<ShareLink> => {
 };
 
 const deleteShareLink = async (galleryId: string, shareLinkId: string): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    await demoService.deleteShareLink(galleryId, shareLinkId);
+    return;
+  }
+
   await api.delete(`/galleries/${galleryId}/share-links/${shareLinkId}`);
 };
 
@@ -24,6 +39,10 @@ const getSharedGallery = async (
   shareId: string,
   options?: { limit?: number; offset?: number },
 ): Promise<SharedGallery> => {
+  if (isDemoModeEnabled()) {
+    return demoService.getSharedGallery(shareId, options);
+  }
+
   const params = new URLSearchParams();
   if (options?.limit !== undefined) {
     params.append('limit', options.limit.toString());
@@ -43,11 +62,19 @@ const getPublicPhotoUrl = async (
   shareId: string,
   photoId: string,
 ): Promise<{ url: string; expires_in: number }> => {
+  if (isDemoModeEnabled()) {
+    return demoService.getPublicPhotoUrl(shareId, photoId);
+  }
+
   const response = await api.get(`/s/${shareId}/photos/${photoId}/url`);
   return response.data;
 };
 
 const getAllPublicPhotoUrls = async (shareId: string): Promise<PublicPhoto[]> => {
+  if (isDemoModeEnabled()) {
+    return demoService.getAllPublicPhotoUrls(shareId);
+  }
+
   const response = await api.get(`/s/${shareId}/photos/urls`);
   return response.data;
 };
