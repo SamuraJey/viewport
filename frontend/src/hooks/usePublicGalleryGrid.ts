@@ -18,6 +18,13 @@ interface UsePublicGalleryGridProps {
   photos: PublicPhoto[];
 }
 
+const DEFAULT_FALLBACK_RATIO = 4 / 3;
+
+const toValidRatio = (value: number | null | undefined): number | null => {
+  if (!value || !Number.isFinite(value) || value <= 0) return null;
+  return value;
+};
+
 const calculateTouchDistance = (touches: ReactTouchList) => {
   if (touches.length < 2) return 0;
   const first = touches.item(0);
@@ -30,19 +37,42 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
   const [gridDensity, setGridDensity] = useState<PublicGridDensity>('large');
   const [gridLayout, setGridLayout] = useState<PublicGridLayout>('masonry');
   const gridRef = useRef<HTMLDivElement | null>(null);
-  const computeSpansDebounceRef = useRef<number | null>(null);
+  const computeSpansRafRef = useRef<number | null>(null);
+  const hasScheduledComputeRef = useRef(false);
+  const ratioCacheRef = useRef<Map<string, number>>(new Map());
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchHandledRef = useRef(false);
 
-  const scheduleComputeSpans = useCallback(
-    (compute: () => void) => {
-      if (computeSpansDebounceRef.current) {
-        cancelAnimationFrame(computeSpansDebounceRef.current);
+  const getRatioFromPhotoOrImage = useCallback((photo: PublicPhoto, item: HTMLElement): number => {
+    const cachedRatio = ratioCacheRef.current.get(photo.photo_id);
+    const apiRatio =
+      toValidRatio(photo.width) && toValidRatio(photo.height)
+        ? (photo.width as number) / (photo.height as number)
+        : null;
+
+    if (cachedRatio) {
+      return cachedRatio;
+    }
+
+    if (apiRatio) {
+      ratioCacheRef.current.set(photo.photo_id, apiRatio);
+      return apiRatio;
+    }
+
+    const image = item.querySelector('img');
+    if (image instanceof HTMLImageElement) {
+      const naturalRatio =
+        toValidRatio(image.naturalWidth) && toValidRatio(image.naturalHeight)
+          ? image.naturalWidth / image.naturalHeight
+          : null;
+      if (naturalRatio) {
+        ratioCacheRef.current.set(photo.photo_id, naturalRatio);
+        return naturalRatio;
       }
-      computeSpansDebounceRef.current = requestAnimationFrame(() => compute());
-    },
-    [],
-  );
+    }
+
+    return DEFAULT_FALLBACK_RATIO;
+  }, []);
 
   const computeSpans = useCallback(() => {
     if (gridLayout !== 'masonry') return;
@@ -58,15 +88,7 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
       const photo = photos[index];
       if (!photo) return;
 
-      // Fallback to loaded image natural size when API dimensions are unavailable.
-      const image = item.querySelector('img');
-      const naturalWidth = image instanceof HTMLImageElement ? image.naturalWidth : 0;
-      const naturalHeight = image instanceof HTMLImageElement ? image.naturalHeight : 0;
-
-      const width = (photo.width && photo.width > 0 ? photo.width : naturalWidth) || 4;
-      const height = (photo.height && photo.height > 0 ? photo.height : naturalHeight) || 3;
-      const ratioCandidate = width / height;
-      const ratio = Number.isFinite(ratioCandidate) && ratioCandidate > 0 ? ratioCandidate : 4 / 3;
+      const ratio = getRatioFromPhotoOrImage(photo, item);
       const itemWidth = item.getBoundingClientRect().width || item.offsetWidth || 0;
       if (itemWidth <= 0) return;
 
@@ -75,46 +97,104 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
       const next = `span ${span}`;
       if (item.style.gridRowEnd !== next) item.style.gridRowEnd = next;
     });
-  }, [gridLayout, photos]);
+  }, [getRatioFromPhotoOrImage, gridLayout, photos]);
+
+  const scheduleComputeSpans = useCallback(() => {
+    if (gridLayout !== 'masonry') return;
+    if (hasScheduledComputeRef.current) return;
+
+    hasScheduledComputeRef.current = true;
+    computeSpansRafRef.current = requestAnimationFrame(() => {
+      hasScheduledComputeRef.current = false;
+      computeSpansRafRef.current = null;
+      computeSpans();
+    });
+  }, [computeSpans, gridLayout]);
+
+  const cancelScheduledCompute = useCallback(() => {
+    if (computeSpansRafRef.current) {
+      cancelAnimationFrame(computeSpansRafRef.current);
+      computeSpansRafRef.current = null;
+    }
+    hasScheduledComputeRef.current = false;
+  }, []);
 
   useEffect(() => {
     if (gridLayout !== 'masonry') return undefined;
     const grid = gridRef.current;
     if (!grid) return undefined;
 
-    const schedule = () => scheduleComputeSpans(computeSpans);
+    const refreshRatioFromImage = (image: HTMLImageElement) => {
+      const photoCard = image.closest<HTMLElement>('[data-photo-id]');
+      const photoId = photoCard?.dataset.photoId;
+      if (!photoId) {
+        scheduleComputeSpans();
+        return;
+      }
 
-    const resizeObserver = new ResizeObserver(() => schedule());
-    resizeObserver.observe(grid);
+      const naturalRatio =
+        toValidRatio(image.naturalWidth) && toValidRatio(image.naturalHeight)
+          ? image.naturalWidth / image.naturalHeight
+          : null;
+
+      if (naturalRatio) {
+        ratioCacheRef.current.set(photoId, naturalRatio);
+      }
+
+      scheduleComputeSpans();
+    };
 
     const handleImageLoad = (event: Event) => {
       const target = event.target;
-      if (target instanceof HTMLImageElement) {
-        schedule();
+      if (!(target instanceof HTMLImageElement)) return;
+
+      if (typeof target.decode === 'function') {
+        void target.decode().catch(() => undefined).finally(() => refreshRatioFromImage(target));
+        return;
       }
+
+      refreshRatioFromImage(target);
     };
+
+    const resizeObserver = new ResizeObserver(() => scheduleComputeSpans());
+    resizeObserver.observe(grid);
+
+    const itemResizeObserver = new ResizeObserver(() => scheduleComputeSpans());
+    Array.from(grid.children).forEach((item) => itemResizeObserver.observe(item));
+
     grid.addEventListener('load', handleImageLoad, true);
+
+    const images = Array.from(grid.querySelectorAll('img'));
+    images.forEach((image) => {
+      if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
+        refreshRatioFromImage(image);
+      }
+    });
+
+    scheduleComputeSpans();
 
     return () => {
       grid.removeEventListener('load', handleImageLoad, true);
       resizeObserver.disconnect();
-      if (computeSpansDebounceRef.current) {
-        cancelAnimationFrame(computeSpansDebounceRef.current);
-        computeSpansDebounceRef.current = null;
-      }
+      itemResizeObserver.disconnect();
+      cancelScheduledCompute();
     };
-  }, [photos, gridLayout, computeSpans, scheduleComputeSpans]);
+  }, [gridLayout, photos, scheduleComputeSpans, cancelScheduledCompute]);
+
+  useEffect(() => {
+    const activePhotoIds = new Set(photos.map((photo) => photo.photo_id));
+    const cache = ratioCacheRef.current;
+    Array.from(cache.keys()).forEach((photoId) => {
+      if (!activePhotoIds.has(photoId)) {
+        cache.delete(photoId);
+      }
+    });
+  }, [photos]);
 
   useEffect(() => {
     if (gridLayout !== 'masonry') return;
-    scheduleComputeSpans(computeSpans);
-    return () => {
-      if (computeSpansDebounceRef.current) {
-        cancelAnimationFrame(computeSpansDebounceRef.current);
-        computeSpansDebounceRef.current = null;
-      }
-    };
-  }, [gridLayout, gridDensity, photos.length, computeSpans, scheduleComputeSpans]);
+    scheduleComputeSpans();
+  }, [gridLayout, gridDensity, photos.length, scheduleComputeSpans]);
 
   const clearGridRowSpans = useCallback(() => {
     const grid = gridRef.current;
@@ -131,8 +211,14 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
 
   useLayoutEffect(() => {
     if (gridLayout !== 'masonry') return;
-    computeSpans();
-  }, [gridLayout, photos, computeSpans]);
+    scheduleComputeSpans();
+  }, [gridLayout, photos, scheduleComputeSpans]);
+
+  useEffect(() => {
+    return () => {
+      cancelScheduledCompute();
+    };
+  }, [cancelScheduledCompute]);
 
   const setGridMode = useCallback((mode: PublicGridDensity) => {
     startTransition(() => {

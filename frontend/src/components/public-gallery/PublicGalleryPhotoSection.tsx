@@ -68,6 +68,7 @@ export const PublicGalleryPhotoSection = ({
                 key={photo.photo_id}
                 className={`pg-card relative group overflow-hidden rounded-xl transition-all duration-200 hover:shadow-md ${gridLayout === 'uniform' ? 'pg-card--uniform' : ''}`}
                 data-testid="public-batch"
+                data-photo-id={photo.photo_id}
               >
                 <button
                   onClick={() => onOpenPhoto(index)}

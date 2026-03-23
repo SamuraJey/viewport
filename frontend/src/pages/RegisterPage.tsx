@@ -7,6 +7,7 @@ import { UserPlus, Mail, CheckCircle } from 'lucide-react';
 import { AuthLayout } from '../components/AuthLayout';
 import { AuthCard } from '../components/auth/AuthCard';
 import { AuthPasswordField, AuthTextField } from '../components/auth/AuthFields';
+import { disableDemoMode } from '../lib/demoMode';
 
 export const RegisterPage = () => {
   const [email, setEmail] = useState('');
@@ -44,6 +45,8 @@ export const RegisterPage = () => {
       return;
     }
 
+    // Explicitly leave demo mode when user creates a real account.
+    disableDemoMode();
     setIsLoading(true);
 
     try {

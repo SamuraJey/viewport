@@ -8,7 +8,7 @@ import { Mail, LogIn, UserPlus } from 'lucide-react';
 import { AuthLayout } from '../components/AuthLayout';
 import { AuthCard } from '../components/auth/AuthCard';
 import { AuthPasswordField, AuthTextField } from '../components/auth/AuthFields';
-import { enableDemoMode } from '../lib/demoMode';
+import { disableDemoMode, enableDemoMode } from '../lib/demoMode';
 import { demoService } from '../services/demoService';
 
 export const LoginPage = () => {
@@ -37,6 +37,8 @@ export const LoginPage = () => {
       return;
     }
 
+    // Explicitly leave demo mode when user signs in with real credentials.
+    disableDemoMode();
     setIsLoading(true);
 
     try {
