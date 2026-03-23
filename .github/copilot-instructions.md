@@ -3,17 +3,15 @@
 ## Big picture
 - Monorepo: FastAPI backend in `src/viewport/` + React/Vite frontend in `frontend/`.
 - Backend layers: routers in `src/viewport/api/` → repository layer in `src/viewport/repositories/` (SQLAlchemy `Session`) → Postgres models in `src/viewport/models/`.
-- Backend database access now uses SQLAlchemy `AsyncSession` end-to-end in app code, repositories, auth dependencies, and Taskiq tasks.
+- Backend database access now uses SQLAlchemy `AsyncSession` end-to-end in app code, repositories, auth dependencies, and Celery tasks.
 - Storage/URLs: originals + thumbnails live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them **in-process** (see `src/viewport/cache_utils.py`).
-- Background work: Taskiq tasks live in `src/viewport/tasks/` and are re-exported from `src/viewport/tasks/__init__.py`; application code should use direct Taskiq task objects and `await task.kiq(...)` instead of any compatibility wrapper. Docker Compose runs `taskiq_worker` + `taskiq_scheduler`.
-  - Retry and rate-limit semantics migrated from Celery must be preserved explicitly with Taskiq middleware/task labels; photo thumbnail creation and background delete tasks rely on retries for transient failures, and thumbnail batch processing keeps the Celery-era task rate limit.
 - uv is used as package manager.
 
 ## How to run (preferred workflows)
-- Containers (recommended): `docker-compose up -d` (services: backend, postgres, rustfs, redis, taskiq_worker, taskiq_scheduler).
+- Containers (recommended): `docker-compose up -d` (services: backend, postgres, rustfs, redis, celery_worker).
 - Backend local tooling uses `uv` + venv via `just init` or `make init` (see `Justfile`, `Makefile`).
 - Backend dev server (preferred local dev): `uvicorn viewport.main:app --reload`.
-  - Note: Docker/Taskiq commands use `src.viewport.*` module paths (see `Dockerfile-backend`, `docker-compose.yml`).
+  - Note: Docker commands use `src.viewport.*` module paths (see `Dockerfile-backend`, `docker-compose.yml`).
 - Frontend dev server: `cd frontend && npm install && npm run dev`.
 
 ## Backend conventions (FastAPI)
@@ -29,11 +27,9 @@
     2. `/batch-confirm`: Verifies upload by applying `upload-status: confirmed` tag to S3 objects.
   - **Confirmation logic**: `/batch-confirm` transitions photos from `PENDING` to `THUMBNAIL_CREATING`, finalizes reserved quota, and enqueues thumbnail generation. Thumbnail workers move records to `SUCCESSFUL` on metadata/thumbnail success or to `FAILED` on permanent errors.
   - **Presigned URLs**: Avoid generating presigned URLs during batch upload; fetch URLs separately via `/photos/urls` endpoints.
-  - **Garbage collection**: A Taskiq scheduled task (`cleanup_orphaned_uploads`) runs hourly to delete `PENDING` photo records older than 30 minutes and their corresponding S3 objects to prevent storage leaks from unconfirmed uploads.
+  - **Garbage collection**: A Celery scheduled task (`cleanup_orphaned_uploads`) runs hourly to delete `PENDING` photo records older than 30 minutes and their corresponding S3 objects to prevent storage leaks from unconfirmed uploads.
   - **Gallery deletion**: `galleries.is_deleted` is a soft-delete flag. Deleting a gallery hides it from queries and enqueues a background task to purge S3 objects and hard-delete DB rows.
   - **Storage quotas**: User storage is tracked on `users` (`storage_quota`, `storage_used`, `storage_reserved`). Reserve bytes on `/batch-presigned`, finalize on confirm, and release on failures/orphan cleanup; only admins edit quota via SQLAdmin.
-  - **Taskiq style**: Do not add project-local task compatibility APIs like `run()`/`delay()` wrappers. Call Taskiq tasks directly from `src/viewport/tasks/` or `src/viewport/tasks/__init__.py`, use `await task.kiq(...)` when you need broker acknowledgement, and only detach enqueue from the response path intentionally.
-- No direct SQL in routers; use repositories for all DB access.
 
 ## Frontend conventions (React)
 - **Type system**: Centralized in `frontend/src/types/` (common.ts, gallery.ts, photo.ts, sharelink.ts, auth.ts).

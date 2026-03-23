@@ -22,9 +22,6 @@ Quota counters (`storage_quota`, `storage_used`, `storage_reserved`), upload acc
 ### ⚙️ [Configuration](./configuration.md)
 Environment variables, settings management, and environment-specific configurations.
 
-### 🔄 [Taskiq Migration & Background Tasks](./taskiq-migration.md)
-Taskiq broker/scheduler setup, migration decisions, and asynchronous job processing.
-
 ### 🧪 [Testing](./testing.md)
 Unit tests, integration tests, fixtures, and test coverage guidelines.
 
@@ -50,7 +47,7 @@ Common issues and solutions for backend development and deployment.
 - **Authentication:** PyJWT
 - **Password Hashing:** Bcrypt
 - **Storage:** Boto3 (S3)
-- **Task Queue:** Taskiq with Redis
+- **Task Queue:** Celery with Redis
 - **Image Processing:** Pillow
 - **API Monitoring:** Prometheus FastAPI Instrumentator
 
@@ -85,7 +82,7 @@ JWT-based authentication, CORS configuration, and input validation on all endpoi
 - `db.py` - Database connection and session management
 - `auth_utils.py` - JWT and password utilities
 - `s3_utils.py` - S3 file operations
-- `tkq.py` - Taskiq broker and scheduler configuration
+- `celery.py` - Celery broker and scheduler configuration
 - `cache_utils.py` - Redis caching utilities
 - `metrics.py` - Prometheus metrics setup
 - `logger.py` - Application logging configuration

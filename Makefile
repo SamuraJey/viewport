@@ -50,12 +50,3 @@ test:
 
 test-cov:
 	$(VENV)/bin/pytest -n 4 ./tests --cov=$(PROJECT_NAME) --cov=src --cov-branch --cov-fail-under=85
-
-worker:
-	$(VENV)/bin/taskiq worker viewport.tkq:broker --workers 4
-
-scheduler:
-	$(VENV)/bin/taskiq scheduler viewport.tkq:scheduler
-
-worker-dev:
-	$(VENV)/bin/taskiq worker viewport.tkq:broker --workers 1 --reload

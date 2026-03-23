@@ -264,7 +264,7 @@ flowchart TD
 - Image thumbnails and caching
 - Lazy loading on frontend
 - Database query optimization
-- Async operations (Taskiq)
+- Async operations (Celery)
 
 ## Deployment Models
 
