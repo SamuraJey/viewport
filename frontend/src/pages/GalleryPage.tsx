@@ -289,8 +289,9 @@ export const GalleryPage = () => {
             selectionCount: selection.count,
             selectedSizeBytes,
             hasSelection: selection.hasSelection,
-            isPhotoSelected: (id) => selection.isSelected(id),
-            isCoverPhoto: (photoId) => gallery.cover_photo_id === photoId,
+            isPhotoSelected: (id: string) => selection.isSelected(id),
+            isCoverPhoto: (photoId: string | null | undefined) =>
+              gallery.cover_photo_id === photoId,
           }}
           actions={{
             onUploadComplete: handleUploadComplete,
