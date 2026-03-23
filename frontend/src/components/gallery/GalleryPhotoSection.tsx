@@ -1,3 +1,4 @@
+import React from 'react';
 import { CheckSquare, Download, Loader2, Upload } from 'lucide-react';
 import type { MutableRefObject, RefObject } from 'react';
 import { PaginationControls } from '../PaginationControls';
@@ -65,7 +66,7 @@ interface GalleryPhotoSectionProps {
   };
 }
 
-export const GalleryPhotoSection = ({
+const GalleryPhotoSectionComponent = ({
   galleryId,
   pagination,
   gridRef,
@@ -112,11 +113,10 @@ export const GalleryPhotoSection = ({
           {state.photoUrls.length > 0 && (
             <button
               onClick={actions.onToggleSelectionMode}
-              className={`inline-flex h-11 items-center gap-2 rounded-xl border px-5 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
-                state.isSelectionMode
+              className={`inline-flex h-11 items-center gap-2 rounded-xl border px-5 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${state.isSelectionMode
                   ? 'border-accent bg-accent text-accent-foreground shadow-sm hover:brightness-110'
                   : 'border-border/50 bg-surface-1 text-text hover:bg-surface-2 hover:border-border/80 dark:border-border/40 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2'
-              }`}
+                }`}
               title={state.isSelectionMode ? 'Exit selection mode' : 'Enter selection mode'}
             >
               <CheckSquare className="h-4 w-4" />
@@ -231,3 +231,5 @@ export const GalleryPhotoSection = ({
     )}
   </div>
 );
+
+export const GalleryPhotoSection = React.memo(GalleryPhotoSectionComponent);
