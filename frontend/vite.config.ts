@@ -58,6 +58,13 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: env.VITE_BUILD_OUT_DIR ?? 'dist',
       sourcemap: env.VITE_BUILD_SOURCEMAP === 'true',
+      minify: 'terser',
+      terserOptions: {
+        compress: {
+          drop_console: mode === 'production',
+          drop_debugger: mode === 'production',
+        },
+      },
       rollupOptions: {
         output: {
           manualChunks(id) {
@@ -131,9 +138,6 @@ export default defineConfig(({ mode }) => {
           'src/hooks/useTheme.ts',
         ],
       },
-    },
-    esbuild: {
-      drop: mode === 'production' ? ['console', 'debugger'] : [],
     },
   };
 });
