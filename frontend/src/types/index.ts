@@ -22,6 +22,8 @@ export type {
   ConfirmPhotoUploadItem,
   BatchConfirmUploadRequest,
   BatchConfirmUploadResponse,
+  BatchDeletePhotosRequest,
+  BatchDeletePhotosResponse,
   UploadPreparedFile,
   UploadRenameWarning,
 } from './photo';

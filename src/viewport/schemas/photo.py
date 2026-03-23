@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 if TYPE_CHECKING:
     from viewport.models.gallery import Photo
@@ -281,6 +281,22 @@ class BatchConfirmUploadRequest(BaseModel):
 class BatchConfirmUploadResponse(BaseModel):
     confirmed_count: int
     failed_count: int
+
+
+class BatchDeletePhotosRequest(BaseModel):
+    photo_ids: list[UUID] = Field(..., min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def deduplicate_photo_ids(self) -> "BatchDeletePhotosRequest":
+        self.photo_ids = list(dict.fromkeys(self.photo_ids))
+        return self
+
+
+class BatchDeletePhotosResponse(BaseModel):
+    requested_count: int
+    deleted_ids: list[UUID]
+    not_found_ids: list[UUID]
+    failed_ids: list[UUID]
 
 
 class DownloadSelectedPhotosRequest(BaseModel):

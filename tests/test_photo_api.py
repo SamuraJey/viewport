@@ -45,15 +45,27 @@ class TestPhotoAPI:
     def test_delete_photo_not_found(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test deleting non-existent photo."""
         fake_photo_id = str(uuid4())
-        response = authenticated_client.delete(f"/galleries/{gallery_id_fixture}/photos/{fake_photo_id}")
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
+        response = authenticated_client.request(
+            "DELETE",
+            f"/galleries/{gallery_id_fixture}/photos",
+            json={"photo_ids": [fake_photo_id]},
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["requested_count"] == 1
+        assert payload["deleted_ids"] == []
+        assert payload["not_found_ids"] == [fake_photo_id]
+        assert payload["failed_ids"] == []
 
     def test_delete_photo_gallery_not_found(self, authenticated_client: TestClient):
         """Test deleting photo from non-existent gallery."""
         fake_gallery_id = str(uuid4())
         fake_photo_id = str(uuid4())
-        response = authenticated_client.delete(f"/galleries/{fake_gallery_id}/photos/{fake_photo_id}")
+        response = authenticated_client.request(
+            "DELETE",
+            f"/galleries/{fake_gallery_id}/photos",
+            json={"photo_ids": [fake_photo_id]},
+        )
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
@@ -61,7 +73,11 @@ class TestPhotoAPI:
         """Test deleting photo without authentication."""
         fake_gallery_id = str(uuid4())
         fake_photo_id = str(uuid4())
-        response = client.delete(f"/galleries/{fake_gallery_id}/photos/{fake_photo_id}")
+        response = client.request(
+            "DELETE",
+            f"/galleries/{fake_gallery_id}/photos",
+            json={"photo_ids": [fake_photo_id]},
+        )
         assert response.status_code == 401
 
     def test_delete_photo_different_user_gallery(self, client: TestClient, gallery_id_fixture: str):
@@ -71,7 +87,11 @@ class TestPhotoAPI:
         client.headers.update({"Authorization": f"Bearer {different_user_token}"})
 
         fake_photo_id = str(uuid4())
-        response = client.delete(f"/galleries/{gallery_id_fixture}/photos/{fake_photo_id}")
+        response = client.request(
+            "DELETE",
+            f"/galleries/{gallery_id_fixture}/photos",
+            json={"photo_ids": [fake_photo_id]},
+        )
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
@@ -209,11 +229,21 @@ class TestPhotoAPI:
         """Deleting an existing photo returns 204 and subsequently 404."""
         photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"delete", "delete.jpg")
 
-        response = authenticated_client.delete(f"/galleries/{gallery_id_fixture}/photos/{photo_id}")
-        assert response.status_code == 204
+        response = authenticated_client.request(
+            "DELETE",
+            f"/galleries/{gallery_id_fixture}/photos",
+            json={"photo_ids": [photo_id]},
+        )
+        assert response.status_code == 200
+        assert response.json()["deleted_ids"] == [photo_id]
 
-        second = authenticated_client.delete(f"/galleries/{gallery_id_fixture}/photos/{photo_id}")
-        assert second.status_code == 404
+        second = authenticated_client.request(
+            "DELETE",
+            f"/galleries/{gallery_id_fixture}/photos",
+            json={"photo_ids": [photo_id]},
+        )
+        assert second.status_code == 200
+        assert second.json()["not_found_ids"] == [photo_id]
 
     def test_rename_photo_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Renaming a photo updates the filename."""

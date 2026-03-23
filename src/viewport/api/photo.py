@@ -3,7 +3,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
@@ -20,6 +20,8 @@ from viewport.s3_service import AsyncS3Client
 from viewport.schemas.photo import (
     BatchConfirmUploadRequest,
     BatchConfirmUploadResponse,
+    BatchDeletePhotosRequest,
+    BatchDeletePhotosResponse,
     BatchPresignedUploadItem,
     BatchPresignedUploadsRequest,
     BatchPresignedUploadsResponse,
@@ -309,36 +311,50 @@ async def batch_confirm_uploads(
     return BatchConfirmUploadResponse(confirmed_count=confirmed_count, failed_count=failed_count)
 
 
-# DELETE /galleries/{gallery_id}/photos/{photo_id} - Delete a photo (enqueue background task)
-@router.delete("/{gallery_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_photo(
+# DELETE /galleries/{gallery_id}/photos - Delete photos in batch (enqueue background tasks)
+@router.delete("/{gallery_id}/photos", response_model=BatchDeletePhotosResponse)
+async def delete_photos(
     gallery_id: UUID,
-    photo_id: UUID,
+    request: BatchDeletePhotosRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
-) -> None:
-    """Delete a photo and enqueue background task for S3 cleanup and DB removal.
+) -> BatchDeletePhotosResponse:
+    """Delete photos and enqueue background tasks for S3 cleanup and DB removal.
 
-    Returns 204 immediately after validation and task enqueue.
-    Actual S3 deletion happens asynchronously in a Celery worker.
+    Returns batch result immediately after validation and task enqueue attempts.
+    Actual S3 deletion happens asynchronously in a Celery worker per photo.
     """
-    # Verify gallery ownership and photo exists
+    # Verify gallery ownership
     gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
         raise HTTPException(status_code=404, detail="Gallery not found")
 
-    photo = await repo.get_photo_by_id_and_owner(photo_id, current_user.id)
-    if not photo or photo.gallery_id != gallery_id:
-        raise HTTPException(status_code=404, detail="Photo not found")
+    photos = await repo.get_photos_by_ids_and_gallery(gallery_id, request.photo_ids)
+    photo_map = {photo.id: photo for photo in photos}
 
-    # Enqueue async deletion task
-    try:
-        await run_in_threadpool(delete_photo_data_task.delay, str(photo_id), str(gallery_id), str(current_user.id))
-    except Exception as exc:
-        logger.error("Failed to enqueue delete_photo_data task for photo %s: %s", photo_id, exc)
-        raise HTTPException(status_code=500, detail="Failed to enqueue deletion task") from exc
+    deleted_ids: list[UUID] = []
+    failed_ids: list[UUID] = []
 
-    return
+    for photo_id in request.photo_ids:
+        photo = photo_map.get(photo_id)
+        if not photo:
+            continue
+
+        try:
+            await run_in_threadpool(delete_photo_data_task.delay, str(photo_id), str(gallery_id), str(current_user.id))
+            deleted_ids.append(photo_id)
+        except Exception as exc:
+            logger.error("Failed to enqueue delete_photo_data task for photo %s: %s", photo_id, exc)
+            failed_ids.append(photo_id)
+
+    not_found_ids = [photo_id for photo_id in request.photo_ids if photo_id not in photo_map]
+
+    return BatchDeletePhotosResponse(
+        requested_count=len(request.photo_ids),
+        deleted_ids=deleted_ids,
+        not_found_ids=not_found_ids,
+        failed_ids=failed_ids,
+    )
 
 
 @router.patch("/{gallery_id}/photos/{photo_id}/rename", response_model=PhotoResponse)

@@ -1,5 +1,6 @@
 import type {
   AuthTokens,
+  BatchDeletePhotosResponse,
   Gallery,
   GalleryDetail,
   GalleryPhoto,
@@ -491,10 +492,28 @@ class DemoServiceStore {
   }
 
   async deletePhoto(galleryId: string, photoId: string): Promise<void> {
-    const state = this.getGalleryState(galleryId);
-    state.photos = state.photos.filter((photo) => photo.id !== photoId);
+    await this.deletePhotos(galleryId, [photoId]);
+  }
 
-    if (state.gallery.cover_photo_id === photoId) {
+  async deletePhotos(galleryId: string, photoIds: string[]): Promise<BatchDeletePhotosResponse> {
+    const state = this.getGalleryState(galleryId);
+    if (photoIds.length === 0) {
+      return {
+        requested_count: 0,
+        deleted_ids: [],
+        not_found_ids: [],
+        failed_ids: [],
+      };
+    }
+
+    const existingIds = new Set(state.photos.map((photo) => photo.id));
+    const deletedIds = photoIds.filter((photoId) => existingIds.has(photoId));
+    const notFoundIds = photoIds.filter((photoId) => !existingIds.has(photoId));
+    const deletedIdSet = new Set(deletedIds);
+
+    state.photos = state.photos.filter((photo) => !deletedIdSet.has(photo.id));
+
+    if (state.gallery.cover_photo_id && deletedIdSet.has(state.gallery.cover_photo_id)) {
       state.gallery = {
         ...state.gallery,
         cover_photo_id: state.photos[0]?.id ?? null,
@@ -503,6 +522,13 @@ class DemoServiceStore {
 
     this.recalculateStorageUsed();
     this.persistState();
+
+    return {
+      requested_count: photoIds.length,
+      deleted_ids: deletedIds,
+      not_found_ids: notFoundIds,
+      failed_ids: [],
+    };
   }
 
   async renamePhoto(galleryId: string, photoId: string, filename: string): Promise<PhotoResponse> {

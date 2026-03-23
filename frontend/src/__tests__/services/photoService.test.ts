@@ -131,12 +131,43 @@ describe('photoService', () => {
     document.body.innerHTML = '';
   });
 
-  it('deletes photo by gallery and photo id', async () => {
-    vi.mocked(api.delete).mockResolvedValue({} as any);
+  it('deletes photo by gallery and photo id using batch endpoint', async () => {
+    vi.mocked(api.delete).mockResolvedValue({
+      data: {
+        requested_count: 1,
+        deleted_ids: ['photo-1'],
+        not_found_ids: [],
+        failed_ids: [],
+      },
+    } as any);
 
     await photoService.deletePhoto('gallery-1', 'photo-1');
 
-    expect(api.delete).toHaveBeenCalledWith('/galleries/gallery-1/photos/photo-1');
+    expect(api.delete).toHaveBeenCalledWith('/galleries/gallery-1/photos', {
+      data: {
+        photo_ids: ['photo-1'],
+      },
+    });
+  });
+
+  it('deletes multiple photos in one request', async () => {
+    vi.mocked(api.delete).mockResolvedValue({
+      data: {
+        requested_count: 2,
+        deleted_ids: ['photo-1', 'photo-2'],
+        not_found_ids: [],
+        failed_ids: [],
+      },
+    } as any);
+
+    const result = await photoService.deletePhotos('gallery-1', ['photo-1', 'photo-2']);
+
+    expect(api.delete).toHaveBeenCalledWith('/galleries/gallery-1/photos', {
+      data: {
+        photo_ids: ['photo-1', 'photo-2'],
+      },
+    });
+    expect(result.deleted_ids).toEqual(['photo-1', 'photo-2']);
   });
 
   it('renames photo with provided filename', async () => {
@@ -499,6 +530,20 @@ describe('photoService', () => {
 
     expect(renamed.filename).toBe('renamed-demo.jpg');
     expect(api.patch).not.toHaveBeenCalled();
+    expect(api.delete).not.toHaveBeenCalled();
+  });
+
+  it('uses demo batch delete flow and skips API calls when demo mode is enabled', async () => {
+    vi.mocked(isDemoModeEnabled).mockReturnValue(true);
+
+    const store = getDemoService();
+    const seeded = await store.getGallery('demo-gallery-fashion', { limit: 2, offset: 0 });
+    const targetPhotoIds = seeded.photos.slice(0, 2).map((photo) => photo.id);
+
+    const result = await photoService.deletePhotos('demo-gallery-fashion', targetPhotoIds);
+
+    expect(result.deleted_ids).toEqual(targetPhotoIds);
+    expect(result.not_found_ids).toEqual([]);
     expect(api.delete).not.toHaveBeenCalled();
   });
 

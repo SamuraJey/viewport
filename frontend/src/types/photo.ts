@@ -76,6 +76,17 @@ export interface BatchConfirmUploadResponse {
   failed_count: number;
 }
 
+export interface BatchDeletePhotosRequest {
+  photo_ids: string[];
+}
+
+export interface BatchDeletePhotosResponse {
+  requested_count: number;
+  deleted_ids: string[];
+  not_found_ids: string[];
+  failed_ids: string[];
+}
+
 export interface UploadPreparedFile {
   file: File;
   filename: string;

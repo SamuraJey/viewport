@@ -318,28 +318,17 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
       isDangerous: true,
       confirmText: 'Delete',
       onConfirm: async () => {
-        const deletedOrMissingIds: string[] = [];
-        let notFoundCount = 0;
-        let firstUnexpectedError: unknown = null;
+        const selectedPhotoIds = Array.from(selectedIds);
+        let result: Awaited<ReturnType<typeof photoService.deletePhotos>>;
+        try {
+          result = await photoService.deletePhotos(galleryId, selectedPhotoIds);
+        } catch (err) {
+          handleError(err);
+          throw err;
+        }
 
-        await Promise.all(
-          Array.from(selectedIds).map(async (photoId) => {
-            try {
-              await photoService.deletePhoto(galleryId, photoId);
-              deletedOrMissingIds.push(photoId);
-            } catch (err) {
-              if (isNotFoundError(err)) {
-                deletedOrMissingIds.push(photoId);
-                notFoundCount += 1;
-                return;
-              }
-
-              if (!firstUnexpectedError) {
-                firstUnexpectedError = err;
-              }
-            }
-          }),
-        );
+        const deletedOrMissingIds = [...result.deleted_ids, ...result.not_found_ids];
+        const notFoundCount = result.not_found_ids.length;
 
         if (deletedOrMissingIds.length > 0) {
           const deletedOrMissingSet = new Set(deletedOrMissingIds);
@@ -351,9 +340,12 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
           );
         }
 
-        if (firstUnexpectedError) {
-          handleError(firstUnexpectedError);
-          throw firstUnexpectedError;
+        if (result.failed_ids.length > 0) {
+          const enqueueError = new Error(
+            `Failed to enqueue deletion for ${result.failed_ids.length} photo${result.failed_ids.length > 1 ? 's' : ''}.`,
+          );
+          handleError(enqueueError);
+          throw enqueueError;
         }
 
         if (deletedOrMissingIds.length > 0) {
