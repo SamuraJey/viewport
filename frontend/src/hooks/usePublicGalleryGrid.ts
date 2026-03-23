@@ -124,59 +124,36 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
     const grid = gridRef.current;
     if (!grid) return undefined;
 
-    const refreshRatioFromImage = (image: HTMLImageElement) => {
-      const photoCard = image.closest<HTMLElement>('[data-photo-id]');
+    const handleImageLoad = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLImageElement)) return;
+
+      const photoCard = target.closest<HTMLElement>('[data-photo-id]');
       const photoId = photoCard?.dataset.photoId;
-      if (!photoId) {
-        scheduleComputeSpans();
-        return;
-      }
+      if (photoId) {
+        const naturalRatio =
+          toValidRatio(target.naturalWidth) && toValidRatio(target.naturalHeight)
+            ? target.naturalWidth / target.naturalHeight
+            : null;
 
-      const naturalRatio =
-        toValidRatio(image.naturalWidth) && toValidRatio(image.naturalHeight)
-          ? image.naturalWidth / image.naturalHeight
-          : null;
-
-      if (naturalRatio) {
-        ratioCacheRef.current.set(photoId, naturalRatio);
+        if (naturalRatio) {
+          ratioCacheRef.current.set(photoId, naturalRatio);
+        }
       }
 
       scheduleComputeSpans();
     };
 
-    const handleImageLoad = (event: Event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLImageElement)) return;
-
-      if (typeof target.decode === 'function') {
-        void target.decode().catch(() => undefined).finally(() => refreshRatioFromImage(target));
-        return;
-      }
-
-      refreshRatioFromImage(target);
-    };
-
     const resizeObserver = new ResizeObserver(() => scheduleComputeSpans());
     resizeObserver.observe(grid);
 
-    const itemResizeObserver = new ResizeObserver(() => scheduleComputeSpans());
-    Array.from(grid.children).forEach((item) => itemResizeObserver.observe(item));
-
     grid.addEventListener('load', handleImageLoad, true);
-
-    const images = Array.from(grid.querySelectorAll('img'));
-    images.forEach((image) => {
-      if (image.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
-        refreshRatioFromImage(image);
-      }
-    });
 
     scheduleComputeSpans();
 
     return () => {
       grid.removeEventListener('load', handleImageLoad, true);
       resizeObserver.disconnect();
-      itemResizeObserver.disconnect();
       cancelScheduledCompute();
     };
   }, [gridLayout, photos, scheduleComputeSpans, cancelScheduledCompute]);
