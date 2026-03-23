@@ -82,7 +82,7 @@ JWT-based authentication, CORS configuration, and input validation on all endpoi
 - `db.py` - Database connection and session management
 - `auth_utils.py` - JWT and password utilities
 - `s3_utils.py` - S3 file operations
-- `celery.py` - Celery broker and scheduler configuration
+- `celery_app.py` - Celery broker and scheduler configuration
 - `cache_utils.py` - Redis caching utilities
 - `metrics.py` - Prometheus metrics setup
 - `logger.py` - Application logging configuration
