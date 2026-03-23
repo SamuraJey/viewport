@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { galleryService } from '../../services/galleryService';
 import { api } from '../../lib/api';
+import { isDemoModeEnabled } from '../../lib/demoMode';
+import { getDemoService } from '../../services/demoService';
 
 // Mock the api module
 vi.mock('../../lib/api', () => ({
@@ -12,9 +14,23 @@ vi.mock('../../lib/api', () => ({
   },
 }));
 
+// Mock demoMode
+vi.mock('../../lib/demoMode', () => ({
+  isDemoModeEnabled: vi.fn(),
+}));
+
+// Mock demoService
+vi.mock('../../services/demoService', () => ({
+  getDemoService: vi.fn(),
+}));
+
 describe('galleryService', () => {
+  const mockIsDemoModeEnabled = vi.mocked(isDemoModeEnabled);
+  const mockGetDemoService = vi.mocked(getDemoService);
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mockIsDemoModeEnabled.mockReturnValue(false);
   });
 
   describe('getGalleries', () => {
@@ -67,6 +83,59 @@ describe('galleryService', () => {
 
       await expect(galleryService.getGalleries()).rejects.toThrow('Failed to fetch galleries');
     });
+
+    describe('demo mode', () => {
+      let mockDemoService: any;
+
+      beforeEach(() => {
+        mockIsDemoModeEnabled.mockReturnValue(true);
+        mockDemoService = {
+          getGalleries: vi.fn(),
+        };
+        mockGetDemoService.mockReturnValue(mockDemoService);
+      });
+
+      it('should return demo data and not call api', async () => {
+        const mockDemoData = {
+          galleries: [
+            {
+              id: 'demo1',
+              owner_id: 'demo-user',
+              created_at: '2025-01-01T00:00:00Z',
+              shooting_date: null,
+            },
+          ],
+          total: 1,
+          page: 1,
+          size: 10,
+        };
+
+        mockDemoService.getGalleries.mockResolvedValue(mockDemoData);
+
+        const result = await galleryService.getGalleries();
+
+        expect(result).toEqual(mockDemoData);
+        expect(api.get).not.toHaveBeenCalled();
+        expect(mockDemoService.getGalleries).toHaveBeenCalledWith(1, 10);
+      });
+
+      it('should handle custom pagination in demo mode', async () => {
+        const mockDemoData = {
+          galleries: [],
+          total: 0,
+          page: 2,
+          size: 5,
+        };
+
+        mockDemoService.getGalleries.mockResolvedValue(mockDemoData);
+
+        const result = await galleryService.getGalleries(2, 5);
+
+        expect(result).toEqual(mockDemoData);
+        expect(api.get).not.toHaveBeenCalled();
+        expect(mockDemoService.getGalleries).toHaveBeenCalledWith(2, 5);
+      });
+    });
   });
 
   describe('getGallery', () => {
@@ -107,6 +176,68 @@ describe('galleryService', () => {
 
       await expect(galleryService.getGallery(galleryId)).rejects.toThrow('Gallery not found');
       expect(api.get).toHaveBeenCalledWith(`/galleries/${galleryId}`);
+    });
+
+    describe('demo mode', () => {
+      let mockDemoService: any;
+
+      beforeEach(() => {
+        mockIsDemoModeEnabled.mockReturnValue(true);
+        mockDemoService = {
+          getGallery: vi.fn(),
+        };
+        mockGetDemoService.mockReturnValue(mockDemoService);
+      });
+
+      it('should return demo gallery data and not call api', async () => {
+        const galleryId = 'demo-gallery-123';
+        const mockDemoData = {
+          id: galleryId,
+          owner_id: 'demo-user',
+          created_at: '2025-01-01T00:00:00Z',
+          shooting_date: null,
+          total_photos: 2,
+          photos: [
+            {
+              id: 'photo1',
+              url: '/photos/photo1',
+              thumbnail_url: '/photos/photo1-thumb',
+              filename: 'photo1.jpg',
+              file_size: 1024,
+              uploaded_at: '2025-01-01T00:00:00Z',
+            },
+          ],
+        };
+
+        mockDemoService.getGallery.mockResolvedValue(mockDemoData);
+
+        const result = await galleryService.getGallery(galleryId);
+
+        expect(result).toEqual(mockDemoData);
+        expect(api.get).not.toHaveBeenCalled();
+        expect(mockDemoService.getGallery).toHaveBeenCalledWith(galleryId, undefined);
+      });
+
+      it('should pass options to demo service', async () => {
+        const galleryId = 'demo-gallery-456';
+        const options = { limit: 5, offset: 10 };
+        const mockDemoData = {
+          id: galleryId,
+          owner_id: 'demo-user',
+          created_at: '2025-01-01T00:00:00Z',
+          shooting_date: null,
+          total_photos: 15,
+          photos: [],
+        };
+
+        mockDemoService.getGallery.mockResolvedValue(mockDemoData);
+
+        const result = await galleryService.getGallery(galleryId, options);
+
+        expect(result).toEqual(mockDemoData);
+        expect(api.get).not.toHaveBeenCalled();
+        expect(mockDemoService.getGallery).toHaveBeenCalledWith(galleryId, options);
+      });
     });
   });
 
@@ -156,6 +287,54 @@ describe('galleryService', () => {
       expect(api.post).toHaveBeenCalledWith('/galleries', payload);
       expect(result).toEqual(mockResponse.data);
     });
+
+    describe('demo mode', () => {
+      let mockDemoService: any;
+
+      beforeEach(() => {
+        mockIsDemoModeEnabled.mockReturnValue(true);
+        mockDemoService = {
+          createGallery: vi.fn(),
+        };
+        mockGetDemoService.mockReturnValue(mockDemoService);
+      });
+
+      it('should return demo gallery data and not call api', async () => {
+        const name = 'Demo Gallery';
+        const mockDemoData = {
+          id: 'demo-new-gallery',
+          owner_id: 'demo-user',
+          created_at: '2025-01-01T00:00:00Z',
+          shooting_date: null,
+        };
+
+        mockDemoService.createGallery.mockResolvedValue(mockDemoData);
+
+        const result = await galleryService.createGallery(name);
+
+        expect(result).toEqual(mockDemoData);
+        expect(api.post).not.toHaveBeenCalled();
+        expect(mockDemoService.createGallery).toHaveBeenCalledWith({ name });
+      });
+
+      it('should handle payload object in demo mode', async () => {
+        const payload = { name: 'Demo with Date', shooting_date: '2024-05-12' };
+        const mockDemoData = {
+          id: 'demo-new-gallery-2',
+          owner_id: 'demo-user',
+          created_at: '2025-01-01T00:00:00Z',
+          shooting_date: payload.shooting_date,
+        };
+
+        mockDemoService.createGallery.mockResolvedValue(mockDemoData);
+
+        const result = await galleryService.createGallery(payload);
+
+        expect(result).toEqual(mockDemoData);
+        expect(api.post).not.toHaveBeenCalled();
+        expect(mockDemoService.createGallery).toHaveBeenCalledWith(payload);
+      });
+    });
   });
 
   describe('deleteGallery', () => {
@@ -176,6 +355,29 @@ describe('galleryService', () => {
 
       await expect(galleryService.deleteGallery(galleryId)).rejects.toThrow('Gallery not found');
       expect(api.delete).toHaveBeenCalledWith(`/galleries/${galleryId}`);
+    });
+
+    describe('demo mode', () => {
+      let mockDemoService: any;
+
+      beforeEach(() => {
+        mockIsDemoModeEnabled.mockReturnValue(true);
+        mockDemoService = {
+          deleteGallery: vi.fn(),
+        };
+        mockGetDemoService.mockReturnValue(mockDemoService);
+      });
+
+      it('should call demo service and not call api', async () => {
+        const galleryId = 'demo-gallery-to-delete';
+
+        mockDemoService.deleteGallery.mockResolvedValue(undefined);
+
+        await galleryService.deleteGallery(galleryId);
+
+        expect(api.delete).not.toHaveBeenCalled();
+        expect(mockDemoService.deleteGallery).toHaveBeenCalledWith(galleryId);
+      });
     });
   });
 
@@ -233,6 +435,171 @@ describe('galleryService', () => {
       expect(api.patch).toHaveBeenCalledWith(`/galleries/${galleryId}`, payload);
       expect(result).toEqual(mockResponse.data);
     });
+
+    describe('demo mode', () => {
+      let mockDemoService: any;
+
+      beforeEach(() => {
+        mockIsDemoModeEnabled.mockReturnValue(true);
+        mockDemoService = {
+          updateGallery: vi.fn(),
+        };
+        mockGetDemoService.mockReturnValue(mockDemoService);
+      });
+
+      it('should return demo updated gallery data and not call api', async () => {
+        const galleryId = 'demo-gallery-1';
+        const newName = 'Updated Demo';
+        const mockDemoData = {
+          id: galleryId,
+          owner_id: 'demo-user',
+          name: newName,
+          created_at: '2025-01-01T00:00:00Z',
+          shooting_date: null,
+        };
+
+        mockDemoService.updateGallery.mockResolvedValue(mockDemoData);
+
+        const result = await galleryService.updateGallery(galleryId, newName);
+
+        expect(result).toEqual(mockDemoData);
+        expect(api.patch).not.toHaveBeenCalled();
+        expect(mockDemoService.updateGallery).toHaveBeenCalledWith(galleryId, { name: newName });
+      });
+
+      it('should handle payload object in demo mode', async () => {
+        const galleryId = 'demo-gallery-2';
+        const payload = { shooting_date: '2024-06-10' };
+        const mockDemoData = {
+          id: galleryId,
+          owner_id: 'demo-user',
+          name: 'Existing Name',
+          created_at: '2025-01-01T00:00:00Z',
+          shooting_date: payload.shooting_date,
+        };
+
+        mockDemoService.updateGallery.mockResolvedValue(mockDemoData);
+
+        const result = await galleryService.updateGallery(galleryId, payload);
+
+        expect(result).toEqual(mockDemoData);
+        expect(api.patch).not.toHaveBeenCalled();
+        expect(mockDemoService.updateGallery).toHaveBeenCalledWith(galleryId, payload);
+      });
+    });
+  });
+
+  describe('setCoverPhoto', () => {
+    it('should make POST request to /galleries/:galleryId/cover/:photoId', async () => {
+      const galleryId = 'gallery-1';
+      const photoId = 'photo-1';
+      const mockResponse = {
+        data: {
+          id: galleryId,
+          owner_id: 'user1',
+          name: 'Gallery',
+          created_at: '2025-01-01T00:00:00Z',
+          shooting_date: null,
+        },
+      };
+
+      vi.mocked(api.post).mockResolvedValue(mockResponse);
+
+      const result = await galleryService.setCoverPhoto(galleryId, photoId);
+
+      expect(api.post).toHaveBeenCalledWith(`/galleries/${galleryId}/cover/${photoId}`);
+      expect(result).toEqual(mockResponse.data);
+    });
+
+    it('should handle setCoverPhoto errors', async () => {
+      const galleryId = 'gallery-error';
+      const photoId = 'photo-error';
+      const mockError = new Error('Failed to set cover photo');
+      vi.mocked(api.post).mockRejectedValue(mockError);
+
+      await expect(galleryService.setCoverPhoto(galleryId, photoId)).rejects.toThrow(
+        'Failed to set cover photo',
+      );
+      expect(api.post).toHaveBeenCalledWith(`/galleries/${galleryId}/cover/${photoId}`);
+    });
+
+    describe('demo mode', () => {
+      let mockDemoService: any;
+
+      beforeEach(() => {
+        mockIsDemoModeEnabled.mockReturnValue(true);
+        mockDemoService = {
+          setCoverPhoto: vi.fn(),
+        };
+        mockGetDemoService.mockReturnValue(mockDemoService);
+      });
+
+      it('should return demo gallery data and not call api', async () => {
+        const galleryId = 'demo-gallery-1';
+        const photoId = 'demo-photo-1';
+        const mockDemoData = {
+          id: galleryId,
+          owner_id: 'demo-user',
+          name: 'Demo Gallery',
+          created_at: '2025-01-01T00:00:00Z',
+          shooting_date: null,
+        };
+
+        mockDemoService.setCoverPhoto.mockResolvedValue(mockDemoData);
+
+        const result = await galleryService.setCoverPhoto(galleryId, photoId);
+
+        expect(result).toEqual(mockDemoData);
+        expect(api.post).not.toHaveBeenCalled();
+        expect(mockDemoService.setCoverPhoto).toHaveBeenCalledWith(galleryId, photoId);
+      });
+    });
+  });
+
+  describe('clearCoverPhoto', () => {
+    it('should make DELETE request to /galleries/:galleryId/cover', async () => {
+      const galleryId = 'gallery-1';
+
+      vi.mocked(api.delete).mockResolvedValue({} as any);
+
+      await galleryService.clearCoverPhoto(galleryId);
+
+      expect(api.delete).toHaveBeenCalledWith(`/galleries/${galleryId}/cover`);
+    });
+
+    it('should handle clearCoverPhoto errors', async () => {
+      const galleryId = 'gallery-error';
+      const mockError = new Error('Failed to clear cover photo');
+      vi.mocked(api.delete).mockRejectedValue(mockError);
+
+      await expect(galleryService.clearCoverPhoto(galleryId)).rejects.toThrow(
+        'Failed to clear cover photo',
+      );
+      expect(api.delete).toHaveBeenCalledWith(`/galleries/${galleryId}/cover`);
+    });
+
+    describe('demo mode', () => {
+      let mockDemoService: any;
+
+      beforeEach(() => {
+        mockIsDemoModeEnabled.mockReturnValue(true);
+        mockDemoService = {
+          clearCoverPhoto: vi.fn(),
+        };
+        mockGetDemoService.mockReturnValue(mockDemoService);
+      });
+
+      it('should call demo service and not call api', async () => {
+        const galleryId = 'demo-gallery-1';
+
+        mockDemoService.clearCoverPhoto.mockResolvedValue(undefined);
+
+        await galleryService.clearCoverPhoto(galleryId);
+
+        expect(api.delete).not.toHaveBeenCalled();
+        expect(mockDemoService.clearCoverPhoto).toHaveBeenCalledWith(galleryId);
+      });
+    });
   });
 
   describe('service methods', () => {
@@ -242,6 +609,8 @@ describe('galleryService', () => {
       expect(typeof galleryService.createGallery).toBe('function');
       expect(typeof galleryService.deleteGallery).toBe('function');
       expect(typeof galleryService.updateGallery).toBe('function');
+      expect(typeof galleryService.setCoverPhoto).toBe('function');
+      expect(typeof galleryService.clearCoverPhoto).toBe('function');
     });
   });
 });

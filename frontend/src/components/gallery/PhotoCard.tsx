@@ -16,7 +16,7 @@ interface PhotoCardProps {
   onDeletePhoto: (photoId: string) => void;
 }
 
-export const PhotoCard = ({
+const PhotoCardComponent = ({
   photo,
   index,
   isSelectionMode,
@@ -188,4 +188,4 @@ export const PhotoCard = ({
   );
 };
 
-export default React.memo(PhotoCard);
+export const PhotoCard = React.memo(PhotoCardComponent);

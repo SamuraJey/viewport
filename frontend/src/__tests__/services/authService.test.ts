@@ -1,18 +1,40 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { authService } from '../../services/authService';
 import { api } from '../../lib/api';
+import { isDemoModeEnabled } from '../../lib/demoMode';
+import { getDemoService } from '../../services/demoService';
 
 // Mock the api module
 vi.mock('../../lib/api', () => ({
   api: {
     post: vi.fn(),
     get: vi.fn(),
+    put: vi.fn(),
   },
+}));
+
+vi.mock('../../lib/demoMode', () => ({
+  isDemoModeEnabled: vi.fn(() => false),
+}));
+
+const mockDemoService = {
+  login: vi.fn(),
+  register: vi.fn(),
+  getCurrentUser: vi.fn(),
+  updateProfile: vi.fn(),
+  refreshToken: vi.fn(),
+  changePassword: vi.fn(),
+};
+
+vi.mock('../../services/demoService', () => ({
+  getDemoService: vi.fn(() => mockDemoService),
 }));
 
 describe('authService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(isDemoModeEnabled).mockReturnValue(false);
+    vi.mocked(getDemoService).mockReturnValue(mockDemoService as any);
   });
 
   describe('login', () => {
@@ -53,6 +75,35 @@ describe('authService', () => {
 
       await expect(authService.login(mockRequest)).rejects.toThrow('Invalid credentials');
       expect(api.post).toHaveBeenCalledWith('/auth/login', mockRequest);
+    });
+
+    it('should use demoService login in demo mode and skip api call', async () => {
+      const mockRequest = {
+        email: 'demo@example.com',
+        password: 'demo-password',
+      };
+      const demoResponse = {
+        id: 'demo-user-1',
+        email: 'demo@viewport.local',
+        display_name: 'Demo Photographer',
+        storage_used: 0,
+        storage_quota: 1024,
+        tokens: {
+          access_token: 'demo-access-token',
+          refresh_token: 'demo-refresh-token',
+          token_type: 'bearer',
+        },
+      };
+
+      vi.mocked(isDemoModeEnabled).mockReturnValue(true);
+      mockDemoService.login.mockResolvedValue(demoResponse);
+
+      const result = await authService.login(mockRequest);
+
+      expect(getDemoService).toHaveBeenCalled();
+      expect(mockDemoService.login).toHaveBeenCalledWith(mockRequest);
+      expect(api.post).not.toHaveBeenCalled();
+      expect(result).toEqual(demoResponse);
     });
   });
 
@@ -151,6 +202,25 @@ describe('authService', () => {
       expect(api.post).toHaveBeenCalledWith('/auth/refresh', {
         refresh_token: refreshToken,
       });
+    });
+
+    it('should use demoService refreshToken in demo mode and skip api call', async () => {
+      const refreshToken = 'demo-refresh-token';
+      const demoTokens = {
+        access_token: 'demo-access-token-new',
+        refresh_token: 'demo-refresh-token-new',
+        token_type: 'bearer',
+      };
+
+      vi.mocked(isDemoModeEnabled).mockReturnValue(true);
+      mockDemoService.refreshToken.mockResolvedValue(demoTokens);
+
+      const result = await authService.refreshToken(refreshToken);
+
+      expect(getDemoService).toHaveBeenCalled();
+      expect(mockDemoService.refreshToken).toHaveBeenCalledWith(refreshToken);
+      expect(api.post).not.toHaveBeenCalled();
+      expect(result).toEqual(demoTokens);
     });
   });
 

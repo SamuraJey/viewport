@@ -58,7 +58,7 @@ describe('Layout', () => {
 
     expect(screen.getByText('Viewport')).toBeInTheDocument();
     // The Camera icon should be rendered
-    expect(screen.getByText('Viewport').closest('a')).toHaveAttribute('href', '/');
+    expect(screen.getByText('Viewport').closest('a')).toHaveAttribute('href', '/dashboard');
   });
 
   it('should show user email when logged in', () => {

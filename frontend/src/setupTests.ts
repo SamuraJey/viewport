@@ -73,6 +73,25 @@ Object.defineProperty(window, 'confirm', {
   value: vi.fn(() => true),
 });
 
+// JSDOM doesn't implement full document navigation. Prevent default browser
+// navigation for regular anchor clicks so reruns stay noise-free.
+document.addEventListener(
+  'click',
+  (event) => {
+    const target = event.target as HTMLElement | null;
+    const anchor = target?.closest('a[href]') as HTMLAnchorElement | null;
+    if (!anchor) return;
+
+    const href = anchor.getAttribute('href') ?? '';
+    if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) {
+      return;
+    }
+
+    event.preventDefault();
+  },
+  true,
+);
+
 // Mock canvas API — jsdom doesn't implement the 2d rendering pipeline,
 // but our thumbnail engine relies on getContext + toBlob.
 HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
