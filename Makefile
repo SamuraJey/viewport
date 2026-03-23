@@ -2,7 +2,7 @@ VENV ?= .venv
 PYTHON_VERSION ?= 3.14
 PROJECT_NAME ?= viewport
 
-.PHONY: init clean pretty lint mypy ruff-lint test test-cov worker scheduler worker-dev
+.PHONY: init clean pretty lint mypy ruff-lint test test-cov worker
 
 .create-venv:
 	test -d $(VENV) || python$(PYTHON_VERSION) -m venv $(VENV)
