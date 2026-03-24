@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from viewport.auth_utils import get_current_user
-from viewport.background_tasks import create_thumbnails_batch_task, delete_photo_data_task
+from viewport.background_tasks import create_thumbnails_batch_task, delete_photos_batch_task
 from viewport.dependencies import get_s3_client
 from viewport.filename_utils import sanitize_filename
 from viewport.models.db import get_db
@@ -332,20 +332,17 @@ async def delete_photos(
     photos = await repo.get_photos_by_ids_and_gallery(gallery_id, request.photo_ids)
     photo_map = {photo.id: photo for photo in photos}
 
-    deleted_ids: list[UUID] = []
+    existing_photo_ids = [photo_id for photo_id in request.photo_ids if photo_id in photo_map]
+    deleted_ids: list[UUID] = list(existing_photo_ids)
     failed_ids: list[UUID] = []
 
-    for photo_id in request.photo_ids:
-        photo = photo_map.get(photo_id)
-        if not photo:
-            continue
-
+    if existing_photo_ids:
         try:
-            await run_in_threadpool(delete_photo_data_task.delay, str(photo_id), str(gallery_id), str(current_user.id))
-            deleted_ids.append(photo_id)
+            await run_in_threadpool(delete_photos_batch_task.delay, [str(photo_id) for photo_id in existing_photo_ids], str(gallery_id), str(current_user.id))
         except Exception as exc:
-            logger.error("Failed to enqueue delete_photo_data task for photo %s: %s", photo_id, exc)
-            failed_ids.append(photo_id)
+            logger.error("Failed to enqueue delete_photos_batch task for gallery %s: %s", gallery_id, exc)
+            deleted_ids = []
+            failed_ids = list(existing_photo_ids)
 
     not_found_ids = [photo_id for photo_id in request.photo_ids if photo_id not in photo_map]
 

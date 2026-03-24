@@ -95,6 +95,37 @@ class TestPhotoAPI:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
+    def test_delete_photos_enqueues_batch_task_once(self, authenticated_client: TestClient, gallery_id_fixture: str, monkeypatch):
+        """Batch delete should publish a single Celery call for all existing photos."""
+        first_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"first", "first.jpg")
+        second_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"second", "second.jpg")
+        missing_photo_id = str(uuid4())
+
+        captured: dict[str, object] = {}
+
+        def fake_delay(photo_ids: list[str], gallery_id: str, owner_id: str):
+            captured["photo_ids"] = photo_ids
+            captured["gallery_id"] = gallery_id
+            captured["owner_id"] = owner_id
+
+        monkeypatch.setattr("viewport.api.photo.delete_photos_batch_task.delay", fake_delay)
+
+        response = authenticated_client.request(
+            "DELETE",
+            f"/galleries/{gallery_id_fixture}/photos",
+            json={"photo_ids": [first_photo_id, second_photo_id, missing_photo_id]},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["requested_count"] == 3
+        assert payload["deleted_ids"] == [first_photo_id, second_photo_id]
+        assert payload["not_found_ids"] == [missing_photo_id]
+        assert payload["failed_ids"] == []
+        assert captured["photo_ids"] == [first_photo_id, second_photo_id]
+        assert captured["gallery_id"] == gallery_id_fixture
+        assert isinstance(captured["owner_id"], str)
+
     def test_rename_photo_not_found(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test renaming non-existent photo."""
         fake_photo_id = str(uuid4())

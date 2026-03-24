@@ -208,6 +208,89 @@ def _process_single_photo(
         result_tracker.add_error(photo_id, "Processing failed", exception=e)
 
 
+def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> dict:
+    """Delete a single photo from S3 and the database."""
+
+    photo_uuid = uuid.UUID(photo_id)
+    gallery_uuid = uuid.UUID(gallery_id)
+    owner_uuid = uuid.UUID(owner_id)
+
+    with task_db_session() as db:
+        photo = db.execute(select(Photo.object_key, Photo.thumbnail_object_key, Photo.file_size, Photo.status).where(Photo.id == photo_uuid, Photo.gallery_id == gallery_uuid)).one_or_none()
+
+        if not photo:
+            logger.warning("Photo %s not found in gallery %s", photo_id, gallery_id)
+            return {"deleted": False, "reason": "Photo not found"}
+
+        object_key, thumbnail_object_key, file_size, status = photo
+
+    s3_client = get_s3_client()
+    bucket = get_s3_settings().bucket
+
+    try:
+        s3_client.delete_object(Bucket=bucket, Key=object_key)
+    except ClientError as error:
+        logger.warning("Failed to delete photo object %s: %s", object_key, error)
+        if error.response.get("Error", {}).get("Code") != "NoSuchKey":
+            raise
+
+    if thumbnail_object_key and thumbnail_object_key != object_key:
+        try:
+            s3_client.delete_object(Bucket=bucket, Key=thumbnail_object_key)
+        except ClientError as error:
+            logger.warning("Failed to delete thumbnail %s: %s", thumbnail_object_key, error)
+            if error.response.get("Error", {}).get("Code") != "NoSuchKey":
+                raise
+
+    with task_db_session() as db:
+        if status in (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING):
+            db.execute(update(User).where(User.id == owner_uuid).values(storage_used=func.greatest(User.storage_used - file_size, 0)))
+        elif status == PhotoUploadStatus.PENDING:
+            db.execute(update(User).where(User.id == owner_uuid).values(storage_reserved=func.greatest(User.storage_reserved - file_size, 0)))
+
+        db.execute(delete(Photo).where(Photo.id == photo_uuid))
+
+    logger.info("Deleted photo %s from gallery %s", photo_id, gallery_id)
+    return {"deleted": True}
+
+
+@celery_app.task(name="delete_photo_data", bind=True, max_retries=3, acks_late=True)
+def delete_photo_data_task(self, photo_id: str, gallery_id: str, owner_id: str) -> dict:
+    """Delete photo from S3 and hard-delete DB record, update storage quota."""
+    try:
+        return _delete_photo_data_impl(photo_id, gallery_id, owner_id)
+    except Exception as exc:
+        logger.exception("Failed to delete photo %s", photo_id)
+        raise self.retry(exc=exc, countdown=10) from exc
+
+
+@celery_app.task(name="delete_photos_batch", bind=True, acks_late=True)
+def delete_photos_batch_task(self, photo_ids: list[str], gallery_id: str, owner_id: str) -> dict:
+    """Delete many photos in a single worker task."""
+
+    deleted_ids: list[str] = []
+    failed_ids: list[str] = []
+    not_found_ids: list[str] = []
+
+    for photo_id in photo_ids:
+        try:
+            result = _delete_photo_data_impl(photo_id, gallery_id, owner_id)
+            if result.get("deleted"):
+                deleted_ids.append(photo_id)
+            elif result.get("reason") == "Photo not found":
+                not_found_ids.append(photo_id)
+            else:
+                failed_ids.append(photo_id)
+        except Exception:
+            failed_ids.append(photo_id)
+
+    return {
+        "deleted_ids": deleted_ids,
+        "failed_ids": failed_ids,
+        "not_found_ids": not_found_ids,
+    }
+
+
 def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskResult) -> None:
     """Update database records and clear cache for processed photos."""
 
@@ -216,7 +299,6 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
 
     try:
         with task_db_session() as db:
-            # 1. Update metadata for successful photos
             if successful_results:
                 update_mappings = [
                     {
@@ -231,12 +313,10 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
                 logger.info("Batch updating %s photos with metadata in DB", len(update_mappings))
                 db.execute(update(Photo), update_mappings)
 
-            # 2. Mark failed photos as FAILED (Fixes "lying" SUCCESSFUL status from API)
             if failed_results:
                 failed_ids = [r["photo_id"] for r in failed_results]
                 logger.info("Batch marking %s photos as FAILED in DB", len(failed_ids))
 
-                # Capture affected totals before status update to keep storage_used consistent.
                 owner_totals = db.execute(
                     select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0))
                     .select_from(Photo)
@@ -258,19 +338,13 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
                 )
                 _decrement_used_for_owner_totals(db, owner_totals)
 
-        # Invalidate cache for successful thumbnails
-        if successful_results:
-            thumbnail_keys = [r["thumbnail_object_key"] for r in successful_results]
-            clear_presigned_urls_batch(thumbnail_keys)
+            db.commit()
 
-    except Exception as db_error:
-        logger.error("Batch database update failed: %s", db_error)
-        # Convert successes in this batch to failures because they weren't persisted
-        for r in successful_results:
-            result_tracker.failed += 1
-            result_tracker.successful -= 1
-            r["status"] = "error"
-            r["message"] = f"Database update failed: {db_error}"
+        if successful_results:
+            clear_presigned_urls_batch([r["photo_id"] for r in successful_results])
+    except Exception as exc:
+        logger.exception("Failed to batch update photo results: %s", exc)
+        raise ThumbnailTransientError("Failed to update photo results") from exc
 
 
 @celery_app.task(
@@ -293,15 +367,12 @@ def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
 
     result_tracker = BatchTaskResult(len(photos))
 
-    # 1. Pre-check photos in database
     photo_ids = [p["photo_id"] for p in photos]
     existing_ids = _get_existing_photo_ids(photo_ids)
 
-    # 2. Process each photo
     for photo_data in photos:
         _process_single_photo(photo_data, s3_client, bucket, existing_ids, result_tracker)
 
-    # 3. Batch update records (including failures)
     if result_tracker.results:
         _batch_update_photo_results(result_tracker.results, result_tracker)
 
@@ -457,59 +528,6 @@ def delete_gallery_data_task(self, gallery_id: str) -> dict:
     except Exception as exc:
         logger.exception("Failed to delete gallery data for %s", gallery_id)
         raise self.retry(exc=exc, countdown=30) from exc
-
-
-@celery_app.task(name="delete_photo_data", bind=True, max_retries=3, acks_late=True)
-def delete_photo_data_task(self, photo_id: str, gallery_id: str, owner_id: str) -> dict:
-    """Delete photo from S3 and hard-delete DB record, update storage quota."""
-    try:
-        photo_uuid = uuid.UUID(photo_id)
-        gallery_uuid = uuid.UUID(gallery_id)
-        owner_uuid = uuid.UUID(owner_id)
-
-        # Fetch photo info
-        with task_db_session() as db:
-            photo = db.execute(select(Photo.object_key, Photo.thumbnail_object_key, Photo.file_size, Photo.status).where(Photo.id == photo_uuid, Photo.gallery_id == gallery_uuid)).one_or_none()
-
-            if not photo:
-                logger.warning("Photo %s not found in gallery %s", photo_id, gallery_id)
-                return {"deleted": False, "reason": "Photo not found"}
-
-            object_key, thumbnail_object_key, file_size, status = photo
-
-        # Delete from S3
-        s3_client = get_s3_client()
-        bucket = get_s3_settings().bucket
-
-        try:
-            s3_client.delete_object(Bucket=bucket, Key=object_key)
-        except ClientError as e:
-            logger.warning("Failed to delete photo object %s: %s", object_key, e)
-            if e.response.get("Error", {}).get("Code") != "NoSuchKey":
-                raise
-
-        if thumbnail_object_key and thumbnail_object_key != object_key:
-            try:
-                s3_client.delete_object(Bucket=bucket, Key=thumbnail_object_key)
-            except ClientError as e:
-                logger.warning("Failed to delete thumbnail %s: %s", thumbnail_object_key, e)
-                if e.response.get("Error", {}).get("Code") != "NoSuchKey":
-                    raise
-
-        # Delete from DB and update quota
-        with task_db_session() as db:
-            if status in (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING):
-                db.execute(update(User).where(User.id == owner_uuid).values(storage_used=func.greatest(User.storage_used - file_size, 0)))
-            elif status == PhotoUploadStatus.PENDING:
-                db.execute(update(User).where(User.id == owner_uuid).values(storage_reserved=func.greatest(User.storage_reserved - file_size, 0)))
-
-            db.execute(delete(Photo).where(Photo.id == photo_uuid))
-
-        logger.info("Deleted photo %s from gallery %s", photo_id, gallery_id)
-        return {"deleted": True}
-    except Exception as exc:
-        logger.exception("Failed to delete photo %s", photo_id)
-        raise self.retry(exc=exc, countdown=10) from exc
 
 
 @celery_app.task(name="reconcile_storage_quotas")

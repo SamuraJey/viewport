@@ -193,7 +193,6 @@ def test_create_thumbnails_batch_task_invalid_image_deletes_record_when_mocked(e
 def test_batch_update_photo_metadata_failure(monkeypatch):
     tracker = BatchTaskResult(1)
     successful = [{"photo_id": str(uuid4()), "thumbnail_object_key": "foo", "width": 10, "height": 20, "status": "success"}]
-    tracker.successful = len(successful)
 
     @contextmanager
     def _failing_session():
@@ -203,13 +202,14 @@ def test_batch_update_photo_metadata_failure(monkeypatch):
 
         yield DummySession()
 
-    monkeypatch.setattr("viewport.task_utils.task_db_session", _failing_session)
+    monkeypatch.setattr(background_tasks, "task_db_session", _failing_session)
 
-    background_tasks._batch_update_photo_results(successful, tracker)
+    with pytest.raises(background_tasks.ThumbnailTransientError, match="Failed to update photo results"):
+        background_tasks._batch_update_photo_results(successful, tracker)
 
-    assert tracker.failed == 1
     assert tracker.successful == 0
-    assert successful[0]["status"] == "error"
+    assert tracker.failed == 0
+    assert successful[0]["status"] == "success"
 
 
 def test_reconcile_successful_uploads_no_matching_photos(engine: Engine) -> None:
@@ -416,10 +416,10 @@ def test_reconcile_successful_uploads_filters_deleted_galleries(engine: Engine, 
         assert photos_payload[0]["photo_id"] == str(ctx1.photo_id)
 
 
-def test_reconcile_successful_uploads_max_batch_limit(engine: Engine, s3_container, monkeypatch) -> None:
+def test_reconcile_successful_uploads_max_batch_limit(engine: Engine, monkeypatch) -> None:
     """Test that reconcile_successful_uploads_task respects the max_batch limit."""
 
-    # Create a single gallery with 505 photos (more than max_batch of 500)
+    # Create a single gallery with 501 photos (one more than max_batch of 500)
     gallery_id = None
     user_id = None
     try:
@@ -434,34 +434,26 @@ def test_reconcile_successful_uploads_max_batch_limit(engine: Engine, s3_contain
             session.flush()
             gallery_id = gallery.id
 
-            content = _create_dummy_jpeg_bytes()
-
-            # Create 505 photos efficiently in a single session
-            for i in range(505):
-                object_key = f"{gallery.id}/photo{i}.jpg"
-                upload_fileobj(content, object_key, content_type="image/jpeg")
-
-                photo = Photo(
+            photo_rows = [
+                Photo(
                     gallery_id=gallery.id,
-                    object_key=object_key,
-                    thumbnail_object_key=object_key,
-                    file_size=len(content),
-                    status=2,  # SUCCESSFUL
+                    object_key=f"{gallery.id}/photo{i}.jpg",
+                    thumbnail_object_key=f"{gallery.id}/photo{i}.jpg",
+                    file_size=10,
+                    status=PhotoUploadStatus.SUCCESSFUL,
                     uploaded_at=datetime.now(UTC) - timedelta(minutes=10),
-                    width=None,  # Missing metadata
+                    width=None,
                     height=480,
                 )
-                session.add(photo)
-
+                for i in range(501)
+            ]
+            session.add_all(photo_rows)
             session.flush()
 
         captured_calls = []
 
-        original_delay = create_thumbnails_batch_task.delay
-
         def mock_delay(photos_batch):
             captured_calls.append(photos_batch)
-            return original_delay(photos_batch)
 
         monkeypatch.setattr(create_thumbnails_batch_task, "delay", mock_delay)
 
