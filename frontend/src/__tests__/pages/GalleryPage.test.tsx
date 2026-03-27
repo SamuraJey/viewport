@@ -30,6 +30,8 @@ const mockGalleryData = {
   created_at: '2024-01-01T10:00:00Z',
   owner_id: 'user1',
   shooting_date: '2024-01-01',
+  public_sort_by: 'original_filename' as const,
+  public_sort_order: 'asc' as const,
   photos: [
     {
       id: 'photo1',
@@ -132,7 +134,7 @@ const GalleryPageWrapper = () => {
 describe('GalleryPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => { });
 
     // Default mock responses
     const { galleryService } = await import('../../services/galleryService');
@@ -155,7 +157,7 @@ describe('GalleryPage', () => {
       expect(screen.getByText('Gallery #1')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('heading', { name: 'Photos 3 of 3' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
     expect(screen.getByText('Share Links')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /delete gallery/i })).toBeInTheDocument();
     expect(screen.getAllByRole('img')).toHaveLength(3);
@@ -191,9 +193,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(
-          /Photos.*3.*of.*3/,
-        );
+        expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
       });
 
       // Find photo images and their parent buttons
@@ -224,9 +224,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(
-          /Photos.*1.*of.*1/,
-        );
+        expect(screen.getByRole('heading', { level: 2, name: /Photos\s*1/i })).toBeInTheDocument();
       });
 
       // Open lightbox
@@ -247,9 +245,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(
-          /Photos.*3.*of.*3/,
-        );
+        expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
       });
 
       // Find the first photo container and get its delete button
@@ -295,9 +291,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(
-          /Photos.*3.*of.*3/,
-        );
+        expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
       });
 
       const photoImages = screen.getAllByAltText(/Photo photo/i);
@@ -333,9 +327,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2, name: /Photos/ })).toHaveTextContent(
-          /Photos.*3.*of.*3/,
-        );
+        expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
       });
 
       const photoImages = screen.getAllByAltText(/Photo photo/i);
@@ -377,7 +369,7 @@ describe('GalleryPage', () => {
 
       // Wait for initial load to complete
       await waitFor(() => {
-        expect(screen.getByText(/3.*of.*3/)).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
       });
 
       const createLinkButton = screen.getByRole('button', { name: /create new share link/i });
