@@ -151,52 +151,55 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
     }
   };
 
-  const handleSaveShootingDate = async () => {
-    if (!shootingDateInput) return;
+  const handleSaveShootingDate = useCallback(
+    async (dateValue?: string | null) => {
+      const normalizedDate = (dateValue ?? shootingDateInput).trim();
 
-    setIsSavingShootingDate(true);
-    clearError();
-    try {
-      const updated = await galleryService.updateGallery(galleryId, {
-        shooting_date: shootingDateInput,
-      });
-      setGallery((prev: GalleryDetail | null) =>
-        prev ? { ...prev, shooting_date: updated.shooting_date } : prev,
-      );
-      setShootingDateInput(updated.shooting_date?.slice(0, 10) ?? shootingDateInput);
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setIsSavingShootingDate(false);
-    }
-  };
+      setIsSavingShootingDate(true);
+      clearError();
+      try {
+        const updated = await galleryService.updateGallery(galleryId, {
+          shooting_date: normalizedDate || null,
+        });
+        setGallery((prev: GalleryDetail | null) =>
+          prev ? { ...prev, shooting_date: updated.shooting_date } : prev,
+        );
+        setShootingDateInput(updated.shooting_date?.slice(0, 10) ?? '');
+      } catch (err) {
+        handleError(err);
+      } finally {
+        setIsSavingShootingDate(false);
+      }
+    },
+    [clearError, galleryId, handleError, shootingDateInput],
+  );
 
-  const handleSavePublicSortSettings = async (
-    publicSortBy: GalleryPhotoSortBy,
-    publicSortOrder: SortOrder,
-  ) => {
-    setIsSavingPublicSortSettings(true);
-    clearError();
-    try {
-      const updated = await galleryService.updateGallery(galleryId, {
-        public_sort_by: publicSortBy,
-        public_sort_order: publicSortOrder,
-      });
-      setGallery((prev: GalleryDetail | null) =>
-        prev
-          ? {
-            ...prev,
-            public_sort_by: updated.public_sort_by,
-            public_sort_order: updated.public_sort_order,
-          }
-          : prev,
-      );
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setIsSavingPublicSortSettings(false);
-    }
-  };
+  const handleSavePublicSortSettings = useCallback(
+    async (publicSortBy: GalleryPhotoSortBy, publicSortOrder: SortOrder) => {
+      setIsSavingPublicSortSettings(true);
+      clearError();
+      try {
+        const updated = await galleryService.updateGallery(galleryId, {
+          public_sort_by: publicSortBy,
+          public_sort_order: publicSortOrder,
+        });
+        setGallery((prev: GalleryDetail | null) =>
+          prev
+            ? {
+                ...prev,
+                public_sort_by: updated.public_sort_by,
+                public_sort_order: updated.public_sort_order,
+              }
+            : prev,
+        );
+      } catch (err) {
+        handleError(err);
+      } finally {
+        setIsSavingPublicSortSettings(false);
+      }
+    },
+    [clearError, galleryId, handleError],
+  );
 
   const handleDeleteGallery = () => {
     openConfirm({
@@ -328,11 +331,11 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
       prev.map((photo) =>
         photo.id === renameModal.data!.id
           ? {
-            ...photo,
-            filename: renamedPhoto.filename,
-            url: renamedPhoto.url,
-            thumbnail_url: renamedPhoto.thumbnail_url,
-          }
+              ...photo,
+              filename: renamedPhoto.filename,
+              url: renamedPhoto.url,
+              thumbnail_url: renamedPhoto.thumbnail_url,
+            }
           : photo,
       ),
     );

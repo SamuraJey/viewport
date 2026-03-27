@@ -67,11 +67,11 @@ const deleteGallery = async (id: string): Promise<void> => {
 type UpdateGalleryPayload =
   | string
   | {
-    name?: string;
-    shooting_date?: string | null;
-    public_sort_by?: GalleryPhotoSortBy;
-    public_sort_order?: SortOrder;
-  };
+      name?: string;
+      shooting_date?: string | null;
+      public_sort_by?: GalleryPhotoSortBy;
+      public_sort_order?: SortOrder;
+    };
 
 const updateGallery = async (id: string, payload: UpdateGalleryPayload): Promise<Gallery> => {
   const body = typeof payload === 'string' ? { name: payload } : payload;

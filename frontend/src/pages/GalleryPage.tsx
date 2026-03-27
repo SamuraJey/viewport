@@ -21,6 +21,7 @@ const DEFAULT_SORT_ORDER: SortOrder = 'desc';
 const DEFAULT_PUBLIC_SORT_BY: GalleryPhotoSortBy = 'original_filename';
 const DEFAULT_PUBLIC_SORT_ORDER: SortOrder = 'asc';
 const SEARCH_DEBOUNCE_MS = 400;
+const SEARCH_INPUT_ID = 'gallery-photo-search';
 
 const isGalleryPhotoSortBy = (value: string | null): value is GalleryPhotoSortBy =>
   value === 'created_at' || value === 'original_filename' || value === 'file_size';
@@ -179,6 +180,63 @@ export const GalleryPage = () => {
     setPublicSortOrderInput(gallery.public_sort_order ?? DEFAULT_PUBLIC_SORT_ORDER);
   }, [gallery]);
 
+  const currentGalleryShootingDate = gallery?.shooting_date?.slice(0, 10) ?? '';
+  const currentPublicSortBy = gallery?.public_sort_by ?? DEFAULT_PUBLIC_SORT_BY;
+  const currentPublicSortOrder = gallery?.public_sort_order ?? DEFAULT_PUBLIC_SORT_ORDER;
+
+  useEffect(() => {
+    if (!gallery || isSavingShootingDate) {
+      return;
+    }
+
+    if (shootingDateInput === currentGalleryShootingDate) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void handleSaveShootingDate(shootingDateInput || null);
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    gallery,
+    isSavingShootingDate,
+    shootingDateInput,
+    currentGalleryShootingDate,
+    handleSaveShootingDate,
+  ]);
+
+  useEffect(() => {
+    if (!gallery || isSavingPublicSortSettings) {
+      return;
+    }
+
+    if (
+      publicSortByInput === currentPublicSortBy &&
+      publicSortOrderInput === currentPublicSortOrder
+    ) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void handleSavePublicSortSettings(publicSortByInput, publicSortOrderInput);
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    gallery,
+    isSavingPublicSortSettings,
+    publicSortByInput,
+    publicSortOrderInput,
+    currentPublicSortBy,
+    currentPublicSortOrder,
+    handleSavePublicSortSettings,
+  ]);
+
   // Drag and Drop
   const {
     isPageDragActive,
@@ -264,6 +322,67 @@ export const GalleryPage = () => {
       selection.selectMultiple(photoUrls.map((p) => p.id));
     }
   }, [areAllOnPageSelected, photoUrls, selection]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      const isTypingTarget =
+        tagName === 'INPUT' ||
+        tagName === 'TEXTAREA' ||
+        tagName === 'SELECT' ||
+        Boolean(target?.isContentEditable);
+
+      const searchElement = document.getElementById(SEARCH_INPUT_ID) as HTMLInputElement | null;
+      const isSearchFocused = searchElement === document.activeElement;
+
+      if (
+        !isTypingTarget &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        event.key === '/'
+      ) {
+        event.preventDefault();
+        searchElement?.focus();
+        searchElement?.select();
+        return;
+      }
+
+      if (
+        !isTypingTarget &&
+        event.shiftKey &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === 'f'
+      ) {
+        event.preventDefault();
+        window.dispatchEvent(new Event('gallery:open-public-sort'));
+        return;
+      }
+
+      if (event.key === 'Escape' && !isSelectionMode && searchInput.trim().length > 0) {
+        if (!isTypingTarget || isSearchFocused) {
+          event.preventDefault();
+          setSearchInput('');
+          updateFilterQueryParams({ search: null, resetPage: true });
+          if (isSearchFocused) {
+            searchElement?.blur();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+    };
+  }, [isSelectionMode, searchInput, updateFilterQueryParams]);
 
   useEffect(() => {
     if (!isSelectionMode) {
@@ -373,28 +492,42 @@ export const GalleryPage = () => {
         {/* Gallery Header */}
         <GalleryHeader
           gallery={gallery}
+          visiblePhotoCount={photoUrls.length}
+          totalPhotoCount={pagination.total}
+          isLoadingPhotos={isLoadingPhotos}
           shootingDateInput={shootingDateInput}
-          setShootingDateInput={setShootingDateInput}
+          onShootingDateChange={setShootingDateInput}
           isSavingShootingDate={isSavingShootingDate}
           publicSortBy={publicSortByInput}
           publicSortOrder={publicSortOrderInput}
-          setPublicSortBy={setPublicSortByInput}
-          setPublicSortOrder={setPublicSortOrderInput}
+          onPublicSortChange={({
+            sortBy: nextSortBy,
+            sortOrder: nextSortOrder,
+          }: {
+            sortBy: GalleryPhotoSortBy;
+            sortOrder: SortOrder;
+          }) => {
+            setPublicSortByInput(nextSortBy);
+            setPublicSortOrderInput(nextSortOrder);
+          }}
           isSavingPublicSortSettings={isSavingPublicSortSettings}
           searchValue={searchInput}
           sortBy={sortBy}
           sortOrder={sortOrder}
-          onSaveShootingDate={handleSaveShootingDate}
-          onSavePublicSortSettings={() =>
-            handleSavePublicSortSettings(publicSortByInput, publicSortOrderInput)
-          }
           onDeleteGallery={handleDeleteGallery}
           onSearchChange={setSearchInput}
-          onSortByChange={(value) => {
-            updateFilterQueryParams({ sortBy: value, resetPage: true });
-          }}
-          onSortOrderChange={(value) => {
-            updateFilterQueryParams({ order: value, resetPage: true });
+          onSortChange={({
+            sortBy: nextSortBy,
+            sortOrder: nextSortOrder,
+          }: {
+            sortBy: GalleryPhotoSortBy;
+            sortOrder: SortOrder;
+          }) => {
+            updateFilterQueryParams({
+              sortBy: nextSortBy,
+              order: nextSortOrder,
+              resetPage: true,
+            });
           }}
         />
 

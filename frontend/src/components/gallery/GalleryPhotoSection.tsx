@@ -86,16 +86,16 @@ const GalleryPhotoSectionComponent = ({
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-2xl font-bold text-text flex items-center gap-3">
           Photos
-          {pagination.total > 0 && (
+          {state.photoUrls.length > 0 && (
             <span className="text-sm text-muted font-bold bg-surface-1 dark:bg-surface-dark-1 px-3 py-1 rounded-xl border border-border/50 shadow-inner">
-              {state.photoUrls.length} of {pagination.total}
+              {state.photoUrls.length}
             </span>
           )}
         </h2>
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => photoUploaderRef.current?.openFilePicker()}
-            className="inline-flex h-11 items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-5 text-sm font-bold text-accent transition-all duration-200 hover:bg-accent/20 hover:border-accent/50 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="inline-flex h-11 items-center gap-2 rounded-xl border border-transparent bg-accent px-5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             title={`Add photos (JPG/PNG up to ${MAX_UPLOAD_FILE_SIZE_MB} MB)`}
           >
             <Upload className="h-4 w-4" />
@@ -105,7 +105,7 @@ const GalleryPhotoSectionComponent = ({
             <button
               onClick={actions.onDownloadGallery}
               disabled={state.isDownloadingZip}
-              className="inline-flex h-11 items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-5 text-sm font-bold text-text transition-all duration-200 hover:bg-surface-2 hover:border-accent/40 hover:text-accent hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-surface-1 disabled:hover:text-text disabled:hover:translate-y-0 disabled:hover:shadow-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-5 text-sm font-bold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent hover:shadow-sm active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border/50 disabled:hover:text-text disabled:hover:translate-y-0 disabled:hover:shadow-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1"
               title={`Download entire gallery as ZIP (${formatFileSize(state.gallerySizeBytes)})`}
             >
               <Download className="h-4 w-4" />
@@ -118,7 +118,7 @@ const GalleryPhotoSectionComponent = ({
               className={`inline-flex h-11 items-center gap-2 rounded-xl border px-5 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
                 state.isSelectionMode
                   ? 'border-accent bg-accent text-accent-foreground shadow-sm hover:brightness-110'
-                  : 'border-border/50 bg-surface-1 text-text hover:bg-surface-2 hover:border-border/80 dark:border-border/40 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2'
+                  : 'border-border/35 bg-transparent text-muted hover:border-border/60 hover:bg-surface-1 hover:text-text dark:border-border/30 dark:hover:bg-surface-dark-1'
               }`}
               title={state.isSelectionMode ? 'Exit selection mode' : 'Enter selection mode'}
             >
