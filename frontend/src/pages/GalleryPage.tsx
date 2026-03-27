@@ -60,6 +60,8 @@ export const GalleryPage = () => {
   const [photoSizeById, setPhotoSizeById] = useState<Record<string, number>>({});
   const gridRef = useRef<HTMLDivElement | null>(null);
   const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
+  const lastFailedShootingDateSaveRef = useRef<string | null>(null);
+  const lastFailedPublicSortSaveRef = useRef<string | null>(null);
 
   // Use new hooks
   const pagination = usePagination({ pageSize: 100, syncWithUrl: true });
@@ -196,11 +198,25 @@ export const GalleryPage = () => {
     }
 
     if (shootingDateInput === currentGalleryShootingDate) {
+      lastFailedShootingDateSaveRef.current = null;
+      return;
+    }
+
+    const pendingShootingDate = shootingDateInput.trim();
+    if (lastFailedShootingDateSaveRef.current === pendingShootingDate) {
       return;
     }
 
     const timeoutId = window.setTimeout(() => {
-      void handleSaveShootingDate(shootingDateInput);
+      void (async () => {
+        const isSaved = await handleSaveShootingDate(shootingDateInput);
+        if (isSaved) {
+          lastFailedShootingDateSaveRef.current = null;
+          return;
+        }
+
+        lastFailedShootingDateSaveRef.current = pendingShootingDate;
+      })();
     }, 350);
 
     return () => {
@@ -223,11 +239,25 @@ export const GalleryPage = () => {
       publicSortByInput === currentPublicSortBy &&
       publicSortOrderInput === currentPublicSortOrder
     ) {
+      lastFailedPublicSortSaveRef.current = null;
+      return;
+    }
+
+    const pendingPublicSortKey = `${publicSortByInput}:${publicSortOrderInput}`;
+    if (lastFailedPublicSortSaveRef.current === pendingPublicSortKey) {
       return;
     }
 
     const timeoutId = window.setTimeout(() => {
-      void handleSavePublicSortSettings(publicSortByInput, publicSortOrderInput);
+      void (async () => {
+        const isSaved = await handleSavePublicSortSettings(publicSortByInput, publicSortOrderInput);
+        if (isSaved) {
+          lastFailedPublicSortSaveRef.current = null;
+          return;
+        }
+
+        lastFailedPublicSortSaveRef.current = pendingPublicSortKey;
+      })();
     }, 250);
 
     return () => {

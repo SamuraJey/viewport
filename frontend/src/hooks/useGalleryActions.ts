@@ -152,7 +152,7 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
   };
 
   const handleSaveShootingDate = useCallback(
-    async (dateValue?: string) => {
+    async (dateValue?: string): Promise<boolean> => {
       const normalizedDate = (dateValue ?? shootingDateInput).trim();
 
       if (!normalizedDate) {
@@ -160,7 +160,7 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
         if (shootingDateInput !== fallbackDate) {
           setShootingDateInput(fallbackDate);
         }
-        return;
+        return false;
       }
 
       setIsSavingShootingDate(true);
@@ -173,8 +173,14 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
           prev ? { ...prev, shooting_date: updated.shooting_date } : prev,
         );
         setShootingDateInput(updated.shooting_date?.slice(0, 10) ?? '');
+        return true;
       } catch (err) {
         handleError(err);
+        const fallbackDate = gallery?.shooting_date?.slice(0, 10) ?? '';
+        if (shootingDateInput !== fallbackDate) {
+          setShootingDateInput(fallbackDate);
+        }
+        return false;
       } finally {
         setIsSavingShootingDate(false);
       }
@@ -183,7 +189,7 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
   );
 
   const handleSavePublicSortSettings = useCallback(
-    async (publicSortBy: GalleryPhotoSortBy, publicSortOrder: SortOrder) => {
+    async (publicSortBy: GalleryPhotoSortBy, publicSortOrder: SortOrder): Promise<boolean> => {
       setIsSavingPublicSortSettings(true);
       clearError();
       try {
@@ -200,8 +206,10 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
               }
             : prev,
         );
+        return true;
       } catch (err) {
         handleError(err);
+        return false;
       } finally {
         setIsSavingPublicSortSettings(false);
       }
