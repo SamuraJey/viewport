@@ -222,6 +222,60 @@ async def test_gallery_photo_search_sort_and_filtered_count(repo: GalleryReposit
 
 
 @pytest.mark.asyncio
+async def test_gallery_photo_search_escapes_like_metacharacters(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Literal Search")
+
+    await repo.create_photo(
+        gallery.id,
+        f"{gallery.id}/contains-percent.jpg",
+        f"{gallery.id}/contains-percent.jpg",
+        100,
+        display_name="invoice-100%-final.jpg",
+    )
+    await repo.create_photo(
+        gallery.id,
+        f"{gallery.id}/no-percent.jpg",
+        f"{gallery.id}/no-percent.jpg",
+        100,
+        display_name="invoice-1000-final.jpg",
+    )
+    await repo.create_photo(
+        gallery.id,
+        f"{gallery.id}/contains-underscore.jpg",
+        f"{gallery.id}/contains-underscore.jpg",
+        100,
+        display_name="frame_01.jpg",
+    )
+    await repo.create_photo(
+        gallery.id,
+        f"{gallery.id}/no-underscore.jpg",
+        f"{gallery.id}/no-underscore.jpg",
+        100,
+        display_name="frameA01.jpg",
+    )
+
+    percent_matches = await repo.get_photos_by_gallery_paginated(
+        gallery_id=gallery.id,
+        limit=20,
+        offset=0,
+        search="100%",
+        sort_by=GalleryPhotoSortBy.ORIGINAL_FILENAME,
+        order=SortOrder.ASC,
+    )
+    assert [photo.display_name for photo in percent_matches] == ["invoice-100%-final.jpg"]
+
+    underscore_matches = await repo.get_photos_by_gallery_paginated(
+        gallery_id=gallery.id,
+        limit=20,
+        offset=0,
+        search="frame_",
+        sort_by=GalleryPhotoSortBy.ORIGINAL_FILENAME,
+        order=SortOrder.ASC,
+    )
+    assert [photo.display_name for photo in underscore_matches] == ["frame_01.jpg"]
+
+
+@pytest.mark.asyncio
 async def test_cover_photo(repo: GalleryRepository, owner_id):
     gallery = await repo.create_gallery(owner_id, "Cover")
     photo_id = await _create_photo(repo, gallery.id, "cover.jpg", owner_id)

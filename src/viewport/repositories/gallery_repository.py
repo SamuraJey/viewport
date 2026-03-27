@@ -19,11 +19,19 @@ logger = logging.getLogger(__name__)
 
 
 class GalleryRepository(BaseRepository):
+    LIKE_ESCAPE_CHAR = "\\"
+
+    @classmethod
+    def _escape_like_term(cls, value: str) -> str:
+        """Escape SQL LIKE wildcards so search behaves as a literal substring match."""
+        return value.replace(cls.LIKE_ESCAPE_CHAR, cls.LIKE_ESCAPE_CHAR * 2).replace("%", f"{cls.LIKE_ESCAPE_CHAR}%").replace("_", f"{cls.LIKE_ESCAPE_CHAR}_")
+
     @staticmethod
     def _build_photo_filters(gallery_id: uuid.UUID, search: str | None = None):
         filters = [Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)]
         if search:
-            filters.append(Photo.display_name.ilike(f"%{search}%"))
+            escaped_search = GalleryRepository._escape_like_term(search)
+            filters.append(Photo.display_name.ilike(f"%{escaped_search}%", escape=GalleryRepository.LIKE_ESCAPE_CHAR))
         return filters
 
     @staticmethod
