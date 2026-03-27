@@ -252,7 +252,7 @@ export const GalleryHeader = ({
                 type="search"
                 value={searchValue}
                 onChange={(event) => onSearchChange(event.target.value)}
-                placeholder="Search by filename, tags..."
+                placeholder="Search by filename"
                 className="h-full w-full bg-transparent text-sm font-medium text-text placeholder:text-muted focus:outline-hidden"
               />
             </label>
