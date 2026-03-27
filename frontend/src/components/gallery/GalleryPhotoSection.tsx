@@ -68,6 +68,33 @@ interface GalleryPhotoSectionProps {
   };
 }
 
+const PHOTO_GRID_SKELETON_CARDS = 10;
+
+const GalleryPhotoGridSkeleton = ({ page }: { page: number }) => (
+  <div className="pt-6" data-testid="private-gallery-skeleton-grid">
+    <div className="mb-5 flex items-center gap-3 text-muted">
+      <Loader2 className="h-5 w-5 animate-spin text-accent" />
+      <span className="text-sm font-bold uppercase tracking-wide">Loading photos</span>
+      <span className="text-xs font-semibold text-muted/70">Page {page}</span>
+    </div>
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 lg:gap-6">
+      {Array.from({ length: PHOTO_GRID_SKELETON_CARDS }).map((_, index) => (
+        <div
+          key={`photo-skeleton-${index}`}
+          className="overflow-hidden rounded-2xl border border-border/50 bg-surface shadow-xs dark:border-border/40 dark:bg-surface-dark-1"
+        >
+          <div className="h-64 p-4 sm:h-72 md:h-80">
+            <div className="h-full w-full animate-pulse rounded-xl bg-linear-to-br from-surface-foreground/15 via-surface-foreground/10 to-surface-foreground/15 dark:from-surface/30 dark:via-surface/20 dark:to-surface/30" />
+          </div>
+          <div className="border-t border-border/40 px-4 py-4 dark:border-border/30">
+            <div className="h-3.5 w-3/4 animate-pulse rounded-full bg-surface-foreground/20 dark:bg-surface/30" />
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const GalleryPhotoSectionComponent = ({
   galleryId,
   pagination,
@@ -196,11 +223,7 @@ const GalleryPhotoSectionComponent = ({
     />
 
     {state.isLoadingPhotos ? (
-      <div className="flex flex-col items-center justify-center py-24 min-h-100 bg-surface-1/50 dark:bg-surface-dark-1/50 rounded-3xl border border-border/30 border-dashed">
-        <Loader2 className="w-12 h-12 animate-spin text-accent mb-4" />
-        <span className="text-lg font-bold text-muted">Loading photos...</span>
-        <span className="text-sm font-medium text-muted/70 mt-2">Page {pagination.page}</span>
-      </div>
+      <GalleryPhotoGridSkeleton page={pagination.page} />
     ) : state.photoUrls.length > 0 ? (
       <div
         className="grid grid-cols-1 gap-5 pt-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 lg:gap-6"
