@@ -1,7 +1,7 @@
 import { api } from '../lib/api';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { getDemoService } from './demoService';
-import type { ShareLink, PublicPhoto, SharedGallery } from '../types';
+import type { ShareLink, PublicPhoto, SharedGallery, SharedGalleryQueryOptions } from '../types';
 
 // Re-export types for backward compatibility
 export type { ShareLink, PublicPhoto, SharedGallery };
@@ -37,7 +37,7 @@ const deleteShareLink = async (galleryId: string, shareLinkId: string): Promise<
 
 const getSharedGallery = async (
   shareId: string,
-  options?: { limit?: number; offset?: number },
+  options?: SharedGalleryQueryOptions,
 ): Promise<SharedGallery> => {
   if (isDemoModeEnabled()) {
     return getDemoService().getSharedGallery(shareId, options);

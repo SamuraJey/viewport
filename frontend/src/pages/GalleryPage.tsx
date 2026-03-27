@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
@@ -14,20 +14,122 @@ import {
 } from '../components/gallery/GalleryPageStates';
 import { type PhotoUploaderHandle } from '../components/PhotoUploader';
 import { usePagination, useSelection, useGalleryActions, useGalleryDragAndDrop } from '../hooks';
+import type { GalleryPhotoSortBy, SortOrder } from '../types';
+
+const DEFAULT_SORT_BY: GalleryPhotoSortBy = 'uploaded_at';
+const DEFAULT_SORT_ORDER: SortOrder = 'desc';
+const DEFAULT_PUBLIC_SORT_BY: GalleryPhotoSortBy = 'original_filename';
+const DEFAULT_PUBLIC_SORT_ORDER: SortOrder = 'asc';
+const SEARCH_DEBOUNCE_MS = 400;
+const SEARCH_INPUT_ID = 'gallery-photo-search';
+
+const isGalleryPhotoSortBy = (value: string | null): value is GalleryPhotoSortBy =>
+  value === 'uploaded_at' || value === 'original_filename' || value === 'file_size';
+
+const normalizeSortByParam = (value: string | null): GalleryPhotoSortBy | null => {
+  if (value === 'created_at') {
+    return 'uploaded_at';
+  }
+
+  return isGalleryPhotoSortBy(value) ? value : null;
+};
+
+const isSortOrder = (value: string | null): value is SortOrder =>
+  value === 'asc' || value === 'desc';
 
 export const GalleryPage = () => {
   const { id } = useParams<{ id: string }>();
   const galleryId = id!;
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const urlSearch = searchParams.get('search') ?? '';
+  const activeSearch = urlSearch.trim();
+  const sortByParam = searchParams.get('sort_by');
+  const orderParam = searchParams.get('order');
+  const sortBy: GalleryPhotoSortBy = normalizeSortByParam(sortByParam) ?? DEFAULT_SORT_BY;
+  const sortOrder: SortOrder = isSortOrder(orderParam) ? orderParam : DEFAULT_SORT_ORDER;
+
+  const [searchInput, setSearchInput] = useState(urlSearch);
+  const [publicSortByInput, setPublicSortByInput] =
+    useState<GalleryPhotoSortBy>(DEFAULT_PUBLIC_SORT_BY);
+  const [publicSortOrderInput, setPublicSortOrderInput] =
+    useState<SortOrder>(DEFAULT_PUBLIC_SORT_ORDER);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showInitialLoadingState, setShowInitialLoadingState] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [photoSizeById, setPhotoSizeById] = useState<Record<string, number>>({});
   const gridRef = useRef<HTMLDivElement | null>(null);
   const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
+  const lastFailedShootingDateSaveRef = useRef<string | null>(null);
+  const lastFailedPublicSortSaveRef = useRef<string | null>(null);
 
   // Use new hooks
   const pagination = usePagination({ pageSize: 100, syncWithUrl: true });
   const selection = useSelection<string>();
+
+  const updateFilterQueryParams = useCallback(
+    (updates: {
+      search?: string | null;
+      sortBy?: GalleryPhotoSortBy;
+      order?: SortOrder;
+      resetPage?: boolean;
+    }) => {
+      const nextParams = new URLSearchParams(searchParams);
+
+      if (updates.search !== undefined) {
+        if (updates.search) {
+          nextParams.set('search', updates.search);
+        } else {
+          nextParams.delete('search');
+        }
+      }
+
+      if (updates.sortBy !== undefined) {
+        if (updates.sortBy === DEFAULT_SORT_BY) {
+          nextParams.delete('sort_by');
+        } else {
+          nextParams.set('sort_by', updates.sortBy);
+        }
+      }
+
+      if (updates.order !== undefined) {
+        if (updates.order === DEFAULT_SORT_ORDER) {
+          nextParams.delete('order');
+        } else {
+          nextParams.set('order', updates.order);
+        }
+      }
+
+      if (updates.resetPage) {
+        nextParams.set('page', '1');
+      }
+
+      if (nextParams.toString() !== searchParams.toString()) {
+        setSearchParams(nextParams);
+      }
+    },
+    [searchParams, setSearchParams],
+  );
+
+  useEffect(() => {
+    setSearchInput(urlSearch);
+  }, [urlSearch]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      const normalizedSearch = searchInput.trim();
+      if (normalizedSearch !== activeSearch) {
+        updateFilterQueryParams({
+          search: normalizedSearch || null,
+          resetPage: true,
+        });
+      }
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [searchInput, activeSearch, updateFilterQueryParams]);
 
   const {
     gallery,
@@ -46,6 +148,7 @@ export const GalleryPage = () => {
     shootingDateInput,
     setShootingDateInput,
     isSavingShootingDate,
+    isSavingPublicSortSettings,
     error,
     clearError,
     ConfirmModal,
@@ -54,6 +157,7 @@ export const GalleryPage = () => {
     fetchShareLinks,
     handleUploadComplete,
     handleSaveShootingDate,
+    handleSavePublicSortSettings,
     handleDeleteGallery,
     handleDownloadGallery,
     handleDownloadSelectedPhotos,
@@ -65,7 +169,109 @@ export const GalleryPage = () => {
     handleRenameConfirm,
     handleDeletePhoto,
     handleDeleteMultiplePhotos: handleDeletePhotos, // Renamed to avoid name clash
-  } = useGalleryActions({ galleryId, pagination });
+  } = useGalleryActions({
+    galleryId,
+    filters: {
+      search: activeSearch || undefined,
+      sort_by: sortBy,
+      order: sortOrder,
+    },
+    pagination,
+  });
+
+  useEffect(() => {
+    if (!gallery) {
+      return;
+    }
+
+    setPublicSortByInput(gallery.public_sort_by ?? DEFAULT_PUBLIC_SORT_BY);
+    setPublicSortOrderInput(gallery.public_sort_order ?? DEFAULT_PUBLIC_SORT_ORDER);
+  }, [gallery]);
+
+  const currentGalleryShootingDate = gallery?.shooting_date?.slice(0, 10) ?? '';
+  const currentPublicSortBy = gallery?.public_sort_by ?? DEFAULT_PUBLIC_SORT_BY;
+  const currentPublicSortOrder = gallery?.public_sort_order ?? DEFAULT_PUBLIC_SORT_ORDER;
+
+  useEffect(() => {
+    if (!gallery || isSavingShootingDate) {
+      return;
+    }
+
+    if (shootingDateInput === currentGalleryShootingDate) {
+      lastFailedShootingDateSaveRef.current = null;
+      return;
+    }
+
+    const pendingShootingDate = shootingDateInput.trim();
+    if (lastFailedShootingDateSaveRef.current === pendingShootingDate) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        const isSaved = await handleSaveShootingDate(shootingDateInput);
+        if (isSaved) {
+          lastFailedShootingDateSaveRef.current = null;
+          return;
+        }
+
+        lastFailedShootingDateSaveRef.current = pendingShootingDate;
+      })();
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    gallery,
+    isSavingShootingDate,
+    shootingDateInput,
+    currentGalleryShootingDate,
+    handleSaveShootingDate,
+  ]);
+
+  useEffect(() => {
+    if (!gallery || isSavingPublicSortSettings) {
+      return;
+    }
+
+    if (
+      publicSortByInput === currentPublicSortBy &&
+      publicSortOrderInput === currentPublicSortOrder
+    ) {
+      lastFailedPublicSortSaveRef.current = null;
+      return;
+    }
+
+    const pendingPublicSortKey = `${publicSortByInput}:${publicSortOrderInput}`;
+    if (lastFailedPublicSortSaveRef.current === pendingPublicSortKey) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        const isSaved = await handleSavePublicSortSettings(publicSortByInput, publicSortOrderInput);
+        if (isSaved) {
+          lastFailedPublicSortSaveRef.current = null;
+          return;
+        }
+
+        lastFailedPublicSortSaveRef.current = pendingPublicSortKey;
+      })();
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    gallery,
+    isSavingPublicSortSettings,
+    publicSortByInput,
+    publicSortOrderInput,
+    currentPublicSortBy,
+    currentPublicSortOrder,
+    handleSavePublicSortSettings,
+  ]);
 
   // Drag and Drop
   const {
@@ -116,7 +322,7 @@ export const GalleryPage = () => {
     const isInitial = gallery === null;
     fetchGalleryDetails(pagination.page, isInitial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.page, galleryId]);
+  }, [pagination.page, galleryId, activeSearch, sortBy, sortOrder]);
 
   useEffect(() => {
     if (!isInitialLoading) {
@@ -152,6 +358,67 @@ export const GalleryPage = () => {
       selection.selectMultiple(photoUrls.map((p) => p.id));
     }
   }, [areAllOnPageSelected, photoUrls, selection]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      const isTypingTarget =
+        tagName === 'INPUT' ||
+        tagName === 'TEXTAREA' ||
+        tagName === 'SELECT' ||
+        Boolean(target?.isContentEditable);
+
+      const searchElement = document.getElementById(SEARCH_INPUT_ID) as HTMLInputElement | null;
+      const isSearchFocused = searchElement === document.activeElement;
+
+      if (
+        !isTypingTarget &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        event.key === '/'
+      ) {
+        event.preventDefault();
+        searchElement?.focus();
+        searchElement?.select();
+        return;
+      }
+
+      if (
+        !isTypingTarget &&
+        event.shiftKey &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === 'f'
+      ) {
+        event.preventDefault();
+        window.dispatchEvent(new Event('gallery:open-public-sort'));
+        return;
+      }
+
+      if (event.key === 'Escape' && !isSelectionMode && searchInput.trim().length > 0) {
+        if (!isTypingTarget || isSearchFocused) {
+          event.preventDefault();
+          setSearchInput('');
+          updateFilterQueryParams({ search: null, resetPage: true });
+          if (isSearchFocused) {
+            searchElement?.blur();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+    };
+  }, [isSelectionMode, searchInput, updateFilterQueryParams]);
 
   useEffect(() => {
     if (!isSelectionMode) {
@@ -261,11 +528,43 @@ export const GalleryPage = () => {
         {/* Gallery Header */}
         <GalleryHeader
           gallery={gallery}
+          visiblePhotoCount={photoUrls.length}
+          totalPhotoCount={pagination.total}
+          isLoadingPhotos={isLoadingPhotos}
           shootingDateInput={shootingDateInput}
-          setShootingDateInput={setShootingDateInput}
+          onShootingDateChange={setShootingDateInput}
           isSavingShootingDate={isSavingShootingDate}
-          onSaveShootingDate={handleSaveShootingDate}
+          publicSortBy={publicSortByInput}
+          publicSortOrder={publicSortOrderInput}
+          onPublicSortChange={({
+            sortBy: nextSortBy,
+            sortOrder: nextSortOrder,
+          }: {
+            sortBy: GalleryPhotoSortBy;
+            sortOrder: SortOrder;
+          }) => {
+            setPublicSortByInput(nextSortBy);
+            setPublicSortOrderInput(nextSortOrder);
+          }}
+          isSavingPublicSortSettings={isSavingPublicSortSettings}
+          searchValue={searchInput}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
           onDeleteGallery={handleDeleteGallery}
+          onSearchChange={setSearchInput}
+          onSortChange={({
+            sortBy: nextSortBy,
+            sortOrder: nextSortOrder,
+          }: {
+            sortBy: GalleryPhotoSortBy;
+            sortOrder: SortOrder;
+          }) => {
+            updateFilterQueryParams({
+              sortBy: nextSortBy,
+              order: nextSortOrder,
+              resetPage: true,
+            });
+          }}
         />
 
         <GalleryPhotoSection
@@ -278,6 +577,7 @@ export const GalleryPage = () => {
             photoUrls,
             gallerySizeBytes: gallery.total_size_bytes ?? 0,
             isLoadingPhotos,
+            activeSearchTerm: activeSearch || undefined,
             uploadError,
             actionInfo,
             error,
@@ -314,6 +614,10 @@ export const GalleryPage = () => {
             onDeletePhoto: handleDeletePhoto,
             onDownloadGallery: handleDownloadGallery,
             onDownloadSelectedPhotos: handleDownloadSelectedPhotosWrapper,
+            onClearSearch: () => {
+              setSearchInput('');
+              updateFilterQueryParams({ search: null, resetPage: true });
+            },
             onSelectAllPhotos: handleSelectAllPhotos,
             onCancelSelection: () => {
               selection.clear();

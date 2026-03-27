@@ -45,7 +45,10 @@ describe('shareLinkService', () => {
   it('fetches shared gallery with pagination params', async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { photos: [], total_photos: 0 } } as any);
 
-    const result = await shareLinkService.getSharedGallery('share123', { limit: 10, offset: 20 });
+    const result = await shareLinkService.getSharedGallery('share123', {
+      limit: 10,
+      offset: 20,
+    });
 
     expect(api.get).toHaveBeenCalledWith('/s/share123?limit=10&offset=20');
     expect(result).toEqual({ photos: [], total_photos: 0 });

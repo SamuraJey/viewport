@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckSquare, Download, Loader2, Upload } from 'lucide-react';
+import { CheckSquare, Download, Loader2, SearchX, Upload } from 'lucide-react';
 import type { MutableRefObject, RefObject } from 'react';
 import { PaginationControls } from '../PaginationControls';
 import { EmptyGalleryState } from './EmptyGalleryState';
@@ -33,6 +33,7 @@ interface GalleryPhotoSectionProps {
     gallerySizeBytes: number;
     isLoadingPhotos: boolean;
     isDownloadingZip?: boolean;
+    activeSearchTerm?: string;
     uploadError: string | null;
     actionInfo: string | null;
     error: string | null;
@@ -60,11 +61,39 @@ interface GalleryPhotoSectionProps {
     onDeletePhoto: (photoId: string) => void;
     onDownloadGallery: () => void;
     onDownloadSelectedPhotos: () => void;
+    onClearSearch: () => void;
     onSelectAllPhotos: () => void;
     onCancelSelection: () => void;
     onDeleteMultiplePhotos: () => void;
   };
 }
+
+const PHOTO_GRID_SKELETON_CARDS = 10;
+
+const GalleryPhotoGridSkeleton = ({ page }: { page: number }) => (
+  <div className="pt-6" data-testid="private-gallery-skeleton-grid">
+    <div className="mb-5 flex items-center gap-3 text-muted">
+      <Loader2 className="h-5 w-5 animate-spin text-accent" />
+      <span className="text-sm font-bold uppercase tracking-wide">Loading photos</span>
+      <span className="text-xs font-semibold text-muted/70">Page {page}</span>
+    </div>
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 lg:gap-6">
+      {Array.from({ length: PHOTO_GRID_SKELETON_CARDS }).map((_, index) => (
+        <div
+          key={`photo-skeleton-${index}`}
+          className="overflow-hidden rounded-2xl border border-border/50 bg-surface shadow-xs dark:border-border/40 dark:bg-surface-dark-1"
+        >
+          <div className="h-64 p-4 sm:h-72 md:h-80">
+            <div className="h-full w-full animate-pulse rounded-xl bg-linear-to-br from-surface-foreground/15 via-surface-foreground/10 to-surface-foreground/15 dark:from-surface/30 dark:via-surface/20 dark:to-surface/30" />
+          </div>
+          <div className="border-t border-border/40 px-4 py-4 dark:border-border/30">
+            <div className="h-3.5 w-3/4 animate-pulse rounded-full bg-surface-foreground/20 dark:bg-surface/30" />
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 const GalleryPhotoSectionComponent = ({
   galleryId,
@@ -84,16 +113,16 @@ const GalleryPhotoSectionComponent = ({
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-2xl font-bold text-text flex items-center gap-3">
           Photos
-          {pagination.total > 0 && (
+          {state.photoUrls.length > 0 && (
             <span className="text-sm text-muted font-bold bg-surface-1 dark:bg-surface-dark-1 px-3 py-1 rounded-xl border border-border/50 shadow-inner">
-              {state.photoUrls.length} of {pagination.total}
+              {state.photoUrls.length}
             </span>
           )}
         </h2>
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => photoUploaderRef.current?.openFilePicker()}
-            className="inline-flex h-11 items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-5 text-sm font-bold text-accent transition-all duration-200 hover:bg-accent/20 hover:border-accent/50 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="inline-flex h-11 items-center gap-2 rounded-xl border border-transparent bg-accent px-5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             title={`Add photos (JPG/PNG up to ${MAX_UPLOAD_FILE_SIZE_MB} MB)`}
           >
             <Upload className="h-4 w-4" />
@@ -103,7 +132,7 @@ const GalleryPhotoSectionComponent = ({
             <button
               onClick={actions.onDownloadGallery}
               disabled={state.isDownloadingZip}
-              className="inline-flex h-11 items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-5 text-sm font-bold text-text transition-all duration-200 hover:bg-surface-2 hover:border-accent/40 hover:text-accent hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-surface-1 disabled:hover:text-text disabled:hover:translate-y-0 disabled:hover:shadow-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-5 text-sm font-bold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent hover:shadow-sm active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border/50 disabled:hover:text-text disabled:hover:translate-y-0 disabled:hover:shadow-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1"
               title={`Download entire gallery as ZIP (${formatFileSize(state.gallerySizeBytes)})`}
             >
               <Download className="h-4 w-4" />
@@ -116,7 +145,7 @@ const GalleryPhotoSectionComponent = ({
               className={`inline-flex h-11 items-center gap-2 rounded-xl border px-5 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
                 state.isSelectionMode
                   ? 'border-accent bg-accent text-accent-foreground shadow-sm hover:brightness-110'
-                  : 'border-border/50 bg-surface-1 text-text hover:bg-surface-2 hover:border-border/80 dark:border-border/40 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2'
+                  : 'border-border/35 bg-transparent text-muted hover:border-border/60 hover:bg-surface-1 hover:text-text dark:border-border/30 dark:hover:bg-surface-dark-1'
               }`}
               title={state.isSelectionMode ? 'Exit selection mode' : 'Enter selection mode'}
             >
@@ -194,11 +223,7 @@ const GalleryPhotoSectionComponent = ({
     />
 
     {state.isLoadingPhotos ? (
-      <div className="flex flex-col items-center justify-center py-24 min-h-100 bg-surface-1/50 dark:bg-surface-dark-1/50 rounded-3xl border border-border/30 border-dashed">
-        <Loader2 className="w-12 h-12 animate-spin text-accent mb-4" />
-        <span className="text-lg font-bold text-muted">Loading photos...</span>
-        <span className="text-sm font-medium text-muted/70 mt-2">Page {pagination.page}</span>
-      </div>
+      <GalleryPhotoGridSkeleton page={pagination.page} />
     ) : state.photoUrls.length > 0 ? (
       <div
         className="grid grid-cols-1 gap-5 pt-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 lg:gap-6"
@@ -220,6 +245,23 @@ const GalleryPhotoSectionComponent = ({
             onDeletePhoto={actions.onDeletePhoto}
           />
         ))}
+      </div>
+    ) : state.activeSearchTerm ? (
+      <div className="flex min-h-96 flex-col items-center justify-center rounded-3xl border border-dashed border-border/40 bg-surface-1/50 px-6 py-16 text-center dark:border-border/30 dark:bg-surface-dark-1/50">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full border border-border/40 bg-surface text-muted dark:border-border/30 dark:bg-surface-dark-2">
+          <SearchX className="h-8 w-8" />
+        </div>
+        <h3 className="mt-5 text-xl font-bold text-text">No results found</h3>
+        <p className="mt-2 max-w-md text-sm font-medium text-muted">
+          No photos found for &quot;{state.activeSearchTerm}&quot;.
+        </p>
+        <button
+          type="button"
+          onClick={actions.onClearSearch}
+          className="mt-6 inline-flex h-11 items-center rounded-xl border border-border/50 bg-surface px-5 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:text-accent hover:-translate-y-0.5 hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1"
+        >
+          Clear search
+        </button>
       </div>
     ) : (
       <EmptyGalleryState onUploadClick={() => photoUploaderRef.current?.openFilePicker()} />

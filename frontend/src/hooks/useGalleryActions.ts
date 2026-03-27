@@ -5,9 +5,15 @@ import type { PhotoUploadResponse } from '../services/photoService';
 import { shareLinkService, type ShareLink } from '../services/shareLinkService';
 import { useErrorHandler, useConfirmation, useModal } from '../hooks';
 import { handleApiError } from '../lib/errorHandling';
+import type { GalleryPhotoSortBy, SortOrder } from '../types';
 
 interface UseGalleryActionsProps {
   galleryId: string;
+  filters: {
+    search?: string;
+    sort_by: GalleryPhotoSortBy;
+    order: SortOrder;
+  };
   pagination: {
     page: number;
     pageSize: number;
@@ -15,7 +21,7 @@ interface UseGalleryActionsProps {
   };
 }
 
-export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsProps) => {
+export const useGalleryActions = ({ galleryId, filters, pagination }: UseGalleryActionsProps) => {
   const [gallery, setGallery] = useState<GalleryDetail | null>(null);
   const [photoUrls, setPhotoUrls] = useState<GalleryDetail['photos']>([]);
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
@@ -29,6 +35,7 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
   const [isDownloadingZip, setIsDownloadingZip] = useState(false);
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
+  const [isSavingPublicSortSettings, setIsSavingPublicSortSettings] = useState(false);
 
   const { error, clearError, handleError } = useErrorHandler();
   const { openConfirm, ConfirmModal } = useConfirmation();
@@ -78,6 +85,9 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
         const galleryData = await galleryService.getGallery(galleryId, {
           limit: pageSize,
           offset,
+          search: filters.search,
+          sort_by: filters.sort_by,
+          order: filters.order,
         });
         const shouldRefreshShareLinks = gallery?.id !== galleryData.id;
         setGallery(galleryData);
@@ -98,7 +108,18 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
         }
       }
     },
-    [gallery?.id, galleryId, pageSize, setTotal, clearError, handleError, fetchShareLinks],
+    [
+      gallery?.id,
+      galleryId,
+      pageSize,
+      setTotal,
+      clearError,
+      handleError,
+      fetchShareLinks,
+      filters.search,
+      filters.sort_by,
+      filters.order,
+    ],
   );
 
   const handleUploadComplete = async (result: PhotoUploadResponse) => {
@@ -112,6 +133,9 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
         const galleryData = await galleryService.getGallery(galleryId, {
           limit: pageSize,
           offset,
+          search: filters.search,
+          sort_by: filters.sort_by,
+          order: filters.order,
         });
         setPhotoUrls(galleryData.photos || []);
         setTotal(galleryData.total_photos);
@@ -127,25 +151,71 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
     }
   };
 
-  const handleSaveShootingDate = async () => {
-    if (!shootingDateInput) return;
+  const handleSaveShootingDate = useCallback(
+    async (dateValue?: string): Promise<boolean> => {
+      const normalizedDate = (dateValue ?? shootingDateInput).trim();
 
-    setIsSavingShootingDate(true);
-    clearError();
-    try {
-      const updated = await galleryService.updateGallery(galleryId, {
-        shooting_date: shootingDateInput,
-      });
-      setGallery((prev: GalleryDetail | null) =>
-        prev ? { ...prev, shooting_date: updated.shooting_date } : prev,
-      );
-      setShootingDateInput(updated.shooting_date?.slice(0, 10) ?? shootingDateInput);
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setIsSavingShootingDate(false);
-    }
-  };
+      if (!normalizedDate) {
+        const fallbackDate = gallery?.shooting_date?.slice(0, 10) ?? '';
+        if (shootingDateInput !== fallbackDate) {
+          setShootingDateInput(fallbackDate);
+        }
+        return false;
+      }
+
+      setIsSavingShootingDate(true);
+      clearError();
+      try {
+        const updated = await galleryService.updateGallery(galleryId, {
+          shooting_date: normalizedDate,
+        });
+        setGallery((prev: GalleryDetail | null) =>
+          prev ? { ...prev, shooting_date: updated.shooting_date } : prev,
+        );
+        setShootingDateInput(updated.shooting_date?.slice(0, 10) ?? '');
+        return true;
+      } catch (err) {
+        handleError(err);
+        const fallbackDate = gallery?.shooting_date?.slice(0, 10) ?? '';
+        if (shootingDateInput !== fallbackDate) {
+          setShootingDateInput(fallbackDate);
+        }
+        return false;
+      } finally {
+        setIsSavingShootingDate(false);
+      }
+    },
+    [clearError, gallery?.shooting_date, galleryId, handleError, shootingDateInput],
+  );
+
+  const handleSavePublicSortSettings = useCallback(
+    async (publicSortBy: GalleryPhotoSortBy, publicSortOrder: SortOrder): Promise<boolean> => {
+      setIsSavingPublicSortSettings(true);
+      clearError();
+      try {
+        const updated = await galleryService.updateGallery(galleryId, {
+          public_sort_by: publicSortBy,
+          public_sort_order: publicSortOrder,
+        });
+        setGallery((prev: GalleryDetail | null) =>
+          prev
+            ? {
+                ...prev,
+                public_sort_by: updated.public_sort_by,
+                public_sort_order: updated.public_sort_order,
+              }
+            : prev,
+        );
+        return true;
+      } catch (err) {
+        handleError(err);
+        return false;
+      } finally {
+        setIsSavingPublicSortSettings(false);
+      }
+    },
+    [clearError, galleryId, handleError],
+  );
 
   const handleDeleteGallery = () => {
     openConfirm({
@@ -381,6 +451,7 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
     shootingDateInput,
     setShootingDateInput,
     isSavingShootingDate,
+    isSavingPublicSortSettings,
     error,
     clearError,
     ConfirmModal,
@@ -389,6 +460,7 @@ export const useGalleryActions = ({ galleryId, pagination }: UseGalleryActionsPr
     fetchShareLinks,
     handleUploadComplete,
     handleSaveShootingDate,
+    handleSavePublicSortSettings,
     handleDeleteGallery,
     handleDownloadGallery,
     handleDownloadSelectedPhotos,

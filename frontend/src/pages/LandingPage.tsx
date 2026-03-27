@@ -85,7 +85,9 @@ const previewGallery: Gallery = {
   owner_id: 'preview-owner',
   name: 'Spring Campaign - Lofoten',
   created_at: '2026-03-10T10:30:00Z',
-  shooting_date: '2026-03-05T09:00:00Z',
+  public_sort_by: 'original_filename',
+  public_sort_order: 'asc',
+  shooting_date: '2026-03-05',
   cover_photo_id: null,
 };
 

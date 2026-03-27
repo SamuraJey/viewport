@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import asc, desc, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 from viewport.filename_utils import sanitize_filename
@@ -13,11 +13,40 @@ from viewport.models.sharelink import ShareLink
 from viewport.repositories.base_repository import BaseRepository
 from viewport.repositories.user_repository import UserRepository
 from viewport.s3_service import AsyncS3Client
+from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 
 logger = logging.getLogger(__name__)
 
 
 class GalleryRepository(BaseRepository):
+    LIKE_ESCAPE_CHAR = "\\"
+
+    @classmethod
+    def _escape_like_term(cls, value: str) -> str:
+        """Escape SQL LIKE wildcards so search behaves as a literal substring match."""
+        return value.replace(cls.LIKE_ESCAPE_CHAR, cls.LIKE_ESCAPE_CHAR * 2).replace("%", f"{cls.LIKE_ESCAPE_CHAR}%").replace("_", f"{cls.LIKE_ESCAPE_CHAR}_")
+
+    @staticmethod
+    def _build_photo_filters(gallery_id: uuid.UUID, search: str | None = None):
+        filters = [Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)]
+        if search:
+            escaped_search = GalleryRepository._escape_like_term(search)
+            filters.append(Photo.display_name.ilike(f"%{escaped_search}%", escape=GalleryRepository.LIKE_ESCAPE_CHAR))
+        return filters
+
+    @staticmethod
+    def _build_photo_order_clauses(sort_by: GalleryPhotoSortBy, order: SortOrder):
+        order_fn = asc if order == SortOrder.ASC else desc
+
+        if sort_by == GalleryPhotoSortBy.ORIGINAL_FILENAME:
+            primary_column = func.lower(Photo.display_name)
+            return [order_fn(primary_column), order_fn(Photo.uploaded_at), order_fn(Photo.id)]
+
+        if sort_by == GalleryPhotoSortBy.FILE_SIZE:
+            return [order_fn(Photo.file_size), order_fn(Photo.uploaded_at), order_fn(Photo.id)]
+
+        return [order_fn(Photo.uploaded_at), order_fn(Photo.id)]
+
     @staticmethod
     def _split_name_and_ext(filename: str) -> tuple[str, str]:
         path = Path(filename)
@@ -44,12 +73,21 @@ class GalleryRepository(BaseRepository):
 
         return candidate
 
-    async def create_gallery(self, owner_id: uuid.UUID, name: str, shooting_date: date | None = None) -> Gallery:
+    async def create_gallery(
+        self,
+        owner_id: uuid.UUID,
+        name: str,
+        shooting_date: date | None = None,
+        public_sort_by: GalleryPhotoSortBy = GalleryPhotoSortBy.ORIGINAL_FILENAME,
+        public_sort_order: SortOrder = SortOrder.ASC,
+    ) -> Gallery:
         gallery = Gallery(
             id=uuid.uuid4(),
             owner_id=owner_id,
             name=name,
             shooting_date=shooting_date or datetime.now(UTC).date(),
+            public_sort_by=public_sort_by.value,
+            public_sort_order=public_sort_order.value,
         )
         self.db.add(gallery)
         await self.db.commit()
@@ -86,7 +124,15 @@ class GalleryRepository(BaseRepository):
         sharelinks = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read(sharelinks)
 
-    async def update_gallery(self, gallery_id: uuid.UUID, owner_id: uuid.UUID, name: str | None = None, shooting_date: date | None = None) -> Gallery | None:
+    async def update_gallery(
+        self,
+        gallery_id: uuid.UUID,
+        owner_id: uuid.UUID,
+        name: str | None = None,
+        shooting_date: date | None = None,
+        public_sort_by: GalleryPhotoSortBy | None = None,
+        public_sort_order: SortOrder | None = None,
+    ) -> Gallery | None:
         gallery = await self.get_gallery_by_id_and_owner(gallery_id, owner_id)
         if not gallery:
             return None
@@ -97,6 +143,12 @@ class GalleryRepository(BaseRepository):
             updated = True
         if shooting_date is not None:
             gallery.shooting_date = shooting_date
+            updated = True
+        if public_sort_by is not None:
+            gallery.public_sort_by = public_sort_by.value
+            updated = True
+        if public_sort_order is not None:
+            gallery.public_sort_order = public_sort_order.value
             updated = True
 
         if updated:
@@ -240,8 +292,8 @@ class GalleryRepository(BaseRepository):
         names = (await self.db.execute(stmt)).scalars().all()
         return await self._finish_read({name for name in names if name})
 
-    async def get_photo_count_by_gallery(self, gallery_id: uuid.UUID) -> int:
-        stmt = select(func.count()).select_from(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
+    async def get_photo_count_by_gallery(self, gallery_id: uuid.UUID, search: str | None = None) -> int:
+        stmt = select(func.count()).select_from(Photo).join(Photo.gallery).where(*self._build_photo_filters(gallery_id, search))
         count = int((await self.db.execute(stmt)).scalar() or 0)
         return await self._finish_read(count)
 
@@ -250,8 +302,18 @@ class GalleryRepository(BaseRepository):
         total_size = int((await self.db.execute(stmt)).scalar() or 0)
         return await self._finish_read(total_size)
 
-    async def get_photos_by_gallery_paginated(self, gallery_id: uuid.UUID, limit: int, offset: int) -> list[Photo]:
-        stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(Photo.display_name.asc()).offset(offset).limit(limit)
+    async def get_photos_by_gallery_paginated(
+        self,
+        gallery_id: uuid.UUID,
+        limit: int | None,
+        offset: int,
+        search: str | None = None,
+        sort_by: GalleryPhotoSortBy = GalleryPhotoSortBy.UPLOADED_AT,
+        order: SortOrder = SortOrder.DESC,
+    ) -> list[Photo]:
+        stmt = select(Photo).join(Photo.gallery).where(*self._build_photo_filters(gallery_id, search)).order_by(*self._build_photo_order_clauses(sort_by, order)).offset(offset)
+        if limit is not None:
+            stmt = stmt.limit(limit)
         photos = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read(photos)
 

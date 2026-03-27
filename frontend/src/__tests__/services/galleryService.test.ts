@@ -178,6 +178,35 @@ describe('galleryService', () => {
       expect(api.get).toHaveBeenCalledWith(`/galleries/${galleryId}`);
     });
 
+    it('should send limit, offset, search, sort, and order query params', async () => {
+      const galleryId = 'gallery-params';
+      const mockResponse = {
+        data: {
+          id: galleryId,
+          owner_id: 'user1',
+          created_at: '2025-01-01T00:00:00Z',
+          shooting_date: '2025-01-01',
+          total_photos: 0,
+          photos: [],
+        },
+      };
+
+      vi.mocked(api.get).mockResolvedValue(mockResponse);
+
+      const result = await galleryService.getGallery(galleryId, {
+        limit: 25,
+        offset: 50,
+        search: 'portrait',
+        sort_by: 'file_size',
+        order: 'asc',
+      });
+
+      expect(api.get).toHaveBeenCalledWith(
+        `/galleries/${galleryId}?limit=25&offset=50&search=portrait&sort_by=file_size&order=asc`,
+      );
+      expect(result).toEqual(mockResponse.data);
+    });
+
     describe('demo mode', () => {
       let mockDemoService: any;
 
@@ -220,7 +249,13 @@ describe('galleryService', () => {
 
       it('should pass options to demo service', async () => {
         const galleryId = 'demo-gallery-456';
-        const options = { limit: 5, offset: 10 };
+        const options = {
+          limit: 5,
+          offset: 10,
+          search: 'model',
+          sort_by: 'original_filename' as const,
+          order: 'asc' as const,
+        };
         const mockDemoData = {
           id: galleryId,
           owner_id: 'demo-user',

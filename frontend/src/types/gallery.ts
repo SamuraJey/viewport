@@ -4,12 +4,25 @@
 
 import type { GalleryPhoto } from './photo';
 
+export type GalleryPhotoSortBy = 'uploaded_at' | 'original_filename' | 'file_size';
+export type SortOrder = 'asc' | 'desc';
+
+export interface GalleryPhotoQueryOptions {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  sort_by?: GalleryPhotoSortBy;
+  order?: SortOrder;
+}
+
 export interface Gallery {
   id: string;
   owner_id: string;
   name: string;
   created_at: string;
   shooting_date: string;
+  public_sort_by: GalleryPhotoSortBy;
+  public_sort_order: SortOrder;
   cover_photo_id?: string | null;
 }
 

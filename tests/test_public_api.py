@@ -14,6 +14,33 @@ def _upload_photo(client: TestClient, gallery_id: str, content: bytes, filename:
 
 
 class TestPublicAPI:
+    def test_get_photos_by_sharelink_uses_saved_gallery_sort_settings(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        _upload_photo(authenticated_client, gallery_id_fixture, b"one", "a.jpg")
+        _upload_photo(authenticated_client, gallery_id_fixture, b"two", "b.jpg")
+
+        resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"},
+        )
+        assert resp.status_code == 201
+        share_id = resp.json()["id"]
+
+        asc_resp = authenticated_client.get(f"/s/{share_id}")
+        assert asc_resp.status_code == 200
+        asc_names = [photo["filename"] for photo in asc_resp.json()["photos"]]
+        assert asc_names == ["a.jpg", "b.jpg"]
+
+        patch_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}",
+            json={"public_sort_by": "original_filename", "public_sort_order": "desc"},
+        )
+        assert patch_resp.status_code == 200
+
+        desc_resp = authenticated_client.get(f"/s/{share_id}")
+        assert desc_resp.status_code == 200
+        desc_names = [photo["filename"] for photo in desc_resp.json()["photos"]]
+        assert desc_names == ["b.jpg", "a.jpg"]
+
     def test_get_photos_by_sharelink_and_urls(self, authenticated_client: TestClient, gallery_id_fixture: str):
         # Upload two photos
         _p1 = _upload_photo(authenticated_client, gallery_id_fixture, b"one", "a.jpg")

@@ -3,15 +3,18 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { DashboardPage } from '../../pages/DashboardPage';
+import type { Gallery } from '../../types';
 
 // Mock the gallery service
-const mockGalleries = [
+const mockGalleries: Gallery[] = [
   {
     id: '1',
     owner_id: 'user1',
     name: 'Gallery 1',
     created_at: '2024-01-01T00:00:00Z',
     shooting_date: '2024-01-01',
+    public_sort_by: 'original_filename',
+    public_sort_order: 'asc',
   },
   {
     id: '2',
@@ -19,6 +22,8 @@ const mockGalleries = [
     name: 'Gallery 2',
     created_at: '2024-01-02T00:00:00Z',
     shooting_date: '2024-01-02',
+    public_sort_by: 'original_filename',
+    public_sort_order: 'asc',
   },
 ];
 
@@ -102,6 +107,8 @@ describe('DashboardPage', () => {
       name: 'Test Gallery',
       created_at: new Date().toISOString(),
       shooting_date: '2024-01-01',
+      public_sort_by: 'original_filename',
+      public_sort_order: 'asc',
     });
 
     render(<DashboardPageWrapper />);

@@ -1,5 +1,15 @@
-import { memo, type MouseEvent } from 'react';
-import { CheckSquare, Square, Search, Star, StarOff, Pencil, Download, Trash2 } from 'lucide-react';
+import { memo, useEffect, useState, type MouseEvent } from 'react';
+import {
+  CheckSquare,
+  Download,
+  ImageOff,
+  Pencil,
+  Search,
+  Square,
+  Star,
+  StarOff,
+  Trash2,
+} from 'lucide-react';
 import type { GalleryPhoto } from '../../types';
 
 interface PhotoCardProps {
@@ -29,6 +39,12 @@ const PhotoCardComponent = ({
   onRenamePhoto,
   onDeletePhoto,
 }: PhotoCardProps) => {
+  const [imageState, setImageState] = useState<'loading' | 'loaded' | 'error'>('loading');
+
+  useEffect(() => {
+    setImageState('loading');
+  }, [photo.thumbnail_url]);
+
   const handleDownload = async (e: MouseEvent) => {
     e.stopPropagation();
     try {
@@ -53,7 +69,7 @@ const PhotoCardComponent = ({
   return (
     <div
       data-photo-card
-      className={`group bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-hidden rounded-2xl border shadow-xs transition-all duration-300 hover:shadow-md focus-within:shadow-md ${
+      className={`group bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-hidden rounded-2xl border shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-md focus-within:shadow-md ${
         isCover
           ? 'border-amber-400 dark:border-amber-500 ring-2 ring-amber-400/20 dark:ring-amber-500/20'
           : isSelected
@@ -184,13 +200,35 @@ const PhotoCardComponent = ({
               : 'Click to view, double-click to rename'
           }
         >
-          <img
-            src={photo.thumbnail_url}
-            alt={`Photo ${photo.id}`}
-            crossOrigin="anonymous"
-            className="w-full h-full object-contain"
-            loading="lazy"
-          />
+          {imageState === 'error' ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-linear-to-br from-surface-1 via-surface to-surface-1/80 p-6 text-center dark:from-surface-dark-2 dark:via-surface-dark-1 dark:to-surface-dark-2">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border/50 bg-surface/80 text-muted shadow-inner dark:border-border/40 dark:bg-surface-dark-2/80">
+                <ImageOff className="h-6 w-6" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-text">Preview unavailable</p>
+                <p className="text-xs font-medium text-muted">Tap to open original photo</p>
+              </div>
+            </div>
+          ) : (
+            <img
+              src={photo.thumbnail_url}
+              alt={`Photo ${photo.id}`}
+              crossOrigin="anonymous"
+              className={`h-full w-full object-contain transition-opacity duration-300 ${
+                imageState === 'loaded' ? 'opacity-100' : 'opacity-0'
+              }`}
+              loading="lazy"
+              onLoad={() => setImageState('loaded')}
+              onError={() => setImageState('error')}
+            />
+          )}
+          {imageState === 'loading' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-linear-to-br from-surface-1/95 via-surface/95 to-surface-1/95 px-5 dark:from-surface-dark-2/95 dark:via-surface-dark-1/95 dark:to-surface-dark-2/95">
+              <div className="h-28 w-full max-w-48 animate-pulse rounded-2xl bg-surface-foreground/15 dark:bg-surface/25" />
+              <div className="h-2.5 w-24 animate-pulse rounded-full bg-surface-foreground/20 dark:bg-surface/30" />
+            </div>
+          )}
         </button>
       </div>
 

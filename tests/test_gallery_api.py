@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from tests.helpers import register_and_login, upload_photo_via_presigned
-from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH
+from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH, PHOTO_SEARCH_MAX_LENGTH
 
 
 class TestGalleryAPI:
@@ -24,6 +24,8 @@ class TestGalleryAPI:
         assert "owner_id" in data
         assert "created_at" in data
         assert "shooting_date" in data
+        assert data["public_sort_by"] == "original_filename"
+        assert data["public_sort_order"] == "asc"
         # Verify the ID is a valid UUID format
         import uuid
 
@@ -132,11 +134,77 @@ class TestGalleryAPI:
         assert "owner_id" in data
         assert "created_at" in data
         assert "shooting_date" in data
+        assert "public_sort_by" in data
+        assert "public_sort_order" in data
         assert "photos" in data
         assert "share_links" not in data
         assert "total_photos" in data
         assert "total_size_bytes" in data
         assert isinstance(data["photos"], list)
+
+    def test_get_gallery_supports_photo_search_and_sort(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"zeta-payload", "zeta.jpg")
+        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"alpha-payload", "alpha.jpg")
+        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"beta-payload", "beta.jpg")
+
+        sorted_response = authenticated_client.get(
+            f"/galleries/{gallery_id_fixture}",
+            params={
+                "limit": 10,
+                "offset": 0,
+                "sort_by": "original_filename",
+                "order": "asc",
+            },
+        )
+        assert sorted_response.status_code == 200
+        sorted_payload = sorted_response.json()
+        assert [photo["filename"] for photo in sorted_payload["photos"]] == ["alpha.jpg", "beta.jpg", "zeta.jpg"]
+
+        filtered_response = authenticated_client.get(
+            f"/galleries/{gallery_id_fixture}",
+            params={
+                "limit": 10,
+                "offset": 0,
+                "search": "ta",
+                "sort_by": "original_filename",
+                "order": "asc",
+            },
+        )
+        assert filtered_response.status_code == 200
+        filtered_payload = filtered_response.json()
+        assert filtered_payload["total_photos"] == 2
+        assert [photo["filename"] for photo in filtered_payload["photos"]] == ["beta.jpg", "zeta.jpg"]
+
+    def test_get_gallery_defaults_to_legacy_filename_order_when_sort_omitted(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"legacy-zeta", "legacy-default-zeta.jpg")
+        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"legacy-alpha", "legacy-default-alpha.jpg")
+        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"legacy-beta", "legacy-default-beta.jpg")
+
+        response = authenticated_client.get(
+            f"/galleries/{gallery_id_fixture}",
+            params={
+                "search": "legacy-default-",
+                "limit": 10,
+                "offset": 0,
+            },
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["total_photos"] == 3
+        assert [photo["filename"] for photo in payload["photos"]] == [
+            "legacy-default-alpha.jpg",
+            "legacy-default-beta.jpg",
+            "legacy-default-zeta.jpg",
+        ]
+
+    def test_get_gallery_rejects_too_long_search_query(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        response = authenticated_client.get(
+            f"/galleries/{gallery_id_fixture}",
+            params={"search": "a" * (PHOTO_SEARCH_MAX_LENGTH + 1)},
+        )
+
+        assert response.status_code == 422
 
     def test_get_gallery_not_found(self, authenticated_client: TestClient):
         """Test retrieving non-existent gallery."""
@@ -325,6 +393,21 @@ class TestGalleryAPI:
         fetched = authenticated_client.get(f"/galleries/{gallery_id_fixture}")
         assert fetched.status_code == 200
         assert fetched.json()["shooting_date"] == new_date.isoformat()
+
+    def test_update_gallery_public_sort_settings(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        response = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}",
+            json={"public_sort_by": "file_size", "public_sort_order": "desc"},
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["public_sort_by"] == "file_size"
+        assert payload["public_sort_order"] == "desc"
+
+        fetched = authenticated_client.get(f"/galleries/{gallery_id_fixture}")
+        assert fetched.status_code == 200
+        assert fetched.json()["public_sort_by"] == "file_size"
+        assert fetched.json()["public_sort_order"] == "desc"
 
     def test_update_gallery_invalid_uuid(self, authenticated_client: TestClient):
         """Test renaming with invalid UUID format."""

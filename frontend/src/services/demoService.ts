@@ -3,6 +3,8 @@ import type {
   BatchDeletePhotosResponse,
   Gallery,
   GalleryDetail,
+  GalleryPhotoQueryOptions,
+  GalleryPhotoSortBy,
   GalleryPhoto,
   GalleryListResponse,
   LoginRequest,
@@ -13,8 +15,10 @@ import type {
   RegisterResponse,
   ShareLink,
   SharedGallery,
+  SharedGalleryQueryOptions,
   User,
   UploadPreparedFile,
+  SortOrder,
 } from '../types';
 import { ApiError } from '../lib/errorHandling';
 import { isDemoModeEnabled } from '../lib/demoMode';
@@ -61,13 +65,15 @@ const buildPhoto = (galleryId: string, index: number): GalleryPhoto => {
 };
 
 const seedState = (): DemoGalleryState[] => {
-  const galleries = [
+  const galleries: Gallery[] = [
     {
       id: 'demo-gallery-fashion',
       owner_id: DEMO_OWNER_ID,
       name: 'Fashion Editorial SS26',
       created_at: '2026-03-10T12:00:00Z',
       shooting_date: '2026-03-09T08:30:00Z',
+      public_sort_by: 'original_filename',
+      public_sort_order: 'asc',
       cover_photo_id: null,
     },
     {
@@ -76,6 +82,8 @@ const seedState = (): DemoGalleryState[] => {
       name: 'Wedding Weekend - Porto',
       created_at: '2026-03-06T09:40:00Z',
       shooting_date: '2026-03-04T14:00:00Z',
+      public_sort_by: 'original_filename',
+      public_sort_order: 'asc',
       cover_photo_id: null,
     },
     {
@@ -84,6 +92,8 @@ const seedState = (): DemoGalleryState[] => {
       name: 'Product Launch Assets',
       created_at: '2026-02-27T16:20:00Z',
       shooting_date: '2026-02-25T11:00:00Z',
+      public_sort_by: 'original_filename',
+      public_sort_order: 'asc',
       cover_photo_id: null,
     },
   ];
@@ -223,16 +233,61 @@ class DemoServiceStore {
     return state;
   }
 
-  private toGalleryDetail(state: DemoGalleryState, limit?: number, offset?: number): GalleryDetail {
-    const safeOffset = Math.max(0, offset || 0);
-    const sliceEnd = typeof limit === 'number' ? safeOffset + limit : undefined;
-    const pagePhotos = state.photos.slice(safeOffset, sliceEnd);
+  private filterAndSortPhotos(
+    state: DemoGalleryState,
+    options?: GalleryPhotoQueryOptions,
+  ): GalleryPhoto[] {
+    const normalizedSearch = options?.search?.trim().toLowerCase();
+    const sortBy: GalleryPhotoSortBy = options?.sort_by ?? 'uploaded_at';
+    const order: SortOrder = options?.order ?? 'desc';
+    const direction = order === 'asc' ? 1 : -1;
+
+    const filtered = normalizedSearch
+      ? state.photos.filter((photo) => photo.filename.toLowerCase().includes(normalizedSearch))
+      : [...state.photos];
+
+    return filtered.sort((left, right) => {
+      if (sortBy === 'file_size') {
+        const sizeDelta = (left.file_size || 0) - (right.file_size || 0);
+        if (sizeDelta !== 0) {
+          return sizeDelta * direction;
+        }
+      } else if (sortBy === 'original_filename') {
+        const filenameDelta = left.filename.localeCompare(right.filename, undefined, {
+          sensitivity: 'base',
+          numeric: true,
+        });
+        if (filenameDelta !== 0) {
+          return filenameDelta * direction;
+        }
+      } else {
+        const timeDelta = Date.parse(left.uploaded_at) - Date.parse(right.uploaded_at);
+        if (timeDelta !== 0) {
+          return timeDelta * direction;
+        }
+      }
+
+      return left.filename.localeCompare(right.filename, undefined, {
+        sensitivity: 'base',
+        numeric: true,
+      });
+    });
+  }
+
+  private toGalleryDetail(
+    state: DemoGalleryState,
+    options?: GalleryPhotoQueryOptions,
+  ): GalleryDetail {
+    const filteredAndSortedPhotos = this.filterAndSortPhotos(state, options);
+    const safeOffset = Math.max(0, options?.offset || 0);
+    const sliceEnd = typeof options?.limit === 'number' ? safeOffset + options.limit : undefined;
+    const pagePhotos = filteredAndSortedPhotos.slice(safeOffset, sliceEnd);
     const totalSize = state.photos.reduce((sum, photo) => sum + (photo.file_size || 0), 0);
 
     return {
       ...state.gallery,
       photos: pagePhotos,
-      total_photos: state.photos.length,
+      total_photos: filteredAndSortedPhotos.length,
       total_size_bytes: totalSize,
     };
   }
@@ -301,12 +356,9 @@ class DemoServiceStore {
     };
   }
 
-  async getGallery(
-    galleryId: string,
-    options?: { limit?: number; offset?: number },
-  ): Promise<GalleryDetail> {
+  async getGallery(galleryId: string, options?: GalleryPhotoQueryOptions): Promise<GalleryDetail> {
     const state = this.getGalleryState(galleryId);
-    return this.toGalleryDetail(state, options?.limit, options?.offset);
+    return this.toGalleryDetail(state, options);
   }
 
   async createGallery(payload: { name?: string; shooting_date?: string | null }): Promise<Gallery> {
@@ -317,6 +369,8 @@ class DemoServiceStore {
       name: payload.name?.trim() || 'Untitled Gallery',
       created_at: createdAt,
       shooting_date: payload.shooting_date || createdAt,
+      public_sort_by: 'original_filename',
+      public_sort_order: 'asc',
       cover_photo_id: null,
     };
 
@@ -338,7 +392,12 @@ class DemoServiceStore {
 
   async updateGallery(
     galleryId: string,
-    payload: { name?: string; shooting_date?: string | null },
+    payload: {
+      name?: string;
+      shooting_date?: string | null;
+      public_sort_by?: GalleryPhotoSortBy;
+      public_sort_order?: SortOrder;
+    },
   ): Promise<Gallery> {
     const state = this.getGalleryState(galleryId);
 
@@ -346,6 +405,8 @@ class DemoServiceStore {
       ...state.gallery,
       name: payload.name?.trim() || state.gallery.name,
       shooting_date: payload.shooting_date ?? state.gallery.shooting_date,
+      public_sort_by: payload.public_sort_by ?? state.gallery.public_sort_by,
+      public_sort_order: payload.public_sort_order ?? state.gallery.public_sort_order,
     };
     this.persistState();
 
@@ -405,9 +466,41 @@ class DemoServiceStore {
     );
   }
 
+  private sortSharedPhotos(
+    photos: GalleryPhoto[],
+    sortBy: GalleryPhotoSortBy,
+    order: SortOrder,
+  ): GalleryPhoto[] {
+    const direction = order === 'asc' ? 1 : -1;
+
+    return [...photos].sort((left, right) => {
+      if (sortBy === 'uploaded_at') {
+        const timestampDelta = Date.parse(left.uploaded_at) - Date.parse(right.uploaded_at);
+        if (timestampDelta !== 0) {
+          return timestampDelta * direction;
+        }
+      } else if (sortBy === 'file_size') {
+        const fileSizeDelta = (left.file_size || 0) - (right.file_size || 0);
+        if (fileSizeDelta !== 0) {
+          return fileSizeDelta * direction;
+        }
+      } else {
+        const filenameDelta = left.filename.localeCompare(right.filename, undefined, {
+          sensitivity: 'base',
+          numeric: true,
+        });
+        if (filenameDelta !== 0) {
+          return filenameDelta * direction;
+        }
+      }
+
+      return left.id.localeCompare(right.id);
+    });
+  }
+
   async getSharedGallery(
     shareId: string,
-    options?: { limit?: number; offset?: number },
+    options?: SharedGalleryQueryOptions,
   ): Promise<SharedGallery> {
     const state = this.findByShareId(shareId);
     if (!state) {
@@ -420,16 +513,20 @@ class DemoServiceStore {
       this.persistState();
     }
 
+    const sortBy: GalleryPhotoSortBy = state.gallery.public_sort_by ?? 'original_filename';
+    const sortOrder: SortOrder = state.gallery.public_sort_order ?? 'asc';
+    const sortedPhotos = this.sortSharedPhotos(state.photos, sortBy, sortOrder);
+
     const safeOffset = Math.max(0, options?.offset || 0);
-    const limit = options?.limit ?? state.photos.length;
-    const photos = state.photos.slice(safeOffset, safeOffset + limit);
+    const limit = options?.limit ?? sortedPhotos.length;
+    const photos = sortedPhotos.slice(safeOffset, safeOffset + limit);
 
     return {
       gallery_name: state.gallery.name,
       photographer: this.user.display_name || this.user.email,
       date: state.gallery.shooting_date,
       site_url: window.location.origin,
-      total_photos: state.photos.length,
+      total_photos: sortedPhotos.length,
       cover: state.gallery.cover_photo_id
         ? {
             photo_id: state.gallery.cover_photo_id,

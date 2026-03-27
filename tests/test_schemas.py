@@ -129,7 +129,14 @@ class TestGallerySchemas:
         created_at = datetime.now(UTC)
         shooting_date = created_at.date()
 
-        data = {"id": gallery_id, "owner_id": owner_id, "created_at": created_at, "shooting_date": shooting_date}
+        data = {
+            "id": gallery_id,
+            "owner_id": owner_id,
+            "created_at": created_at,
+            "shooting_date": shooting_date,
+            "public_sort_by": "original_filename",
+            "public_sort_order": "asc",
+        }
         response = GalleryResponse(**data)
 
         assert response.id == gallery_id
@@ -148,7 +155,16 @@ class TestGallerySchemas:
 
         photos = []
 
-        data = {"id": gallery_id, "owner_id": owner_id, "created_at": created_at, "shooting_date": shooting_date, "photos": photos, "total_photos": 0}
+        data = {
+            "id": gallery_id,
+            "owner_id": owner_id,
+            "created_at": created_at,
+            "shooting_date": shooting_date,
+            "public_sort_by": "original_filename",
+            "public_sort_order": "asc",
+            "photos": photos,
+            "total_photos": 0,
+        }
         response = GalleryDetailResponse(**data)
 
         assert response.id == gallery_id
@@ -166,7 +182,16 @@ class TestGallerySchemas:
         created_at = datetime.now(UTC)
         shooting_date = created_at.date()
 
-        galleries = [{"id": gallery_id, "owner_id": owner_id, "created_at": created_at, "shooting_date": shooting_date}]
+        galleries = [
+            {
+                "id": gallery_id,
+                "owner_id": owner_id,
+                "created_at": created_at,
+                "shooting_date": shooting_date,
+                "public_sort_by": "original_filename",
+                "public_sort_order": "asc",
+            }
+        ]
 
         data = {"galleries": galleries, "total": 1, "page": 1, "size": 10}
         response = GalleryListResponse(**data)

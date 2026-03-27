@@ -19,7 +19,7 @@ from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client as get_sync_s3_client
 from viewport.s3_utils import get_s3_settings
-from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse, GalleryUpdateRequest
+from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryPhotoQueryParams, GalleryPhotoSortBy, GalleryResponse, GalleryUpdateRequest, SortOrder
 from viewport.schemas.photo import DownloadSelectedPhotosRequest, GalleryPhotoResponse
 
 router = APIRouter(prefix="/galleries", tags=["galleries"])
@@ -36,13 +36,22 @@ async def create_gallery(
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> GalleryResponse:
-    gallery = await repo.create_gallery(current_user.id, request.name, request.shooting_date)
+    gallery = await repo.create_gallery(
+        current_user.id,
+        request.name,
+        request.shooting_date,
+        public_sort_by=request.public_sort_by,
+        public_sort_order=request.public_sort_order,
+    )
+
     return GalleryResponse(
         id=str(gallery.id),
         owner_id=str(gallery.owner_id),
         name=gallery.name,
         created_at=gallery.created_at,
         shooting_date=gallery.shooting_date,
+        public_sort_by=gallery.public_sort_by,
+        public_sort_order=gallery.public_sort_order,
         cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
     )
 
@@ -63,6 +72,8 @@ async def list_galleries(
                 name=g.name,
                 created_at=g.created_at,
                 shooting_date=g.shooting_date,
+                public_sort_by=g.public_sort_by,
+                public_sort_order=g.public_sort_order,
                 cover_photo_id=str(g.cover_photo_id) if g.cover_photo_id else None,
             )
             for g in galleries
@@ -79,6 +90,7 @@ async def get_gallery_detail(
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
+    photo_query: GalleryPhotoQueryParams = Depends(),
     limit: int | None = Query(None, ge=1, le=1000, description="Limit number of photos returned (for pagination)"),
     offset: int = Query(0, ge=0, description="Offset for photo pagination"),
 ) -> GalleryDetailResponse:
@@ -95,15 +107,37 @@ async def get_gallery_detail(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
 
     # Use repository methods that perform efficient DB queries instead of loading the whole relationship
-    photo_count = await repo.get_photo_count_by_gallery(gallery_id)
+    photo_count = await repo.get_photo_count_by_gallery(gallery_id, search=photo_query.search)
     total_size_bytes = await repo.get_photo_total_size_by_gallery(gallery_id)
 
-    if limit is not None:
-        photos_to_process = await repo.get_photos_by_gallery_paginated(gallery_id, limit, offset)
-        logger.info("Gallery %s: DB query took %.3fs, total photos: %s, returning: %s (offset=%s, limit=%s)", gallery_id, db_time, photo_count, len(photos_to_process), offset, limit)
+    # Preserve historical default ordering when clients omit both sort params.
+    if photo_query.sort_by is None and photo_query.order is None:
+        resolved_sort_by = GalleryPhotoSortBy.ORIGINAL_FILENAME
+        resolved_order = SortOrder.ASC
     else:
-        photos_to_process = await repo.get_photos_by_gallery_id(gallery_id)
-        logger.info("Gallery %s: DB query took %.3fs, photos count: %s", gallery_id, db_time, photo_count)
+        resolved_sort_by = photo_query.sort_by or GalleryPhotoSortBy.UPLOADED_AT
+        resolved_order = photo_query.order or SortOrder.DESC
+
+    photos_to_process = await repo.get_photos_by_gallery_paginated(
+        gallery_id=gallery_id,
+        limit=limit,
+        offset=offset,
+        search=photo_query.search,
+        sort_by=resolved_sort_by,
+        order=resolved_order,
+    )
+    logger.info(
+        "Gallery %s: DB query took %.3fs, total photos: %s, returning: %s (offset=%s, limit=%s, search=%s, sort_by=%s, order=%s)",
+        gallery_id,
+        db_time,
+        photo_count,
+        len(photos_to_process),
+        offset,
+        limit,
+        bool(photo_query.search),
+        resolved_sort_by.value,
+        resolved_order.value,
+    )
 
     # Generate presigned URLs without blocking the request event loop.
     url_start = time.monotonic()
@@ -123,6 +157,8 @@ async def get_gallery_detail(
         name=gallery.name,
         created_at=gallery.created_at,
         shooting_date=gallery.shooting_date,
+        public_sort_by=gallery.public_sort_by,
+        public_sort_order=gallery.public_sort_order,
         cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
         photos=photo_responses,
         total_photos=photo_count,
@@ -228,6 +264,8 @@ async def set_cover_photo(
         name=gallery.name,
         created_at=gallery.created_at,
         shooting_date=gallery.shooting_date,
+        public_sort_by=gallery.public_sort_by,
+        public_sort_order=gallery.public_sort_order,
         cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
     )
 
@@ -262,14 +300,24 @@ async def update_gallery(
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
 ) -> GalleryResponse:
-    gallery = await repo.update_gallery(gallery_id, current_user.id, name=request.name, shooting_date=request.shooting_date)
+    gallery = await repo.update_gallery(
+        gallery_id,
+        current_user.id,
+        name=request.name,
+        shooting_date=request.shooting_date,
+        public_sort_by=request.public_sort_by,
+        public_sort_order=request.public_sort_order,
+    )
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
+
     return GalleryResponse(
         id=str(gallery.id),
         owner_id=str(gallery.owner_id),
         name=gallery.name,
         created_at=gallery.created_at,
         shooting_date=gallery.shooting_date,
+        public_sort_by=gallery.public_sort_by,
+        public_sort_order=gallery.public_sort_order,
         cover_photo_id=str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None,
     )

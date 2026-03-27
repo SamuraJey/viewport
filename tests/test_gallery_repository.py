@@ -8,6 +8,7 @@ from viewport.models.gallery import PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
 from viewport.repositories.gallery_repository import GalleryRepository
+from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 
 
 @pytest_asyncio.fixture
@@ -146,6 +147,132 @@ async def test_photo_queries(repo: GalleryRepository, owner_id):
     assert repo.db.in_transaction() is False
 
     assert await repo.get_photos_by_ids_and_gallery(gallery.id, []) == []
+
+
+@pytest.mark.asyncio
+async def test_gallery_photo_search_sort_and_filtered_count(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Search Sort")
+    other_gallery = await repo.create_gallery(owner_id, "Other")
+
+    photo_alpha = await repo.create_photo(
+        gallery.id,
+        f"{gallery.id}/alpha.jpg",
+        f"{gallery.id}/alpha.jpg",
+        100,
+        display_name="Alpha.jpg",
+    )
+    photo_beta = await repo.create_photo(
+        gallery.id,
+        f"{gallery.id}/beta.jpg",
+        f"{gallery.id}/beta.jpg",
+        300,
+        display_name="beta.jpg",
+    )
+    photo_zeta = await repo.create_photo(
+        gallery.id,
+        f"{gallery.id}/zeta.jpg",
+        f"{gallery.id}/zeta.jpg",
+        200,
+        display_name="zeta.jpg",
+    )
+
+    await repo.create_photo(
+        other_gallery.id,
+        f"{other_gallery.id}/beta.jpg",
+        f"{other_gallery.id}/beta.jpg",
+        999,
+        display_name="beta.jpg",
+    )
+
+    photo_alpha.uploaded_at = datetime(2026, 3, 20, 10, 0, tzinfo=UTC)
+    photo_beta.uploaded_at = datetime(2026, 3, 21, 10, 0, tzinfo=UTC)
+    photo_zeta.uploaded_at = datetime(2026, 3, 22, 10, 0, tzinfo=UTC)
+    await repo.db.commit()
+
+    filtered_count = await repo.get_photo_count_by_gallery(gallery.id, search="ta")
+    assert filtered_count == 2
+
+    filtered_photos = await repo.get_photos_by_gallery_paginated(
+        gallery_id=gallery.id,
+        limit=10,
+        offset=0,
+        search="TA",
+        sort_by=GalleryPhotoSortBy.ORIGINAL_FILENAME,
+        order=SortOrder.ASC,
+    )
+    assert [photo.display_name for photo in filtered_photos] == ["beta.jpg", "zeta.jpg"]
+
+    by_size_desc = await repo.get_photos_by_gallery_paginated(
+        gallery_id=gallery.id,
+        limit=3,
+        offset=0,
+        sort_by=GalleryPhotoSortBy.FILE_SIZE,
+        order=SortOrder.DESC,
+    )
+    assert [photo.file_size for photo in by_size_desc] == [300, 200, 100]
+
+    by_uploaded_desc = await repo.get_photos_by_gallery_paginated(
+        gallery_id=gallery.id,
+        limit=3,
+        offset=0,
+        sort_by=GalleryPhotoSortBy.UPLOADED_AT,
+        order=SortOrder.DESC,
+    )
+    assert [photo.display_name for photo in by_uploaded_desc] == ["zeta.jpg", "beta.jpg", "Alpha.jpg"]
+
+
+@pytest.mark.asyncio
+async def test_gallery_photo_search_escapes_like_metacharacters(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Literal Search")
+
+    await repo.create_photo(
+        gallery.id,
+        f"{gallery.id}/contains-percent.jpg",
+        f"{gallery.id}/contains-percent.jpg",
+        100,
+        display_name="invoice-100%-final.jpg",
+    )
+    await repo.create_photo(
+        gallery.id,
+        f"{gallery.id}/no-percent.jpg",
+        f"{gallery.id}/no-percent.jpg",
+        100,
+        display_name="invoice-1000-final.jpg",
+    )
+    await repo.create_photo(
+        gallery.id,
+        f"{gallery.id}/contains-underscore.jpg",
+        f"{gallery.id}/contains-underscore.jpg",
+        100,
+        display_name="frame_01.jpg",
+    )
+    await repo.create_photo(
+        gallery.id,
+        f"{gallery.id}/no-underscore.jpg",
+        f"{gallery.id}/no-underscore.jpg",
+        100,
+        display_name="frameA01.jpg",
+    )
+
+    percent_matches = await repo.get_photos_by_gallery_paginated(
+        gallery_id=gallery.id,
+        limit=20,
+        offset=0,
+        search="100%",
+        sort_by=GalleryPhotoSortBy.ORIGINAL_FILENAME,
+        order=SortOrder.ASC,
+    )
+    assert [photo.display_name for photo in percent_matches] == ["invoice-100%-final.jpg"]
+
+    underscore_matches = await repo.get_photos_by_gallery_paginated(
+        gallery_id=gallery.id,
+        limit=20,
+        offset=0,
+        search="frame_",
+        sort_by=GalleryPhotoSortBy.ORIGINAL_FILENAME,
+        order=SortOrder.ASC,
+    )
+    assert [photo.display_name for photo in underscore_matches] == ["frame_01.jpg"]
 
 
 @pytest.mark.asyncio
