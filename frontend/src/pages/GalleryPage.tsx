@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
@@ -144,14 +144,61 @@ export const GalleryPage = () => {
   };
 
   // Handler for selecting all photos on current page
-  const handleSelectAllPhotos = () => {
+  const handleSelectAllPhotos = useCallback(() => {
     if (areAllOnPageSelected) {
       const pagePhotoIds = photoUrls.map((p) => p.id);
       pagePhotoIds.forEach((id) => selection.deselect(id));
     } else {
       selection.selectMultiple(photoUrls.map((p) => p.id));
     }
-  };
+  }, [areAllOnPageSelected, photoUrls, selection]);
+
+  useEffect(() => {
+    if (!isSelectionMode) {
+      return;
+    }
+
+    const handler = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      const isTypingTarget =
+        tagName === 'INPUT' ||
+        tagName === 'TEXTAREA' ||
+        tagName === 'SELECT' ||
+        Boolean(target?.isContentEditable);
+
+      if (isTypingTarget) {
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        selection.clear();
+        setIsSelectionMode(false);
+        return;
+      }
+
+      const isSelectAllShortcut =
+        (event.ctrlKey || event.metaKey) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === 'a';
+
+      if (isSelectAllShortcut) {
+        event.preventDefault();
+        handleSelectAllPhotos();
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => {
+      window.removeEventListener('keydown', handler);
+    };
+  }, [isSelectionMode, handleSelectAllPhotos, selection]);
 
   // Handler for deleting multiple photos
   const handleDeleteMultiplePhotosWrapper = () => {
@@ -206,6 +253,7 @@ export const GalleryPage = () => {
       onDragOver={isModalOpen ? undefined : handleGalleryDragOver}
       onDragLeave={isModalOpen ? undefined : handleGalleryDragLeave}
       onDrop={isModalOpen ? undefined : handleGalleryDrop}
+      aria-label={isSelectionMode ? 'Selection mode active' : undefined}
     >
       <GalleryDragOverlay isActive={isPageDragActive} />
 
@@ -241,8 +289,9 @@ export const GalleryPage = () => {
             selectionCount: selection.count,
             selectedSizeBytes,
             hasSelection: selection.hasSelection,
-            isPhotoSelected: (id) => selection.isSelected(id),
-            isCoverPhoto: (photoId) => gallery.cover_photo_id === photoId,
+            isPhotoSelected: (id: string) => selection.isSelected(id),
+            isCoverPhoto: (photoId: string | null | undefined) =>
+              gallery.cover_photo_id === photoId,
           }}
           actions={{
             onUploadComplete: handleUploadComplete,

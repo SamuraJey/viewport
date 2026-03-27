@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, CalendarDays, Check, HardDrive, Loader2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, HardDrive, Loader2, Trash2 } from 'lucide-react';
 import { formatDateOnly, formatFileSize } from '../../lib/utils';
 import type { GalleryDetail } from '../../types';
 
@@ -99,9 +99,8 @@ export const GalleryHeader = ({
                   type="date"
                   value={shootingDateInput}
                   onChange={(e) => setShootingDateInput(e.target.value)}
-                  className="gallery-date-input h-10 min-w-0 w-full appearance-none rounded-lg border-none bg-transparent px-2 pr-10 text-sm font-medium text-text focus:outline-hidden"
+                  className="gallery-date-input h-10 min-w-0 w-full rounded-lg border-none bg-transparent px-2 text-sm font-medium text-text focus:outline-hidden"
                 />
-                <CalendarDays className="pointer-events-none absolute right-3 h-4 w-4 text-muted dark:text-muted-dark" />
               </div>
               <button
                 onClick={onSaveShootingDate}

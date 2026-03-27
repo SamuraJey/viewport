@@ -110,7 +110,7 @@ No version prefix in URL (assuming v1). Future versions will use:
 ### Photo Management
 - `POST /galleries/{id}/photos` - Upload photo
 - `GET /galleries/{id}/photos` - List gallery photos
-- `DELETE /galleries/{id}/photos/{photo_id}` - Delete photo
+- `DELETE /galleries/{id}/photos` - Delete photos in batch (body: `photo_ids[]`)
 
 ### Share Links
 - `POST /galleries/{id}/share-links` - Create share link
@@ -216,6 +216,6 @@ Webhooks not yet implemented. Planned for:
 
 ---
 
-For complete endpoint documentation, see [API Reference](./reference.md).  
-For authentication details, see [Authentication Guide](./authentication.md).  
+For complete endpoint documentation, see [API Reference](./reference.md).
+For authentication details, see [Authentication Guide](./authentication.md).
 For practical examples, see [Examples & Workflows](./examples.md).

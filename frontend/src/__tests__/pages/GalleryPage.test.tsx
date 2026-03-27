@@ -84,6 +84,7 @@ vi.mock('../../services/galleryService', () => ({
 
 vi.mock('../../services/photoService', () => ({
   photoService: {
+    deletePhotos: vi.fn(),
     deletePhoto: vi.fn(),
     renamePhoto: vi.fn(),
     uploadPhotosPresigned: vi.fn(),

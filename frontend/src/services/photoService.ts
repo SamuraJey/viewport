@@ -1,8 +1,11 @@
 import { api } from '../lib/api';
 import { isDemoModeEnabled } from '../lib/demoMode';
+import { ApiError } from '../lib/errorHandling';
 import { getDemoService } from './demoService';
 import { useAuthStore } from '../stores/authStore';
 import type {
+  BatchDeletePhotosRequest,
+  BatchDeletePhotosResponse,
   PhotoResponse,
   PhotoUploadIntentRequest,
   PhotoUploadResult,
@@ -20,6 +23,13 @@ export type { PhotoResponse, PhotoUploadIntentRequest, PhotoUploadResult, PhotoU
 
 const DOWNLOAD_TARGET_NAME = 'viewport-browser-download';
 const DOWNLOAD_TARGET_ID = 'viewport-browser-download-frame';
+
+const EMPTY_BATCH_DELETE_RESULT: BatchDeletePhotosResponse = {
+  requested_count: 0,
+  deleted_ids: [],
+  not_found_ids: [],
+  failed_ids: [],
+};
 
 const appendHiddenField = (form: HTMLFormElement, name: string, value: string) => {
   const input = document.createElement('input');
@@ -75,13 +85,39 @@ const submitBrowserDownload = (path: string, fields: Record<string, string | str
   }, 0);
 };
 
-const deletePhoto = async (galleryId: string, photoId: string): Promise<void> => {
-  if (isDemoModeEnabled()) {
-    await getDemoService().deletePhoto(galleryId, photoId);
-    return;
+const deletePhotos = async (
+  galleryId: string,
+  photoIds: string[],
+): Promise<BatchDeletePhotosResponse> => {
+  if (photoIds.length === 0) {
+    return EMPTY_BATCH_DELETE_RESULT;
   }
 
-  await api.delete(`/galleries/${galleryId}/photos/${photoId}`);
+  if (isDemoModeEnabled()) {
+    return getDemoService().deletePhotos(galleryId, photoIds);
+  }
+
+  const request: BatchDeletePhotosRequest = {
+    photo_ids: photoIds,
+  };
+
+  const response = await api.delete<BatchDeletePhotosResponse>(`/galleries/${galleryId}/photos`, {
+    data: request,
+  });
+
+  return response.data;
+};
+
+const deletePhoto = async (galleryId: string, photoId: string): Promise<void> => {
+  const result = await deletePhotos(galleryId, [photoId]);
+
+  if (result.not_found_ids.includes(photoId)) {
+    throw new ApiError(404, 'Photo not found', { detail: 'Photo not found' });
+  }
+
+  if (result.failed_ids.includes(photoId)) {
+    throw new Error('Failed to enqueue photo deletion');
+  }
 };
 
 const renamePhoto = async (
@@ -562,6 +598,7 @@ const uploadPhotosPresigned = async (
 };
 
 export const photoService = {
+  deletePhotos,
   deletePhoto,
   renamePhoto,
   downloadGalleryZip,

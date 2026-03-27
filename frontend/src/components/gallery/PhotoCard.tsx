@@ -1,4 +1,4 @@
-import React from 'react';
+import { memo, type MouseEvent } from 'react';
 import { CheckSquare, Square, Search, Star, StarOff, Pencil, Download, Trash2 } from 'lucide-react';
 import type { GalleryPhoto } from '../../types';
 
@@ -29,7 +29,7 @@ const PhotoCardComponent = ({
   onRenamePhoto,
   onDeletePhoto,
 }: PhotoCardProps) => {
-  const handleDownload = async (e: React.MouseEvent) => {
+  const handleDownload = async (e: MouseEvent) => {
     e.stopPropagation();
     try {
       const response = await fetch(photo.url);
@@ -56,7 +56,9 @@ const PhotoCardComponent = ({
       className={`group bg-surface dark:bg-surface-dark-1 flex flex-col relative overflow-hidden rounded-2xl border shadow-xs transition-all duration-300 hover:shadow-md focus-within:shadow-md ${
         isCover
           ? 'border-amber-400 dark:border-amber-500 ring-2 ring-amber-400/20 dark:ring-amber-500/20'
-          : 'border-border/50 dark:border-border/40 dark:hover:border-accent/50 dark:focus-within:border-accent/50'
+          : isSelected
+            ? 'border-accent/60 ring-2 ring-accent/20'
+            : 'border-border/50 dark:border-border/40 dark:hover:border-accent/50 dark:focus-within:border-accent/50'
       }`}
     >
       {/* Cover indicator */}
@@ -80,6 +82,7 @@ const PhotoCardComponent = ({
               : 'bg-surface/90 dark:bg-surface-dark-1/90 text-muted hover:text-text shadow-sm hover:scale-105 backdrop-blur-md'
           }`}
           title={isSelected ? 'Deselect' : 'Select'}
+          aria-pressed={isSelected}
         >
           {isSelected ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
         </button>
@@ -159,14 +162,27 @@ const PhotoCardComponent = ({
 
         {/* Photo - takes full image area */}
         <button
-          onClick={() => onOpenPhoto(index)}
+          onClick={(e) => {
+            if (isSelectionMode) {
+              onToggleSelection(photo.id, e.shiftKey);
+              return;
+            }
+            onOpenPhoto(index);
+          }}
           onDoubleClick={(e) => {
             e.stopPropagation();
+            if (isSelectionMode) {
+              return;
+            }
             onRenamePhoto(photo.id, photo.filename);
           }}
           className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
           aria-label={`Photo ${photo.id}`}
-          title="Click to view, double-click to rename"
+          title={
+            isSelectionMode
+              ? 'Click to toggle selection. Use Shift+Click to select range.'
+              : 'Click to view, double-click to rename'
+          }
         >
           <img
             src={photo.thumbnail_url}
@@ -188,4 +204,4 @@ const PhotoCardComponent = ({
   );
 };
 
-export const PhotoCard = React.memo(PhotoCardComponent);
+export const PhotoCard = memo(PhotoCardComponent);

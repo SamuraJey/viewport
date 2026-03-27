@@ -1206,18 +1206,6 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   background: rgb(var(--color-neutral-500-rgb) / 0.7);
 }
 
-/* ===== DATE INPUT STYLING ===== */
-input[type='date']::-webkit-calendar-picker-indicator {
-  opacity: 0;
-  cursor: auto;
-  display: none;
-  filter: none;
-}
-
-input[type='date']:hover::-webkit-calendar-picker-indicator {
-  opacity: 0;
-}
-
 /* ===== PHOTO UPLOADER ===== */
 .uploader-zone {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
