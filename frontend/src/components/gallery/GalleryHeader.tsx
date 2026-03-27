@@ -144,7 +144,7 @@ export const GalleryHeader = ({
       return;
     }
 
-    const onPointerDown = (event: MouseEvent) => {
+    const onPointerDown = (event: Event) => {
       if (filtersPopoverRef.current?.contains(event.target as Node)) {
         return;
       }
@@ -157,11 +157,23 @@ export const GalleryHeader = ({
       }
     };
 
-    document.addEventListener('mousedown', onPointerDown);
+    const supportsPointerEvents = typeof window !== 'undefined' && 'PointerEvent' in window;
+
+    if (supportsPointerEvents) {
+      document.addEventListener('pointerdown', onPointerDown);
+    } else {
+      document.addEventListener('mousedown', onPointerDown);
+      document.addEventListener('touchstart', onPointerDown);
+    }
     window.addEventListener('keydown', onKeyDown);
 
     return () => {
-      document.removeEventListener('mousedown', onPointerDown);
+      if (supportsPointerEvents) {
+        document.removeEventListener('pointerdown', onPointerDown);
+      } else {
+        document.removeEventListener('mousedown', onPointerDown);
+        document.removeEventListener('touchstart', onPointerDown);
+      }
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [isFiltersOpen]);
