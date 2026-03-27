@@ -134,7 +134,7 @@ const GalleryPageWrapper = () => {
 describe('GalleryPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => { });
 
     // Default mock responses
     const { galleryService } = await import('../../services/galleryService');
@@ -239,6 +239,25 @@ describe('GalleryPage', () => {
   });
 
   describe('Photo Actions', () => {
+    it('should not send update when shooting date is cleared', async () => {
+      const { galleryService } = await import('../../services/galleryService');
+
+      render(<GalleryPageWrapper />);
+
+      const shootingDateInput = await screen.findByLabelText(/shooting date/i);
+      expect(shootingDateInput).toHaveValue('2024-01-01');
+
+      await userEvent.clear(shootingDateInput);
+
+      await waitFor(
+        () => {
+          expect(vi.mocked(galleryService.updateGallery)).not.toHaveBeenCalled();
+          expect(shootingDateInput).toHaveValue('2024-01-01');
+        },
+        { timeout: 1200 },
+      );
+    });
+
     it('should handle photo deletion', async () => {
       const { photoService } = await import('../../services/photoService');
 

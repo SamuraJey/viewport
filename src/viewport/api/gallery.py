@@ -19,7 +19,7 @@ from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client as get_sync_s3_client
 from viewport.s3_utils import get_s3_settings
-from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryPhotoQueryParams, GalleryResponse, GalleryUpdateRequest
+from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryPhotoQueryParams, GalleryPhotoSortBy, GalleryResponse, GalleryUpdateRequest, SortOrder
 from viewport.schemas.photo import DownloadSelectedPhotosRequest, GalleryPhotoResponse
 
 router = APIRouter(prefix="/galleries", tags=["galleries"])
@@ -110,13 +110,21 @@ async def get_gallery_detail(
     photo_count = await repo.get_photo_count_by_gallery(gallery_id, search=photo_query.search)
     total_size_bytes = await repo.get_photo_total_size_by_gallery(gallery_id)
 
+    # Preserve historical default ordering when clients omit both sort params.
+    if photo_query.sort_by is None and photo_query.order is None:
+        resolved_sort_by = GalleryPhotoSortBy.ORIGINAL_FILENAME
+        resolved_order = SortOrder.ASC
+    else:
+        resolved_sort_by = photo_query.sort_by or GalleryPhotoSortBy.CREATED_AT
+        resolved_order = photo_query.order or SortOrder.DESC
+
     photos_to_process = await repo.get_photos_by_gallery_paginated(
         gallery_id=gallery_id,
         limit=limit,
         offset=offset,
         search=photo_query.search,
-        sort_by=photo_query.sort_by,
-        order=photo_query.order,
+        sort_by=resolved_sort_by,
+        order=resolved_order,
     )
     logger.info(
         "Gallery %s: DB query took %.3fs, total photos: %s, returning: %s (offset=%s, limit=%s, search=%s, sort_by=%s, order=%s)",
@@ -127,8 +135,8 @@ async def get_gallery_detail(
         offset,
         limit,
         bool(photo_query.search),
-        photo_query.sort_by.value,
-        photo_query.order.value,
+        resolved_sort_by.value,
+        resolved_order.value,
     )
 
     # Generate presigned URLs without blocking the request event loop.

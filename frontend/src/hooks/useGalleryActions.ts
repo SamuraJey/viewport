@@ -152,14 +152,22 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
   };
 
   const handleSaveShootingDate = useCallback(
-    async (dateValue?: string | null) => {
+    async (dateValue?: string) => {
       const normalizedDate = (dateValue ?? shootingDateInput).trim();
+
+      if (!normalizedDate) {
+        const fallbackDate = gallery?.shooting_date?.slice(0, 10) ?? '';
+        if (shootingDateInput !== fallbackDate) {
+          setShootingDateInput(fallbackDate);
+        }
+        return;
+      }
 
       setIsSavingShootingDate(true);
       clearError();
       try {
         const updated = await galleryService.updateGallery(galleryId, {
-          shooting_date: normalizedDate || null,
+          shooting_date: normalizedDate,
         });
         setGallery((prev: GalleryDetail | null) =>
           prev ? { ...prev, shooting_date: updated.shooting_date } : prev,
@@ -171,7 +179,7 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
         setIsSavingShootingDate(false);
       }
     },
-    [clearError, galleryId, handleError, shootingDateInput],
+    [clearError, gallery?.shooting_date, galleryId, handleError, shootingDateInput],
   );
 
   const handleSavePublicSortSettings = useCallback(
@@ -186,10 +194,10 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
         setGallery((prev: GalleryDetail | null) =>
           prev
             ? {
-                ...prev,
-                public_sort_by: updated.public_sort_by,
-                public_sort_order: updated.public_sort_order,
-              }
+              ...prev,
+              public_sort_by: updated.public_sort_by,
+              public_sort_order: updated.public_sort_order,
+            }
             : prev,
         );
       } catch (err) {
@@ -331,11 +339,11 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
       prev.map((photo) =>
         photo.id === renameModal.data!.id
           ? {
-              ...photo,
-              filename: renamedPhoto.filename,
-              url: renamedPhoto.url,
-              thumbnail_url: renamedPhoto.thumbnail_url,
-            }
+            ...photo,
+            filename: renamedPhoto.filename,
+            url: renamedPhoto.url,
+            thumbnail_url: renamedPhoto.thumbnail_url,
+          }
           : photo,
       ),
     );

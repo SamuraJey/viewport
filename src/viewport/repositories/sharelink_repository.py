@@ -57,7 +57,6 @@ class ShareLinkRepository(BaseRepository):  # pragma: no cover # TODO tests
         sort_by: GalleryPhotoSortBy = GalleryPhotoSortBy.ORIGINAL_FILENAME,
         order: SortOrder = SortOrder.ASC,
     ) -> list[Photo]:
-        # Ensure consistent ordering by filename/object_key for public listings
         from viewport.models.gallery import Gallery
 
         stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(*self._build_public_photo_order_clauses(sort_by, order)).offset(offset)

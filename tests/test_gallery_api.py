@@ -175,6 +175,29 @@ class TestGalleryAPI:
         assert filtered_payload["total_photos"] == 2
         assert [photo["filename"] for photo in filtered_payload["photos"]] == ["beta.jpg", "zeta.jpg"]
 
+    def test_get_gallery_defaults_to_legacy_filename_order_when_sort_omitted(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"legacy-zeta", "legacy-default-zeta.jpg")
+        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"legacy-alpha", "legacy-default-alpha.jpg")
+        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"legacy-beta", "legacy-default-beta.jpg")
+
+        response = authenticated_client.get(
+            f"/galleries/{gallery_id_fixture}",
+            params={
+                "search": "legacy-default-",
+                "limit": 10,
+                "offset": 0,
+            },
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["total_photos"] == 3
+        assert [photo["filename"] for photo in payload["photos"]] == [
+            "legacy-default-alpha.jpg",
+            "legacy-default-beta.jpg",
+            "legacy-default-zeta.jpg",
+        ]
+
     def test_get_gallery_rejects_too_long_search_query(self, authenticated_client: TestClient, gallery_id_fixture: str):
         response = authenticated_client.get(
             f"/galleries/{gallery_id_fixture}",

@@ -21,8 +21,8 @@ class SortOrder(str, Enum):
 
 class GalleryPhotoQueryParams(BaseModel):
     search: str | None = Field(None, max_length=PHOTO_SEARCH_MAX_LENGTH, description="Case-insensitive partial filename search")
-    sort_by: GalleryPhotoSortBy = Field(GalleryPhotoSortBy.CREATED_AT, description="Photo sorting field")
-    order: SortOrder = Field(SortOrder.DESC, description="Sort direction")
+    sort_by: GalleryPhotoSortBy | None = Field(None, description="Photo sorting field")
+    order: SortOrder | None = Field(None, description="Sort direction")
 
     @field_validator("search")
     @classmethod

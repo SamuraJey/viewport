@@ -194,7 +194,7 @@ export const GalleryPage = () => {
     }
 
     const timeoutId = window.setTimeout(() => {
-      void handleSaveShootingDate(shootingDateInput || null);
+      void handleSaveShootingDate(shootingDateInput);
     }, 350);
 
     return () => {
