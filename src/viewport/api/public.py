@@ -20,6 +20,7 @@ from viewport.models.sharelink import ShareLink
 from viewport.repositories.sharelink_repository import ShareLinkRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client, get_s3_settings
+from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto
 
 router = APIRouter(prefix="/s", tags=["public"])
@@ -159,6 +160,18 @@ def _make_unique_zip_entry_name(filename: str, used_names: set[str]) -> str:
     return candidate
 
 
+def _resolve_public_sorting(gallery: Gallery) -> tuple[GalleryPhotoSortBy, SortOrder]:
+    sort_by = GalleryPhotoSortBy.ORIGINAL_FILENAME
+    sort_order = SortOrder.ASC
+
+    with contextlib.suppress(ValueError):
+        sort_by = GalleryPhotoSortBy(getattr(gallery, "public_sort_by", sort_by.value))
+    with contextlib.suppress(ValueError):
+        sort_order = SortOrder(getattr(gallery, "public_sort_order", sort_order.value))
+
+    return sort_by, sort_order
+
+
 def get_sharelink_repository(db: AsyncSession = Depends(get_db)) -> ShareLinkRepository:
     return ShareLinkRepository(db)
 
@@ -182,15 +195,28 @@ async def get_photos_by_sharelink(
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
 ) -> PublicGalleryResponse:
     """Get public gallery photos."""
-    # Photos - ensure deterministic ordering by filename (case-insensitive)
-    photos = await repo.get_photos_by_gallery_id(sharelink.gallery_id)
-    with contextlib.suppress(Exception):
-        photos = sorted(photos, key=lambda p: p.display_name.lower())
+    gallery: Gallery = sharelink.gallery
+    sort_by, order = _resolve_public_sorting(gallery)
 
-    # Apply pagination if limit is specified
-    photos_to_process = photos[offset : offset + limit] if limit else photos
+    total_photos = await repo.get_photo_count_by_gallery(sharelink.gallery_id)
+    photos_to_process = await repo.get_photos_by_gallery_id(
+        gallery_id=sharelink.gallery_id,
+        limit=limit,
+        offset=offset,
+        sort_by=sort_by,
+        order=order,
+    )
 
-    logger.info("Generating public gallery view for share %s with %s photos (offset=%s, limit=%s, total=%s)", share_id, len(photos_to_process), offset, limit, len(photos))
+    logger.info(
+        "Generating public gallery view for share %s with %s photos (offset=%s, limit=%s, total=%s, sort_by=%s, order=%s)",
+        share_id,
+        len(photos_to_process),
+        offset,
+        limit,
+        total_photos,
+        sort_by.value,
+        order.value,
+    )
 
     thumbnail_keys = [photo.thumbnail_object_key for photo in photos_to_process]
     thumb_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys)
@@ -215,7 +241,6 @@ async def get_photos_by_sharelink(
                 )
             )
 
-    gallery: Gallery = sharelink.gallery  # lazy-loaded
     cover_id = str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None
     cover = None
 
@@ -270,7 +295,7 @@ async def get_photos_by_sharelink(
         gallery_name=gallery_name,
         date=date_str,
         site_url=site_url,
-        total_photos=len(photos),
+        total_photos=total_photos,
     )
 
 

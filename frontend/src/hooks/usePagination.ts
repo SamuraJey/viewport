@@ -103,12 +103,14 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
       const clampedPage = Math.max(1, Math.min(newPage, totalPages || newPage));
 
       if (syncWithUrl) {
-        setSearchParams({ [urlParam]: clampedPage.toString() });
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.set(urlParam, clampedPage.toString());
+        setSearchParams(nextParams);
       } else {
         setLocalPage(clampedPage);
       }
     },
-    [syncWithUrl, totalPages, setSearchParams, urlParam],
+    [syncWithUrl, totalPages, setSearchParams, searchParams, urlParam],
   );
 
   const nextPage = useCallback(() => {

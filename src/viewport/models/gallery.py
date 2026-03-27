@@ -7,7 +7,7 @@ from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, Smal
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH
+from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH, PUBLIC_GALLERY_SORT_BY_DEFAULT, PUBLIC_GALLERY_SORT_ORDER_DEFAULT
 from viewport.models.db import Base
 
 if TYPE_CHECKING:
@@ -33,6 +33,19 @@ class Gallery(Base):
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     # Displayed shooting date (defaults to gallery creation date)
     shooting_date: Mapped[date] = mapped_column(Date, nullable=False, default=lambda: datetime.now(UTC).date())
+    # Controls default sorting for shared/public gallery views.
+    public_sort_by: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default=PUBLIC_GALLERY_SORT_BY_DEFAULT,
+        server_default=PUBLIC_GALLERY_SORT_BY_DEFAULT,
+    )
+    public_sort_order: Mapped[str] = mapped_column(
+        String(8),
+        nullable=False,
+        default=PUBLIC_GALLERY_SORT_ORDER_DEFAULT,
+        server_default=PUBLIC_GALLERY_SORT_ORDER_DEFAULT,
+    )
     # Optional cover photo for public display
     cover_photo_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -101,6 +114,11 @@ class Photo(Base):
             gallery_id,
             func.lower(display_name),
             unique=True,
+        ),
+        Index(
+            "ix_photos_gallery_id_uploaded_at",
+            gallery_id,
+            uploaded_at,
         ),
     )
 

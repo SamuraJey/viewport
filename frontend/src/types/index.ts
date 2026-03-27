@@ -6,7 +6,14 @@
 export type { PaginatedResponse, ApiError, AsyncState } from './common';
 
 // Gallery types
-export type { Gallery, GalleryDetail, GalleryListResponse } from './gallery';
+export type {
+  Gallery,
+  GalleryDetail,
+  GalleryListResponse,
+  GalleryPhotoSortBy,
+  SortOrder,
+  GalleryPhotoQueryOptions,
+} from './gallery';
 
 // Photo types
 export type {
@@ -29,7 +36,7 @@ export type {
 } from './photo';
 
 // Share link types
-export type { ShareLink, PublicPhoto, SharedGallery } from './sharelink';
+export type { ShareLink, PublicPhoto, SharedGallery, SharedGalleryQueryOptions } from './sharelink';
 
 // Auth types
 export type {

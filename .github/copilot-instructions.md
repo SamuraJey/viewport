@@ -21,6 +21,8 @@
 - Repositories:
   - Constructed per-request from `db: AsyncSession = Depends(get_db)` (`src/viewport/models/db.py`).
   - Keep business logic close to repository methods when it’s DB/S3 orchestration (e.g. async delete/rename in `GalleryRepository`).
+  - Private gallery photo listing (`GET /galleries/{gallery_id}`) supports query params `search`, `sort_by`, and `order`; repository methods must apply filters inside `gallery_id` with `galleries.is_deleted = false`, and `total_photos` must reflect filtered results.
+  - Shared gallery photo listing (`GET /s/{share_id}`) uses gallery-level persisted settings (`galleries.public_sort_by`, `galleries.public_sort_order`) configured in private gallery management; sorting and pagination must be done at SQL level and `total_photos` must represent full gallery size before pagination.
 - Photo upload performance pattern:
   - **Two-step upload**:
     1. `/batch-presigned`: Creates `PENDING` DB records and returns presigned PUT URLs. Client uploads directly to S3.
@@ -51,6 +53,8 @@
 - **Pages**: In `frontend/src/pages/`, use custom hooks for pagination/selection/modals instead of manual state (see DashboardPage.tsx, GalleryPage.tsx for examples).
   - Keep pages as orchestration layers and prefer route-level lazy loading (`React.lazy` + `Suspense`) in `frontend/src/App.tsx` for main page components to control bundle size.
   - `GalleryPage.tsx` follows a **photo-first** layout: compact metadata header and primary focus on the photo grid. Upload starts directly from `Add Photos` (file picker), and drag-and-drop is handled across the whole gallery page instead of a permanently large uploader block.
+  - In `GalleryPage.tsx`, keep private gallery controls (`search`, `sort_by`, `order`) URL-synced via query params, debounce search input before updating URL/API calls, and reset pagination to page `1` whenever these controls change.
+  - Public gallery sorting is not user-adjustable in `PublicGalleryPage.tsx`; photographer-configured settings are edited in private gallery and persisted on the gallery model.
   - For large page/modals, prefer feature-local decomposition into focused presentation components under dedicated folders (e.g. `components/public-gallery/`, `components/dashboard/`, `components/profile/`, `components/upload-confirm/`, `components/auth/`) while keeping orchestration in page/container components.
 - **Themes**: Light/dark themes are configured via CSS variables in `frontend/src/index.css` (primarily in the `:root` and `html.dark` selectors). Theme toggled via `themeStore`; first visit follows `prefers-color-scheme`, and explicit user toggles override system by persisting `theme-preference` in `localStorage`. Every new feature should support both themes and have good contrast in each.
 - **Styling and theme maintenance**: Keep Tailwind dark-mode working off the `html` class that `themeStore` manages (no ad-hoc `theme === 'dark'` branches inside components). Define semantic color tokens in `frontend/src/index.css` via `@theme`/custom vars and use the generated utilities (`bg-surface`, `text-text`, `text-muted`, `bg-surface-foreground`, etc.) with `dark:` variants instead of hardcoding RGB values. When tweaking tokens (like `--color-surface-foreground-rgb`), follow the existing RGB palettes to keep light- and dark-theme surfaces consistent, and let the Tailwind utilities adapt automatically.
@@ -72,7 +76,7 @@
   - Format + autofix: `just pretty` / `make pretty` (Ruff).
   - Typecheck: `just mypy`.
   - Tests: `just test` (pytest-xdist `-n 4`), coverage gate in `just test-cov` (fail-under 85).
-- Frontend checks: `cd frontend && npm run lint && npm run test:run`.
+- Frontend checks: `cd frontend && npm run lint -- --fix && npm run test:run`.
 
 ## Gotchas worth keeping in mind
 - Presigned URL cache is **not Redis-backed**; it’s per-process memory. Don’t assume cross-worker cache coherence.

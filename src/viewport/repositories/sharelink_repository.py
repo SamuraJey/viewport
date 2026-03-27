@@ -1,15 +1,29 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import asc, desc, func, select, update
 from sqlalchemy.orm import selectinload
 
 from viewport.models.gallery import Photo
 from viewport.models.sharelink import ShareLink
 from viewport.repositories.base_repository import BaseRepository
+from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 
 
 class ShareLinkRepository(BaseRepository):  # pragma: no cover # TODO tests
+    @staticmethod
+    def _build_public_photo_order_clauses(sort_by: GalleryPhotoSortBy, order: SortOrder):
+        order_fn = asc if order == SortOrder.ASC else desc
+
+        if sort_by == GalleryPhotoSortBy.CREATED_AT:
+            return [order_fn(Photo.uploaded_at), order_fn(Photo.id)]
+
+        if sort_by == GalleryPhotoSortBy.FILE_SIZE:
+            return [order_fn(Photo.file_size), order_fn(Photo.id)]
+
+        # Default: filename ordering for stable public presentation.
+        return [order_fn(func.lower(Photo.display_name)), order_fn(Photo.id)]
+
     async def get_sharelink_by_id(self, sharelink_id: uuid.UUID) -> ShareLink | None:
         stmt = select(ShareLink).where(ShareLink.id == sharelink_id)
         sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
@@ -28,11 +42,28 @@ class ShareLinkRepository(BaseRepository):  # pragma: no cover # TODO tests
             return None
         return sharelink
 
-    async def get_photos_by_gallery_id(self, gallery_id: uuid.UUID) -> list[Photo]:
+    async def get_photo_count_by_gallery(self, gallery_id: uuid.UUID) -> int:
+        from viewport.models.gallery import Gallery
+
+        stmt = select(func.count()).select_from(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
+        count = int((await self.db.execute(stmt)).scalar() or 0)
+        return await self._finish_read(count)
+
+    async def get_photos_by_gallery_id(
+        self,
+        gallery_id: uuid.UUID,
+        limit: int | None = None,
+        offset: int = 0,
+        sort_by: GalleryPhotoSortBy = GalleryPhotoSortBy.ORIGINAL_FILENAME,
+        order: SortOrder = SortOrder.ASC,
+    ) -> list[Photo]:
         # Ensure consistent ordering by filename/object_key for public listings
         from viewport.models.gallery import Gallery
 
-        stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(Photo.object_key.asc())
+        stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(*self._build_public_photo_order_clauses(sort_by, order)).offset(offset)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+
         photos = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read(photos)
 

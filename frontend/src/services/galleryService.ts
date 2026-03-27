@@ -1,7 +1,14 @@
 import { api } from '../lib/api';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { getDemoService } from './demoService';
-import type { Gallery, GalleryDetail, GalleryListResponse } from '../types';
+import type {
+  Gallery,
+  GalleryDetail,
+  GalleryListResponse,
+  GalleryPhotoQueryOptions,
+  GalleryPhotoSortBy,
+  SortOrder,
+} from '../types';
 
 // Re-export types for backward compatibility
 export type { Gallery, GalleryDetail, GalleryListResponse };
@@ -17,7 +24,7 @@ const getGalleries = async (page = 1, size = 10): Promise<GalleryListResponse> =
 
 const getGallery = async (
   id: string,
-  options?: { limit?: number; offset?: number },
+  options?: GalleryPhotoQueryOptions,
 ): Promise<GalleryDetail> => {
   if (isDemoModeEnabled()) {
     return getDemoService().getGallery(id, options);
@@ -26,6 +33,9 @@ const getGallery = async (
   const params = new URLSearchParams();
   if (options?.limit) params.append('limit', options.limit.toString());
   if (options?.offset) params.append('offset', options.offset.toString());
+  if (options?.search) params.append('search', options.search);
+  if (options?.sort_by) params.append('sort_by', options.sort_by);
+  if (options?.order) params.append('order', options.order);
 
   const url = `/galleries/${id}${params.toString() ? `?${params.toString()}` : ''}`;
   const response = await api.get<GalleryDetail>(url);
@@ -54,7 +64,14 @@ const deleteGallery = async (id: string): Promise<void> => {
   await api.delete(`/galleries/${id}`);
 };
 
-type UpdateGalleryPayload = string | { name?: string; shooting_date?: string | null };
+type UpdateGalleryPayload =
+  | string
+  | {
+    name?: string;
+    shooting_date?: string | null;
+    public_sort_by?: GalleryPhotoSortBy;
+    public_sort_order?: SortOrder;
+  };
 
 const updateGallery = async (id: string, payload: UpdateGalleryPayload): Promise<Gallery> => {
   const body = typeof payload === 'string' ? { name: payload } : payload;

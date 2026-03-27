@@ -20,6 +20,11 @@ export interface PublicPhoto {
   height?: number | null;
 }
 
+export interface SharedGalleryQueryOptions {
+  limit?: number;
+  offset?: number;
+}
+
 export interface SharedGallery {
   photos: PublicPhoto[];
   cover?: { photo_id: string; full_url: string; thumbnail_url: string } | null;

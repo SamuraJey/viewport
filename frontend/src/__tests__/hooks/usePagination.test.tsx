@@ -74,4 +74,22 @@ describe('usePagination', () => {
     expect(result.current.page).toBe(1);
     expect(result.current.isFirstPage).toBe(true);
   });
+
+  it('preserves existing query params when page changes with URL sync', () => {
+    const syncWrapper = ({ children }: { children: ReactNode }) => (
+      <MemoryRouter initialEntries={['/items?page=2&search=portrait&sort_by=file_size']}>
+        {children}
+      </MemoryRouter>
+    );
+
+    const { result } = renderHook(() => usePagination({ syncWithUrl: true }), {
+      wrapper: syncWrapper,
+    });
+
+    act(() => {
+      result.current.goToPage(3);
+    });
+
+    expect(result.current.page).toBe(3);
+  });
 });
