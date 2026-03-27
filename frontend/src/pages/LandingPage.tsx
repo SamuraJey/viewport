@@ -24,64 +24,60 @@ import { enableDemoMode } from '../lib/demoMode';
 const featureItems = [
   {
     icon: UploadCloud,
-    title: 'Быстрая загрузка фото',
-    description: 'Добавляйте целые серии снимков без лишних шагов и задержек.',
+    title: 'Fast uploads',
+    description: 'Upload full shoots without extra steps or delays.',
   },
   {
     icon: Sparkles,
-    title: 'Превью без ручной рутины',
-    description: 'Галереи быстро становятся удобными для просмотра сразу после загрузки.',
+    title: 'Automatic previews',
+    description: 'Galleries are ready to browse shortly after upload.',
   },
   {
     icon: Share2,
-    title: 'Публичные галереи для клиентов',
-    description: 'Делитесь съемками по ссылке и презентуйте материал в аккуратном формате.',
+    title: 'Client-ready sharing',
+    description: 'Share a gallery by link in a clean, polished format.',
   },
   {
     icon: HardDrive,
-    title: 'Порядок в медиатеке',
-    description: 'Храните проекты структурированно и возвращайтесь к нужным кадрам за секунды.',
+    title: 'Organized library',
+    description: 'Keep projects structured and find the right shots in seconds.',
   },
   {
     icon: ShieldCheck,
-    title: 'Доступ по уникальной ссылке',
-    description: 'Делитесь галереей по ссылке: открыть ее может любой, у кого есть ссылка.',
+    title: 'Link-based access',
+    description: 'Share a gallery by link. Anyone with it can open the gallery.',
   },
   {
     icon: Clock3,
-    title: 'Стабильная работа каждый день',
-    description: 'Сервис остается отзывчивым даже когда проектов становится больше.',
+    title: 'Reliable every day',
+    description: 'The service stays responsive as your workload grows.',
   },
 ];
 
 const subscriptionCards = [
   {
     name: 'Starter',
-    badge: 'Для личных проектов',
-    points: ['Базовые лимиты уточняются', 'Интеграции уточняются', 'Поддержка по email'],
+    badge: 'For personal projects',
+    points: ['Custom limits', 'Custom integrations', 'Email support'],
   },
   {
     name: 'Studio',
-    badge: 'Для команд и продакшена',
-    points: ['Расширенные лимиты уточняются', 'Гибкий доступ уточняется', 'Приоритетная поддержка'],
+    badge: 'For teams and studios',
+    points: ['Higher limits', 'Flexible access', 'Priority support'],
     highlighted: true,
   },
   {
     name: 'Enterprise',
-    badge: 'Для больших инфраструктур',
-    points: [
-      'SLA и политика хранения уточняются',
-      'Выделенная среда уточняется',
-      'Сопровождение внедрения',
-    ],
+    badge: 'For larger deployments',
+    points: ['Custom SLA and retention policy', 'Dedicated environment', 'Implementation support'],
   },
 ];
 
 const flowSteps = [
-  'Создаете галерею и добавляете фотографии в пару кликов.',
-  'Viewport готовит материалы к просмотру, пока вы занимаетесь следующими задачами.',
-  'Проверяете результат и приводите галерею к нужной подаче.',
-  'Отправляете ссылку клиенту и получаете понятный, приятный опыт просмотра.',
+  'Create a gallery and add photos in a couple of clicks.',
+  'Viewport prepares the gallery while you move on to the next task.',
+  'Review the result and shape the presentation.',
+  'Send the link to your client and give them a clear, polished viewing experience.',
 ];
 
 const previewGallery: Gallery = {
@@ -136,13 +132,13 @@ export const LandingPage = () => {
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-semibold text-muted md:flex">
             <a href="#features" className="hover:text-accent transition-colors">
-              Возможности
+              Features
             </a>
             <a href="#workflow" className="hover:text-accent transition-colors">
-              Процесс
+              Workflow
             </a>
             <a href="#subscriptions" className="hover:text-accent transition-colors">
-              Подписки
+              Plans
             </a>
           </nav>
           <div className="flex items-center gap-2">
@@ -151,7 +147,7 @@ export const LandingPage = () => {
               to="/auth/login"
               className="rounded-xl border border-border bg-surface-1 px-4 py-2 text-sm font-semibold hover:border-accent/40 hover:text-accent transition-all"
             >
-              Войти
+              Log in
             </Link>
           </div>
         </div>
@@ -167,23 +163,22 @@ export const LandingPage = () => {
           >
             <span className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 py-1.5 text-sm font-semibold text-accent">
               <ShieldCheck className="h-4 w-4" />
-              Платформа для фотографов и команд
+              Built for photographers and studios
             </span>
             <h1 className="font-oswald text-5xl font-bold uppercase leading-[0.95] tracking-wide sm:text-6xl lg:text-7xl">
-              Продавайте впечатление
+              Gallery delivery,
               <br />
-              до первой фотографии
+              made simple
             </h1>
             <p className="max-w-2xl text-lg text-muted sm:text-xl">
-              Viewport помогает собрать весь путь работы с галереями в одном месте: от первых кадров
-              до финальной презентации клиенту. Быстро, аккуратно и без лишней рутины.
+              Viewport keeps the whole workflow in one place, from first upload to final delivery.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <Link
                 to="/auth/register"
                 className="inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3.5 font-semibold text-accent-foreground shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all"
               >
-                Начать бесплатно
+                Start free
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <button
@@ -191,19 +186,17 @@ export const LandingPage = () => {
                 onClick={handleOpenDemoCabinet}
                 className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface-1 px-6 py-3.5 font-semibold text-text hover:border-accent/40 hover:text-accent transition-all"
               >
-                Открыть демо-кабинет
+                Open demo dashboard
               </button>
             </div>
             <div className="grid max-w-xl grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
               <div className="rounded-2xl border border-border/60 bg-surface/70 p-4 dark:bg-surface-dark/40">
                 <p className="font-oswald text-3xl font-bold uppercase">Fast</p>
-                <p className="text-sm text-muted">Галерея готова к показу за считанные минуты.</p>
+                <p className="text-sm text-muted">Ready to show in minutes.</p>
               </div>
               <div className="rounded-2xl border border-border/60 bg-surface/70 p-4 dark:bg-surface-dark/40">
                 <p className="font-oswald text-3xl font-bold uppercase">24/7</p>
-                <p className="text-sm text-muted">
-                  Стабильный сервис, который не отвлекает от съемки.
-                </p>
+                <p className="text-sm text-muted">Stable enough to stay out of the way.</p>
               </div>
             </div>
           </motion.div>
@@ -217,7 +210,7 @@ export const LandingPage = () => {
             <div className="rounded-2xl border border-border/40 bg-surface p-4 dark:bg-surface-dark/65">
               <div className="mb-4 flex items-center justify-between">
                 <p className="font-cuprum text-sm font-bold uppercase tracking-widest text-muted">
-                  Реальный UI из дашборда
+                  Dashboard preview
                 </p>
                 <GalleryVertical className="h-5 w-5 text-accent" />
               </div>
@@ -248,10 +241,10 @@ export const LandingPage = () => {
         >
           <div className="mb-8 max-w-3xl">
             <h2 className="font-oswald text-4xl font-bold uppercase tracking-wide sm:text-5xl">
-              Возможности платформы
+              Core capabilities
             </h2>
             <p className="mt-3 text-lg text-muted">
-              Все, что нужно для красивой выдачи фотографий клиентам и уверенной работы команды.
+              Everything you need to deliver polished galleries and keep your team moving.
             </p>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -280,7 +273,7 @@ export const LandingPage = () => {
         >
           <div className="rounded-3xl border border-border/60 bg-surface/80 p-6 dark:bg-surface-foreground/8 sm:p-8">
             <h2 className="font-oswald text-4xl font-bold uppercase tracking-wide sm:text-5xl">
-              Как это работает
+              How it works
             </h2>
             <div className="mt-8 space-y-4">
               {flowSteps.map((step, index) => (
@@ -308,11 +301,11 @@ export const LandingPage = () => {
         >
           <div className="mb-8 max-w-3xl">
             <h2 className="font-oswald text-4xl font-bold uppercase tracking-wide sm:text-5xl">
-              Выбор подписки
+              Choose a plan
             </h2>
             <p className="mt-3 text-lg text-muted">
-              Шаблон карточек без цен и жестких планов: можно быстро заменить контент после
-              финального позиционирования.
+              Card templates without pricing or fixed plans. Swap in final content once positioning
+              is set.
             </p>
           </div>
 
@@ -342,7 +335,7 @@ export const LandingPage = () => {
                   ))}
                 </ul>
                 <button className="mt-6 w-full rounded-xl border border-border bg-surface-1 px-4 py-3 text-sm font-semibold hover:border-accent/40 hover:text-accent transition-colors dark:bg-surface-dark-1">
-                  Выбрать шаблон
+                  Use template
                 </button>
               </article>
             ))}
@@ -352,19 +345,19 @@ export const LandingPage = () => {
         <section className="mx-auto w-full max-w-7xl px-4 pb-20 sm:px-6">
           <div className="rounded-3xl border border-border/60 bg-surface/85 p-6 dark:bg-surface-foreground/8 sm:p-8">
             <AuthCard
-              title="Готовы показать клиентам идеальный опыт?"
-              subtitle="Запустите Viewport и соберите весь клиентский путь в одном аккуратном пространстве"
+              title="Ready to deliver a cleaner client experience?"
+              subtitle="Launch Viewport and keep the full client journey in one polished workflow"
             >
               <div className="space-y-4">
                 <Link
                   to="/auth/register"
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 font-semibold text-accent-foreground hover:brightness-110 transition-all"
                 >
-                  Создать аккаунт
+                  Create an account
                   <ArrowRight className="h-4 w-4" />
                 </Link>
                 <p className="text-center text-sm text-muted">
-                  Без обязательств. Контент и цены добавите позже.
+                  No commitment. Add content and pricing later.
                 </p>
               </div>
             </AuthCard>
