@@ -191,13 +191,14 @@ export const GalleryHeader = ({
   }, []);
 
   return (
-    <div className="rounded-3xl border border-border/50 bg-surface/95 p-6 shadow-xs backdrop-blur-xs dark:border-border/30 dark:bg-surface-foreground/15 sm:p-8">
+    <div className="rounded-3xl border border-border/50 bg-surface/95 p-6 shadow-lg backdrop-blur-sm dark:border-border/30 dark:bg-surface-foreground/15 sm:p-8">
       <div className="space-y-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 max-w-full space-y-5">
             <Link
               to="/dashboard"
-              className="inline-flex h-10 w-fit items-center gap-2.5 rounded-xl border border-border/60 bg-surface-1 px-4 text-sm font-semibold text-muted transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:bg-accent/5 hover:text-accent hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1"
+              className="inline-flex h-10 w-fit items-center gap-2.5 rounded-xl border border-border/60 bg-surface-1 px-4 text-sm font-semibold text-muted transition-all duration-200 hover:-translate-y-1 hover:border-accent/40 hover:bg-accent/5 hover:text-accent hover:shadow-lg focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1 active:translate-y-0 active:scale-95"
+              aria-label="Back to Galleries"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Galleries
@@ -213,7 +214,7 @@ export const GalleryHeader = ({
 
           <button
             onClick={onDeleteGallery}
-            className="inline-flex h-10 w-fit items-center gap-2 rounded-lg border border-danger/25 bg-danger/10 px-4 text-sm font-bold text-danger transition-all duration-200 hover:-translate-y-0.5 hover:border-danger/40 hover:bg-danger/15 hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0"
+            className="inline-flex h-10 w-fit items-center gap-2 rounded-lg border border-danger/25 bg-danger/10 px-4 text-sm font-bold text-danger transition-all duration-200 hover:-translate-y-1 hover:border-danger/40 hover:bg-danger/15 hover:shadow-lg focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0 active:scale-95"
             title="Delete Gallery"
             aria-label="Delete gallery"
           >
@@ -252,11 +253,12 @@ export const GalleryHeader = ({
           </label>
         </div>
 
-        <div className="rounded-2xl border border-border/35 bg-surface-1/35 p-3 shadow-inner backdrop-blur-xs dark:border-border/25 dark:bg-surface-dark-1/35 sm:p-4">
+        <div className="rounded-2xl border border-border/35 bg-surface-1/35 p-3 shadow-inner backdrop-blur-sm dark:border-border/25 dark:bg-surface-dark-1/35 sm:p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <label
               htmlFor="gallery-photo-search"
-              className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-border/35 bg-surface px-3 text-sm text-text transition-all duration-200 focus-within:border-accent/60 focus-within:shadow-xs dark:border-border/25 dark:bg-surface-dark-2 lg:max-w-184"
+              className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-border/35 bg-surface px-3 text-sm text-text transition-all duration-200 focus-within:border-accent/60 focus-within:shadow-md focus-within:ring-2 focus-within:ring-accent/20 dark:border-border/25 dark:bg-surface-dark-2 lg:max-w-184"
+              aria-label="Search photos by filename"
             >
               <Search className="h-4 w-4 text-muted" />
               <input

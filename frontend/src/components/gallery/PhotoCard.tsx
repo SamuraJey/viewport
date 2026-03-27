@@ -1,8 +1,9 @@
-import { memo, useEffect, useState, type MouseEvent } from 'react';
+import { memo, useEffect, useRef, useState, type MouseEvent } from 'react';
 import {
   CheckSquare,
   Download,
   ImageOff,
+  MoreVertical,
   Pencil,
   Search,
   Square,
@@ -40,10 +41,38 @@ const PhotoCardComponent = ({
   onDeletePhoto,
 }: PhotoCardProps) => {
   const [imageState, setImageState] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setImageState('loading');
   }, [photo.thumbnail_url]);
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+
+    const handleClickOutside = (event: Event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isMenuOpen]);
 
   const handleDownload = async (e: MouseEvent) => {
     e.stopPropagation();
@@ -79,7 +108,11 @@ const PhotoCardComponent = ({
     >
       {/* Cover indicator */}
       {isCover && (
-        <div className="absolute top-3 right-3 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/90 text-white text-xs font-semibold backdrop-blur-md shadow-lg">
+        <div
+          className="absolute top-3 right-3 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/90 text-white text-xs font-semibold backdrop-blur-md shadow-lg"
+          role="status"
+          aria-label="Cover photo"
+        >
           <Star className="h-3 w-3 fill-current" />
           Cover
         </div>
@@ -104,10 +137,105 @@ const PhotoCardComponent = ({
         </button>
       )}
 
+      {/* Mobile-friendly menu button */}
+      {!isSelectionMode && (
+        <div ref={menuRef} className="absolute top-3 right-3 z-20 md:hidden">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMenuOpen(!isMenuOpen);
+            }}
+            className="p-2 rounded-xl bg-black/60 hover:bg-black/80 text-white backdrop-blur-md transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white shadow-lg"
+            title="Photo actions"
+            aria-label="Photo actions menu"
+            aria-expanded={isMenuOpen}
+          >
+            <MoreVertical className="h-5 w-5" />
+          </button>
+
+          {isMenuOpen && (
+            <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-border/50 bg-surface shadow-xl dark:border-border/40 dark:bg-surface-dark-1 overflow-hidden">
+              <div className="p-1">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsMenuOpen(false);
+                    onOpenPhoto(index);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-text transition-colors hover:bg-accent/10 hover:text-accent"
+                >
+                  <Search className="h-4 w-4" />
+                  Open photo
+                </button>
+                {isCover ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMenuOpen(false);
+                      onClearCover();
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-amber-600 dark:text-amber-500 transition-colors hover:bg-amber-500/10"
+                  >
+                    <StarOff className="h-4 w-4" />
+                    Remove cover
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMenuOpen(false);
+                      onSetCover(photo.id);
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-text transition-colors hover:bg-accent/10 hover:text-accent"
+                  >
+                    <Star className="h-4 w-4" />
+                    Set as cover
+                  </button>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsMenuOpen(false);
+                    onRenamePhoto(photo.id, photo.filename);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-text transition-colors hover:bg-accent/10 hover:text-accent"
+                >
+                  <Pencil className="h-4 w-4" />
+                  Rename
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsMenuOpen(false);
+                    handleDownload(e);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-text transition-colors hover:bg-accent/10 hover:text-accent"
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </button>
+                <div className="my-1 border-t border-border/30" />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsMenuOpen(false);
+                    onDeletePhoto(photo.id);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Image area */}
       <div className="relative h-64 sm:h-72 md:h-80 bg-surface-1 dark:bg-surface-dark-1 overflow-hidden">
-        {/* Action Panel - overlay at the bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/80 via-black/40 to-transparent transition-all duration-200 z-20 flex items-center justify-center gap-2 opacity-0 pointer-events-none translate-y-4 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0">
+        {/* Action Panel - Desktop hover overlay */}
+        <div className="hidden md:flex absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/80 via-black/40 to-transparent transition-all duration-200 z-20 items-center justify-center gap-2 opacity-0 pointer-events-none translate-y-4 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -192,13 +320,25 @@ const PhotoCardComponent = ({
             }
             onRenamePhoto(photo.id, photo.filename);
           }}
-          className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
-          aria-label={`Photo ${photo.id}`}
+          className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0 focus:outline-hidden focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-accent focus-visible:ring-offset-0"
+          aria-label={`${photo.filename}${isCover ? ' (Cover photo)' : ''}${isSelectionMode ? ' - Click to select' : ' - Click to view'}`}
           title={
             isSelectionMode
               ? 'Click to toggle selection. Use Shift+Click to select range.'
               : 'Click to view, double-click to rename'
           }
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              if (isSelectionMode) {
+                onToggleSelection(photo.id, e.shiftKey);
+              } else {
+                onOpenPhoto(index);
+              }
+            }
+          }}
         >
           {imageState === 'error' ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-linear-to-br from-surface-1 via-surface to-surface-1/80 p-6 text-center dark:from-surface-dark-2 dark:via-surface-dark-1 dark:to-surface-dark-2">
@@ -234,7 +374,11 @@ const PhotoCardComponent = ({
 
       {/* Caption below the image */}
       <div className="px-4 py-3 border-t border-border/50 dark:border-border/40 bg-surface dark:bg-surface-dark-1 z-10">
-        <p className="text-sm font-medium text-text truncate text-center" title={photo.filename}>
+        <p
+          className="text-sm font-medium text-text truncate text-center"
+          title={photo.filename}
+          aria-label={`Filename: ${photo.filename}`}
+        >
           {photo.filename}
         </p>
       </div>

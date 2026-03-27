@@ -7,6 +7,7 @@ import { GalleryHeader } from '../components/gallery/GalleryHeader';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { GalleryDragOverlay } from '../components/gallery/GalleryDragOverlay';
 import { GalleryPhotoSection } from '../components/gallery/GalleryPhotoSection';
+import { KeyboardShortcutsHint } from '../components/gallery/KeyboardShortcutsHint';
 import {
   GalleryInitialLoadingState,
   GalleryLoadErrorState,
@@ -666,6 +667,9 @@ export const GalleryPage = () => {
 
       {/* Confirmation Modal */}
       {ConfirmModal}
+
+      {/* Keyboard Shortcuts Hint */}
+      <KeyboardShortcutsHint />
     </div>
   );
 };

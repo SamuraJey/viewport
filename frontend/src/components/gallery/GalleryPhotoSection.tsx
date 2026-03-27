@@ -72,22 +72,35 @@ const PHOTO_GRID_SKELETON_CARDS = 10;
 
 const GalleryPhotoGridSkeleton = ({ page }: { page: number }) => (
   <div className="pt-6" data-testid="private-gallery-skeleton-grid">
-    <div className="mb-5 flex items-center gap-3 text-muted">
-      <Loader2 className="h-5 w-5 animate-spin text-accent" />
-      <span className="text-sm font-bold uppercase tracking-wide">Loading photos</span>
-      <span className="text-xs font-semibold text-muted/70">Page {page}</span>
+    <div className="mb-6 flex items-center gap-3">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10">
+        <Loader2 className="h-5 w-5 animate-spin text-accent" />
+      </div>
+      <div>
+        <div className="text-sm font-bold uppercase tracking-wide text-text">Loading photos</div>
+        <div className="text-xs font-medium text-muted">Page {page}</div>
+      </div>
     </div>
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 lg:gap-6">
       {Array.from({ length: PHOTO_GRID_SKELETON_CARDS }).map((_, index) => (
         <div
           key={`photo-skeleton-${index}`}
-          className="overflow-hidden rounded-2xl border border-border/50 bg-surface shadow-xs dark:border-border/40 dark:bg-surface-dark-1"
+          className="group overflow-hidden rounded-2xl border border-border/50 bg-surface shadow-xs dark:border-border/40 dark:bg-surface-dark-1"
+          style={{ animationDelay: `${index * 50}ms` }}
         >
           <div className="h-64 p-4 sm:h-72 md:h-80">
-            <div className="h-full w-full animate-pulse rounded-xl bg-linear-to-br from-surface-foreground/15 via-surface-foreground/10 to-surface-foreground/15 dark:from-surface/30 dark:via-surface/20 dark:to-surface/30" />
+            <div className="relative h-full w-full overflow-hidden rounded-xl bg-linear-to-br from-surface-foreground/10 via-surface-foreground/5 to-surface-foreground/10 dark:from-surface/25 dark:via-surface/15 dark:to-surface/25">
+              {/* Shimmer effect */}
+              <div className="absolute inset-0 -translate-x-full animate-shimmer bg-linear-to-r from-transparent via-white/10 to-transparent dark:via-white/5" />
+              {/* Decorative elements */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-3 opacity-30">
+                <div className="h-16 w-16 rounded-full bg-surface-foreground/15 dark:bg-surface/30" />
+                <div className="h-2 w-24 rounded-full bg-surface-foreground/15 dark:bg-surface/30" />
+              </div>
+            </div>
           </div>
           <div className="border-t border-border/40 px-4 py-4 dark:border-border/30">
-            <div className="h-3.5 w-3/4 animate-pulse rounded-full bg-surface-foreground/20 dark:bg-surface/30" />
+            <div className="h-3.5 w-3/4 animate-pulse rounded-full bg-surface-foreground/15 dark:bg-surface/25" />
           </div>
         </div>
       ))}
@@ -122,7 +135,7 @@ const GalleryPhotoSectionComponent = ({
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => photoUploaderRef.current?.openFilePicker()}
-            className="inline-flex h-11 items-center gap-2 rounded-xl border border-transparent bg-accent px-5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="inline-flex h-11 items-center gap-2 rounded-xl border border-transparent bg-accent px-5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:-translate-y-1 hover:brightness-110 hover:shadow-lg active:translate-y-0 active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             title={`Add photos (JPG/PNG up to ${MAX_UPLOAD_FILE_SIZE_MB} MB)`}
           >
             <Upload className="h-4 w-4" />
@@ -132,7 +145,7 @@ const GalleryPhotoSectionComponent = ({
             <button
               onClick={actions.onDownloadGallery}
               disabled={state.isDownloadingZip}
-              className="inline-flex h-11 items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-5 text-sm font-bold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent hover:shadow-sm active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border/50 disabled:hover:text-text disabled:hover:translate-y-0 disabled:hover:shadow-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1"
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-5 text-sm font-bold text-text transition-all duration-200 hover:-translate-y-1 hover:border-accent/40 hover:text-accent hover:shadow-lg active:translate-y-0 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border/50 disabled:hover:text-text disabled:hover:translate-y-0 disabled:hover:shadow-none disabled:hover:scale-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1"
               title={`Download entire gallery as ZIP (${formatFileSize(state.gallerySizeBytes)})`}
             >
               <Download className="h-4 w-4" />
@@ -142,9 +155,9 @@ const GalleryPhotoSectionComponent = ({
           {state.photoUrls.length > 0 && (
             <button
               onClick={actions.onToggleSelectionMode}
-              className={`inline-flex h-11 items-center gap-2 rounded-xl border px-5 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+              className={`inline-flex h-11 items-center gap-2 rounded-xl border px-5 text-sm font-bold transition-all duration-200 hover:-translate-y-1 hover:shadow-lg active:translate-y-0 active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
                 state.isSelectionMode
-                  ? 'border-accent bg-accent text-accent-foreground shadow-sm hover:brightness-110'
+                  ? 'border-accent bg-accent text-accent-foreground shadow-md hover:brightness-110'
                   : 'border-border/35 bg-transparent text-muted hover:border-border/60 hover:bg-surface-1 hover:text-text dark:border-border/30 dark:hover:bg-surface-dark-1'
               }`}
               title={state.isSelectionMode ? 'Exit selection mode' : 'Enter selection mode'}
