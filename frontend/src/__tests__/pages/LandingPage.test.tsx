@@ -86,11 +86,11 @@ describe('LandingPage and root route', () => {
 
     expect(
       await screen.findByRole('button', {
-        name: /Открыть демо-кабинет/i,
+        name: /Open demo dashboard/i,
       }),
     ).toBeInTheDocument();
 
-    expect(screen.getByRole('link', { name: /Войти/i })).toHaveAttribute('href', '/auth/login');
+    expect(screen.getByRole('link', { name: /Log in/i })).toHaveAttribute('href', '/auth/login');
   });
 
   it('opens demo cabinet: enables demo mode, logs in demo user, and navigates to dashboard', async () => {
@@ -104,7 +104,7 @@ describe('LandingPage and root route', () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole('button', { name: /Открыть демо-кабинет/i }));
+    await user.click(screen.getByRole('button', { name: /Open demo dashboard/i }));
 
     await waitFor(() => {
       expect(enableDemoMode).toHaveBeenCalledTimes(1);
