@@ -356,9 +356,6 @@ export const LandingPage = () => {
                   Create an account
                   <ArrowRight className="h-4 w-4" />
                 </Link>
-                <p className="text-center text-sm text-muted">
-                  No commitment. Add content and pricing later.
-                </p>
               </div>
             </AuthCard>
           </div>
