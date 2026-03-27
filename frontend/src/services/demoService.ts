@@ -238,7 +238,7 @@ class DemoServiceStore {
     options?: GalleryPhotoQueryOptions,
   ): GalleryPhoto[] {
     const normalizedSearch = options?.search?.trim().toLowerCase();
-    const sortBy: GalleryPhotoSortBy = options?.sort_by ?? 'created_at';
+    const sortBy: GalleryPhotoSortBy = options?.sort_by ?? 'uploaded_at';
     const order: SortOrder = options?.order ?? 'desc';
     const direction = order === 'asc' ? 1 : -1;
 
@@ -474,7 +474,7 @@ class DemoServiceStore {
     const direction = order === 'asc' ? 1 : -1;
 
     return [...photos].sort((left, right) => {
-      if (sortBy === 'created_at') {
+      if (sortBy === 'uploaded_at') {
         const timestampDelta = Date.parse(left.uploaded_at) - Date.parse(right.uploaded_at);
         if (timestampDelta !== 0) {
           return timestampDelta * direction;

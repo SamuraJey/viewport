@@ -300,7 +300,7 @@ class GalleryRepository(BaseRepository):
         limit: int | None,
         offset: int,
         search: str | None = None,
-        sort_by: GalleryPhotoSortBy = GalleryPhotoSortBy.CREATED_AT,
+        sort_by: GalleryPhotoSortBy = GalleryPhotoSortBy.UPLOADED_AT,
         order: SortOrder = SortOrder.DESC,
     ) -> list[Photo]:
         stmt = select(Photo).join(Photo.gallery).where(*self._build_photo_filters(gallery_id, search)).order_by(*self._build_photo_order_clauses(sort_by, order)).offset(offset)

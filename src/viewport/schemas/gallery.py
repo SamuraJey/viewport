@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -8,13 +8,13 @@ from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH, PHOTO_SEARCH_MAX
 from viewport.schemas.photo import GalleryPhotoResponse
 
 
-class GalleryPhotoSortBy(str, Enum):
-    CREATED_AT = "created_at"
+class GalleryPhotoSortBy(StrEnum):
+    UPLOADED_AT = "uploaded_at"
     ORIGINAL_FILENAME = "original_filename"
     FILE_SIZE = "file_size"
 
 
-class SortOrder(str, Enum):
+class SortOrder(StrEnum):
     ASC = "asc"
     DESC = "desc"
 

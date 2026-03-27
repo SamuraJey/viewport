@@ -18,20 +18,20 @@ interface SortOption {
   label: string;
 }
 
-const DEFAULT_PRIVATE_SORT: SortOption['value'] = 'created_at:desc';
+const DEFAULT_PRIVATE_SORT: SortOption['value'] = 'uploaded_at:desc';
 const DEFAULT_PUBLIC_SORT: SortOption['value'] = 'original_filename:asc';
 
 const SORT_OPTIONS: SortOption[] = [
   { value: 'original_filename:asc', label: 'Filename (A to Z)' },
   { value: 'original_filename:desc', label: 'Filename (Z to A)' },
-  { value: 'created_at:desc', label: 'Date (new to old)' },
-  { value: 'created_at:asc', label: 'Date (old to new)' },
+  { value: 'uploaded_at:desc', label: 'Date (new to old)' },
+  { value: 'uploaded_at:asc', label: 'Date (old to new)' },
   { value: 'file_size:desc', label: 'Size (large to small)' },
   { value: 'file_size:asc', label: 'Size (small to large)' },
 ];
 
 const isGalleryPhotoSortBy = (value: string): value is GalleryPhotoSortBy =>
-  value === 'created_at' || value === 'original_filename' || value === 'file_size';
+  value === 'uploaded_at' || value === 'original_filename' || value === 'file_size';
 
 const isSortOrder = (value: string): value is SortOrder => value === 'asc' || value === 'desc';
 
@@ -271,7 +271,7 @@ export const GalleryHeader = ({
                   onChange={(event) =>
                     onSortChange(
                       parseSortValue(event.target.value, {
-                        sortBy: 'created_at',
+                        sortBy: 'uploaded_at',
                         sortOrder: 'desc',
                       }),
                     )

@@ -16,7 +16,7 @@ import { type PhotoUploaderHandle } from '../components/PhotoUploader';
 import { usePagination, useSelection, useGalleryActions, useGalleryDragAndDrop } from '../hooks';
 import type { GalleryPhotoSortBy, SortOrder } from '../types';
 
-const DEFAULT_SORT_BY: GalleryPhotoSortBy = 'created_at';
+const DEFAULT_SORT_BY: GalleryPhotoSortBy = 'uploaded_at';
 const DEFAULT_SORT_ORDER: SortOrder = 'desc';
 const DEFAULT_PUBLIC_SORT_BY: GalleryPhotoSortBy = 'original_filename';
 const DEFAULT_PUBLIC_SORT_ORDER: SortOrder = 'asc';
@@ -24,7 +24,15 @@ const SEARCH_DEBOUNCE_MS = 400;
 const SEARCH_INPUT_ID = 'gallery-photo-search';
 
 const isGalleryPhotoSortBy = (value: string | null): value is GalleryPhotoSortBy =>
-  value === 'created_at' || value === 'original_filename' || value === 'file_size';
+  value === 'uploaded_at' || value === 'original_filename' || value === 'file_size';
+
+const normalizeSortByParam = (value: string | null): GalleryPhotoSortBy | null => {
+  if (value === 'created_at') {
+    return 'uploaded_at';
+  }
+
+  return isGalleryPhotoSortBy(value) ? value : null;
+};
 
 const isSortOrder = (value: string | null): value is SortOrder =>
   value === 'asc' || value === 'desc';
@@ -38,9 +46,7 @@ export const GalleryPage = () => {
   const activeSearch = urlSearch.trim();
   const sortByParam = searchParams.get('sort_by');
   const orderParam = searchParams.get('order');
-  const sortBy: GalleryPhotoSortBy = isGalleryPhotoSortBy(sortByParam)
-    ? sortByParam
-    : DEFAULT_SORT_BY;
+  const sortBy: GalleryPhotoSortBy = normalizeSortByParam(sortByParam) ?? DEFAULT_SORT_BY;
   const sortOrder: SortOrder = isSortOrder(orderParam) ? orderParam : DEFAULT_SORT_ORDER;
 
   const [searchInput, setSearchInput] = useState(urlSearch);

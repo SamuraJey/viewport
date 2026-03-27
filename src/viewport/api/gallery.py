@@ -115,7 +115,7 @@ async def get_gallery_detail(
         resolved_sort_by = GalleryPhotoSortBy.ORIGINAL_FILENAME
         resolved_order = SortOrder.ASC
     else:
-        resolved_sort_by = photo_query.sort_by or GalleryPhotoSortBy.CREATED_AT
+        resolved_sort_by = photo_query.sort_by or GalleryPhotoSortBy.UPLOADED_AT
         resolved_order = photo_query.order or SortOrder.DESC
 
     photos_to_process = await repo.get_photos_by_gallery_paginated(

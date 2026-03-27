@@ -4,7 +4,7 @@
 
 import type { GalleryPhoto } from './photo';
 
-export type GalleryPhotoSortBy = 'created_at' | 'original_filename' | 'file_size';
+export type GalleryPhotoSortBy = 'uploaded_at' | 'original_filename' | 'file_size';
 export type SortOrder = 'asc' | 'desc';
 
 export interface GalleryPhotoQueryOptions {

@@ -211,14 +211,14 @@ async def test_gallery_photo_search_sort_and_filtered_count(repo: GalleryReposit
     )
     assert [photo.file_size for photo in by_size_desc] == [300, 200, 100]
 
-    by_created_desc = await repo.get_photos_by_gallery_paginated(
+    by_uploaded_desc = await repo.get_photos_by_gallery_paginated(
         gallery_id=gallery.id,
         limit=3,
         offset=0,
-        sort_by=GalleryPhotoSortBy.CREATED_AT,
+        sort_by=GalleryPhotoSortBy.UPLOADED_AT,
         order=SortOrder.DESC,
     )
-    assert [photo.display_name for photo in by_created_desc] == ["zeta.jpg", "beta.jpg", "Alpha.jpg"]
+    assert [photo.display_name for photo in by_uploaded_desc] == ["zeta.jpg", "beta.jpg", "Alpha.jpg"]
 
 
 @pytest.mark.asyncio

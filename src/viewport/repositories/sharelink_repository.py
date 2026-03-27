@@ -15,7 +15,7 @@ class ShareLinkRepository(BaseRepository):  # pragma: no cover # TODO tests
     def _build_public_photo_order_clauses(sort_by: GalleryPhotoSortBy, order: SortOrder):
         order_fn = asc if order == SortOrder.ASC else desc
 
-        if sort_by == GalleryPhotoSortBy.CREATED_AT:
+        if sort_by == GalleryPhotoSortBy.UPLOADED_AT:
             return [order_fn(Photo.uploaded_at), order_fn(Photo.id)]
 
         if sort_by == GalleryPhotoSortBy.FILE_SIZE:
