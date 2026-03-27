@@ -228,9 +228,9 @@ const GalleryPhotoSectionComponent = ({
         <div className="flex h-16 w-16 items-center justify-center rounded-full border border-border/40 bg-surface text-muted dark:border-border/30 dark:bg-surface-dark-2">
           <SearchX className="h-8 w-8" />
         </div>
-        <h3 className="mt-5 text-xl font-bold text-text">Ничего не найдено</h3>
+        <h3 className="mt-5 text-xl font-bold text-text">No results found</h3>
         <p className="mt-2 max-w-md text-sm font-medium text-muted">
-          По запросу &quot;{state.activeSearchTerm}&quot; не найдено фотографий.
+          No photos found for &quot;{state.activeSearchTerm}&quot;.
         </p>
         <button
           type="button"
