@@ -57,7 +57,7 @@ services:
           memory: 128M
 
   s3-service:
-    image: rustfs/rustfs:1.0.0-alpha.85
+    image: rustfs/rustfs:1.0.0-alpha.90
     container_name: viewport_s3
     restart: always
     environment:
@@ -90,7 +90,7 @@ services:
           memory: 128M
 
   redis:
-    image: valkey/valkey:8-alpine
+    image: valkey/valkey:9-alpine
     container_name: viewport_redis
     restart: always
     command: >
