@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1
 
 ARG PYTHON_VERSION=3.14
-ARG UV_VERSION=0.10.9
+ARG UV_VERSION=0.11.2
+ARG APP_UID=1001
+ARG APP_GID=1001
 
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 
@@ -10,7 +12,9 @@ COPY --from=uv /uv /uvx /bin/
 
 WORKDIR /app
 
-ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
 
 COPY uv.lock pyproject.toml README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -21,14 +25,18 @@ COPY src/ src/
 
 FROM python:${PYTHON_VERSION}-slim AS runtime
 
-RUN groupadd -g 1001 appgroup && \
-    useradd -u 1001 -g appgroup -m -d /app -s /bin/false appuser
+ARG APP_UID
+ARG APP_GID
+
+RUN groupadd --system --gid "${APP_GID}" appgroup && \
+    useradd --system --uid "${APP_UID}" --gid appgroup --home-dir /app --shell /bin/false appuser
 
 WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app/src" \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONFAULTHANDLER=1
 
 COPY --from=build --chown=appuser:appgroup /app/.venv /app/.venv
 
@@ -36,4 +44,6 @@ COPY --from=build --chown=appuser:appgroup /app/src /app/src
 
 USER appuser
 EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3)"]
 CMD ["python", "-m", "uvicorn", "src.viewport.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]

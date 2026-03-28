@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { galleryService, type GalleryDetail } from '../services/galleryService';
 import { photoService } from '../services/photoService';
 import type { PhotoUploadResponse } from '../services/photoService';
@@ -22,6 +23,7 @@ interface UseGalleryActionsProps {
 }
 
 export const useGalleryActions = ({ galleryId, filters, pagination }: UseGalleryActionsProps) => {
+  const navigate = useNavigate();
   const [gallery, setGallery] = useState<GalleryDetail | null>(null);
   const [photoUrls, setPhotoUrls] = useState<GalleryDetail['photos']>([]);
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
@@ -227,7 +229,7 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
       onConfirm: async () => {
         try {
           await galleryService.deleteGallery(galleryId);
-          window.location.href = '/';
+          navigate('/dashboard', { replace: true });
         } catch (err) {
           handleError(err);
           throw err;

@@ -30,13 +30,13 @@ jobs:
               - 'alembic.ini'
               - 'pyproject.toml'
               - 'uv.lock'
-              - 'Dockerfile-backend'
+              - 'Dockerfile.backend'
               - 'Justfile'
               - 'docker-compose*.yml'
               - 'config/**'
             frontend:
               - 'frontend/**'
-              - 'Dockerfile-frontend'
+              - 'Dockerfile.frontend'
 
   build-backend-image:
     name: Build Backend Docker Image
@@ -53,7 +53,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile-backend
+          file: ./Dockerfile.backend
           push: false
           cache-from: type=gha,scope=backend-image
           cache-to: type=gha,mode=max,scope=backend-image
