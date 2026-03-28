@@ -8,7 +8,7 @@ PROJECT_NAME := "viewport"
 create-venv:
     test -d {{ VENV }} || python{{ PYTHON_VERSION }} -m venv {{ VENV }} --upgrade-deps
     {{ VENV }}/bin/python -m ensurepip --upgrade
-    {{ VENV }}/bin/python -m pip install uv==0.10.9
+    {{ VENV }}/bin/python -m pip install uv==0.10.12
 
 # Sync dependencies with uv
 install-deps:
