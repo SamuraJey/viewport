@@ -153,11 +153,14 @@ class ShareLinkAdmin(ModelView, model=ShareLink):
     column_list = [
         ShareLink.id,
         ShareLink.gallery_id,
+        ShareLink.label,
+        ShareLink.is_active,
         ShareLink.expires_at,
         ShareLink.views,
         ShareLink.zip_downloads,
         ShareLink.single_downloads,
         ShareLink.created_at,
+        ShareLink.updated_at,
     ]
     column_sortable_list = [ShareLink.created_at, ShareLink.expires_at, ShareLink.views]
     column_default_sort = [(ShareLink.created_at, True)]
@@ -166,15 +169,18 @@ class ShareLinkAdmin(ModelView, model=ShareLink):
     column_details_list = [
         ShareLink.id,
         ShareLink.gallery,
+        ShareLink.label,
+        ShareLink.is_active,
         ShareLink.expires_at,
         ShareLink.views,
         ShareLink.zip_downloads,
         ShareLink.single_downloads,
         ShareLink.created_at,
+        ShareLink.updated_at,
     ]
 
     # Form configuration
-    form_excluded_columns = [ShareLink.created_at, ShareLink.views, ShareLink.zip_downloads, ShareLink.single_downloads, ShareLink.gallery]
+    form_excluded_columns = [ShareLink.created_at, ShareLink.updated_at, ShareLink.views, ShareLink.zip_downloads, ShareLink.single_downloads, ShareLink.gallery]
 
     # Permissions
     can_create = False  # Share links created via API only

@@ -1,4 +1,6 @@
 import { AlertCircle } from 'lucide-react';
+import { Clock3 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export const PublicGallerySkeleton = () => (
   <div
@@ -44,6 +46,29 @@ export const PublicGalleryError = ({ error }: PublicGalleryErrorProps) => (
         Gallery Not Available
       </h1>
       <p className="text-muted dark:text-muted-foreground text-lg font-medium">{error}</p>
+    </div>
+  </div>
+);
+
+export const PublicGalleryExpired = () => (
+  <div className="min-h-screen bg-surface dark:bg-surface-foreground/5 flex items-center justify-center p-4">
+    <div className="w-full max-w-lg bg-surface dark:bg-surface-dark rounded-3xl p-8 sm:p-10 shadow-2xl border border-border/50 dark:border-white/5 text-center">
+      <div className="w-20 h-20 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-6">
+        <Clock3 className="w-10 h-10 text-accent" />
+      </div>
+      <h1 className="text-3xl font-bold text-text dark:text-accent-foreground mb-3 tracking-tight">
+        Link Has Expired
+      </h1>
+      <p className="text-muted dark:text-muted-foreground text-base sm:text-lg font-medium">
+        This share link is no longer active. Ask the photographer for a new one.
+      </p>
+
+      <Link
+        to="/"
+        className="mt-7 inline-flex items-center justify-center rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90"
+      >
+        Go to home page
+      </Link>
     </div>
   </div>
 );

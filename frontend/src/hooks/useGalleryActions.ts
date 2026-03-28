@@ -6,7 +6,7 @@ import type { PhotoUploadResponse } from '../services/photoService';
 import { shareLinkService, type ShareLink } from '../services/shareLinkService';
 import { useErrorHandler, useConfirmation, useModal } from '../hooks';
 import { handleApiError } from '../lib/errorHandling';
-import type { GalleryPhotoSortBy, SortOrder } from '../types';
+import type { GalleryPhotoSortBy, ShareLinkUpdateRequest, SortOrder } from '../types';
 
 interface UseGalleryActionsProps {
   galleryId: string;
@@ -333,6 +333,15 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
     });
   };
 
+  const handleUpdateShareLink = async (
+    linkId: string,
+    payload: ShareLinkUpdateRequest,
+  ): Promise<void> => {
+    clearError();
+    await shareLinkService.updateShareLink(galleryId, linkId, payload);
+    await fetchShareLinks(false);
+  };
+
   const handleRenamePhoto = (photoId: string, currentFilename: string) => {
     renameModal.open({ id: photoId, filename: currentFilename });
   };
@@ -469,6 +478,7 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
     handleSetCover,
     handleClearCover,
     handleCreateShareLink,
+    handleUpdateShareLink,
     handleDeleteShareLink,
     handleRenamePhoto,
     handleRenameConfirm,

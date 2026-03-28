@@ -24,10 +24,12 @@ export const usePublicGallery = ({ shareId, photosPerPage = 100 }: UsePublicGall
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string>('');
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
 
   const fetchGalleryData = useCallback(async () => {
     if (!shareId) {
       setError('Invalid share link');
+      setErrorStatus(400);
       setHasMore(false);
       setIsLoading(false);
       return;
@@ -36,6 +38,7 @@ export const usePublicGallery = ({ shareId, photosPerPage = 100 }: UsePublicGall
     try {
       setIsLoading(true);
       setError('');
+      setErrorStatus(null);
       const data = await shareLinkService.getSharedGallery(shareId, {
         limit: photosPerPage,
         offset: 0,
@@ -47,10 +50,11 @@ export const usePublicGallery = ({ shareId, photosPerPage = 100 }: UsePublicGall
     } catch (err) {
       console.error('Failed to fetch shared gallery:', err);
       const status = getErrorStatus(err);
+      setErrorStatus(status ?? null);
       if (status && PUBLIC_GALLERY_FATAL_STATUSES.has(status)) {
         setHasMore(false);
       }
-      setError('Gallery not found or link has expired');
+      setError(status === 410 ? 'Share link has expired' : 'Gallery not found');
     } finally {
       setIsLoading(false);
     }
@@ -74,8 +78,9 @@ export const usePublicGallery = ({ shareId, photosPerPage = 100 }: UsePublicGall
       console.error('Failed to load more photos:', err);
       const status = getErrorStatus(err);
       if (status && PUBLIC_GALLERY_FATAL_STATUSES.has(status)) {
+        setErrorStatus(status);
         setHasMore(false);
-        setError('Gallery not found or link has expired');
+        setError(status === 410 ? 'Share link has expired' : 'Gallery not found');
       }
     } finally {
       setIsLoadingMore(false);
@@ -93,6 +98,7 @@ export const usePublicGallery = ({ shareId, photosPerPage = 100 }: UsePublicGall
     isLoadingMore,
     hasMore,
     error,
+    errorStatus,
     loadMorePhotos,
   };
 };

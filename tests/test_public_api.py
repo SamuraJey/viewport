@@ -1,5 +1,6 @@
 import io
 import zipfile
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,6 +15,35 @@ def _upload_photo(client: TestClient, gallery_id: str, content: bytes, filename:
 
 
 class TestPublicAPI:
+    def test_get_photos_by_sharelink_returns_410_for_expired_link(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        expired_at = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+        resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"expires_at": expired_at},
+        )
+        assert resp.status_code == 201
+        share_id = resp.json()["id"]
+
+        public_resp = authenticated_client.get(f"/s/{share_id}")
+        assert public_resp.status_code == 410
+
+    def test_get_photos_by_sharelink_returns_404_for_inactive_link(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        create_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"expires_at": "2099-01-01T00:00:00Z"},
+        )
+        assert create_resp.status_code == 201
+        share_id = create_resp.json()["id"]
+
+        patch_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}",
+            json={"is_active": False},
+        )
+        assert patch_resp.status_code == 200
+
+        public_resp = authenticated_client.get(f"/s/{share_id}")
+        assert public_resp.status_code == 404
+
     def test_get_photos_by_sharelink_uses_saved_gallery_sort_settings(self, authenticated_client: TestClient, gallery_id_fixture: str):
         _upload_photo(authenticated_client, gallery_id_fixture, b"one", "a.jpg")
         _upload_photo(authenticated_client, gallery_id_fixture, b"two", "b.jpg")

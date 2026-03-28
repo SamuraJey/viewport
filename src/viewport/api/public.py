@@ -2,6 +2,7 @@ import contextlib
 import re
 import unicodedata
 from asyncio import run as asyncio_run
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -178,9 +179,13 @@ def get_sharelink_repository(db: AsyncSession = Depends(get_db)) -> ShareLinkRep
 
 async def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository)) -> ShareLink:
     """Get valid sharelink."""
-    sharelink = await repo.get_valid_sharelink(share_id)
+    sharelink = await repo.get_sharelink_for_public_access(share_id)
     if not sharelink:
         raise HTTPException(status_code=404, detail="ShareLink not found")
+    if not sharelink.is_active:
+        raise HTTPException(status_code=404, detail="ShareLink not found")
+    if sharelink.expires_at and sharelink.expires_at.timestamp() < datetime.now(UTC).timestamp():
+        raise HTTPException(status_code=410, detail="ShareLink expired")
     return sharelink
 
 
@@ -286,7 +291,11 @@ async def get_photos_by_sharelink(
 
     # Increment views only on first page load (offset=0)
     if offset == 0:
-        await repo.increment_views(share_id)
+        forwarded_for = request.headers.get("x-forwarded-for", "")
+        client_ip = forwarded_for.split(",")[0].strip() if forwarded_for else None
+        if not client_ip and request.client:
+            client_ip = request.client.host
+        await repo.record_view(share_id, ip_address=client_ip, user_agent=request.headers.get("user-agent"))
 
     return PublicGalleryResponse(
         photos=photo_list,
@@ -333,7 +342,7 @@ def download_all_photos_zip(
 
         z.add(arcname=filename, data=file_generator())
 
-    asyncio_run(repo.increment_zip_downloads(share_id))
+    asyncio_run(repo.record_zip_download(share_id))
     logger.log_event("download_zip", share_id=str(sharelink.id), extra={"photo_count": len(photos)})
 
     headers = {"Content-Disposition": f'attachment; filename="gallery_{share_id}.zip"'}

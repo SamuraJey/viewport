@@ -66,6 +66,12 @@ export const Layout = ({ children }: LayoutProps) => {
                 Demo Mode
               </span>
             ) : null}
+            <Link
+              to="/share-links"
+              className="hidden md:inline-flex items-center rounded-xl border border-border/40 bg-surface-1 px-3 py-2 text-xs font-bold uppercase tracking-wide text-text transition-all duration-200 hover:border-accent/40 hover:text-accent dark:bg-surface-dark-1"
+            >
+              Share Links
+            </Link>
             <ThemeSwitch variant="inline" />
             {user ? (
               <>

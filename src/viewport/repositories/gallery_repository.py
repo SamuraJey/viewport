@@ -119,7 +119,7 @@ class GalleryRepository(BaseRepository):
                 Gallery.owner_id == owner_id,
                 Gallery.is_deleted.is_(False),
             )
-            .order_by(ShareLink.created_at.asc())
+            .order_by(ShareLink.created_at.desc())
         )
         sharelinks = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read(sharelinks)
@@ -506,11 +506,64 @@ class GalleryRepository(BaseRepository):
         await self.db.refresh(photo)
         return photo
 
-    async def create_sharelink(self, gallery_id: uuid.UUID, expires_at: datetime | None) -> ShareLink:
-        sharelink = ShareLink(gallery_id=gallery_id, expires_at=expires_at, created_at=datetime.now(UTC))
+    async def create_sharelink(
+        self,
+        gallery_id: uuid.UUID,
+        expires_at: datetime | None,
+        label: str | None = None,
+        is_active: bool = True,
+    ) -> ShareLink:
+        sharelink = ShareLink(
+            gallery_id=gallery_id,
+            label=label,
+            is_active=is_active,
+            expires_at=expires_at,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
         self.db.add(sharelink)
         await self.db.commit()
         await self.db.refresh(sharelink)
+        return sharelink
+
+    async def update_sharelink(
+        self,
+        sharelink_id: uuid.UUID,
+        gallery_id: uuid.UUID,
+        owner_id: uuid.UUID,
+        *,
+        label: str | None = None,
+        expires_at: datetime | None = None,
+        is_active: bool | None = None,
+        fields_set: set[str],
+    ) -> ShareLink | None:
+        gallery = await self.get_gallery_by_id_and_owner(gallery_id, owner_id)
+        if not gallery:
+            return None
+
+        stmt = select(ShareLink).where(ShareLink.id == sharelink_id, ShareLink.gallery_id == gallery_id)
+        sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
+        if not sharelink:
+            return None
+
+        updated = False
+        if "label" in fields_set:
+            sharelink.label = label
+            updated = True
+        if "expires_at" in fields_set:
+            sharelink.expires_at = expires_at
+            updated = True
+        if "is_active" in fields_set:
+            if is_active is None:
+                raise ValueError("is_active cannot be null")
+            sharelink.is_active = is_active
+            updated = True
+
+        if updated:
+            sharelink.updated_at = datetime.now(UTC)
+            await self.db.commit()
+            await self.db.refresh(sharelink)
+
         return sharelink
 
     async def delete_sharelink(self, sharelink_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> bool:

@@ -21,6 +21,16 @@ const LandingPage = lazy(() =>
 const GalleryPage = lazy(() =>
   import('./pages/GalleryPage').then((module) => ({ default: module.GalleryPage })),
 );
+const ShareLinksDashboardPage = lazy(() =>
+  import('./pages/ShareLinksDashboardPage').then((module) => ({
+    default: module.ShareLinksDashboardPage,
+  })),
+);
+const ShareLinkDetailPage = lazy(() =>
+  import('./pages/ShareLinkDetailPage').then((module) => ({
+    default: module.ShareLinkDetailPage,
+  })),
+);
 const PublicGalleryPage = lazy(() =>
   import('./pages/PublicGalleryPage').then((module) => ({ default: module.PublicGalleryPage })),
 );
@@ -65,6 +75,8 @@ function App() {
           <Route element={<ProtectedLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/galleries/:id" element={<GalleryPage />} />
+            <Route path="/share-links" element={<ShareLinksDashboardPage />} />
+            <Route path="/share-links/:shareLinkId" element={<ShareLinkDetailPage />} />
           </Route>
 
           {/* Error routes */}

@@ -23,6 +23,9 @@
   - Keep business logic close to repository methods when it’s DB/S3 orchestration (e.g. async delete/rename in `GalleryRepository`).
   - Private gallery photo listing (`GET /galleries/{gallery_id}`) supports query params `search`, `sort_by`, and `order`; repository methods must apply filters inside `gallery_id` with `galleries.is_deleted = false`, and `total_photos` must reflect filtered results.
   - Shared gallery photo listing (`GET /s/{share_id}`) uses gallery-level persisted settings (`galleries.public_sort_by`, `galleries.public_sort_order`) configured in private gallery management; sorting and pagination must be done at SQL level and `total_photos` must represent full gallery size before pagination.
+  - Share links support lifecycle controls (`share_links.label`, `share_links.is_active`, editable `expires_at`) and owner-scoped management endpoints (`/galleries/{gallery_id}/share-links`, `/share-links`).
+  - Share-link analytics are stored as daily aggregates in `share_link_daily_stats` with dedup support via `share_link_daily_visitors` (hash of IP+User-Agent); do not add raw per-open event logs unless explicitly required.
+  - Public share access: inactive links must remain non-disclosing (`404`), while expired links return `410` so frontend can render a dedicated expiration state.
 - Photo upload performance pattern:
   - **Two-step upload**:
     1. `/batch-presigned`: Creates `PENDING` DB records and returns presigned PUT URLs. Client uploads directly to S3.
@@ -51,6 +54,7 @@
   - Demo entry points: use one-click demo access from auth/landing UI by enabling demo mode in localStorage (`viewport-demo-mode`) and logging into `authStore` with mock user/tokens.
 - **Dev API routing**: Vite proxy rewrites `VITE_DEV_API_PREFIX` (default `/api`) to the backend (see `frontend/vite.config.ts`).
 - **Pages**: In `frontend/src/pages/`, use custom hooks for pagination/selection/modals instead of manual state (see DashboardPage.tsx, GalleryPage.tsx for examples).
+  - Share links management UI spans `GalleryPage.tsx` (local section with inline edit actions), `ShareLinksDashboardPage.tsx` (owner-wide table), and `ShareLinkDetailPage.tsx` (time-series analytics + edit/delete controls).
   - Keep pages as orchestration layers and prefer route-level lazy loading (`React.lazy` + `Suspense`) in `frontend/src/App.tsx` for main page components to control bundle size.
   - `GalleryPage.tsx` follows a **photo-first** layout: compact metadata header and primary focus on the photo grid. Upload starts directly from `Add Photos` (file picker), and drag-and-drop is handled across the whole gallery page instead of a permanently large uploader block.
   - In `GalleryPage.tsx`, keep private gallery controls (`search`, `sort_by`, `order`) URL-synced via query params, debounce search input before updating URL/API calls, and reset pagination to page `1` whenever these controls change.

@@ -279,12 +279,15 @@ class TestShareLinkModel:
         assert sharelink.id is not None
         assert isinstance(sharelink.id, uuid.UUID)
         assert sharelink.gallery_id == gallery.id
+        assert sharelink.label is None
+        assert sharelink.is_active is True
         # Compare timezone-aware equality
         assert sharelink.expires_at.replace(tzinfo=UTC) == expires_at.replace(tzinfo=UTC)
         assert sharelink.views == 0
         assert sharelink.zip_downloads == 0
         assert sharelink.single_downloads == 0
         assert sharelink.created_at is not None
+        assert sharelink.updated_at is not None
 
     async def test_sharelink_without_expiry(self, sharelink_fixture: ShareLink):
         """Test creating a share link without expiry (via fixture)."""

@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
+import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import { GalleryHeader } from '../components/gallery/GalleryHeader';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
@@ -14,7 +15,7 @@ import {
 } from '../components/gallery/GalleryPageStates';
 import { type PhotoUploaderHandle } from '../components/PhotoUploader';
 import { usePagination, useSelection, useGalleryActions, useGalleryDragAndDrop } from '../hooks';
-import type { GalleryPhotoSortBy, SortOrder } from '../types';
+import type { GalleryPhotoSortBy, ShareLink, SortOrder } from '../types';
 
 const DEFAULT_SORT_BY: GalleryPhotoSortBy = 'uploaded_at';
 const DEFAULT_SORT_ORDER: SortOrder = 'desc';
@@ -38,6 +39,7 @@ const isSortOrder = (value: string | null): value is SortOrder =>
   value === 'asc' || value === 'desc';
 
 export const GalleryPage = () => {
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const galleryId = id!;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -57,6 +59,7 @@ export const GalleryPage = () => {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showInitialLoadingState, setShowInitialLoadingState] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingShareLink, setEditingShareLink] = useState<ShareLink | null>(null);
   const [photoSizeById, setPhotoSizeById] = useState<Record<string, number>>({});
   const gridRef = useRef<HTMLDivElement | null>(null);
   const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
@@ -164,6 +167,7 @@ export const GalleryPage = () => {
     handleSetCover,
     handleClearCover,
     handleCreateShareLink,
+    handleUpdateShareLink,
     handleDeleteShareLink,
     handleRenamePhoto,
     handleRenameConfirm,
@@ -634,6 +638,9 @@ export const GalleryPage = () => {
           onRetry={fetchShareLinks}
           isCreatingLink={isCreatingLink}
           onCreateLink={handleCreateShareLink}
+          onEditLink={(link) => setEditingShareLink(link)}
+          onOpenLinkAnalytics={(linkId) => navigate(`/share-links/${linkId}`)}
+          onOpenDashboard={() => navigate('/share-links')}
           onDeleteLink={handleDeleteShareLink}
         />
       </div>
@@ -662,6 +669,17 @@ export const GalleryPage = () => {
             onRename={handleRenameConfirm}
           />
         )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {editingShareLink ? (
+          <ShareLinkEditorModal
+            isOpen={Boolean(editingShareLink)}
+            link={editingShareLink}
+            onClose={() => setEditingShareLink(null)}
+            onSave={(payload) => handleUpdateShareLink(editingShareLink.id, payload)}
+          />
+        ) : null}
       </AnimatePresence>
 
       {/* Confirmation Modal */}

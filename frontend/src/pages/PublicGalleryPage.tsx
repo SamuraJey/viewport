@@ -4,7 +4,10 @@ import { Download as DownloadIcon } from 'lucide-react';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { PublicGalleryHero } from '../components/public-gallery/PublicGalleryHero';
 import { PublicGalleryPhotoSection } from '../components/public-gallery/PublicGalleryPhotoSection';
-import { PublicGalleryError } from '../components/public-gallery/PublicGalleryStates';
+import {
+  PublicGalleryError,
+  PublicGalleryExpired,
+} from '../components/public-gallery/PublicGalleryStates';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import { usePublicGallery } from '../hooks';
 import { usePublicGalleryGrid } from '../hooks/usePublicGalleryGrid';
@@ -16,7 +19,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 export const PublicGalleryPage = () => {
   const { shareId } = useParams<{ shareId: string }>();
 
-  const { gallery, photos, isLoading, isLoadingMore, hasMore, error, loadMorePhotos } =
+  const { gallery, photos, isLoading, isLoadingMore, hasMore, error, errorStatus, loadMorePhotos } =
     usePublicGallery({ shareId });
 
   const observerTargetRef = useRef<HTMLDivElement | null>(null);
@@ -96,6 +99,9 @@ export const PublicGalleryPage = () => {
   }
 
   if (error) {
+    if (errorStatus === 410) {
+      return <PublicGalleryExpired />;
+    }
     return <PublicGalleryError error={error} />;
   }
 
