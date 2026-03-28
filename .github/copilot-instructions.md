@@ -11,7 +11,7 @@
 - Containers (recommended): `docker-compose up -d` (services: backend, postgres, rustfs, redis, celery_worker).
 - Backend local tooling uses `uv` + venv via `just init` or `make init` (see `Justfile`, `Makefile`).
 - Backend dev server (preferred local dev): `uvicorn viewport.main:app --reload`.
-  - Note: Docker commands use `src.viewport.*` module paths (see `Dockerfile-backend`, `docker-compose.yml`).
+  - Note: Docker commands use `src.viewport.*` module paths (see `Dockerfile.backend`, `docker-compose.yml`).
 - Frontend dev server: `cd frontend && npm install && npm run dev`.
 
 ## Backend conventions (FastAPI)
