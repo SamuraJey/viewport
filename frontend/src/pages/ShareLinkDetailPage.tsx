@@ -226,10 +226,11 @@ export const ShareLinkDetailPage = () => {
           <button
             key={preset}
             onClick={() => setDays(preset)}
-            className={`rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${days === preset
+            className={`rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+              days === preset
                 ? 'bg-accent text-accent-foreground'
                 : 'border border-border/50 bg-surface-1 text-text hover:border-accent/40'
-              }`}
+            }`}
           >
             Last {preset} days
           </button>
