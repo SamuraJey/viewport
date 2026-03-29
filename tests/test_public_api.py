@@ -26,6 +26,9 @@ class TestPublicAPI:
 
         public_resp = authenticated_client.get(f"/s/{share_id}")
         assert public_resp.status_code == 410
+        assert public_resp.headers.get("Cache-Control") == "no-store, max-age=0, must-revalidate"
+        assert public_resp.headers.get("Pragma") == "no-cache"
+        assert public_resp.headers.get("Expires") == "0"
 
     def test_get_photos_by_sharelink_returns_404_for_inactive_link(self, authenticated_client: TestClient, gallery_id_fixture: str):
         create_resp = authenticated_client.post(
@@ -43,6 +46,7 @@ class TestPublicAPI:
 
         public_resp = authenticated_client.get(f"/s/{share_id}")
         assert public_resp.status_code == 404
+        assert public_resp.headers.get("Cache-Control") == "no-store, max-age=0, must-revalidate"
 
     def test_get_photos_by_sharelink_uses_saved_gallery_sort_settings(self, authenticated_client: TestClient, gallery_id_fixture: str):
         _upload_photo(authenticated_client, gallery_id_fixture, b"one", "a.jpg")
@@ -84,6 +88,7 @@ class TestPublicAPI:
         # Public gallery listing - now includes presigned URLs directly
         public_resp = authenticated_client.get(f"/s/{share_id}")
         assert public_resp.status_code == 200
+        assert public_resp.headers.get("Cache-Control") == "no-store, max-age=0, must-revalidate"
         data = public_resp.json()
         assert "photos" in data
         assert isinstance(data["photos"], list)
