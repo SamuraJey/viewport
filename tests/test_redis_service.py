@@ -213,6 +213,36 @@ class TestRedisServicePipeline:
         assert result == ["OK", "OK"]
         assert mock_pipeline.set.call_count == 2
 
+    @pytest.mark.asyncio
+    async def test_pipeline_context_methods(self):
+        """Test all PipelineContext methods work correctly."""
+        mock_client = AsyncMock()
+        mock_pipeline = AsyncMock()
+        mock_pipeline.__aenter__ = AsyncMock(return_value=mock_pipeline)
+        mock_pipeline.__aexit__ = AsyncMock(return_value=None)
+        mock_pipeline.get = MagicMock()
+        mock_pipeline.delete = MagicMock()
+        mock_pipeline.sadd = MagicMock()
+        mock_pipeline.srem = MagicMock()
+        mock_pipeline.expire = MagicMock()
+        mock_pipeline.execute = AsyncMock(return_value=[])
+        mock_client.pipeline = MagicMock(return_value=mock_pipeline)
+        service = RedisService(mock_client, None, available=True)
+
+        async with service.pipeline() as pipe:
+            pipe.get("key1")
+            pipe.delete("key2", "key3")
+            pipe.sadd("set1", "member1", "member2")
+            pipe.srem("set2", "member3")
+            pipe.expire("key4", 3600)
+            await pipe.execute()
+
+        mock_pipeline.get.assert_called_once_with("key1")
+        mock_pipeline.delete.assert_called_once_with("key2", "key3")
+        mock_pipeline.sadd.assert_called_once_with("set1", "member1", "member2")
+        mock_pipeline.srem.assert_called_once_with("set2", "member3")
+        mock_pipeline.expire.assert_called_once_with("key4", 3600)
+
 
 class TestNoOpPipelineContext:
     """Tests for _NoOpPipelineContext."""
@@ -237,6 +267,25 @@ class TestNoOpPipelineContext:
         assert result == []
 
 
+class TestModuleLevelFunctions:
+    """Tests for module-level getter/setter functions."""
+
+    def test_get_set_redis_service(self):
+        """Test get/set redis service instance."""
+        from viewport.services.redis_service import get_redis_service, set_redis_service
+
+        # Mock service
+        mock_service = MagicMock()
+
+        # Set and get
+        set_redis_service(mock_service)
+        assert get_redis_service() is mock_service
+
+        # Clean up
+        set_redis_service(None)
+        assert get_redis_service() is None
+
+
 class TestRedisServiceClose:
     """Tests for RedisService.close()."""
 
@@ -254,9 +303,164 @@ class TestRedisServiceClose:
         assert service._client is None
 
     @pytest.mark.asyncio
+    async def test_set_handles_redis_error(self):
+        """Test set returns False on Redis error."""
+        mock_client = AsyncMock()
+        mock_client.set = AsyncMock(side_effect=RedisError("Connection failed"))
+        service = RedisService(mock_client, None, available=True)
+
+        result = await service.set("key", "value")
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_mget_handles_redis_error(self):
+        """Test mget returns empty dict on Redis error."""
+        mock_client = AsyncMock()
+        mock_client.mget = AsyncMock(side_effect=RedisError("Timeout"))
+        service = RedisService(mock_client, None, available=True)
+
+        result = await service.mget(["key1", "key2"])
+
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_delete_handles_redis_error(self):
+        """Test delete returns 0 on Redis error."""
+        mock_client = AsyncMock()
+        mock_client.delete = AsyncMock(side_effect=RedisError("Connection lost"))
+        service = RedisService(mock_client, None, available=True)
+
+        result = await service.delete("key1", "key2")
+
+        assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_sadd_returns_zero_when_no_members(self):
+        """Test sadd returns 0 when no members provided."""
+        mock_client = AsyncMock()
+        service = RedisService(mock_client, None, available=True)
+
+        result = await service.sadd("key")
+
+        assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_sadd_handles_redis_error(self):
+        """Test sadd returns 0 on Redis error."""
+        mock_client = AsyncMock()
+        mock_client.sadd = AsyncMock(side_effect=RedisError("Set add failed"))
+        service = RedisService(mock_client, None, available=True)
+
+        result = await service.sadd("key", "member1", "member2")
+
+        assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_sunion_returns_empty_when_no_keys(self):
+        """Test sunion returns empty set when no keys provided."""
+        mock_client = AsyncMock()
+        service = RedisService(mock_client, None, available=True)
+
+        result = await service.sunion()
+
+        assert result == set()
+
+    @pytest.mark.asyncio
+    async def test_sunion_handles_redis_error(self):
+        """Test sunion returns empty set on Redis error."""
+        mock_client = AsyncMock()
+        mock_client.sunion = AsyncMock(side_effect=RedisError("Union failed"))
+        service = RedisService(mock_client, None, available=True)
+
+        result = await service.sunion("set1", "set2")
+
+        assert result == set()
+
+    @pytest.mark.asyncio
     async def test_close_handles_already_closed(self):
         """Test close handles already closed state."""
         service = RedisService(None, None, available=False)
         # Should not raise
         await service.close()
         assert service.is_available is False
+
+    @pytest.mark.asyncio
+    async def test_close_handles_exception(self):
+        """Test close handles exception during aclose."""
+        mock_client = AsyncMock()
+        mock_client.aclose = AsyncMock(side_effect=Exception("Close failed"))
+        service = RedisService(mock_client, MagicMock(), available=True)
+
+        # Should not raise
+        await service.close()
+
+        # Should still clean up
+        assert service._client is None
+        assert service.is_available is False
+
+    @pytest.mark.asyncio
+    async def test_ping_when_unavailable(self):
+        """Test ping returns False when service unavailable."""
+        service = RedisService(None, None, available=False)
+
+        result = await service.ping()
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_ping_success(self):
+        """Test ping returns True on successful ping."""
+        mock_client = AsyncMock()
+        mock_client.ping = AsyncMock(return_value=True)
+        service = RedisService(mock_client, None, available=True)
+
+        result = await service.ping()
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_ping_handles_redis_error(self):
+        """Test ping returns False on Redis error."""
+        mock_client = AsyncMock()
+        mock_client.ping = AsyncMock(side_effect=RedisError("Ping failed"))
+        service = RedisService(mock_client, None, available=True)
+
+        result = await service.ping()
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_sadd_success(self):
+        """Test sadd returns count on success."""
+        mock_client = AsyncMock()
+        mock_client.sadd = AsyncMock(return_value=2)
+        service = RedisService(mock_client, None, available=True)
+
+        result = await service.sadd("key", "member1", "member2")
+
+        assert result == 2
+
+    @pytest.mark.asyncio
+    async def test_coerce_text_with_bytes(self):
+        """Test _coerce_text handles bytes."""
+        result = RedisService._coerce_text(b"test_value")
+        assert result == "test_value"
+
+    @pytest.mark.asyncio
+    async def test_coerce_text_with_str(self):
+        """Test _coerce_text handles str."""
+        result = RedisService._coerce_text("test_value")
+        assert result == "test_value"
+
+    @pytest.mark.asyncio
+    async def test_coerce_text_with_other_type(self):
+        """Test _coerce_text handles other types."""
+        result = RedisService._coerce_text(123)
+        assert result == "123"
+
+    @pytest.mark.asyncio
+    async def test_coerce_text_with_none(self):
+        """Test _coerce_text handles None."""
+        result = RedisService._coerce_text(None)
+        assert result is None

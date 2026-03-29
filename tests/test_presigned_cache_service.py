@@ -34,13 +34,18 @@ class MockRedisService:
         return self._available
 
     def pipeline(self, transaction: bool = False):
-        return self._async_pipeline_context()
+        """Return async context manager for pipeline."""
+        return MockPipelineContext(self._pipeline_context)
 
-    async def _async_pipeline_context(self):
-        return self._pipeline_context
 
-    def __aenter__(self):
-        return self._pipeline_context
+class MockPipelineContext:
+    """Mock async context manager for pipeline."""
+
+    def __init__(self, pipeline_context):
+        self._context = pipeline_context
+
+    async def __aenter__(self):
+        return self._context
 
     async def __aexit__(self, *args):
         pass
@@ -156,6 +161,17 @@ class TestSingleUrlOperations:
         mock_redis.get.assert_called_once_with("cache_key")
 
     @pytest.mark.asyncio
+    async def test_get_url_by_key_handles_exception(self):
+        """Test get_url_by_key returns None on exception."""
+        mock_redis = MockRedisService()
+        mock_redis.get = AsyncMock(side_effect=Exception("Redis error"))
+        service = PresignedUrlCacheService(mock_redis)  # type: ignore
+
+        result = await service.get_url_by_key("cache_key")
+
+        assert result is None
+
+    @pytest.mark.asyncio
     async def test_set_url_when_unavailable(self):
         """Test set_url does nothing when Redis unavailable."""
         mock_redis = MockRedisService(available=False)
@@ -163,6 +179,16 @@ class TestSingleUrlOperations:
 
         # Should not raise
         await service.set_url("bucket", "key.jpg", None, "https://url.com", 3600)
+
+    @pytest.mark.asyncio
+    async def test_set_url_by_key_handles_exception(self):
+        """Test set_url_by_key handles pipeline exception."""
+        mock_redis = MockRedisService()
+        mock_redis._pipeline_context.execute = AsyncMock(side_effect=Exception("Pipeline failed"))
+        service = PresignedUrlCacheService(mock_redis)  # type: ignore
+
+        # Should not raise
+        await service.set_url_by_key("cache_key", "https://url.com", 3600)
 
 
 class TestBatchOperations:
@@ -179,6 +205,29 @@ class TestBatchOperations:
         assert result == {}
 
     @pytest.mark.asyncio
+    async def test_get_urls_batch_maps_keys_correctly(self):
+        """Test get_urls_batch maps cache keys back to object keys."""
+        mock_redis = MockRedisService()
+        service = PresignedUrlCacheService(mock_redis)  # type: ignore
+
+        # Build proper cache keys for the test
+        obj_key1 = "key1.jpg"
+        obj_key2 = "key2.jpg"
+        cache_key1 = service.build_cache_key("bucket", obj_key1, None)
+        cache_key2 = service.build_cache_key("bucket", obj_key2, None)
+
+        # Simulate cache returning URLs for these keys
+        mock_redis.mget = AsyncMock(return_value={cache_key1: "url1", cache_key2: "url2"})
+
+        result = await service.get_urls_batch("bucket", [obj_key1, obj_key2])
+
+        # Should map back to object keys
+        assert obj_key1 in result
+        assert obj_key2 in result
+        assert result[obj_key1] == "url1"
+        assert result[obj_key2] == "url2"
+
+    @pytest.mark.asyncio
     async def test_get_urls_batch_by_keys_returns_found(self):
         """Test get_urls_batch_by_keys returns only found keys."""
         mock_redis = MockRedisService()
@@ -188,6 +237,27 @@ class TestBatchOperations:
         result = await service.get_urls_batch_by_keys(["key1", "key2", "key3"])
 
         assert result == {"key1": "url1", "key3": "url3"}
+
+    @pytest.mark.asyncio
+    async def test_get_urls_batch_by_keys_empty_keys(self):
+        """Test get_urls_batch_by_keys returns empty dict for empty keys."""
+        mock_redis = MockRedisService()
+        service = PresignedUrlCacheService(mock_redis)  # type: ignore
+
+        result = await service.get_urls_batch_by_keys([])
+
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_get_urls_batch_by_keys_handles_exception(self):
+        """Test get_urls_batch_by_keys returns empty dict on exception."""
+        mock_redis = MockRedisService()
+        mock_redis.mget = AsyncMock(side_effect=Exception("Redis error"))
+        service = PresignedUrlCacheService(mock_redis)  # type: ignore
+
+        result = await service.get_urls_batch_by_keys(["key1", "key2"])
+
+        assert result == {}
 
     @pytest.mark.asyncio
     async def test_set_urls_batch_when_unavailable(self):
@@ -207,6 +277,16 @@ class TestBatchOperations:
         # Should not raise and not call pipeline
         await service.set_urls_batch([], 3600)
 
+    @pytest.mark.asyncio
+    async def test_set_urls_batch_handles_exception(self):
+        """Test set_urls_batch handles pipeline exception."""
+        mock_redis = MockRedisService()
+        mock_redis._pipeline_context.execute = AsyncMock(side_effect=Exception("Pipeline failed"))
+        service = PresignedUrlCacheService(mock_redis)  # type: ignore
+
+        # Should not raise
+        await service.set_urls_batch([("key1", "url1"), ("key2", "url2")], 3600)
+
 
 class TestCacheInvalidation:
     """Tests for cache invalidation operations."""
@@ -215,6 +295,16 @@ class TestCacheInvalidation:
     async def test_clear_url_when_unavailable(self):
         """Test clear_url does nothing when Redis unavailable."""
         mock_redis = MockRedisService(available=False)
+        service = PresignedUrlCacheService(mock_redis)  # type: ignore
+
+        # Should not raise
+        await service.clear_url("cache_key")
+
+    @pytest.mark.asyncio
+    async def test_clear_url_handles_exception(self):
+        """Test clear_url handles pipeline exception."""
+        mock_redis = MockRedisService()
+        mock_redis._pipeline_context.execute = AsyncMock(side_effect=Exception("Pipeline failed"))
         service = PresignedUrlCacheService(mock_redis)  # type: ignore
 
         # Should not raise
@@ -237,6 +327,16 @@ class TestCacheInvalidation:
 
         # Should not raise
         await service.clear_urls_batch([])
+
+    @pytest.mark.asyncio
+    async def test_clear_urls_batch_handles_exception(self):
+        """Test clear_urls_batch handles pipeline exception."""
+        mock_redis = MockRedisService()
+        mock_redis._pipeline_context.execute = AsyncMock(side_effect=Exception("Pipeline failed"))
+        service = PresignedUrlCacheService(mock_redis)  # type: ignore
+
+        # Should not raise
+        await service.clear_urls_batch(["key1", "key2"])
 
     @pytest.mark.asyncio
     async def test_clear_urls_for_object_keys_when_unavailable(self):
@@ -267,6 +367,16 @@ class TestCacheInvalidation:
 
         # Should not proceed since all keys are empty
         mock_redis.sunion.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_clear_urls_for_object_keys_handles_exception(self):
+        """Test clear_urls_for_object_keys handles exception."""
+        mock_redis = MockRedisService()
+        mock_redis.sunion = AsyncMock(side_effect=Exception("Redis error"))
+        service = PresignedUrlCacheService(mock_redis)  # type: ignore
+
+        # Should not raise
+        await service.clear_urls_for_object_keys("bucket", ["key1.jpg", "key2.jpg"])
 
     @pytest.mark.asyncio
     async def test_clear_urls_for_object_keys_success(self):
@@ -312,3 +422,22 @@ class TestIsAvailable:
 
         assert available_service.is_available is True
         assert unavailable_service.is_available is False
+
+
+class TestModuleLevelFunctions:
+    """Tests for module-level getter/setter functions."""
+
+    def test_get_set_presigned_cache_service(self):
+        """Test get/set presigned cache service instance."""
+        from viewport.services.presigned_cache import get_presigned_cache_service, set_presigned_cache_service
+
+        # Mock service
+        mock_service = MagicMock()
+
+        # Set and get
+        set_presigned_cache_service(mock_service)
+        assert get_presigned_cache_service() is mock_service
+
+        # Clean up
+        set_presigned_cache_service(None)
+        assert get_presigned_cache_service() is None
