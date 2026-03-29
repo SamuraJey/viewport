@@ -128,7 +128,18 @@ class TestGetCachedPresignedUrl:
 
         result = await get_cached_presigned_url(mock_redis, "cache_key")
 
-        assert result == "b'https://cached.example.com'"
+        assert result == "https://cached.example.com"
+        mock_redis.get.assert_called_once_with("cache_key")
+
+    @pytest.mark.asyncio
+    async def test_get_cached_presigned_url_with_existing_string_value(self):
+        """Test get_cached_presigned_url passes through decoded string values."""
+        mock_redis = AsyncMock()
+        mock_redis.get = AsyncMock(return_value="https://cached.example.com")
+
+        result = await get_cached_presigned_url(mock_redis, "cache_key")
+
+        assert result == "https://cached.example.com"
         mock_redis.get.assert_called_once_with("cache_key")
 
     @pytest.mark.asyncio
@@ -171,8 +182,8 @@ class TestGetCachedPresignedUrlsBatch:
         assert "key1" in result
         assert "key3" in result
         assert "key2" not in result
-        assert result["key1"] == "b'url1'"
-        assert result["key3"] == "b'url3'"
+        assert result["key1"] == "url1"
+        assert result["key3"] == "url3"
 
 
 class TestClearPresignedUrlCache:
@@ -294,6 +305,8 @@ class TestClearPresignedUrlsForObjectKeys:
         # delete is called with *list(keys_to_delete), so we get all args
         delete_args = mock_redis.delete.call_args[0]
         assert len(delete_args) == 4  # 2 index keys + 2 cached members
+        assert "presign:bucket:key1:hash1" in delete_args
+        assert "presign:bucket:key2:hash2" in delete_args
 
     @pytest.mark.asyncio
     async def test_clear_presigned_urls_for_object_keys_deduplicates_keys(self):

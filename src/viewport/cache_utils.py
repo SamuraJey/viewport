@@ -9,6 +9,16 @@ PRESIGNED_CACHE_BUFFER_SECONDS = 600
 PRESIGNED_INDEX_SUFFIX = "idx"
 
 
+def _coerce_redis_text(value: object | None) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        return value.decode("utf-8")
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
 def _encode_object_key(object_key: str) -> str:
     encoded = base64.urlsafe_b64encode(object_key.encode("utf-8")).decode("ascii")
     return encoded.rstrip("=")
@@ -85,7 +95,7 @@ async def get_cached_presigned_url(redis_client: Redis | None, cache_key: str) -
     if redis_client is None:
         return None
     value = await redis_client.get(cache_key)
-    return str(value) if value is not None else None
+    return _coerce_redis_text(value)
 
 
 async def get_cached_presigned_urls_batch(redis_client: Redis | None, cache_keys: list[str]) -> dict[str, str]:
@@ -93,7 +103,12 @@ async def get_cached_presigned_urls_batch(redis_client: Redis | None, cache_keys
         return {}
 
     values = await redis_client.mget(cache_keys)
-    return {cache_key: str(value) for cache_key, value in zip(cache_keys, values, strict=False) if value is not None}
+    result: dict[str, str] = {}
+    for cache_key, value in zip(cache_keys, values, strict=False):
+        decoded_value = _coerce_redis_text(value)
+        if decoded_value is not None:
+            result[cache_key] = decoded_value
+    return result
 
 
 async def clear_presigned_url_cache(redis_client: Redis | None, cache_key: str) -> None:
@@ -133,6 +148,9 @@ async def clear_presigned_urls_for_object_keys(
 
     keys_to_delete: set[str] = set(index_keys)
     if cached_members:
-        keys_to_delete.update(str(key) for key in cached_members)
+        for key in cached_members:
+            decoded_key = _coerce_redis_text(key)
+            if decoded_key is not None:
+                keys_to_delete.add(decoded_key)
     if keys_to_delete:
         await redis_client.delete(*list(keys_to_delete))
