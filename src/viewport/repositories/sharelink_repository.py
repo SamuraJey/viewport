@@ -14,7 +14,7 @@ from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 from viewport.sharelink_utils import is_sharelink_expired
 
 
-class ShareLinkRepository(BaseRepository):  # pragma: no cover # TODO tests
+class ShareLinkRepository(BaseRepository):
     @staticmethod
     def _build_public_photo_order_clauses(sort_by: GalleryPhotoSortBy, order: SortOrder):
         order_fn = asc if order == SortOrder.ASC else desc
@@ -154,21 +154,6 @@ class ShareLinkRepository(BaseRepository):  # pragma: no cover # TODO tests
         stmt = select(Photo).join(Photo.gallery).where(Photo.id == photo_id, Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
         photo = (await self.db.execute(stmt)).scalar_one_or_none()
         return await self._finish_read(photo)
-
-    async def increment_views(self, sharelink_id: uuid.UUID) -> None:
-        stmt = update(ShareLink).where(ShareLink.id == sharelink_id).values(views=ShareLink.views + 1)
-        await self.db.execute(stmt)
-        await self.db.commit()
-
-    async def increment_zip_downloads(self, sharelink_id: uuid.UUID) -> None:
-        stmt = update(ShareLink).where(ShareLink.id == sharelink_id).values(zip_downloads=ShareLink.zip_downloads + 1)
-        await self.db.execute(stmt)
-        await self.db.commit()
-
-    async def increment_single_downloads(self, sharelink_id: uuid.UUID) -> None:
-        stmt = update(ShareLink).where(ShareLink.id == sharelink_id).values(single_downloads=ShareLink.single_downloads + 1)
-        await self.db.execute(stmt)
-        await self.db.commit()
 
     @staticmethod
     def build_visitor_hash(ip_address: str | None, user_agent: str | None) -> str | None:
