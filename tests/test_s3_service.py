@@ -658,6 +658,30 @@ class TestPresignedURLCaching:
             mock_cache.set_urls_batch.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_generate_presigned_urls_batch_for_dispositions_no_cache(self, s3_client):
+        """Test disposition-specific batch generation falls back to direct generation without cache."""
+        key_dispositions = {
+            "photo1.jpg": "attachment; filename=photo1.jpg",
+            "photo2.jpg": "inline; filename=photo2.jpg",
+        }
+
+        with (
+            patch("viewport.s3_service.get_presigned_cache_service", return_value=None),
+            patch.object(s3_client, "_generate_presigned_urls_with_dispositions_sync") as mock_generate,
+        ):
+            mock_generate.return_value = {
+                "photo1.jpg": "https://url1.example.com",
+                "photo2.jpg": "https://url2.example.com",
+            }
+
+            result = await s3_client.generate_presigned_urls_batch_for_dispositions(key_dispositions)
+
+            assert len(result) == 2
+            assert result["photo1.jpg"] == "https://url1.example.com"
+            assert result["photo2.jpg"] == "https://url2.example.com"
+            mock_generate.assert_called_once_with(list(key_dispositions.items()), 7200)
+
+    @pytest.mark.asyncio
     async def test_clear_presigned_cache_for_object_keys(self, s3_client):
         """Test clearing cache for object keys."""
         mock_cache = MagicMock()

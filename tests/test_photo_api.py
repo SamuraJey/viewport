@@ -1,6 +1,7 @@
 """Tests for photo API endpoints."""
 
 from typing import TYPE_CHECKING, Never
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -8,7 +9,7 @@ import requests
 from fastapi.testclient import TestClient
 
 from tests.helpers import register_and_login, upload_photo_via_presigned
-from viewport.api.photo import MAX_FILE_SIZE, get_content_type_from_filename, sanitize_filename
+from viewport.api.photo import MAX_FILE_SIZE, _invalidate_presigned_cache_safely, get_content_type_from_filename, sanitize_filename
 from viewport.models.gallery import Photo, PhotoUploadStatus
 from viewport.models.user import User
 
@@ -370,6 +371,14 @@ class TestPhotoAPI:
         assert sanitize_filename("") == "file"
         assert get_content_type_from_filename("photo.jpg") == "image/jpeg"
         assert get_content_type_from_filename(None) == "image/jpeg"
+
+    @pytest.mark.asyncio
+    async def test_invalidate_presigned_cache_safely_skips_empty_keys(self):
+        s3_client = AsyncMock()
+
+        await _invalidate_presigned_cache_safely(s3_client, [], "batch_delete")
+
+        s3_client.clear_presigned_cache_for_object_keys.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_batch_confirm_missing_s3_object_is_accepted_and_finalized(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession, monkeypatch):

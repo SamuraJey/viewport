@@ -1,13 +1,15 @@
 import io
 import zipfile
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from tests.helpers import upload_photo_via_presigned
-from viewport.api.public import _build_zip_fallback_name, _make_unique_zip_entry_name, _sanitize_zip_entry_name
+from viewport.api.public import _build_zip_fallback_name, _make_unique_zip_entry_name, _sanitize_zip_entry_name, get_valid_sharelink
 
 
 def _upload_photo(client: TestClient, gallery_id: str, content: bytes, filename: str = "photo.jpg") -> str:
@@ -15,6 +17,17 @@ def _upload_photo(client: TestClient, gallery_id: str, content: bytes, filename:
 
 
 class TestPublicAPI:
+    @pytest.mark.asyncio
+    async def test_get_valid_sharelink_returns_404_when_missing(self):
+        repo = MagicMock()
+        repo.get_sharelink_for_public_access = AsyncMock(return_value=None)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_valid_sharelink(uuid4(), repo=repo)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "ShareLink not found"
+
     def test_get_photos_by_sharelink_returns_410_for_expired_link(self, authenticated_client: TestClient, gallery_id_fixture: str):
         expired_at = (datetime.now(UTC) - timedelta(days=1)).isoformat()
         resp = authenticated_client.post(
