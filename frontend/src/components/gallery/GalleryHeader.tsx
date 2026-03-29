@@ -273,10 +273,11 @@ export const GalleryHeader = ({
 
             <div className="flex items-center gap-3 lg:ml-auto">
               <label
-                className={`relative flex h-11 w-full items-center rounded-xl border bg-surface px-3 text-sm text-text transition-all duration-200 dark:bg-surface-dark-2 lg:w-64 ${isDefaultPrivateSort
+                className={`relative flex h-11 w-full items-center rounded-xl border bg-surface px-3 text-sm text-text transition-all duration-200 dark:bg-surface-dark-2 lg:w-64 ${
+                  isDefaultPrivateSort
                     ? 'border-border/40 hover:border-accent/40 dark:border-border/30'
                     : 'border-accent/45 bg-accent/5 text-accent dark:border-accent/55'
-                  }`}
+                }`}
               >
                 <ArrowUpDown className="h-4 w-4 text-muted" />
                 <select
@@ -308,10 +309,11 @@ export const GalleryHeader = ({
                 <button
                   type="button"
                   onClick={() => setIsFiltersOpen((prev) => !prev)}
-                  className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0 ${isFiltersOpen || hasActiveFilters
+                  className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0 ${
+                    isFiltersOpen || hasActiveFilters
                       ? 'border-accent/45 bg-accent/10 text-accent'
                       : 'border-border/40 bg-surface text-text hover:border-accent/40 hover:text-accent dark:border-border/30 dark:bg-surface-dark-2'
-                    }`}
+                  }`}
                   aria-expanded={isFiltersOpen}
                   aria-controls="gallery-public-sort-popover"
                 >

@@ -19,7 +19,7 @@ export const EmptyGalleryState = ({ onUploadClick }: EmptyGalleryStateProps) => 
       {/* Main message */}
       <h3 className="mt-8 text-3xl font-bold text-text">Your gallery is empty</h3>
       <p className="mt-4 max-w-lg text-base font-medium text-muted leading-relaxed">
-        Start building your collection by uploading photos. Your memories deserve a beautiful home.
+        Start building your collection by uploading photos.
       </p>
 
       {/* Action button */}

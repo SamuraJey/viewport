@@ -155,10 +155,11 @@ const GalleryPhotoSectionComponent = ({
           {state.photoUrls.length > 0 && (
             <button
               onClick={actions.onToggleSelectionMode}
-              className={`inline-flex h-11 items-center gap-2 rounded-xl border px-5 text-sm font-bold transition-all duration-200 hover:-translate-y-1 hover:shadow-lg active:translate-y-0 active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${state.isSelectionMode
+              className={`inline-flex h-11 items-center gap-2 rounded-xl border px-5 text-sm font-bold transition-all duration-200 hover:-translate-y-1 hover:shadow-lg active:translate-y-0 active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+                state.isSelectionMode
                   ? 'border-accent bg-accent text-accent-foreground shadow-md hover:brightness-110'
                   : 'border-border/35 bg-transparent text-muted hover:border-border/60 hover:bg-surface-1 hover:text-text dark:border-border/30 dark:hover:bg-surface-dark-1'
-                }`}
+              }`}
               title={state.isSelectionMode ? 'Exit selection mode' : 'Enter selection mode'}
             >
               <CheckSquare className="h-4 w-4" />

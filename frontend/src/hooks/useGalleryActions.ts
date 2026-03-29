@@ -202,10 +202,10 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
         setGallery((prev: GalleryDetail | null) =>
           prev
             ? {
-              ...prev,
-              public_sort_by: updated.public_sort_by,
-              public_sort_order: updated.public_sort_order,
-            }
+                ...prev,
+                public_sort_by: updated.public_sort_by,
+                public_sort_order: updated.public_sort_order,
+              }
             : prev,
         );
         return true;
@@ -349,11 +349,11 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
       prev.map((photo) =>
         photo.id === renameModal.data!.id
           ? {
-            ...photo,
-            filename: renamedPhoto.filename,
-            url: renamedPhoto.url,
-            thumbnail_url: renamedPhoto.thumbnail_url,
-          }
+              ...photo,
+              filename: renamedPhoto.filename,
+              url: renamedPhoto.url,
+              thumbnail_url: renamedPhoto.thumbnail_url,
+            }
           : photo,
       ),
     );

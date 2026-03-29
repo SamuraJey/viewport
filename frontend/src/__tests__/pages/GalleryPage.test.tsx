@@ -448,13 +448,11 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByText('No photos in this gallery')).toBeInTheDocument();
+        expect(screen.getByText('Your gallery is empty')).toBeInTheDocument();
       });
 
       expect(
-        screen.getByText(
-          'Upload your first photo to get started. You can also drag and drop files anywhere on this page.',
-        ),
+        screen.getByText('Start building your collection by uploading photos.'),
       ).toBeInTheDocument();
     });
   });
