@@ -1,4 +1,4 @@
-import { useState, memo } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Share2,
@@ -47,6 +47,16 @@ const ShareLinksSectionComponent = ({
   onOpenDashboard,
 }: ShareLinksSectionProps) => {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copyResetTimeoutRef.current) {
+        clearTimeout(copyResetTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   const copyToClipboard = async (text: string) => {
     const copied = await copyTextToClipboard(text);
@@ -54,7 +64,13 @@ const ShareLinksSectionComponent = ({
       return;
     }
     setCopiedLink(text);
-    setTimeout(() => setCopiedLink(null), 2000);
+    if (copyResetTimeoutRef.current) {
+      clearTimeout(copyResetTimeoutRef.current);
+    }
+    copyResetTimeoutRef.current = setTimeout(() => {
+      setCopiedLink(null);
+      copyResetTimeoutRef.current = null;
+    }, 2000);
   };
 
   const sortedShareLinks = [...shareLinks].sort(

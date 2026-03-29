@@ -338,8 +338,13 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
     payload: ShareLinkUpdateRequest,
   ): Promise<void> => {
     clearError();
-    await shareLinkService.updateShareLink(galleryId, linkId, payload);
-    await fetchShareLinks(false);
+    try {
+      await shareLinkService.updateShareLink(galleryId, linkId, payload);
+      await fetchShareLinks(false);
+    } catch (err) {
+      handleError(err);
+      throw err;
+    }
   };
 
   const handleRenamePhoto = (photoId: string, currentFilename: string) => {

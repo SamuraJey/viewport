@@ -11,6 +11,7 @@ from viewport.models.sharelink import ShareLink
 from viewport.models.sharelink_analytics import ShareLinkDailyStat, ShareLinkDailyVisitor
 from viewport.repositories.base_repository import BaseRepository
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
+from viewport.sharelink_utils import is_sharelink_expired
 
 
 class ShareLinkRepository(BaseRepository):  # pragma: no cover # TODO tests
@@ -34,7 +35,7 @@ class ShareLinkRepository(BaseRepository):  # pragma: no cover # TODO tests
 
     @staticmethod
     def _is_expired(sharelink: ShareLink) -> bool:
-        return bool(sharelink.expires_at and sharelink.expires_at.timestamp() < datetime.now(UTC).timestamp())
+        return is_sharelink_expired(sharelink.expires_at)
 
     async def get_valid_sharelink(self, sharelink_id: uuid.UUID) -> ShareLink | None:
         """Get sharelink with eager loading of gallery and gallery.owner to avoid lazy loading issues."""
@@ -85,7 +86,7 @@ class ShareLinkRepository(BaseRepository):  # pragma: no cover # TODO tests
         count_stmt = select(func.count()).select_from(ShareLink).join(ShareLink.gallery).where(*filters)
         total = int((await self.db.execute(count_stmt)).scalar() or 0)
 
-        now = datetime.now(UTC)
+        now = datetime.now(UTC).replace(tzinfo=None)
         summary_stmt = (
             select(
                 func.coalesce(func.sum(ShareLink.views), 0),

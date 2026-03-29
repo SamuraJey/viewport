@@ -2,7 +2,6 @@ import contextlib
 import re
 import unicodedata
 from asyncio import run as asyncio_run
-from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -23,6 +22,7 @@ from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client, get_s3_settings
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto
+from viewport.sharelink_utils import is_sharelink_expired
 
 router = APIRouter(prefix="/s", tags=["public"])
 
@@ -184,7 +184,7 @@ async def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depend
         raise HTTPException(status_code=404, detail="ShareLink not found")
     if not sharelink.is_active:
         raise HTTPException(status_code=404, detail="ShareLink not found")
-    if sharelink.expires_at and sharelink.expires_at.timestamp() < datetime.now(UTC).timestamp():
+    if is_sharelink_expired(sharelink.expires_at):
         raise HTTPException(status_code=410, detail="ShareLink expired")
     return sharelink
 
