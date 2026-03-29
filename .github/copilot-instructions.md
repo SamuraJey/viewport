@@ -4,7 +4,7 @@
 - Monorepo: FastAPI backend in `src/viewport/` + React/Vite frontend in `frontend/`.
 - Backend layers: routers in `src/viewport/api/` → repository layer in `src/viewport/repositories/` (SQLAlchemy `Session`) → Postgres models in `src/viewport/models/`.
 - Backend database access uses SQLAlchemy `AsyncSession` in app code, repositories, and auth dependencies, while Celery background tasks currently use a sync SQLAlchemy `Session` via `task_db_session()`.
-- Storage/URLs: originals + thumbnails live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them in Redis (ValKey) for cross-worker coherence (see `src/viewport/cache_utils.py` + `src/viewport/redis_client.py`).
+- Storage/URLs: originals + thumbnails live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them via `PresignedUrlCacheService` (`src/viewport/services/presigned_cache.py`) backed by `RedisService` (`src/viewport/services/redis_service.py`) for cross-worker coherence.
 - uv is used as package manager.
 
 ## How to run (preferred workflows)
@@ -16,7 +16,7 @@
 
 ## Backend conventions (FastAPI)
 - App entrypoint: `src/viewport/main.py`.
-  - Initializes a singleton `AsyncS3Client` in `lifespan()` and exposes it via DI (`src/viewport/dependencies.py`).
+  - Initializes singleton services (`AsyncS3Client`, `RedisService`, `PresignedUrlCacheService`) in `lifespan()` and exposes them via DI (`src/viewport/dependencies.py`).
 - Auth: endpoints in `src/viewport/api/auth.py`; request auth uses `get_current_user()` from `src/viewport/auth_utils.py` (HTTP Bearer, consistent 401s).
 - Repositories:
   - Constructed per-request from `db: AsyncSession = Depends(get_db)` (`src/viewport/models/db.py`).
@@ -81,6 +81,19 @@
   - Typecheck: `just mypy`.
   - Tests: `just test` (pytest-xdist `-n 4`), coverage gate in `just test-cov` (fail-under 85).
 - Frontend checks: `cd frontend && npm run lint -- --fix && npm run test:run`.
+
+## Service Architecture
+- **RedisService** (`src/viewport/services/redis_service.py`):
+  - Infrastructure wrapper for Redis with graceful degradation
+  - Connection pool management with configurable timeouts
+  - Methods: `get`, `set`, `mget`, `delete`, `sadd`, `sunion`, `pipeline`
+  - Initialized in lifespan, accessed via `get_redis_service()` or DI `Depends(get_redis)`
+- **PresignedUrlCacheService** (`src/viewport/services/presigned_cache.py`):
+  - Business logic for caching presigned S3 URLs
+  - Cache key format: `presign:{bucket}:{base64_object_key}:{disposition_hash}`
+  - TTL buffer: 10 minutes before actual URL expiry
+  - Index sets for efficient invalidation by object key
+  - Batch operations for performance
 
 ## Gotchas worth keeping in mind
 - Presigned URL cache is Redis-backed with a TTL buffer (URL TTL minus 10 minutes). Redis outages should degrade gracefully to direct presign generation without failing requests.

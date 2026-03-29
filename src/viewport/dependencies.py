@@ -1,17 +1,20 @@
 """
-Dependency Injection for S3 Client
+Dependency Injection
 
-This module provides the FastAPI dependency injection setup for the AsyncS3Client.
-The client is initialized once during application startup and shared across all requests.
+This module provides FastAPI dependency injection for shared services:
+- AsyncS3Client: S3 storage operations
+- RedisService: Redis caching infrastructure
+- PresignedUrlCacheService: Presigned URL caching business logic
+
+All services are initialized during application startup via the lifespan context manager.
 """
 
 import logging
 from collections.abc import AsyncGenerator
 
-from redis.asyncio import Redis
-
-from viewport.redis_client import get_redis_client_instance
 from viewport.s3_service import AsyncS3Client
+from viewport.services.presigned_cache import PresignedUrlCacheService, get_presigned_cache_service
+from viewport.services.redis_service import RedisService, get_redis_service
 
 logger = logging.getLogger(__name__)
 
@@ -71,10 +74,33 @@ def get_s3_client_instance() -> AsyncS3Client:
     return _s3_client_instance
 
 
-async def get_redis_client() -> AsyncGenerator[Redis | None]:
-    """Dependency injection function for Redis client.
+async def get_redis() -> AsyncGenerator[RedisService | None]:
+    """Dependency injection function for RedisService.
 
-    Returns:
-        Redis client instance if available, otherwise None.
+    Yields:
+        RedisService instance if available, otherwise None.
+
+    Example:
+        @app.get("/cache-status")
+        async def cache_status(redis: RedisService | None = Depends(get_redis)):
+            return {"available": redis.is_available if redis else False}
     """
-    yield get_redis_client_instance()
+    yield get_redis_service()
+
+
+async def get_presigned_cache() -> AsyncGenerator[PresignedUrlCacheService | None]:
+    """Dependency injection function for PresignedUrlCacheService.
+
+    Yields:
+        PresignedUrlCacheService instance if available, otherwise None.
+
+    Example:
+        @app.get("/photos/{photo_id}/url")
+        async def get_photo_url(
+            photo_id: int,
+            cache: PresignedUrlCacheService | None = Depends(get_presigned_cache)
+        ):
+            # Use cache service for presigned URL operations
+            ...
+    """
+    yield get_presigned_cache_service()

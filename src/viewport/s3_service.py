@@ -19,16 +19,8 @@ from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
-from viewport.cache_utils import (
-    build_presigned_cache_key,
-    cache_presigned_url,
-    cache_presigned_urls_batch,
-    clear_presigned_urls_for_object_keys,
-    get_cached_presigned_url,
-    get_cached_presigned_urls_batch,
-)
-from viewport.redis_client import get_redis_client_instance
 from viewport.s3_utils import S3Settings
+from viewport.services.presigned_cache import get_presigned_cache_service
 
 logger = logging.getLogger(__name__)
 
@@ -127,13 +119,6 @@ class AsyncS3Client:
                 config=self._config,
             )
         return cast("S3Client", self._presign_client)
-
-    def _cache_key(self, key: str, response_content_disposition: str | None) -> str:
-        return build_presigned_cache_key(
-            bucket=self.settings.bucket,
-            object_key=key,
-            response_content_disposition=response_content_disposition,
-        )
 
     def _generate_presigned_url_sync(
         self,
@@ -491,16 +476,16 @@ class AsyncS3Client:
         Raises:
             Exception: If URL generation fails
         """
-        cache_key = self._cache_key(key, response_content_disposition)
-        redis_client = get_redis_client_instance()
+        cache = get_presigned_cache_service()
 
-        try:
-            cached = await get_cached_presigned_url(redis_client, cache_key)
+        if cache is not None:
+            cache_key = cache.build_cache_key(self.settings.bucket, key, response_content_disposition)
+            cached = await cache.get_url_by_key(cache_key)
             if cached:
                 logger.debug("Using cached presigned URL for: %s", key)
                 return cached
-        except Exception as exc:
-            logger.warning("Failed to read presigned URL cache for key %s: %s", key, exc)
+        else:
+            cache_key = None
 
         try:
             url = await asyncio.to_thread(
@@ -509,10 +494,9 @@ class AsyncS3Client:
                 expires_in,
                 response_content_disposition,
             )
-            try:
-                await cache_presigned_url(redis_client, cache_key, url, expires_in)
-            except Exception as exc:
-                logger.warning("Failed to cache presigned URL for key %s: %s", key, exc)
+
+            if cache is not None and cache_key is not None:
+                await cache.set_url_by_key(cache_key, url, expires_in)
 
             logger.debug("Generated presigned URL for: %s", key)
             return url
@@ -575,25 +559,26 @@ class AsyncS3Client:
         if not keys:
             return {}
 
-        redis_client = get_redis_client_instance()
+        cache = get_presigned_cache_service()
         unique_keys = list(dict.fromkeys(keys))
-        cache_keys = [self._cache_key(key, response_content_disposition) for key in unique_keys]
-        cache_key_by_object_key = dict(zip(unique_keys, cache_keys, strict=False))
 
         urls: dict[str, str] = {}
         to_generate: list[str] = []
-        cached_by_cache_key: dict[str, str] = {}
-        try:
-            cached_by_cache_key = await get_cached_presigned_urls_batch(redis_client, cache_keys)
-        except Exception as exc:
-            logger.warning("Failed to read presigned URL batch cache: %s", exc)
 
-        for key in unique_keys:
-            cached = cached_by_cache_key.get(cache_key_by_object_key[key])
-            if cached:
-                urls[key] = cached
-            else:
-                to_generate.append(key)
+        if cache is not None:
+            cache_keys = [cache.build_cache_key(self.settings.bucket, key, response_content_disposition) for key in unique_keys]
+            cache_key_by_object_key = dict(zip(unique_keys, cache_keys, strict=False))
+            cached_by_cache_key = await cache.get_urls_batch_by_keys(cache_keys)
+
+            for key in unique_keys:
+                cached = cached_by_cache_key.get(cache_key_by_object_key[key])
+                if cached:
+                    urls[key] = cached
+                else:
+                    to_generate.append(key)
+        else:
+            cache_key_by_object_key = {}
+            to_generate = unique_keys
 
         if to_generate:
             logger.debug("Generating %s presigned URLs, %s from cache", len(to_generate), len(urls))
@@ -604,14 +589,12 @@ class AsyncS3Client:
                 response_content_disposition,
             )
             urls.update(generated)
-            try:
-                await cache_presigned_urls_batch(
-                    redis_client,
+
+            if cache is not None:
+                await cache.set_urls_batch(
                     [(cache_key_by_object_key[key], url) for key, url in generated.items()],
                     expires_in,
                 )
-            except Exception as exc:
-                logger.warning("Failed to write presigned URL batch cache: %s", exc)
         else:
             logger.debug("All %s presigned URLs from cache", len(urls))
 
@@ -626,23 +609,25 @@ class AsyncS3Client:
         if not key_dispositions:
             return {}
 
-        redis_client = get_redis_client_instance()
-        cache_key_by_object_key: dict[str, str] = {key: self._cache_key(key, response_content_disposition) for key, response_content_disposition in key_dispositions.items()}
-        cache_keys = list(cache_key_by_object_key.values())
-        cached_by_cache_key: dict[str, str] = {}
-        try:
-            cached_by_cache_key = await get_cached_presigned_urls_batch(redis_client, cache_keys)
-        except Exception as exc:
-            logger.warning("Failed to read presigned URL batch cache: %s", exc)
+        cache = get_presigned_cache_service()
 
         urls: dict[str, str] = {}
         to_generate: list[tuple[str, str | None]] = []
-        for key, response_content_disposition in key_dispositions.items():
-            cached = cached_by_cache_key.get(cache_key_by_object_key[key])
-            if cached:
-                urls[key] = cached
-            else:
-                to_generate.append((key, response_content_disposition))
+
+        if cache is not None:
+            cache_key_by_object_key: dict[str, str] = {key: cache.build_cache_key(self.settings.bucket, key, disposition) for key, disposition in key_dispositions.items()}
+            cache_keys = list(cache_key_by_object_key.values())
+            cached_by_cache_key = await cache.get_urls_batch_by_keys(cache_keys)
+
+            for key, disposition in key_dispositions.items():
+                cached = cached_by_cache_key.get(cache_key_by_object_key[key])
+                if cached:
+                    urls[key] = cached
+                else:
+                    to_generate.append((key, disposition))
+        else:
+            cache_key_by_object_key = {}
+            to_generate = list(key_dispositions.items())
 
         if to_generate:
             generated = await asyncio.to_thread(
@@ -651,29 +636,20 @@ class AsyncS3Client:
                 expires_in,
             )
             urls.update(generated)
-            try:
-                await cache_presigned_urls_batch(
-                    redis_client,
-                    [
-                        (
-                            cache_key_by_object_key[key],
-                            url,
-                        )
-                        for key, url in generated.items()
-                    ],
+
+            if cache is not None:
+                await cache.set_urls_batch(
+                    [(cache_key_by_object_key[key], url) for key, url in generated.items()],
                     expires_in,
                 )
-            except Exception as exc:
-                logger.warning("Failed to write presigned URL batch cache: %s", exc)
 
         return urls
 
     async def clear_presigned_cache_for_object_keys(self, object_keys: list[str]) -> None:
-        redis_client = get_redis_client_instance()
-        try:
-            await clear_presigned_urls_for_object_keys(redis_client, self.settings.bucket, object_keys)
-        except Exception as exc:
-            logger.warning("Failed to clear presigned URL cache for object keys: %s", exc)
+        """Clear cached presigned URLs for the given object keys."""
+        cache = get_presigned_cache_service()
+        if cache is not None:
+            await cache.clear_urls_for_object_keys(self.settings.bucket, object_keys)
 
     async def list_object_keys(self, prefix: str) -> list[str]:
         """List all object keys for a prefix."""

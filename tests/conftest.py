@@ -598,7 +598,7 @@ def valkey_container(request: pytest.FixtureRequest) -> Generator[str]:
 @pytest.fixture(scope="session", autouse=True)
 def _redis_test_env(valkey_container: str) -> Generator[None]:
     with _temporary_env_vars({"REDIS_URL": valkey_container}):
-        from viewport.redis_client import get_redis_settings
+        from viewport.services.redis_service import get_redis_settings
 
         get_redis_settings.cache_clear()
         try:
