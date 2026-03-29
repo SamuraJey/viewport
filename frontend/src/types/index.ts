@@ -36,7 +36,18 @@ export type {
 } from './photo';
 
 // Share link types
-export type { ShareLink, PublicPhoto, SharedGallery, SharedGalleryQueryOptions } from './sharelink';
+export type {
+  ShareLink,
+  ShareLinkDashboardItem,
+  ShareLinksDashboardSummary,
+  ShareLinksDashboardResponse,
+  ShareLinkDailyPoint,
+  ShareLinkAnalyticsResponse,
+  ShareLinkUpdateRequest,
+  PublicPhoto,
+  SharedGallery,
+  SharedGalleryQueryOptions,
+} from './sharelink';
 
 // Auth types
 export type {

@@ -168,7 +168,23 @@ describe('PublicGalleryPage', () => {
     render(wrapper());
 
     await waitFor(() => expect(screen.getByText('Gallery Not Available')).toBeInTheDocument());
-    expect(screen.getByText(/Gallery not found or link has expired/i)).toBeInTheDocument();
+    expect(screen.getByText(/Gallery not found/i)).toBeInTheDocument();
+  });
+
+  it('shows dedicated expired state for 410 responses', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.getSharedGallery).mockRejectedValue({
+      response: {
+        status: 410,
+      },
+    });
+
+    render(wrapper());
+
+    await waitFor(() => expect(screen.getByText('Link Has Expired')).toBeInTheDocument());
+    expect(
+      screen.getByText('This share link is no longer active. Ask the photographer for a new one.'),
+    ).toBeInTheDocument();
   });
 
   it('calls window.open when Download All clicked', async () => {

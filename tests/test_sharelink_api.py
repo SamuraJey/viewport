@@ -22,8 +22,11 @@ class TestSharelinkAPI:
         data = response.json()
         assert "id" in data
         assert "gallery_id" not in data
+        assert data["label"] is None
+        assert data["is_active"] is True
         assert "expires_at" in data
         assert "created_at" in data
+        assert "updated_at" in data
         assert data["views"] == 0
         assert data["single_downloads"] == 0
         assert data["zip_downloads"] == 0
@@ -45,6 +48,7 @@ class TestSharelinkAPI:
             "+00:00",
             "",
         )
+        assert data[0]["is_active"] is True
         assert "gallery_id" not in data[0]
 
     def test_list_sharelinks_gallery_not_found(self, authenticated_client: TestClient):
@@ -61,7 +65,99 @@ class TestSharelinkAPI:
         response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json=payload)
         assert response.status_code == 201
         data = response.json()
+        assert data["is_active"] is True
         assert data["expires_at"] is None
+
+    def test_update_sharelink_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        expires_at = (datetime.now(UTC) + timedelta(days=5)).isoformat()
+        create_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"expires_at": expires_at, "label": "Old label"},
+        )
+        assert create_resp.status_code == 201
+        sharelink_id = create_resp.json()["id"]
+
+        updated_expires_at = (datetime.now(UTC) + timedelta(days=10)).isoformat()
+        update_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{sharelink_id}",
+            json={"label": "Preview for Ivan", "is_active": False, "expires_at": updated_expires_at},
+        )
+
+        assert update_resp.status_code == 200
+        data = update_resp.json()
+        assert data["label"] == "Preview for Ivan"
+        assert data["is_active"] is False
+        assert data["expires_at"].startswith(updated_expires_at[:19])
+
+    def test_owner_sharelinks_dashboard_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        create_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"label": "Dashboard Link"},
+        )
+        assert create_resp.status_code == 201
+
+        response = authenticated_client.get("/share-links?page=1&size=20")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] >= 1
+        assert data["page"] == 1
+        assert data["size"] == 20
+        assert isinstance(data["share_links"], list)
+        assert data["share_links"][0]["gallery_id"] == gallery_id_fixture
+        assert "gallery_name" in data["share_links"][0]
+        assert "summary" in data
+        assert {"views", "zip_downloads", "single_downloads", "active_links"} <= set(data["summary"].keys())
+
+    def test_owner_sharelinks_dashboard_search_applies_before_pagination(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        first_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"label": "Needle Label"},
+        )
+        assert first_resp.status_code == 201
+
+        second_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"label": "Other Label"},
+        )
+        assert second_resp.status_code == 201
+
+        response = authenticated_client.get("/share-links?page=1&size=1&search=Needle")
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["total"] == 1
+        assert len(data["share_links"]) == 1
+        assert data["share_links"][0]["label"] == "Needle Label"
+
+    def test_update_sharelink_rejects_null_is_active(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        create_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"label": "Needs update"},
+        )
+        assert create_resp.status_code == 201
+        sharelink_id = create_resp.json()["id"]
+
+        response = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{sharelink_id}",
+            json={"is_active": None},
+        )
+        assert response.status_code == 422
+
+    def test_sharelink_analytics_endpoint_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        create_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"label": "Analytics Link"},
+        )
+        assert create_resp.status_code == 201
+        sharelink_id = create_resp.json()["id"]
+
+        response = authenticated_client.get(f"/share-links/{sharelink_id}/analytics?days=7")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["share_link"]["id"] == sharelink_id
+        assert data["share_link"]["gallery_id"] == gallery_id_fixture
+        assert len(data["points"]) == 7
+        assert {"day", "views_total", "views_unique", "zip_downloads", "single_downloads"} <= set(data["points"][0].keys())
 
     def test_create_sharelink_gallery_not_found(self, authenticated_client: TestClient):
         """Test creating sharelink for non-existent gallery."""

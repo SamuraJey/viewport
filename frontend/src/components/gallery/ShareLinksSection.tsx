@@ -1,9 +1,12 @@
-import { useState, memo } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Share2,
   Loader2,
   Eye,
+  PencilLine,
+  BarChart3,
+  LayoutDashboard,
   DownloadCloud,
   Download,
   Link as LinkIcon,
@@ -12,6 +15,9 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { ShareLink } from '../../types';
+import { copyTextToClipboard } from '../../lib/clipboard';
+import { getShareLinkStatus } from '../share-links/shareLinkStatus';
+import { ShareLinkStatusBadge } from '../share-links/ShareLinkStatusBadge';
 
 interface ShareLinksSectionProps {
   shareLinks: ShareLink[];
@@ -21,6 +27,9 @@ interface ShareLinksSectionProps {
   isCreatingLink: boolean;
   onCreateLink: () => void;
   onDeleteLink: (linkId: string) => void;
+  onEditLink?: (link: ShareLink) => void;
+  onOpenLinkAnalytics?: (linkId: string) => void;
+  onOpenDashboard?: () => void;
 }
 
 const numberFormatter = new Intl.NumberFormat();
@@ -33,18 +42,41 @@ const ShareLinksSectionComponent = ({
   isCreatingLink,
   onCreateLink,
   onDeleteLink,
+  onEditLink,
+  onOpenLinkAnalytics,
+  onOpenDashboard,
 }: ShareLinksSectionProps) => {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  useEffect(
+    () => () => {
+      if (copyResetTimeoutRef.current) {
+        clearTimeout(copyResetTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  const copyToClipboard = async (text: string) => {
+    const copied = await copyTextToClipboard(text);
+    if (!copied) {
+      return;
+    }
     setCopiedLink(text);
-    setTimeout(() => setCopiedLink(null), 2000);
+    if (copyResetTimeoutRef.current) {
+      clearTimeout(copyResetTimeoutRef.current);
+    }
+    copyResetTimeoutRef.current = setTimeout(() => {
+      setCopiedLink(null);
+      copyResetTimeoutRef.current = null;
+    }, 2000);
   };
 
   const sortedShareLinks = [...shareLinks].sort(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
   );
+
   const totalViews = sortedShareLinks.reduce((sum, link) => sum + (link.views ?? 0), 0);
   const totalZipDownloads = sortedShareLinks.reduce(
     (sum, link) => sum + (link.zip_downloads ?? 0),
@@ -68,22 +100,38 @@ const ShareLinksSectionComponent = ({
           <div className="bg-accent/10 p-3 rounded-2xl text-accent">
             <Share2 className="w-6 h-6" />
           </div>
-          <h2 className="text-2xl font-bold text-text">Share Links</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-text">Share Links</h2>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted">
+              Manage links and open analytics
+            </p>
+          </div>
         </div>
-        <button
-          onClick={onCreateLink}
-          disabled={isCreatingLink}
-          className="inline-flex items-center gap-2 px-5 py-3 bg-accent text-accent-foreground font-bold rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border border-accent/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none gallery-create__btn cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0"
-          id="gallery-create-btn"
-          aria-label="Create new share link"
-        >
-          {isCreatingLink ? (
-            <Loader2 className="w-4 h-4 animate-spin text-accent-foreground" />
-          ) : (
-            <Share2 className="w-4 h-4 text-accent-foreground" />
-          )}
-          <span className="text-accent-foreground">Create New Link</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenDashboard ? (
+            <button
+              onClick={onOpenDashboard}
+              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-text transition-colors hover:border-accent/40 hover:bg-surface-2"
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              All Links
+            </button>
+          ) : null}
+          <button
+            onClick={onCreateLink}
+            disabled={isCreatingLink}
+            className="inline-flex items-center gap-2 px-5 py-3 bg-accent text-accent-foreground font-bold rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border border-accent/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none gallery-create__btn cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0"
+            id="gallery-create-btn"
+            aria-label="Create new share link"
+          >
+            {isCreatingLink ? (
+              <Loader2 className="w-4 h-4 animate-spin text-accent-foreground" />
+            ) : (
+              <Share2 className="w-4 h-4 text-accent-foreground" />
+            )}
+            <span className="text-accent-foreground">Create New Link</span>
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -135,6 +183,7 @@ const ShareLinksSectionComponent = ({
             <AnimatePresence>
               {sortedShareLinks.map((link, index) => {
                 const fullUrl = `${window.location.origin}/share/${link.id}`;
+                const status = getShareLinkStatus(link);
                 const zipDownloads = link.zip_downloads ?? 0;
                 const totalLinkDownloads = zipDownloads + (link.single_downloads ?? 0);
                 const linkMetrics = [
@@ -166,6 +215,12 @@ const ShareLinksSectionComponent = ({
                         >
                           {fullUrl}
                         </a>
+                        {link.label ? (
+                          <span className="rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[0.7rem] font-bold uppercase tracking-wide text-accent">
+                            {link.label}
+                          </span>
+                        ) : null}
+                        <ShareLinkStatusBadge status={status} />
                       </div>
                       <div
                         data-testid={`share-link-${link.id}-metrics`}
@@ -196,8 +251,28 @@ const ShareLinksSectionComponent = ({
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {onOpenLinkAnalytics ? (
+                        <button
+                          onClick={() => onOpenLinkAnalytics(link.id)}
+                          className="flex items-center justify-center w-10 h-10 p-2 bg-accent/10 hover:bg-accent/20 text-accent rounded-xl transition-all duration-200 border border-accent/20 cursor-pointer hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-95"
+                          title="Open analytics"
+                          aria-label="Open analytics"
+                        >
+                          <BarChart3 className="w-5 h-5" />
+                        </button>
+                      ) : null}
+                      {onEditLink ? (
+                        <button
+                          onClick={() => onEditLink(link)}
+                          className="flex items-center justify-center w-10 h-10 p-2 bg-accent/10 hover:bg-accent/20 text-accent rounded-xl transition-all duration-200 border border-accent/20 cursor-pointer hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-95"
+                          title="Edit link"
+                          aria-label="Edit link"
+                        >
+                          <PencilLine className="w-5 h-5" />
+                        </button>
+                      ) : null}
                       <button
-                        onClick={() => copyToClipboard(fullUrl)}
+                        onClick={() => void copyToClipboard(fullUrl)}
                         className="flex items-center justify-center w-10 h-10 p-2 bg-success/10 hover:bg-success/20 text-success rounded-xl transition-all duration-200 border border-success/20 gallery-copy__btn cursor-pointer hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-95"
                         title="Copy link"
                         aria-label="Copy link"

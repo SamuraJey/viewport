@@ -1,10 +1,25 @@
 import { api } from '../lib/api';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { getDemoService } from './demoService';
-import type { ShareLink, PublicPhoto, SharedGallery, SharedGalleryQueryOptions } from '../types';
+import type {
+  ShareLink,
+  ShareLinkAnalyticsResponse,
+  ShareLinksDashboardResponse,
+  ShareLinkUpdateRequest,
+  PublicPhoto,
+  SharedGallery,
+  SharedGalleryQueryOptions,
+} from '../types';
 
 // Re-export types for backward compatibility
-export type { ShareLink, PublicPhoto, SharedGallery };
+export type {
+  ShareLink,
+  ShareLinksDashboardResponse,
+  ShareLinkAnalyticsResponse,
+  ShareLinkUpdateRequest,
+  PublicPhoto,
+  SharedGallery,
+};
 
 const getShareLinks = async (galleryId: string): Promise<ShareLink[]> => {
   if (isDemoModeEnabled()) {
@@ -23,6 +38,22 @@ const createShareLink = async (galleryId: string): Promise<ShareLink> => {
   const response = await api.post<ShareLink>(`/galleries/${galleryId}/share-links`, {
     expires_at: null,
   });
+  return response.data;
+};
+
+const updateShareLink = async (
+  galleryId: string,
+  shareLinkId: string,
+  payload: ShareLinkUpdateRequest,
+): Promise<ShareLink> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().updateShareLink(galleryId, shareLinkId, payload);
+  }
+
+  const response = await api.patch<ShareLink>(
+    `/galleries/${galleryId}/share-links/${shareLinkId}`,
+    payload,
+  );
   return response.data;
 };
 
@@ -58,6 +89,41 @@ const getSharedGallery = async (
   return response.data;
 };
 
+const getOwnerShareLinks = async (
+  page = 1,
+  size = 20,
+  search?: string,
+): Promise<ShareLinksDashboardResponse> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getOwnerShareLinks(page, size, search);
+  }
+
+  const params = new URLSearchParams({
+    page: page.toString(),
+    size: size.toString(),
+  });
+  if (search && search.trim().length > 0) {
+    params.set('search', search.trim());
+  }
+
+  const response = await api.get<ShareLinksDashboardResponse>(`/share-links?${params.toString()}`);
+  return response.data;
+};
+
+const getShareLinkAnalytics = async (
+  shareLinkId: string,
+  days = 30,
+): Promise<ShareLinkAnalyticsResponse> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getShareLinkAnalytics(shareLinkId, days);
+  }
+
+  const response = await api.get<ShareLinkAnalyticsResponse>(
+    `/share-links/${shareLinkId}/analytics?days=${days}`,
+  );
+  return response.data;
+};
+
 const getPublicPhotoUrl = async (
   shareId: string,
   photoId: string,
@@ -82,8 +148,11 @@ const getAllPublicPhotoUrls = async (shareId: string): Promise<PublicPhoto[]> =>
 export const shareLinkService = {
   getShareLinks,
   createShareLink,
+  updateShareLink,
   deleteShareLink,
   getSharedGallery,
   getPublicPhotoUrl,
   getAllPublicPhotoUrls,
+  getOwnerShareLinks,
+  getShareLinkAnalytics,
 };

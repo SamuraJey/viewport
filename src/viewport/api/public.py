@@ -22,6 +22,7 @@ from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client, get_s3_settings
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto
+from viewport.sharelink_utils import is_sharelink_expired
 
 router = APIRouter(prefix="/s", tags=["public"])
 
@@ -178,9 +179,13 @@ def get_sharelink_repository(db: AsyncSession = Depends(get_db)) -> ShareLinkRep
 
 async def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository)) -> ShareLink:
     """Get valid sharelink."""
-    sharelink = await repo.get_valid_sharelink(share_id)
+    sharelink = await repo.get_sharelink_for_public_access(share_id)
     if not sharelink:
         raise HTTPException(status_code=404, detail="ShareLink not found")
+    if not sharelink.is_active:
+        raise HTTPException(status_code=404, detail="ShareLink not found")
+    if is_sharelink_expired(sharelink.expires_at):
+        raise HTTPException(status_code=410, detail="ShareLink expired")
     return sharelink
 
 
@@ -286,7 +291,12 @@ async def get_photos_by_sharelink(
 
     # Increment views only on first page load (offset=0)
     if offset == 0:
-        await repo.increment_views(share_id)
+        client_ip = request.client.host if request.client else None
+        await repo.record_view(
+            share_id,
+            ip_address=client_ip,
+            user_agent=request.headers.get("user-agent"),
+        )
 
     return PublicGalleryResponse(
         photos=photo_list,
@@ -333,7 +343,7 @@ def download_all_photos_zip(
 
         z.add(arcname=filename, data=file_generator())
 
-    asyncio_run(repo.increment_zip_downloads(share_id))
+    asyncio_run(repo.record_zip_download(share_id))
     logger.log_event("download_zip", share_id=str(sharelink.id), extra={"photo_count": len(photos)})
 
     headers = {"Content-Disposition": f'attachment; filename="gallery_{share_id}.zip"'}

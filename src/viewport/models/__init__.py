@@ -1,5 +1,6 @@
 from viewport.models.gallery import Gallery, Photo
 from viewport.models.sharelink import ShareLink
+from viewport.models.sharelink_analytics import ShareLinkDailyStat, ShareLinkDailyVisitor
 from viewport.models.user import User
 
-__all__ = ["Gallery", "Photo", "ShareLink", "User"]
+__all__ = ["Gallery", "Photo", "ShareLink", "ShareLinkDailyStat", "ShareLinkDailyVisitor", "User"]

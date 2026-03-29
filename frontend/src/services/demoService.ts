@@ -14,6 +14,10 @@ import type {
   RegisterRequest,
   RegisterResponse,
   ShareLink,
+  ShareLinkAnalyticsResponse,
+  ShareLinkDailyPoint,
+  ShareLinksDashboardResponse,
+  ShareLinkUpdateRequest,
   SharedGallery,
   SharedGalleryQueryOptions,
   User,
@@ -106,11 +110,14 @@ const seedState = (): DemoGalleryState[] => {
     const shareLinks: ShareLink[] = [
       {
         id: `${gallery.id}-share-${makeDemoId().slice(0, 8)}`,
+        label: galleryIndex === 0 ? 'Preview for Ivan' : null,
+        is_active: true,
         expires_at: null,
         views: 5 + galleryIndex * 4,
         zip_downloads: 1 + galleryIndex,
         single_downloads: 7 + galleryIndex * 2,
         created_at: nowIso(),
+        updated_at: nowIso(),
       },
     ];
 
@@ -442,14 +449,47 @@ class DemoServiceStore {
 
     const link: ShareLink = {
       id: `s-${makeDemoId().slice(0, 12)}`,
+      label: null,
+      is_active: true,
       expires_at: null,
       views: 0,
       zip_downloads: 0,
       single_downloads: 0,
       created_at: nowIso(),
+      updated_at: nowIso(),
     };
 
     state.shareLinks.push(link);
+    this.persistState();
+    return { ...link };
+  }
+
+  async updateShareLink(
+    galleryId: string,
+    shareLinkId: string,
+    payload: ShareLinkUpdateRequest,
+  ): Promise<ShareLink> {
+    const state = this.getGalleryState(galleryId);
+    const link = state.shareLinks.find((item) => item.id === shareLinkId);
+    if (!link) {
+      throw this.createNotFoundError('Share link not found');
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, 'label')) {
+      const normalized = payload.label?.trim();
+      link.label = normalized ? normalized : null;
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(payload, 'is_active') &&
+      typeof payload.is_active === 'boolean'
+    ) {
+      link.is_active = payload.is_active;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, 'expires_at')) {
+      link.expires_at = payload.expires_at ?? null;
+    }
+    link.updated_at = nowIso();
+
     this.persistState();
     return { ...link };
   }
@@ -464,6 +504,99 @@ class DemoServiceStore {
     return (
       this.galleries.find((entry) => entry.shareLinks.some((link) => link.id === shareId)) || null
     );
+  }
+
+  async getOwnerShareLinks(
+    page = 1,
+    size = 20,
+    search?: string,
+  ): Promise<ShareLinksDashboardResponse> {
+    const allLinks = this.galleries.flatMap((entry) =>
+      entry.shareLinks.map((link) => ({
+        ...link,
+        gallery_id: entry.gallery.id,
+        gallery_name: entry.gallery.name,
+      })),
+    );
+
+    const normalizedSearch = search?.trim().toLowerCase() || '';
+    const filtered = normalizedSearch
+      ? allLinks.filter((link) =>
+          `${link.label ?? ''} ${link.gallery_name} ${link.id}`
+            .toLowerCase()
+            .includes(normalizedSearch),
+        )
+      : allLinks;
+
+    const sorted = filtered.sort(
+      (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
+    );
+    const start = (page - 1) * size;
+
+    const now = Date.now();
+    const summary = sorted.reduce(
+      (acc, item) => {
+        acc.views += item.views || 0;
+        acc.zip_downloads += item.zip_downloads || 0;
+        acc.single_downloads += item.single_downloads || 0;
+
+        const expiresAt = item.expires_at ? Date.parse(item.expires_at) : null;
+        const isExpired = expiresAt !== null && !Number.isNaN(expiresAt) && expiresAt < now;
+        if (item.is_active !== false && !isExpired) {
+          acc.active_links += 1;
+        }
+
+        return acc;
+      },
+      {
+        views: 0,
+        zip_downloads: 0,
+        single_downloads: 0,
+        active_links: 0,
+      },
+    );
+
+    return {
+      share_links: sorted.slice(start, start + size),
+      total: sorted.length,
+      page,
+      size,
+      summary,
+    };
+  }
+
+  async getShareLinkAnalytics(shareLinkId: string, days = 30): Promise<ShareLinkAnalyticsResponse> {
+    const state = this.findByShareId(shareLinkId);
+    if (!state) {
+      throw this.createNotFoundError('Share link not found');
+    }
+
+    const link = state.shareLinks.find((item) => item.id === shareLinkId);
+    if (!link) {
+      throw this.createNotFoundError('Share link not found');
+    }
+
+    const points: ShareLinkDailyPoint[] = [];
+    for (let i = days - 1; i >= 0; i -= 1) {
+      const pointDate = new Date();
+      pointDate.setDate(pointDate.getDate() - i);
+      points.push({
+        day: pointDate.toISOString().slice(0, 10),
+        views_total: i === 0 ? link.views : 0,
+        views_unique: i === 0 ? Math.min(link.views, Math.max(1, Math.floor(link.views * 0.7))) : 0,
+        zip_downloads: i === 0 ? link.zip_downloads : 0,
+        single_downloads: i === 0 ? link.single_downloads : 0,
+      });
+    }
+
+    return {
+      share_link: {
+        ...link,
+        gallery_id: state.gallery.id,
+        gallery_name: state.gallery.name,
+      },
+      points,
+    };
   }
 
   private sortSharedPhotos(

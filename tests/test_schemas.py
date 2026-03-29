@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
 from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryResponse
 from viewport.schemas.photo import GalleryPhotoResponse, PhotoCreateRequest, PhotoListResponse, PhotoResponse
-from viewport.schemas.sharelink import ShareLinkCreateRequest, ShareLinkResponse
+from viewport.schemas.sharelink import ShareLinkCreateRequest, ShareLinkResponse, ShareLinkUpdateRequest
 
 
 class TestAuthSchemas:
@@ -358,17 +358,38 @@ class TestShareLinkSchemas:
         """Test valid share link create request."""
         expires_at = datetime.now(UTC) + timedelta(days=1)
 
-        data = {"expires_at": expires_at}
+        data = {"label": "Client Preview", "expires_at": expires_at, "is_active": True}
         request = ShareLinkCreateRequest(**data)
 
+        assert request.label == "Client Preview"
         assert request.expires_at == expires_at
+        assert request.is_active is True
 
     def test_sharelink_create_request_no_expiry(self):
         """Test share link create request without expiry."""
         data = {}
         request = ShareLinkCreateRequest(**data)
 
+        assert request.label is None
         assert request.expires_at is None
+        assert request.is_active is True
+
+    def test_sharelink_create_request_label_max_length(self):
+        """Test share link label max length validation on create."""
+        ShareLinkCreateRequest(label="a" * 127)
+
+        with pytest.raises(ValidationError):
+            ShareLinkCreateRequest(label="a" * 128)
+
+    def test_sharelink_update_request_rejects_null_is_active(self):
+        """Test share link update rejects explicit null is_active values."""
+        with pytest.raises(ValidationError):
+            ShareLinkUpdateRequest(is_active=None)
+
+    def test_sharelink_update_request_accepts_false_is_active(self):
+        """Test share link update accepts explicit false for is_active."""
+        request = ShareLinkUpdateRequest(is_active=False)
+        assert request.is_active is False
 
     def test_sharelink_response_valid(self):
         """Test valid share link response."""
@@ -376,17 +397,32 @@ class TestShareLinkSchemas:
         gallery_id = uuid.uuid4()
         expires_at = datetime.now(UTC) + timedelta(days=1)
         created_at = datetime.now(UTC)
+        updated_at = datetime.now(UTC)
 
-        data = {"id": sharelink_id, "gallery_id": gallery_id, "expires_at": expires_at, "views": 5, "zip_downloads": 2, "single_downloads": 10, "created_at": created_at}
+        data = {
+            "id": sharelink_id,
+            "gallery_id": gallery_id,
+            "label": "Wedding Social",
+            "is_active": True,
+            "expires_at": expires_at,
+            "views": 5,
+            "zip_downloads": 2,
+            "single_downloads": 10,
+            "created_at": created_at,
+            "updated_at": updated_at,
+        }
         response = ShareLinkResponse(**data)
 
         assert response.id == sharelink_id
         assert response.gallery_id == gallery_id
+        assert response.label == "Wedding Social"
+        assert response.is_active is True
         assert response.expires_at == expires_at
         assert response.views == 5
         assert response.zip_downloads == 2
         assert response.single_downloads == 10
         assert response.created_at == created_at
+        assert response.updated_at == updated_at
 
     @pytest.mark.parametrize(
         "views,zip_downloads,single_downloads",
@@ -401,10 +437,22 @@ class TestShareLinkSchemas:
         sharelink_id = uuid.uuid4()
         gallery_id = uuid.uuid4()
         created_at = datetime.now(UTC)
+        updated_at = datetime.now(UTC)
 
-        data = {"id": sharelink_id, "gallery_id": gallery_id, "views": views, "zip_downloads": zip_downloads, "single_downloads": single_downloads, "created_at": created_at}
+        data = {
+            "id": sharelink_id,
+            "gallery_id": gallery_id,
+            "label": None,
+            "is_active": False,
+            "views": views,
+            "zip_downloads": zip_downloads,
+            "single_downloads": single_downloads,
+            "created_at": created_at,
+            "updated_at": updated_at,
+        }
         response = ShareLinkResponse(**data)
 
+        assert response.is_active is False
         assert response.views == views
         assert response.zip_downloads == zip_downloads
         assert response.single_downloads == single_downloads
