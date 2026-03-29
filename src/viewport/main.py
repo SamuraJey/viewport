@@ -1,5 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
+from inspect import isawaitable
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,6 +20,7 @@ from viewport.dependencies import get_s3_client_instance, set_s3_client_instance
 from viewport.logging_config import configure_logging  # Configure logging early: uvicorn imports this module when starting the app
 from viewport.metrics import setup_metrics
 from viewport.models.db import get_engine
+from viewport.redis_client import create_redis_client, set_redis_client_instance
 from viewport.s3_service import AsyncS3Client
 
 # Configure logging for the whole process (uvicorn imports this module when
@@ -53,6 +55,20 @@ async def lifespan(app: FastAPI):
         logger.error("Failed to initialize S3 client: %s", e)
         raise
 
+    redis_client = None
+    try:
+        redis_client = create_redis_client()
+        ping_result = redis_client.ping()
+        if isawaitable(ping_result):
+            await ping_result
+        set_redis_client_instance(redis_client)
+        logger.info("Redis client initialized successfully")
+    except Exception as e:
+        logger.warning("Redis unavailable, presigned URL cache disabled: %s", e)
+        set_redis_client_instance(None)
+        if redis_client is not None:
+            await redis_client.aclose()
+
     yield
 
     # Shutdown
@@ -63,6 +79,16 @@ async def lifespan(app: FastAPI):
         logger.info("S3 client closed successfully")
     except Exception as e:
         logger.error("Error during S3 client shutdown: %s", e)
+    try:
+        from viewport.redis_client import get_redis_client_instance
+
+        redis_client = get_redis_client_instance()
+        if redis_client is not None:
+            await redis_client.aclose()
+            set_redis_client_instance(None)
+            logger.info("Redis client closed successfully")
+    except Exception as e:
+        logger.error("Error during Redis client shutdown: %s", e)
 
 
 # Create FastAPI app with lifespan

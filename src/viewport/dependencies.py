@@ -8,6 +8,9 @@ The client is initialized once during application startup and shared across all 
 import logging
 from collections.abc import AsyncGenerator
 
+from redis.asyncio import Redis
+
+from viewport.redis_client import get_redis_client_instance
 from viewport.s3_service import AsyncS3Client
 
 logger = logging.getLogger(__name__)
@@ -66,3 +69,12 @@ def get_s3_client_instance() -> AsyncS3Client:
     if _s3_client_instance is None:
         raise RuntimeError("S3 client not initialized. Make sure the application lifespan is properly configured.")
     return _s3_client_instance
+
+
+async def get_redis_client() -> AsyncGenerator[Redis | None]:
+    """Dependency injection function for Redis client.
+
+    Returns:
+        Redis client instance if available, otherwise None.
+    """
+    yield get_redis_client_instance()

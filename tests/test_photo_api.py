@@ -126,6 +126,29 @@ class TestPhotoAPI:
         assert captured["gallery_id"] == gallery_id_fixture
         assert isinstance(captured["owner_id"], str)
 
+    def test_delete_photos_succeeds_when_cache_invalidation_fails(self, authenticated_client: TestClient, gallery_id_fixture: str, monkeypatch):
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"first", "first.jpg")
+
+        async def fail_cache_invalidation(self, object_keys: list[str]) -> None:
+            raise RuntimeError("redis timeout")
+
+        def fake_delay(photo_ids: list[str], gallery_id: str, owner_id: str) -> None:
+            return None
+
+        monkeypatch.setattr("viewport.api.photo.AsyncS3Client.clear_presigned_cache_for_object_keys", fail_cache_invalidation)
+        monkeypatch.setattr("viewport.api.photo.delete_photos_batch_task.delay", fake_delay)
+
+        response = authenticated_client.request(
+            "DELETE",
+            f"/galleries/{gallery_id_fixture}/photos",
+            json={"photo_ids": [photo_id]},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["deleted_ids"] == [photo_id]
+        assert payload["failed_ids"] == []
+
     def test_rename_photo_not_found(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test renaming non-existent photo."""
         fake_photo_id = str(uuid4())
@@ -279,6 +302,23 @@ class TestPhotoAPI:
     def test_rename_photo_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Renaming a photo updates the filename."""
         photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"rename", "rename.jpg")
+        response = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rename",
+            json={"filename": "new-name.jpg"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == photo_id
+        assert data["filename"] == "new-name.jpg"
+
+    def test_rename_photo_succeeds_when_cache_invalidation_fails(self, authenticated_client: TestClient, gallery_id_fixture: str, monkeypatch):
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"rename", "rename.jpg")
+
+        async def fail_cache_invalidation(self, object_keys: list[str]) -> None:
+            raise RuntimeError("redis timeout")
+
+        monkeypatch.setattr("viewport.api.photo.AsyncS3Client.clear_presigned_cache_for_object_keys", fail_cache_invalidation)
+
         response = authenticated_client.patch(
             f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rename",
             json={"filename": "new-name.jpg"},

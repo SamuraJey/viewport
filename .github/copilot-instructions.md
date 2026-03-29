@@ -4,7 +4,7 @@
 - Monorepo: FastAPI backend in `src/viewport/` + React/Vite frontend in `frontend/`.
 - Backend layers: routers in `src/viewport/api/` → repository layer in `src/viewport/repositories/` (SQLAlchemy `Session`) → Postgres models in `src/viewport/models/`.
 - Backend database access uses SQLAlchemy `AsyncSession` in app code, repositories, and auth dependencies, while Celery background tasks currently use a sync SQLAlchemy `Session` via `task_db_session()`.
-- Storage/URLs: originals + thumbnails live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them **in-process** (see `src/viewport/cache_utils.py`).
+- Storage/URLs: originals + thumbnails live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them in Redis (ValKey) for cross-worker coherence (see `src/viewport/cache_utils.py` + `src/viewport/redis_client.py`).
 - uv is used as package manager.
 
 ## How to run (preferred workflows)
@@ -83,7 +83,7 @@
 - Frontend checks: `cd frontend && npm run lint -- --fix && npm run test:run`.
 
 ## Gotchas worth keeping in mind
-- Presigned URL cache is **not Redis-backed**; it’s per-process memory. Don’t assume cross-worker cache coherence.
+- Presigned URL cache is Redis-backed with a TTL buffer (URL TTL minus 10 minutes). Redis outages should degrade gracefully to direct presign generation without failing requests.
 
 ## Important rules
 - When making significant changes in the project, update this file to reflect new conventions or architectural patterns.
