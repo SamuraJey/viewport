@@ -2,10 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CalendarClock, Check, PencilLine, X } from 'lucide-react';
 import type { ShareLinkUpdateRequest } from '../../types';
-import {
-  formatUtcDateTimeInputValue,
-  parseUtcDateTimeInputValue,
-} from './shareLinkDateTime';
+import { formatUtcDateTimeInputValue, parseUtcDateTimeInputValue } from './shareLinkDateTime';
 
 interface EditableShareLink {
   id: string;
@@ -54,7 +51,9 @@ export const ShareLinkEditorModal = ({
     const currentLabel = link.label ?? null;
 
     const nextExpiresAt = parseUtcDateTimeInputValue(expiresAt);
-    const currentExpiresAt = parseUtcDateTimeInputValue(formatUtcDateTimeInputValue(link.expires_at));
+    const currentExpiresAt = parseUtcDateTimeInputValue(
+      formatUtcDateTimeInputValue(link.expires_at),
+    );
 
     return (
       nextLabel !== currentLabel ||
