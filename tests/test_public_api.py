@@ -1,13 +1,15 @@
 import io
 import zipfile
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from tests.helpers import upload_photo_via_presigned
-from viewport.api.public import _build_zip_fallback_name, _make_unique_zip_entry_name, _sanitize_zip_entry_name
+from viewport.api.public import _build_zip_fallback_name, _make_unique_zip_entry_name, _sanitize_zip_entry_name, get_valid_sharelink
 
 
 def _upload_photo(client: TestClient, gallery_id: str, content: bytes, filename: str = "photo.jpg") -> str:
@@ -15,6 +17,17 @@ def _upload_photo(client: TestClient, gallery_id: str, content: bytes, filename:
 
 
 class TestPublicAPI:
+    @pytest.mark.asyncio
+    async def test_get_valid_sharelink_returns_404_when_missing(self):
+        repo = MagicMock()
+        repo.get_sharelink_for_public_access = AsyncMock(return_value=None)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_valid_sharelink(uuid4(), repo=repo)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "ShareLink not found"
+
     def test_get_photos_by_sharelink_returns_410_for_expired_link(self, authenticated_client: TestClient, gallery_id_fixture: str):
         expired_at = (datetime.now(UTC) - timedelta(days=1)).isoformat()
         resp = authenticated_client.post(
@@ -26,6 +39,9 @@ class TestPublicAPI:
 
         public_resp = authenticated_client.get(f"/s/{share_id}")
         assert public_resp.status_code == 410
+        assert public_resp.headers.get("Cache-Control") == "no-store, max-age=0, must-revalidate"
+        assert public_resp.headers.get("Pragma") == "no-cache"
+        assert public_resp.headers.get("Expires") == "0"
 
     def test_get_photos_by_sharelink_returns_404_for_inactive_link(self, authenticated_client: TestClient, gallery_id_fixture: str):
         create_resp = authenticated_client.post(
@@ -43,6 +59,7 @@ class TestPublicAPI:
 
         public_resp = authenticated_client.get(f"/s/{share_id}")
         assert public_resp.status_code == 404
+        assert public_resp.headers.get("Cache-Control") == "no-store, max-age=0, must-revalidate"
 
     def test_get_photos_by_sharelink_uses_saved_gallery_sort_settings(self, authenticated_client: TestClient, gallery_id_fixture: str):
         _upload_photo(authenticated_client, gallery_id_fixture, b"one", "a.jpg")
@@ -84,6 +101,7 @@ class TestPublicAPI:
         # Public gallery listing - now includes presigned URLs directly
         public_resp = authenticated_client.get(f"/s/{share_id}")
         assert public_resp.status_code == 200
+        assert public_resp.headers.get("Cache-Control") == "no-store, max-age=0, must-revalidate"
         data = public_resp.json()
         assert "photos" in data
         assert isinstance(data["photos"], list)

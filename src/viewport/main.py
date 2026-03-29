@@ -20,6 +20,8 @@ from viewport.logging_config import configure_logging  # Configure logging early
 from viewport.metrics import setup_metrics
 from viewport.models.db import get_engine
 from viewport.s3_service import AsyncS3Client
+from viewport.services.presigned_cache import PresignedUrlCacheService, set_presigned_cache_service
+from viewport.services.redis_service import RedisService, set_redis_service
 
 # Configure logging for the whole process (uvicorn imports this module when
 # starting the app, so configure_logging runs early and affects uvicorn loggers)
@@ -40,11 +42,13 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Manage application lifecycle: startup and shutdown.
 
-    This context manager initializes the S3 client on startup and cleans up
+    This context manager initializes services on startup and cleans up
     resources on shutdown.
     """
     # Startup
     logger.info("Starting up application...")
+
+    # Initialize S3 client
     try:
         s3_client = AsyncS3Client()
         set_s3_client_instance(s3_client)
@@ -53,16 +57,36 @@ async def lifespan(app: FastAPI):
         logger.error("Failed to initialize S3 client: %s", e)
         raise
 
+    # Initialize Redis service (graceful degradation if unavailable)
+    redis_service = await RedisService.create()
+    set_redis_service(redis_service)
+
+    # Initialize presigned URL cache service
+    presigned_cache = PresignedUrlCacheService(redis_service)
+    set_presigned_cache_service(presigned_cache)
+    logger.info("Cache services initialized (Redis available: %s)", redis_service.is_available)
+
     yield
 
     # Shutdown
     logger.info("Shutting down application...")
+
+    # Close S3 client
     try:
         s3_client = get_s3_client_instance()
         await s3_client.close()
         logger.info("S3 client closed successfully")
     except Exception as e:
         logger.error("Error during S3 client shutdown: %s", e)
+
+    # Close Redis service
+    try:
+        if redis_service is not None:
+            await redis_service.close()
+            set_redis_service(None)
+            set_presigned_cache_service(None)
+    except Exception as e:
+        logger.error("Error during Redis service shutdown: %s", e)
 
 
 # Create FastAPI app with lifespan

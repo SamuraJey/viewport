@@ -595,6 +595,18 @@ def valkey_container(request: pytest.FixtureRequest) -> Generator[str]:
         container.stop()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _redis_test_env(valkey_container: str) -> Generator[None]:
+    with _temporary_env_vars({"REDIS_URL": valkey_container}):
+        from viewport.services.redis_service import get_redis_settings
+
+        get_redis_settings.cache_clear()
+        try:
+            yield
+        finally:
+            get_redis_settings.cache_clear()
+
+
 @pytest.fixture(scope="session")
 def _db_session_holder() -> dict[str, AsyncSession | None]:
     return {"session": None}
@@ -604,6 +616,7 @@ def _db_session_holder() -> dict[str, AsyncSession | None]:
 def app_client(
     postgres_container: PostgresConnectionInfo,
     s3_container: S3ConnectionInfo | DockerContainer,
+    _redis_test_env: None,
     _db_session_holder: dict[str, AsyncSession | None],
 ):
     """Session-scoped TestClient with dynamic DB session override."""

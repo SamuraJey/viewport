@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CalendarClock, Check, PencilLine, X } from 'lucide-react';
 import type { ShareLinkUpdateRequest } from '../../types';
+import { formatUtcDateTimeInputValue, parseUtcDateTimeInputValue } from './shareLinkDateTime';
 
 interface EditableShareLink {
   id: string;
@@ -16,39 +17,6 @@ interface ShareLinkEditorModalProps {
   onClose: () => void;
   onSave: (payload: ShareLinkUpdateRequest) => Promise<void>;
 }
-
-const toLocalDateTimeInputValue = (isoValue: string | null): string => {
-  if (!isoValue) {
-    return '';
-  }
-
-  const date = new Date(isoValue);
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-
-  const pad = (value: number) => String(value).padStart(2, '0');
-  const year = date.getFullYear();
-  const month = pad(date.getMonth() + 1);
-  const day = pad(date.getDate());
-  const hours = pad(date.getHours());
-  const minutes = pad(date.getMinutes());
-
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
-};
-
-const toIsoOrNull = (value: string): string | null => {
-  if (!value) {
-    return null;
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date.toISOString();
-};
 
 export const ShareLinkEditorModal = ({
   isOpen,
@@ -69,7 +37,7 @@ export const ShareLinkEditorModal = ({
 
     setLabel(link.label ?? '');
     setIsActive(link.is_active ?? true);
-    setExpiresAt(toLocalDateTimeInputValue(link.expires_at));
+    setExpiresAt(formatUtcDateTimeInputValue(link.expires_at));
     setError('');
   }, [isOpen, link]);
 
@@ -82,8 +50,10 @@ export const ShareLinkEditorModal = ({
     const nextLabel = normalizedLabel.length > 0 ? normalizedLabel : null;
     const currentLabel = link.label ?? null;
 
-    const nextExpiresAt = toIsoOrNull(expiresAt);
-    const currentExpiresAt = toIsoOrNull(link.expires_at ?? '');
+    const nextExpiresAt = parseUtcDateTimeInputValue(expiresAt);
+    const currentExpiresAt = parseUtcDateTimeInputValue(
+      formatUtcDateTimeInputValue(link.expires_at),
+    );
 
     return (
       nextLabel !== currentLabel ||
@@ -113,7 +83,7 @@ export const ShareLinkEditorModal = ({
     setError('');
 
     const normalizedLabel = label.trim();
-    const nextExpiresAt = toIsoOrNull(expiresAt);
+    const nextExpiresAt = parseUtcDateTimeInputValue(expiresAt);
 
     if (expiresAt && nextExpiresAt === null) {
       setError('Please enter a valid expiration date and time.');
@@ -208,8 +178,9 @@ export const ShareLinkEditorModal = ({
 
           <div className="space-y-2">
             <label htmlFor="share-link-expiration" className="text-sm font-semibold text-text">
-              TTL (expiration)
+              TTL (UTC)
             </label>
+            <p className="text-xs text-muted">Stored and edited in UTC.</p>
             <div className="relative">
               <CalendarClock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
               <input

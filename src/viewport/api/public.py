@@ -6,7 +6,7 @@ from pathlib import Path
 from uuid import UUID
 
 import zipstream
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +25,11 @@ from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPh
 from viewport.sharelink_utils import is_sharelink_expired
 
 router = APIRouter(prefix="/s", tags=["public"])
+PUBLIC_CACHE_CONTROL_HEADERS = {
+    "Cache-Control": "no-store, max-age=0, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
 
 _WINDOWS_RESERVED_NAMES = {
     "con",
@@ -181,11 +186,11 @@ async def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depend
     """Get valid sharelink."""
     sharelink = await repo.get_sharelink_for_public_access(share_id)
     if not sharelink:
-        raise HTTPException(status_code=404, detail="ShareLink not found")
+        raise HTTPException(status_code=404, detail="ShareLink not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
     if not sharelink.is_active:
-        raise HTTPException(status_code=404, detail="ShareLink not found")
+        raise HTTPException(status_code=404, detail="ShareLink not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
     if is_sharelink_expired(sharelink.expires_at):
-        raise HTTPException(status_code=410, detail="ShareLink expired")
+        raise HTTPException(status_code=410, detail="ShareLink expired", headers=PUBLIC_CACHE_CONTROL_HEADERS)
     return sharelink
 
 
@@ -193,6 +198,7 @@ async def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depend
 async def get_photos_by_sharelink(
     share_id: UUID,
     request: Request,
+    response: Response,
     limit: int | None = Query(None, ge=1, le=500, description="Limit number of photos to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
@@ -200,6 +206,8 @@ async def get_photos_by_sharelink(
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
 ) -> PublicGalleryResponse:
     """Get public gallery photos."""
+    response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
+
     gallery: Gallery = sharelink.gallery
     sort_by, order = _resolve_public_sorting(gallery)
 
@@ -346,6 +354,9 @@ def download_all_photos_zip(
     asyncio_run(repo.record_zip_download(share_id))
     logger.log_event("download_zip", share_id=str(sharelink.id), extra={"photo_count": len(photos)})
 
-    headers = {"Content-Disposition": f'attachment; filename="gallery_{share_id}.zip"'}
+    headers = {
+        "Content-Disposition": f'attachment; filename="gallery_{share_id}.zip"',
+        **PUBLIC_CACHE_CONTROL_HEADERS,
+    }
 
     return StreamingResponse(z, media_type="application/zip", headers=headers)

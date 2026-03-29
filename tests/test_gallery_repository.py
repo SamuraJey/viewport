@@ -375,15 +375,11 @@ async def test_delete_photo(repo: GalleryRepository, owner_id):
 async def test_rename_photo(repo: GalleryRepository, owner_id, monkeypatch):
     gallery = await repo.create_gallery(owner_id, "Rename")
     photo_id = (await repo.create_photo(gallery.id, f"{gallery.id}/old.jpg", f"{gallery.id}/old.jpg", 5)).id
-    cleared = []
-
-    monkeypatch.setattr("viewport.cache_utils.clear_presigned_url_cache", lambda key: cleared.append(key))
 
     renamed = await repo.rename_photo(photo_id, gallery.id, owner_id, "new.jpg")
     assert renamed
     assert renamed.object_key.endswith("/old.jpg")
     assert renamed.display_name == "new.jpg"
-    assert not cleared
 
     assert await repo.rename_photo(uuid.uuid4(), gallery.id, owner_id, "fail.jpg") is None
 
@@ -402,14 +398,11 @@ async def test_rename_photo_sanitizes_unsafe_filename(repo: GalleryRepository, o
 async def test_rename_photo_async(repo: GalleryRepository, owner_id, monkeypatch):
     gallery = await repo.create_gallery(owner_id, "Async Rename")
     photo = await repo.create_photo(gallery.id, f"{gallery.id}/old.jpg", f"{gallery.id}/thumb-old.jpg", 5)
-    cleared = []
-    monkeypatch.setattr("viewport.cache_utils.clear_presigned_url_cache", lambda key: cleared.append(key))
 
     result = await repo.rename_photo_async(photo.id, gallery.id, owner_id, "new.jpg")
     assert result
     assert result.object_key.endswith("/old.jpg")
     assert result.display_name == "new.jpg"
-    assert not cleared
 
     failed_result = await repo.rename_photo_async(photo.id, gallery.id, owner_id, "bad.jpg")
     assert failed_result is not None

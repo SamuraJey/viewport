@@ -19,8 +19,8 @@ from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
-from viewport.cache_utils import cache_presigned_url, get_cached_presigned_url
 from viewport.s3_utils import S3Settings
+from viewport.services.presigned_cache import get_presigned_cache_service
 
 logger = logging.getLogger(__name__)
 
@@ -120,11 +120,22 @@ class AsyncS3Client:
             )
         return cast("S3Client", self._presign_client)
 
-    @staticmethod
-    def _presign_cache_key(key: str, response_content_disposition: str | None) -> str:
+    def _generate_presigned_url_sync(
+        self,
+        key: str,
+        expires_in: int = 7200,
+        response_content_disposition: str | None = None,
+    ) -> str:
+        s3_client = self._get_presign_client()
+        params = {"Bucket": self.settings.bucket, "Key": key}
         if response_content_disposition:
-            return f"{key}::cd={response_content_disposition}"
-        return key
+            params["ResponseContentDisposition"] = response_content_disposition
+        url = s3_client.generate_presigned_url(
+            "get_object",
+            Params=params,
+            ExpiresIn=expires_in,
+        )
+        return str(url)
 
     async def upload_fileobj(
         self,
@@ -452,7 +463,7 @@ class AsyncS3Client:
             self._presign_client.close()
             self._presign_client = None
 
-    def generate_presigned_url(self, key: str, expires_in: int = 7200, response_content_disposition: str | None = None) -> str:
+    async def generate_presigned_url(self, key: str, expires_in: int = 7200, response_content_disposition: str | None = None) -> str:
         """Generate a presigned URL for direct S3 access to an object.
 
         Args:
@@ -465,40 +476,37 @@ class AsyncS3Client:
         Raises:
             Exception: If URL generation fails
         """
-        cache_key = self._presign_cache_key(key, response_content_disposition)
-        # Check cache first
-        cached = get_cached_presigned_url(cache_key)
-        if cached:
-            logger.debug("Using cached presigned URL for: %s", key)
-            return cached
+        cache = get_presigned_cache_service()
+
+        if cache is not None:
+            cache_key = cache.build_cache_key(self.settings.bucket, key, response_content_disposition)
+            cached = await cache.get_url_by_key(cache_key)
+            if cached:
+                logger.debug("Using cached presigned URL for: %s", key)
+                return cached
+        else:
+            cache_key = None
 
         try:
-            # Create a sync boto3 client for presigned URL generation
-            # (presigned URLs are sync operation, no need for async)
-            s3_client = self._get_presign_client()
-            params = {"Bucket": self.settings.bucket, "Key": key}
-            if response_content_disposition:
-                params["ResponseContentDisposition"] = response_content_disposition
-            url = s3_client.generate_presigned_url(
-                "get_object",
-                Params=params,
-                ExpiresIn=expires_in,
+            url = await asyncio.to_thread(
+                self._generate_presigned_url_sync,
+                key,
+                expires_in,
+                response_content_disposition,
             )
-            # Cache the presigned URL (with some buffer inside cache function)
-            try:
-                cache_presigned_url(cache_key, str(url), expires_in)
-            except Exception:
-                logger.warning("Failed to cache presigned URL for key %s", key)
+
+            if cache is not None and cache_key is not None:
+                await cache.set_url_by_key(cache_key, url, expires_in)
 
             logger.debug("Generated presigned URL for: %s", key)
-            return str(url)
+            return url
         except Exception as e:
             logger.error("Failed to generate presigned URL for %s: %s", key, e)
             raise
 
     async def generate_presigned_url_async(self, key: str, expires_in: int = 7200, response_content_disposition: str | None = None) -> str:
-        """Generate a presigned URL without blocking the event loop."""
-        return await asyncio.to_thread(self.generate_presigned_url, key, expires_in, response_content_disposition)
+        """Backward-compatible async alias for generate_presigned_url."""
+        return await self.generate_presigned_url(key, expires_in, response_content_disposition)
 
     def _generate_presigned_urls_sync(
         self,
@@ -514,7 +522,7 @@ class AsyncS3Client:
         urls: dict[str, str] = {}
         for key in keys:
             try:
-                urls[key] = self.generate_presigned_url(
+                urls[key] = self._generate_presigned_url_sync(
                     key,
                     expires_in=expires_in,
                     response_content_disposition=response_content_disposition,
@@ -532,7 +540,7 @@ class AsyncS3Client:
         urls: dict[str, str] = {}
         for key, response_content_disposition in key_dispositions:
             try:
-                urls[key] = self.generate_presigned_url(
+                urls[key] = self._generate_presigned_url_sync(
                     key,
                     expires_in=expires_in,
                     response_content_disposition=response_content_disposition,
@@ -547,46 +555,48 @@ class AsyncS3Client:
         expires_in: int = 7200,
         response_content_disposition: str | None = None,
     ) -> dict[str, str]:
-        """Generate presigned URLs for multiple objects concurrently.
+        """Generate presigned URLs for multiple objects concurrently."""
+        if not keys:
+            return {}
 
-        Args:
-            keys: List of S3 object keys
-            expires_in: URL expiration time in seconds (default: 2 hours)
+        cache = get_presigned_cache_service()
+        unique_keys = list(dict.fromkeys(keys))
 
-        Returns:
-            Dict mapping object_key to presigned URL
-
-        Raises:
-            Exception: If URL generation fails
-        """
         urls: dict[str, str] = {}
-
-        # First consult cache to skip already cached keys
         to_generate: list[str] = []
-        for key in keys:
-            cache_key = self._presign_cache_key(key, response_content_disposition)
-            cached = get_cached_presigned_url(cache_key)
-            if cached:
-                urls[key] = cached
-            else:
-                to_generate.append(key)
+
+        if cache is not None:
+            cache_keys = [cache.build_cache_key(self.settings.bucket, key, response_content_disposition) for key in unique_keys]
+            cache_key_by_object_key = dict(zip(unique_keys, cache_keys, strict=False))
+            cached_by_cache_key = await cache.get_urls_batch_by_keys(cache_keys)
+
+            for key in unique_keys:
+                cached = cached_by_cache_key.get(cache_key_by_object_key[key])
+                if cached:
+                    urls[key] = cached
+                else:
+                    to_generate.append(key)
+        else:
+            cache_key_by_object_key = {}
+            to_generate = unique_keys
 
         if to_generate:
             logger.debug("Generating %s presigned URLs, %s from cache", len(to_generate), len(urls))
+            generated = await asyncio.to_thread(
+                self._generate_presigned_urls_sync,
+                to_generate,
+                expires_in,
+                response_content_disposition,
+            )
+            urls.update(generated)
+
+            if cache is not None:
+                await cache.set_urls_batch(
+                    [(cache_key_by_object_key[key], url) for key, url in generated.items()],
+                    expires_in,
+                )
         else:
             logger.debug("All %s presigned URLs from cache", len(urls))
-
-        # Presigning is local signing work, so a single background-thread batch is
-        # faster than spawning one thread-task per URL.
-        if to_generate:
-            urls.update(
-                await asyncio.to_thread(
-                    self._generate_presigned_urls_sync,
-                    to_generate,
-                    expires_in,
-                    response_content_disposition,
-                )
-            )
 
         return urls
 
@@ -596,27 +606,50 @@ class AsyncS3Client:
         expires_in: int = 7200,
     ) -> dict[str, str]:
         """Generate presigned URLs for multiple objects with per-object content disposition."""
+        if not key_dispositions:
+            return {}
+
+        cache = get_presigned_cache_service()
+
         urls: dict[str, str] = {}
         to_generate: list[tuple[str, str | None]] = []
 
-        for key, response_content_disposition in key_dispositions.items():
-            cache_key = self._presign_cache_key(key, response_content_disposition)
-            cached = get_cached_presigned_url(cache_key)
-            if cached:
-                urls[key] = cached
-            else:
-                to_generate.append((key, response_content_disposition))
+        if cache is not None:
+            cache_key_by_object_key: dict[str, str] = {key: cache.build_cache_key(self.settings.bucket, key, disposition) for key, disposition in key_dispositions.items()}
+            cache_keys = list(cache_key_by_object_key.values())
+            cached_by_cache_key = await cache.get_urls_batch_by_keys(cache_keys)
+
+            for key, disposition in key_dispositions.items():
+                cached = cached_by_cache_key.get(cache_key_by_object_key[key])
+                if cached:
+                    urls[key] = cached
+                else:
+                    to_generate.append((key, disposition))
+        else:
+            cache_key_by_object_key = {}
+            to_generate = list(key_dispositions.items())
 
         if to_generate:
-            urls.update(
-                await asyncio.to_thread(
-                    self._generate_presigned_urls_with_dispositions_sync,
-                    to_generate,
+            generated = await asyncio.to_thread(
+                self._generate_presigned_urls_with_dispositions_sync,
+                to_generate,
+                expires_in,
+            )
+            urls.update(generated)
+
+            if cache is not None:
+                await cache.set_urls_batch(
+                    [(cache_key_by_object_key[key], url) for key, url in generated.items()],
                     expires_in,
                 )
-            )
 
         return urls
+
+    async def clear_presigned_cache_for_object_keys(self, object_keys: list[str]) -> None:
+        """Clear cached presigned URLs for the given object keys."""
+        cache = get_presigned_cache_service()
+        if cache is not None:
+            await cache.clear_urls_for_object_keys(self.settings.bucket, object_keys)
 
     async def list_object_keys(self, prefix: str) -> list[str]:
         """List all object keys for a prefix."""

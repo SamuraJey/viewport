@@ -524,3 +524,201 @@ class TestAsyncS3ClientClose:
         assert s3_client._session is None
         mock_presign.close.assert_called_once()
         assert s3_client._presign_client is None
+
+
+class TestPresignedURLCaching:
+    """Tests for presigned URL caching with new service architecture."""
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_url_cache_hit(self, s3_client):
+        """Test that cache hit returns cached URL."""
+        mock_cache = MagicMock()
+        mock_cache.build_cache_key = MagicMock(return_value="cache_key")
+        mock_cache.get_url_by_key = AsyncMock(return_value="https://cached-url.example.com")
+
+        with patch("viewport.s3_service.get_presigned_cache_service", return_value=mock_cache):
+            result = await s3_client.generate_presigned_url("test-key.jpg")
+
+            assert result == "https://cached-url.example.com"
+            mock_cache.get_url_by_key.assert_called_once_with("cache_key")
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_url_cache_miss(self, s3_client):
+        """Test that cache miss generates new URL and caches it."""
+        mock_cache = MagicMock()
+        mock_cache.build_cache_key = MagicMock(return_value="cache_key")
+        mock_cache.get_url_by_key = AsyncMock(return_value=None)
+        mock_cache.set_url_by_key = AsyncMock()
+
+        with (
+            patch("viewport.s3_service.get_presigned_cache_service", return_value=mock_cache),
+            patch.object(s3_client, "_generate_presigned_url_sync", return_value="https://new-url.example.com"),
+        ):
+            result = await s3_client.generate_presigned_url("test-key.jpg", expires_in=3600)
+
+            assert result == "https://new-url.example.com"
+            mock_cache.set_url_by_key.assert_called_once_with("cache_key", "https://new-url.example.com", 3600)
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_url_no_cache_service(self, s3_client):
+        """Test that URL generation works without cache service."""
+        with (
+            patch("viewport.s3_service.get_presigned_cache_service", return_value=None),
+            patch.object(s3_client, "_generate_presigned_url_sync", return_value="https://direct-url.example.com"),
+        ):
+            result = await s3_client.generate_presigned_url("test-key.jpg")
+
+            assert result == "https://direct-url.example.com"
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_url_generation_exception(self, s3_client):
+        """Test that URL generation exceptions are logged and re-raised."""
+        mock_cache = MagicMock()
+        mock_cache.build_cache_key = MagicMock(return_value="cache_key")
+        mock_cache.get_url_by_key = AsyncMock(return_value=None)
+
+        generation_error = Exception("S3 presign failed")
+
+        with (
+            patch("viewport.s3_service.get_presigned_cache_service", return_value=mock_cache),
+            patch.object(s3_client, "_generate_presigned_url_sync", side_effect=generation_error),
+            patch("viewport.s3_service.logger") as mock_logger,
+        ):
+            with pytest.raises(Exception) as exc_info:
+                await s3_client.generate_presigned_url("test-key.jpg")
+
+            assert exc_info.value == generation_error
+            mock_logger.error.assert_any_call(
+                "Failed to generate presigned URL for %s: %s",
+                "test-key.jpg",
+                generation_error,
+            )
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_urls_batch_with_cache(self, s3_client):
+        """Test batch URL generation uses cache."""
+        mock_cache = MagicMock()
+        mock_cache.build_cache_key = MagicMock(side_effect=lambda b, k, d: f"cache:{k}")
+        mock_cache.get_urls_batch_by_keys = AsyncMock(return_value={"cache:key1.jpg": "https://cached1.example.com"})
+        mock_cache.set_urls_batch = AsyncMock()
+
+        with (
+            patch("viewport.s3_service.get_presigned_cache_service", return_value=mock_cache),
+            patch.object(s3_client, "_generate_presigned_urls_sync", return_value={"key2.jpg": "https://new2.example.com"}),
+        ):
+            result = await s3_client.generate_presigned_urls_batch(["key1.jpg", "key2.jpg"])
+
+            assert len(result) == 2
+            assert result["key1.jpg"] == "https://cached1.example.com"
+            assert result["key2.jpg"] == "https://new2.example.com"
+            mock_cache.set_urls_batch.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_urls_batch_no_cache(self, s3_client):
+        """Test batch URL generation without cache service."""
+        with (
+            patch("viewport.s3_service.get_presigned_cache_service", return_value=None),
+            patch.object(s3_client, "_generate_presigned_urls_sync") as mock_generate,
+        ):
+            mock_generate.return_value = {
+                "key1.jpg": "https://url1.example.com",
+                "key2.jpg": "https://url2.example.com",
+            }
+
+            result = await s3_client.generate_presigned_urls_batch(["key1.jpg", "key2.jpg"])
+
+            assert len(result) == 2
+            assert result["key1.jpg"] == "https://url1.example.com"
+            assert result["key2.jpg"] == "https://url2.example.com"
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_urls_batch_for_dispositions_with_cache(self, s3_client):
+        """Test disposition-specific batch generation with cache."""
+        mock_cache = MagicMock()
+        mock_cache.build_cache_key = MagicMock(side_effect=lambda b, k, d: f"cache:{k}:{d[:4] if d else 'none'}")
+        mock_cache.get_urls_batch_by_keys = AsyncMock(return_value={})
+        mock_cache.set_urls_batch = AsyncMock()
+
+        with (
+            patch("viewport.s3_service.get_presigned_cache_service", return_value=mock_cache),
+            patch.object(s3_client, "_generate_presigned_urls_with_dispositions_sync") as mock_generate,
+        ):
+            mock_generate.return_value = {
+                "photo1.jpg": "https://url1.example.com",
+                "photo2.jpg": "https://url2.example.com",
+            }
+
+            key_dispositions = {
+                "photo1.jpg": "attachment; filename=photo1.jpg",
+                "photo2.jpg": "attachment; filename=photo2.jpg",
+            }
+            result = await s3_client.generate_presigned_urls_batch_for_dispositions(key_dispositions)
+
+            assert len(result) == 2
+            mock_cache.set_urls_batch.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_urls_batch_for_dispositions_no_cache(self, s3_client):
+        """Test disposition-specific batch generation falls back to direct generation without cache."""
+        key_dispositions = {
+            "photo1.jpg": "attachment; filename=photo1.jpg",
+            "photo2.jpg": "inline; filename=photo2.jpg",
+        }
+
+        with (
+            patch("viewport.s3_service.get_presigned_cache_service", return_value=None),
+            patch.object(s3_client, "_generate_presigned_urls_with_dispositions_sync") as mock_generate,
+        ):
+            mock_generate.return_value = {
+                "photo1.jpg": "https://url1.example.com",
+                "photo2.jpg": "https://url2.example.com",
+            }
+
+            result = await s3_client.generate_presigned_urls_batch_for_dispositions(key_dispositions)
+
+            assert len(result) == 2
+            assert result["photo1.jpg"] == "https://url1.example.com"
+            assert result["photo2.jpg"] == "https://url2.example.com"
+            mock_generate.assert_called_once_with(list(key_dispositions.items()), 7200)
+
+    @pytest.mark.asyncio
+    async def test_clear_presigned_cache_for_object_keys(self, s3_client):
+        """Test clearing cache for object keys."""
+        mock_cache = MagicMock()
+        mock_cache.clear_urls_for_object_keys = AsyncMock()
+
+        with patch("viewport.s3_service.get_presigned_cache_service", return_value=mock_cache):
+            await s3_client.clear_presigned_cache_for_object_keys(["key1.jpg", "key2.jpg"])
+
+            mock_cache.clear_urls_for_object_keys.assert_called_once_with(s3_client.settings.bucket, ["key1.jpg", "key2.jpg"])
+
+    @pytest.mark.asyncio
+    async def test_clear_presigned_cache_for_object_keys_no_cache(self, s3_client):
+        """Test clearing cache when cache service unavailable."""
+        with patch("viewport.s3_service.get_presigned_cache_service", return_value=None):
+            # Should not raise
+            await s3_client.clear_presigned_cache_for_object_keys(["key1.jpg", "key2.jpg"])
+
+    @pytest.mark.asyncio
+    async def test_list_object_keys_initialization(self, s3_client):
+        """Test that list_object_keys returns a list of object keys for the given prefix."""
+        mock_s3_client = AsyncMock()
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        mock_s3_client.list_objects_v2.return_value = {
+            "Contents": [
+                {"Key": "prefix/photo1.jpg"},
+                {"Key": "prefix/photo2.jpg"},
+            ],
+            "IsTruncated": False,
+        }
+
+        result = await s3_client.list_object_keys("prefix/")
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0] == "prefix/photo1.jpg"
+        assert result[1] == "prefix/photo2.jpg"

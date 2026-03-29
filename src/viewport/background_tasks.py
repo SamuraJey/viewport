@@ -8,7 +8,6 @@ from botocore.exceptions import ClientError, ConnectionClosedError, ConnectTimeo
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy import delete, func, or_, select, update
 
-from viewport.cache_utils import clear_presigned_urls_batch
 from viewport.celery_app import celery_app
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
@@ -317,16 +316,18 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
                 failed_ids = [r["photo_id"] for r in failed_results]
                 logger.info("Batch marking %s photos as FAILED in DB", len(failed_ids))
 
-                owner_totals = db.execute(
-                    select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0))
-                    .select_from(Photo)
-                    .join(Gallery, Photo.gallery_id == Gallery.id)
-                    .where(
-                        Photo.id.in_(failed_ids),
-                        Photo.status.in_([PhotoUploadStatus.THUMBNAIL_CREATING, PhotoUploadStatus.SUCCESSFUL]),
-                    )
-                    .group_by(Gallery.owner_id)
-                ).all()
+                owner_totals = list(
+                    db.execute(
+                        select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0))
+                        .select_from(Photo)
+                        .join(Gallery, Photo.gallery_id == Gallery.id)
+                        .where(
+                            Photo.id.in_(failed_ids),
+                            Photo.status.in_([PhotoUploadStatus.THUMBNAIL_CREATING, PhotoUploadStatus.SUCCESSFUL]),
+                        )
+                        .group_by(Gallery.owner_id)
+                    ).all()
+                )
 
                 db.execute(
                     update(Photo)
@@ -340,8 +341,6 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
 
             db.commit()
 
-        if successful_results:
-            clear_presigned_urls_batch([r["photo_id"] for r in successful_results])
     except Exception as exc:
         logger.exception("Failed to batch update photo results: %s", exc)
         raise ThumbnailTransientError("Failed to update photo results") from exc

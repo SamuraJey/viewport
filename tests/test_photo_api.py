@@ -1,6 +1,7 @@
 """Tests for photo API endpoints."""
 
 from typing import TYPE_CHECKING, Never
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -8,7 +9,7 @@ import requests
 from fastapi.testclient import TestClient
 
 from tests.helpers import register_and_login, upload_photo_via_presigned
-from viewport.api.photo import MAX_FILE_SIZE, get_content_type_from_filename, sanitize_filename
+from viewport.api.photo import MAX_FILE_SIZE, _invalidate_presigned_cache_safely, get_content_type_from_filename, sanitize_filename
 from viewport.models.gallery import Photo, PhotoUploadStatus
 from viewport.models.user import User
 
@@ -125,6 +126,29 @@ class TestPhotoAPI:
         assert captured["photo_ids"] == [first_photo_id, second_photo_id]
         assert captured["gallery_id"] == gallery_id_fixture
         assert isinstance(captured["owner_id"], str)
+
+    def test_delete_photos_succeeds_when_cache_invalidation_fails(self, authenticated_client: TestClient, gallery_id_fixture: str, monkeypatch):
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"first", "first.jpg")
+
+        async def fail_cache_invalidation(self, object_keys: list[str]) -> None:
+            raise RuntimeError("redis timeout")
+
+        def fake_delay(photo_ids: list[str], gallery_id: str, owner_id: str) -> None:
+            return None
+
+        monkeypatch.setattr("viewport.api.photo.AsyncS3Client.clear_presigned_cache_for_object_keys", fail_cache_invalidation)
+        monkeypatch.setattr("viewport.api.photo.delete_photos_batch_task.delay", fake_delay)
+
+        response = authenticated_client.request(
+            "DELETE",
+            f"/galleries/{gallery_id_fixture}/photos",
+            json={"photo_ids": [photo_id]},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["deleted_ids"] == [photo_id]
+        assert payload["failed_ids"] == []
 
     def test_rename_photo_not_found(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test renaming non-existent photo."""
@@ -288,6 +312,23 @@ class TestPhotoAPI:
         assert data["id"] == photo_id
         assert data["filename"] == "new-name.jpg"
 
+    def test_rename_photo_succeeds_when_cache_invalidation_fails(self, authenticated_client: TestClient, gallery_id_fixture: str, monkeypatch):
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"rename", "rename.jpg")
+
+        async def fail_cache_invalidation(self, object_keys: list[str]) -> None:
+            raise RuntimeError("redis timeout")
+
+        monkeypatch.setattr("viewport.api.photo.AsyncS3Client.clear_presigned_cache_for_object_keys", fail_cache_invalidation)
+
+        response = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/photos/{photo_id}/rename",
+            json={"filename": "new-name.jpg"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == photo_id
+        assert data["filename"] == "new-name.jpg"
+
     @pytest.mark.asyncio
     async def test_rename_photo_updates_display_name_without_changing_object_key(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession):
         photo_id = UUID(upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"rename-immutable", "rename.jpg"))
@@ -330,6 +371,14 @@ class TestPhotoAPI:
         assert sanitize_filename("") == "file"
         assert get_content_type_from_filename("photo.jpg") == "image/jpeg"
         assert get_content_type_from_filename(None) == "image/jpeg"
+
+    @pytest.mark.asyncio
+    async def test_invalidate_presigned_cache_safely_skips_empty_keys(self):
+        s3_client = AsyncMock()
+
+        await _invalidate_presigned_cache_safely(s3_client, [], "batch_delete")
+
+        s3_client.clear_presigned_cache_for_object_keys.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_batch_confirm_missing_s3_object_is_accepted_and_finalized(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession, monkeypatch):

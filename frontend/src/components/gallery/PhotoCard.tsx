@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, type MouseEvent } from 'react';
+import { memo, useEffect, useRef, useState, type MouseEvent } from 'react';
 import {
   CheckSquare,
   Download,
@@ -40,8 +40,15 @@ const PhotoCardComponent = ({
   onDeletePhoto,
 }: PhotoCardProps) => {
   const [imageState, setImageState] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const imageRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
+    const imageElement = imageRef.current;
+    if (imageElement?.complete) {
+      setImageState(imageElement.naturalWidth > 0 ? 'loaded' : 'error');
+      return;
+    }
+
     setImageState('loading');
   }, [photo.thumbnail_url]);
 
@@ -212,6 +219,7 @@ const PhotoCardComponent = ({
             </div>
           ) : (
             <img
+              ref={imageRef}
               src={photo.thumbnail_url}
               alt={`Photo ${photo.id}`}
               crossOrigin="anonymous"

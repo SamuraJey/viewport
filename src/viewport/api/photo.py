@@ -44,6 +44,24 @@ CONTENT_TYPE_MAP = {
 router = APIRouter(prefix="/galleries", tags=["photos"])
 
 
+async def _invalidate_presigned_cache_safely(
+    s3_client: AsyncS3Client,
+    object_keys: list[str],
+    operation: str,
+) -> None:
+    if not object_keys:
+        return
+
+    try:
+        await s3_client.clear_presigned_cache_for_object_keys(object_keys)
+    except Exception as exc:
+        logger.warning(
+            "Presigned URL cache invalidation skipped during %s: %s",
+            operation,
+            exc,
+        )
+
+
 def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
     return GalleryRepository(db)
 
@@ -318,6 +336,7 @@ async def delete_photos(
     request: BatchDeletePhotosRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> BatchDeletePhotosResponse:
     """Delete photos and enqueue background tasks for S3 cleanup and DB removal.
 
@@ -335,6 +354,11 @@ async def delete_photos(
     existing_photo_ids = [photo_id for photo_id in request.photo_ids if photo_id in photo_map]
     deleted_ids: list[UUID] = list(existing_photo_ids)
     failed_ids: list[UUID] = []
+
+    if existing_photo_ids:
+        existing_photo_ids_set = set(existing_photo_ids)
+        object_keys = [key for photo in photos if photo.id in existing_photo_ids_set for key in [photo.object_key, photo.thumbnail_object_key] if key]
+        await _invalidate_presigned_cache_safely(s3_client, object_keys, "batch delete")
 
     if existing_photo_ids:
         try:
@@ -373,6 +397,7 @@ async def rename_photo(
     photo = await repo.rename_photo_async(photo_id, gallery_id, current_user.id, request.filename)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
+    await _invalidate_presigned_cache_safely(s3_client, [photo.object_key], "rename")
     # TODO do we really need to fetch the photo again here? we already have it in the repo.rename_photo_async method, we can just return it from there instead of fetching it again. this would save us
     # one db call and one s3 call, since we can generate the presigned url in the rename_photo_async method as well. let's refactor that method to return the renamed photo with the new presigned url,
     # and then we can just return it here without fetching it again.
