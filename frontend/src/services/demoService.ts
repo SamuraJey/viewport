@@ -51,6 +51,35 @@ const makeDemoId = (): string => {
 
 const nowIso = (): string => new Date().toISOString();
 
+const toGalleryWithComputedFields = (state: DemoGalleryState): Gallery => {
+  const sortedRecentPhotos = [...state.photos].sort(
+    (a, b) => Date.parse(b.uploaded_at) - Date.parse(a.uploaded_at),
+  );
+  const totalSize = state.photos.reduce((sum, photo) => sum + (photo.file_size || 0), 0);
+  const hasActiveShareLinks = state.shareLinks.some((link) => {
+    if (link.is_active === false) return false;
+    if (!link.expires_at) return true;
+    const expiresAt = Date.parse(link.expires_at);
+    return Number.isNaN(expiresAt) ? true : expiresAt > Date.now();
+  });
+
+  const coverPhoto = state.gallery.cover_photo_id
+    ? state.photos.find((photo) => photo.id === state.gallery.cover_photo_id) || null
+    : null;
+
+  return {
+    ...state.gallery,
+    photo_count: state.photos.length,
+    total_size_bytes: totalSize,
+    has_active_share_links: hasActiveShareLinks,
+    cover_photo_thumbnail_url: coverPhoto?.thumbnail_url ?? null,
+    recent_photo_thumbnail_urls: sortedRecentPhotos
+      .slice(0, 3)
+      .map((photo) => photo.thumbnail_url)
+      .filter(Boolean),
+  };
+};
+
 const buildPhoto = (galleryId: string, index: number): GalleryPhoto => {
   const seed = `${galleryId}-${index}`;
   const width = 2200 + (index % 5) * 120;
@@ -79,6 +108,11 @@ const seedState = (): DemoGalleryState[] => {
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
       cover_photo_id: null,
+      photo_count: 0,
+      total_size_bytes: 0,
+      has_active_share_links: false,
+      cover_photo_thumbnail_url: null,
+      recent_photo_thumbnail_urls: [],
     },
     {
       id: 'demo-gallery-wedding',
@@ -89,6 +123,11 @@ const seedState = (): DemoGalleryState[] => {
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
       cover_photo_id: null,
+      photo_count: 0,
+      total_size_bytes: 0,
+      has_active_share_links: false,
+      cover_photo_thumbnail_url: null,
+      recent_photo_thumbnail_urls: [],
     },
     {
       id: 'demo-gallery-product',
@@ -99,6 +138,11 @@ const seedState = (): DemoGalleryState[] => {
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
       cover_photo_id: null,
+      photo_count: 0,
+      total_size_bytes: 0,
+      has_active_share_links: false,
+      cover_photo_thumbnail_url: null,
+      recent_photo_thumbnail_urls: [],
     },
   ];
 
@@ -125,6 +169,15 @@ const seedState = (): DemoGalleryState[] => {
       gallery: {
         ...gallery,
         cover_photo_id: coverPhoto,
+        photo_count: photos.length,
+        total_size_bytes: photos.reduce((sum, photo) => sum + (photo.file_size || 0), 0),
+        has_active_share_links: shareLinks.some((link) => link.is_active !== false),
+        cover_photo_thumbnail_url:
+          photos.find((photo) => photo.id === coverPhoto)?.thumbnail_url ?? null,
+        recent_photo_thumbnail_urls: photos
+          .slice(0, 3)
+          .map((photo) => photo.thumbnail_url)
+          .filter(Boolean),
       },
       photos,
       shareLinks,
@@ -356,7 +409,9 @@ class DemoServiceStore {
     );
 
     return {
-      galleries: sorted.slice(start, start + size).map((entry) => ({ ...entry.gallery })),
+      galleries: sorted
+        .slice(start, start + size)
+        .map((entry) => toGalleryWithComputedFields(entry)),
       total: this.galleries.length,
       page,
       size,
@@ -379,6 +434,11 @@ class DemoServiceStore {
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
       cover_photo_id: null,
+      photo_count: 0,
+      total_size_bytes: 0,
+      has_active_share_links: false,
+      cover_photo_thumbnail_url: null,
+      recent_photo_thumbnail_urls: [],
     };
 
     this.galleries.unshift({
@@ -388,7 +448,7 @@ class DemoServiceStore {
     });
     this.persistState();
 
-    return { ...gallery };
+    return toGalleryWithComputedFields(this.galleries[0]);
   }
 
   async deleteGallery(galleryId: string): Promise<void> {
@@ -417,7 +477,7 @@ class DemoServiceStore {
     };
     this.persistState();
 
-    return { ...state.gallery };
+    return toGalleryWithComputedFields(state);
   }
 
   async setCoverPhoto(galleryId: string, photoId: string): Promise<Gallery> {
@@ -427,7 +487,7 @@ class DemoServiceStore {
       cover_photo_id: photoId,
     };
     this.persistState();
-    return { ...state.gallery };
+    return toGalleryWithComputedFields(state);
   }
 
   async clearCoverPhoto(galleryId: string): Promise<void> {

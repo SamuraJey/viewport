@@ -2,34 +2,49 @@ import { useState, useCallback } from 'react';
 import { galleryService, type Gallery } from '../services/galleryService';
 import { useErrorHandler, useConfirmation, usePagination, useModal } from './index';
 
+const API_GALLERY_PAGE_SIZE = 100;
+
 export const useDashboardActions = () => {
   const [galleries, setGalleries] = useState<Gallery[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
 
-  const pagination = usePagination({ pageSize: 9 });
+  const pagination = usePagination({ pageSize: 10 });
   const createModal = useModal();
   const { error, clearError, handleError, isLoading, setLoading } = useErrorHandler();
   const { openConfirm, ConfirmModal } = useConfirmation();
 
-  const { pageSize, setTotal } = pagination;
+  const { setTotal } = pagination;
 
-  const fetchGalleries = useCallback(
-    async (pageNum: number) => {
-      setLoading(true);
-      try {
-        clearError();
-        const response = await galleryService.getGalleries(pageNum, pageSize);
-        setGalleries(response.galleries);
-        setTotal(response.total);
-      } catch (err: unknown) {
-        handleError(err);
-      } finally {
-        setLoading(false);
+  const fetchGalleries = useCallback(async () => {
+    setLoading(true);
+    try {
+      clearError();
+      const allGalleries: Gallery[] = [];
+      let pageNum = 1;
+      let total = 0;
+
+      while (true) {
+        const response = await galleryService.getGalleries(pageNum, API_GALLERY_PAGE_SIZE);
+        if (pageNum === 1) {
+          total = response.total;
+        }
+
+        allGalleries.push(...response.galleries);
+        if (allGalleries.length >= total || response.galleries.length === 0) {
+          break;
+        }
+        pageNum += 1;
       }
-    },
-    [clearError, handleError, setLoading, pageSize, setTotal],
-  );
+
+      setGalleries(allGalleries);
+      setTotal(allGalleries.length);
+    } catch (err: unknown) {
+      handleError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [clearError, handleError, setLoading, setTotal]);
 
   const createGallery = async (name: string, shootingDate: string) => {
     if (!name.trim()) return;
@@ -42,7 +57,7 @@ export const useDashboardActions = () => {
       });
       createModal.close();
       pagination.firstPage();
-      await fetchGalleries(1);
+      await fetchGalleries();
     } catch (err: unknown) {
       handleError(err);
     } finally {
@@ -59,7 +74,7 @@ export const useDashboardActions = () => {
       onConfirm: async () => {
         try {
           await galleryService.deleteGallery(gallery.id);
-          await fetchGalleries(pagination.page);
+          await fetchGalleries();
         } catch (err) {
           handleError(err);
           throw err;
@@ -72,7 +87,7 @@ export const useDashboardActions = () => {
     try {
       setIsRenaming(true);
       await galleryService.updateGallery(id, newName.trim());
-      await fetchGalleries(pagination.page);
+      await fetchGalleries();
     } catch (err: unknown) {
       handleError(err);
     } finally {

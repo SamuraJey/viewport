@@ -302,6 +302,35 @@ class GalleryRepository(BaseRepository):
         total_size = int((await self.db.execute(stmt)).scalar() or 0)
         return await self._finish_read(total_size)
 
+    async def has_active_share_links(self, gallery_id: uuid.UUID) -> bool:
+        """Check if gallery has any active share links."""
+        stmt = (
+            select(func.count())
+            .select_from(ShareLink)
+            .where(
+                ShareLink.gallery_id == gallery_id,
+                ShareLink.is_active.is_(True),
+                (ShareLink.expires_at.is_(None) | (ShareLink.expires_at > datetime.now(UTC))),
+            )
+        )
+        count = int((await self.db.execute(stmt)).scalar() or 0)
+        return await self._finish_read(count > 0)
+
+    async def get_recent_photo_thumbnail_keys_by_gallery(self, gallery_id: uuid.UUID, limit: int = 3) -> list[str]:
+        stmt = (
+            select(Photo.thumbnail_object_key)
+            .join(Photo.gallery)
+            .where(
+                Photo.gallery_id == gallery_id,
+                Gallery.is_deleted.is_(False),
+                Photo.thumbnail_object_key.is_not(None),
+            )
+            .order_by(Photo.uploaded_at.desc(), Photo.id.desc())
+            .limit(limit)
+        )
+        keys = [key for key in (await self.db.execute(stmt)).scalars().all() if key]
+        return await self._finish_read(keys)
+
     async def get_photos_by_gallery_paginated(
         self,
         gallery_id: uuid.UUID,

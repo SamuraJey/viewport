@@ -68,6 +68,11 @@ class GalleryResponse(BaseModel):
     public_sort_by: GalleryPhotoSortBy = Field(..., description="Default sort field for shared/public gallery")
     public_sort_order: SortOrder = Field(..., description="Default sort direction for shared/public gallery")
     cover_photo_id: str | None = Field(None, description="Optional cover photo id")
+    photo_count: int = Field(0, ge=0, description="Number of photos in the gallery")
+    total_size_bytes: int = Field(0, ge=0, description="Total size of photos in bytes")
+    has_active_share_links: bool = Field(False, description="Whether gallery has any active share links")
+    cover_photo_thumbnail_url: str | None = Field(None, description="Presigned URL for cover photo thumbnail")
+    recent_photo_thumbnail_urls: list[str] = Field(default_factory=list, description="Recent photo thumbnail URLs")
 
 
 class GalleryDetailResponse(BaseModel):

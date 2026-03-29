@@ -14,7 +14,7 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import { ThemeSwitch } from '../components/ThemeSwitch';
-import { DashboardGalleryCard } from '../components/dashboard/DashboardGalleryCard';
+import { EnhancedGalleryCard } from '../components/dashboard/EnhancedGalleryCard';
 import { AuthCard } from '../components/auth/AuthCard';
 import type { Gallery } from '../types';
 import { useAuthStore } from '../stores/authStore';
@@ -89,6 +89,11 @@ const previewGallery: Gallery = {
   public_sort_order: 'asc',
   shooting_date: '2026-03-05',
   cover_photo_id: null,
+  photo_count: 128,
+  total_size_bytes: 1_200_000_000,
+  has_active_share_links: true,
+  cover_photo_thumbnail_url: null,
+  recent_photo_thumbnail_urls: [],
 };
 
 const previewCardVariants = {
@@ -216,7 +221,7 @@ export const LandingPage = () => {
                 </p>
                 <GalleryVertical className="h-5 w-5 text-accent" />
               </div>
-              <DashboardGalleryCard
+              <EnhancedGalleryCard
                 gallery={previewGallery}
                 isRenamingThis={false}
                 renameInput=""
@@ -227,6 +232,7 @@ export const LandingPage = () => {
                 onCancelRename={() => undefined}
                 onBeginRename={() => undefined}
                 onDelete={() => undefined}
+                onShare={() => undefined}
                 variants={previewCardVariants}
               />
             </div>

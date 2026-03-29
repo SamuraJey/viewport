@@ -24,12 +24,16 @@ export interface Gallery {
   public_sort_by: GalleryPhotoSortBy;
   public_sort_order: SortOrder;
   cover_photo_id?: string | null;
+  photo_count: number;
+  total_size_bytes: number;
+  has_active_share_links: boolean;
+  cover_photo_thumbnail_url?: string | null;
+  recent_photo_thumbnail_urls: string[];
 }
 
 export interface GalleryDetail extends Gallery {
   photos: GalleryPhoto[];
   total_photos: number;
-  total_size_bytes?: number;
 }
 
 export interface GalleryListResponse {

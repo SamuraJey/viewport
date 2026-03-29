@@ -26,6 +26,11 @@ class TestGalleryAPI:
         assert "shooting_date" in data
         assert data["public_sort_by"] == "original_filename"
         assert data["public_sort_order"] == "asc"
+        assert data["photo_count"] == 0
+        assert data["total_size_bytes"] == 0
+        assert data["has_active_share_links"] is False
+        assert data["cover_photo_thumbnail_url"] is None
+        assert data["recent_photo_thumbnail_urls"] == []
         # Verify the ID is a valid UUID format
         import uuid
 
@@ -573,3 +578,53 @@ class TestGalleryAPI:
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
+
+    def test_list_galleries_includes_enriched_data(self, authenticated_client: TestClient):
+        """Test that gallery list includes photo_count, total_size_bytes, has_active_share_links, and cover_photo_thumbnail_url."""
+        # Create a gallery
+        create_response = authenticated_client.post("/galleries", json={"name": "Test Gallery"})
+        assert create_response.status_code == 201
+        created_gallery = create_response.json()
+        gallery_id = created_gallery["id"]
+
+        # Verify newly created gallery has zero enriched values
+        assert created_gallery["photo_count"] == 0
+        assert created_gallery["total_size_bytes"] == 0
+        assert created_gallery["has_active_share_links"] is False
+        assert created_gallery["cover_photo_thumbnail_url"] is None
+
+        # Upload a photo
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id, b"test-content" * 100, "test.jpg")
+
+        # List galleries and verify enriched data
+        list_response = authenticated_client.get("/galleries")
+        assert list_response.status_code == 200
+        galleries = list_response.json()["galleries"]
+
+        test_gallery = next(g for g in galleries if g["id"] == gallery_id)
+        assert test_gallery["photo_count"] == 1
+        assert test_gallery["total_size_bytes"] > 0
+        assert test_gallery["has_active_share_links"] is False
+        assert test_gallery["cover_photo_thumbnail_url"] is None  # No cover photo set yet
+        assert len(test_gallery["recent_photo_thumbnail_urls"]) == 1
+        assert test_gallery["recent_photo_thumbnail_urls"][0].startswith("http")
+
+        # Set cover photo
+        authenticated_client.post(f"/galleries/{gallery_id}/cover/{photo_id}")
+
+        # Create a share link
+        share_response = authenticated_client.post(f"/galleries/{gallery_id}/share-links", json={"label": "Test Share"})
+        assert share_response.status_code == 201
+
+        # List galleries again and verify enriched data updated
+        list_response2 = authenticated_client.get("/galleries")
+        assert list_response2.status_code == 200
+        galleries2 = list_response2.json()["galleries"]
+
+        test_gallery2 = next(g for g in galleries2 if g["id"] == gallery_id)
+        assert test_gallery2["photo_count"] == 1
+        assert test_gallery2["total_size_bytes"] > 0
+        assert test_gallery2["has_active_share_links"] is True
+        assert test_gallery2["cover_photo_thumbnail_url"] is not None  # Cover photo URL should be present
+        assert test_gallery2["cover_photo_thumbnail_url"].startswith("http")
+        assert len(test_gallery2["recent_photo_thumbnail_urls"]) == 1
