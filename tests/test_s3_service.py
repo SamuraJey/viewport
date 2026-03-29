@@ -524,3 +524,286 @@ class TestAsyncS3ClientClose:
         assert s3_client._session is None
         mock_presign.close.assert_called_once()
         assert s3_client._presign_client is None
+
+
+class TestPresignedURLCaching:
+    """Tests for presigned URL caching and exception handling."""
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_url_cache_hit_logging(self, s3_client):
+        """Test that cache hit logs debug message (lines 500-501)."""
+        mock_s3_client = AsyncMock()
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        with (
+            patch("viewport.s3_service.get_redis_client_instance") as mock_redis_getter,
+            patch("viewport.s3_service.get_cached_presigned_url") as mock_get_cached,
+            patch("viewport.s3_service.logger") as mock_logger,
+        ):
+            mock_redis = AsyncMock()
+            mock_redis_getter.return_value = mock_redis
+            mock_get_cached.return_value = "https://cached-url.example.com"
+
+            result = await s3_client.generate_presigned_url("test-key.jpg")
+
+            assert result == "https://cached-url.example.com"
+            mock_logger.debug.assert_any_call("Using cached presigned URL for: %s", "test-key.jpg")
+            mock_get_cached.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_url_cache_read_exception_handling(self, s3_client):
+        """Test that cache read exceptions are caught and logged (lines 502-503)."""
+        mock_s3_client = AsyncMock()
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        with (
+            patch("viewport.s3_service.get_redis_client_instance") as mock_redis_getter,
+            patch("viewport.s3_service.get_cached_presigned_url") as mock_get_cached,
+            patch("viewport.s3_service.logger") as mock_logger,
+            patch.object(s3_client, "_generate_presigned_url_sync", return_value="https://new-url.example.com"),
+            patch("viewport.s3_service.cache_presigned_url") as _mock_cache_url,
+        ):
+            mock_redis = AsyncMock()
+            mock_redis_getter.return_value = mock_redis
+            mock_get_cached.side_effect = Exception("Redis connection failed")
+
+            result = await s3_client.generate_presigned_url("test-key.jpg")
+
+            assert result == "https://new-url.example.com"
+            mock_logger.warning.assert_any_call(
+                "Failed to read presigned URL cache for key %s: %s",
+                "test-key.jpg",
+                mock_get_cached.side_effect,
+            )
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_url_cache_write_exception_handling(self, s3_client):
+        """Test that cache write exceptions are caught and logged (lines 514-515)."""
+        mock_s3_client = AsyncMock()
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        with (
+            patch("viewport.s3_service.get_redis_client_instance") as mock_redis_getter,
+            patch("viewport.s3_service.get_cached_presigned_url") as mock_get_cached,
+            patch("viewport.s3_service.logger") as mock_logger,
+            patch.object(s3_client, "_generate_presigned_url_sync", return_value="https://new-url.example.com"),
+            patch("viewport.s3_service.cache_presigned_url") as mock_cache_url,
+        ):
+            mock_redis = AsyncMock()
+            mock_redis_getter.return_value = mock_redis
+            mock_get_cached.return_value = None
+            cache_error = Exception("Redis write failed")
+            mock_cache_url.side_effect = cache_error
+
+            result = await s3_client.generate_presigned_url("test-key.jpg")
+
+            assert result == "https://new-url.example.com"
+            mock_logger.warning.assert_any_call(
+                "Failed to cache presigned URL for key %s: %s",
+                "test-key.jpg",
+                cache_error,
+            )
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_url_generation_exception(self, s3_client):
+        """Test that URL generation exceptions are logged and re-raised (lines 519-521)."""
+        mock_s3_client = AsyncMock()
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        with (
+            patch("viewport.s3_service.get_redis_client_instance") as mock_redis_getter,
+            patch("viewport.s3_service.get_cached_presigned_url") as mock_get_cached,
+            patch("viewport.s3_service.logger") as mock_logger,
+            patch.object(s3_client, "_generate_presigned_url_sync") as mock_generate,
+        ):
+            mock_redis = AsyncMock()
+            mock_redis_getter.return_value = mock_redis
+            mock_get_cached.return_value = None
+            generation_error = Exception("S3 presign failed")
+            mock_generate.side_effect = generation_error
+
+            with pytest.raises(Exception) as exc_info:
+                await s3_client.generate_presigned_url("test-key.jpg")
+
+            assert exc_info.value == generation_error
+            mock_logger.error.assert_any_call(
+                "Failed to generate presigned URL for %s: %s",
+                "test-key.jpg",
+                generation_error,
+            )
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_urls_batch_cache_read_exception(self, s3_client):
+        """Test batch URL cache read exception handling (lines 588-589)."""
+        with (
+            patch("viewport.s3_service.get_redis_client_instance") as mock_redis_getter,
+            patch("viewport.s3_service.get_cached_presigned_urls_batch") as mock_get_cached_batch,
+            patch("viewport.s3_service.logger") as mock_logger,
+            patch.object(s3_client, "_generate_presigned_urls_sync") as mock_generate_batch,
+            patch("viewport.s3_service.cache_presigned_urls_batch") as _mock_cache_batch,
+        ):
+            mock_redis = AsyncMock()
+            mock_redis_getter.return_value = mock_redis
+            cache_error = Exception("Redis batch read failed")
+            mock_get_cached_batch.side_effect = cache_error
+            mock_generate_batch.return_value = {
+                "key1.jpg": "https://url1.example.com",
+                "key2.jpg": "https://url2.example.com",
+            }
+
+            result = await s3_client.generate_presigned_urls_batch(["key1.jpg", "key2.jpg"])
+
+            assert len(result) == 2
+            assert "key1.jpg" in result
+            assert "key2.jpg" in result
+            mock_logger.warning.assert_any_call(
+                "Failed to read presigned URL batch cache: %s",
+                cache_error,
+            )
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_urls_batch_cache_write_exception(self, s3_client):
+        """Test batch URL cache write exception handling (lines 613-614)."""
+        with (
+            patch("viewport.s3_service.get_redis_client_instance") as mock_redis_getter,
+            patch("viewport.s3_service.get_cached_presigned_urls_batch") as mock_get_cached_batch,
+            patch("viewport.s3_service.logger") as mock_logger,
+            patch.object(s3_client, "_generate_presigned_urls_sync") as mock_generate_batch,
+            patch("viewport.s3_service.cache_presigned_urls_batch") as _mock_cache_batch,
+        ):
+            mock_redis = AsyncMock()
+            mock_redis_getter.return_value = mock_redis
+            mock_get_cached_batch.return_value = {}
+            mock_generate_batch.return_value = {
+                "key1.jpg": "https://url1.example.com",
+                "key2.jpg": "https://url2.example.com",
+            }
+            cache_error = Exception("Redis batch write failed")
+            _mock_cache_batch.side_effect = cache_error
+
+            result = await s3_client.generate_presigned_urls_batch(["key1.jpg", "key2.jpg"])
+
+            assert len(result) == 2
+            mock_logger.warning.assert_any_call(
+                "Failed to write presigned URL batch cache: %s",
+                cache_error,
+            )
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_urls_batch_for_dispositions_cache_read_exception(self, s3_client):
+        """Test disposition-specific batch cache read exception handling (lines 635-636)."""
+        with (
+            patch("viewport.s3_service.get_redis_client_instance") as mock_redis_getter,
+            patch("viewport.s3_service.get_cached_presigned_urls_batch") as mock_get_cached_batch,
+            patch("viewport.s3_service.logger") as mock_logger,
+            patch.object(s3_client, "_generate_presigned_urls_with_dispositions_sync") as mock_generate,
+            patch("viewport.s3_service.cache_presigned_urls_batch") as _mock_cache_batch,
+        ):
+            mock_redis = AsyncMock()
+            mock_redis_getter.return_value = mock_redis
+            cache_error = Exception("Redis disposition batch read failed")
+            mock_get_cached_batch.side_effect = cache_error
+            mock_generate.return_value = {
+                "photo1.jpg": "https://url1.example.com",
+                "photo2.jpg": "https://url2.example.com",
+            }
+
+            key_dispositions = {
+                "photo1.jpg": "attachment; filename=photo1.jpg",
+                "photo2.jpg": "attachment; filename=photo2.jpg",
+            }
+            result = await s3_client.generate_presigned_urls_batch_for_dispositions(key_dispositions)
+
+            assert len(result) == 2
+            mock_logger.warning.assert_any_call(
+                "Failed to read presigned URL batch cache: %s",
+                cache_error,
+            )
+
+    @pytest.mark.asyncio
+    async def test_generate_presigned_urls_batch_for_dispositions_cache_write_exception(self, s3_client):
+        """Test disposition-specific batch cache write exception handling (lines 666-667)."""
+        with (
+            patch("viewport.s3_service.get_redis_client_instance") as mock_redis_getter,
+            patch("viewport.s3_service.get_cached_presigned_urls_batch") as mock_get_cached_batch,
+            patch("viewport.s3_service.logger") as mock_logger,
+            patch.object(s3_client, "_generate_presigned_urls_with_dispositions_sync") as mock_generate,
+            patch("viewport.s3_service.cache_presigned_urls_batch") as _mock_cache_batch,
+        ):
+            mock_redis = AsyncMock()
+            mock_redis_getter.return_value = mock_redis
+            mock_get_cached_batch.return_value = {}
+            mock_generate.return_value = {
+                "photo1.jpg": "https://url1.example.com",
+                "photo2.jpg": "https://url2.example.com",
+            }
+            cache_error = Exception("Redis disposition batch write failed")
+            _mock_cache_batch.side_effect = cache_error
+
+            key_dispositions = {
+                "photo1.jpg": "attachment; filename=photo1.jpg",
+                "photo2.jpg": "attachment; filename=photo2.jpg",
+            }
+            result = await s3_client.generate_presigned_urls_batch_for_dispositions(key_dispositions)
+
+            assert len(result) == 2
+            mock_logger.warning.assert_any_call(
+                "Failed to write presigned URL batch cache: %s",
+                cache_error,
+            )
+
+    @pytest.mark.asyncio
+    async def test_clear_presigned_cache_for_object_keys_exception_handling(self, s3_client):
+        """Test exception handling in clear_presigned_cache_for_object_keys (lines 675-676)."""
+        with (
+            patch("viewport.s3_service.get_redis_client_instance") as mock_redis_getter,
+            patch("viewport.s3_service.clear_presigned_urls_for_object_keys") as mock_clear,
+            patch("viewport.s3_service.logger") as mock_logger,
+        ):
+            mock_redis = AsyncMock()
+            mock_redis_getter.return_value = mock_redis
+            clear_error = Exception("Redis clear failed")
+            mock_clear.side_effect = clear_error
+
+            await s3_client.clear_presigned_cache_for_object_keys(["key1.jpg", "key2.jpg"])
+
+            mock_logger.warning.assert_any_call(
+                "Failed to clear presigned URL cache for object keys: %s",
+                clear_error,
+            )
+
+    @pytest.mark.asyncio
+    async def test_list_object_keys_initialization(self, s3_client):
+        """Test list_object_keys initializes empty list (line 680)."""
+        mock_s3_client = AsyncMock()
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        mock_s3_client.list_objects_v2.return_value = {
+            "Contents": [
+                {"Key": "prefix/photo1.jpg"},
+                {"Key": "prefix/photo2.jpg"},
+            ],
+            "IsTruncated": False,
+        }
+
+        result = await s3_client.list_object_keys("prefix/")
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0] == "prefix/photo1.jpg"
+        assert result[1] == "prefix/photo2.jpg"
