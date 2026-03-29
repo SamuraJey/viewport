@@ -167,7 +167,7 @@ export const ShareLinksDashboardPage = () => {
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="Search by label, id, or gallery"
-            className="min-w-65 rounded-xl border border-border/50 bg-surface-1 px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-accent dark:bg-surface-dark-1"
+            className="min-w-64 rounded-xl border border-border/50 bg-surface-1 px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-accent dark:bg-surface-dark-1"
           />
           <button
             onClick={() => void fetchLinks()}
