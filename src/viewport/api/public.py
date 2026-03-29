@@ -291,11 +291,12 @@ async def get_photos_by_sharelink(
 
     # Increment views only on first page load (offset=0)
     if offset == 0:
-        forwarded_for = request.headers.get("x-forwarded-for", "")
-        client_ip = forwarded_for.split(",")[0].strip() if forwarded_for else None
-        if not client_ip and request.client:
-            client_ip = request.client.host
-        await repo.record_view(share_id, ip_address=client_ip, user_agent=request.headers.get("user-agent"))
+        client_ip = request.client.host if request.client else None
+        await repo.record_view(
+            share_id,
+            ip_address=client_ip,
+            user_agent=request.headers.get("user-agent"),
+        )
 
     return PublicGalleryResponse(
         photos=photo_list,
