@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { GalleryPage } from '../../pages/GalleryPage';
 
+const mockNavigate = vi.fn();
+
 // Mock usePhotoLightbox hook
 vi.mock('../../hooks/usePhotoLightbox', () => ({
   usePhotoLightbox: () => ({
@@ -113,6 +115,7 @@ vi.mock('react-router-dom', async () => {
   return {
     ...actual,
     useParams: () => ({ id: '1' }),
+    useNavigate: () => mockNavigate,
     Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
   };
 });
@@ -134,6 +137,7 @@ const GalleryPageWrapper = () => {
 describe('GalleryPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    mockNavigate.mockReset();
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
     // Default mock responses
@@ -161,6 +165,25 @@ describe('GalleryPage', () => {
     expect(screen.getByText('Share Links')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /delete gallery/i })).toBeInTheDocument();
     expect(screen.getAllByRole('img')).toHaveLength(3);
+  });
+
+  it('should navigate to dashboard after deleting the gallery', async () => {
+    const { galleryService } = await import('../../services/galleryService');
+
+    render(<GalleryPageWrapper />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /delete gallery/i })).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /delete gallery/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => {
+      expect(galleryService.deleteGallery).toHaveBeenCalledWith('1');
+    });
+
+    expect(mockNavigate).toHaveBeenCalledWith('/dashboard', { replace: true });
   });
 
   it('should render gallery after initial load', async () => {

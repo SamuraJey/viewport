@@ -177,8 +177,8 @@ viewport/
 ├── scripts/                        # Utility scripts
 ├── alembic.ini                     # Alembic configuration
 ├── docker-compose.yml              # Docker Compose services
-├── Dockerfile-backend              # Backend Docker image
-├── Dockerfile-frontend             # Frontend Docker image
+├── Dockerfile.backend              # Backend Docker image
+├── Dockerfile.frontend             # Frontend Docker image
 ├── Makefile                        # Development commands
 └── pyproject.toml                  # Python project configuration
 ```
