@@ -701,7 +701,7 @@ class TestPresignedURLCaching:
 
     @pytest.mark.asyncio
     async def test_list_object_keys_initialization(self, s3_client):
-        """Test list_object_keys initializes empty list (line 680)."""
+        """Test that list_object_keys returns a list of object keys for the given prefix."""
         mock_s3_client = AsyncMock()
         mock_context = AsyncMock()
         mock_context.__aenter__.return_value = mock_s3_client
