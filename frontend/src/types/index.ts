@@ -13,6 +13,8 @@ export type {
   GalleryPhotoSortBy,
   SortOrder,
   GalleryPhotoQueryOptions,
+  GalleryListSortBy,
+  GalleryListQueryOptions,
 } from './gallery';
 
 // Photo types
@@ -43,6 +45,7 @@ export type {
   ShareLinksDashboardResponse,
   ShareLinkDailyPoint,
   ShareLinkAnalyticsResponse,
+  ShareLinkCreateRequest,
   ShareLinkUpdateRequest,
   PublicPhoto,
   SharedGallery,

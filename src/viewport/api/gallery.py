@@ -19,7 +19,17 @@ from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client as get_sync_s3_client
 from viewport.s3_utils import get_s3_settings
-from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryPhotoQueryParams, GalleryPhotoSortBy, GalleryResponse, GalleryUpdateRequest, SortOrder
+from viewport.schemas.gallery import (
+    GalleryCreateRequest,
+    GalleryDetailResponse,
+    GalleryListQueryParams,
+    GalleryListResponse,
+    GalleryPhotoQueryParams,
+    GalleryPhotoSortBy,
+    GalleryResponse,
+    GalleryUpdateRequest,
+    SortOrder,
+)
 from viewport.schemas.photo import DownloadSelectedPhotosRequest, GalleryPhotoResponse
 
 router = APIRouter(prefix="/galleries", tags=["galleries"])
@@ -30,19 +40,28 @@ def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryReposit
     return GalleryRepository(db)
 
 
-@router.post("", response_model=GalleryResponse, status_code=status.HTTP_201_CREATED)
-async def create_gallery(
-    request: GalleryCreateRequest,
-    repo: GalleryRepository = Depends(get_gallery_repository),
-    current_user: User = Depends(get_current_user),
-) -> GalleryResponse:
-    gallery = await repo.create_gallery(
-        current_user.id,
-        request.name,
-        request.shooting_date,
-        public_sort_by=request.public_sort_by,
-        public_sort_order=request.public_sort_order,
-    )
+async def _build_gallery_response(gallery, repo: GalleryRepository, s3_client: AsyncS3Client) -> GalleryResponse:
+    photo_count = await repo.get_photo_count_by_gallery(gallery.id)
+    total_size_bytes = await repo.get_photo_total_size_by_gallery(gallery.id)
+    has_active_share_links = await repo.has_active_share_links(gallery.id)
+
+    cover_photo_thumbnail_url: str | None = None
+    if gallery.cover_photo_id:
+        cover_photo = await repo.get_photo_by_id_and_gallery(gallery.cover_photo_id, gallery.id)
+        if cover_photo and cover_photo.thumbnail_object_key:
+            cover_photo_thumbnail_url = await s3_client.generate_presigned_url(
+                cover_photo.thumbnail_object_key,
+                expires_in=7200,
+            )
+
+    recent_thumbnail_keys = await repo.get_recent_photo_thumbnail_keys_by_gallery(gallery.id, limit=3)
+    recent_photo_thumbnail_urls: list[str] = []
+    if recent_thumbnail_keys:
+        recent_url_map = await s3_client.generate_presigned_urls_batch(
+            recent_thumbnail_keys,
+            expires_in=7200,
+        )
+        recent_photo_thumbnail_urls = [recent_url_map[key] for key in recent_thumbnail_keys if key in recent_url_map]
 
     return GalleryResponse(
         id=str(gallery.id),
@@ -53,31 +72,102 @@ async def create_gallery(
         public_sort_by=gallery.public_sort_by,
         public_sort_order=gallery.public_sort_order,
         cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
+        photo_count=photo_count,
+        total_size_bytes=total_size_bytes,
+        has_active_share_links=has_active_share_links,
+        cover_photo_thumbnail_url=cover_photo_thumbnail_url,
+        recent_photo_thumbnail_urls=recent_photo_thumbnail_urls,
     )
+
+
+async def _build_gallery_list_responses(galleries: list, repo: GalleryRepository, s3_client: AsyncS3Client) -> list[GalleryResponse]:
+    if not galleries:
+        return []
+
+    gallery_ids = [gallery.id for gallery in galleries]
+    cover_photo_ids = [gallery.cover_photo_id for gallery in galleries if gallery.cover_photo_id]
+
+    (
+        photo_count_by_gallery,
+        total_size_by_gallery,
+        active_share_gallery_ids,
+        cover_thumbnail_by_photo_id,
+        recent_thumbnail_keys_by_gallery,
+    ) = await repo.get_gallery_list_enrichment(gallery_ids, cover_photo_ids, recent_limit=3)
+
+    all_thumbnail_keys: list[str] = []
+    all_thumbnail_keys.extend(cover_thumbnail_by_photo_id.values())
+    for keys in recent_thumbnail_keys_by_gallery.values():
+        all_thumbnail_keys.extend(keys)
+
+    presigned_by_key = await s3_client.generate_presigned_urls_batch(list(dict.fromkeys(all_thumbnail_keys)), expires_in=7200) if all_thumbnail_keys else {}
+
+    responses: list[GalleryResponse] = []
+    for gallery in galleries:
+        cover_key = cover_thumbnail_by_photo_id.get(gallery.cover_photo_id) if gallery.cover_photo_id else None
+        recent_keys = recent_thumbnail_keys_by_gallery.get(gallery.id, [])
+
+        responses.append(
+            GalleryResponse(
+                id=str(gallery.id),
+                owner_id=str(gallery.owner_id),
+                name=gallery.name,
+                created_at=gallery.created_at,
+                shooting_date=gallery.shooting_date,
+                public_sort_by=gallery.public_sort_by,
+                public_sort_order=gallery.public_sort_order,
+                cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
+                photo_count=photo_count_by_gallery.get(gallery.id, 0),
+                total_size_bytes=total_size_by_gallery.get(gallery.id, 0),
+                has_active_share_links=gallery.id in active_share_gallery_ids,
+                cover_photo_thumbnail_url=presigned_by_key.get(cover_key) if cover_key else None,
+                recent_photo_thumbnail_urls=[presigned_by_key[key] for key in recent_keys if key in presigned_by_key],
+            )
+        )
+
+    return responses
+
+
+@router.post("", response_model=GalleryResponse, status_code=status.HTTP_201_CREATED)
+async def create_gallery(
+    request: GalleryCreateRequest,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_async_s3_client),
+) -> GalleryResponse:
+    gallery = await repo.create_gallery(
+        current_user.id,
+        request.name,
+        request.shooting_date,
+        public_sort_by=request.public_sort_by,
+        public_sort_order=request.public_sort_order,
+    )
+
+    return await _build_gallery_response(gallery, repo, s3_client)
 
 
 @router.get("", response_model=GalleryListResponse)
 async def list_galleries(
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_async_s3_client),
+    list_query: GalleryListQueryParams = Depends(),
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
 ) -> GalleryListResponse:
-    galleries, total = await repo.get_galleries_by_owner(current_user.id, page, size)
+    galleries, total = await repo.get_galleries_by_owner(
+        current_user.id,
+        page,
+        size,
+        search=list_query.search,
+        sort_by=list_query.sort_by,
+        order=list_query.order,
+    )
+
+    enriched_galleries = await _build_gallery_list_responses(galleries, repo, s3_client)
+
     return GalleryListResponse(
-        galleries=[
-            GalleryResponse(
-                id=str(g.id),
-                owner_id=str(g.owner_id),
-                name=g.name,
-                created_at=g.created_at,
-                shooting_date=g.shooting_date,
-                public_sort_by=g.public_sort_by,
-                public_sort_order=g.public_sort_order,
-                cover_photo_id=str(g.cover_photo_id) if g.cover_photo_id else None,
-            )
-            for g in galleries
-        ],
+        galleries=enriched_galleries,
         total=total,
         page=page,
         size=size,
@@ -106,9 +196,30 @@ async def get_gallery_detail(
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
 
-    # Use repository methods that perform efficient DB queries instead of loading the whole relationship
-    photo_count = await repo.get_photo_count_by_gallery(gallery_id, search=photo_query.search)
-    total_size_bytes = await repo.get_photo_total_size_by_gallery(gallery_id)
+    # Filtered count for current detail query context (e.g., search results).
+    filtered_photo_count = await repo.get_photo_count_by_gallery(gallery_id, search=photo_query.search)
+
+    (
+        photo_count_by_gallery,
+        total_size_by_gallery,
+        active_share_gallery_ids,
+        cover_thumbnail_by_photo_id,
+        recent_thumbnail_keys_by_gallery,
+    ) = await repo.get_gallery_list_enrichment(
+        [gallery_id],
+        [gallery.cover_photo_id] if gallery.cover_photo_id else [],
+        recent_limit=3,
+    )
+    photo_count = photo_count_by_gallery.get(gallery_id, 0)
+    total_size_bytes = total_size_by_gallery.get(gallery_id, 0)
+    has_active_share_links = gallery_id in active_share_gallery_ids
+
+    cover_key = cover_thumbnail_by_photo_id.get(gallery.cover_photo_id) if gallery.cover_photo_id else None
+    recent_keys = recent_thumbnail_keys_by_gallery.get(gallery_id, [])
+    thumbnail_keys = [key for key in [cover_key, *recent_keys] if key]
+    presigned_by_key = await s3_client.generate_presigned_urls_batch(list(dict.fromkeys(thumbnail_keys)), expires_in=7200) if thumbnail_keys else {}
+    cover_photo_thumbnail_url = presigned_by_key.get(cover_key) if cover_key else None
+    recent_photo_thumbnail_urls = [presigned_by_key[key] for key in recent_keys if key in presigned_by_key]
 
     # Preserve historical default ordering when clients omit both sort params.
     if photo_query.sort_by is None and photo_query.order is None:
@@ -160,8 +271,12 @@ async def get_gallery_detail(
         public_sort_by=gallery.public_sort_by,
         public_sort_order=gallery.public_sort_order,
         cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
+        photo_count=photo_count,
+        has_active_share_links=has_active_share_links,
+        cover_photo_thumbnail_url=cover_photo_thumbnail_url,
+        recent_photo_thumbnail_urls=recent_photo_thumbnail_urls,
         photos=photo_responses,
-        total_photos=photo_count,
+        total_photos=filtered_photo_count,
         total_size_bytes=total_size_bytes,
     )
 
@@ -248,6 +363,7 @@ async def set_cover_photo(
     photo_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_async_s3_client),
 ) -> GalleryResponse:
     logger.info("Setting cover photo for gallery %s, photo %s, user %s", gallery_id, photo_id, current_user.id)
 
@@ -258,16 +374,7 @@ async def set_cover_photo(
 
     logger.info("Cover photo set successfully: gallery %s, cover_photo_id=%s", gallery_id, gallery.cover_photo_id)
 
-    return GalleryResponse(
-        id=str(gallery.id),
-        owner_id=str(gallery.owner_id),
-        name=gallery.name,
-        created_at=gallery.created_at,
-        shooting_date=gallery.shooting_date,
-        public_sort_by=gallery.public_sort_by,
-        public_sort_order=gallery.public_sort_order,
-        cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
-    )
+    return await _build_gallery_response(gallery, repo, s3_client)
 
 
 @router.delete("/{gallery_id}/cover", status_code=status.HTTP_204_NO_CONTENT)
@@ -299,6 +406,7 @@ async def update_gallery(
     request: GalleryUpdateRequest,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_async_s3_client),
 ) -> GalleryResponse:
     gallery = await repo.update_gallery(
         gallery_id,
@@ -311,13 +419,4 @@ async def update_gallery(
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
 
-    return GalleryResponse(
-        id=str(gallery.id),
-        owner_id=str(gallery.owner_id),
-        name=gallery.name,
-        created_at=gallery.created_at,
-        shooting_date=gallery.shooting_date,
-        public_sort_by=gallery.public_sort_by,
-        public_sort_order=gallery.public_sort_order,
-        cover_photo_id=str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None,
-    )
+    return await _build_gallery_response(gallery, repo, s3_client)

@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { ThemeSwitch } from './ThemeSwitch';
-import { LogOut, Camera } from 'lucide-react';
+import { LogOut, Camera, Home, Share2 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { ProfileModal } from './ProfileModal';
 import { NetworkStatus } from './ErrorDisplay';
@@ -33,6 +33,7 @@ interface LayoutProps {
 export const Layout = ({ children }: LayoutProps) => {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isProfileOpen, setProfileOpen] = useState(false);
   const demoModeEnabled = isDemoModeEnabled();
 
@@ -46,6 +47,15 @@ export const Layout = ({ children }: LayoutProps) => {
 
   const initials = useMemo(() => getUserInitials(user?.display_name, user?.email), [user]);
   const avatarHue = useMemo(() => stringToHue(user?.email || user?.display_name || 'user'), [user]);
+  const topNavButtonBaseClass =
+    'inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold uppercase tracking-wide transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark';
+  const topNavButtonInactiveClass =
+    'border-border/40 bg-surface-1 text-text hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 dark:border-border/60 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2';
+  const topNavButtonActiveClass =
+    'border-accent/45 bg-accent/10 text-text shadow-sm dark:border-accent/55 dark:bg-accent/15';
+  const isDashboardActive = location.pathname === '/dashboard';
+  const isShareLinksActive =
+    location.pathname === '/share-links' || location.pathname.startsWith('/share-links/');
 
   return (
     <div className="min-h-screen bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
@@ -66,12 +76,24 @@ export const Layout = ({ children }: LayoutProps) => {
                 Demo Mode
               </span>
             ) : null}
-            <Link
-              to="/share-links"
-              className="hidden md:inline-flex items-center rounded-xl border border-border/40 bg-surface-1 px-3 py-2 text-xs font-bold uppercase tracking-wide text-text transition-all duration-200 hover:border-accent/40 hover:text-accent dark:bg-surface-dark-1"
-            >
-              Share Links
-            </Link>
+            <div className="hidden md:flex items-center gap-2">
+              <Link
+                to="/dashboard"
+                aria-current={isDashboardActive ? 'page' : undefined}
+                className={`${topNavButtonBaseClass} ${isDashboardActive ? topNavButtonActiveClass : topNavButtonInactiveClass}`}
+              >
+                <Home className="h-3.5 w-3.5" />
+                Dashboard
+              </Link>
+              <Link
+                to="/share-links"
+                aria-current={isShareLinksActive ? 'page' : undefined}
+                className={`${topNavButtonBaseClass} ${isShareLinksActive ? topNavButtonActiveClass : topNavButtonInactiveClass}`}
+              >
+                <Share2 className="h-3.5 w-3.5" />
+                Share Links
+              </Link>
+            </div>
             <ThemeSwitch variant="inline" />
             {user ? (
               <>

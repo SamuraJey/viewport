@@ -4,6 +4,7 @@ import { getDemoService } from './demoService';
 import type {
   ShareLink,
   ShareLinkAnalyticsResponse,
+  ShareLinkCreateRequest,
   ShareLinksDashboardResponse,
   ShareLinkUpdateRequest,
   PublicPhoto,
@@ -30,14 +31,18 @@ const getShareLinks = async (galleryId: string): Promise<ShareLink[]> => {
   return response.data;
 };
 
-const createShareLink = async (galleryId: string): Promise<ShareLink> => {
+const createShareLink = async (
+  galleryId: string,
+  payload?: ShareLinkCreateRequest,
+): Promise<ShareLink> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().createShareLink(galleryId);
+    return getDemoService().createShareLink(galleryId, payload);
   }
 
-  const response = await api.post<ShareLink>(`/galleries/${galleryId}/share-links`, {
-    expires_at: null,
-  });
+  const response = await api.post<ShareLink>(
+    `/galleries/${galleryId}/share-links`,
+    payload ?? { expires_at: null },
+  );
   return response.data;
 };
 

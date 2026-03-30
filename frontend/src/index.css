@@ -20,6 +20,18 @@
   --color-photo-overlay: rgb(var(--color-photo-overlay-rgb) / 0.5);
   --color-danger: rgb(var(--color-danger-rgb));
   --color-success: rgb(var(--color-success-rgb));
+
+  /* Gallery card tokens */
+  --color-card-bg: rgb(var(--color-surface-1-rgb));
+  --color-card-border: rgb(var(--color-border-rgb));
+  --color-card-hover-shadow: rgb(var(--color-neutral-900-rgb) / 0.15);
+
+  /* Animation timing */
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ===== THEME TRANSITION ANIMATIONS ===== */

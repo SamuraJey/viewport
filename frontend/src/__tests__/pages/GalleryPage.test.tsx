@@ -34,6 +34,12 @@ const mockGalleryData = {
   shooting_date: '2024-01-01',
   public_sort_by: 'original_filename' as const,
   public_sort_order: 'asc' as const,
+  cover_photo_id: null,
+  photo_count: 3,
+  total_size_bytes: 37035,
+  has_active_share_links: false,
+  cover_photo_thumbnail_url: null,
+  recent_photo_thumbnail_urls: [],
   photos: [
     {
       id: 'photo1',
@@ -239,6 +245,7 @@ describe('GalleryPage', () => {
         ...mockGalleryData,
         photos: [mockGalleryData.photos[0]],
         total_photos: 1,
+        photo_count: 1,
       };
 
       const { galleryService } = await import('../../services/galleryService');
@@ -440,6 +447,7 @@ describe('GalleryPage', () => {
         ...mockGalleryData,
         photos: [],
         total_photos: 0,
+        photo_count: 0,
       };
 
       const { galleryService } = await import('../../services/galleryService');

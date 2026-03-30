@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from sqlalchemy import asc, desc, func, insert, select, update
+from sqlalchemy import asc, desc, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from viewport.filename_utils import sanitize_filename
@@ -13,7 +13,7 @@ from viewport.models.sharelink import ShareLink
 from viewport.repositories.base_repository import BaseRepository
 from viewport.repositories.user_repository import UserRepository
 from viewport.s3_service import AsyncS3Client
-from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
+from viewport.schemas.gallery import GalleryListSortBy, GalleryPhotoSortBy, SortOrder
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,30 @@ class GalleryRepository(BaseRepository):
             return [order_fn(Photo.file_size), order_fn(Photo.uploaded_at), order_fn(Photo.id)]
 
         return [order_fn(Photo.uploaded_at), order_fn(Photo.id)]
+
+    @staticmethod
+    def _build_gallery_order_clauses(
+        sort_by: GalleryListSortBy,
+        order: SortOrder,
+        *,
+        photo_count_column=None,
+        total_size_column=None,
+    ):
+        order_fn = asc if order == SortOrder.ASC else desc
+
+        if sort_by == GalleryListSortBy.NAME:
+            return [order_fn(func.lower(Gallery.name)), order_fn(Gallery.created_at), order_fn(Gallery.id)]
+
+        if sort_by == GalleryListSortBy.SHOOTING_DATE:
+            return [order_fn(Gallery.shooting_date), order_fn(Gallery.created_at), order_fn(Gallery.id)]
+
+        if sort_by == GalleryListSortBy.PHOTO_COUNT and photo_count_column is not None:
+            return [order_fn(func.coalesce(photo_count_column, 0)), order_fn(Gallery.created_at), order_fn(Gallery.id)]
+
+        if sort_by == GalleryListSortBy.TOTAL_SIZE_BYTES and total_size_column is not None:
+            return [order_fn(func.coalesce(total_size_column, 0)), order_fn(Gallery.created_at), order_fn(Gallery.id)]
+
+        return [order_fn(Gallery.created_at), order_fn(Gallery.id)]
 
     @staticmethod
     def _split_name_and_ext(filename: str) -> tuple[str, str]:
@@ -94,13 +118,45 @@ class GalleryRepository(BaseRepository):
         await self.db.refresh(gallery)
         return gallery
 
-    async def get_galleries_by_owner(self, owner_id: uuid.UUID, page: int, size: int) -> tuple[list[Gallery], int | None]:
-        # Get total count
-        count_stmt = select(func.count()).select_from(Gallery).where(Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False))
+    async def get_galleries_by_owner(
+        self,
+        owner_id: uuid.UUID,
+        page: int,
+        size: int,
+        search: str | None = None,
+        sort_by: GalleryListSortBy = GalleryListSortBy.CREATED_AT,
+        order: SortOrder = SortOrder.DESC,
+    ) -> tuple[list[Gallery], int | None]:
+        filters = [Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False)]
+        if search:
+            escaped_search = self._escape_like_term(search)
+            filters.append(Gallery.name.ilike(f"%{escaped_search}%", escape=self.LIKE_ESCAPE_CHAR))
+
+        count_stmt = select(func.count()).select_from(Gallery).where(*filters)
         total = (await self.db.execute(count_stmt)).scalar()
 
-        # Get galleries with pagination
-        stmt = select(Gallery).where(Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False)).order_by(Gallery.created_at.desc()).offset((page - 1) * size).limit(size)
+        stmt = select(Gallery).where(*filters)
+        if sort_by in (GalleryListSortBy.PHOTO_COUNT, GalleryListSortBy.TOTAL_SIZE_BYTES):
+            photo_stats = (
+                select(
+                    Photo.gallery_id.label("gallery_id"),
+                    func.count(Photo.id).label("photo_count"),
+                    func.coalesce(func.sum(Photo.file_size), 0).label("total_size_bytes"),
+                )
+                .group_by(Photo.gallery_id)
+                .subquery()
+            )
+            stmt = stmt.outerjoin(photo_stats, photo_stats.c.gallery_id == Gallery.id)
+            order_by_clauses = self._build_gallery_order_clauses(
+                sort_by,
+                order,
+                photo_count_column=photo_stats.c.photo_count,
+                total_size_column=photo_stats.c.total_size_bytes,
+            )
+        else:
+            order_by_clauses = self._build_gallery_order_clauses(sort_by, order)
+
+        stmt = stmt.order_by(*order_by_clauses).offset((page - 1) * size).limit(size)
         galleries = (await self.db.execute(stmt)).scalars().all()
 
         return await self._finish_read((list(galleries), total))
@@ -301,6 +357,129 @@ class GalleryRepository(BaseRepository):
         stmt = select(func.coalesce(func.sum(Photo.file_size), 0)).select_from(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
         total_size = int((await self.db.execute(stmt)).scalar() or 0)
         return await self._finish_read(total_size)
+
+    async def has_active_share_links(self, gallery_id: uuid.UUID) -> bool:
+        """Check if gallery has any active share links."""
+        now = datetime.now(UTC).replace(tzinfo=None)
+        stmt = (
+            select(func.count())
+            .select_from(ShareLink)
+            .where(
+                ShareLink.gallery_id == gallery_id,
+                ShareLink.is_active.is_(True),
+                (ShareLink.expires_at.is_(None) | (ShareLink.expires_at > now)),
+            )
+        )
+        count = int((await self.db.execute(stmt)).scalar() or 0)
+        return await self._finish_read(count > 0)
+
+    async def get_recent_photo_thumbnail_keys_by_gallery(self, gallery_id: uuid.UUID, limit: int = 3) -> list[str]:
+        stmt = (
+            select(Photo.thumbnail_object_key)
+            .join(Photo.gallery)
+            .where(
+                Photo.gallery_id == gallery_id,
+                Gallery.is_deleted.is_(False),
+                Photo.thumbnail_object_key.is_not(None),
+            )
+            .order_by(Photo.uploaded_at.desc(), Photo.id.desc())
+            .limit(limit)
+        )
+        keys = [key for key in (await self.db.execute(stmt)).scalars().all() if key]
+        return await self._finish_read(keys)
+
+    async def get_gallery_list_enrichment(
+        self,
+        gallery_ids: list[uuid.UUID],
+        cover_photo_ids: list[uuid.UUID],
+        recent_limit: int = 3,
+    ) -> tuple[
+        dict[uuid.UUID, int],
+        dict[uuid.UUID, int],
+        set[uuid.UUID],
+        dict[uuid.UUID, str],
+        dict[uuid.UUID, list[str]],
+    ]:
+        """Return batched enrichment data used by gallery list responses."""
+        if not gallery_ids:
+            return await self._finish_read(({}, {}, set(), {}, {}))
+
+        photo_stats_stmt = (
+            select(
+                Photo.gallery_id,
+                func.count(Photo.id),
+                func.coalesce(func.sum(Photo.file_size), 0),
+            )
+            .join(Photo.gallery)
+            .where(
+                Photo.gallery_id.in_(gallery_ids),
+                Gallery.is_deleted.is_(False),
+            )
+            .group_by(Photo.gallery_id)
+        )
+        photo_stats_rows = (await self.db.execute(photo_stats_stmt)).all()
+        photo_count_by_gallery: dict[uuid.UUID, int] = {}
+        total_size_by_gallery: dict[uuid.UUID, int] = {}
+        for gallery_id, count, total_size in photo_stats_rows:
+            photo_count_by_gallery[gallery_id] = int(count or 0)
+            total_size_by_gallery[gallery_id] = int(total_size or 0)
+
+        now = datetime.now(UTC).replace(tzinfo=None)
+        active_share_stmt = (
+            select(ShareLink.gallery_id)
+            .where(
+                ShareLink.gallery_id.in_(gallery_ids),
+                ShareLink.is_active.is_(True),
+                or_(ShareLink.expires_at.is_(None), ShareLink.expires_at > now),
+            )
+            .group_by(ShareLink.gallery_id)
+        )
+        active_share_gallery_ids = set((await self.db.execute(active_share_stmt)).scalars().all())
+
+        cover_thumbnail_by_photo_id: dict[uuid.UUID, str] = {}
+        if cover_photo_ids:
+            cover_stmt = select(Photo.id, Photo.thumbnail_object_key).where(Photo.id.in_(cover_photo_ids), Photo.thumbnail_object_key.is_not(None))
+            cover_thumbnail_by_photo_id = {photo_id: thumbnail_key for photo_id, thumbnail_key in (await self.db.execute(cover_stmt)).all() if thumbnail_key}
+
+        ranked_thumbnails = (
+            select(
+                Photo.gallery_id.label("gallery_id"),
+                Photo.thumbnail_object_key.label("thumbnail_object_key"),
+                func.row_number()
+                .over(
+                    partition_by=Photo.gallery_id,
+                    order_by=(Photo.uploaded_at.desc(), Photo.id.desc()),
+                )
+                .label("rank"),
+            )
+            .join(Photo.gallery)
+            .where(
+                Photo.gallery_id.in_(gallery_ids),
+                Gallery.is_deleted.is_(False),
+                Photo.thumbnail_object_key.is_not(None),
+            )
+            .subquery()
+        )
+        recent_stmt = (
+            select(ranked_thumbnails.c.gallery_id, ranked_thumbnails.c.thumbnail_object_key)
+            .where(ranked_thumbnails.c.rank <= recent_limit)
+            .order_by(ranked_thumbnails.c.gallery_id, ranked_thumbnails.c.rank)
+        )
+        recent_thumbnail_keys_by_gallery: dict[uuid.UUID, list[str]] = {}
+        for gallery_id, thumbnail_key in (await self.db.execute(recent_stmt)).all():
+            if not thumbnail_key:
+                continue
+            recent_thumbnail_keys_by_gallery.setdefault(gallery_id, []).append(thumbnail_key)
+
+        return await self._finish_read(
+            (
+                photo_count_by_gallery,
+                total_size_by_gallery,
+                active_share_gallery_ids,
+                cover_thumbnail_by_photo_id,
+                recent_thumbnail_keys_by_gallery,
+            )
+        )
 
     async def get_photos_by_gallery_paginated(
         self,

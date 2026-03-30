@@ -14,12 +14,13 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import { ThemeSwitch } from '../components/ThemeSwitch';
-import { DashboardGalleryCard } from '../components/dashboard/DashboardGalleryCard';
+import { EnhancedGalleryCard } from '../components/dashboard/EnhancedGalleryCard';
 import { AuthCard } from '../components/auth/AuthCard';
 import type { Gallery } from '../types';
 import { useAuthStore } from '../stores/authStore';
 import { getDemoService } from '../services/demoService';
 import { enableDemoMode } from '../lib/demoMode';
+import reactLogo from '../assets/react.svg';
 
 const featureItems = [
   {
@@ -89,6 +90,11 @@ const previewGallery: Gallery = {
   public_sort_order: 'asc',
   shooting_date: '2026-03-05',
   cover_photo_id: null,
+  photo_count: 128,
+  total_size_bytes: 1_200_000_000,
+  has_active_share_links: true,
+  cover_photo_thumbnail_url: reactLogo,
+  recent_photo_thumbnail_urls: [reactLogo, reactLogo, reactLogo],
 };
 
 const previewCardVariants = {
@@ -106,7 +112,7 @@ export const LandingPage = () => {
   const prefersReducedMotion = useReducedMotion();
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
-  const renameInputRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLTextAreaElement>(null);
 
   const handleOpenDemoCabinet = () => {
     enableDemoMode();
@@ -216,7 +222,7 @@ export const LandingPage = () => {
                 </p>
                 <GalleryVertical className="h-5 w-5 text-accent" />
               </div>
-              <DashboardGalleryCard
+              <EnhancedGalleryCard
                 gallery={previewGallery}
                 isRenamingThis={false}
                 renameInput=""
@@ -227,6 +233,7 @@ export const LandingPage = () => {
                 onCancelRename={() => undefined}
                 onBeginRename={() => undefined}
                 onDelete={() => undefined}
+                onShare={() => undefined}
                 variants={previewCardVariants}
               />
             </div>

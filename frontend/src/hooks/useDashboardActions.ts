@@ -1,25 +1,48 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { galleryService, type Gallery } from '../services/galleryService';
+import type { GalleryListQueryOptions } from '../types';
 import { useErrorHandler, useConfirmation, usePagination, useModal } from './index';
+
+type DashboardGalleriesQuery = GalleryListQueryOptions & {
+  page: number;
+  size: number;
+};
 
 export const useDashboardActions = () => {
   const [galleries, setGalleries] = useState<Gallery[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
 
-  const pagination = usePagination({ pageSize: 9 });
+  const pagination = usePagination({ pageSize: 10, syncWithUrl: true });
   const createModal = useModal();
   const { error, clearError, handleError, isLoading, setLoading } = useErrorHandler();
   const { openConfirm, ConfirmModal } = useConfirmation();
+  const lastQueryRef = useRef<DashboardGalleriesQuery | null>(null);
 
-  const { pageSize, setTotal } = pagination;
+  const { setTotal } = pagination;
 
   const fetchGalleries = useCallback(
-    async (pageNum: number) => {
+    async (query?: DashboardGalleriesQuery) => {
+      const effectiveQuery = query ??
+        lastQueryRef.current ?? {
+          page: pagination.page,
+          size: pagination.pageSize,
+        };
+
+      lastQueryRef.current = effectiveQuery;
       setLoading(true);
       try {
         clearError();
-        const response = await galleryService.getGalleries(pageNum, pageSize);
+        const response = await galleryService.getGalleries(
+          effectiveQuery.page,
+          effectiveQuery.size,
+          {
+            search: effectiveQuery.search,
+            sort_by: effectiveQuery.sort_by,
+            order: effectiveQuery.order,
+          },
+        );
+
         setGalleries(response.galleries);
         setTotal(response.total);
       } catch (err: unknown) {
@@ -28,7 +51,7 @@ export const useDashboardActions = () => {
         setLoading(false);
       }
     },
-    [clearError, handleError, setLoading, pageSize, setTotal],
+    [clearError, handleError, pagination.page, pagination.pageSize, setLoading, setTotal],
   );
 
   const createGallery = async (name: string, shootingDate: string) => {
@@ -41,8 +64,21 @@ export const useDashboardActions = () => {
         shooting_date: shootingDate || undefined,
       });
       createModal.close();
-      pagination.firstPage();
-      await fetchGalleries(1);
+
+      const refreshedQuery: DashboardGalleriesQuery = {
+        ...(lastQueryRef.current ?? {
+          page: pagination.page,
+          size: pagination.pageSize,
+        }),
+        page: 1,
+      };
+
+      if (pagination.page !== 1) {
+        lastQueryRef.current = refreshedQuery;
+        pagination.firstPage();
+      } else {
+        await fetchGalleries(refreshedQuery);
+      }
     } catch (err: unknown) {
       handleError(err);
     } finally {
@@ -59,7 +95,7 @@ export const useDashboardActions = () => {
       onConfirm: async () => {
         try {
           await galleryService.deleteGallery(gallery.id);
-          await fetchGalleries(pagination.page);
+          await fetchGalleries();
         } catch (err) {
           handleError(err);
           throw err;
@@ -68,13 +104,25 @@ export const useDashboardActions = () => {
     });
   };
 
-  const renameGallery = async (id: string, newName: string) => {
+  const renameGallery = async (id: string, newName: string): Promise<boolean> => {
+    const normalizedName = newName.trim();
+    const currentGallery = galleries.find((gallery) => gallery.id === id);
+    const currentName = currentGallery?.name?.trim() ?? '';
+
+    if (!normalizedName || normalizedName === currentName) {
+      return false;
+    }
+
     try {
       setIsRenaming(true);
-      await galleryService.updateGallery(id, newName.trim());
-      await fetchGalleries(pagination.page);
+      const updatedGallery = await galleryService.updateGallery(id, normalizedName);
+      setGalleries((currentGalleries) =>
+        currentGalleries.map((gallery) => (gallery.id === id ? updatedGallery : gallery)),
+      );
+      return true;
     } catch (err: unknown) {
       handleError(err);
+      return false;
     } finally {
       setIsRenaming(false);
     }

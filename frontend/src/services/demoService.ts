@@ -3,10 +3,13 @@ import type {
   BatchDeletePhotosResponse,
   Gallery,
   GalleryDetail,
+  GalleryListQueryOptions,
+  GalleryListSortBy,
   GalleryPhotoQueryOptions,
   GalleryPhotoSortBy,
   GalleryPhoto,
   GalleryListResponse,
+  ShareLinkCreateRequest,
   LoginRequest,
   LoginResponse,
   PhotoResponse,
@@ -51,6 +54,35 @@ const makeDemoId = (): string => {
 
 const nowIso = (): string => new Date().toISOString();
 
+const toGalleryWithComputedFields = (state: DemoGalleryState): Gallery => {
+  const sortedRecentPhotos = [...state.photos].sort(
+    (a, b) => Date.parse(b.uploaded_at) - Date.parse(a.uploaded_at),
+  );
+  const totalSize = state.photos.reduce((sum, photo) => sum + (photo.file_size || 0), 0);
+  const hasActiveShareLinks = state.shareLinks.some((link) => {
+    if (link.is_active === false) return false;
+    if (!link.expires_at) return true;
+    const expiresAt = Date.parse(link.expires_at);
+    return Number.isNaN(expiresAt) ? true : expiresAt > Date.now();
+  });
+
+  const coverPhoto = state.gallery.cover_photo_id
+    ? state.photos.find((photo) => photo.id === state.gallery.cover_photo_id) || null
+    : null;
+
+  return {
+    ...state.gallery,
+    photo_count: state.photos.length,
+    total_size_bytes: totalSize,
+    has_active_share_links: hasActiveShareLinks,
+    cover_photo_thumbnail_url: coverPhoto?.thumbnail_url ?? null,
+    recent_photo_thumbnail_urls: sortedRecentPhotos
+      .slice(0, 3)
+      .map((photo) => photo.thumbnail_url)
+      .filter(Boolean),
+  };
+};
+
 const buildPhoto = (galleryId: string, index: number): GalleryPhoto => {
   const seed = `${galleryId}-${index}`;
   const width = 2200 + (index % 5) * 120;
@@ -79,6 +111,11 @@ const seedState = (): DemoGalleryState[] => {
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
       cover_photo_id: null,
+      photo_count: 0,
+      total_size_bytes: 0,
+      has_active_share_links: false,
+      cover_photo_thumbnail_url: null,
+      recent_photo_thumbnail_urls: [],
     },
     {
       id: 'demo-gallery-wedding',
@@ -89,6 +126,11 @@ const seedState = (): DemoGalleryState[] => {
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
       cover_photo_id: null,
+      photo_count: 0,
+      total_size_bytes: 0,
+      has_active_share_links: false,
+      cover_photo_thumbnail_url: null,
+      recent_photo_thumbnail_urls: [],
     },
     {
       id: 'demo-gallery-product',
@@ -99,6 +141,11 @@ const seedState = (): DemoGalleryState[] => {
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
       cover_photo_id: null,
+      photo_count: 0,
+      total_size_bytes: 0,
+      has_active_share_links: false,
+      cover_photo_thumbnail_url: null,
+      recent_photo_thumbnail_urls: [],
     },
   ];
 
@@ -125,6 +172,15 @@ const seedState = (): DemoGalleryState[] => {
       gallery: {
         ...gallery,
         cover_photo_id: coverPhoto,
+        photo_count: photos.length,
+        total_size_bytes: photos.reduce((sum, photo) => sum + (photo.file_size || 0), 0),
+        has_active_share_links: shareLinks.some((link) => link.is_active !== false),
+        cover_photo_thumbnail_url:
+          photos.find((photo) => photo.id === coverPhoto)?.thumbnail_url ?? null,
+        recent_photo_thumbnail_urls: photos
+          .slice(0, 3)
+          .map((photo) => photo.thumbnail_url)
+          .filter(Boolean),
       },
       photos,
       shareLinks,
@@ -349,15 +405,62 @@ class DemoServiceStore {
     return { message: 'Password changed in demo mode.' };
   }
 
-  async getGalleries(page = 1, size = 10): Promise<GalleryListResponse> {
+  async getGalleries(
+    page = 1,
+    size = 10,
+    options?: GalleryListQueryOptions,
+  ): Promise<GalleryListResponse> {
     const start = (page - 1) * size;
-    const sorted = [...this.galleries].sort(
-      (a, b) => Date.parse(b.gallery.created_at) - Date.parse(a.gallery.created_at),
-    );
+    const normalizedSearch = options?.search?.trim().toLowerCase() ?? '';
+    const sortBy: GalleryListSortBy = options?.sort_by ?? 'created_at';
+    const sortOrder: SortOrder = options?.order ?? 'desc';
+    const direction = sortOrder === 'asc' ? 1 : -1;
+
+    const filtered = this.galleries
+      .map((entry) => toGalleryWithComputedFields(entry))
+      .filter((gallery) => {
+        if (!normalizedSearch) {
+          return true;
+        }
+        return gallery.name.toLowerCase().includes(normalizedSearch);
+      });
+
+    const sorted = [...filtered].sort((left, right) => {
+      if (sortBy === 'name') {
+        const delta = left.name.localeCompare(right.name, undefined, {
+          sensitivity: 'base',
+          numeric: true,
+        });
+        if (delta !== 0) return delta * direction;
+        return left.id.localeCompare(right.id);
+      }
+
+      if (sortBy === 'photo_count') {
+        const delta = (left.photo_count ?? 0) - (right.photo_count ?? 0);
+        if (delta !== 0) return delta * direction;
+        return left.id.localeCompare(right.id);
+      }
+
+      if (sortBy === 'total_size_bytes') {
+        const delta = (left.total_size_bytes ?? 0) - (right.total_size_bytes ?? 0);
+        if (delta !== 0) return delta * direction;
+        return left.id.localeCompare(right.id);
+      }
+
+      const leftDate = Date.parse(
+        sortBy === 'shooting_date' ? left.shooting_date : left.created_at,
+      );
+      const rightDate = Date.parse(
+        sortBy === 'shooting_date' ? right.shooting_date : right.created_at,
+      );
+      const delta = leftDate - rightDate;
+      if (delta !== 0) return delta * direction;
+      return left.id.localeCompare(right.id);
+    });
 
     return {
-      galleries: sorted.slice(start, start + size).map((entry) => ({ ...entry.gallery })),
-      total: this.galleries.length,
+      galleries: sorted.slice(start, start + size),
+      total: sorted.length,
       page,
       size,
     };
@@ -379,6 +482,11 @@ class DemoServiceStore {
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
       cover_photo_id: null,
+      photo_count: 0,
+      total_size_bytes: 0,
+      has_active_share_links: false,
+      cover_photo_thumbnail_url: null,
+      recent_photo_thumbnail_urls: [],
     };
 
     this.galleries.unshift({
@@ -388,7 +496,7 @@ class DemoServiceStore {
     });
     this.persistState();
 
-    return { ...gallery };
+    return toGalleryWithComputedFields(this.galleries[0]);
   }
 
   async deleteGallery(galleryId: string): Promise<void> {
@@ -417,7 +525,7 @@ class DemoServiceStore {
     };
     this.persistState();
 
-    return { ...state.gallery };
+    return toGalleryWithComputedFields(state);
   }
 
   async setCoverPhoto(galleryId: string, photoId: string): Promise<Gallery> {
@@ -427,7 +535,7 @@ class DemoServiceStore {
       cover_photo_id: photoId,
     };
     this.persistState();
-    return { ...state.gallery };
+    return toGalleryWithComputedFields(state);
   }
 
   async clearCoverPhoto(galleryId: string): Promise<void> {
@@ -444,14 +552,15 @@ class DemoServiceStore {
     return state.shareLinks.map((link) => ({ ...link }));
   }
 
-  async createShareLink(galleryId: string): Promise<ShareLink> {
+  async createShareLink(galleryId: string, payload?: ShareLinkCreateRequest): Promise<ShareLink> {
     const state = this.getGalleryState(galleryId);
+    const normalizedLabel = payload?.label?.trim();
 
     const link: ShareLink = {
       id: `s-${makeDemoId().slice(0, 12)}`,
-      label: null,
-      is_active: true,
-      expires_at: null,
+      label: normalizedLabel ? normalizedLabel : null,
+      is_active: payload?.is_active ?? true,
+      expires_at: payload?.expires_at ?? null,
       views: 0,
       zip_downloads: 0,
       single_downloads: 0,

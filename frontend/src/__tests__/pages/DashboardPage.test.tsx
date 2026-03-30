@@ -1,30 +1,41 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+
 import { DashboardPage } from '../../pages/DashboardPage';
 import type { Gallery } from '../../types';
 
-// Mock the gallery service
+const makeGallery = (overrides: Partial<Gallery>): Gallery => ({
+  id: 'gallery-1',
+  owner_id: 'user-1',
+  name: 'Gallery 1',
+  created_at: '2024-01-01T00:00:00Z',
+  shooting_date: '2024-01-01',
+  public_sort_by: 'original_filename',
+  public_sort_order: 'asc',
+  cover_photo_id: null,
+  photo_count: 0,
+  total_size_bytes: 0,
+  has_active_share_links: false,
+  cover_photo_thumbnail_url: null,
+  recent_photo_thumbnail_urls: [],
+  ...overrides,
+});
+
 const mockGalleries: Gallery[] = [
-  {
+  makeGallery({
     id: '1',
-    owner_id: 'user1',
-    name: 'Gallery 1',
-    created_at: '2024-01-01T00:00:00Z',
-    shooting_date: '2024-01-01',
-    public_sort_by: 'original_filename',
-    public_sort_order: 'asc',
-  },
-  {
-    id: '2',
-    owner_id: 'user1',
-    name: 'Gallery 2',
+    name: 'Alpha Gallery',
     created_at: '2024-01-02T00:00:00Z',
-    shooting_date: '2024-01-02',
-    public_sort_by: 'original_filename',
-    public_sort_order: 'asc',
-  },
+    photo_count: 12,
+  }),
+  makeGallery({
+    id: '2',
+    name: 'Beta Gallery',
+    created_at: '2024-01-01T00:00:00Z',
+    photo_count: 5,
+  }),
 ];
 
 vi.mock('../../services/galleryService', () => ({
@@ -32,119 +43,134 @@ vi.mock('../../services/galleryService', () => ({
     getGalleries: vi.fn(),
     createGallery: vi.fn(),
     deleteGallery: vi.fn(),
+    updateGallery: vi.fn(),
   },
 }));
 
-// Mock Layout component
-vi.mock('../../components/Layout', () => ({
-  Layout: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="layout">{children}</div>
-  ),
-}));
-
-const DashboardPageWrapper = () => {
-  return (
-    <MemoryRouter>
-      <DashboardPage />
-    </MemoryRouter>
-  );
-};
+const DashboardPageWrapper = ({ initialPath = '/dashboard' }: { initialPath?: string }) => (
+  <MemoryRouter initialEntries={[initialPath]}>
+    <DashboardPage />
+  </MemoryRouter>
+);
 
 describe('DashboardPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-
-    // Default mock response
     const { galleryService } = await import('../../services/galleryService');
     vi.mocked(galleryService.getGalleries).mockResolvedValue({
       galleries: mockGalleries,
-      total: 2,
+      total: mockGalleries.length,
       page: 1,
-      size: 9,
+      size: 10,
     });
   });
 
-  it('should render dashboard layout correctly', async () => {
-    const { galleryService } = await import('../../services/galleryService');
-    vi.mocked(galleryService.getGalleries).mockResolvedValue({
-      galleries: [],
-      total: 0,
-      page: 1,
-      size: 9,
-    });
-
+  it('renders title, controls, and add gallery card', async () => {
     render(<DashboardPageWrapper />);
 
     expect(screen.getByText('My Galleries')).toBeInTheDocument();
-    expect(
-      screen.getByText('Your personal space to organize and share moments.'),
-    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create new gallery' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Search galleries')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sort galleries by')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sort order')).toBeInTheDocument();
 
-    // Should show empty state
     await waitFor(() => {
-      expect(screen.getByText('No galleries yet')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Create new gallery card' })).toBeInTheDocument();
     });
   });
 
-  it('should load and display galleries', async () => {
+  it('fetches galleries using server-side pagination defaults', async () => {
     const { galleryService } = await import('../../services/galleryService');
 
     render(<DashboardPageWrapper />);
 
     await waitFor(() => {
-      expect(screen.queryByText('Loading galleries...')).not.toBeInTheDocument();
+      expect(galleryService.getGalleries).toHaveBeenCalledWith(1, 10, {
+        search: undefined,
+        sort_by: 'created_at',
+        order: 'desc',
+      });
     });
-
-    expect(galleryService.getGalleries).toHaveBeenCalledWith(1, 9);
   });
 
-  it('should handle gallery creation', async () => {
+  it('requests debounced search from the server', async () => {
+    const user = userEvent.setup();
     const { galleryService } = await import('../../services/galleryService');
-    vi.mocked(galleryService.createGallery).mockResolvedValue({
-      id: '3',
-      owner_id: 'user1',
-      name: 'Test Gallery',
-      created_at: new Date().toISOString(),
-      shooting_date: '2024-01-01',
-      public_sort_by: 'original_filename',
-      public_sort_order: 'asc',
+    render(<DashboardPageWrapper />);
+
+    await screen.findByText('Alpha Gallery');
+
+    const search = screen.getByLabelText('Search galleries');
+    await user.type(search, 'beta');
+
+    await waitFor(() => {
+      expect(galleryService.getGalleries).toHaveBeenCalledWith(1, 10, {
+        search: 'beta',
+        sort_by: 'created_at',
+        order: 'desc',
+      });
     });
+  });
+
+  it('requests sort options from query params', async () => {
+    const { galleryService } = await import('../../services/galleryService');
+    render(<DashboardPageWrapper initialPath="/dashboard?sort_by=name&order=asc" />);
+
+    await waitFor(() => {
+      expect(galleryService.getGalleries).toHaveBeenCalledWith(1, 10, {
+        search: undefined,
+        sort_by: 'name',
+        order: 'asc',
+      });
+    });
+  });
+
+  it('opens create modal and submits gallery creation', async () => {
+    const user = userEvent.setup();
+    const { galleryService } = await import('../../services/galleryService');
+
+    vi.mocked(galleryService.createGallery).mockResolvedValue(
+      makeGallery({
+        id: '3',
+        name: 'Test Gallery',
+      }),
+    );
 
     render(<DashboardPageWrapper />);
-    // Open the creation modal
-    const headerButton = screen.getByRole('button', { name: 'Create new gallery' });
-    await userEvent.click(headerButton);
-    // Enter gallery name
-    const input = screen.getByPlaceholderText('Gallery name') as HTMLInputElement;
-    await userEvent.type(input, 'Test Gallery');
-    // Click Create Gallery button
-    const modalCreate = screen.getByRole('button', { name: 'Create Gallery' });
-    await userEvent.click(modalCreate);
+
+    const openButton = screen.getByRole('button', { name: 'Create new gallery' });
+    await user.click(openButton);
+
+    const input = screen.getByPlaceholderText('Gallery name');
+    await user.type(input, 'Test Gallery');
+    await user.click(screen.getByRole('button', { name: 'Create Gallery' }));
 
     expect(galleryService.createGallery).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Test Gallery' }),
     );
   });
 
-  // it('should handle error when loading galleries', async () => {
-  //   const { galleryService } = await import('../../services/galleryService')
-  //   vi.mocked(galleryService.getGalleries).mockRejectedValue(new Error('Network error'))
+  it('does not update a gallery when the title is unchanged', async () => {
+    const user = userEvent.setup();
+    const { galleryService } = await import('../../services/galleryService');
 
-  //   render(<DashboardPageWrapper />)
+    render(<DashboardPageWrapper />);
 
-  //   await waitFor(() => {
-  //     expect(screen.getByText('Failed to load galleries. Please try again.')).toBeInTheDocument()
-  //   })
-  // })
+    await screen.findByText('Alpha Gallery');
 
-  it('should display empty state when no galleries', async () => {
+    await user.click(screen.getByRole('button', { name: 'Rename Alpha Gallery' }));
+    await user.keyboard('{Enter}');
+
+    expect(galleryService.updateGallery).not.toHaveBeenCalled();
+  });
+
+  it('shows empty state when no galleries exist', async () => {
     const { galleryService } = await import('../../services/galleryService');
     vi.mocked(galleryService.getGalleries).mockResolvedValue({
       galleries: [],
       total: 0,
       page: 1,
-      size: 9,
+      size: 10,
     });
 
     render(<DashboardPageWrapper />);
