@@ -150,6 +150,9 @@ pythonpath = "."
 addopts = ["--import-mode=importlib", "-v"]
 asyncio_mode = "auto"
 testpaths = ["/tests"]
+markers = [
+    "requires_s3: tests that need real S3 object storage operations",
+]
 norecursedirs = [
     "postgres_data",
     ".git",

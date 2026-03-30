@@ -16,6 +16,8 @@ from viewport.models.user import User
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+pytestmark = pytest.mark.requires_s3
+
 
 class TestPhotoAPI:
     """Test photo API endpoints with comprehensive coverage."""

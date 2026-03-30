@@ -12,6 +12,8 @@ from tests.helpers import upload_photo_via_presigned
 from viewport.api.public import get_valid_sharelink
 from viewport.zip_utils import build_zip_fallback_name, make_unique_zip_entry_name, sanitize_zip_entry_name
 
+pytestmark = pytest.mark.requires_s3
+
 
 def _upload_photo(client: TestClient, gallery_id: str, content: bytes, filename: str = "photo.jpg") -> str:
     return upload_photo_via_presigned(client, gallery_id, content, filename)

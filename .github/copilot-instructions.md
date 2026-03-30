@@ -81,6 +81,13 @@
   - Format + autofix: `just pretty` / `make pretty` (Ruff).
   - Typecheck: `just mypy`.
   - Tests: `just test` (pytest-xdist `-n 4`), coverage gate in `just test-cov` (fail-under 85).
+  - **Testcontainers fixture usage (required)**:
+    - Keep container fixtures session-scoped and shared per worker where possible (`_postgres_server`, `postgres_container`, `s3_container`, `valkey_container` in `tests/conftest.py`).
+    - Do not start heavy containers globally unless needed: gate expensive setup with fixture usage checks/markers (e.g., `_needs_db_for_request`, `_needs_s3_for_request`, `@pytest.mark.requires_s3`).
+    - For S3-backed API tests, mark modules/tests with `@pytest.mark.requires_s3` so per-test isolated buckets are created only when real object storage is required.
+    - Prefer dynamic DB/session overrides via existing `app_client`/`client` fixtures; avoid creating new container-per-test fixtures.
+    - Preserve isolation by keeping per-test DB cleanup (`TRUNCATE ... CASCADE`) and per-test S3 bucket isolation in place for tests that touch those resources.
+    - If adding new integration tests, reuse existing container fixtures first; introduce new testcontainers only when mocking cannot validate required behavior.
 - Frontend checks: `cd frontend && npm run lint -- --fix && npm run test:run`.
 
 ## Service Architecture
