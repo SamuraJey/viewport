@@ -489,14 +489,24 @@ export const DashboardPage = () => {
           <select
             value={sortBy}
             onChange={(event) => handleSortByChange(event.target.value as DashboardSortBy)}
-            className="bg-transparent text-text outline-none"
+            className="bg-transparent text-text outline-none scheme-light dark:scheme-dark"
             aria-label="Sort galleries by"
           >
-            <option value="created_at">Date created</option>
-            <option value="shooting_date">Shooting date</option>
-            <option value="name">Name</option>
-            <option value="photo_count">Photo count</option>
-            <option value="total_size_bytes">Size</option>
+            <option value="created_at" className="bg-surface text-text dark:bg-surface-dark">
+              Date created
+            </option>
+            <option value="shooting_date" className="bg-surface text-text dark:bg-surface-dark">
+              Shooting date
+            </option>
+            <option value="name" className="bg-surface text-text dark:bg-surface-dark">
+              Name
+            </option>
+            <option value="photo_count" className="bg-surface text-text dark:bg-surface-dark">
+              Photo count
+            </option>
+            <option value="total_size_bytes" className="bg-surface text-text dark:bg-surface-dark">
+              Size
+            </option>
           </select>
         </label>
 
@@ -505,11 +515,15 @@ export const DashboardPage = () => {
           <select
             value={sortOrder}
             onChange={(event) => handleSortOrderChange(event.target.value as SortOrder)}
-            className="bg-transparent text-text outline-none"
+            className="bg-transparent text-text outline-none scheme-light dark:scheme-dark"
             aria-label="Sort order"
           >
-            <option value="desc">Descending</option>
-            <option value="asc">Ascending</option>
+            <option value="desc" className="bg-surface text-text dark:bg-surface-dark">
+              Descending
+            </option>
+            <option value="asc" className="bg-surface text-text dark:bg-surface-dark">
+              Ascending
+            </option>
           </select>
         </label>
       </div>
