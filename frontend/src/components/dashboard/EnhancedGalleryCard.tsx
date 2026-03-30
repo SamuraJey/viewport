@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Camera, Check, Edit3, HardDrive, Share2, Trash2, X } from 'lucide-react';
@@ -49,11 +48,8 @@ export const EnhancedGalleryCard = ({
   variants,
 }: EnhancedGalleryCardProps) => {
   const galleryTitle = makeGalleryTitle(gallery);
-  const previewThumbs = useMemo(
-    () => (gallery.recent_photo_thumbnail_urls ?? []).filter(Boolean).slice(0, 3),
-    [gallery.recent_photo_thumbnail_urls],
-  );
-  const coverUrl = gallery.cover_photo_thumbnail_url ?? previewThumbs[0] ?? null;
+  const coverUrl =
+    gallery.cover_photo_thumbnail_url ?? gallery.recent_photo_thumbnail_urls[0] ?? null;
 
   return (
     <motion.div
@@ -72,10 +68,10 @@ export const EnhancedGalleryCard = ({
               loading="lazy"
               className="absolute inset-0 h-full w-full object-cover opacity-35 blur-[2px] transition-transform duration-500 group-hover:scale-105"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/5 to-black/40" />
+            <div className="absolute inset-0 bg-linear-to-b from-black/20 via-black/5 to-black/40" />
           </>
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-surface-2 to-surface dark:from-surface-dark-2 dark:to-surface-dark" />
+          <div className="absolute inset-0 bg-linear-to-br from-surface-2 to-surface dark:from-surface-dark-2 dark:to-surface-dark" />
         )}
 
         <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-2">
@@ -136,24 +132,6 @@ export const EnhancedGalleryCard = ({
             >
               <Trash2 className="h-4 w-4" />
             </button>
-          </div>
-        )}
-
-        {previewThumbs.length > 0 && (
-          <div className="absolute bottom-3 left-3 z-10 grid w-[156px] grid-cols-3 gap-1">
-            {previewThumbs.map((thumb, index) => (
-              <div
-                key={`${gallery.id}-thumb-${index}`}
-                className="h-12 overflow-hidden rounded-md border border-white/20 bg-black/20"
-              >
-                <img
-                  src={thumb}
-                  alt={`${galleryTitle} preview ${index + 1}`}
-                  loading="lazy"
-                  className="h-full w-full object-cover"
-                />
-              </div>
-            ))}
           </div>
         )}
       </div>
