@@ -9,7 +9,6 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
-from viewport.api.public import _build_zip_fallback_name, _make_unique_zip_entry_name, _sanitize_zip_entry_name
 from viewport.auth_utils import get_current_user, get_current_user_for_download
 from viewport.background_tasks import delete_gallery_data_task
 from viewport.dependencies import get_s3_client as get_async_s3_client
@@ -31,6 +30,7 @@ from viewport.schemas.gallery import (
     SortOrder,
 )
 from viewport.schemas.photo import DownloadSelectedPhotosRequest, GalleryPhotoResponse
+from viewport.zip_utils import build_zip_fallback_name, make_unique_zip_entry_name, sanitize_zip_entry_name
 
 router = APIRouter(prefix="/galleries", tags=["galleries"])
 logger = logging.getLogger(__name__)
@@ -291,9 +291,9 @@ def _build_gallery_zip_response(gallery_id: uuid.UUID, photos: list, archive_nam
 
     for photo in photos:
         object_key = photo.object_key
-        fallback = _build_zip_fallback_name(photo.display_name, object_key=object_key, fallback_stem=f"photo-{photo.id}")
-        filename = _sanitize_zip_entry_name(photo.display_name, fallback=fallback)
-        filename = _make_unique_zip_entry_name(filename, used_names)
+        fallback = build_zip_fallback_name(photo.display_name, object_key=object_key, fallback_stem=f"photo-{photo.id}")
+        filename = sanitize_zip_entry_name(photo.display_name, fallback=fallback)
+        filename = make_unique_zip_entry_name(filename, used_names)
 
         def file_generator(key: str = object_key):
             client = get_sync_s3_client()

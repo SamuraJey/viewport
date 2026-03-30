@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
@@ -10,7 +9,7 @@ from starlette.concurrency import run_in_threadpool
 from viewport.auth_utils import get_current_user
 from viewport.background_tasks import create_thumbnails_batch_task, delete_photos_batch_task
 from viewport.dependencies import get_s3_client
-from viewport.filename_utils import sanitize_filename
+from viewport.filename_utils import sanitize_filename, split_name_and_ext
 from viewport.models.db import get_db
 from viewport.models.gallery import PhotoUploadStatus
 from viewport.models.user import User
@@ -68,13 +67,6 @@ def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryReposit
 
 def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
     return UserRepository(db)
-
-
-def split_name_and_ext(filename: str) -> tuple[str, str]:
-    path = Path(filename)
-    suffix = path.suffix if path.suffix else ""
-    stem = path.stem if path.stem else "file"
-    return stem, suffix
 
 
 def make_unique_display_name(filename: str, occupied_names: set[str]) -> str:

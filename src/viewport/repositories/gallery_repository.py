@@ -2,15 +2,15 @@ import logging
 import time
 import uuid
 from datetime import UTC, date, datetime
-from pathlib import Path
 
 from sqlalchemy import asc, desc, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
-from viewport.filename_utils import sanitize_filename
+from viewport.filename_utils import sanitize_filename, split_name_and_ext
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
 from viewport.repositories.base_repository import BaseRepository
+from viewport.repositories.photo_query_helpers import build_photo_order_clauses
 from viewport.repositories.user_repository import UserRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.schemas.gallery import GalleryListSortBy, GalleryPhotoSortBy, SortOrder
@@ -33,19 +33,6 @@ class GalleryRepository(BaseRepository):
             escaped_search = GalleryRepository._escape_like_term(search)
             filters.append(Photo.display_name.ilike(f"%{escaped_search}%", escape=GalleryRepository.LIKE_ESCAPE_CHAR))
         return filters
-
-    @staticmethod
-    def _build_photo_order_clauses(sort_by: GalleryPhotoSortBy, order: SortOrder):
-        order_fn = asc if order == SortOrder.ASC else desc
-
-        if sort_by == GalleryPhotoSortBy.ORIGINAL_FILENAME:
-            primary_column = func.lower(Photo.display_name)
-            return [order_fn(primary_column), order_fn(Photo.uploaded_at), order_fn(Photo.id)]
-
-        if sort_by == GalleryPhotoSortBy.FILE_SIZE:
-            return [order_fn(Photo.file_size), order_fn(Photo.uploaded_at), order_fn(Photo.id)]
-
-        return [order_fn(Photo.uploaded_at), order_fn(Photo.id)]
 
     @staticmethod
     def _build_gallery_order_clauses(
@@ -71,13 +58,6 @@ class GalleryRepository(BaseRepository):
 
         return [order_fn(Gallery.created_at), order_fn(Gallery.id)]
 
-    @staticmethod
-    def _split_name_and_ext(filename: str) -> tuple[str, str]:
-        path = Path(filename)
-        suffix = path.suffix if path.suffix else ""
-        stem = path.stem if path.stem else "file"
-        return stem, suffix
-
     async def _make_unique_display_name(self, gallery_id: uuid.UUID, desired_name: str, exclude_photo_id: uuid.UUID | None = None) -> str:
         # Get all occupied names in case-insensitive way for this gallery
         stmt = select(Photo.display_name).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
@@ -88,7 +68,7 @@ class GalleryRepository(BaseRepository):
         occupied_names_lower = {name.lower() for name in (await self.db.execute(stmt)).scalars().all() if name}
 
         candidate = desired_name
-        stem, suffix = self._split_name_and_ext(candidate)
+        stem, suffix = split_name_and_ext(candidate)
 
         counter = 1
         while candidate.lower() in occupied_names_lower:
@@ -490,7 +470,7 @@ class GalleryRepository(BaseRepository):
         sort_by: GalleryPhotoSortBy = GalleryPhotoSortBy.UPLOADED_AT,
         order: SortOrder = SortOrder.DESC,
     ) -> list[Photo]:
-        stmt = select(Photo).join(Photo.gallery).where(*self._build_photo_filters(gallery_id, search)).order_by(*self._build_photo_order_clauses(sort_by, order)).offset(offset)
+        stmt = select(Photo).join(Photo.gallery).where(*self._build_photo_filters(gallery_id, search)).order_by(*build_photo_order_clauses(sort_by, order)).offset(offset)
         if limit is not None:
             stmt = stmt.limit(limit)
         photos = list((await self.db.execute(stmt)).scalars().all())
@@ -627,7 +607,7 @@ class GalleryRepository(BaseRepository):
 
                     occupied_names_lower = occupied_names_by_gallery[gallery_id]
                     candidate = desired_name
-                    stem, suffix = self._split_name_and_ext(candidate)
+                    stem, suffix = split_name_and_ext(candidate)
 
                     counter = 1
                     while candidate.lower() in occupied_names_lower:

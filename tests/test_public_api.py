@@ -9,7 +9,8 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from tests.helpers import upload_photo_via_presigned
-from viewport.api.public import _build_zip_fallback_name, _make_unique_zip_entry_name, _sanitize_zip_entry_name, get_valid_sharelink
+from viewport.api.public import get_valid_sharelink
+from viewport.zip_utils import build_zip_fallback_name, make_unique_zip_entry_name, sanitize_zip_entry_name
 
 
 def _upload_photo(client: TestClient, gallery_id: str, content: bytes, filename: str = "photo.jpg") -> str:
@@ -244,20 +245,20 @@ class TestPublicAPI:
         ],
     )
     def test_sanitize_zip_entry_name_attack_matrix(self, raw_name: str, fallback: str, expected: str):
-        assert _sanitize_zip_entry_name(raw_name, fallback=fallback) == expected
+        assert sanitize_zip_entry_name(raw_name, fallback=fallback) == expected
 
     def test_sanitize_zip_entry_name_truncates_long_names(self):
         long_name = f"{'я' * 400}.jpeg"
-        sanitized = _sanitize_zip_entry_name(long_name, fallback="fallback.jpg")
+        sanitized = sanitize_zip_entry_name(long_name, fallback="fallback.jpg")
 
         assert sanitized.endswith(".jpeg")
         assert len(sanitized.encode("utf-8")) <= 255
 
     def test_make_unique_zip_entry_name_is_case_insensitive(self):
         used: set[str] = set()
-        first = _make_unique_zip_entry_name("A.jpg", used)
-        second = _make_unique_zip_entry_name("a.jpg", used)
-        third = _make_unique_zip_entry_name("a.jpg", used)
+        first = make_unique_zip_entry_name("A.jpg", used)
+        second = make_unique_zip_entry_name("a.jpg", used)
+        third = make_unique_zip_entry_name("a.jpg", used)
 
         assert first == "A.jpg"
         assert second == "a (1).jpg"
@@ -273,7 +274,7 @@ class TestPublicAPI:
         ],
     )
     def test_build_zip_fallback_name_uses_allowed_extensions(self, raw_name: str, object_key: str, fallback_stem: str, expected: str):
-        assert _build_zip_fallback_name(raw_name, object_key, fallback_stem) == expected
+        assert build_zip_fallback_name(raw_name, object_key, fallback_stem) == expected
 
     def test_download_all_zip_preserves_png_extension_in_fallback(self, authenticated_client: TestClient, gallery_id_fixture: str):
         content = b"zip-safe-content"

@@ -98,6 +98,7 @@
 
 ## Gotchas worth keeping in mind
 - Presigned URL cache is Redis-backed with a TTL buffer (URL TTL minus 10 minutes). Redis outages should degrade gracefully to direct presign generation without failing requests.
+- Shared ZIP filename sanitization/fallback/deduplication helpers live in `src/viewport/zip_utils.py` and are reused by both private (`api/gallery.py`) and public (`api/public.py`) download endpoints.
 
 ## Important rules
 - When making significant changes in the project, update this file to reflect new conventions or architectural patterns.
