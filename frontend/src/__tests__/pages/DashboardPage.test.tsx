@@ -145,6 +145,20 @@ describe('DashboardPage', () => {
     );
   });
 
+  it('does not update a gallery when the title is unchanged', async () => {
+    const user = userEvent.setup();
+    const { galleryService } = await import('../../services/galleryService');
+
+    render(<DashboardPageWrapper />);
+
+    await screen.findByText('Alpha Gallery');
+
+    await user.click(screen.getByRole('button', { name: 'Rename Alpha Gallery' }));
+    await user.keyboard('{Enter}');
+
+    expect(galleryService.updateGallery).not.toHaveBeenCalled();
+  });
+
   it('shows empty state when no galleries exist', async () => {
     const { galleryService } = await import('../../services/galleryService');
     vi.mocked(galleryService.getGalleries).mockResolvedValue({

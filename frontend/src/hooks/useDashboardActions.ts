@@ -83,15 +83,25 @@ export const useDashboardActions = () => {
     });
   };
 
-  const renameGallery = async (id: string, newName: string) => {
+  const renameGallery = async (id: string, newName: string): Promise<boolean> => {
+    const normalizedName = newName.trim();
+    const currentGallery = galleries.find((gallery) => gallery.id === id);
+    const currentName = currentGallery?.name?.trim() ?? '';
+
+    if (!normalizedName || normalizedName === currentName) {
+      return false;
+    }
+
     try {
       setIsRenaming(true);
-      const updatedGallery = await galleryService.updateGallery(id, newName.trim());
+      const updatedGallery = await galleryService.updateGallery(id, normalizedName);
       setGalleries((currentGalleries) =>
         currentGalleries.map((gallery) => (gallery.id === id ? updatedGallery : gallery)),
       );
+      return true;
     } catch (err: unknown) {
       handleError(err);
+      return false;
     } finally {
       setIsRenaming(false);
     }
