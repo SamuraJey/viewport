@@ -91,6 +91,10 @@ describe('LandingPage and root route', () => {
     ).toBeInTheDocument();
 
     expect(screen.getByRole('link', { name: /Log in/i })).toHaveAttribute('href', '/auth/login');
+    expect(screen.getByText('Search and sort dashboard')).toBeInTheDocument();
+    expect(screen.getByText('Quick actions')).toBeInTheDocument();
+    expect(screen.getByText('Spring Campaign - Lofoten')).toBeInTheDocument();
+    expect(screen.getByAltText(/Spring Campaign - Lofoten cover/i)).toBeInTheDocument();
   });
 
   it('opens demo cabinet: enables demo mode, logs in demo user, and navigates to dashboard', async () => {

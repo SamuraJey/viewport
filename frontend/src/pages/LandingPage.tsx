@@ -20,6 +20,7 @@ import type { Gallery } from '../types';
 import { useAuthStore } from '../stores/authStore';
 import { getDemoService } from '../services/demoService';
 import { enableDemoMode } from '../lib/demoMode';
+import reactLogo from '../assets/react.svg';
 
 const featureItems = [
   {
@@ -92,8 +93,8 @@ const previewGallery: Gallery = {
   photo_count: 128,
   total_size_bytes: 1_200_000_000,
   has_active_share_links: true,
-  cover_photo_thumbnail_url: null,
-  recent_photo_thumbnail_urls: [],
+  cover_photo_thumbnail_url: reactLogo,
+  recent_photo_thumbnail_urls: [reactLogo, reactLogo, reactLogo],
 };
 
 const previewCardVariants = {
