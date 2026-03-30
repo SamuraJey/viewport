@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react';
+import { CalendarClock, ChevronLeft, ChevronRight, Plus, Search, Share2, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { CreateGalleryModal } from '../components/dashboard/CreateGalleryModal';
 import { EnhancedGalleryCard } from '../components/dashboard/EnhancedGalleryCard';
 import { useDashboardActions } from '../hooks';
+import { parseUtcDateTimeInputValue } from '../components/share-links/shareLinkDateTime';
+import { shareLinkService } from '../services/shareLinkService';
 import type { Gallery } from '../types';
 import type { SortOrder } from '../types/gallery';
 
@@ -124,9 +126,15 @@ export const DashboardPage = () => {
   const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState('');
   const [showLoadingSkeleton, setShowLoadingSkeleton] = useState(false);
+  const [shareModalGallery, setShareModalGallery] = useState<Gallery | null>(null);
+  const [shareLabelInput, setShareLabelInput] = useState('');
+  const [shareIsActiveInput, setShareIsActiveInput] = useState(true);
+  const [shareExpiresAtInput, setShareExpiresAtInput] = useState('');
+  const [isCreatingShareLink, setIsCreatingShareLink] = useState(false);
+  const [shareModalError, setShareModalError] = useState('');
 
   const newGalleryInputRef = useRef<HTMLInputElement>(null);
-  const renameInputRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     fetchGalleries();
@@ -236,7 +244,56 @@ export const DashboardPage = () => {
   };
 
   const handleShareGallery = (gallery: Gallery) => {
-    navigate(`/galleries/${gallery.id}#share-links`);
+    setShareModalGallery(gallery);
+    setShareLabelInput('');
+    setShareIsActiveInput(true);
+    setShareExpiresAtInput('');
+    setShareModalError('');
+  };
+
+  const handleCloseShareModal = () => {
+    if (isCreatingShareLink) {
+      return;
+    }
+    setShareModalGallery(null);
+    setShareModalError('');
+  };
+
+  const handleCreateShareLinkFromModal = async () => {
+    if (!shareModalGallery) {
+      return;
+    }
+
+    const normalizedLabel = shareLabelInput.trim();
+    const parsedExpiresAt = parseUtcDateTimeInputValue(shareExpiresAtInput);
+
+    if (shareExpiresAtInput && !parsedExpiresAt) {
+      setShareModalError('Please enter a valid expiration date and time.');
+      return;
+    }
+
+    try {
+      setIsCreatingShareLink(true);
+      setShareModalError('');
+
+      const created = await shareLinkService.createShareLink(shareModalGallery.id);
+
+      if (normalizedLabel.length > 0 || !shareIsActiveInput || parsedExpiresAt) {
+        await shareLinkService.updateShareLink(shareModalGallery.id, created.id, {
+          label: normalizedLabel.length > 0 ? normalizedLabel : null,
+          is_active: shareIsActiveInput,
+          expires_at: parsedExpiresAt,
+        });
+      }
+
+      await fetchGalleries();
+      setShareModalGallery(null);
+      navigate(`/share-links/${created.id}`);
+    } catch (err) {
+      setShareModalError(err instanceof Error ? err.message : 'Failed to create share link.');
+    } finally {
+      setIsCreatingShareLink(false);
+    }
   };
 
   const handleSortByChange = (value: DashboardSortBy) => {
@@ -354,7 +411,7 @@ export const DashboardPage = () => {
             variants={cardVariants}
             onClick={handleOpenModal}
             disabled={isCreating}
-            className="flex h-full min-h-[304px] flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-surface-1/60 p-6 text-muted transition-all duration-300 hover:border-accent/60 hover:bg-accent/5 hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 dark:border-border/50 dark:bg-surface-dark-1/45"
+            className="flex h-full min-h-76 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-surface-1/60 p-6 text-muted transition-all duration-300 hover:border-accent/60 hover:bg-accent/5 hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 dark:border-border/50 dark:bg-surface-dark-1/45"
             aria-label="Create new gallery card"
           >
             <Plus className="mb-3 h-10 w-10" />
@@ -479,6 +536,148 @@ export const DashboardPage = () => {
           onNameChange={setNewGalleryName}
           onShootingDateChange={setNewGalleryShootingDate}
         />
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {shareModalGallery ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={handleCloseShareModal}
+            />
+
+            <motion.div
+              className="relative w-full max-w-xl rounded-2xl border border-border/40 bg-surface shadow-2xl dark:bg-surface-dark"
+              initial={{ opacity: 0, y: 20, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.97 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 28 }}
+            >
+              <div className="flex items-center justify-between border-b border-border/40 px-6 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-accent/15 p-2 text-accent">
+                    <Share2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-text">Create Share Link</h2>
+                    <p className="text-xs text-muted">
+                      For {shareModalGallery.name || 'Untitled gallery'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleCloseShareModal}
+                  className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-1 hover:text-text"
+                  disabled={isCreatingShareLink}
+                  aria-label="Close share link modal"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="space-y-5 px-6 py-5">
+                <div className="space-y-2">
+                  <label htmlFor="share-link-label" className="text-sm font-semibold text-text">
+                    Label
+                  </label>
+                  <input
+                    id="share-link-label"
+                    type="text"
+                    value={shareLabelInput}
+                    onChange={(event) => setShareLabelInput(event.target.value)}
+                    maxLength={127}
+                    placeholder="Preview for client"
+                    className="w-full rounded-xl border border-border/50 bg-surface-1 px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-accent dark:bg-surface-dark-1"
+                    disabled={isCreatingShareLink}
+                  />
+                </div>
+
+                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 dark:bg-surface-dark-1">
+                  <label className="flex cursor-pointer items-center justify-between gap-3">
+                    <span>
+                      <span className="block text-sm font-semibold text-text">Link status</span>
+                      <span className="block text-xs text-muted">Inactive links return 404</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={shareIsActiveInput}
+                      onChange={(event) => setShareIsActiveInput(event.target.checked)}
+                      disabled={isCreatingShareLink}
+                      className="h-4 w-4 accent-accent"
+                    />
+                  </label>
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="share-link-expiration"
+                    className="text-sm font-semibold text-text"
+                  >
+                    TTL (UTC)
+                  </label>
+                  <p className="text-xs text-muted">Stored in UTC.</p>
+                  <div className="relative">
+                    <CalendarClock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                    <input
+                      id="share-link-expiration"
+                      type="datetime-local"
+                      value={shareExpiresAtInput}
+                      onChange={(event) => setShareExpiresAtInput(event.target.value)}
+                      className="w-full rounded-xl border border-border/50 bg-surface-1 py-2.5 pl-9 pr-3 text-sm text-text outline-none transition-colors focus:border-accent dark:bg-surface-dark-1"
+                      disabled={isCreatingShareLink}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShareExpiresAtInput('')}
+                    className="text-xs font-semibold text-accent hover:underline"
+                    disabled={isCreatingShareLink || shareExpiresAtInput.length === 0}
+                  >
+                    Clear expiration
+                  </button>
+                </div>
+
+                {shareModalError ? (
+                  <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                    {shareModalError}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-border/40 px-6 py-4">
+                <button
+                  type="button"
+                  onClick={handleCloseShareModal}
+                  className="rounded-xl border border-border/50 px-4 py-2 text-sm font-semibold text-text transition-colors hover:bg-surface-1"
+                  disabled={isCreatingShareLink}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateShareLinkFromModal}
+                  className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground transition-all hover:-translate-y-0.5 hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isCreatingShareLink}
+                >
+                  {isCreatingShareLink ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-accent-foreground/20 border-t-accent-foreground" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="h-4 w-4" />
+                      Create Link
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        ) : null}
       </AnimatePresence>
 
       {ConfirmModal}

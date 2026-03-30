@@ -86,8 +86,10 @@ export const useDashboardActions = () => {
   const renameGallery = async (id: string, newName: string) => {
     try {
       setIsRenaming(true);
-      await galleryService.updateGallery(id, newName.trim());
-      await fetchGalleries();
+      const updatedGallery = await galleryService.updateGallery(id, newName.trim());
+      setGalleries((currentGalleries) =>
+        currentGalleries.map((gallery) => (gallery.id === id ? updatedGallery : gallery)),
+      );
     } catch (err: unknown) {
       handleError(err);
     } finally {

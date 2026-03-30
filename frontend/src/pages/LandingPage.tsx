@@ -112,7 +112,7 @@ export const LandingPage = () => {
   const prefersReducedMotion = useReducedMotion();
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
-  const renameInputRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLTextAreaElement>(null);
 
   const handleOpenDemoCabinet = () => {
     enableDemoMode();

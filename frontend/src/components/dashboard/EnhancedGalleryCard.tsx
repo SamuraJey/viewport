@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Camera, Check, Edit3, HardDrive, Share2, Trash2, X } from 'lucide-react';
+import { Camera, Edit3, HardDrive, Share2, Trash2 } from 'lucide-react';
+import type { RefObject, SyntheticEvent } from 'react';
+import { useEffect } from 'react';
 
 import { GALLERY_NAME_MAX_LENGTH } from '../../constants/gallery';
 import { formatDateOnly, formatFileSize } from '../../lib/utils';
@@ -11,7 +13,7 @@ interface EnhancedGalleryCardProps {
   isRenamingThis: boolean;
   renameInput: string;
   isRenaming: boolean;
-  renameInputRef: React.RefObject<HTMLInputElement | null>;
+  renameInputRef: RefObject<HTMLTextAreaElement | null>;
   onRenameInputChange: (value: string) => void;
   onConfirmRename: () => void;
   onCancelRename: () => void;
@@ -50,6 +52,38 @@ export const EnhancedGalleryCard = ({
   const galleryTitle = makeGalleryTitle(gallery);
   const coverUrl =
     gallery.cover_photo_thumbnail_url ?? gallery.recent_photo_thumbnail_urls[0] ?? null;
+  const maxEditorHeight = 78;
+  const titleTextSizeClass =
+    galleryTitle.length > 80
+      ? 'text-sm leading-snug tracking-normal'
+      : galleryTitle.length > 34
+        ? 'text-base leading-snug tracking-tight'
+        : 'text-lg leading-tight tracking-wide';
+
+  const beginRename = (event: SyntheticEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onBeginRename(gallery);
+  };
+
+  const commitRename = () => {
+    if (renameInput.trim()) {
+      onConfirmRename();
+      return;
+    }
+
+    onCancelRename();
+  };
+
+  useEffect(() => {
+    if (!isRenamingThis) return;
+
+    const editor = renameInputRef.current;
+    if (!editor) return;
+
+    editor.style.height = '0px';
+    editor.style.height = `${Math.min(editor.scrollHeight, maxEditorHeight)}px`;
+  }, [isRenamingThis, renameInput, renameInputRef]);
 
   return (
     <motion.div
@@ -96,9 +130,9 @@ export const EnhancedGalleryCard = ({
           <div className="absolute right-3 top-3 z-10 flex gap-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 focus-within:opacity-100">
             {onShare ? (
               <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
                   onShare(gallery);
                 }}
                 className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -109,21 +143,9 @@ export const EnhancedGalleryCard = ({
               </button>
             ) : null}
             <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onBeginRename(gallery);
-              }}
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              title="Rename Gallery"
-              aria-label={`Rename ${galleryTitle}`}
-            >
-              <Edit3 className="h-4 w-4" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
                 onDelete(gallery);
               }}
               className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-danger hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-danger"
@@ -136,80 +158,82 @@ export const EnhancedGalleryCard = ({
         )}
       </div>
 
-      <Link
-        to={`/galleries/${gallery.id}`}
-        className="flex flex-1 flex-col p-4 no-underline transition-colors hover:bg-surface-1 dark:hover:bg-surface-dark-1"
-        onClick={(e) => {
-          if (isRenamingThis) {
-            e.preventDefault();
-          }
-        }}
-      >
-        {isRenamingThis ? (
-          <div className="flex items-center gap-1.5">
-            <input
-              ref={renameInputRef}
-              className="flex-1 rounded-lg border-2 border-accent/50 bg-surface-1 px-3 py-2 text-base text-text shadow-sm transition-all duration-200 hover:border-accent/70 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent dark:border-accent/40 dark:bg-surface-dark-1 dark:text-accent-foreground"
-              value={renameInput}
-              maxLength={GALLERY_NAME_MAX_LENGTH}
-              onChange={(event) => onRenameInputChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  onConfirmRename();
-                } else if (event.key === 'Escape') {
-                  event.preventDefault();
-                  onCancelRename();
-                }
-              }}
-              onClick={(e) => e.stopPropagation()}
-              placeholder="Gallery name..."
-              aria-label="Rename gallery input"
-            />
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onConfirmRename();
-              }}
-              disabled={isRenaming || !renameInput.trim()}
-              title="Save (Enter)"
-              aria-label="Confirm rename"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-green-600/50 bg-green-500/90 text-white shadow-sm transition-all duration-200 hover:scale-110 hover:bg-green-500 hover:shadow-md active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
-            >
-              {isRenaming ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-border/20 border-t-accent" />
-              ) : (
-                <Check className="h-4 w-4" />
-              )}
-            </button>
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onCancelRename();
-              }}
-              title="Cancel (Esc)"
-              aria-label="Cancel rename"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-danger/40 bg-danger/20 text-danger transition-all duration-200 hover:scale-110 hover:bg-danger/30 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2"
-            >
-              <X className="h-4 w-4" />
-            </button>
+      {isRenamingThis ? (
+        <div className="flex flex-1 flex-col p-4">
+          <div className="w-full min-w-0">
+            <div className="relative w-full pr-5">
+              <div className="min-w-0">
+                <textarea
+                  ref={renameInputRef}
+                  className={`block w-full resize-none overflow-hidden border-0 border-b border-transparent bg-transparent px-0 py-0 font-oswald ${titleTextSizeClass} font-bold uppercase text-text caret-accent outline-none transition-colors placeholder:text-muted/60 focus:border-accent/50 focus:outline-none focus:ring-0 dark:text-accent-foreground`}
+                  value={renameInput}
+                  maxLength={GALLERY_NAME_MAX_LENGTH}
+                  onChange={(event) => onRenameInputChange(event.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      commitRename();
+                    } else if (event.key === 'Escape') {
+                      event.preventDefault();
+                      onCancelRename();
+                    }
+                  }}
+                  onFocus={(event) => event.stopPropagation()}
+                  onMouseDownCapture={(event) => event.stopPropagation()}
+                  onPointerDownCapture={(event) => event.stopPropagation()}
+                  onClickCapture={(event) => event.stopPropagation()}
+                  onDoubleClickCapture={(event) => event.stopPropagation()}
+                  aria-label="Rename gallery input"
+                  aria-busy={isRenaming}
+                  autoComplete="off"
+                  spellCheck={false}
+                  readOnly={isRenaming}
+                  rows={1}
+                  style={{ minHeight: 'calc(1.375em * 3)', maxHeight: `${maxEditorHeight}px` }}
+                />
+              </div>
+              <Edit3 className="pointer-events-none absolute right-0 top-1 h-3.5 w-3.5 text-muted opacity-70" />
+            </div>
+            <div className="mt-1 flex items-center justify-end text-[11px] leading-none text-muted">
+              <span className={renameInput.length >= GALLERY_NAME_MAX_LENGTH ? 'text-danger' : ''}>
+                {renameInput.length}/{GALLERY_NAME_MAX_LENGTH}
+              </span>
+            </div>
           </div>
-        ) : (
-          <>
-            <h3
-              className="line-clamp-2 min-h-6 font-oswald text-lg font-bold uppercase leading-tight tracking-wide text-text"
-              title={galleryTitle}
-            >
-              {galleryTitle}
-            </h3>
-            <p className="mt-1 font-cuprum text-sm text-muted">
-              {formatDateOnly(gallery.shooting_date || gallery.created_at)}
-            </p>
-          </>
-        )}
-      </Link>
+        </div>
+      ) : (
+        <Link
+          to={`/galleries/${gallery.id}`}
+          className="flex flex-1 flex-col p-4 no-underline transition-colors hover:bg-surface-1 dark:hover:bg-surface-dark-1"
+        >
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={beginRename}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                beginRename(event);
+              }
+            }}
+            className="group/title relative w-full pr-5 text-left transition-colors hover:text-accent focus:outline-none"
+            aria-label={`Rename ${galleryTitle}`}
+            title="Click to rename"
+          >
+            <div className="min-w-0 flex-1">
+              <h3
+                className={`wrap-anywhere whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors group-hover:text-accent`}
+              >
+                {galleryTitle}
+              </h3>
+            </div>
+            <Edit3 className="pointer-events-none absolute right-0 top-1 h-3.5 w-3.5 text-muted opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
+          </div>
+          <p className="mt-1 font-cuprum text-sm text-muted">
+            {formatDateOnly(gallery.shooting_date || gallery.created_at)}
+          </p>
+        </Link>
+      )}
     </motion.div>
   );
 };
