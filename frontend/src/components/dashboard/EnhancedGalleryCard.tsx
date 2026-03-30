@@ -60,7 +60,7 @@ export const EnhancedGalleryCard = ({
         ? 'text-base leading-snug tracking-tight'
         : 'text-lg leading-tight tracking-wide';
 
-  const beginRename = (event: SyntheticEvent) => {
+  const beginRenameFromEvent = (event: SyntheticEvent) => {
     event.preventDefault();
     event.stopPropagation();
     onBeginRename(gallery);
@@ -207,27 +207,23 @@ export const EnhancedGalleryCard = ({
           to={`/galleries/${gallery.id}`}
           className="flex flex-1 flex-col p-4 no-underline transition-colors hover:bg-surface-1 dark:hover:bg-surface-dark-1"
         >
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={beginRename}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                beginRename(event);
-              }
-            }}
-            className="group/title relative w-full pr-5 text-left transition-colors hover:text-accent focus:outline-none"
-            aria-label={`Rename ${galleryTitle}`}
-            title="Click to rename"
-          >
+          <div className="group/title relative w-full pr-5 text-left">
             <div className="min-w-0 flex-1">
               <h3
-                className={`wrap-anywhere whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors group-hover:text-accent`}
+                className={`wrap-anywhere whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors`}
               >
                 {galleryTitle}
               </h3>
             </div>
-            <Edit3 className="pointer-events-none absolute right-0 top-1 h-3.5 w-3.5 text-muted opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100" />
+            <button
+              type="button"
+              onClick={beginRenameFromEvent}
+              className="absolute right-0 top-1 inline-flex h-4 w-4 items-center justify-center text-muted opacity-0 transition-opacity duration-200 hover:text-accent group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 focus:outline-none"
+              aria-label={`Rename ${galleryTitle}`}
+              title="Rename gallery"
+            >
+              <Edit3 className="h-3.5 w-3.5" />
+            </button>
           </div>
           <p className="mt-1 font-cuprum text-sm text-muted">
             {formatDateOnly(gallery.shooting_date || gallery.created_at)}
