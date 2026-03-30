@@ -196,9 +196,30 @@ async def get_gallery_detail(
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
 
-    # Use repository methods that perform efficient DB queries instead of loading the whole relationship
-    photo_count = await repo.get_photo_count_by_gallery(gallery_id, search=photo_query.search)
-    total_size_bytes = await repo.get_photo_total_size_by_gallery(gallery_id)
+    # Filtered count for current detail query context (e.g., search results).
+    filtered_photo_count = await repo.get_photo_count_by_gallery(gallery_id, search=photo_query.search)
+
+    (
+        photo_count_by_gallery,
+        total_size_by_gallery,
+        active_share_gallery_ids,
+        cover_thumbnail_by_photo_id,
+        recent_thumbnail_keys_by_gallery,
+    ) = await repo.get_gallery_list_enrichment(
+        [gallery_id],
+        [gallery.cover_photo_id] if gallery.cover_photo_id else [],
+        recent_limit=3,
+    )
+    photo_count = photo_count_by_gallery.get(gallery_id, 0)
+    total_size_bytes = total_size_by_gallery.get(gallery_id, 0)
+    has_active_share_links = gallery_id in active_share_gallery_ids
+
+    cover_key = cover_thumbnail_by_photo_id.get(gallery.cover_photo_id) if gallery.cover_photo_id else None
+    recent_keys = recent_thumbnail_keys_by_gallery.get(gallery_id, [])
+    thumbnail_keys = [key for key in [cover_key, *recent_keys] if key]
+    presigned_by_key = await s3_client.generate_presigned_urls_batch(list(dict.fromkeys(thumbnail_keys)), expires_in=7200) if thumbnail_keys else {}
+    cover_photo_thumbnail_url = presigned_by_key.get(cover_key) if cover_key else None
+    recent_photo_thumbnail_urls = [presigned_by_key[key] for key in recent_keys if key in presigned_by_key]
 
     # Preserve historical default ordering when clients omit both sort params.
     if photo_query.sort_by is None and photo_query.order is None:
@@ -250,8 +271,12 @@ async def get_gallery_detail(
         public_sort_by=gallery.public_sort_by,
         public_sort_order=gallery.public_sort_order,
         cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
+        photo_count=photo_count,
+        has_active_share_links=has_active_share_links,
+        cover_photo_thumbnail_url=cover_photo_thumbnail_url,
+        recent_photo_thumbnail_urls=recent_photo_thumbnail_urls,
         photos=photo_responses,
-        total_photos=photo_count,
+        total_photos=filtered_photo_count,
         total_size_bytes=total_size_bytes,
     )
 
