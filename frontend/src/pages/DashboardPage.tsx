@@ -226,15 +226,11 @@ export const DashboardPage = () => {
       setIsCreatingShareLink(true);
       setShareModalError('');
 
-      const created = await shareLinkService.createShareLink(shareModalGallery.id);
-
-      if (normalizedLabel.length > 0 || !shareIsActiveInput || parsedExpiresAt) {
-        await shareLinkService.updateShareLink(shareModalGallery.id, created.id, {
-          label: normalizedLabel.length > 0 ? normalizedLabel : null,
-          is_active: shareIsActiveInput,
-          expires_at: parsedExpiresAt,
-        });
-      }
+      const created = await shareLinkService.createShareLink(shareModalGallery.id, {
+        label: normalizedLabel.length > 0 ? normalizedLabel : null,
+        is_active: shareIsActiveInput,
+        expires_at: parsedExpiresAt,
+      });
 
       await fetchGalleries();
       setShareModalGallery(null);

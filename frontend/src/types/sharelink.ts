@@ -53,6 +53,12 @@ export interface ShareLinkUpdateRequest {
   expires_at?: string | null;
 }
 
+export interface ShareLinkCreateRequest {
+  label?: string | null;
+  is_active?: boolean;
+  expires_at?: string | null;
+}
+
 export interface PublicPhoto {
   photo_id: string;
   thumbnail_url: string;

@@ -9,6 +9,7 @@ import type {
   GalleryPhotoSortBy,
   GalleryPhoto,
   GalleryListResponse,
+  ShareLinkCreateRequest,
   LoginRequest,
   LoginResponse,
   PhotoResponse,
@@ -551,14 +552,15 @@ class DemoServiceStore {
     return state.shareLinks.map((link) => ({ ...link }));
   }
 
-  async createShareLink(galleryId: string): Promise<ShareLink> {
+  async createShareLink(galleryId: string, payload?: ShareLinkCreateRequest): Promise<ShareLink> {
     const state = this.getGalleryState(galleryId);
+    const normalizedLabel = payload?.label?.trim();
 
     const link: ShareLink = {
       id: `s-${makeDemoId().slice(0, 12)}`,
-      label: null,
-      is_active: true,
-      expires_at: null,
+      label: normalizedLabel ? normalizedLabel : null,
+      is_active: payload?.is_active ?? true,
+      expires_at: payload?.expires_at ?? null,
       views: 0,
       zip_downloads: 0,
       single_downloads: 0,

@@ -45,6 +45,7 @@ export type {
   ShareLinksDashboardResponse,
   ShareLinkDailyPoint,
   ShareLinkAnalyticsResponse,
+  ShareLinkCreateRequest,
   ShareLinkUpdateRequest,
   PublicPhoto,
   SharedGallery,

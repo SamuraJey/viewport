@@ -42,6 +42,25 @@ describe('shareLinkService', () => {
     expect(created).toEqual(createdLink);
   });
 
+  it('creates a share link with payload in a single POST', async () => {
+    const galleryId = 'g1';
+    const createdLink = { id: 's3' };
+    vi.mocked(api.post).mockResolvedValue({ data: createdLink } as any);
+
+    const created = await shareLinkService.createShareLink(galleryId, {
+      label: 'Client preview',
+      is_active: false,
+      expires_at: '2026-04-01T10:00:00Z',
+    });
+
+    expect(api.post).toHaveBeenCalledWith(`/galleries/${galleryId}/share-links`, {
+      label: 'Client preview',
+      is_active: false,
+      expires_at: '2026-04-01T10:00:00Z',
+    });
+    expect(created).toEqual(createdLink);
+  });
+
   it('fetches shared gallery with pagination params', async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { photos: [], total_photos: 0 } } as any);
 
