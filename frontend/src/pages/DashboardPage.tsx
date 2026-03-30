@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarClock, ChevronLeft, ChevronRight, Plus, Search, Share2, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -9,8 +9,7 @@ import { EnhancedGalleryCard } from '../components/dashboard/EnhancedGalleryCard
 import { useDashboardActions } from '../hooks';
 import { parseUtcDateTimeInputValue } from '../components/share-links/shareLinkDateTime';
 import { shareLinkService } from '../services/shareLinkService';
-import type { Gallery } from '../types';
-import type { SortOrder } from '../types/gallery';
+import type { Gallery, GalleryListSortBy, SortOrder } from '../types';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -31,12 +30,11 @@ const cardVariants = {
   exit: { opacity: 0, scale: 0.95, y: -6, transition: { duration: 0.14 } },
 };
 
-type DashboardSortBy = 'created_at' | 'shooting_date' | 'name' | 'photo_count' | 'total_size_bytes';
-const DEFAULT_SORT_BY: DashboardSortBy = 'created_at';
+const DEFAULT_SORT_BY: GalleryListSortBy = 'created_at';
 const DEFAULT_SORT_ORDER: SortOrder = 'desc';
 const SEARCH_DEBOUNCE_MS = 300;
 
-const isDashboardSortBy = (value: string | null): value is DashboardSortBy =>
+const isDashboardSortBy = (value: string | null): value is GalleryListSortBy =>
   value === 'created_at' ||
   value === 'shooting_date' ||
   value === 'name' ||
@@ -45,42 +43,6 @@ const isDashboardSortBy = (value: string | null): value is DashboardSortBy =>
 
 const isSortOrder = (value: string | null): value is SortOrder =>
   value === 'asc' || value === 'desc';
-
-const compareValues = (
-  left: Gallery,
-  right: Gallery,
-  sortBy: DashboardSortBy,
-  sortOrder: SortOrder,
-): number => {
-  const direction = sortOrder === 'asc' ? 1 : -1;
-
-  if (sortBy === 'name') {
-    const delta = (left.name || '').localeCompare(right.name || '', undefined, {
-      sensitivity: 'base',
-      numeric: true,
-    });
-    if (delta !== 0) return delta * direction;
-    return left.id.localeCompare(right.id);
-  }
-
-  if (sortBy === 'photo_count') {
-    const delta = (left.photo_count ?? 0) - (right.photo_count ?? 0);
-    if (delta !== 0) return delta * direction;
-    return left.id.localeCompare(right.id);
-  }
-
-  if (sortBy === 'total_size_bytes') {
-    const delta = (left.total_size_bytes ?? 0) - (right.total_size_bytes ?? 0);
-    if (delta !== 0) return delta * direction;
-    return left.id.localeCompare(right.id);
-  }
-
-  const leftDate = Date.parse(sortBy === 'shooting_date' ? left.shooting_date : left.created_at);
-  const rightDate = Date.parse(sortBy === 'shooting_date' ? right.shooting_date : right.created_at);
-  const delta = leftDate - rightDate;
-  if (delta !== 0) return delta * direction;
-  return left.id.localeCompare(right.id);
-};
 
 export const DashboardPage = () => {
   const navigate = useNavigate();
@@ -108,7 +70,6 @@ export const DashboardPage = () => {
     previousPage,
     nextPage,
     firstPage,
-    setTotal,
     goToPage,
   } = pagination;
 
@@ -117,7 +78,7 @@ export const DashboardPage = () => {
   const urlSearch = searchParams.get('search') ?? '';
   const sortByParam = searchParams.get('sort_by');
   const orderParam = searchParams.get('order');
-  const sortBy: DashboardSortBy = isDashboardSortBy(sortByParam) ? sortByParam : DEFAULT_SORT_BY;
+  const sortBy: GalleryListSortBy = isDashboardSortBy(sortByParam) ? sortByParam : DEFAULT_SORT_BY;
   const sortOrder: SortOrder = isSortOrder(orderParam) ? orderParam : DEFAULT_SORT_ORDER;
 
   const [searchInput, setSearchInput] = useState(urlSearch);
@@ -137,8 +98,14 @@ export const DashboardPage = () => {
   const renameInputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    fetchGalleries();
-  }, [fetchGalleries]);
+    void fetchGalleries({
+      page,
+      size: pageSize,
+      search: urlSearch.trim() || undefined,
+      sort_by: sortBy,
+      order: sortOrder,
+    });
+  }, [fetchGalleries, page, pageSize, sortBy, sortOrder, urlSearch]);
 
   useEffect(() => {
     setSearchInput(urlSearch);
@@ -191,23 +158,6 @@ export const DashboardPage = () => {
       renameInputRef.current?.focus();
     }
   }, [renameGalleryId]);
-
-  const filteredAndSortedGalleries = useMemo(() => {
-    const normalizedSearch = urlSearch.trim().toLowerCase();
-    const filtered = normalizedSearch
-      ? galleries.filter((gallery) => gallery.name.toLowerCase().includes(normalizedSearch))
-      : galleries;
-    return [...filtered].sort((left, right) => compareValues(left, right, sortBy, sortOrder));
-  }, [galleries, sortBy, sortOrder, urlSearch]);
-
-  useEffect(() => {
-    setTotal(filteredAndSortedGalleries.length);
-  }, [filteredAndSortedGalleries.length, setTotal]);
-
-  const paginatedGalleries = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filteredAndSortedGalleries.slice(start, start + pageSize);
-  }, [filteredAndSortedGalleries, page, pageSize]);
 
   useEffect(() => {
     if (page > totalPages && totalPages > 0) {
@@ -296,7 +246,7 @@ export const DashboardPage = () => {
     }
   };
 
-  const handleSortByChange = (value: DashboardSortBy) => {
+  const handleSortByChange = (value: GalleryListSortBy) => {
     const nextParams = new URLSearchParams(searchParams);
     if (value === DEFAULT_SORT_BY) {
       nextParams.delete('sort_by');
@@ -418,7 +368,7 @@ export const DashboardPage = () => {
             <span className="font-semibold">Create New Gallery</span>
           </motion.button>
 
-          {paginatedGalleries.map((gallery) => (
+          {galleries.map((gallery) => (
             <EnhancedGalleryCard
               key={gallery.id}
               gallery={gallery}
@@ -488,7 +438,7 @@ export const DashboardPage = () => {
           <span className="text-muted">Sort:</span>
           <select
             value={sortBy}
-            onChange={(event) => handleSortByChange(event.target.value as DashboardSortBy)}
+            onChange={(event) => handleSortByChange(event.target.value as GalleryListSortBy)}
             className="bg-transparent text-text outline-none scheme-light dark:scheme-dark"
             aria-label="Sort galleries by"
           >

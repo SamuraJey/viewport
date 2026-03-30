@@ -19,7 +19,17 @@ from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client as get_sync_s3_client
 from viewport.s3_utils import get_s3_settings
-from viewport.schemas.gallery import GalleryCreateRequest, GalleryDetailResponse, GalleryListResponse, GalleryPhotoQueryParams, GalleryPhotoSortBy, GalleryResponse, GalleryUpdateRequest, SortOrder
+from viewport.schemas.gallery import (
+    GalleryCreateRequest,
+    GalleryDetailResponse,
+    GalleryListQueryParams,
+    GalleryListResponse,
+    GalleryPhotoQueryParams,
+    GalleryPhotoSortBy,
+    GalleryResponse,
+    GalleryUpdateRequest,
+    SortOrder,
+)
 from viewport.schemas.photo import DownloadSelectedPhotosRequest, GalleryPhotoResponse
 
 router = APIRouter(prefix="/galleries", tags=["galleries"])
@@ -141,10 +151,18 @@ async def list_galleries(
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
+    list_query: GalleryListQueryParams = Depends(),
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
 ) -> GalleryListResponse:
-    galleries, total = await repo.get_galleries_by_owner(current_user.id, page, size)
+    galleries, total = await repo.get_galleries_by_owner(
+        current_user.id,
+        page,
+        size,
+        search=list_query.search,
+        sort_by=list_query.sort_by,
+        order=list_query.order,
+    )
 
     enriched_galleries = await _build_gallery_list_responses(galleries, repo, s3_client)
 

@@ -3,6 +3,8 @@ import type {
   BatchDeletePhotosResponse,
   Gallery,
   GalleryDetail,
+  GalleryListQueryOptions,
+  GalleryListSortBy,
   GalleryPhotoQueryOptions,
   GalleryPhotoSortBy,
   GalleryPhoto,
@@ -402,17 +404,62 @@ class DemoServiceStore {
     return { message: 'Password changed in demo mode.' };
   }
 
-  async getGalleries(page = 1, size = 10): Promise<GalleryListResponse> {
+  async getGalleries(
+    page = 1,
+    size = 10,
+    options?: GalleryListQueryOptions,
+  ): Promise<GalleryListResponse> {
     const start = (page - 1) * size;
-    const sorted = [...this.galleries].sort(
-      (a, b) => Date.parse(b.gallery.created_at) - Date.parse(a.gallery.created_at),
-    );
+    const normalizedSearch = options?.search?.trim().toLowerCase() ?? '';
+    const sortBy: GalleryListSortBy = options?.sort_by ?? 'created_at';
+    const sortOrder: SortOrder = options?.order ?? 'desc';
+    const direction = sortOrder === 'asc' ? 1 : -1;
+
+    const filtered = this.galleries
+      .map((entry) => toGalleryWithComputedFields(entry))
+      .filter((gallery) => {
+        if (!normalizedSearch) {
+          return true;
+        }
+        return gallery.name.toLowerCase().includes(normalizedSearch);
+      });
+
+    const sorted = [...filtered].sort((left, right) => {
+      if (sortBy === 'name') {
+        const delta = left.name.localeCompare(right.name, undefined, {
+          sensitivity: 'base',
+          numeric: true,
+        });
+        if (delta !== 0) return delta * direction;
+        return left.id.localeCompare(right.id);
+      }
+
+      if (sortBy === 'photo_count') {
+        const delta = (left.photo_count ?? 0) - (right.photo_count ?? 0);
+        if (delta !== 0) return delta * direction;
+        return left.id.localeCompare(right.id);
+      }
+
+      if (sortBy === 'total_size_bytes') {
+        const delta = (left.total_size_bytes ?? 0) - (right.total_size_bytes ?? 0);
+        if (delta !== 0) return delta * direction;
+        return left.id.localeCompare(right.id);
+      }
+
+      const leftDate = Date.parse(
+        sortBy === 'shooting_date' ? left.shooting_date : left.created_at,
+      );
+      const rightDate = Date.parse(
+        sortBy === 'shooting_date' ? right.shooting_date : right.created_at,
+      );
+      const delta = leftDate - rightDate;
+      if (delta !== 0) return delta * direction;
+      return left.id.localeCompare(right.id);
+    });
 
     return {
-      galleries: sorted
-        .slice(start, start + size)
-        .map((entry) => toGalleryWithComputedFields(entry)),
-      total: this.galleries.length,
+      galleries: sorted.slice(start, start + size),
+      total: sorted.length,
       page,
       size,
     };
@@ -582,10 +629,10 @@ class DemoServiceStore {
     const normalizedSearch = search?.trim().toLowerCase() || '';
     const filtered = normalizedSearch
       ? allLinks.filter((link) =>
-          `${link.label ?? ''} ${link.gallery_name} ${link.id}`
-            .toLowerCase()
-            .includes(normalizedSearch),
-        )
+        `${link.label ?? ''} ${link.gallery_name} ${link.id}`
+          .toLowerCase()
+          .includes(normalizedSearch),
+      )
       : allLinks;
 
     const sorted = filtered.sort(
@@ -722,17 +769,17 @@ class DemoServiceStore {
       total_photos: sortedPhotos.length,
       cover: state.gallery.cover_photo_id
         ? {
-            photo_id: state.gallery.cover_photo_id,
-            full_url:
-              state.photos.find((photo) => photo.id === state.gallery.cover_photo_id)?.url ||
-              state.photos[0]?.url ||
-              '',
-            thumbnail_url:
-              state.photos.find((photo) => photo.id === state.gallery.cover_photo_id)
-                ?.thumbnail_url ||
-              state.photos[0]?.thumbnail_url ||
-              '',
-          }
+          photo_id: state.gallery.cover_photo_id,
+          full_url:
+            state.photos.find((photo) => photo.id === state.gallery.cover_photo_id)?.url ||
+            state.photos[0]?.url ||
+            '',
+          thumbnail_url:
+            state.photos.find((photo) => photo.id === state.gallery.cover_photo_id)
+              ?.thumbnail_url ||
+            state.photos[0]?.thumbnail_url ||
+            '',
+        }
         : null,
       photos: photos.map((photo) => ({
         photo_id: photo.id,

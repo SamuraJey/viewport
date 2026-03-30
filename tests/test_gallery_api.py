@@ -125,6 +125,37 @@ class TestGalleryAPI:
         response = authenticated_client.get("/galleries?size=0")
         assert response.status_code == 422
 
+    def test_list_galleries_supports_search(self, authenticated_client: TestClient):
+        authenticated_client.post("/galleries", json={"name": "Summer Wedding"})
+        authenticated_client.post("/galleries", json={"name": "Corporate Shoot"})
+
+        response = authenticated_client.get("/galleries?search=summer")
+        assert response.status_code == 200
+
+        payload = response.json()
+        assert payload["total"] == 1
+        assert len(payload["galleries"]) == 1
+        assert payload["galleries"][0]["name"] == "Summer Wedding"
+
+    def test_list_galleries_supports_sort_by_photo_count(self, authenticated_client: TestClient):
+        high_count_response = authenticated_client.post("/galleries", json={"name": "High Count"})
+        low_count_response = authenticated_client.post("/galleries", json={"name": "Low Count"})
+
+        high_count_gallery_id = high_count_response.json()["id"]
+        low_count_gallery_id = low_count_response.json()["id"]
+
+        upload_photo_via_presigned(authenticated_client, high_count_gallery_id, b"image-1", "high-1.jpg")
+        upload_photo_via_presigned(authenticated_client, high_count_gallery_id, b"image-2", "high-2.jpg")
+        upload_photo_via_presigned(authenticated_client, low_count_gallery_id, b"image-3", "low-1.jpg")
+
+        response = authenticated_client.get("/galleries?sort_by=photo_count&order=desc")
+        assert response.status_code == 200
+
+        galleries = response.json()["galleries"]
+        high_count_index = next(index for index, gallery in enumerate(galleries) if gallery["id"] == high_count_gallery_id)
+        low_count_index = next(index for index, gallery in enumerate(galleries) if gallery["id"] == low_count_gallery_id)
+        assert high_count_index < low_count_index
+
     def test_list_galleries_unauthorized(self, client: TestClient):
         """Test listing galleries without authentication."""
         response = client.get("/galleries")

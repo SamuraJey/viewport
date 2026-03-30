@@ -54,6 +54,7 @@
   - Demo entry points: use one-click demo access from auth/landing UI by enabling demo mode in localStorage (`viewport-demo-mode`) and logging into `authStore` with mock user/tokens.
 - **Dev API routing**: Vite proxy rewrites `VITE_DEV_API_PREFIX` (default `/api`) to the backend (see `frontend/vite.config.ts`).
 - **Pages**: In `frontend/src/pages/`, use custom hooks for pagination/selection/modals instead of manual state (see DashboardPage.tsx, GalleryPage.tsx for examples).
+  - Dashboard gallery listing (`/galleries`) uses server-side `search`, `sort_by`, `order`, `page`, and `size` query params; avoid client-side full-dataset fetch loops on initial load/refresh.
   - Share links management UI spans `GalleryPage.tsx` (local section with inline edit actions), `ShareLinksDashboardPage.tsx` (owner-wide table), and `ShareLinkDetailPage.tsx` (time-series analytics + edit/delete controls).
   - Keep pages as orchestration layers and prefer route-level lazy loading (`React.lazy` + `Suspense`) in `frontend/src/App.tsx` for main page components to control bundle size.
   - `GalleryPage.tsx` follows a **photo-first** layout: compact metadata header and primary focus on the photo grid. Upload starts directly from `Add Photos` (file picker), and drag-and-drop is handled across the whole gallery page instead of a permanently large uploader block.

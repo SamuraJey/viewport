@@ -77,6 +77,30 @@ describe('galleryService', () => {
       expect(result).toEqual(mockResponse.data);
     });
 
+    it('should send search and sort options when provided', async () => {
+      const mockResponse = {
+        data: {
+          galleries: [],
+          total: 0,
+          page: 1,
+          size: 10,
+        },
+      };
+
+      vi.mocked(api.get).mockResolvedValue(mockResponse);
+
+      const result = await galleryService.getGalleries(1, 10, {
+        search: 'wedding',
+        sort_by: 'photo_count',
+        order: 'asc',
+      });
+
+      expect(api.get).toHaveBeenCalledWith(
+        '/galleries?page=1&size=10&search=wedding&sort_by=photo_count&order=asc',
+      );
+      expect(result).toEqual(mockResponse.data);
+    });
+
     it('should handle getGalleries errors', async () => {
       const mockError = new Error('Failed to fetch galleries');
       vi.mocked(api.get).mockRejectedValue(mockError);
@@ -116,7 +140,7 @@ describe('galleryService', () => {
 
         expect(result).toEqual(mockDemoData);
         expect(api.get).not.toHaveBeenCalled();
-        expect(mockDemoService.getGalleries).toHaveBeenCalledWith(1, 10);
+        expect(mockDemoService.getGalleries).toHaveBeenCalledWith(1, 10, undefined);
       });
 
       it('should handle custom pagination in demo mode', async () => {
@@ -133,7 +157,7 @@ describe('galleryService', () => {
 
         expect(result).toEqual(mockDemoData);
         expect(api.get).not.toHaveBeenCalled();
-        expect(mockDemoService.getGalleries).toHaveBeenCalledWith(2, 5);
+        expect(mockDemoService.getGalleries).toHaveBeenCalledWith(2, 5, undefined);
       });
     });
   });

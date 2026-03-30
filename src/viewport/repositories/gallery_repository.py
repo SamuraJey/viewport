@@ -13,7 +13,7 @@ from viewport.models.sharelink import ShareLink
 from viewport.repositories.base_repository import BaseRepository
 from viewport.repositories.user_repository import UserRepository
 from viewport.s3_service import AsyncS3Client
-from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
+from viewport.schemas.gallery import GalleryListSortBy, GalleryPhotoSortBy, SortOrder
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,30 @@ class GalleryRepository(BaseRepository):
             return [order_fn(Photo.file_size), order_fn(Photo.uploaded_at), order_fn(Photo.id)]
 
         return [order_fn(Photo.uploaded_at), order_fn(Photo.id)]
+
+    @staticmethod
+    def _build_gallery_order_clauses(
+        sort_by: GalleryListSortBy,
+        order: SortOrder,
+        *,
+        photo_count_column=None,
+        total_size_column=None,
+    ):
+        order_fn = asc if order == SortOrder.ASC else desc
+
+        if sort_by == GalleryListSortBy.NAME:
+            return [order_fn(func.lower(Gallery.name)), order_fn(Gallery.created_at), order_fn(Gallery.id)]
+
+        if sort_by == GalleryListSortBy.SHOOTING_DATE:
+            return [order_fn(Gallery.shooting_date), order_fn(Gallery.created_at), order_fn(Gallery.id)]
+
+        if sort_by == GalleryListSortBy.PHOTO_COUNT and photo_count_column is not None:
+            return [order_fn(func.coalesce(photo_count_column, 0)), order_fn(Gallery.created_at), order_fn(Gallery.id)]
+
+        if sort_by == GalleryListSortBy.TOTAL_SIZE_BYTES and total_size_column is not None:
+            return [order_fn(func.coalesce(total_size_column, 0)), order_fn(Gallery.created_at), order_fn(Gallery.id)]
+
+        return [order_fn(Gallery.created_at), order_fn(Gallery.id)]
 
     @staticmethod
     def _split_name_and_ext(filename: str) -> tuple[str, str]:
@@ -94,13 +118,45 @@ class GalleryRepository(BaseRepository):
         await self.db.refresh(gallery)
         return gallery
 
-    async def get_galleries_by_owner(self, owner_id: uuid.UUID, page: int, size: int) -> tuple[list[Gallery], int | None]:
-        # Get total count
-        count_stmt = select(func.count()).select_from(Gallery).where(Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False))
+    async def get_galleries_by_owner(
+        self,
+        owner_id: uuid.UUID,
+        page: int,
+        size: int,
+        search: str | None = None,
+        sort_by: GalleryListSortBy = GalleryListSortBy.CREATED_AT,
+        order: SortOrder = SortOrder.DESC,
+    ) -> tuple[list[Gallery], int | None]:
+        filters = [Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False)]
+        if search:
+            escaped_search = self._escape_like_term(search)
+            filters.append(Gallery.name.ilike(f"%{escaped_search}%", escape=self.LIKE_ESCAPE_CHAR))
+
+        count_stmt = select(func.count()).select_from(Gallery).where(*filters)
         total = (await self.db.execute(count_stmt)).scalar()
 
-        # Get galleries with pagination
-        stmt = select(Gallery).where(Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False)).order_by(Gallery.created_at.desc()).offset((page - 1) * size).limit(size)
+        stmt = select(Gallery).where(*filters)
+        if sort_by in (GalleryListSortBy.PHOTO_COUNT, GalleryListSortBy.TOTAL_SIZE_BYTES):
+            photo_stats = (
+                select(
+                    Photo.gallery_id.label("gallery_id"),
+                    func.count(Photo.id).label("photo_count"),
+                    func.coalesce(func.sum(Photo.file_size), 0).label("total_size_bytes"),
+                )
+                .group_by(Photo.gallery_id)
+                .subquery()
+            )
+            stmt = stmt.outerjoin(photo_stats, photo_stats.c.gallery_id == Gallery.id)
+            order_by_clauses = self._build_gallery_order_clauses(
+                sort_by,
+                order,
+                photo_count_column=photo_stats.c.photo_count,
+                total_size_column=photo_stats.c.total_size_bytes,
+            )
+        else:
+            order_by_clauses = self._build_gallery_order_clauses(sort_by, order)
+
+        stmt = stmt.order_by(*order_by_clauses).offset((page - 1) * size).limit(size)
         galleries = (await self.db.execute(stmt)).scalars().all()
 
         return await self._finish_read((list(galleries), total))

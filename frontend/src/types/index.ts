@@ -13,6 +13,8 @@ export type {
   GalleryPhotoSortBy,
   SortOrder,
   GalleryPhotoQueryOptions,
+  GalleryListSortBy,
+  GalleryListQueryOptions,
 } from './gallery';
 
 // Photo types

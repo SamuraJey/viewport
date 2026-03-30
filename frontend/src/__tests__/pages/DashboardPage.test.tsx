@@ -61,7 +61,7 @@ describe('DashboardPage', () => {
       galleries: mockGalleries,
       total: mockGalleries.length,
       page: 1,
-      size: 100,
+      size: 10,
     });
   });
 
@@ -79,45 +79,50 @@ describe('DashboardPage', () => {
     });
   });
 
-  it('fetches galleries using bulk page size', async () => {
+  it('fetches galleries using server-side pagination defaults', async () => {
     const { galleryService } = await import('../../services/galleryService');
 
     render(<DashboardPageWrapper />);
 
     await waitFor(() => {
-      expect(galleryService.getGalleries).toHaveBeenCalledWith(1, 100);
+      expect(galleryService.getGalleries).toHaveBeenCalledWith(1, 10, {
+        search: undefined,
+        sort_by: 'created_at',
+        order: 'desc',
+      });
     });
   });
 
-  it('filters galleries by debounced search', async () => {
+  it('requests debounced search from the server', async () => {
     const user = userEvent.setup();
+    const { galleryService } = await import('../../services/galleryService');
     render(<DashboardPageWrapper />);
 
-    await waitFor(() => {
-      expect(screen.getByText('Alpha Gallery')).toBeInTheDocument();
-      expect(screen.getByText('Beta Gallery')).toBeInTheDocument();
-    });
+    await screen.findByText('Alpha Gallery');
 
     const search = screen.getByLabelText('Search galleries');
     await user.type(search, 'beta');
 
     await waitFor(() => {
-      expect(screen.queryByText('Alpha Gallery')).not.toBeInTheDocument();
-      expect(screen.getByText('Beta Gallery')).toBeInTheDocument();
+      expect(galleryService.getGalleries).toHaveBeenCalledWith(1, 10, {
+        search: 'beta',
+        sort_by: 'created_at',
+        order: 'desc',
+      });
     });
   });
 
-  it('sorts galleries by name asc via query params', async () => {
+  it('requests sort options from query params', async () => {
+    const { galleryService } = await import('../../services/galleryService');
     render(<DashboardPageWrapper initialPath="/dashboard?sort_by=name&order=asc" />);
 
-    const cards = await screen.findAllByRole('heading', { level: 3 });
-    const names = cards.map((item) => item.textContent);
-
-    expect(names).toContain('Alpha Gallery');
-    expect(names).toContain('Beta Gallery');
-    const alphaIndex = names.indexOf('Alpha Gallery');
-    const betaIndex = names.indexOf('Beta Gallery');
-    expect(alphaIndex).toBeLessThan(betaIndex);
+    await waitFor(() => {
+      expect(galleryService.getGalleries).toHaveBeenCalledWith(1, 10, {
+        search: undefined,
+        sort_by: 'name',
+        order: 'asc',
+      });
+    });
   });
 
   it('opens create modal and submits gallery creation', async () => {
@@ -165,7 +170,7 @@ describe('DashboardPage', () => {
       galleries: [],
       total: 0,
       page: 1,
-      size: 100,
+      size: 10,
     });
 
     render(<DashboardPageWrapper />);

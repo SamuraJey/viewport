@@ -6,12 +6,24 @@ import type { GalleryPhoto } from './photo';
 
 export type GalleryPhotoSortBy = 'uploaded_at' | 'original_filename' | 'file_size';
 export type SortOrder = 'asc' | 'desc';
+export type GalleryListSortBy =
+  | 'created_at'
+  | 'shooting_date'
+  | 'name'
+  | 'photo_count'
+  | 'total_size_bytes';
 
 export interface GalleryPhotoQueryOptions {
   limit?: number;
   offset?: number;
   search?: string;
   sort_by?: GalleryPhotoSortBy;
+  order?: SortOrder;
+}
+
+export interface GalleryListQueryOptions {
+  search?: string;
+  sort_by?: GalleryListSortBy;
   order?: SortOrder;
 }
 

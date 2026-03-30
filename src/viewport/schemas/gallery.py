@@ -19,6 +19,28 @@ class SortOrder(StrEnum):
     DESC = "desc"
 
 
+class GalleryListSortBy(StrEnum):
+    CREATED_AT = "created_at"
+    SHOOTING_DATE = "shooting_date"
+    NAME = "name"
+    PHOTO_COUNT = "photo_count"
+    TOTAL_SIZE_BYTES = "total_size_bytes"
+
+
+class GalleryListQueryParams(BaseModel):
+    search: str | None = Field(None, max_length=GALLERY_NAME_MAX_LENGTH, description="Case-insensitive partial gallery name search")
+    sort_by: GalleryListSortBy = Field(GalleryListSortBy.CREATED_AT, description="Gallery sorting field")
+    order: SortOrder = Field(SortOrder.DESC, description="Sort direction")
+
+    @field_validator("search")
+    @classmethod
+    def normalize_search(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+
 class GalleryPhotoQueryParams(BaseModel):
     search: str | None = Field(None, max_length=PHOTO_SEARCH_MAX_LENGTH, description="Case-insensitive partial filename search")
     sort_by: GalleryPhotoSortBy | None = Field(None, description="Photo sorting field")

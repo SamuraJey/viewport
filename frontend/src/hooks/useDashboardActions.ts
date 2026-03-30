@@ -1,50 +1,58 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { galleryService, type Gallery } from '../services/galleryService';
+import type { GalleryListQueryOptions } from '../types';
 import { useErrorHandler, useConfirmation, usePagination, useModal } from './index';
 
-const API_GALLERY_PAGE_SIZE = 100;
+type DashboardGalleriesQuery = GalleryListQueryOptions & {
+  page: number;
+  size: number;
+};
 
 export const useDashboardActions = () => {
   const [galleries, setGalleries] = useState<Gallery[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
 
-  const pagination = usePagination({ pageSize: 10 });
+  const pagination = usePagination({ pageSize: 10, syncWithUrl: true });
   const createModal = useModal();
   const { error, clearError, handleError, isLoading, setLoading } = useErrorHandler();
   const { openConfirm, ConfirmModal } = useConfirmation();
+  const lastQueryRef = useRef<DashboardGalleriesQuery | null>(null);
 
   const { setTotal } = pagination;
 
-  const fetchGalleries = useCallback(async () => {
-    setLoading(true);
-    try {
-      clearError();
-      const allGalleries: Gallery[] = [];
-      let pageNum = 1;
-      let total = 0;
+  const fetchGalleries = useCallback(
+    async (query?: DashboardGalleriesQuery) => {
+      const effectiveQuery = query ??
+        lastQueryRef.current ?? {
+        page: pagination.page,
+        size: pagination.pageSize,
+      };
 
-      while (true) {
-        const response = await galleryService.getGalleries(pageNum, API_GALLERY_PAGE_SIZE);
-        if (pageNum === 1) {
-          total = response.total;
-        }
+      lastQueryRef.current = effectiveQuery;
+      setLoading(true);
+      try {
+        clearError();
+        const response = await galleryService.getGalleries(
+          effectiveQuery.page,
+          effectiveQuery.size,
+          {
+            search: effectiveQuery.search,
+            sort_by: effectiveQuery.sort_by,
+            order: effectiveQuery.order,
+          },
+        );
 
-        allGalleries.push(...response.galleries);
-        if (allGalleries.length >= total || response.galleries.length === 0) {
-          break;
-        }
-        pageNum += 1;
+        setGalleries(response.galleries);
+        setTotal(response.total);
+      } catch (err: unknown) {
+        handleError(err);
+      } finally {
+        setLoading(false);
       }
-
-      setGalleries(allGalleries);
-      setTotal(allGalleries.length);
-    } catch (err: unknown) {
-      handleError(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [clearError, handleError, setLoading, setTotal]);
+    },
+    [clearError, handleError, pagination.page, pagination.pageSize, setLoading, setTotal],
+  );
 
   const createGallery = async (name: string, shootingDate: string) => {
     if (!name.trim()) return;
@@ -56,8 +64,21 @@ export const useDashboardActions = () => {
         shooting_date: shootingDate || undefined,
       });
       createModal.close();
-      pagination.firstPage();
-      await fetchGalleries();
+
+      const refreshedQuery: DashboardGalleriesQuery = {
+        ...(lastQueryRef.current ?? {
+          page: pagination.page,
+          size: pagination.pageSize,
+        }),
+        page: 1,
+      };
+
+      if (pagination.page !== 1) {
+        lastQueryRef.current = refreshedQuery;
+        pagination.firstPage();
+      } else {
+        await fetchGalleries(refreshedQuery);
+      }
     } catch (err: unknown) {
       handleError(err);
     } finally {
