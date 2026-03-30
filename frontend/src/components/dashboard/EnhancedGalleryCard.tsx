@@ -207,27 +207,29 @@ export const EnhancedGalleryCard = ({
           to={`/galleries/${gallery.id}`}
           className="flex flex-1 flex-col p-4 no-underline transition-colors hover:bg-surface-1 dark:hover:bg-surface-dark-1"
         >
-          <div className="group/title relative w-full pr-5 text-left">
-            <div className="min-w-0 flex-1">
-              <h3
-                className={`wrap-anywhere whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors`}
+          <div className="flex flex-1 flex-col justify-center">
+            <div className="group/title relative w-full pr-5 text-left">
+              <div className="min-w-0 flex-1">
+                <h3
+                  className={`wrap-anywhere whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors`}
+                >
+                  {galleryTitle}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={beginRenameFromEvent}
+                className="absolute right-0 top-1 inline-flex h-4 w-4 items-center justify-center text-muted opacity-0 transition-opacity duration-200 hover:text-accent group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 focus:outline-none"
+                aria-label={`Rename ${galleryTitle}`}
+                title="Rename gallery"
               >
-                {galleryTitle}
-              </h3>
+                <Edit3 className="h-3.5 w-3.5" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={beginRenameFromEvent}
-              className="absolute right-0 top-1 inline-flex h-4 w-4 items-center justify-center text-muted opacity-0 transition-opacity duration-200 hover:text-accent group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 focus:outline-none"
-              aria-label={`Rename ${galleryTitle}`}
-              title="Rename gallery"
-            >
-              <Edit3 className="h-3.5 w-3.5" />
-            </button>
+            <p className="mt-2 font-cuprum text-sm text-muted">
+              {formatDateOnly(gallery.shooting_date || gallery.created_at)}
+            </p>
           </div>
-          <p className="mt-1 font-cuprum text-sm text-muted">
-            {formatDateOnly(gallery.shooting_date || gallery.created_at)}
-          </p>
         </Link>
       )}
     </motion.div>
