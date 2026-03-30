@@ -629,10 +629,10 @@ class DemoServiceStore {
     const normalizedSearch = search?.trim().toLowerCase() || '';
     const filtered = normalizedSearch
       ? allLinks.filter((link) =>
-        `${link.label ?? ''} ${link.gallery_name} ${link.id}`
-          .toLowerCase()
-          .includes(normalizedSearch),
-      )
+          `${link.label ?? ''} ${link.gallery_name} ${link.id}`
+            .toLowerCase()
+            .includes(normalizedSearch),
+        )
       : allLinks;
 
     const sorted = filtered.sort(
@@ -769,17 +769,17 @@ class DemoServiceStore {
       total_photos: sortedPhotos.length,
       cover: state.gallery.cover_photo_id
         ? {
-          photo_id: state.gallery.cover_photo_id,
-          full_url:
-            state.photos.find((photo) => photo.id === state.gallery.cover_photo_id)?.url ||
-            state.photos[0]?.url ||
-            '',
-          thumbnail_url:
-            state.photos.find((photo) => photo.id === state.gallery.cover_photo_id)
-              ?.thumbnail_url ||
-            state.photos[0]?.thumbnail_url ||
-            '',
-        }
+            photo_id: state.gallery.cover_photo_id,
+            full_url:
+              state.photos.find((photo) => photo.id === state.gallery.cover_photo_id)?.url ||
+              state.photos[0]?.url ||
+              '',
+            thumbnail_url:
+              state.photos.find((photo) => photo.id === state.gallery.cover_photo_id)
+                ?.thumbnail_url ||
+              state.photos[0]?.thumbnail_url ||
+              '',
+          }
         : null,
       photos: photos.map((photo) => ({
         photo_id: photo.id,

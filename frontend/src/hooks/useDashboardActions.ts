@@ -25,9 +25,9 @@ export const useDashboardActions = () => {
     async (query?: DashboardGalleriesQuery) => {
       const effectiveQuery = query ??
         lastQueryRef.current ?? {
-        page: pagination.page,
-        size: pagination.pageSize,
-      };
+          page: pagination.page,
+          size: pagination.pageSize,
+        };
 
       lastQueryRef.current = effectiveQuery;
       setLoading(true);
