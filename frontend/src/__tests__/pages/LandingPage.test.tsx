@@ -91,7 +91,14 @@ describe('LandingPage and root route', () => {
     ).toBeInTheDocument();
 
     expect(screen.getByRole('link', { name: /Log in/i })).toHaveAttribute('href', '/auth/login');
-    expect(screen.getByText('Quick actions')).toBeInTheDocument();
+    expect(screen.getByText('Built for photographers and studios')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Gallery delivery,/i })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Viewport keeps the whole workflow in one place, from first upload to final delivery.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Core capabilities')).toBeInTheDocument();
     expect(screen.getByText('Spring Campaign - Lofoten')).toBeInTheDocument();
     expect(screen.getByAltText(/Spring Campaign - Lofoten cover/i)).toBeInTheDocument();
   });

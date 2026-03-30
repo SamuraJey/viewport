@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from sqlalchemy import asc, desc, func, insert, select, update
+from sqlalchemy import asc, desc, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from viewport.filename_utils import sanitize_filename
@@ -304,13 +304,14 @@ class GalleryRepository(BaseRepository):
 
     async def has_active_share_links(self, gallery_id: uuid.UUID) -> bool:
         """Check if gallery has any active share links."""
+        now = datetime.now(UTC).replace(tzinfo=None)
         stmt = (
             select(func.count())
             .select_from(ShareLink)
             .where(
                 ShareLink.gallery_id == gallery_id,
                 ShareLink.is_active.is_(True),
-                (ShareLink.expires_at.is_(None) | (ShareLink.expires_at > datetime.now(UTC))),
+                (ShareLink.expires_at.is_(None) | (ShareLink.expires_at > now)),
             )
         )
         count = int((await self.db.execute(stmt)).scalar() or 0)
@@ -330,6 +331,99 @@ class GalleryRepository(BaseRepository):
         )
         keys = [key for key in (await self.db.execute(stmt)).scalars().all() if key]
         return await self._finish_read(keys)
+
+    async def get_gallery_list_enrichment(
+        self,
+        gallery_ids: list[uuid.UUID],
+        cover_photo_ids: list[uuid.UUID],
+        recent_limit: int = 3,
+    ) -> tuple[
+        dict[uuid.UUID, int],
+        dict[uuid.UUID, int],
+        set[uuid.UUID],
+        dict[uuid.UUID, str],
+        dict[uuid.UUID, list[str]],
+    ]:
+        """Return batched enrichment data used by gallery list responses."""
+        if not gallery_ids:
+            return await self._finish_read(({}, {}, set(), {}, {}))
+
+        photo_stats_stmt = (
+            select(
+                Photo.gallery_id,
+                func.count(Photo.id),
+                func.coalesce(func.sum(Photo.file_size), 0),
+            )
+            .join(Photo.gallery)
+            .where(
+                Photo.gallery_id.in_(gallery_ids),
+                Gallery.is_deleted.is_(False),
+            )
+            .group_by(Photo.gallery_id)
+        )
+        photo_stats_rows = (await self.db.execute(photo_stats_stmt)).all()
+        photo_count_by_gallery: dict[uuid.UUID, int] = {}
+        total_size_by_gallery: dict[uuid.UUID, int] = {}
+        for gallery_id, count, total_size in photo_stats_rows:
+            photo_count_by_gallery[gallery_id] = int(count or 0)
+            total_size_by_gallery[gallery_id] = int(total_size or 0)
+
+        now = datetime.now(UTC).replace(tzinfo=None)
+        active_share_stmt = (
+            select(ShareLink.gallery_id)
+            .where(
+                ShareLink.gallery_id.in_(gallery_ids),
+                ShareLink.is_active.is_(True),
+                or_(ShareLink.expires_at.is_(None), ShareLink.expires_at > now),
+            )
+            .group_by(ShareLink.gallery_id)
+        )
+        active_share_gallery_ids = set((await self.db.execute(active_share_stmt)).scalars().all())
+
+        cover_thumbnail_by_photo_id: dict[uuid.UUID, str] = {}
+        if cover_photo_ids:
+            cover_stmt = select(Photo.id, Photo.thumbnail_object_key).where(Photo.id.in_(cover_photo_ids), Photo.thumbnail_object_key.is_not(None))
+            cover_thumbnail_by_photo_id = {photo_id: thumbnail_key for photo_id, thumbnail_key in (await self.db.execute(cover_stmt)).all() if thumbnail_key}
+
+        ranked_thumbnails = (
+            select(
+                Photo.gallery_id.label("gallery_id"),
+                Photo.thumbnail_object_key.label("thumbnail_object_key"),
+                func.row_number()
+                .over(
+                    partition_by=Photo.gallery_id,
+                    order_by=(Photo.uploaded_at.desc(), Photo.id.desc()),
+                )
+                .label("rank"),
+            )
+            .join(Photo.gallery)
+            .where(
+                Photo.gallery_id.in_(gallery_ids),
+                Gallery.is_deleted.is_(False),
+                Photo.thumbnail_object_key.is_not(None),
+            )
+            .subquery()
+        )
+        recent_stmt = (
+            select(ranked_thumbnails.c.gallery_id, ranked_thumbnails.c.thumbnail_object_key)
+            .where(ranked_thumbnails.c.rank <= recent_limit)
+            .order_by(ranked_thumbnails.c.gallery_id, ranked_thumbnails.c.rank)
+        )
+        recent_thumbnail_keys_by_gallery: dict[uuid.UUID, list[str]] = {}
+        for gallery_id, thumbnail_key in (await self.db.execute(recent_stmt)).all():
+            if not thumbnail_key:
+                continue
+            recent_thumbnail_keys_by_gallery.setdefault(gallery_id, []).append(thumbnail_key)
+
+        return await self._finish_read(
+            (
+                photo_count_by_gallery,
+                total_size_by_gallery,
+                active_share_gallery_ids,
+                cover_thumbnail_by_photo_id,
+                recent_thumbnail_keys_by_gallery,
+            )
+        )
 
     async def get_photos_by_gallery_paginated(
         self,

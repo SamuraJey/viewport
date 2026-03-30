@@ -70,6 +70,54 @@ async def _build_gallery_response(gallery, repo: GalleryRepository, s3_client: A
     )
 
 
+async def _build_gallery_list_responses(galleries: list, repo: GalleryRepository, s3_client: AsyncS3Client) -> list[GalleryResponse]:
+    if not galleries:
+        return []
+
+    gallery_ids = [gallery.id for gallery in galleries]
+    cover_photo_ids = [gallery.cover_photo_id for gallery in galleries if gallery.cover_photo_id]
+
+    (
+        photo_count_by_gallery,
+        total_size_by_gallery,
+        active_share_gallery_ids,
+        cover_thumbnail_by_photo_id,
+        recent_thumbnail_keys_by_gallery,
+    ) = await repo.get_gallery_list_enrichment(gallery_ids, cover_photo_ids, recent_limit=3)
+
+    all_thumbnail_keys: list[str] = []
+    all_thumbnail_keys.extend(cover_thumbnail_by_photo_id.values())
+    for keys in recent_thumbnail_keys_by_gallery.values():
+        all_thumbnail_keys.extend(keys)
+
+    presigned_by_key = await s3_client.generate_presigned_urls_batch(list(dict.fromkeys(all_thumbnail_keys)), expires_in=7200) if all_thumbnail_keys else {}
+
+    responses: list[GalleryResponse] = []
+    for gallery in galleries:
+        cover_key = cover_thumbnail_by_photo_id.get(gallery.cover_photo_id) if gallery.cover_photo_id else None
+        recent_keys = recent_thumbnail_keys_by_gallery.get(gallery.id, [])
+
+        responses.append(
+            GalleryResponse(
+                id=str(gallery.id),
+                owner_id=str(gallery.owner_id),
+                name=gallery.name,
+                created_at=gallery.created_at,
+                shooting_date=gallery.shooting_date,
+                public_sort_by=gallery.public_sort_by,
+                public_sort_order=gallery.public_sort_order,
+                cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
+                photo_count=photo_count_by_gallery.get(gallery.id, 0),
+                total_size_bytes=total_size_by_gallery.get(gallery.id, 0),
+                has_active_share_links=gallery.id in active_share_gallery_ids,
+                cover_photo_thumbnail_url=presigned_by_key.get(cover_key) if cover_key else None,
+                recent_photo_thumbnail_urls=[presigned_by_key[key] for key in recent_keys if key in presigned_by_key],
+            )
+        )
+
+    return responses
+
+
 @router.post("", response_model=GalleryResponse, status_code=status.HTTP_201_CREATED)
 async def create_gallery(
     request: GalleryCreateRequest,
@@ -98,7 +146,7 @@ async def list_galleries(
 ) -> GalleryListResponse:
     galleries, total = await repo.get_galleries_by_owner(current_user.id, page, size)
 
-    enriched_galleries = [await _build_gallery_response(g, repo, s3_client) for g in galleries]
+    enriched_galleries = await _build_gallery_list_responses(galleries, repo, s3_client)
 
     return GalleryListResponse(
         galleries=enriched_galleries,
