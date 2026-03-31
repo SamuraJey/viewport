@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, datetime, timedelta
+from os import getenv
 
 import bcrypt
 import jwt
@@ -15,8 +16,27 @@ from viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, R
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# A dummy hash to use when the user is not found, to prevent timing attacks
-DUMMY_HASH = "$2b$12$t1mLmH3zKxUqFT8nM5cUHO4tbsrgn90vkUwJW09eORUeBLst9.YFC"
+_DEFAULT_BCRYPT_ROUNDS = 12
+_MIN_BCRYPT_ROUNDS = 4
+_MAX_BCRYPT_ROUNDS = 31
+
+
+def _resolve_bcrypt_rounds() -> int:
+    raw_value = getenv("BCRYPT_ROUNDS")
+    if raw_value is None:
+        return _DEFAULT_BCRYPT_ROUNDS
+
+    try:
+        rounds = int(raw_value)
+    except ValueError:
+        return _DEFAULT_BCRYPT_ROUNDS
+
+    return max(_MIN_BCRYPT_ROUNDS, min(_MAX_BCRYPT_ROUNDS, rounds))
+
+
+_BCRYPT_ROUNDS = _resolve_bcrypt_rounds()
+# A dummy hash to use when the user is not found, to prevent timing attacks.
+DUMMY_HASH = bcrypt.hashpw(b"viewport-dummy-password", bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)).decode("utf-8")
 
 
 def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
@@ -25,7 +45,7 @@ def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt with a random salt."""
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)).decode("utf-8")
 
 
 def verify_password(password: str, hashed: str) -> bool:
@@ -34,12 +54,26 @@ def verify_password(password: str, hashed: str) -> bool:
 
 
 def create_access_token(user_id: str) -> str:
-    payload = {"sub": user_id, "exp": datetime.now(UTC) + timedelta(minutes=authsettings.access_token_expire_minutes), "type": "access"}
+    issued_at = datetime.now(UTC)
+    payload = {
+        "sub": user_id,
+        "iat": issued_at,
+        "exp": issued_at + timedelta(minutes=authsettings.access_token_expire_minutes),
+        "type": "access",
+        "jti": str(uuid.uuid4()),
+    }
     return jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
 
 
 def create_refresh_token(user_id: str) -> str:
-    payload = {"sub": user_id, "exp": datetime.now(UTC) + timedelta(minutes=authsettings.refresh_token_expire_minutes), "type": "refresh"}
+    issued_at = datetime.now(UTC)
+    payload = {
+        "sub": user_id,
+        "iat": issued_at,
+        "exp": issued_at + timedelta(minutes=authsettings.refresh_token_expire_minutes),
+        "type": "refresh",
+        "jti": str(uuid.uuid4()),
+    }
     return jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
 
 

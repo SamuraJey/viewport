@@ -30,8 +30,14 @@ S3_ROOT_SECRET_KEY = "testsecretkey"
 S3_PORT = 9000
 VALKEY_IMAGE = "valkey/valkey:8-alpine"
 VALKEY_PORT = 6379
-S3_TRIGGER_FIXTURES = {
-    "s3_container",
+S3_TRIGGER_FIXTURES = {"s3_container"}
+DB_TRIGGER_FIXTURES = {
+    "postgres_container",
+    "async_engine",
+    "sync_engine",
+    "engine",
+    "db_session",
+    "app_client",
     "client",
     "authenticated_client",
     "auth_token",
@@ -55,6 +61,7 @@ os.environ.update(
         "JWT_SECRET_KEY": "supersecretkeysupersecretkeysupersecretkey",
         "ADMIN_JWT_SECRET_KEY": "adminsecretkeyadminsecretkeyadminsecretkey",
         "INVITE_CODE": "testinvitecode",
+        "BCRYPT_ROUNDS": "4",
         "ENVIRONMENT": "pytest",
     }
 )
@@ -378,7 +385,13 @@ def _refresh_app_s3_client_instance() -> None:
 
 
 def _needs_s3_for_request(request: pytest.FixtureRequest) -> bool:
-    return bool(S3_TRIGGER_FIXTURES.intersection(request.fixturenames))
+    if S3_TRIGGER_FIXTURES.intersection(request.fixturenames):
+        return True
+    return request.node.get_closest_marker("requires_s3") is not None
+
+
+def _needs_db_for_request(request: pytest.FixtureRequest) -> bool:
+    return bool(DB_TRIGGER_FIXTURES.intersection(request.fixturenames))
 
 
 @pytest.fixture(scope="session")
@@ -494,9 +507,14 @@ def sync_engine(postgres_container: PostgresConnectionInfo) -> Generator[Engine]
 
 
 @pytest.fixture(autouse=True)
-def _cleanup_database(async_engine: AsyncEngine, request) -> None:
+def _cleanup_database(request: pytest.FixtureRequest) -> None:
     """Clear all tables before each test to keep isolation simple with AsyncSession."""
+    if not _needs_db_for_request(request):
+        return
+
     from viewport.models.db import Base
+
+    async_engine = request.getfixturevalue("async_engine")
 
     async def _truncate() -> None:
         async with async_engine.begin() as conn:
@@ -595,7 +613,7 @@ def valkey_container(request: pytest.FixtureRequest) -> Generator[str]:
         container.stop()
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def _redis_test_env(valkey_container: str) -> Generator[None]:
     with _temporary_env_vars({"REDIS_URL": valkey_container}):
         from viewport.services.redis_service import get_redis_settings
@@ -615,7 +633,6 @@ def _db_session_holder() -> dict[str, AsyncSession | None]:
 @pytest.fixture(scope="session")
 def app_client(
     postgres_container: PostgresConnectionInfo,
-    s3_container: S3ConnectionInfo | DockerContainer,
     _redis_test_env: None,
     _db_session_holder: dict[str, AsyncSession | None],
 ):

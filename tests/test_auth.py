@@ -171,11 +171,6 @@ class TestAuthFlow:
         refresh_token = tokens["refresh_token"]
         original_access_token = tokens["access_token"]
 
-        # Add small delay to ensure different timestamps
-        import time
-
-        time.sleep(1)
-
         # Refresh token
         refresh_payload = {"refresh_token": refresh_token}
         refresh_response = client.post("/auth/refresh", json=refresh_payload)

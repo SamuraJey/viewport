@@ -6,7 +6,6 @@ from uuid import UUID, uuid4
 
 import pytest
 import requests
-from fastapi.testclient import TestClient
 
 from tests.helpers import register_and_login, upload_photo_via_presigned
 from viewport.api.photo import MAX_FILE_SIZE, _invalidate_presigned_cache_safely, get_content_type_from_filename, sanitize_filename
@@ -14,7 +13,10 @@ from viewport.models.gallery import Photo, PhotoUploadStatus
 from viewport.models.user import User
 
 if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
     from sqlalchemy.ext.asyncio import AsyncSession
+
+pytestmark = pytest.mark.requires_s3
 
 
 class TestPhotoAPI:

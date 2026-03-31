@@ -6,10 +6,13 @@ from datetime import date
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from tests.helpers import register_and_login, upload_photo_via_presigned
 from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH, PHOTO_SEARCH_MAX_LENGTH
+
+pytestmark = pytest.mark.requires_s3
 
 
 class TestGalleryAPI:

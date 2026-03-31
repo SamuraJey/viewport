@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, date, datetime, timedelta
 from hashlib import sha256
 
-from sqlalchemy import String, and_, asc, case, cast, desc, func, or_, select, update
+from sqlalchemy import String, and_, case, cast, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload
 
@@ -10,24 +10,12 @@ from viewport.models.gallery import Gallery, Photo
 from viewport.models.sharelink import ShareLink
 from viewport.models.sharelink_analytics import ShareLinkDailyStat, ShareLinkDailyVisitor
 from viewport.repositories.base_repository import BaseRepository
+from viewport.repositories.photo_query_helpers import build_photo_order_clauses
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 from viewport.sharelink_utils import is_sharelink_expired
 
 
 class ShareLinkRepository(BaseRepository):
-    @staticmethod
-    def _build_public_photo_order_clauses(sort_by: GalleryPhotoSortBy, order: SortOrder):
-        order_fn = asc if order == SortOrder.ASC else desc
-
-        if sort_by == GalleryPhotoSortBy.UPLOADED_AT:
-            return [order_fn(Photo.uploaded_at), order_fn(Photo.id)]
-
-        if sort_by == GalleryPhotoSortBy.FILE_SIZE:
-            return [order_fn(Photo.file_size), order_fn(Photo.id)]
-
-        # Default: filename ordering for stable public presentation.
-        return [order_fn(func.lower(Photo.display_name)), order_fn(Photo.id)]
-
     async def get_sharelink_by_id(self, sharelink_id: uuid.UUID) -> ShareLink | None:
         stmt = select(ShareLink).where(ShareLink.id == sharelink_id)
         sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
@@ -141,7 +129,13 @@ class ShareLinkRepository(BaseRepository):
     ) -> list[Photo]:
         from viewport.models.gallery import Gallery
 
-        stmt = select(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)).order_by(*self._build_public_photo_order_clauses(sort_by, order)).offset(offset)
+        stmt = (
+            select(Photo)
+            .join(Photo.gallery)
+            .where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
+            .order_by(*build_photo_order_clauses(sort_by, order, include_uploaded_at_tiebreaker=False))
+            .offset(offset)
+        )
         if limit is not None:
             stmt = stmt.limit(limit)
 
