@@ -8,6 +8,7 @@ import type { PublicPhoto } from '../../services/shareLinkService';
 interface PublicGalleryPhotoSectionProps {
   photos: PublicPhoto[];
   totalPhotos: number;
+  displayedPhotos: number;
   gridClassNames: string;
   gridLayout: PublicGridLayout;
   gridDensity: PublicGridDensity;
@@ -24,11 +25,26 @@ interface PublicGalleryPhotoSectionProps {
     onTouchEnd: TouchEventHandler<HTMLDivElement>;
     onTouchCancel: TouchEventHandler<HTMLDivElement>;
   };
+  selection?: {
+    enabled: boolean;
+    selectedIds: Set<string>;
+    selectedCount: number;
+    limitEnabled: boolean;
+    limitValue: number | null;
+    selectedOnly: boolean;
+    canMutate: boolean;
+    allowPhotoComments: boolean;
+    commentsByPhotoId: Record<string, string | null>;
+    onToggleSelectedOnly: () => void;
+    onTogglePhoto: (photoId: string) => void;
+    onUpdatePhotoComment: (photoId: string, comment: string) => void;
+  };
 }
 
 export const PublicGalleryPhotoSection = ({
   photos,
   totalPhotos,
+  displayedPhotos,
   gridClassNames,
   gridLayout,
   gridDensity,
@@ -40,6 +56,7 @@ export const PublicGalleryPhotoSection = ({
   onDensityChange,
   onOpenPhoto,
   touchHandlers,
+  selection,
 }: PublicGalleryPhotoSectionProps) => {
   return (
     <div
@@ -49,7 +66,11 @@ export const PublicGalleryPhotoSection = ({
     >
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-2xl font-bold text-text dark:text-accent-foreground flex items-center gap-2">
-          Photos <span className="text-muted text-lg font-medium">({totalPhotos})</span>
+          Photos{' '}
+          <span className="text-muted text-lg font-medium">
+            ({displayedPhotos}
+            {displayedPhotos !== totalPhotos ? ` / ${totalPhotos}` : ''})
+          </span>
         </h2>
 
         <PublicGalleryGridControls
@@ -59,6 +80,28 @@ export const PublicGalleryPhotoSection = ({
           onDensityChange={onDensityChange}
         />
       </div>
+
+      {selection?.enabled ? (
+        <div className="mb-6 rounded-2xl border border-border/50 bg-surface-1/70 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-text">
+              Selected: {selection.selectedCount}
+              {selection.limitEnabled && selection.limitValue ? ` / ${selection.limitValue}` : ''}
+            </p>
+            <button
+              type="button"
+              onClick={selection.onToggleSelectedOnly}
+              className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                selection.selectedOnly
+                  ? 'bg-accent text-accent-foreground'
+                  : 'border border-border/50 bg-surface text-text hover:border-accent/40'
+              }`}
+            >
+              {selection.selectedOnly ? 'Show all photos' : 'Show selected only'}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {photos.length > 0 ? (
         <>
@@ -70,6 +113,25 @@ export const PublicGalleryPhotoSection = ({
                 data-testid="public-batch"
                 data-photo-id={photo.photo_id}
               >
+                {selection?.enabled ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      selection.onTogglePhoto(photo.photo_id);
+                    }}
+                    disabled={!selection.canMutate}
+                    className={`absolute top-3 right-3 z-20 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
+                      selection.selectedIds.has(photo.photo_id)
+                        ? 'bg-accent text-accent-foreground'
+                        : 'bg-black/45 text-white hover:bg-black/60'
+                    } ${!selection.canMutate ? 'cursor-not-allowed opacity-70' : ''}`}
+                  >
+                    {selection.selectedIds.has(photo.photo_id) ? 'Selected' : 'Select'}
+                  </button>
+                ) : null}
+
                 <button
                   onClick={() => onOpenPhoto(index)}
                   className="w-full h-full p-0 border-0 bg-transparent cursor-pointer block focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
@@ -85,6 +147,24 @@ export const PublicGalleryPhotoSection = ({
                     height={photo.height}
                   />
                 </button>
+
+                {selection?.enabled &&
+                selection.allowPhotoComments &&
+                selection.selectedIds.has(photo.photo_id) ? (
+                  <div className="absolute inset-x-2 bottom-2 z-20">
+                    <textarea
+                      key={`${photo.photo_id}-${selection.commentsByPhotoId[photo.photo_id] ?? ''}`}
+                      defaultValue={selection.commentsByPhotoId[photo.photo_id] ?? ''}
+                      placeholder="Comment for this photo"
+                      disabled={!selection.canMutate}
+                      onClick={(event) => event.stopPropagation()}
+                      onBlur={(event) =>
+                        selection.onUpdatePhotoComment(photo.photo_id, event.currentTarget.value)
+                      }
+                      className="min-h-14 w-full resize-none rounded-lg border border-border/40 bg-surface/90 px-2 py-1.5 text-xs text-text outline-none focus:border-accent/50 disabled:cursor-not-allowed disabled:opacity-70"
+                    />
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

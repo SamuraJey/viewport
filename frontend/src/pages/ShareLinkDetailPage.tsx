@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Copy, Loader2, PencilLine, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  Copy,
+  Download,
+  FileText,
+  Loader2,
+  Lock,
+  LockOpen,
+  PencilLine,
+  Trash2,
+} from 'lucide-react';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
 import { ShareLinkStatusBadge } from '../components/share-links/ShareLinkStatusBadge';
 import { getShareLinkStatus } from '../components/share-links/shareLinkStatus';
@@ -9,7 +19,7 @@ import { useConfirmation } from '../hooks';
 import { copyTextToClipboard } from '../lib/clipboard';
 import { shareLinkService } from '../services/shareLinkService';
 import { handleApiError } from '../lib/errorHandling';
-import type { ShareLinkAnalyticsResponse } from '../types';
+import type { SelectionConfigUpdateRequest, ShareLinkAnalyticsResponse } from '../types';
 
 const numberFormatter = new Intl.NumberFormat();
 
@@ -36,6 +46,29 @@ export const ShareLinkDetailPage = () => {
   const [error, setError] = useState('');
   const [editingOpen, setEditingOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isSelectionLoading, setIsSelectionLoading] = useState(false);
+  const [selectionError, setSelectionError] = useState('');
+  const [isSavingSelectionConfig, setIsSavingSelectionConfig] = useState(false);
+  const [isMutatingSelectionStatus, setIsMutatingSelectionStatus] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [selectionConfigDraft, setSelectionConfigDraft] = useState<{
+    is_enabled: boolean;
+    list_title: string;
+    limit_enabled: boolean;
+    limit_value: string;
+    allow_photo_comments: boolean;
+    require_email: boolean;
+    require_phone: boolean;
+    require_client_note: boolean;
+  } | null>(null);
+  const [selectionSession, setSelectionSession] = useState<{
+    status: string;
+    client_name: string;
+    selected_count: number;
+    submitted_at: string | null;
+    client_note: string | null;
+  } | null>(null);
+  const [selectionGalleryId, setSelectionGalleryId] = useState<string | null>(null);
   const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(
@@ -66,9 +99,58 @@ export const ShareLinkDetailPage = () => {
     }
   }, [shareLinkId, days]);
 
+  const fetchSelectionDetail = useCallback(async () => {
+    if (!shareLinkId) {
+      return;
+    }
+
+    setIsSelectionLoading(true);
+    setSelectionError('');
+    try {
+      const detail = await shareLinkService.getOwnerSelectionDetail(shareLinkId);
+      setSelectionConfigDraft({
+        is_enabled: detail.config.is_enabled,
+        list_title: detail.config.list_title,
+        limit_enabled: detail.config.limit_enabled,
+        limit_value: detail.config.limit_value ? String(detail.config.limit_value) : '',
+        allow_photo_comments: detail.config.allow_photo_comments,
+        require_email: detail.config.require_email,
+        require_phone: detail.config.require_phone,
+        require_client_note: detail.config.require_client_note,
+      });
+      setSelectionSession(
+        detail.session
+          ? {
+              status: detail.session.status,
+              client_name: detail.session.client_name,
+              selected_count: detail.session.selected_count,
+              submitted_at: detail.session.submitted_at,
+              client_note: detail.session.client_note,
+            }
+          : null,
+      );
+    } catch (err) {
+      setSelectionError(handleApiError(err).message || 'Failed to load selection details');
+    } finally {
+      setIsSelectionLoading(false);
+    }
+  }, [shareLinkId]);
+
   useEffect(() => {
     void fetchAnalytics();
   }, [fetchAnalytics]);
+
+  useEffect(() => {
+    void fetchSelectionDetail();
+  }, [fetchSelectionDetail]);
+
+  useEffect(() => {
+    if (!analytics) {
+      setSelectionGalleryId(null);
+      return;
+    }
+    setSelectionGalleryId(analytics.share_link.gallery_id);
+  }, [analytics]);
 
   const totals = useMemo(() => {
     const points = analytics?.points ?? [];
@@ -136,6 +218,132 @@ export const ShareLinkDetailPage = () => {
       payload,
     );
     await fetchAnalytics();
+  };
+
+  const handleSaveSelectionConfig = async () => {
+    if (!shareLinkId || !selectionGalleryId || !selectionConfigDraft) {
+      return;
+    }
+
+    const payload: SelectionConfigUpdateRequest = {
+      is_enabled: selectionConfigDraft.is_enabled,
+      list_title: selectionConfigDraft.list_title.trim(),
+      limit_enabled: selectionConfigDraft.limit_enabled,
+      limit_value: selectionConfigDraft.limit_enabled
+        ? Number.parseInt(selectionConfigDraft.limit_value, 10)
+        : null,
+      allow_photo_comments: selectionConfigDraft.allow_photo_comments,
+      require_email: selectionConfigDraft.require_email,
+      require_phone: selectionConfigDraft.require_phone,
+      require_client_note: selectionConfigDraft.require_client_note,
+    };
+
+    if (payload.limit_enabled && (!payload.limit_value || payload.limit_value < 1)) {
+      setSelectionError('Selection limit must be at least 1');
+      return;
+    }
+
+    setSelectionError('');
+    setIsSavingSelectionConfig(true);
+    try {
+      const updated = await shareLinkService.updateOwnerSelectionConfig(
+        selectionGalleryId,
+        shareLinkId,
+        payload,
+      );
+      setSelectionConfigDraft({
+        is_enabled: updated.is_enabled,
+        list_title: updated.list_title,
+        limit_enabled: updated.limit_enabled,
+        limit_value: updated.limit_value ? String(updated.limit_value) : '',
+        allow_photo_comments: updated.allow_photo_comments,
+        require_email: updated.require_email,
+        require_phone: updated.require_phone,
+        require_client_note: updated.require_client_note,
+      });
+    } catch (err) {
+      setSelectionError(handleApiError(err).message || 'Failed to save selection settings');
+    } finally {
+      setIsSavingSelectionConfig(false);
+    }
+  };
+
+  const handleCloseSelection = async () => {
+    if (!shareLinkId) {
+      return;
+    }
+    setSelectionError('');
+    setIsMutatingSelectionStatus(true);
+    try {
+      const updated = await shareLinkService.closeOwnerSelection(shareLinkId);
+      setSelectionSession((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: updated.status,
+              selected_count: updated.selected_count,
+              submitted_at: updated.submitted_at,
+              client_note: updated.client_note,
+            }
+          : null,
+      );
+    } catch (err) {
+      setSelectionError(handleApiError(err).message || 'Failed to close selection');
+    } finally {
+      setIsMutatingSelectionStatus(false);
+    }
+  };
+
+  const handleReopenSelection = async () => {
+    if (!shareLinkId) {
+      return;
+    }
+    setSelectionError('');
+    setIsMutatingSelectionStatus(true);
+    try {
+      const updated = await shareLinkService.reopenOwnerSelection(shareLinkId);
+      setSelectionSession((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: updated.status,
+              selected_count: updated.selected_count,
+              submitted_at: updated.submitted_at,
+              client_note: updated.client_note,
+            }
+          : null,
+      );
+    } catch (err) {
+      setSelectionError(handleApiError(err).message || 'Failed to reopen selection');
+    } finally {
+      setIsMutatingSelectionStatus(false);
+    }
+  };
+
+  const handleExportFilesCsv = async () => {
+    if (!shareLinkId) return;
+    setSelectionError('');
+    setIsExporting(true);
+    try {
+      await shareLinkService.exportShareLinkSelectionFilesCsv(shareLinkId);
+    } catch (err) {
+      setSelectionError(handleApiError(err).message || 'Failed to export files CSV');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportLightroom = async () => {
+    if (!shareLinkId) return;
+    setSelectionError('');
+    setIsExporting(true);
+    try {
+      await shareLinkService.exportShareLinkSelectionLightroom(shareLinkId);
+    } catch (err) {
+      setSelectionError(handleApiError(err).message || 'Failed to export Lightroom text');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (isLoading) {
@@ -267,6 +475,236 @@ export const ShareLinkDetailPage = () => {
       </div>
 
       <ShareLinkTrendChart points={analytics.points} />
+
+      <div className="rounded-2xl border border-border/50 bg-surface p-6 shadow-xs dark:bg-surface-dark space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-text">Photo Selection</h2>
+            <p className="text-sm text-muted">
+              Configure this link’s selection workflow and manage session status.
+            </p>
+          </div>
+          {isSelectionLoading ? (
+            <span className="inline-flex items-center gap-2 text-sm text-muted">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading selection...
+            </span>
+          ) : null}
+        </div>
+
+        {selectionConfigDraft ? (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <label className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
+              <span className="font-semibold text-text">Enable selection</span>
+              <div className="mt-2">
+                <input
+                  type="checkbox"
+                  checked={selectionConfigDraft.is_enabled}
+                  onChange={(event) =>
+                    setSelectionConfigDraft((prev) =>
+                      prev ? { ...prev, is_enabled: event.target.checked } : prev,
+                    )
+                  }
+                  className="h-4 w-4 accent-accent"
+                />
+              </div>
+            </label>
+
+            <label className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
+              <span className="font-semibold text-text">List title</span>
+              <input
+                value={selectionConfigDraft.list_title}
+                onChange={(event) =>
+                  setSelectionConfigDraft((prev) =>
+                    prev ? { ...prev, list_title: event.target.value } : prev,
+                  )
+                }
+                className="mt-2 w-full rounded-lg border border-border/50 bg-surface px-3 py-2 text-sm text-text outline-none focus:border-accent"
+              />
+            </label>
+
+            <label className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
+              <span className="font-semibold text-text">Limit selection count</span>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={selectionConfigDraft.limit_enabled}
+                  onChange={(event) =>
+                    setSelectionConfigDraft((prev) =>
+                      prev ? { ...prev, limit_enabled: event.target.checked } : prev,
+                    )
+                  }
+                  className="h-4 w-4 accent-accent"
+                />
+                {selectionConfigDraft.limit_enabled ? (
+                  <input
+                    type="number"
+                    min={1}
+                    value={selectionConfigDraft.limit_value}
+                    onChange={(event) =>
+                      setSelectionConfigDraft((prev) =>
+                        prev ? { ...prev, limit_value: event.target.value } : prev,
+                      )
+                    }
+                    className="w-24 rounded-lg border border-border/50 bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-accent"
+                  />
+                ) : null}
+              </div>
+            </label>
+
+            <label className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
+              <span className="font-semibold text-text">Photo comments</span>
+              <div className="mt-2">
+                <input
+                  type="checkbox"
+                  checked={selectionConfigDraft.allow_photo_comments}
+                  onChange={(event) =>
+                    setSelectionConfigDraft((prev) =>
+                      prev ? { ...prev, allow_photo_comments: event.target.checked } : prev,
+                    )
+                  }
+                  className="h-4 w-4 accent-accent"
+                />
+              </div>
+            </label>
+          </div>
+        ) : (
+          <p className="text-sm text-muted">Selection settings are unavailable.</p>
+        )}
+
+        {selectionConfigDraft ? (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
+              <input
+                type="checkbox"
+                checked={selectionConfigDraft.require_email}
+                onChange={(event) =>
+                  setSelectionConfigDraft((prev) =>
+                    prev ? { ...prev, require_email: event.target.checked } : prev,
+                  )
+                }
+                className="h-4 w-4 accent-accent"
+              />
+              Require email
+            </label>
+            <label className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
+              <input
+                type="checkbox"
+                checked={selectionConfigDraft.require_phone}
+                onChange={(event) =>
+                  setSelectionConfigDraft((prev) =>
+                    prev ? { ...prev, require_phone: event.target.checked } : prev,
+                  )
+                }
+                className="h-4 w-4 accent-accent"
+              />
+              Require phone
+            </label>
+            <label className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
+              <input
+                type="checkbox"
+                checked={selectionConfigDraft.require_client_note}
+                onChange={(event) =>
+                  setSelectionConfigDraft((prev) =>
+                    prev ? { ...prev, require_client_note: event.target.checked } : prev,
+                  )
+                }
+                className="h-4 w-4 accent-accent"
+              />
+              Require note
+            </label>
+          </div>
+        ) : null}
+
+        {selectionSession ? (
+          <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
+            <p className="text-sm text-text">
+              Session status: <span className="font-semibold">{selectionSession.status}</span>
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              Client: {selectionSession.client_name || '—'} • Selected:{' '}
+              {selectionSession.selected_count}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              Submitted at: {selectionSession.submitted_at || 'Not submitted yet'}
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-muted">Selection session has not been started yet.</p>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={isSavingSelectionConfig}
+            onClick={() => {
+              void handleSaveSelectionConfig();
+            }}
+            className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground disabled:opacity-60"
+          >
+            {isSavingSelectionConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Save selection settings
+          </button>
+
+          {selectionSession ? (
+            selectionSession.status === 'closed' ? (
+              <button
+                type="button"
+                disabled={isMutatingSelectionStatus}
+                onClick={() => {
+                  void handleReopenSelection();
+                }}
+                className="inline-flex items-center gap-2 rounded-xl border border-success/40 bg-success/10 px-4 py-2 text-sm font-semibold text-success disabled:opacity-60"
+              >
+                <LockOpen className="h-4 w-4" />
+                Reopen selection
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={isMutatingSelectionStatus}
+                onClick={() => {
+                  void handleCloseSelection();
+                }}
+                className="inline-flex items-center gap-2 rounded-xl border border-danger/40 bg-danger/10 px-4 py-2 text-sm font-semibold text-danger disabled:opacity-60"
+              >
+                <Lock className="h-4 w-4" />
+                Close selection
+              </button>
+            )
+          ) : null}
+
+          <button
+            type="button"
+            disabled={!selectionSession || isExporting}
+            onClick={() => {
+              void handleExportFilesCsv();
+            }}
+            className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2 text-sm font-semibold text-text disabled:opacity-60"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </button>
+
+          <button
+            type="button"
+            disabled={!selectionSession || isExporting}
+            onClick={() => {
+              void handleExportLightroom();
+            }}
+            className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2 text-sm font-semibold text-text disabled:opacity-60"
+          >
+            <FileText className="h-4 w-4" />
+            Export Lightroom
+          </button>
+        </div>
+
+        {selectionError ? (
+          <p className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+            {selectionError}
+          </p>
+        ) : null}
+      </div>
 
       <div className="overflow-hidden rounded-2xl border border-border/50 bg-surface dark:bg-surface-dark shadow-xs">
         <table className="min-w-full text-sm">

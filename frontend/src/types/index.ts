@@ -50,6 +50,18 @@ export type {
   PublicPhoto,
   SharedGallery,
   SharedGalleryQueryOptions,
+  SelectionConfig,
+  SelectionConfigUpdateRequest,
+  SelectionSessionStartRequest,
+  SelectionSessionUpdateRequest,
+  SelectionPhotoCommentRequest,
+  SelectionItem,
+  SelectionSession,
+  SelectionToggleResponse,
+  SelectionSubmitResponse,
+  OwnerSelectionRow,
+  OwnerSelectionDetail,
+  BulkSelectionActionResponse,
 } from './sharelink';
 
 // Auth types

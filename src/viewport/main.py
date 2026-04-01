@@ -12,6 +12,7 @@ from viewport.api.auth import router as auth_router
 from viewport.api.gallery import router as gallery_router
 from viewport.api.photo import router as photo_router
 from viewport.api.public import router as public_router
+from viewport.api.selection import router as selection_router
 from viewport.api.sharelink import router as sharelink_router
 from viewport.api.user import router as user_router
 from viewport.auth_utils import authsettings
@@ -126,6 +127,7 @@ app.include_router(gallery_router)
 app.include_router(photo_router)
 app.include_router(sharelink_router)
 app.include_router(public_router)
+app.include_router(selection_router)
 app.include_router(user_router)
 
 setup_metrics(app)

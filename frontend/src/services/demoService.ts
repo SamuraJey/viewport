@@ -1,6 +1,7 @@
 import type {
   AuthTokens,
   BatchDeletePhotosResponse,
+  BulkSelectionActionResponse,
   Gallery,
   GalleryDetail,
   GalleryListQueryOptions,
@@ -9,6 +10,8 @@ import type {
   GalleryPhotoSortBy,
   GalleryPhoto,
   GalleryListResponse,
+  OwnerSelectionDetail,
+  OwnerSelectionRow,
   ShareLinkCreateRequest,
   LoginRequest,
   LoginResponse,
@@ -21,6 +24,14 @@ import type {
   ShareLinkDailyPoint,
   ShareLinksDashboardResponse,
   ShareLinkUpdateRequest,
+  SelectionConfig,
+  SelectionConfigUpdateRequest,
+  SelectionPhotoCommentRequest,
+  SelectionSession,
+  SelectionSessionStartRequest,
+  SelectionSessionUpdateRequest,
+  SelectionSubmitResponse,
+  SelectionToggleResponse,
   SharedGallery,
   SharedGalleryQueryOptions,
   User,
@@ -34,6 +45,8 @@ interface DemoGalleryState {
   gallery: Gallery;
   photos: GalleryPhoto[];
   shareLinks: ShareLink[];
+  selectionConfigs?: Record<string, SelectionConfig>;
+  selectionSessions?: Record<string, SelectionSession>;
 }
 
 interface DemoPersistedState {
@@ -53,6 +66,20 @@ const makeDemoId = (): string => {
 };
 
 const nowIso = (): string => new Date().toISOString();
+
+const defaultSelectionConfig = (): SelectionConfig => ({
+  is_enabled: false,
+  list_title: 'Selected photos',
+  limit_enabled: false,
+  limit_value: null,
+  allow_photo_comments: false,
+  require_name: true,
+  require_email: false,
+  require_phone: false,
+  require_client_note: false,
+  created_at: nowIso(),
+  updated_at: nowIso(),
+});
 
 const toGalleryWithComputedFields = (state: DemoGalleryState): Gallery => {
   const sortedRecentPhotos = [...state.photos].sort(
@@ -167,6 +194,18 @@ const seedState = (): DemoGalleryState[] => {
         updated_at: nowIso(),
       },
     ];
+    const selectionConfigs: Record<string, SelectionConfig> = Object.fromEntries(
+      shareLinks.map((link) => [
+        link.id,
+        {
+          ...defaultSelectionConfig(),
+          is_enabled: galleryIndex === 0,
+          allow_photo_comments: galleryIndex === 0,
+          limit_enabled: galleryIndex === 0,
+          limit_value: galleryIndex === 0 ? 10 : null,
+        },
+      ]),
+    );
 
     return {
       gallery: {
@@ -184,6 +223,8 @@ const seedState = (): DemoGalleryState[] => {
       },
       photos,
       shareLinks,
+      selectionConfigs,
+      selectionSessions: {},
     };
   });
 };
@@ -275,6 +316,72 @@ class DemoServiceStore {
 
   private createNotFoundError(message: string): ApiError {
     return new ApiError(404, message, { detail: message });
+  }
+
+  private createConflictError(message: string): ApiError {
+    return new ApiError(409, message, { detail: message });
+  }
+
+  private createValidationError(message: string): ApiError {
+    return new ApiError(422, message, { detail: message });
+  }
+
+  private getSelectionConfigForShareId(shareId: string): {
+    state: DemoGalleryState;
+    link: ShareLink;
+    config: SelectionConfig;
+  } {
+    const state = this.findByShareId(shareId);
+    if (!state) {
+      throw this.createNotFoundError('ShareLink not found');
+    }
+    const link = state.shareLinks.find((item) => item.id === shareId);
+    if (!link) {
+      throw this.createNotFoundError('ShareLink not found');
+    }
+    if (link.is_active === false) {
+      throw this.createNotFoundError('ShareLink not found');
+    }
+    if (link.expires_at && Date.parse(link.expires_at) < Date.now()) {
+      throw new ApiError(410, 'ShareLink expired', { detail: 'ShareLink expired' });
+    }
+
+    state.selectionConfigs = state.selectionConfigs ?? {};
+    let config = state.selectionConfigs[shareId];
+    if (!config) {
+      config = defaultSelectionConfig();
+      state.selectionConfigs[shareId] = config;
+      this.persistState();
+    }
+    return { state, link, config };
+  }
+
+  private getSelectionSessionForShareId(
+    shareId: string,
+    mustExist = true,
+  ): {
+    state: DemoGalleryState;
+    link: ShareLink;
+    config: SelectionConfig;
+    session: SelectionSession | null;
+  } {
+    const { state, link, config } = this.getSelectionConfigForShareId(shareId);
+    state.selectionSessions = state.selectionSessions ?? {};
+    const session = state.selectionSessions[shareId] ?? null;
+
+    if (mustExist && !session) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+    return { state, link, config, session };
+  }
+
+  private ensureSelectionMutable(session: SelectionSession): void {
+    if (session.status === 'closed') {
+      throw this.createConflictError('Selection is closed by photographer');
+    }
+    if (session.status === 'submitted') {
+      throw this.createConflictError('Selection is already submitted');
+    }
   }
 
   private recalculateStorageUsed() {
@@ -569,6 +676,9 @@ class DemoServiceStore {
     };
 
     state.shareLinks.push(link);
+    state.selectionConfigs = state.selectionConfigs ?? {};
+    state.selectionConfigs[link.id] = defaultSelectionConfig();
+    state.selectionSessions = state.selectionSessions ?? {};
     this.persistState();
     return { ...link };
   }
@@ -606,6 +716,12 @@ class DemoServiceStore {
   async deleteShareLink(galleryId: string, shareLinkId: string): Promise<void> {
     const state = this.getGalleryState(galleryId);
     state.shareLinks = state.shareLinks.filter((link) => link.id !== shareLinkId);
+    if (state.selectionConfigs) {
+      delete state.selectionConfigs[shareLinkId];
+    }
+    if (state.selectionSessions) {
+      delete state.selectionSessions[shareLinkId];
+    }
     this.persistState();
   }
 
@@ -792,6 +908,490 @@ class DemoServiceStore {
         height: photo.height,
       })),
     };
+  }
+
+  async getPublicSelectionConfig(shareId: string): Promise<SelectionConfig> {
+    const { config } = this.getSelectionConfigForShareId(shareId);
+    if (!config.is_enabled) {
+      throw this.createNotFoundError('Selection is not enabled');
+    }
+    return { ...config };
+  }
+
+  async startPublicSelectionSession(
+    shareId: string,
+    payload: SelectionSessionStartRequest,
+  ): Promise<SelectionSession> {
+    const { state, config } = this.getSelectionConfigForShareId(shareId);
+    if (!config.is_enabled) {
+      throw this.createNotFoundError('Selection is not enabled');
+    }
+
+    state.selectionSessions = state.selectionSessions ?? {};
+    const existing = state.selectionSessions[shareId];
+    if (existing) {
+      throw this.createConflictError('Selection session already exists for this share link');
+    }
+
+    const clientName = payload.client_name?.trim();
+    if (!clientName) {
+      throw this.createValidationError('client_name is required');
+    }
+    const clientEmail = payload.client_email?.trim() || null;
+    const clientPhone = payload.client_phone?.trim() || null;
+    const clientNote = payload.client_note?.trim() || null;
+
+    if (config.require_email && !clientEmail) {
+      throw this.createValidationError('client_email is required');
+    }
+    if (config.require_phone && !clientPhone) {
+      throw this.createValidationError('client_phone is required');
+    }
+    if (config.require_client_note && !clientNote) {
+      throw this.createValidationError('client_note is required');
+    }
+
+    const now = nowIso();
+    const session: SelectionSession = {
+      id: makeDemoId(),
+      sharelink_id: shareId,
+      status: 'in_progress',
+      client_name: clientName,
+      client_email: clientEmail,
+      client_phone: clientPhone,
+      client_note: clientNote,
+      selected_count: 0,
+      submitted_at: null,
+      last_activity_at: now,
+      created_at: now,
+      updated_at: now,
+      resume_token: makeDemoId(),
+      items: [],
+    };
+
+    state.selectionSessions[shareId] = session;
+    this.persistState();
+    return { ...session, items: [...session.items] };
+  }
+
+  async getPublicSelectionSession(
+    shareId: string,
+    resumeToken?: string,
+  ): Promise<SelectionSession> {
+    const { session } = this.getSelectionSessionForShareId(shareId, true);
+    if (!session) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+    if (
+      resumeToken &&
+      session.resume_token &&
+      resumeToken.trim().length > 0 &&
+      resumeToken.trim() !== session.resume_token
+    ) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+    return { ...session, items: [...session.items] };
+  }
+
+  async togglePublicSelectionItem(
+    shareId: string,
+    photoId: string,
+    resumeToken?: string,
+  ): Promise<SelectionToggleResponse> {
+    const { state, config, session } = this.getSelectionSessionForShareId(shareId, true);
+    if (!config.is_enabled) {
+      throw this.createNotFoundError('Selection is not enabled');
+    }
+    if (!session) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+    if (
+      resumeToken &&
+      session.resume_token &&
+      resumeToken.trim().length > 0 &&
+      resumeToken.trim() !== session.resume_token
+    ) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+
+    this.ensureSelectionMutable(session);
+    const photoExists = state.photos.some((photo) => photo.id === photoId);
+    if (!photoExists) {
+      throw this.createNotFoundError('Photo not found for this share link');
+    }
+
+    const now = nowIso();
+    const existingIndex = session.items.findIndex((item) => item.photo_id === photoId);
+    if (existingIndex >= 0) {
+      session.items.splice(existingIndex, 1);
+    } else {
+      if (
+        config.limit_enabled &&
+        typeof config.limit_value === 'number' &&
+        session.items.length >= config.limit_value
+      ) {
+        throw this.createConflictError(`Selection limit reached (${config.limit_value})`);
+      }
+      session.items.push({
+        photo_id: photoId,
+        comment: null,
+        selected_at: now,
+        updated_at: now,
+      });
+    }
+
+    session.selected_count = session.items.length;
+    session.last_activity_at = now;
+    session.updated_at = now;
+    this.persistState();
+
+    return {
+      selected: existingIndex < 0,
+      selected_count: session.selected_count,
+      limit_enabled: config.limit_enabled,
+      limit_value: config.limit_value,
+    };
+  }
+
+  async updatePublicSelectionItemComment(
+    shareId: string,
+    photoId: string,
+    payload: SelectionPhotoCommentRequest,
+    resumeToken?: string,
+  ): Promise<SelectionSession['items'][number]> {
+    const { config, session } = this.getSelectionSessionForShareId(shareId, true);
+    if (!config.is_enabled) {
+      throw this.createNotFoundError('Selection is not enabled');
+    }
+    if (!config.allow_photo_comments) {
+      throw new ApiError(403, 'Photo comments are disabled', {
+        detail: 'Photo comments are disabled',
+      });
+    }
+    if (!session) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+    if (
+      resumeToken &&
+      session.resume_token &&
+      resumeToken.trim().length > 0 &&
+      resumeToken.trim() !== session.resume_token
+    ) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+
+    this.ensureSelectionMutable(session);
+    const item = session.items.find((entry) => entry.photo_id === photoId);
+    if (!item) {
+      throw this.createNotFoundError('Photo is not selected');
+    }
+
+    item.comment = payload.comment?.trim() || null;
+    item.updated_at = nowIso();
+    session.last_activity_at = item.updated_at;
+    session.updated_at = item.updated_at;
+    this.persistState();
+    return { ...item };
+  }
+
+  async updatePublicSelectionSession(
+    shareId: string,
+    payload: SelectionSessionUpdateRequest,
+    resumeToken?: string,
+  ): Promise<SelectionSession> {
+    const { config, session } = this.getSelectionSessionForShareId(shareId, true);
+    if (!config.is_enabled) {
+      throw this.createNotFoundError('Selection is not enabled');
+    }
+    if (!session) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+    if (
+      resumeToken &&
+      session.resume_token &&
+      resumeToken.trim().length > 0 &&
+      resumeToken.trim() !== session.resume_token
+    ) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+
+    this.ensureSelectionMutable(session);
+    const normalizedNote = payload.client_note?.trim() || null;
+    if (config.require_client_note && !normalizedNote) {
+      throw this.createValidationError('client_note is required');
+    }
+    const now = nowIso();
+    session.client_note = normalizedNote;
+    session.last_activity_at = now;
+    session.updated_at = now;
+    this.persistState();
+    return { ...session, items: [...session.items] };
+  }
+
+  async submitPublicSelectionSession(
+    shareId: string,
+    resumeToken?: string,
+  ): Promise<SelectionSubmitResponse> {
+    const { config, session } = this.getSelectionSessionForShareId(shareId, true);
+    if (!config.is_enabled) {
+      throw this.createNotFoundError('Selection is not enabled');
+    }
+    if (!session) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+    if (
+      resumeToken &&
+      session.resume_token &&
+      resumeToken.trim().length > 0 &&
+      resumeToken.trim() !== session.resume_token
+    ) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+
+    if (session.status === 'closed') {
+      throw this.createConflictError('Selection is closed by photographer');
+    }
+    if (session.status === 'submitted' && session.submitted_at) {
+      return {
+        status: session.status,
+        selected_count: session.selected_count,
+        submitted_at: session.submitted_at,
+        notification_enqueued: false,
+      };
+    }
+
+    if (config.require_email && !session.client_email) {
+      throw this.createValidationError('client_email is required');
+    }
+    if (config.require_phone && !session.client_phone) {
+      throw this.createValidationError('client_phone is required');
+    }
+    if (config.require_client_note && !session.client_note) {
+      throw this.createValidationError('client_note is required');
+    }
+    if (
+      config.limit_enabled &&
+      typeof config.limit_value === 'number' &&
+      session.items.length > config.limit_value
+    ) {
+      throw this.createValidationError(`Selected photos exceed the limit (${config.limit_value})`);
+    }
+    if (session.items.length <= 0) {
+      throw this.createValidationError('At least one photo must be selected before submit');
+    }
+
+    const now = nowIso();
+    session.status = 'submitted';
+    session.submitted_at = now;
+    session.last_activity_at = now;
+    session.updated_at = now;
+    session.selected_count = session.items.length;
+    this.persistState();
+    return {
+      status: session.status,
+      selected_count: session.selected_count,
+      submitted_at: now,
+      notification_enqueued: true,
+    };
+  }
+
+  async getOwnerSelectionConfig(galleryId: string, shareLinkId: string): Promise<SelectionConfig> {
+    const state = this.getGalleryState(galleryId);
+    const link = state.shareLinks.find((item) => item.id === shareLinkId);
+    if (!link) {
+      throw this.createNotFoundError('Share link not found');
+    }
+    state.selectionConfigs = state.selectionConfigs ?? {};
+    if (!state.selectionConfigs[shareLinkId]) {
+      state.selectionConfigs[shareLinkId] = defaultSelectionConfig();
+      this.persistState();
+    }
+    return { ...state.selectionConfigs[shareLinkId] };
+  }
+
+  async updateOwnerSelectionConfig(
+    galleryId: string,
+    shareLinkId: string,
+    payload: SelectionConfigUpdateRequest,
+  ): Promise<SelectionConfig> {
+    const current = await this.getOwnerSelectionConfig(galleryId, shareLinkId);
+    const next: SelectionConfig = {
+      ...current,
+      ...payload,
+      list_title: payload.list_title?.trim() || current.list_title,
+      updated_at: nowIso(),
+    };
+
+    if (next.limit_enabled && (!next.limit_value || next.limit_value < 1)) {
+      throw this.createValidationError('limit_value is required when limit_enabled is true');
+    }
+    if (!next.limit_enabled) {
+      next.limit_value = null;
+    }
+
+    const state = this.getGalleryState(galleryId);
+    state.selectionConfigs = state.selectionConfigs ?? {};
+    state.selectionConfigs[shareLinkId] = next;
+    this.persistState();
+    return { ...next };
+  }
+
+  async getOwnerSelectionDetail(shareLinkId: string): Promise<OwnerSelectionDetail> {
+    const { state, link, config } = this.getSelectionConfigForShareId(shareLinkId);
+    const session = (state.selectionSessions ?? {})[shareLinkId] ?? null;
+    return {
+      sharelink_id: link.id,
+      sharelink_label: link.label ?? null,
+      config: { ...config },
+      session: session ? { ...session, items: [...session.items] } : null,
+    };
+  }
+
+  async closeOwnerSelection(shareLinkId: string): Promise<SelectionSession> {
+    const { state, session } = this.getSelectionSessionForShareId(shareLinkId, true);
+    if (!session) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+
+    const now = nowIso();
+    session.status = 'closed';
+    session.updated_at = now;
+    session.last_activity_at = now;
+    state.selectionSessions = state.selectionSessions ?? {};
+    state.selectionSessions[shareLinkId] = session;
+    this.persistState();
+    return { ...session, items: [...session.items] };
+  }
+
+  async reopenOwnerSelection(shareLinkId: string): Promise<SelectionSession> {
+    const { state, session } = this.getSelectionSessionForShareId(shareLinkId, true);
+    if (!session) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+
+    const now = nowIso();
+    session.status = 'in_progress';
+    session.updated_at = now;
+    session.last_activity_at = now;
+    state.selectionSessions = state.selectionSessions ?? {};
+    state.selectionSessions[shareLinkId] = session;
+    this.persistState();
+    return { ...session, items: [...session.items] };
+  }
+
+  async getGallerySelections(galleryId: string): Promise<OwnerSelectionRow[]> {
+    const state = this.getGalleryState(galleryId);
+    return state.shareLinks
+      .map((link) => {
+        const session = (state.selectionSessions ?? {})[link.id] ?? null;
+        return {
+          sharelink_id: link.id,
+          sharelink_label: link.label ?? null,
+          session_id: session?.id ?? null,
+          status: session?.status ?? null,
+          client_name: session?.client_name ?? null,
+          selected_count: session?.selected_count ?? 0,
+          submitted_at: session?.submitted_at ?? null,
+          updated_at: session?.updated_at ?? link.updated_at ?? link.created_at,
+        };
+      })
+      .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
+  }
+
+  async closeAllGallerySelections(galleryId: string): Promise<BulkSelectionActionResponse> {
+    const state = this.getGalleryState(galleryId);
+    state.selectionSessions = state.selectionSessions ?? {};
+    let affected = 0;
+    const now = nowIso();
+    for (const link of state.shareLinks) {
+      const session = state.selectionSessions[link.id];
+      if (!session) continue;
+      if (session.status === 'closed') continue;
+      session.status = 'closed';
+      session.updated_at = now;
+      session.last_activity_at = now;
+      affected += 1;
+    }
+    this.persistState();
+    return { affected_count: affected };
+  }
+
+  async openAllGallerySelections(galleryId: string): Promise<BulkSelectionActionResponse> {
+    const state = this.getGalleryState(galleryId);
+    state.selectionSessions = state.selectionSessions ?? {};
+    let affected = 0;
+    const now = nowIso();
+    for (const link of state.shareLinks) {
+      const session = state.selectionSessions[link.id];
+      if (!session) continue;
+      if (session.status !== 'closed') continue;
+      session.status = 'in_progress';
+      session.updated_at = now;
+      session.last_activity_at = now;
+      affected += 1;
+    }
+    this.persistState();
+    return { affected_count: affected };
+  }
+
+  async exportShareLinkSelectionFilesCsv(shareLinkId: string): Promise<void> {
+    const { state } = this.getSelectionSessionForShareId(shareLinkId, true);
+    const session = (state.selectionSessions ?? {})[shareLinkId];
+    if (!session) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+    const lines = ['filename,comment'];
+    for (const item of session.items) {
+      const photo = state.photos.find((entry) => entry.id === item.photo_id);
+      if (!photo) continue;
+      const escapedComment = (item.comment || '').replaceAll('"', '""');
+      lines.push(`${photo.filename},"${escapedComment}"`);
+    }
+    triggerDownload(`selection_${shareLinkId}_files.csv`, lines.join('\n'));
+  }
+
+  async exportShareLinkSelectionLightroom(shareLinkId: string): Promise<void> {
+    const { state } = this.getSelectionSessionForShareId(shareLinkId, true);
+    const session = (state.selectionSessions ?? {})[shareLinkId];
+    if (!session) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+    const content = session.items
+      .map((item) => state.photos.find((entry) => entry.id === item.photo_id)?.filename)
+      .filter((value): value is string => Boolean(value))
+      .join('|');
+    triggerDownload(`selection_${shareLinkId}_lightroom.txt`, content);
+  }
+
+  async exportGallerySelectionSummaryCsv(galleryId: string): Promise<void> {
+    const state = this.getGalleryState(galleryId);
+    const lines = ['sharelink_id,label,selection_status,selected_count'];
+    for (const link of state.shareLinks) {
+      const session = (state.selectionSessions ?? {})[link.id];
+      const status = session?.status ?? 'not_started';
+      const count = session?.selected_count ?? 0;
+      lines.push(`${link.id},${link.label ?? ''},${status},${count}`);
+    }
+    triggerDownload(`gallery_${galleryId}_selection_summary.csv`, lines.join('\n'));
+  }
+
+  async exportGallerySelectionLinksCsv(galleryId: string): Promise<void> {
+    const state = this.getGalleryState(galleryId);
+    const lines = ['sharelink_id,label,public_url,selection_status,selected_count,updated_at'];
+    for (const link of state.shareLinks) {
+      const session = (state.selectionSessions ?? {})[link.id];
+      lines.push(
+        [
+          link.id,
+          link.label ?? '',
+          `${window.location.origin}/share/${link.id}`,
+          session?.status ?? 'not_started',
+          String(session?.selected_count ?? 0),
+          session?.updated_at ?? link.updated_at ?? link.created_at,
+        ].join(','),
+      );
+    }
+    triggerDownload(`gallery_${galleryId}_selection_links.csv`, lines.join('\n'));
   }
 
   async getPublicPhotoUrl(

@@ -13,6 +13,7 @@ from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
 from viewport.s3_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client, get_s3_settings
+from viewport.services.redis_service import RedisService
 from viewport.task_utils import BatchTaskResult, task_db_session
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,9 @@ RETRYABLE_S3_ERROR_CODES = {
     "ThrottlingException",
     "TooManyRequestsException",
 }
+
+SELECTION_SUBMIT_NOTIFY_KEY_PREFIX = "selection:submit:notify:"
+SELECTION_SUBMIT_NOTIFY_TTL_SECONDS = 60 * 60 * 24 * 30
 
 
 class ThumbnailTransientError(Exception):
@@ -637,3 +641,59 @@ def reconcile_successful_uploads_task() -> dict:
     create_thumbnails_batch_task.delay(photos)
     logger.info("Requeued %s successful uploads missing thumbnails/metadata", len(photos))
     return {"requeued_count": len(photos)}
+
+
+@celery_app.task(name="notify_selection_submitted", bind=True, max_retries=3, acks_late=True)
+def notify_selection_submitted_task(self, payload: dict[str, Any]) -> dict[str, Any]:
+    """Send a lightweight submit notification marker for selection completion.
+
+    MVP behavior:
+    - mark the submit event in Redis for observability/idempotency across workers
+    - log the payload so operators can route it to email/Telegram infrastructure
+    """
+    sharelink_id = str(payload.get("sharelink_id") or "")
+    session_id = str(payload.get("session_id") or "")
+    if not sharelink_id or not session_id:
+        raise ValueError("sharelink_id and session_id are required")
+
+    dedupe_key = f"{SELECTION_SUBMIT_NOTIFY_KEY_PREFIX}{session_id}"
+
+    redis_service = None
+    try:
+        redis_service = run_async(RedisService.create())
+        if redis_service and redis_service.is_available:
+            already_seen = run_async(redis_service.get(dedupe_key))
+            if already_seen:
+                logger.info("Selection submit notification already sent for session %s", session_id)
+                return {"sent": False, "deduped": True}
+            run_async(redis_service.set(dedupe_key, datetime.now(UTC).isoformat(), ex=SELECTION_SUBMIT_NOTIFY_TTL_SECONDS))
+    finally:
+        if redis_service is not None:
+            run_async(redis_service.close())
+
+    logger.info(
+        "Selection submitted notification",
+        extra={
+            "sharelink_id": sharelink_id,
+            "session_id": session_id,
+            "client_name": payload.get("client_name"),
+            "client_email": payload.get("client_email"),
+            "selected_count": payload.get("selected_count"),
+            "submitted_at": payload.get("submitted_at"),
+        },
+    )
+    return {"sent": True, "deduped": False}
+
+
+@celery_app.task(name="cleanup_selection_submit_locks")
+def cleanup_selection_submit_locks_task() -> dict[str, int]:
+    """Keep a simple periodic marker for notification lock maintenance."""
+    logger.info("Selection submit lock cleanup heartbeat")
+    return {"cleaned": 0}
+
+
+def run_async(coro: Any) -> Any:
+    """Run async call from sync Celery task context."""
+    import asyncio
+
+    return asyncio.run(coro)

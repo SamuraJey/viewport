@@ -12,6 +12,7 @@ export { useTheme } from './useTheme';
 export { useOnline } from './useOnline';
 export { useGalleryActions } from './useGalleryActions';
 export { usePublicGallery } from './usePublicGallery';
+export { usePublicSelection } from './usePublicSelection';
 export { useDashboardActions } from './useDashboardActions';
 export { useProfileActions } from './useProfileActions';
 export { usePhotoUpload } from './usePhotoUpload';

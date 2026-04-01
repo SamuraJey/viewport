@@ -10,6 +10,7 @@ from viewport.models.db import Base
 
 if TYPE_CHECKING:
     from viewport.models.gallery import Gallery
+    from viewport.models.sharelink_selection import ShareLinkSelectionConfig, ShareLinkSelectionSession
 
 
 class ShareLink(Base):
@@ -27,3 +28,15 @@ class ShareLink(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False)
 
     gallery: Mapped["Gallery"] = relationship("Gallery", back_populates="share_links")
+    selection_config: Mapped["ShareLinkSelectionConfig | None"] = relationship(
+        "ShareLinkSelectionConfig",
+        back_populates="sharelink",
+        uselist=False,
+        passive_deletes=True,
+    )
+    selection_session: Mapped["ShareLinkSelectionSession | None"] = relationship(
+        "ShareLinkSelectionSession",
+        back_populates="sharelink",
+        uselist=False,
+        passive_deletes=True,
+    )
