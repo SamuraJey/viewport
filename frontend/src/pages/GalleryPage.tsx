@@ -6,6 +6,7 @@ import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorM
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import { GalleryHeader } from '../components/gallery/GalleryHeader';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
+import { GallerySelectionSessionsPanel } from '../components/gallery/GallerySelectionSessionsPanel';
 import { GalleryDragOverlay } from '../components/gallery/GalleryDragOverlay';
 import { GalleryPhotoSection } from '../components/gallery/GalleryPhotoSection';
 import {
@@ -15,7 +16,16 @@ import {
 } from '../components/gallery/GalleryPageStates';
 import { type PhotoUploaderHandle } from '../components/PhotoUploader';
 import { usePagination, useSelection, useGalleryActions, useGalleryDragAndDrop } from '../hooks';
-import type { GalleryPhotoSortBy, ShareLink, SortOrder } from '../types';
+import { shareLinkService } from '../services/shareLinkService';
+import { handleApiError } from '../lib/errorHandling';
+import type {
+  GalleryPhotoSortBy,
+  OwnerSelectionDetail,
+  OwnerSelectionRow,
+  SelectionSession,
+  ShareLink,
+  SortOrder,
+} from '../types';
 
 const DEFAULT_SORT_BY: GalleryPhotoSortBy = 'uploaded_at';
 const DEFAULT_SORT_ORDER: SortOrder = 'desc';
@@ -61,6 +71,19 @@ export const GalleryPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingShareLink, setEditingShareLink] = useState<ShareLink | null>(null);
   const [photoSizeById, setPhotoSizeById] = useState<Record<string, number>>({});
+  const [selectionRows, setSelectionRows] = useState<OwnerSelectionRow[]>([]);
+  const [selectedSelectionShareLinkId, setSelectedSelectionShareLinkId] = useState<string | null>(
+    null,
+  );
+  const [selectedSelectionSessionId, setSelectedSelectionSessionId] = useState<string | null>(null);
+  const [selectedSelectionDetail, setSelectedSelectionDetail] =
+    useState<OwnerSelectionDetail | null>(null);
+  const [selectedSelectionSessionDetail, setSelectedSelectionSessionDetail] =
+    useState<SelectionSession | null>(null);
+  const [isLoadingSelectionRows, setIsLoadingSelectionRows] = useState(false);
+  const [isLoadingSelectionDetail, setIsLoadingSelectionDetail] = useState(false);
+  const [isMutatingSelectionSession, setIsMutatingSelectionSession] = useState(false);
+  const [selectionSessionsError, setSelectionSessionsError] = useState('');
   const gridRef = useRef<HTMLDivElement | null>(null);
   const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
   const lastFailedShootingDateSaveRef = useRef<string | null>(null);
@@ -321,12 +344,159 @@ export const GalleryPage = () => {
     );
   }, [photoSizeById, selection.selectedIds]);
 
+  const photoThumbnailById = useMemo(
+    () =>
+      Object.fromEntries(
+        photoUrls.map((photo) => [photo.id, photo.thumbnail_url] as const),
+      ) as Record<string, string>,
+    [photoUrls],
+  );
+
+  const fetchSelectionRows = useCallback(async () => {
+    if (!galleryId) return;
+    setIsLoadingSelectionRows(true);
+    setSelectionSessionsError('');
+    try {
+      const rows = await shareLinkService.getGallerySelections(galleryId);
+      setSelectionRows(rows);
+      setSelectedSelectionShareLinkId((current) => {
+        if (current && rows.some((row) => row.sharelink_id === current)) return current;
+        return rows[0]?.sharelink_id ?? null;
+      });
+    } catch (err) {
+      setSelectionSessionsError(handleApiError(err).message || 'Failed to load selection sessions');
+    } finally {
+      setIsLoadingSelectionRows(false);
+    }
+  }, [galleryId]);
+
+  const fetchSelectionDetailForLink = useCallback(async (shareLinkId: string) => {
+    setIsLoadingSelectionDetail(true);
+    setSelectionSessionsError('');
+    try {
+      const detail = await shareLinkService.getOwnerSelectionDetail(shareLinkId);
+      setSelectedSelectionDetail(detail);
+      setSelectedSelectionSessionId((current) => {
+        if (current && detail.sessions.some((session) => session.id === current)) return current;
+        return detail.session?.id ?? detail.sessions[0]?.id ?? null;
+      });
+    } catch (err) {
+      setSelectedSelectionDetail(null);
+      setSelectedSelectionSessionId(null);
+      setSelectionSessionsError(
+        handleApiError(err).message || 'Failed to load selected share link details',
+      );
+    } finally {
+      setIsLoadingSelectionDetail(false);
+    }
+  }, []);
+
+  const fetchSelectionSessionDetail = useCallback(
+    async (shareLinkId: string, sessionId: string) => {
+      try {
+        const detail = await shareLinkService.getOwnerSelectionSessionDetail(
+          shareLinkId,
+          sessionId,
+        );
+        setSelectedSelectionSessionDetail(detail);
+      } catch (err) {
+        setSelectedSelectionSessionDetail(null);
+        setSelectionSessionsError(
+          handleApiError(err).message || 'Failed to load selection session',
+        );
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     // Determine if this is the initial load (no gallery data yet)
     const isInitial = gallery === null;
     fetchGalleryDetails(pagination.page, isInitial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagination.page, galleryId, activeSearch, sortBy, sortOrder]);
+
+  useEffect(() => {
+    if (shareLinks.length === 0) {
+      setSelectionRows([]);
+      setSelectedSelectionShareLinkId(null);
+      setSelectedSelectionSessionId(null);
+      setSelectedSelectionDetail(null);
+      setSelectedSelectionSessionDetail(null);
+      return;
+    }
+    void fetchSelectionRows();
+  }, [fetchSelectionRows, shareLinks]);
+
+  useEffect(() => {
+    if (!selectedSelectionShareLinkId) {
+      setSelectedSelectionDetail(null);
+      setSelectedSelectionSessionId(null);
+      setSelectedSelectionSessionDetail(null);
+      return;
+    }
+    void fetchSelectionDetailForLink(selectedSelectionShareLinkId);
+  }, [fetchSelectionDetailForLink, selectedSelectionShareLinkId]);
+
+  useEffect(() => {
+    if (!selectedSelectionShareLinkId || !selectedSelectionSessionId) {
+      setSelectedSelectionSessionDetail(null);
+      return;
+    }
+    void fetchSelectionSessionDetail(selectedSelectionShareLinkId, selectedSelectionSessionId);
+  }, [fetchSelectionSessionDetail, selectedSelectionSessionId, selectedSelectionShareLinkId]);
+
+  const handleCloseSelectionSession = useCallback(
+    async (sessionId: string) => {
+      if (!selectedSelectionShareLinkId) return;
+      setIsMutatingSelectionSession(true);
+      setSelectionSessionsError('');
+      try {
+        await shareLinkService.closeOwnerSelectionSession(selectedSelectionShareLinkId, sessionId);
+        await fetchSelectionRows();
+        await fetchSelectionDetailForLink(selectedSelectionShareLinkId);
+        await fetchSelectionSessionDetail(selectedSelectionShareLinkId, sessionId);
+      } catch (err) {
+        setSelectionSessionsError(
+          handleApiError(err).message || 'Failed to close selection session',
+        );
+      } finally {
+        setIsMutatingSelectionSession(false);
+      }
+    },
+    [
+      fetchSelectionDetailForLink,
+      fetchSelectionRows,
+      fetchSelectionSessionDetail,
+      selectedSelectionShareLinkId,
+    ],
+  );
+
+  const handleReopenSelectionSession = useCallback(
+    async (sessionId: string) => {
+      if (!selectedSelectionShareLinkId) return;
+      setIsMutatingSelectionSession(true);
+      setSelectionSessionsError('');
+      try {
+        await shareLinkService.reopenOwnerSelectionSession(selectedSelectionShareLinkId, sessionId);
+        await fetchSelectionRows();
+        await fetchSelectionDetailForLink(selectedSelectionShareLinkId);
+        await fetchSelectionSessionDetail(selectedSelectionShareLinkId, sessionId);
+      } catch (err) {
+        setSelectionSessionsError(
+          handleApiError(err).message || 'Failed to reopen selection session',
+        );
+      } finally {
+        setIsMutatingSelectionSession(false);
+      }
+    },
+    [
+      fetchSelectionDetailForLink,
+      fetchSelectionRows,
+      fetchSelectionSessionDetail,
+      selectedSelectionShareLinkId,
+    ],
+  );
 
   useEffect(() => {
     if (!isInitialLoading) {
@@ -642,6 +812,31 @@ export const GalleryPage = () => {
           onOpenLinkAnalytics={(linkId) => navigate(`/share-links/${linkId}`)}
           onOpenDashboard={() => navigate('/share-links')}
           onDeleteLink={handleDeleteShareLink}
+        />
+
+        <GallerySelectionSessionsPanel
+          shareLinks={shareLinks}
+          rows={selectionRows}
+          selectedShareLinkId={selectedSelectionShareLinkId}
+          selectedSessionId={selectedSelectionSessionId}
+          detail={selectedSelectionDetail}
+          sessionDetail={selectedSelectionSessionDetail}
+          thumbnailByPhotoId={photoThumbnailById}
+          isLoadingRows={isLoadingSelectionRows}
+          isLoadingDetail={isLoadingSelectionDetail}
+          isMutating={isMutatingSelectionSession}
+          error={selectionSessionsError}
+          onSelectShareLink={setSelectedSelectionShareLinkId}
+          onSelectSession={setSelectedSelectionSessionId}
+          onCloseSession={(sessionId) => {
+            void handleCloseSelectionSession(sessionId);
+          }}
+          onReopenSession={(sessionId) => {
+            void handleReopenSelectionSession(sessionId);
+          }}
+          onRefresh={() => {
+            void fetchSelectionRows();
+          }}
         />
       </div>
 

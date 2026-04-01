@@ -6,6 +6,8 @@ vi.mock('../../lib/api', () => ({
   api: {
     get: vi.fn(),
     post: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
     delete: vi.fn(),
   },
 }));
@@ -85,5 +87,64 @@ describe('shareLinkService', () => {
     expect(api.get).toHaveBeenNthCalledWith(2, '/s/share123/photos/urls');
     expect(urlResponse).toEqual({ url: '/photo.jpg', expires_in: 60 });
     expect(batchResponse).toEqual([{ photo_id: 'p1', full_url: '/p1' }]);
+  });
+
+  it('fetches public selection session with resume token query', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { id: 'session-1' } } as any);
+
+    const result = await shareLinkService.getPublicSelectionSession('share123', 'resume-token');
+
+    expect(api.get).toHaveBeenCalledWith(
+      '/s/share123/selection/session/me?resume_token=resume-token',
+    );
+    expect(result).toEqual({ id: 'session-1' });
+  });
+
+  it('toggles public selection item with resume token query', async () => {
+    vi.mocked(api.put).mockResolvedValue({ data: { selected: true, selected_count: 1 } } as any);
+
+    const result = await shareLinkService.togglePublicSelectionItem(
+      'share123',
+      'photo-1',
+      'resume-token',
+    );
+
+    expect(api.put).toHaveBeenCalledWith(
+      '/s/share123/selection/session/items/photo-1?resume_token=resume-token',
+    );
+    expect(result).toEqual({ selected: true, selected_count: 1 });
+  });
+
+  it('fetches owner selection detail', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { sharelink_id: 's1', sessions: [] } } as any);
+
+    const result = await shareLinkService.getOwnerSelectionDetail('s1');
+
+    expect(api.get).toHaveBeenCalledWith('/share-links/s1/selection');
+    expect(result).toEqual({ sharelink_id: 's1', sessions: [] });
+  });
+
+  it('fetches and mutates owner selection session endpoints', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { id: 'session-1' } } as any);
+    vi.mocked(api.post)
+      .mockResolvedValueOnce({ data: { id: 'session-1', status: 'closed' } } as any)
+      .mockResolvedValueOnce({ data: { id: 'session-1', status: 'in_progress' } } as any);
+
+    const detail = await shareLinkService.getOwnerSelectionSessionDetail('s1', 'session-1');
+    const closed = await shareLinkService.closeOwnerSelectionSession('s1', 'session-1');
+    const reopened = await shareLinkService.reopenOwnerSelectionSession('s1', 'session-1');
+
+    expect(api.get).toHaveBeenCalledWith('/share-links/s1/selection/sessions/session-1');
+    expect(api.post).toHaveBeenNthCalledWith(
+      1,
+      '/share-links/s1/selection/sessions/session-1/close',
+    );
+    expect(api.post).toHaveBeenNthCalledWith(
+      2,
+      '/share-links/s1/selection/sessions/session-1/reopen',
+    );
+    expect(detail).toEqual({ id: 'session-1' });
+    expect(closed).toEqual({ id: 'session-1', status: 'closed' });
+    expect(reopened).toEqual({ id: 'session-1', status: 'in_progress' });
   });
 });

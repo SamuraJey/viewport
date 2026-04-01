@@ -46,7 +46,7 @@ interface DemoGalleryState {
   photos: GalleryPhoto[];
   shareLinks: ShareLink[];
   selectionConfigs?: Record<string, SelectionConfig>;
-  selectionSessions?: Record<string, SelectionSession>;
+  selectionSessions?: Record<string, SelectionSession[]>;
 }
 
 interface DemoPersistedState {
@@ -56,6 +56,7 @@ interface DemoPersistedState {
 
 const DEMO_OWNER_ID = 'demo-user-1';
 const DEMO_STATE_STORAGE_KEY = 'viewport-demo-state-v1';
+const DEMO_ACTIVE_SELECTION_SESSION_STORAGE_KEY = 'viewport-demo-selection-active-sessions-v1';
 
 const makeDemoId = (): string => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -66,6 +67,46 @@ const makeDemoId = (): string => {
 };
 
 const nowIso = (): string => new Date().toISOString();
+
+const getStoredActiveSelectionSessions = (): Record<string, string> => {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(DEMO_ACTIVE_SELECTION_SESSION_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    if (!parsed || typeof parsed !== 'object') return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+};
+
+const setStoredActiveSelectionSession = (shareId: string, resumeToken?: string | null): void => {
+  if (typeof window === 'undefined') return;
+  const current = getStoredActiveSelectionSessions();
+  if (resumeToken && resumeToken.trim().length > 0) {
+    current[shareId] = resumeToken.trim();
+  } else {
+    delete current[shareId];
+  }
+  window.localStorage.setItem(DEMO_ACTIVE_SELECTION_SESSION_STORAGE_KEY, JSON.stringify(current));
+};
+
+const normalizeSelectionSessionMap = (
+  sessionMap: DemoGalleryState['selectionSessions'],
+): Record<string, SelectionSession[]> => {
+  return Object.fromEntries(
+    Object.entries(sessionMap ?? {}).map(([shareId, value]) => {
+      if (Array.isArray(value)) {
+        return [shareId, value];
+      }
+      if (value && typeof value === 'object') {
+        return [shareId, [value as unknown as SelectionSession]];
+      }
+      return [shareId, []];
+    }),
+  );
+};
 
 const defaultSelectionConfig = (): SelectionConfig => ({
   is_enabled: false,
@@ -272,7 +313,10 @@ class DemoServiceStore {
 
   constructor() {
     const restored = this.restoreState();
-    this.galleries = restored?.galleries || seedState();
+    this.galleries = (restored?.galleries || seedState()).map((galleryState) => ({
+      ...galleryState,
+      selectionSessions: normalizeSelectionSessionMap(galleryState.selectionSessions),
+    }));
     this.user = restored?.user || { ...demoUser };
     this.recalculateStorageUsed();
     if (isDemoModeEnabled()) {
@@ -358,21 +402,57 @@ class DemoServiceStore {
 
   private getSelectionSessionForShareId(
     shareId: string,
-    mustExist = true,
+    options?: {
+      mustExist?: boolean;
+      resumeToken?: string;
+      sessionId?: string;
+      useStoredToken?: boolean;
+    },
   ): {
     state: DemoGalleryState;
     link: ShareLink;
     config: SelectionConfig;
+    sessions: SelectionSession[];
     session: SelectionSession | null;
   } {
     const { state, link, config } = this.getSelectionConfigForShareId(shareId);
     state.selectionSessions = state.selectionSessions ?? {};
-    const session = state.selectionSessions[shareId] ?? null;
+    const sessions = [...(state.selectionSessions[shareId] ?? [])].sort(
+      (left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at),
+    );
+
+    const { mustExist = true, resumeToken, sessionId, useStoredToken = true } = options ?? {};
+    const resolvedToken =
+      resumeToken && resumeToken.trim().length > 0
+        ? resumeToken.trim()
+        : useStoredToken
+          ? getStoredActiveSelectionSessions()[shareId]
+          : undefined;
+
+    let session: SelectionSession | null = null;
+    if (sessionId) {
+      session = sessions.find((entry) => entry.id === sessionId) ?? null;
+    } else if (resolvedToken && resolvedToken.length > 0) {
+      session = sessions.find((entry) => entry.resume_token === resolvedToken) ?? null;
+      if (!session) {
+        throw this.createNotFoundError('Selection session not found');
+      }
+    } else {
+      session = sessions[0] ?? null;
+    }
 
     if (mustExist && !session) {
       throw this.createNotFoundError('Selection session not found');
     }
-    return { state, link, config, session };
+    return { state, link, config, sessions, session };
+  }
+
+  private getSelectionRollupStatus(sessions: SelectionSession[]): string {
+    if (sessions.length === 0) return 'not_started';
+    if (sessions.some((session) => session.status === 'submitted')) return 'submitted';
+    if (sessions.some((session) => session.status === 'in_progress')) return 'in_progress';
+    if (sessions.some((session) => session.status === 'closed')) return 'closed';
+    return 'not_started';
   }
 
   private ensureSelectionMutable(session: SelectionSession): void {
@@ -679,6 +759,7 @@ class DemoServiceStore {
     state.selectionConfigs = state.selectionConfigs ?? {};
     state.selectionConfigs[link.id] = defaultSelectionConfig();
     state.selectionSessions = state.selectionSessions ?? {};
+    state.selectionSessions[link.id] = state.selectionSessions[link.id] ?? [];
     this.persistState();
     return { ...link };
   }
@@ -722,6 +803,7 @@ class DemoServiceStore {
     if (state.selectionSessions) {
       delete state.selectionSessions[shareLinkId];
     }
+    setStoredActiveSelectionSession(shareLinkId, null);
     this.persistState();
   }
 
@@ -928,9 +1010,13 @@ class DemoServiceStore {
     }
 
     state.selectionSessions = state.selectionSessions ?? {};
-    const existing = state.selectionSessions[shareId];
-    if (existing) {
-      throw this.createConflictError('Selection session already exists for this share link');
+    const sessions = state.selectionSessions[shareId] ?? [];
+    const existingToken = getStoredActiveSelectionSessions()[shareId];
+    if (existingToken && existingToken.trim().length > 0) {
+      const existing = sessions.find((entry) => entry.resume_token === existingToken.trim());
+      if (existing) {
+        return { ...existing, items: [...existing.items] };
+      }
     }
 
     const clientName = payload.client_name?.trim();
@@ -969,7 +1055,9 @@ class DemoServiceStore {
       items: [],
     };
 
-    state.selectionSessions[shareId] = session;
+    sessions.unshift(session);
+    state.selectionSessions[shareId] = sessions;
+    setStoredActiveSelectionSession(shareId, session.resume_token);
     this.persistState();
     return { ...session, items: [...session.items] };
   }
@@ -978,18 +1066,19 @@ class DemoServiceStore {
     shareId: string,
     resumeToken?: string,
   ): Promise<SelectionSession> {
-    const { session } = this.getSelectionSessionForShareId(shareId, true);
+    const fallbackToken = getStoredActiveSelectionSessions()[shareId];
+    if ((!resumeToken || resumeToken.trim().length === 0) && !fallbackToken) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+    const { session } = this.getSelectionSessionForShareId(shareId, {
+      mustExist: true,
+      resumeToken,
+      useStoredToken: true,
+    });
     if (!session) {
       throw this.createNotFoundError('Selection session not found');
     }
-    if (
-      resumeToken &&
-      session.resume_token &&
-      resumeToken.trim().length > 0 &&
-      resumeToken.trim() !== session.resume_token
-    ) {
-      throw this.createNotFoundError('Selection session not found');
-    }
+    setStoredActiveSelectionSession(shareId, session.resume_token);
     return { ...session, items: [...session.items] };
   }
 
@@ -998,22 +1087,16 @@ class DemoServiceStore {
     photoId: string,
     resumeToken?: string,
   ): Promise<SelectionToggleResponse> {
-    const { state, config, session } = this.getSelectionSessionForShareId(shareId, true);
+    const { state, config, session } = this.getSelectionSessionForShareId(shareId, {
+      mustExist: true,
+      resumeToken,
+    });
     if (!config.is_enabled) {
       throw this.createNotFoundError('Selection is not enabled');
     }
     if (!session) {
       throw this.createNotFoundError('Selection session not found');
     }
-    if (
-      resumeToken &&
-      session.resume_token &&
-      resumeToken.trim().length > 0 &&
-      resumeToken.trim() !== session.resume_token
-    ) {
-      throw this.createNotFoundError('Selection session not found');
-    }
-
     this.ensureSelectionMutable(session);
     const photoExists = state.photos.some((photo) => photo.id === photoId);
     if (!photoExists) {
@@ -1059,7 +1142,10 @@ class DemoServiceStore {
     payload: SelectionPhotoCommentRequest,
     resumeToken?: string,
   ): Promise<SelectionSession['items'][number]> {
-    const { config, session } = this.getSelectionSessionForShareId(shareId, true);
+    const { config, session } = this.getSelectionSessionForShareId(shareId, {
+      mustExist: true,
+      resumeToken,
+    });
     if (!config.is_enabled) {
       throw this.createNotFoundError('Selection is not enabled');
     }
@@ -1071,15 +1157,6 @@ class DemoServiceStore {
     if (!session) {
       throw this.createNotFoundError('Selection session not found');
     }
-    if (
-      resumeToken &&
-      session.resume_token &&
-      resumeToken.trim().length > 0 &&
-      resumeToken.trim() !== session.resume_token
-    ) {
-      throw this.createNotFoundError('Selection session not found');
-    }
-
     this.ensureSelectionMutable(session);
     const item = session.items.find((entry) => entry.photo_id === photoId);
     if (!item) {
@@ -1099,22 +1176,16 @@ class DemoServiceStore {
     payload: SelectionSessionUpdateRequest,
     resumeToken?: string,
   ): Promise<SelectionSession> {
-    const { config, session } = this.getSelectionSessionForShareId(shareId, true);
+    const { config, session } = this.getSelectionSessionForShareId(shareId, {
+      mustExist: true,
+      resumeToken,
+    });
     if (!config.is_enabled) {
       throw this.createNotFoundError('Selection is not enabled');
     }
     if (!session) {
       throw this.createNotFoundError('Selection session not found');
     }
-    if (
-      resumeToken &&
-      session.resume_token &&
-      resumeToken.trim().length > 0 &&
-      resumeToken.trim() !== session.resume_token
-    ) {
-      throw this.createNotFoundError('Selection session not found');
-    }
-
     this.ensureSelectionMutable(session);
     const normalizedNote = payload.client_note?.trim() || null;
     if (config.require_client_note && !normalizedNote) {
@@ -1132,22 +1203,16 @@ class DemoServiceStore {
     shareId: string,
     resumeToken?: string,
   ): Promise<SelectionSubmitResponse> {
-    const { config, session } = this.getSelectionSessionForShareId(shareId, true);
+    const { config, session } = this.getSelectionSessionForShareId(shareId, {
+      mustExist: true,
+      resumeToken,
+    });
     if (!config.is_enabled) {
       throw this.createNotFoundError('Selection is not enabled');
     }
     if (!session) {
       throw this.createNotFoundError('Selection session not found');
     }
-    if (
-      resumeToken &&
-      session.resume_token &&
-      resumeToken.trim().length > 0 &&
-      resumeToken.trim() !== session.resume_token
-    ) {
-      throw this.createNotFoundError('Selection session not found');
-    }
-
     if (session.status === 'closed') {
       throw this.createConflictError('Selection is closed by photographer');
     }
@@ -1238,17 +1303,65 @@ class DemoServiceStore {
 
   async getOwnerSelectionDetail(shareLinkId: string): Promise<OwnerSelectionDetail> {
     const { state, link, config } = this.getSelectionConfigForShareId(shareLinkId);
-    const session = (state.selectionSessions ?? {})[shareLinkId] ?? null;
+    const sessions = [...((state.selectionSessions ?? {})[shareLinkId] ?? [])].sort(
+      (left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at),
+    );
+    const session = sessions[0] ?? null;
+    const submittedSessions = sessions.filter((entry) => entry.status === 'submitted').length;
+    const inProgressSessions = sessions.filter((entry) => entry.status === 'in_progress').length;
+    const closedSessions = sessions.filter((entry) => entry.status === 'closed').length;
+    const selectedCount = sessions.reduce((sum, entry) => sum + (entry.selected_count || 0), 0);
+    const latestActivity =
+      sessions.length > 0
+        ? sessions
+            .map((entry) => Date.parse(entry.updated_at))
+            .filter((value) => !Number.isNaN(value))
+            .sort((left, right) => right - left)[0]
+        : null;
+
+    const withPhotoDisplayName = (entry: SelectionSession): SelectionSession => ({
+      ...entry,
+      items: entry.items.map((item) => ({
+        ...item,
+        photo_display_name:
+          state.photos.find((photo) => photo.id === item.photo_id)?.filename ?? null,
+      })),
+    });
+
     return {
       sharelink_id: link.id,
       sharelink_label: link.label ?? null,
       config: { ...config },
-      session: session ? { ...session, items: [...session.items] } : null,
+      aggregate: {
+        total_sessions: sessions.length,
+        submitted_sessions: submittedSessions,
+        in_progress_sessions: inProgressSessions,
+        closed_sessions: closedSessions,
+        selected_count: selectedCount,
+        latest_activity_at: latestActivity !== null ? new Date(latestActivity).toISOString() : null,
+      },
+      sessions: sessions.map((entry) => ({
+        id: entry.id,
+        status: entry.status,
+        client_name: entry.client_name,
+        client_email: entry.client_email,
+        client_phone: entry.client_phone,
+        client_note: entry.client_note,
+        selected_count: entry.selected_count,
+        submitted_at: entry.submitted_at,
+        last_activity_at: entry.last_activity_at,
+        created_at: entry.created_at,
+        updated_at: entry.updated_at,
+      })),
+      session: session ? withPhotoDisplayName(session) : null,
     };
   }
 
   async closeOwnerSelection(shareLinkId: string): Promise<SelectionSession> {
-    const { state, session } = this.getSelectionSessionForShareId(shareLinkId, true);
+    const { state, session } = this.getSelectionSessionForShareId(shareLinkId, {
+      mustExist: true,
+      useStoredToken: false,
+    });
     if (!session) {
       throw this.createNotFoundError('Selection session not found');
     }
@@ -1258,13 +1371,18 @@ class DemoServiceStore {
     session.updated_at = now;
     session.last_activity_at = now;
     state.selectionSessions = state.selectionSessions ?? {};
-    state.selectionSessions[shareLinkId] = session;
+    state.selectionSessions[shareLinkId] = (state.selectionSessions[shareLinkId] ?? []).map(
+      (entry) => (entry.id === session.id ? session : entry),
+    );
     this.persistState();
     return { ...session, items: [...session.items] };
   }
 
   async reopenOwnerSelection(shareLinkId: string): Promise<SelectionSession> {
-    const { state, session } = this.getSelectionSessionForShareId(shareLinkId, true);
+    const { state, session } = this.getSelectionSessionForShareId(shareLinkId, {
+      mustExist: true,
+      useStoredToken: false,
+    });
     if (!session) {
       throw this.createNotFoundError('Selection session not found');
     }
@@ -1274,7 +1392,79 @@ class DemoServiceStore {
     session.updated_at = now;
     session.last_activity_at = now;
     state.selectionSessions = state.selectionSessions ?? {};
-    state.selectionSessions[shareLinkId] = session;
+    state.selectionSessions[shareLinkId] = (state.selectionSessions[shareLinkId] ?? []).map(
+      (entry) => (entry.id === session.id ? session : entry),
+    );
+    this.persistState();
+    return { ...session, items: [...session.items] };
+  }
+
+  async getOwnerSelectionSessionDetail(
+    shareLinkId: string,
+    sessionId: string,
+  ): Promise<SelectionSession> {
+    const { state, session } = this.getSelectionSessionForShareId(shareLinkId, {
+      mustExist: true,
+      sessionId,
+      useStoredToken: false,
+    });
+    if (!session) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+    return {
+      ...session,
+      items: session.items.map((item) => ({
+        ...item,
+        photo_display_name:
+          state.photos.find((photo) => photo.id === item.photo_id)?.filename ?? null,
+      })),
+    };
+  }
+
+  async closeOwnerSelectionSession(
+    shareLinkId: string,
+    sessionId: string,
+  ): Promise<SelectionSession> {
+    const { state, session } = this.getSelectionSessionForShareId(shareLinkId, {
+      mustExist: true,
+      sessionId,
+      useStoredToken: false,
+    });
+    if (!session) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+    const now = nowIso();
+    session.status = 'closed';
+    session.updated_at = now;
+    session.last_activity_at = now;
+    state.selectionSessions = state.selectionSessions ?? {};
+    state.selectionSessions[shareLinkId] = (state.selectionSessions[shareLinkId] ?? []).map(
+      (entry) => (entry.id === session.id ? session : entry),
+    );
+    this.persistState();
+    return { ...session, items: [...session.items] };
+  }
+
+  async reopenOwnerSelectionSession(
+    shareLinkId: string,
+    sessionId: string,
+  ): Promise<SelectionSession> {
+    const { state, session } = this.getSelectionSessionForShareId(shareLinkId, {
+      mustExist: true,
+      sessionId,
+      useStoredToken: false,
+    });
+    if (!session) {
+      throw this.createNotFoundError('Selection session not found');
+    }
+    const now = nowIso();
+    session.status = 'in_progress';
+    session.updated_at = now;
+    session.last_activity_at = now;
+    state.selectionSessions = state.selectionSessions ?? {};
+    state.selectionSessions[shareLinkId] = (state.selectionSessions[shareLinkId] ?? []).map(
+      (entry) => (entry.id === session.id ? session : entry),
+    );
     this.persistState();
     return { ...session, items: [...session.items] };
   }
@@ -1283,16 +1473,41 @@ class DemoServiceStore {
     const state = this.getGalleryState(galleryId);
     return state.shareLinks
       .map((link) => {
-        const session = (state.selectionSessions ?? {})[link.id] ?? null;
+        const sessions = [...((state.selectionSessions ?? {})[link.id] ?? [])].sort(
+          (left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at),
+        );
+        const latestSession = sessions[0] ?? null;
+        const submittedSessions = sessions.filter((entry) => entry.status === 'submitted').length;
+        const inProgressSessions = sessions.filter(
+          (entry) => entry.status === 'in_progress',
+        ).length;
+        const closedSessions = sessions.filter((entry) => entry.status === 'closed').length;
+        const selectedCount = sessions.reduce((sum, entry) => sum + (entry.selected_count || 0), 0);
+
+        const latestUpdatedAt =
+          sessions.length > 0
+            ? sessions
+                .map((entry) => Date.parse(entry.updated_at))
+                .filter((value) => !Number.isNaN(value))
+                .sort((left, right) => right - left)[0]
+            : null;
+
         return {
           sharelink_id: link.id,
           sharelink_label: link.label ?? null,
-          session_id: session?.id ?? null,
-          status: session?.status ?? null,
-          client_name: session?.client_name ?? null,
-          selected_count: session?.selected_count ?? 0,
-          submitted_at: session?.submitted_at ?? null,
-          updated_at: session?.updated_at ?? link.updated_at ?? link.created_at,
+          session_id: latestSession?.id ?? null,
+          status: sessions.length > 0 ? this.getSelectionRollupStatus(sessions) : null,
+          client_name: latestSession?.client_name ?? null,
+          selected_count: selectedCount,
+          session_count: sessions.length,
+          submitted_sessions: submittedSessions,
+          in_progress_sessions: inProgressSessions,
+          closed_sessions: closedSessions,
+          submitted_at: latestSession?.submitted_at ?? null,
+          updated_at:
+            latestUpdatedAt !== null
+              ? new Date(latestUpdatedAt).toISOString()
+              : (link.updated_at ?? link.created_at),
         };
       })
       .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
@@ -1304,13 +1519,14 @@ class DemoServiceStore {
     let affected = 0;
     const now = nowIso();
     for (const link of state.shareLinks) {
-      const session = state.selectionSessions[link.id];
-      if (!session) continue;
-      if (session.status === 'closed') continue;
-      session.status = 'closed';
-      session.updated_at = now;
-      session.last_activity_at = now;
-      affected += 1;
+      const sessions = state.selectionSessions[link.id] ?? [];
+      for (const session of sessions) {
+        if (session.status === 'closed') continue;
+        session.status = 'closed';
+        session.updated_at = now;
+        session.last_activity_at = now;
+        affected += 1;
+      }
     }
     this.persistState();
     return { affected_count: affected };
@@ -1322,41 +1538,47 @@ class DemoServiceStore {
     let affected = 0;
     const now = nowIso();
     for (const link of state.shareLinks) {
-      const session = state.selectionSessions[link.id];
-      if (!session) continue;
-      if (session.status !== 'closed') continue;
-      session.status = 'in_progress';
-      session.updated_at = now;
-      session.last_activity_at = now;
-      affected += 1;
+      const sessions = state.selectionSessions[link.id] ?? [];
+      for (const session of sessions) {
+        if (session.status !== 'closed') continue;
+        session.status = 'in_progress';
+        session.updated_at = now;
+        session.last_activity_at = now;
+        affected += 1;
+      }
     }
     this.persistState();
     return { affected_count: affected };
   }
 
   async exportShareLinkSelectionFilesCsv(shareLinkId: string): Promise<void> {
-    const { state } = this.getSelectionSessionForShareId(shareLinkId, true);
-    const session = (state.selectionSessions ?? {})[shareLinkId];
-    if (!session) {
+    const { state, sessions } = this.getSelectionSessionForShareId(shareLinkId, {
+      mustExist: false,
+    });
+    if (sessions.length === 0) {
       throw this.createNotFoundError('Selection session not found');
     }
     const lines = ['filename,comment'];
-    for (const item of session.items) {
-      const photo = state.photos.find((entry) => entry.id === item.photo_id);
-      if (!photo) continue;
-      const escapedComment = (item.comment || '').replaceAll('"', '""');
-      lines.push(`${photo.filename},"${escapedComment}"`);
+    for (const session of sessions) {
+      for (const item of session.items) {
+        const photo = state.photos.find((entry) => entry.id === item.photo_id);
+        if (!photo) continue;
+        const escapedComment = (item.comment || '').replaceAll('"', '""');
+        lines.push(`${photo.filename},"${escapedComment}"`);
+      }
     }
     triggerDownload(`selection_${shareLinkId}_files.csv`, lines.join('\n'));
   }
 
   async exportShareLinkSelectionLightroom(shareLinkId: string): Promise<void> {
-    const { state } = this.getSelectionSessionForShareId(shareLinkId, true);
-    const session = (state.selectionSessions ?? {})[shareLinkId];
-    if (!session) {
+    const { state, sessions } = this.getSelectionSessionForShareId(shareLinkId, {
+      mustExist: false,
+    });
+    if (sessions.length === 0) {
       throw this.createNotFoundError('Selection session not found');
     }
-    const content = session.items
+    const content = sessions
+      .flatMap((session) => session.items)
       .map((item) => state.photos.find((entry) => entry.id === item.photo_id)?.filename)
       .filter((value): value is string => Boolean(value))
       .join('|');
@@ -1367,9 +1589,9 @@ class DemoServiceStore {
     const state = this.getGalleryState(galleryId);
     const lines = ['sharelink_id,label,selection_status,selected_count'];
     for (const link of state.shareLinks) {
-      const session = (state.selectionSessions ?? {})[link.id];
-      const status = session?.status ?? 'not_started';
-      const count = session?.selected_count ?? 0;
+      const sessions = (state.selectionSessions ?? {})[link.id] ?? [];
+      const status = this.getSelectionRollupStatus(sessions);
+      const count = sessions.reduce((sum, entry) => sum + (entry.selected_count || 0), 0);
       lines.push(`${link.id},${link.label ?? ''},${status},${count}`);
     }
     triggerDownload(`gallery_${galleryId}_selection_summary.csv`, lines.join('\n'));
@@ -1379,15 +1601,25 @@ class DemoServiceStore {
     const state = this.getGalleryState(galleryId);
     const lines = ['sharelink_id,label,public_url,selection_status,selected_count,updated_at'];
     for (const link of state.shareLinks) {
-      const session = (state.selectionSessions ?? {})[link.id];
+      const sessions = (state.selectionSessions ?? {})[link.id] ?? [];
+      const selectedCount = sessions.reduce((sum, entry) => sum + (entry.selected_count || 0), 0);
+      const latestUpdatedAt =
+        sessions.length > 0
+          ? sessions
+              .map((entry) => Date.parse(entry.updated_at))
+              .filter((value) => !Number.isNaN(value))
+              .sort((left, right) => right - left)[0]
+          : null;
       lines.push(
         [
           link.id,
           link.label ?? '',
           `${window.location.origin}/share/${link.id}`,
-          session?.status ?? 'not_started',
-          String(session?.selected_count ?? 0),
-          session?.updated_at ?? link.updated_at ?? link.created_at,
+          this.getSelectionRollupStatus(sessions),
+          String(selectedCount),
+          latestUpdatedAt !== null
+            ? new Date(latestUpdatedAt).toISOString()
+            : (link.updated_at ?? link.created_at),
         ].join(','),
       );
     }

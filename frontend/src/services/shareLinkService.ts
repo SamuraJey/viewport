@@ -396,6 +396,48 @@ const reopenOwnerSelection = async (shareLinkId: string): Promise<SelectionSessi
   return response.data;
 };
 
+const getOwnerSelectionSessionDetail = async (
+  shareLinkId: string,
+  sessionId: string,
+): Promise<SelectionSession> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getOwnerSelectionSessionDetail(shareLinkId, sessionId);
+  }
+
+  const response = await api.get<SelectionSession>(
+    `/share-links/${shareLinkId}/selection/sessions/${sessionId}`,
+  );
+  return response.data;
+};
+
+const closeOwnerSelectionSession = async (
+  shareLinkId: string,
+  sessionId: string,
+): Promise<SelectionSession> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().closeOwnerSelectionSession(shareLinkId, sessionId);
+  }
+
+  const response = await api.post<SelectionSession>(
+    `/share-links/${shareLinkId}/selection/sessions/${sessionId}/close`,
+  );
+  return response.data;
+};
+
+const reopenOwnerSelectionSession = async (
+  shareLinkId: string,
+  sessionId: string,
+): Promise<SelectionSession> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().reopenOwnerSelectionSession(shareLinkId, sessionId);
+  }
+
+  const response = await api.post<SelectionSession>(
+    `/share-links/${shareLinkId}/selection/sessions/${sessionId}/reopen`,
+  );
+  return response.data;
+};
+
 const getGallerySelections = async (galleryId: string): Promise<OwnerSelectionRow[]> => {
   if (isDemoModeEnabled()) {
     return getDemoService().getGallerySelections(galleryId);
@@ -497,6 +539,9 @@ export const shareLinkService = {
   getOwnerSelectionDetail,
   closeOwnerSelection,
   reopenOwnerSelection,
+  getOwnerSelectionSessionDetail,
+  closeOwnerSelectionSession,
+  reopenOwnerSelectionSession,
   getGallerySelections,
   closeAllGallerySelections,
   openAllGallerySelections,

@@ -44,10 +44,9 @@ class ShareLinkSelectionConfig(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
     sharelink: Mapped["ShareLink"] = relationship("ShareLink", back_populates="selection_config")
-    session: Mapped["ShareLinkSelectionSession | None"] = relationship(
+    sessions: Mapped[list["ShareLinkSelectionSession"]] = relationship(
         "ShareLinkSelectionSession",
         back_populates="config",
-        uselist=False,
         passive_deletes=True,
     )
 
@@ -67,7 +66,7 @@ class ShareLinkSelectionSession(Base):
         UUID(as_uuid=True),
         ForeignKey("share_links.id", ondelete="CASCADE"),
         nullable=False,
-        unique=True,
+        index=True,
     )
     config_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -86,8 +85,8 @@ class ShareLinkSelectionSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC))
 
-    sharelink: Mapped["ShareLink"] = relationship("ShareLink", back_populates="selection_session")
-    config: Mapped["ShareLinkSelectionConfig"] = relationship("ShareLinkSelectionConfig", back_populates="session")
+    sharelink: Mapped["ShareLink"] = relationship("ShareLink", back_populates="selection_sessions")
+    config: Mapped["ShareLinkSelectionConfig"] = relationship("ShareLinkSelectionConfig", back_populates="sessions")
     items: Mapped[list["ShareLinkSelectionItem"]] = relationship(
         "ShareLinkSelectionItem",
         back_populates="session",

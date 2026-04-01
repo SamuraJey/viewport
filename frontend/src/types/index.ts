@@ -60,6 +60,8 @@ export type {
   SelectionToggleResponse,
   SelectionSubmitResponse,
   OwnerSelectionRow,
+  OwnerSelectionAggregate,
+  OwnerSelectionSessionListItem,
   OwnerSelectionDetail,
   BulkSelectionActionResponse,
 } from './sharelink';

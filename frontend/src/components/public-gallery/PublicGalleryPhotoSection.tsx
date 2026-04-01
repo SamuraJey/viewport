@@ -4,6 +4,7 @@ import { LazyImage } from '../LazyImage';
 import { PublicGalleryGridControls } from './PublicGalleryGridControls';
 import type { PublicGridDensity, PublicGridLayout } from '../../hooks/usePublicGalleryGrid';
 import type { PublicPhoto } from '../../services/shareLinkService';
+import type { SelectionSession } from '../../types';
 
 interface PublicGalleryPhotoSectionProps {
   photos: PublicPhoto[];
@@ -34,6 +35,7 @@ interface PublicGalleryPhotoSectionProps {
     selectedOnly: boolean;
     canMutate: boolean;
     allowPhotoComments: boolean;
+    session: SelectionSession | null;
     commentsByPhotoId: Record<string, string | null>;
     onToggleSelectedOnly: () => void;
     onTogglePhoto: (photoId: string) => void;
@@ -91,11 +93,10 @@ export const PublicGalleryPhotoSection = ({
             <button
               type="button"
               onClick={selection.onToggleSelectedOnly}
-              className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
-                selection.selectedOnly
+              className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${selection.selectedOnly
                   ? 'bg-accent text-accent-foreground'
                   : 'border border-border/50 bg-surface text-text hover:border-accent/40'
-              }`}
+                }`}
             >
               {selection.selectedOnly ? 'Show all photos' : 'Show selected only'}
             </button>
@@ -121,12 +122,11 @@ export const PublicGalleryPhotoSection = ({
                       event.stopPropagation();
                       selection.onTogglePhoto(photo.photo_id);
                     }}
-                    disabled={!selection.canMutate}
-                    className={`absolute top-3 right-3 z-20 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
-                      selection.selectedIds.has(photo.photo_id)
+                    disabled={selection.session && !selection.canMutate}
+                    className={`absolute top-3 right-3 z-20 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${selection.selectedIds.has(photo.photo_id)
                         ? 'bg-accent text-accent-foreground'
                         : 'bg-black/45 text-white hover:bg-black/60'
-                    } ${!selection.canMutate ? 'cursor-not-allowed opacity-70' : ''}`}
+                      } ${selection.session && !selection.canMutate ? 'cursor-not-allowed opacity-70' : ''}`}
                   >
                     {selection.selectedIds.has(photo.photo_id) ? 'Selected' : 'Select'}
                   </button>
@@ -149,8 +149,8 @@ export const PublicGalleryPhotoSection = ({
                 </button>
 
                 {selection?.enabled &&
-                selection.allowPhotoComments &&
-                selection.selectedIds.has(photo.photo_id) ? (
+                  selection.allowPhotoComments &&
+                  selection.selectedIds.has(photo.photo_id) ? (
                   <div className="absolute inset-x-2 bottom-2 z-20">
                     <textarea
                       key={`${photo.photo_id}-${selection.commentsByPhotoId[photo.photo_id] ?? ''}`}

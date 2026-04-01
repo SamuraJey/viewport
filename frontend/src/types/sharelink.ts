@@ -125,6 +125,7 @@ export interface SelectionPhotoCommentRequest {
 
 export interface SelectionItem {
   photo_id: string;
+  photo_display_name?: string | null;
   comment: string | null;
   selected_at: string;
   updated_at: string;
@@ -168,7 +169,34 @@ export interface OwnerSelectionRow {
   status: string | null;
   client_name: string | null;
   selected_count: number;
+  session_count: number;
+  submitted_sessions: number;
+  in_progress_sessions: number;
+  closed_sessions: number;
   submitted_at: string | null;
+  updated_at: string;
+}
+
+export interface OwnerSelectionAggregate {
+  total_sessions: number;
+  submitted_sessions: number;
+  in_progress_sessions: number;
+  closed_sessions: number;
+  selected_count: number;
+  latest_activity_at: string | null;
+}
+
+export interface OwnerSelectionSessionListItem {
+  id: string;
+  status: string;
+  client_name: string;
+  client_email: string | null;
+  client_phone: string | null;
+  client_note: string | null;
+  selected_count: number;
+  submitted_at: string | null;
+  last_activity_at: string;
+  created_at: string;
   updated_at: string;
 }
 
@@ -176,6 +204,8 @@ export interface OwnerSelectionDetail {
   sharelink_id: string;
   sharelink_label: string | null;
   config: SelectionConfig;
+  aggregate: OwnerSelectionAggregate;
+  sessions: OwnerSelectionSessionListItem[];
   session: SelectionSession | null;
 }
 

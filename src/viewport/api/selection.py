@@ -17,8 +17,10 @@ from viewport.models.user import User
 from viewport.repositories.selection_repository import SelectionRepository
 from viewport.schemas.selection import (
     BulkSelectionActionResponse,
+    OwnerSelectionAggregateResponse,
     OwnerSelectionDetailResponse,
     OwnerSelectionRowResponse,
+    OwnerSelectionSessionListItemResponse,
     SelectionConfigResponse,
     SelectionConfigUpdateRequest,
     SelectionItemResponse,
@@ -120,8 +122,13 @@ def _validate_submit_requirements(config: ShareLinkSelectionConfig, session: Sha
 
 
 def _to_selection_item_response(item: ShareLinkSelectionItem) -> SelectionItemResponse:
+    photo_display_name: str | None = None
+    if "photo" in item.__dict__ and item.photo is not None:
+        photo_display_name = item.photo.display_name
+
     return SelectionItemResponse(
         photo_id=str(item.photo_id),
+        photo_display_name=photo_display_name,
         comment=item.comment,
         selected_at=item.selected_at,
         updated_at=item.updated_at,
@@ -162,6 +169,57 @@ def _to_selection_session_response(session: ShareLinkSelectionSession, *, resume
         resume_token=resume_token,
         items=[_to_selection_item_response(item) for item in ordered_items],
     )
+
+
+def _to_owner_selection_session_list_item_response(session: ShareLinkSelectionSession) -> OwnerSelectionSessionListItemResponse:
+    return OwnerSelectionSessionListItemResponse(
+        id=str(session.id),
+        status=session.status,
+        client_name=session.client_name,
+        client_email=session.client_email,
+        client_phone=session.client_phone,
+        client_note=session.client_note,
+        selected_count=session.selected_count,
+        submitted_at=session.submitted_at,
+        last_activity_at=session.last_activity_at,
+        created_at=session.created_at,
+        updated_at=session.updated_at,
+    )
+
+
+def _to_owner_selection_aggregate_response(
+    total_sessions: int,
+    submitted_sessions: int,
+    in_progress_sessions: int,
+    closed_sessions: int,
+    selected_count: int,
+    latest_activity_at: datetime | None,
+) -> OwnerSelectionAggregateResponse:
+    return OwnerSelectionAggregateResponse(
+        total_sessions=total_sessions,
+        submitted_sessions=submitted_sessions,
+        in_progress_sessions=in_progress_sessions,
+        closed_sessions=closed_sessions,
+        selected_count=selected_count,
+        latest_activity_at=latest_activity_at,
+    )
+
+
+def _selection_rollup_status(
+    total_sessions: int,
+    submitted_sessions: int,
+    in_progress_sessions: int,
+    closed_sessions: int,
+) -> str:
+    if total_sessions <= 0:
+        return "not_started"
+    if submitted_sessions > 0:
+        return SelectionSessionStatus.SUBMITTED.value
+    if in_progress_sessions > 0:
+        return SelectionSessionStatus.IN_PROGRESS.value
+    if closed_sessions > 0:
+        return SelectionSessionStatus.CLOSED.value
+    return "not_started"
 
 
 async def _get_public_sharelink_or_404(share_id: uuid.UUID, repo: SelectionRepository) -> ShareLink:
@@ -237,19 +295,15 @@ async def start_public_selection_session(
 
     client_name, client_email, client_phone, client_note = _validate_contact_requirements(config, req)
 
-    existing_session = await repo.get_session_for_sharelink(sharelink.id)
     token_from_request = _get_selection_resume_token(request, share_id, None)
-
-    if existing_session:
-        if token_from_request:
-            existing_by_token = await repo.get_session_by_resume_token(sharelink.id, token_from_request)
-            if existing_by_token:
-                _set_selection_cookie(response, share_id, token_from_request)
-                return _to_selection_session_response(existing_by_token, resume_token=token_from_request)
-        raise HTTPException(status_code=409, detail="Selection session already exists for this share link")
+    if token_from_request:
+        existing_by_token = await repo.get_session_by_resume_token(sharelink.id, token_from_request)
+        if existing_by_token:
+            _set_selection_cookie(response, share_id, token_from_request)
+            return _to_selection_session_response(existing_by_token, resume_token=token_from_request)
 
     resume_token, resume_token_hash = repo.generate_resume_token()
-    session = await repo.create_or_replace_session(
+    session = await repo.create_session(
         sharelink.id,
         config.id,
         client_name=client_name,
@@ -492,12 +546,30 @@ async def get_owner_selection_detail(
         raise HTTPException(status_code=404, detail="Share link not found")
 
     config = await repo.get_or_create_config(sharelink.id)
-    session = await repo.get_session_for_sharelink(sharelink.id)
+    sessions = await repo.list_sessions_for_sharelink(sharelink.id)
+    session = sessions[0] if sessions else None
+    (
+        total_sessions,
+        submitted_sessions,
+        in_progress_sessions,
+        closed_sessions,
+        selected_count,
+        latest_activity_at,
+    ) = await repo.get_sharelink_session_aggregate(sharelink.id)
 
     return OwnerSelectionDetailResponse(
         sharelink_id=str(sharelink.id),
         sharelink_label=sharelink.label,
         config=_to_selection_config_response(config),
+        aggregate=_to_owner_selection_aggregate_response(
+            total_sessions,
+            submitted_sessions,
+            in_progress_sessions,
+            closed_sessions,
+            selected_count,
+            latest_activity_at,
+        ),
+        sessions=[_to_owner_selection_session_list_item_response(item) for item in sessions],
         session=_to_selection_session_response(session) if session else None,
     )
 
@@ -505,6 +577,7 @@ async def get_owner_selection_detail(
 @router.post("/share-links/{sharelink_id}/selection/close", response_model=SelectionSessionResponse)
 async def close_owner_selection(
     sharelink_id: uuid.UUID,
+    session_id: uuid.UUID | None = Query(None),
     repo: SelectionRepository = Depends(get_selection_repository),
     current_user: User = Depends(get_current_user),
 ) -> SelectionSessionResponse:
@@ -512,7 +585,10 @@ async def close_owner_selection(
     if not sharelink:
         raise HTTPException(status_code=404, detail="Share link not found")
 
-    session = await repo.get_session_for_sharelink(sharelink.id)
+    if session_id is not None:
+        session = await repo.get_session_by_id_for_sharelink(sharelink.id, session_id)
+    else:
+        session = await repo.get_latest_session_for_sharelink(sharelink.id)
     if not session:
         raise HTTPException(status_code=404, detail="Selection session not found")
 
@@ -523,6 +599,7 @@ async def close_owner_selection(
 @router.post("/share-links/{sharelink_id}/selection/reopen", response_model=SelectionSessionResponse)
 async def reopen_owner_selection(
     sharelink_id: uuid.UUID,
+    session_id: uuid.UUID | None = Query(None),
     repo: SelectionRepository = Depends(get_selection_repository),
     current_user: User = Depends(get_current_user),
 ) -> SelectionSessionResponse:
@@ -530,7 +607,65 @@ async def reopen_owner_selection(
     if not sharelink:
         raise HTTPException(status_code=404, detail="Share link not found")
 
-    session = await repo.get_session_for_sharelink(sharelink.id)
+    if session_id is not None:
+        session = await repo.get_session_by_id_for_sharelink(sharelink.id, session_id)
+    else:
+        session = await repo.get_latest_session_for_sharelink(sharelink.id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Selection session not found")
+
+    updated_session = await repo.set_session_status(session, SelectionSessionStatus.IN_PROGRESS)
+    return _to_selection_session_response(updated_session)
+
+
+@router.get("/share-links/{sharelink_id}/selection/sessions/{session_id}", response_model=SelectionSessionResponse)
+async def get_owner_selection_session_detail(
+    sharelink_id: uuid.UUID,
+    session_id: uuid.UUID,
+    repo: SelectionRepository = Depends(get_selection_repository),
+    current_user: User = Depends(get_current_user),
+) -> SelectionSessionResponse:
+    sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
+    if not sharelink:
+        raise HTTPException(status_code=404, detail="Share link not found")
+
+    session = await repo.get_session_by_id_for_sharelink(sharelink.id, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Selection session not found")
+    return _to_selection_session_response(session)
+
+
+@router.post("/share-links/{sharelink_id}/selection/sessions/{session_id}/close", response_model=SelectionSessionResponse)
+async def close_owner_selection_session(
+    sharelink_id: uuid.UUID,
+    session_id: uuid.UUID,
+    repo: SelectionRepository = Depends(get_selection_repository),
+    current_user: User = Depends(get_current_user),
+) -> SelectionSessionResponse:
+    sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
+    if not sharelink:
+        raise HTTPException(status_code=404, detail="Share link not found")
+
+    session = await repo.get_session_by_id_for_sharelink(sharelink.id, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Selection session not found")
+
+    updated_session = await repo.set_session_status(session, SelectionSessionStatus.CLOSED)
+    return _to_selection_session_response(updated_session)
+
+
+@router.post("/share-links/{sharelink_id}/selection/sessions/{session_id}/reopen", response_model=SelectionSessionResponse)
+async def reopen_owner_selection_session(
+    sharelink_id: uuid.UUID,
+    session_id: uuid.UUID,
+    repo: SelectionRepository = Depends(get_selection_repository),
+    current_user: User = Depends(get_current_user),
+) -> SelectionSessionResponse:
+    sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
+    if not sharelink:
+        raise HTTPException(status_code=404, detail="Share link not found")
+
+    session = await repo.get_session_by_id_for_sharelink(sharelink.id, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Selection session not found")
 
@@ -548,18 +683,24 @@ async def get_gallery_selections(
         raise HTTPException(status_code=404, detail="Gallery not found")
 
     rows = await repo.get_gallery_sharelinks_with_sessions(gallery_id, current_user.id)
+    aggregates = await repo.get_gallery_session_aggregates(gallery_id, current_user.id)
     return [
         OwnerSelectionRowResponse(
             sharelink_id=str(sharelink.id),
             sharelink_label=sharelink.label,
             session_id=str(session.id) if session else None,
-            status=session.status if session else None,
+            status=_selection_rollup_status(aggregate[0], aggregate[1], aggregate[2], aggregate[3]) if aggregate is not None else None,
             client_name=session.client_name if session else None,
-            selected_count=session.selected_count if session else 0,
+            selected_count=aggregate[4] if aggregate is not None else 0,
+            session_count=aggregate[0] if aggregate is not None else 0,
+            submitted_sessions=aggregate[1] if aggregate is not None else 0,
+            in_progress_sessions=aggregate[2] if aggregate is not None else 0,
+            closed_sessions=aggregate[3] if aggregate is not None else 0,
             submitted_at=session.submitted_at if session else None,
-            updated_at=session.updated_at if session else sharelink.updated_at,
+            updated_at=aggregate[5] if aggregate is not None and aggregate[5] is not None else (session.updated_at if session else sharelink.updated_at),
         )
         for sharelink, session in rows
+        for aggregate in [aggregates.get(sharelink.id)]
     ]
 
 
@@ -649,17 +790,19 @@ async def export_gallery_selection_links_csv(
         raise HTTPException(status_code=404, detail="Gallery not found")
 
     rows_data = await repo.get_gallery_sharelinks_with_sessions(gallery_id, current_user.id)
+    aggregates = await repo.get_gallery_session_aggregates(gallery_id, current_user.id)
     base_url = str(request.base_url).rstrip("/")
     rows = [
         [
             str(sharelink.id),
             sharelink.label or "",
             f"{base_url}/share/{sharelink.id}",
-            session.status if session else "not_started",
-            str(session.selected_count if session else 0),
-            (session.updated_at if session else sharelink.updated_at).isoformat(),
+            (_selection_rollup_status(aggregate[0], aggregate[1], aggregate[2], aggregate[3]) if aggregate is not None else "not_started"),
+            str(aggregate[4] if aggregate is not None else 0),
+            (aggregate[5] if aggregate is not None and aggregate[5] is not None else (session.updated_at if session else sharelink.updated_at)).isoformat(),
         ]
         for sharelink, session in rows_data
+        for aggregate in [aggregates.get(sharelink.id)]
     ]
 
     return _csv_response(

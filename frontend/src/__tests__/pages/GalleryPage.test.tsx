@@ -107,6 +107,11 @@ vi.mock('../../services/shareLinkService', () => ({
     getShareLinks: vi.fn(),
     createShareLink: vi.fn(),
     deleteShareLink: vi.fn(),
+    getGallerySelections: vi.fn(),
+    getOwnerSelectionDetail: vi.fn(),
+    getOwnerSelectionSessionDetail: vi.fn(),
+    closeOwnerSelectionSession: vi.fn(),
+    reopenOwnerSelectionSession: vi.fn(),
   },
 }));
 
@@ -152,6 +157,38 @@ describe('GalleryPage', () => {
 
     vi.mocked(galleryService.getGallery).mockResolvedValue(mockGalleryData);
     vi.mocked(shareLinkService.getShareLinks).mockResolvedValue([]);
+    vi.mocked(shareLinkService.getGallerySelections).mockResolvedValue([]);
+    vi.mocked(shareLinkService.getOwnerSelectionDetail).mockResolvedValue({
+      sharelink_id: 'link1',
+      sharelink_label: null,
+      config: {
+        is_enabled: false,
+        list_title: 'Selected photos',
+        limit_enabled: false,
+        limit_value: null,
+        allow_photo_comments: false,
+        require_name: true,
+        require_email: false,
+        require_phone: false,
+        require_client_note: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      aggregate: {
+        total_sessions: 0,
+        submitted_sessions: 0,
+        in_progress_sessions: 0,
+        closed_sessions: 0,
+        selected_count: 0,
+        latest_activity_at: null,
+      },
+      sessions: [],
+      session: null,
+    } as any);
+    vi.mocked(shareLinkService.getOwnerSelectionSessionDetail).mockResolvedValue({
+      id: 'session-1',
+      items: [],
+    } as any);
     vi.mocked(shareLinkService.createShareLink).mockResolvedValue(mockShareLink);
     vi.mocked(window.confirm).mockReturnValue(true);
   });

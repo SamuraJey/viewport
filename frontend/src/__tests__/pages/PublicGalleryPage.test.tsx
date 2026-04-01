@@ -49,6 +49,13 @@ const mockEmptyGallery = {
 vi.mock('../../services/shareLinkService', () => ({
   shareLinkService: {
     getSharedGallery: vi.fn(),
+    getPublicSelectionConfig: vi.fn(),
+    getPublicSelectionSession: vi.fn(),
+    startPublicSelectionSession: vi.fn(),
+    togglePublicSelectionItem: vi.fn(),
+    updatePublicSelectionItemComment: vi.fn(),
+    updatePublicSelectionSession: vi.fn(),
+    submitPublicSelectionSession: vi.fn(),
   },
 }));
 
@@ -96,6 +103,9 @@ describe('PublicGalleryPage', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { shareLinkService } = await import('../../services/shareLinkService');
     vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue(mockPublicGallery);
+    vi.mocked(shareLinkService.getPublicSelectionConfig).mockRejectedValue({
+      response: { status: 404, data: { detail: 'Selection is not enabled' } },
+    } as any);
     // Load component after mocks are configured
     PublicGalleryPage = (await import('../../pages/PublicGalleryPage')).PublicGalleryPage;
   });

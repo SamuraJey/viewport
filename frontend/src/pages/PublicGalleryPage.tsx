@@ -190,23 +190,24 @@ export const PublicGalleryPage = () => {
           selection={
             selection.config?.is_enabled
               ? {
-                  enabled: true,
-                  selectedIds: selection.selectedIds,
-                  selectedCount: selection.session?.selected_count ?? 0,
-                  limitEnabled: selection.config.limit_enabled,
-                  limitValue: selection.config.limit_value,
-                  selectedOnly: selection.selectedOnly,
-                  canMutate: selection.canMutateSession,
-                  allowPhotoComments: selection.config.allow_photo_comments,
-                  commentsByPhotoId: selection.commentsByPhotoId,
-                  onToggleSelectedOnly: () => selection.setSelectedOnly(!selection.selectedOnly),
-                  onTogglePhoto: (photoId: string) => {
-                    void selection.togglePhoto(photoId);
-                  },
-                  onUpdatePhotoComment: (photoId: string, comment: string) => {
-                    void selection.updatePhotoComment(photoId, comment);
-                  },
-                }
+                enabled: true,
+                selectedIds: selection.selectedIds,
+                selectedCount: selection.session?.selected_count ?? 0,
+                limitEnabled: selection.config.limit_enabled,
+                limitValue: selection.config.limit_value,
+                selectedOnly: selection.selectedOnly,
+                canMutate: selection.canMutateSession,
+                allowPhotoComments: selection.config.allow_photo_comments,
+                session: selection.session,
+                commentsByPhotoId: selection.commentsByPhotoId,
+                onToggleSelectedOnly: () => selection.setSelectedOnly(!selection.selectedOnly),
+                onTogglePhoto: (photoId: string) => {
+                  void selection.togglePhoto(photoId);
+                },
+                onUpdatePhotoComment: (photoId: string, comment: string) => {
+                  void selection.updatePhotoComment(photoId, comment);
+                },
+              }
               : undefined
           }
         />
@@ -230,6 +231,15 @@ export const PublicGalleryPage = () => {
 
             {selection.session ? (
               <div className="mt-4 space-y-3">
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={selection.startNewSession}
+                    className="rounded-xl border border-border/50 bg-surface px-3 py-1.5 text-xs font-semibold text-text hover:border-accent/40"
+                  >
+                    Start new session
+                  </button>
+                </div>
                 <textarea
                   value={sessionNoteDraft}
                   onChange={(event) => setSessionNoteDraft(event.target.value)}

@@ -19,6 +19,92 @@ def _create_sharelink(authenticated_client: TestClient, gallery_id: str) -> str:
 
 
 class TestSelectionAPI:
+    def test_public_selection_supports_multiple_independent_sessions(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr("viewport.api.selection.notify_selection_submitted_task.delay", lambda payload: None)
+
+        first_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"first", "first.jpg")
+        second_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"second", "second.jpg")
+        share_id = _create_sharelink(authenticated_client, gallery_id_fixture)
+
+        enable_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config",
+            json={"is_enabled": True, "allow_photo_comments": True},
+        )
+        assert enable_resp.status_code == 200
+
+        start_alice = authenticated_client.post(
+            f"/s/{share_id}/selection/session",
+            json={"client_name": "Alice", "client_email": "alice@example.com"},
+        )
+        assert start_alice.status_code == 200
+        alice_payload = start_alice.json()
+        alice_token = alice_payload["resume_token"]
+        alice_session_id = alice_payload["id"]
+
+        # Different browser/client gets an independent session on the same share link.
+        authenticated_client.cookies.clear()
+        start_bob = authenticated_client.post(
+            f"/s/{share_id}/selection/session",
+            json={"client_name": "Bob", "client_email": "bob@example.com"},
+        )
+        assert start_bob.status_code == 200
+        bob_payload = start_bob.json()
+        bob_token = bob_payload["resume_token"]
+        bob_session_id = bob_payload["id"]
+        assert bob_session_id != alice_session_id
+        assert bob_token != alice_token
+
+        # Same client + cookie resumes existing session instead of creating another one.
+        resume_bob = authenticated_client.post(
+            f"/s/{share_id}/selection/session",
+            json={"client_name": "Bob", "client_email": "bob@example.com"},
+        )
+        assert resume_bob.status_code == 200
+        assert resume_bob.json()["id"] == bob_session_id
+
+        alice_toggle = authenticated_client.put(f"/s/{share_id}/selection/session/items/{first_photo_id}?resume_token={alice_token}")
+        assert alice_toggle.status_code == 200
+        assert alice_toggle.json()["selected"] is True
+
+        alice_comment = authenticated_client.patch(
+            f"/s/{share_id}/selection/session/items/{first_photo_id}?resume_token={alice_token}",
+            json={"comment": "Alice pick"},
+        )
+        assert alice_comment.status_code == 200
+
+        bob_toggle = authenticated_client.put(f"/s/{share_id}/selection/session/items/{second_photo_id}?resume_token={bob_token}")
+        assert bob_toggle.status_code == 200
+        assert bob_toggle.json()["selected"] is True
+
+        alice_me = authenticated_client.get(f"/s/{share_id}/selection/session/me?resume_token={alice_token}")
+        bob_me = authenticated_client.get(f"/s/{share_id}/selection/session/me?resume_token={bob_token}")
+        assert alice_me.status_code == 200
+        assert bob_me.status_code == 200
+        assert alice_me.json()["selected_count"] == 1
+        assert bob_me.json()["selected_count"] == 1
+        assert alice_me.json()["items"][0]["photo_id"] == first_photo_id
+        assert bob_me.json()["items"][0]["photo_id"] == second_photo_id
+
+        owner_detail = authenticated_client.get(f"/share-links/{share_id}/selection")
+        assert owner_detail.status_code == 200
+        detail_payload = owner_detail.json()
+        assert detail_payload["aggregate"]["total_sessions"] == 2
+        assert detail_payload["aggregate"]["selected_count"] == 2
+        assert len(detail_payload["sessions"]) == 2
+
+        alice_owner_detail = authenticated_client.get(f"/share-links/{share_id}/selection/sessions/{alice_session_id}")
+        assert alice_owner_detail.status_code == 200
+        alice_owner_payload = alice_owner_detail.json()
+        assert alice_owner_payload["client_name"] == "Alice"
+        assert alice_owner_payload["items"][0]["photo_id"] == first_photo_id
+        assert alice_owner_payload["items"][0]["photo_display_name"] == "first.jpg"
+        assert alice_owner_payload["items"][0]["comment"] == "Alice pick"
+
     def test_public_selection_session_lifecycle(
         self,
         authenticated_client: TestClient,
@@ -133,6 +219,7 @@ class TestSelectionAPI:
         monkeypatch.setattr("viewport.api.selection.notify_selection_submitted_task.delay", lambda payload: None)
 
         first_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"first", "first.jpg")
+        second_photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"second", "second.jpg")
         share_id = _create_sharelink(authenticated_client, gallery_id_fixture)
 
         enable_resp = authenticated_client.patch(
@@ -143,43 +230,83 @@ class TestSelectionAPI:
 
         start_resp = authenticated_client.post(
             f"/s/{share_id}/selection/session",
-            json={"client_name": "Owner Flow Client"},
+            json={"client_name": "Owner Flow Client A"},
         )
         assert start_resp.status_code == 200
-        resume_token = start_resp.json()["resume_token"]
-        toggle_resp = authenticated_client.put(f"/s/{share_id}/selection/session/items/{first_photo_id}?resume_token={resume_token}")
+        session_a = start_resp.json()
+        token_a = session_a["resume_token"]
+        session_a_id = session_a["id"]
+
+        authenticated_client.cookies.clear()
+        start_second_resp = authenticated_client.post(
+            f"/s/{share_id}/selection/session",
+            json={"client_name": "Owner Flow Client B"},
+        )
+        assert start_second_resp.status_code == 200
+        session_b = start_second_resp.json()
+        token_b = session_b["resume_token"]
+        session_b_id = session_b["id"]
+
+        toggle_resp = authenticated_client.put(f"/s/{share_id}/selection/session/items/{first_photo_id}?resume_token={token_a}")
         assert toggle_resp.status_code == 200
 
-        submit_resp = authenticated_client.post(f"/s/{share_id}/selection/session/submit?resume_token={resume_token}")
+        toggle_second_resp = authenticated_client.put(f"/s/{share_id}/selection/session/items/{second_photo_id}?resume_token={token_b}")
+        assert toggle_second_resp.status_code == 200
+
+        submit_resp = authenticated_client.post(f"/s/{share_id}/selection/session/submit?resume_token={token_a}")
         assert submit_resp.status_code == 200
 
         detail_resp = authenticated_client.get(f"/share-links/{share_id}/selection")
         assert detail_resp.status_code == 200
         detail_payload = detail_resp.json()
         assert detail_payload["sharelink_id"] == share_id
+        assert detail_payload["aggregate"]["total_sessions"] == 2
+        assert detail_payload["aggregate"]["submitted_sessions"] == 1
+        assert detail_payload["aggregate"]["in_progress_sessions"] == 1
+        assert detail_payload["aggregate"]["selected_count"] == 2
+        assert len(detail_payload["sessions"]) == 2
         assert detail_payload["session"]["status"] == "submitted"
+        assert detail_payload["session"]["id"] == session_a_id
         assert detail_payload["session"]["selected_count"] == 1
 
-        close_resp = authenticated_client.post(f"/share-links/{share_id}/selection/close")
+        close_session_b = authenticated_client.post(f"/share-links/{share_id}/selection/sessions/{session_b_id}/close")
+        assert close_session_b.status_code == 200
+        assert close_session_b.json()["status"] == "closed"
+
+        toggle_closed_session = authenticated_client.put(f"/s/{share_id}/selection/session/items/{first_photo_id}?resume_token={token_b}")
+        assert toggle_closed_session.status_code == 409
+        assert "closed" in toggle_closed_session.json()["detail"].lower()
+
+        reopen_session_b = authenticated_client.post(f"/share-links/{share_id}/selection/sessions/{session_b_id}/reopen")
+        assert reopen_session_b.status_code == 200
+        assert reopen_session_b.json()["status"] == "in_progress"
+
+        toggle_after_reopen = authenticated_client.put(f"/s/{share_id}/selection/session/items/{first_photo_id}?resume_token={token_b}")
+        assert toggle_after_reopen.status_code == 200
+
+        close_resp = authenticated_client.post(f"/share-links/{share_id}/selection/close?session_id={session_a_id}")
         assert close_resp.status_code == 200
         assert close_resp.json()["status"] == "closed"
 
-        reopen_resp = authenticated_client.post(f"/share-links/{share_id}/selection/reopen")
+        reopen_resp = authenticated_client.post(f"/share-links/{share_id}/selection/reopen?session_id={session_a_id}")
         assert reopen_resp.status_code == 200
         assert reopen_resp.json()["status"] == "in_progress"
 
         gallery_rows = authenticated_client.get(f"/galleries/{gallery_id_fixture}/selections")
         assert gallery_rows.status_code == 200
         assert len(gallery_rows.json()) >= 1
-        assert gallery_rows.json()[0]["sharelink_id"] == share_id
+        row = gallery_rows.json()[0]
+        assert row["sharelink_id"] == share_id
+        assert row["session_count"] == 2
+        assert row["selected_count"] >= 2
 
         close_all_resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/selections/actions/close-all")
         assert close_all_resp.status_code == 200
-        assert close_all_resp.json()["affected_count"] >= 1
+        assert close_all_resp.json()["affected_count"] >= 2
 
         open_all_resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/selections/actions/open-all")
         assert open_all_resp.status_code == 200
-        assert open_all_resp.json()["affected_count"] >= 1
+        assert open_all_resp.json()["affected_count"] >= 2
 
         files_csv = authenticated_client.get(f"/share-links/{share_id}/selection/export/files.csv")
         assert files_csv.status_code == 200

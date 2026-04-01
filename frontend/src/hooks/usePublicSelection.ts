@@ -5,6 +5,8 @@ import type { SelectionConfig, SelectionSession, SelectionSessionStartRequest } 
 
 const getResumeStorageKey = (shareId: string) => `viewport-selection-resume-${shareId}`;
 
+const getResumeCookieString = (shareId: string) => `${getResumeStorageKey(shareId)}=`;
+
 const getStoredResumeToken = (shareId: string): string | undefined => {
   if (typeof window === 'undefined') return undefined;
   return window.localStorage.getItem(getResumeStorageKey(shareId)) ?? undefined;
@@ -17,6 +19,9 @@ const setStoredResumeToken = (shareId: string, token?: string | null): void => {
     window.localStorage.setItem(key, token.trim());
   } else {
     window.localStorage.removeItem(key);
+    document.cookie = `${getResumeCookieString(
+      shareId,
+    )} Path=/s/${shareId}; Max-Age=0; SameSite=Lax`;
   }
 };
 
@@ -136,6 +141,15 @@ export const usePublicSelection = ({ shareId, photoIds }: UsePublicSelectionProp
       setError(apiError.message || 'Failed to refresh selection');
     }
   }, [loadSession, shareId]);
+
+  const startNewSession = useCallback(() => {
+    if (!shareId) return;
+    setStoredResumeToken(shareId, null);
+    setSession(null);
+    setPendingPhotoToToggle(null);
+    setError('');
+    setShowStartModal(true);
+  }, [shareId]);
 
   const startSession = useCallback(
     async (payload: SelectionSessionStartRequest) => {
@@ -311,6 +325,7 @@ export const usePublicSelection = ({ shareId, photoIds }: UsePublicSelectionProp
       setShowStartModal(false);
       setPendingPhotoToToggle(null);
     },
+    startNewSession,
     refreshSession,
     startSession,
     togglePhoto,

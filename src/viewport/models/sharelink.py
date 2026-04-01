@@ -34,9 +34,8 @@ class ShareLink(Base):
         uselist=False,
         passive_deletes=True,
     )
-    selection_session: Mapped["ShareLinkSelectionSession | None"] = relationship(
+    selection_sessions: Mapped[list["ShareLinkSelectionSession"]] = relationship(
         "ShareLinkSelectionSession",
         back_populates="sharelink",
-        uselist=False,
         passive_deletes=True,
     )

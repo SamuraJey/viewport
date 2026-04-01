@@ -59,6 +59,7 @@ class SelectionPhotoCommentRequest(BaseModel):
 
 class SelectionItemResponse(BaseModel):
     photo_id: str
+    photo_display_name: str | None = None
     comment: str | None
     selected_at: datetime
     updated_at: datetime
@@ -102,7 +103,34 @@ class OwnerSelectionRowResponse(BaseModel):
     status: str | None
     client_name: str | None
     selected_count: int
+    session_count: int
+    submitted_sessions: int
+    in_progress_sessions: int
+    closed_sessions: int
     submitted_at: datetime | None
+    updated_at: datetime
+
+
+class OwnerSelectionAggregateResponse(BaseModel):
+    total_sessions: int
+    submitted_sessions: int
+    in_progress_sessions: int
+    closed_sessions: int
+    selected_count: int
+    latest_activity_at: datetime | None
+
+
+class OwnerSelectionSessionListItemResponse(BaseModel):
+    id: str
+    status: str
+    client_name: str
+    client_email: str | None
+    client_phone: str | None
+    client_note: str | None
+    selected_count: int
+    submitted_at: datetime | None
+    last_activity_at: datetime
+    created_at: datetime
     updated_at: datetime
 
 
@@ -110,6 +138,8 @@ class OwnerSelectionDetailResponse(BaseModel):
     sharelink_id: str
     sharelink_label: str | None
     config: SelectionConfigResponse
+    aggregate: OwnerSelectionAggregateResponse
+    sessions: list[OwnerSelectionSessionListItemResponse] = Field(default_factory=list)
     session: SelectionSessionResponse | None
 
 
