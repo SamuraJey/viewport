@@ -1,4 +1,12 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+  useDeferredValue,
+  useTransition,
+} from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
@@ -38,6 +46,9 @@ interface FavoritesUserTab {
   shareLinkLabel: string | null;
   updatedAt: string;
 }
+
+const createSelectionSessionCacheKey = (shareLinkId: string, sessionId: string): string =>
+  `${shareLinkId}:${sessionId}`;
 
 const isGalleryPhotoSortBy = (value: string | null): value is GalleryPhotoSortBy =>
   value === 'uploaded_at' || value === 'original_filename' || value === 'file_size';
@@ -86,10 +97,13 @@ export const GalleryPage = () => {
   const [isLoadingSelectionDetail, setIsLoadingSelectionDetail] = useState(false);
   const [isMutatingSelectionSession, setIsMutatingSelectionSession] = useState(false);
   const [selectionSessionsError, setSelectionSessionsError] = useState('');
+  const [, startTabTransition] = useTransition();
   const gridRef = useRef<HTMLDivElement | null>(null);
   const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
   const lastFailedShootingDateSaveRef = useRef<string | null>(null);
   const lastFailedPublicSortSaveRef = useRef<string | null>(null);
+  const selectionSessionCacheRef = useRef<Map<string, SelectionSession>>(new Map());
+  const selectionSessionInFlightRef = useRef<Map<string, Promise<SelectionSession>>>(new Map());
 
   // Use new hooks
   const pagination = usePagination({ pageSize: 100, syncWithUrl: true });
@@ -143,9 +157,11 @@ export const GalleryPage = () => {
     setSearchInput(urlSearch);
   }, [urlSearch]);
 
+  const deferredSearchInput = useDeferredValue(searchInput);
+
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-      const normalizedSearch = searchInput.trim();
+      const normalizedSearch = deferredSearchInput.trim();
       if (normalizedSearch !== activeSearch) {
         updateFilterQueryParams({
           search: normalizedSearch || null,
@@ -157,7 +173,7 @@ export const GalleryPage = () => {
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [searchInput, activeSearch, updateFilterQueryParams]);
+  }, [deferredSearchInput, activeSearch, updateFilterQueryParams]);
 
   const {
     gallery,
@@ -431,26 +447,82 @@ export const GalleryPage = () => {
     }
   }, [galleryId, shareLinks]);
 
-  const fetchSelectionSessionDetail = useCallback(
-    async (shareLinkId: string, sessionId: string) => {
-      setIsLoadingSelectionDetail(true);
-      setSelectionSessionsError('');
-      try {
-        const detail = await shareLinkService.getOwnerSelectionSessionDetail(
-          shareLinkId,
-          sessionId,
-        );
-        setSelectedFavoritesSessionDetail(detail);
-      } catch (err) {
-        setSelectedFavoritesSessionDetail(null);
-        setSelectionSessionsError(
-          handleApiError(err).message || 'Failed to load favorites session',
-        );
-      } finally {
-        setIsLoadingSelectionDetail(false);
+  const getSelectionSessionDetail = useCallback(
+    async (shareLinkId: string, sessionId: string, force = false): Promise<SelectionSession> => {
+      const cacheKey = createSelectionSessionCacheKey(shareLinkId, sessionId);
+
+      if (!force) {
+        const cached = selectionSessionCacheRef.current.get(cacheKey);
+        if (cached) {
+          return cached;
+        }
       }
+
+      const inFlight = selectionSessionInFlightRef.current.get(cacheKey);
+      if (inFlight && !force) {
+        return inFlight;
+      }
+
+      const request = shareLinkService
+        .getOwnerSelectionSessionDetail(shareLinkId, sessionId)
+        .then((detail) => {
+          selectionSessionCacheRef.current.set(cacheKey, detail);
+          return detail;
+        })
+        .finally(() => {
+          selectionSessionInFlightRef.current.delete(cacheKey);
+        });
+
+      selectionSessionInFlightRef.current.set(cacheKey, request);
+      return request;
     },
     [],
+  );
+
+  const fetchSelectionSessionDetail = useCallback(
+    async (
+      shareLinkId: string,
+      sessionId: string,
+      options?: { silent?: boolean; force?: boolean },
+    ) => {
+      const { silent = false, force = false } = options ?? {};
+      const cacheKey = createSelectionSessionCacheKey(shareLinkId, sessionId);
+      const cached = !force ? selectionSessionCacheRef.current.get(cacheKey) : null;
+
+      if (cached) {
+        if (!silent) {
+          setSelectedFavoritesSessionDetail(cached);
+          setSelectionSessionsError('');
+        }
+        return cached;
+      }
+
+      if (!silent) {
+        setIsLoadingSelectionDetail(true);
+        setSelectionSessionsError('');
+      }
+
+      try {
+        const detail = await getSelectionSessionDetail(shareLinkId, sessionId, force);
+        if (!silent) {
+          setSelectedFavoritesSessionDetail(detail);
+        }
+        return detail;
+      } catch (err) {
+        if (!silent) {
+          setSelectedFavoritesSessionDetail(null);
+          setSelectionSessionsError(
+            handleApiError(err).message || 'Failed to load favorites session',
+          );
+        }
+        return null;
+      } finally {
+        if (!silent) {
+          setIsLoadingSelectionDetail(false);
+        }
+      }
+    },
+    [getSelectionSessionDetail],
   );
 
   useEffect(() => {
@@ -466,6 +538,8 @@ export const GalleryPage = () => {
     setSelectedFavoritesSessionDetail(null);
     setSelectionSessionsError('');
     setHasLoadedFavorites(false);
+    selectionSessionCacheRef.current.clear();
+    selectionSessionInFlightRef.current.clear();
   }, [shareLinks]);
 
   useEffect(() => {
@@ -496,6 +570,44 @@ export const GalleryPage = () => {
     );
   }, [activeContentTab, fetchSelectionSessionDetail, selectedFavoritesTab]);
 
+  useEffect(() => {
+    if (activeContentTab !== 'favorites' || !selectedFavoritesTab || favoritesTabs.length < 2) {
+      return;
+    }
+
+    const currentIndex = favoritesTabs.findIndex((tab) => tab.key === selectedFavoritesTab.key);
+    if (currentIndex === -1) {
+      return;
+    }
+
+    const prefetchCandidate = favoritesTabs[currentIndex + 1] ?? favoritesTabs[currentIndex - 1];
+    if (!prefetchCandidate) {
+      return;
+    }
+
+    void fetchSelectionSessionDetail(prefetchCandidate.shareLinkId, prefetchCandidate.sessionId, {
+      silent: true,
+    });
+  }, [activeContentTab, favoritesTabs, fetchSelectionSessionDetail, selectedFavoritesTab]);
+
+  const handleSelectContentTab = useCallback(
+    (tab: 'project' | 'favorites') => {
+      startTabTransition(() => {
+        setActiveContentTab(tab);
+      });
+    },
+    [startTabTransition],
+  );
+
+  const handleSelectFavoritesTab = useCallback(
+    (key: string) => {
+      startTabTransition(() => {
+        setSelectedFavoritesTabKey(key);
+      });
+    },
+    [startTabTransition],
+  );
+
   const handleCloseSelectionSession = useCallback(async () => {
     if (!selectedFavoritesTab) return;
     setIsMutatingSelectionSession(true);
@@ -509,6 +621,7 @@ export const GalleryPage = () => {
       await fetchSelectionSessionDetail(
         selectedFavoritesTab.shareLinkId,
         selectedFavoritesTab.sessionId,
+        { force: true },
       );
     } catch (err) {
       setSelectionSessionsError(handleApiError(err).message || 'Failed to close favorites list');
@@ -530,6 +643,7 @@ export const GalleryPage = () => {
       await fetchSelectionSessionDetail(
         selectedFavoritesTab.shareLinkId,
         selectedFavoritesTab.sessionId,
+        { force: true },
       );
     } catch (err) {
       setSelectionSessionsError(handleApiError(err).message || 'Failed to reopen favorites list');
@@ -792,7 +906,7 @@ export const GalleryPage = () => {
             aria-selected={activeContentTab === 'project'}
             aria-controls="gallery-content-panel-project"
             type="button"
-            onClick={() => setActiveContentTab('project')}
+            onClick={() => handleSelectContentTab('project')}
             className={`shrink-0 rounded-xl border px-4 py-2 text-sm font-semibold ${
               activeContentTab === 'project'
                 ? 'border-accent/45 bg-accent/10 text-accent'
@@ -807,7 +921,7 @@ export const GalleryPage = () => {
             aria-selected={activeContentTab === 'favorites'}
             aria-controls="gallery-content-panel-favorites"
             type="button"
-            onClick={() => setActiveContentTab('favorites')}
+            onClick={() => handleSelectContentTab('favorites')}
             className={`shrink-0 rounded-xl border px-4 py-2 text-sm font-semibold ${
               activeContentTab === 'favorites'
                 ? 'border-accent/45 bg-accent/10 text-accent'
@@ -914,7 +1028,7 @@ export const GalleryPage = () => {
               isLoadingDetail={isLoadingSelectionDetail}
               isMutating={isMutatingSelectionSession}
               error={selectionSessionsError}
-              onSelectUserTab={setSelectedFavoritesTabKey}
+              onSelectUserTab={handleSelectFavoritesTab}
               onCloseSession={() => {
                 void handleCloseSelectionSession();
               }}

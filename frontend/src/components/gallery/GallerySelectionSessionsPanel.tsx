@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { LayoutGrid, List, Loader2, Lock, LockOpen } from 'lucide-react';
 import { PaginationControls } from '../PaginationControls';
-import type { SelectionSession } from '../../types';
+import type { SelectionItem, SelectionSession } from '../../types';
 
 interface FavoritesUserTab {
   key: string;
@@ -27,6 +27,71 @@ interface GallerySelectionSessionsPanelProps {
   onRefresh: () => void;
 }
 
+const RECENT_SELECTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+interface FavoriteSelectionItemProps {
+  item: SelectionItem;
+  thumbnailSrc: string | null;
+}
+
+const FavoriteSelectionGridItem = memo(({ item, thumbnailSrc }: FavoriteSelectionItemProps) => (
+  <article className="overflow-hidden rounded-lg border border-border/40 bg-surface-1">
+    <div className="aspect-[4/3] overflow-hidden bg-surface">
+      {thumbnailSrc ? (
+        <img
+          src={thumbnailSrc}
+          alt={item.photo_display_name || item.photo_id}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center text-xs font-medium text-muted">
+          No preview
+        </div>
+      )}
+    </div>
+    <div className="space-y-1 p-2.5">
+      <p className="truncate text-sm font-semibold text-text">
+        {item.photo_display_name || item.photo_id}
+      </p>
+      <p className="text-xs text-muted">Selected: {new Date(item.selected_at).toLocaleString()}</p>
+      {item.comment ? <p className="line-clamp-2 text-xs text-muted">{item.comment}</p> : null}
+    </div>
+  </article>
+));
+
+FavoriteSelectionGridItem.displayName = 'FavoriteSelectionGridItem';
+
+const FavoriteSelectionListItem = memo(({ item, thumbnailSrc }: FavoriteSelectionItemProps) => (
+  <article className="flex items-center gap-3 rounded-lg border border-border/40 bg-surface-1 p-2">
+    <div className="h-16 w-24 shrink-0 overflow-hidden rounded-md bg-surface">
+      {thumbnailSrc ? (
+        <img
+          src={thumbnailSrc}
+          alt={item.photo_display_name || item.photo_id}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center text-[11px] font-medium text-muted">
+          No preview
+        </div>
+      )}
+    </div>
+    <div className="min-w-0 flex-1">
+      <p className="truncate text-sm font-semibold text-text">
+        {item.photo_display_name || item.photo_id}
+      </p>
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+        <span>Selected: {new Date(item.selected_at).toLocaleString()}</span>
+        <span>Updated: {new Date(item.updated_at).toLocaleString()}</span>
+        <span className="font-mono">ID: {item.photo_id}</span>
+      </div>
+      {item.comment ? <p className="mt-1 truncate text-xs text-muted">{item.comment}</p> : null}
+    </div>
+  </article>
+));
+
+FavoriteSelectionListItem.displayName = 'FavoriteSelectionListItem';
+
 export const GallerySelectionSessionsPanel = ({
   userTabs,
   selectedUserTabKey,
@@ -42,7 +107,22 @@ export const GallerySelectionSessionsPanel = ({
   onRefresh,
 }: GallerySelectionSessionsPanelProps) => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [tabFilter, setTabFilter] = useState<'all' | 'active'>('all');
+  const [itemSearch, setItemSearch] = useState('');
+  const [commentsOnly, setCommentsOnly] = useState(false);
+  const [recentOnly, setRecentOnly] = useState(false);
   const [page, setPage] = useState(1);
+  const deferredItemSearch = useDeferredValue(itemSearch);
+
+  const visibleUserTabs = useMemo(() => {
+    if (tabFilter !== 'active') {
+      return userTabs;
+    }
+    return userTabs.filter(
+      (userTab) => userTab.status !== 'closed' || userTab.key === selectedUserTabKey,
+    );
+  }, [selectedUserTabKey, tabFilter, userTabs]);
+
   const activeUserTab = userTabs.find((userTab) => userTab.key === selectedUserTabKey) ?? null;
   const totalSessions = useMemo(
     () => userTabs.reduce((sum, userTab) => sum + userTab.sessionCount, 0),
@@ -53,19 +133,48 @@ export const GallerySelectionSessionsPanel = ({
     [userTabs],
   );
   const pageSize = viewMode === 'grid' ? 12 : 15;
-  const totalItems = selectedSession?.items.length ?? 0;
-  const totalPages = Math.ceil(totalItems / pageSize);
-  const pagedItems = useMemo(() => {
+  const filteredSessionItems = useMemo(() => {
     if (!selectedSession) {
       return [];
     }
+
+    const query = deferredItemSearch.trim().toLowerCase();
+    const now = Date.now();
+
+    const matches = selectedSession.items.filter((item) => {
+      if (commentsOnly && !(item.comment && item.comment.trim().length > 0)) {
+        return false;
+      }
+
+      if (recentOnly && now - Date.parse(item.selected_at) > RECENT_SELECTION_WINDOW_MS) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      const candidate =
+        `${item.photo_display_name || ''} ${item.photo_id} ${item.comment || ''}`.toLowerCase();
+      return candidate.includes(query);
+    });
+
+    if (recentOnly) {
+      return [...matches].sort((a, b) => Date.parse(b.selected_at) - Date.parse(a.selected_at));
+    }
+
+    return matches;
+  }, [commentsOnly, deferredItemSearch, recentOnly, selectedSession]);
+  const totalItems = filteredSessionItems.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const pagedItems = useMemo(() => {
     const startIndex = (page - 1) * pageSize;
-    return selectedSession.items.slice(startIndex, startIndex + pageSize);
-  }, [page, pageSize, selectedSession]);
+    return filteredSessionItems.slice(startIndex, startIndex + pageSize);
+  }, [filteredSessionItems, page, pageSize]);
 
   useEffect(() => {
     setPage(1);
-  }, [selectedSession?.id, viewMode]);
+  }, [selectedSession?.id, viewMode, commentsOnly, recentOnly, deferredItemSearch]);
 
   useEffect(() => {
     if (totalPages === 0) {
@@ -146,8 +255,8 @@ export const GallerySelectionSessionsPanel = ({
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading favorite lists...
             </div>
-          ) : userTabs.length ? (
-            userTabs.map((userTab) => {
+          ) : visibleUserTabs.length ? (
+            visibleUserTabs.map((userTab) => {
               const isActive = selectedUserTabKey === userTab.key;
               return (
                 <button
@@ -194,7 +303,7 @@ export const GallerySelectionSessionsPanel = ({
               aria-labelledby={`favorite-tab-${activeUserTab.key}`}
               className="space-y-4"
             >
-              <div className="grid gap-2 sm:grid-cols-3">
+              <div className="grid gap-2 sm:grid-cols-4">
                 <div className="rounded-lg border border-border/40 bg-surface px-3 py-2">
                   <p className="text-xs text-muted">Client</p>
                   <p className="font-semibold text-text">{activeUserTab.clientName}</p>
@@ -215,33 +324,82 @@ export const GallerySelectionSessionsPanel = ({
                 </div>
               </div>
 
-              <div className="rounded-xl border border-border/40 bg-surface px-3 py-2">
-                {selectedSession.status === 'closed' ? (
-                  <button
-                    type="button"
-                    onClick={onReopenSession}
-                    disabled={isMutating}
-                    className="inline-flex items-center gap-1 rounded-lg border border-success/40 bg-success/10 px-2 py-1 text-xs font-semibold text-success disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <LockOpen className="h-3 w-3" />
-                    Reopen list
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={onCloseSession}
-                    disabled={isMutating}
-                    className="inline-flex items-center gap-1 rounded-lg border border-danger/40 bg-danger/10 px-2 py-1 text-xs font-semibold text-danger disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <Lock className="h-3 w-3" />
-                    Close list
-                  </button>
-                )}
+              <div className="sticky top-4 z-10 rounded-xl border border-border/40 bg-surface px-3 py-2 shadow-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-border/40 bg-surface-1 px-2 py-1 text-xs font-semibold text-text">
+                      Showing {totalItems} / {selectedSession.items.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setTabFilter((current) => (current === 'active' ? 'all' : 'active'))
+                      }
+                      className={`rounded-lg border px-2 py-1 text-xs font-semibold ${
+                        tabFilter === 'active'
+                          ? 'border-accent/45 bg-accent/10 text-accent'
+                          : 'border-border/40 bg-surface-1 text-text'
+                      }`}
+                    >
+                      Only active sessions
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCommentsOnly((current) => !current)}
+                      className={`rounded-lg border px-2 py-1 text-xs font-semibold ${
+                        commentsOnly
+                          ? 'border-accent/45 bg-accent/10 text-accent'
+                          : 'border-border/40 bg-surface-1 text-text'
+                      }`}
+                    >
+                      With comments
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRecentOnly((current) => !current)}
+                      className={`rounded-lg border px-2 py-1 text-xs font-semibold ${
+                        recentOnly
+                          ? 'border-accent/45 bg-accent/10 text-accent'
+                          : 'border-border/40 bg-surface-1 text-text'
+                      }`}
+                    >
+                      Recent (7d)
+                    </button>
+                  </div>
+                  {selectedSession.status === 'closed' ? (
+                    <button
+                      type="button"
+                      onClick={onReopenSession}
+                      disabled={isMutating}
+                      className="inline-flex items-center gap-1 rounded-lg border border-success/40 bg-success/10 px-2 py-1 text-xs font-semibold text-success disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <LockOpen className="h-3 w-3" />
+                      Reopen list
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={onCloseSession}
+                      disabled={isMutating}
+                      className="inline-flex items-center gap-1 rounded-lg border border-danger/40 bg-danger/10 px-2 py-1 text-xs font-semibold text-danger disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Lock className="h-3 w-3" />
+                      Close list
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="rounded-xl border border-border/40 bg-surface p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold text-text">Selected photos</h3>
+                  <input
+                    type="search"
+                    value={itemSearch}
+                    onChange={(event) => setItemSearch(event.target.value)}
+                    placeholder="Search by filename, id, comment"
+                    className="h-9 w-full rounded-lg border border-border/50 bg-surface-1 px-3 text-xs text-text placeholder:text-muted sm:w-72"
+                  />
                   <div className="inline-flex items-center gap-1 rounded-lg border border-border/40 bg-surface-1 p-1">
                     <button
                       type="button"
@@ -271,88 +429,36 @@ export const GallerySelectionSessionsPanel = ({
                     </button>
                   </div>
                 </div>
-                {selectedSession.items.length ? (
+                {totalItems ? (
                   viewMode === 'grid' ? (
                     <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       {pagedItems.map((item) => (
-                        <article
+                        <FavoriteSelectionGridItem
                           key={item.photo_id}
-                          className="overflow-hidden rounded-lg border border-border/40 bg-surface-1"
-                        >
-                          <div className="aspect-[4/3] overflow-hidden bg-surface">
-                            {thumbnailByPhotoId[item.photo_id] || item.photo_thumbnail_url ? (
-                              <img
-                                src={
-                                  thumbnailByPhotoId[item.photo_id] ||
-                                  item.photo_thumbnail_url ||
-                                  undefined
-                                }
-                                alt={item.photo_display_name || item.photo_id}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-full items-center justify-center text-xs font-medium text-muted">
-                                No preview
-                              </div>
-                            )}
-                          </div>
-                          <div className="space-y-1 p-2.5">
-                            <p className="truncate text-sm font-semibold text-text">
-                              {item.photo_display_name || item.photo_id}
-                            </p>
-                            <p className="text-xs text-muted">
-                              Selected: {new Date(item.selected_at).toLocaleString()}
-                            </p>
-                            {item.comment ? (
-                              <p className="line-clamp-2 text-xs text-muted">{item.comment}</p>
-                            ) : null}
-                          </div>
-                        </article>
+                          item={item}
+                          thumbnailSrc={
+                            thumbnailByPhotoId[item.photo_id] || item.photo_thumbnail_url || null
+                          }
+                        />
                       ))}
                     </div>
                   ) : (
                     <div className="mt-3 space-y-2">
                       {pagedItems.map((item) => (
-                        <article
+                        <FavoriteSelectionListItem
                           key={item.photo_id}
-                          className="flex items-center gap-3 rounded-lg border border-border/40 bg-surface-1 p-2"
-                        >
-                          <div className="h-16 w-24 shrink-0 overflow-hidden rounded-md bg-surface">
-                            {thumbnailByPhotoId[item.photo_id] || item.photo_thumbnail_url ? (
-                              <img
-                                src={
-                                  thumbnailByPhotoId[item.photo_id] ||
-                                  item.photo_thumbnail_url ||
-                                  undefined
-                                }
-                                alt={item.photo_display_name || item.photo_id}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-full items-center justify-center text-[11px] font-medium text-muted">
-                                No preview
-                              </div>
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-text">
-                              {item.photo_display_name || item.photo_id}
-                            </p>
-                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
-                              <span>Selected: {new Date(item.selected_at).toLocaleString()}</span>
-                              <span>Updated: {new Date(item.updated_at).toLocaleString()}</span>
-                              <span className="font-mono">ID: {item.photo_id}</span>
-                            </div>
-                            {item.comment ? (
-                              <p className="mt-1 truncate text-xs text-muted">{item.comment}</p>
-                            ) : null}
-                          </div>
-                        </article>
+                          item={item}
+                          thumbnailSrc={
+                            thumbnailByPhotoId[item.photo_id] || item.photo_thumbnail_url || null
+                          }
+                        />
                       ))}
                     </div>
                   )
                 ) : (
-                  <p className="mt-2 text-sm text-muted">No selected photos in the active list.</p>
+                  <p className="mt-2 text-sm text-muted">
+                    No selected photos match current filters in the active list.
+                  </p>
                 )}
 
                 {selectionPagination.totalPages > 1 ? (
