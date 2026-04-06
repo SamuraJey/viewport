@@ -34,6 +34,7 @@ interface FavoritesUserTab {
   clientName: string;
   status: string;
   selectedCount: number;
+  sessionCount: number;
   shareLinkLabel: string | null;
   updatedAt: string;
 }
@@ -80,6 +81,7 @@ export const GalleryPage = () => {
   const [selectedFavoritesTabKey, setSelectedFavoritesTabKey] = useState<string | null>(null);
   const [selectedFavoritesSessionDetail, setSelectedFavoritesSessionDetail] =
     useState<SelectionSession | null>(null);
+  const [hasLoadedFavorites, setHasLoadedFavorites] = useState(false);
   const [isLoadingSelectionRows, setIsLoadingSelectionRows] = useState(false);
   const [isLoadingSelectionDetail, setIsLoadingSelectionDetail] = useState(false);
   const [isMutatingSelectionSession, setIsMutatingSelectionSession] = useState(false);
@@ -353,6 +355,7 @@ export const GalleryPage = () => {
   );
 
   const favoritesCount = favoritesTabs.length;
+  const favoritesSessionCount = favoritesTabs.reduce((sum, tab) => sum + tab.sessionCount, 0);
   const selectedFavoritesTab = useMemo(
     () => favoritesTabs.find((tab) => tab.key === selectedFavoritesTabKey) ?? null,
     [favoritesTabs, selectedFavoritesTabKey],
@@ -366,10 +369,12 @@ export const GalleryPage = () => {
       const rows = await shareLinkService.getGallerySelections(galleryId);
       const shareLinksById = new Map(shareLinks.map((shareLink) => [shareLink.id, shareLink]));
       const detailResponses = await Promise.all(
-        rows.map(async (row) => {
-          const detail = await shareLinkService.getOwnerSelectionDetail(row.sharelink_id);
-          return { row, detail };
-        }),
+        rows
+          .filter((row) => row.selected_count > 0)
+          .map(async (row) => {
+            const detail = await shareLinkService.getOwnerSelectionDetail(row.sharelink_id);
+            return { row, detail };
+          }),
       );
 
       const tabByUserKey = new Map<string, FavoritesUserTab>();
@@ -392,13 +397,22 @@ export const GalleryPage = () => {
             clientName: session.client_name || 'Unnamed client',
             status: session.status,
             selectedCount: session.selected_count,
+            sessionCount: 1,
             shareLinkLabel: shareLink?.label || row.sharelink_label || null,
             updatedAt: session.updated_at,
           };
           const existing = tabByUserKey.get(userKey);
-          if (!existing || Date.parse(nextTab.updatedAt) > Date.parse(existing.updatedAt)) {
+          if (!existing) {
             tabByUserKey.set(userKey, nextTab);
+            continue;
           }
+          const isNewer = Date.parse(nextTab.updatedAt) > Date.parse(existing.updatedAt);
+          tabByUserKey.set(
+            userKey,
+            isNewer
+              ? { ...nextTab, sessionCount: existing.sessionCount + 1 }
+              : { ...existing, sessionCount: existing.sessionCount + 1 },
+          );
         }
       }
       const tabs = Array.from(tabByUserKey.values()).sort(
@@ -447,17 +461,32 @@ export const GalleryPage = () => {
   }, [pagination.page, galleryId, activeSearch, sortBy, sortOrder]);
 
   useEffect(() => {
-    if (shareLinks.length === 0) {
-      setFavoritesTabs([]);
-      setSelectedFavoritesTabKey(null);
-      setSelectedFavoritesSessionDetail(null);
-      return;
-    }
-    void fetchSelectionRows();
-  }, [fetchSelectionRows, shareLinks]);
+    setFavoritesTabs([]);
+    setSelectedFavoritesTabKey(null);
+    setSelectedFavoritesSessionDetail(null);
+    setSelectionSessionsError('');
+    setHasLoadedFavorites(false);
+  }, [shareLinks]);
 
   useEffect(() => {
-    if (!selectedFavoritesTab) {
+    if (activeContentTab !== 'favorites') {
+      return;
+    }
+    if (shareLinks.length === 0 || hasLoadedFavorites || isLoadingSelectionRows) {
+      return;
+    }
+    setHasLoadedFavorites(true);
+    void fetchSelectionRows();
+  }, [
+    activeContentTab,
+    fetchSelectionRows,
+    hasLoadedFavorites,
+    isLoadingSelectionRows,
+    shareLinks.length,
+  ]);
+
+  useEffect(() => {
+    if (activeContentTab !== 'favorites' || !selectedFavoritesTab) {
       setSelectedFavoritesSessionDetail(null);
       return;
     }
@@ -465,7 +494,7 @@ export const GalleryPage = () => {
       selectedFavoritesTab.shareLinkId,
       selectedFavoritesTab.sessionId,
     );
-  }, [fetchSelectionSessionDetail, selectedFavoritesTab]);
+  }, [activeContentTab, fetchSelectionSessionDetail, selectedFavoritesTab]);
 
   const handleCloseSelectionSession = useCallback(async () => {
     if (!selectedFavoritesTab) return;
@@ -785,7 +814,7 @@ export const GalleryPage = () => {
                 : 'border-border/50 bg-surface text-text hover:border-accent/30'
             }`}
           >
-            Favorites ({favoritesCount})
+            Favorites ({hasLoadedFavorites ? favoritesSessionCount : favoritesCount})
           </button>
         </div>
 

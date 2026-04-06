@@ -1,4 +1,6 @@
-import { Loader2, Lock, LockOpen } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { LayoutGrid, List, Loader2, Lock, LockOpen } from 'lucide-react';
+import { PaginationControls } from '../PaginationControls';
 import type { SelectionSession } from '../../types';
 
 interface FavoritesUserTab {
@@ -6,6 +8,7 @@ interface FavoritesUserTab {
   clientName: string;
   status: string;
   selectedCount: number;
+  sessionCount: number;
   shareLinkLabel: string | null;
 }
 
@@ -38,7 +41,62 @@ export const GallerySelectionSessionsPanel = ({
   onReopenSession,
   onRefresh,
 }: GallerySelectionSessionsPanelProps) => {
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [page, setPage] = useState(1);
   const activeUserTab = userTabs.find((userTab) => userTab.key === selectedUserTabKey) ?? null;
+  const totalSessions = useMemo(
+    () => userTabs.reduce((sum, userTab) => sum + userTab.sessionCount, 0),
+    [userTabs],
+  );
+  const totalSelectedPhotos = useMemo(
+    () => userTabs.reduce((sum, userTab) => sum + userTab.selectedCount, 0),
+    [userTabs],
+  );
+  const pageSize = viewMode === 'grid' ? 12 : 15;
+  const totalItems = selectedSession?.items.length ?? 0;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const pagedItems = useMemo(() => {
+    if (!selectedSession) {
+      return [];
+    }
+    const startIndex = (page - 1) * pageSize;
+    return selectedSession.items.slice(startIndex, startIndex + pageSize);
+  }, [page, pageSize, selectedSession]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedSession?.id, viewMode]);
+
+  useEffect(() => {
+    if (totalPages === 0) {
+      if (page !== 1) {
+        setPage(1);
+      }
+      return;
+    }
+
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  const selectionPagination = {
+    page,
+    pageSize,
+    total: totalItems,
+    totalPages,
+    isFirstPage: page <= 1,
+    isLastPage: totalPages > 0 && page >= totalPages,
+    nextPage: () => setPage((current) => Math.min(totalPages || 1, current + 1)),
+    previousPage: () => setPage((current) => Math.max(1, current - 1)),
+    goToPage: (targetPage: number) => {
+      if (totalPages === 0) {
+        setPage(1);
+        return;
+      }
+      setPage(Math.max(1, Math.min(targetPage, totalPages)));
+    },
+  };
 
   return (
     <section className="rounded-3xl border border-border/50 bg-surface p-6 shadow-xs">
@@ -54,6 +112,21 @@ export const GallerySelectionSessionsPanel = ({
         >
           Refresh
         </button>
+      </div>
+
+      <div className="mb-4 grid gap-2 sm:grid-cols-3">
+        <div className="rounded-lg border border-border/40 bg-surface-1 px-3 py-2">
+          <p className="text-xs text-muted">Clients</p>
+          <p className="font-semibold text-text">{userTabs.length}</p>
+        </div>
+        <div className="rounded-lg border border-border/40 bg-surface-1 px-3 py-2">
+          <p className="text-xs text-muted">Sessions</p>
+          <p className="font-semibold text-text">{totalSessions}</p>
+        </div>
+        <div className="rounded-lg border border-border/40 bg-surface-1 px-3 py-2">
+          <p className="text-xs text-muted">Selected photos</p>
+          <p className="font-semibold text-text">{totalSelectedPhotos}</p>
+        </div>
       </div>
 
       {error ? (
@@ -93,7 +166,8 @@ export const GallerySelectionSessionsPanel = ({
                 >
                   <p className="text-sm font-semibold text-text">{userTab.clientName}</p>
                   <p className="text-xs text-muted">
-                    {userTab.selectedCount} selected • {userTab.status}
+                    {userTab.selectedCount} selected • {userTab.sessionCount} sessions •{' '}
+                    {userTab.status}
                   </p>
                 </button>
               );
@@ -130,6 +204,10 @@ export const GallerySelectionSessionsPanel = ({
                   <p className="font-semibold text-text">{activeUserTab.selectedCount}</p>
                 </div>
                 <div className="rounded-lg border border-border/40 bg-surface px-3 py-2">
+                  <p className="text-xs text-muted">Sessions</p>
+                  <p className="font-semibold text-text">{activeUserTab.sessionCount}</p>
+                </div>
+                <div className="rounded-lg border border-border/40 bg-surface px-3 py-2">
                   <p className="text-xs text-muted">Share link</p>
                   <p className="font-semibold text-text">
                     {activeUserTab.shareLinkLabel || 'Untitled link'}
@@ -162,40 +240,126 @@ export const GallerySelectionSessionsPanel = ({
               </div>
 
               <div className="rounded-xl border border-border/40 bg-surface p-3">
-                <h3 className="text-sm font-semibold text-text">Selected photos</h3>
-                {selectedSession.items.length ? (
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {selectedSession.items.map((item) => (
-                      <div
-                        key={item.photo_id}
-                        className="rounded-lg border border-border/40 bg-surface-1 p-2"
-                      >
-                        {thumbnailByPhotoId[item.photo_id] || item.photo_thumbnail_url ? (
-                          <img
-                            src={
-                              thumbnailByPhotoId[item.photo_id] ||
-                              item.photo_thumbnail_url ||
-                              undefined
-                            }
-                            alt={item.photo_display_name || item.photo_id}
-                            className="h-20 w-full rounded-md object-cover"
-                          />
-                        ) : null}
-                        <p className="mt-2 text-xs font-semibold text-text">
-                          {item.photo_display_name || item.photo_id}
-                        </p>
-                        <p className="mt-1 text-xs text-muted">
-                          {new Date(item.selected_at).toLocaleString()}
-                        </p>
-                        {item.comment ? (
-                          <p className="mt-1 text-xs text-muted">{item.comment}</p>
-                        ) : null}
-                      </div>
-                    ))}
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-text">Selected photos</h3>
+                  <div className="inline-flex items-center gap-1 rounded-lg border border-border/40 bg-surface-1 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('grid')}
+                      aria-pressed={viewMode === 'grid'}
+                      className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${
+                        viewMode === 'grid'
+                          ? 'bg-accent text-accent-foreground'
+                          : 'text-text hover:bg-surface'
+                      }`}
+                    >
+                      <LayoutGrid className="h-3.5 w-3.5" />
+                      Grid
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('list')}
+                      aria-pressed={viewMode === 'list'}
+                      className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${
+                        viewMode === 'list'
+                          ? 'bg-accent text-accent-foreground'
+                          : 'text-text hover:bg-surface'
+                      }`}
+                    >
+                      <List className="h-3.5 w-3.5" />
+                      List
+                    </button>
                   </div>
+                </div>
+                {selectedSession.items.length ? (
+                  viewMode === 'grid' ? (
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {pagedItems.map((item) => (
+                        <article
+                          key={item.photo_id}
+                          className="overflow-hidden rounded-lg border border-border/40 bg-surface-1"
+                        >
+                          <div className="aspect-[4/3] overflow-hidden bg-surface">
+                            {thumbnailByPhotoId[item.photo_id] || item.photo_thumbnail_url ? (
+                              <img
+                                src={
+                                  thumbnailByPhotoId[item.photo_id] ||
+                                  item.photo_thumbnail_url ||
+                                  undefined
+                                }
+                                alt={item.photo_display_name || item.photo_id}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full items-center justify-center text-xs font-medium text-muted">
+                                No preview
+                              </div>
+                            )}
+                          </div>
+                          <div className="space-y-1 p-2.5">
+                            <p className="truncate text-sm font-semibold text-text">
+                              {item.photo_display_name || item.photo_id}
+                            </p>
+                            <p className="text-xs text-muted">
+                              Selected: {new Date(item.selected_at).toLocaleString()}
+                            </p>
+                            {item.comment ? (
+                              <p className="line-clamp-2 text-xs text-muted">{item.comment}</p>
+                            ) : null}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-3 space-y-2">
+                      {pagedItems.map((item) => (
+                        <article
+                          key={item.photo_id}
+                          className="flex items-center gap-3 rounded-lg border border-border/40 bg-surface-1 p-2"
+                        >
+                          <div className="h-16 w-24 shrink-0 overflow-hidden rounded-md bg-surface">
+                            {thumbnailByPhotoId[item.photo_id] || item.photo_thumbnail_url ? (
+                              <img
+                                src={
+                                  thumbnailByPhotoId[item.photo_id] ||
+                                  item.photo_thumbnail_url ||
+                                  undefined
+                                }
+                                alt={item.photo_display_name || item.photo_id}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full items-center justify-center text-[11px] font-medium text-muted">
+                                No preview
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-text">
+                              {item.photo_display_name || item.photo_id}
+                            </p>
+                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+                              <span>Selected: {new Date(item.selected_at).toLocaleString()}</span>
+                              <span>Updated: {new Date(item.updated_at).toLocaleString()}</span>
+                              <span className="font-mono">ID: {item.photo_id}</span>
+                            </div>
+                            {item.comment ? (
+                              <p className="mt-1 truncate text-xs text-muted">{item.comment}</p>
+                            ) : null}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )
                 ) : (
                   <p className="mt-2 text-sm text-muted">No selected photos in the active list.</p>
                 )}
+
+                {selectionPagination.totalPages > 1 ? (
+                  <div className="mt-4 border-t border-border/40 pt-2">
+                    <PaginationControls pagination={selectionPagination} />
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : (
