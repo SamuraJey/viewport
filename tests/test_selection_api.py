@@ -103,6 +103,8 @@ class TestSelectionAPI:
         assert alice_owner_payload["client_name"] == "Alice"
         assert alice_owner_payload["items"][0]["photo_id"] == first_photo_id
         assert alice_owner_payload["items"][0]["photo_display_name"] == "first.jpg"
+        assert isinstance(alice_owner_payload["items"][0]["photo_thumbnail_url"], str)
+        assert alice_owner_payload["items"][0]["photo_thumbnail_url"].startswith("http")
         assert alice_owner_payload["items"][0]["comment"] == "Alice pick"
 
     def test_public_selection_session_lifecycle(

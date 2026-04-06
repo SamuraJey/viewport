@@ -126,6 +126,7 @@ export interface SelectionPhotoCommentRequest {
 export interface SelectionItem {
   photo_id: string;
   photo_display_name?: string | null;
+  photo_thumbnail_url?: string | null;
   comment: string | null;
   selected_at: string;
   updated_at: string;

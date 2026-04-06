@@ -10,11 +10,13 @@ from starlette.concurrency import run_in_threadpool
 
 from viewport.auth_utils import get_current_user
 from viewport.background_tasks import notify_selection_submitted_task
+from viewport.dependencies import get_s3_client
 from viewport.models.db import get_db
 from viewport.models.sharelink import ShareLink
 from viewport.models.sharelink_selection import SelectionSessionStatus, ShareLinkSelectionConfig, ShareLinkSelectionItem, ShareLinkSelectionSession
 from viewport.models.user import User
 from viewport.repositories.selection_repository import SelectionRepository
+from viewport.s3_service import AsyncS3Client
 from viewport.schemas.selection import (
     BulkSelectionActionResponse,
     OwnerSelectionAggregateResponse,
@@ -121,14 +123,19 @@ def _validate_submit_requirements(config: ShareLinkSelectionConfig, session: Sha
         raise HTTPException(status_code=422, detail="At least one photo must be selected before submit")
 
 
-def _to_selection_item_response(item: ShareLinkSelectionItem) -> SelectionItemResponse:
+def _to_selection_item_response(item: ShareLinkSelectionItem, thumbnail_url_map: dict[str, str] | None = None) -> SelectionItemResponse:
     photo_display_name: str | None = None
+    photo_thumbnail_url: str | None = None
     if "photo" in item.__dict__ and item.photo is not None:
         photo_display_name = item.photo.display_name
+        thumbnail_object_key = item.photo.thumbnail_object_key
+        if thumbnail_url_map is not None:
+            photo_thumbnail_url = thumbnail_url_map.get(thumbnail_object_key)
 
     return SelectionItemResponse(
         photo_id=str(item.photo_id),
         photo_display_name=photo_display_name,
+        photo_thumbnail_url=photo_thumbnail_url,
         comment=item.comment,
         selected_at=item.selected_at,
         updated_at=item.updated_at,
@@ -151,8 +158,23 @@ def _to_selection_config_response(config: ShareLinkSelectionConfig) -> Selection
     )
 
 
-def _to_selection_session_response(session: ShareLinkSelectionSession, *, resume_token: str | None = None) -> SelectionSessionResponse:
+async def _to_selection_session_response(
+    session: ShareLinkSelectionSession,
+    *,
+    resume_token: str | None = None,
+    s3_client: AsyncS3Client | None = None,
+) -> SelectionSessionResponse:
     ordered_items = sorted(session.items, key=lambda item: (item.selected_at, item.photo_id))
+    thumbnail_url_map: dict[str, str] | None = None
+    if s3_client is not None:
+        thumbnail_keys = [item.photo.thumbnail_object_key for item in ordered_items if "photo" in item.__dict__ and item.photo is not None and item.photo.thumbnail_object_key]
+        if thumbnail_keys:
+            unique_thumbnail_keys = list(dict.fromkeys(thumbnail_keys))
+            thumbnail_url_map = await s3_client.generate_presigned_urls_batch(
+                unique_thumbnail_keys,
+                expires_in=7200,
+            )
+
     return SelectionSessionResponse(
         id=str(session.id),
         sharelink_id=str(session.sharelink_id),
@@ -167,7 +189,7 @@ def _to_selection_session_response(session: ShareLinkSelectionSession, *, resume
         created_at=session.created_at,
         updated_at=session.updated_at,
         resume_token=resume_token,
-        items=[_to_selection_item_response(item) for item in ordered_items],
+        items=[_to_selection_item_response(item, thumbnail_url_map) for item in ordered_items],
     )
 
 
@@ -288,6 +310,7 @@ async def start_public_selection_session(
     request: Request,
     response: Response,
     repo: SelectionRepository = Depends(get_selection_repository),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> SelectionSessionResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
     sharelink = await _get_public_sharelink_or_404(share_id, repo)
@@ -300,7 +323,11 @@ async def start_public_selection_session(
         existing_by_token = await repo.get_session_by_resume_token(sharelink.id, token_from_request)
         if existing_by_token:
             _set_selection_cookie(response, share_id, token_from_request)
-            return _to_selection_session_response(existing_by_token, resume_token=token_from_request)
+            return await _to_selection_session_response(
+                existing_by_token,
+                resume_token=token_from_request,
+                s3_client=s3_client,
+            )
 
     resume_token, resume_token_hash = repo.generate_resume_token()
     session = await repo.create_session(
@@ -313,7 +340,11 @@ async def start_public_selection_session(
         resume_token_hash=resume_token_hash,
     )
     _set_selection_cookie(response, share_id, resume_token)
-    return _to_selection_session_response(session, resume_token=resume_token)
+    return await _to_selection_session_response(
+        session,
+        resume_token=resume_token,
+        s3_client=s3_client,
+    )
 
 
 @router.get("/s/{share_id}/selection/session/me", response_model=SelectionSessionResponse)
@@ -323,6 +354,7 @@ async def get_public_selection_session(
     response: Response,
     resume_token: str | None = Query(None),
     repo: SelectionRepository = Depends(get_selection_repository),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> SelectionSessionResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
     sharelink = await _get_public_sharelink_or_404(share_id, repo)
@@ -330,7 +362,11 @@ async def get_public_selection_session(
 
     session, resolved_token = await _get_session_by_token_or_404(request=request, share_id=share_id, repo=repo, resume_token=resume_token)
     _set_selection_cookie(response, share_id, resolved_token)
-    return _to_selection_session_response(session, resume_token=resolved_token)
+    return await _to_selection_session_response(
+        session,
+        resume_token=resolved_token,
+        s3_client=s3_client,
+    )
 
 
 @router.put("/s/{share_id}/selection/session/items/{photo_id}", response_model=SelectionTogglePhotoResponse)
@@ -412,6 +448,7 @@ async def update_public_selection_session(
     response: Response,
     resume_token: str | None = Query(None),
     repo: SelectionRepository = Depends(get_selection_repository),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> SelectionSessionResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
     sharelink = await _get_public_sharelink_or_404(share_id, repo)
@@ -426,7 +463,11 @@ async def update_public_selection_session(
         raise HTTPException(status_code=422, detail="client_note is required")
 
     updated_session = await repo.update_session_note(session, client_note)
-    return _to_selection_session_response(updated_session, resume_token=resolved_token)
+    return await _to_selection_session_response(
+        updated_session,
+        resume_token=resolved_token,
+        s3_client=s3_client,
+    )
 
 
 @router.post("/s/{share_id}/selection/session/submit", response_model=SelectionSubmitResponse)
@@ -540,6 +581,7 @@ async def get_owner_selection_detail(
     sharelink_id: uuid.UUID,
     repo: SelectionRepository = Depends(get_selection_repository),
     current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> OwnerSelectionDetailResponse:
     sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
     if not sharelink:
@@ -570,7 +612,7 @@ async def get_owner_selection_detail(
             latest_activity_at,
         ),
         sessions=[_to_owner_selection_session_list_item_response(item) for item in sessions],
-        session=_to_selection_session_response(session) if session else None,
+        session=await _to_selection_session_response(session, s3_client=s3_client) if session else None,
     )
 
 
@@ -580,6 +622,7 @@ async def close_owner_selection(
     session_id: uuid.UUID | None = Query(None),
     repo: SelectionRepository = Depends(get_selection_repository),
     current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> SelectionSessionResponse:
     sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
     if not sharelink:
@@ -593,7 +636,7 @@ async def close_owner_selection(
         raise HTTPException(status_code=404, detail="Selection session not found")
 
     updated_session = await repo.set_session_status(session, SelectionSessionStatus.CLOSED)
-    return _to_selection_session_response(updated_session)
+    return await _to_selection_session_response(updated_session, s3_client=s3_client)
 
 
 @router.post("/share-links/{sharelink_id}/selection/reopen", response_model=SelectionSessionResponse)
@@ -602,6 +645,7 @@ async def reopen_owner_selection(
     session_id: uuid.UUID | None = Query(None),
     repo: SelectionRepository = Depends(get_selection_repository),
     current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> SelectionSessionResponse:
     sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
     if not sharelink:
@@ -615,7 +659,7 @@ async def reopen_owner_selection(
         raise HTTPException(status_code=404, detail="Selection session not found")
 
     updated_session = await repo.set_session_status(session, SelectionSessionStatus.IN_PROGRESS)
-    return _to_selection_session_response(updated_session)
+    return await _to_selection_session_response(updated_session, s3_client=s3_client)
 
 
 @router.get("/share-links/{sharelink_id}/selection/sessions/{session_id}", response_model=SelectionSessionResponse)
@@ -624,6 +668,7 @@ async def get_owner_selection_session_detail(
     session_id: uuid.UUID,
     repo: SelectionRepository = Depends(get_selection_repository),
     current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> SelectionSessionResponse:
     sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
     if not sharelink:
@@ -632,7 +677,7 @@ async def get_owner_selection_session_detail(
     session = await repo.get_session_by_id_for_sharelink(sharelink.id, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Selection session not found")
-    return _to_selection_session_response(session)
+    return await _to_selection_session_response(session, s3_client=s3_client)
 
 
 @router.post("/share-links/{sharelink_id}/selection/sessions/{session_id}/close", response_model=SelectionSessionResponse)
@@ -641,6 +686,7 @@ async def close_owner_selection_session(
     session_id: uuid.UUID,
     repo: SelectionRepository = Depends(get_selection_repository),
     current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> SelectionSessionResponse:
     sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
     if not sharelink:
@@ -651,7 +697,7 @@ async def close_owner_selection_session(
         raise HTTPException(status_code=404, detail="Selection session not found")
 
     updated_session = await repo.set_session_status(session, SelectionSessionStatus.CLOSED)
-    return _to_selection_session_response(updated_session)
+    return await _to_selection_session_response(updated_session, s3_client=s3_client)
 
 
 @router.post("/share-links/{sharelink_id}/selection/sessions/{session_id}/reopen", response_model=SelectionSessionResponse)
@@ -660,6 +706,7 @@ async def reopen_owner_selection_session(
     session_id: uuid.UUID,
     repo: SelectionRepository = Depends(get_selection_repository),
     current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> SelectionSessionResponse:
     sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
     if not sharelink:
@@ -670,7 +717,7 @@ async def reopen_owner_selection_session(
         raise HTTPException(status_code=404, detail="Selection session not found")
 
     updated_session = await repo.set_session_status(session, SelectionSessionStatus.IN_PROGRESS)
-    return _to_selection_session_response(updated_session)
+    return await _to_selection_session_response(updated_session, s3_client=s3_client)
 
 
 @router.get("/galleries/{gallery_id}/selections", response_model=list[OwnerSelectionRowResponse])

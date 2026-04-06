@@ -170,9 +170,13 @@ export const GallerySelectionSessionsPanel = ({
                         key={item.photo_id}
                         className="rounded-lg border border-border/40 bg-surface-1 p-2"
                       >
-                        {thumbnailByPhotoId[item.photo_id] ? (
+                        {thumbnailByPhotoId[item.photo_id] || item.photo_thumbnail_url ? (
                           <img
-                            src={thumbnailByPhotoId[item.photo_id]}
+                            src={
+                              thumbnailByPhotoId[item.photo_id] ||
+                              item.photo_thumbnail_url ||
+                              undefined
+                            }
                             alt={item.photo_display_name || item.photo_id}
                             className="h-20 w-full rounded-md object-cover"
                           />

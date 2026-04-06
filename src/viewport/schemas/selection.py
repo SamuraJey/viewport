@@ -60,6 +60,7 @@ class SelectionPhotoCommentRequest(BaseModel):
 class SelectionItemResponse(BaseModel):
     photo_id: str
     photo_display_name: str | None = None
+    photo_thumbnail_url: str | None = None
     comment: str | None
     selected_at: datetime
     updated_at: datetime

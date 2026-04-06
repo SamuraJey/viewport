@@ -1325,6 +1325,8 @@ class DemoServiceStore {
         ...item,
         photo_display_name:
           state.photos.find((photo) => photo.id === item.photo_id)?.filename ?? null,
+        photo_thumbnail_url:
+          state.photos.find((photo) => photo.id === item.photo_id)?.thumbnail_url ?? null,
       })),
     });
 
@@ -1417,6 +1419,8 @@ class DemoServiceStore {
         ...item,
         photo_display_name:
           state.photos.find((photo) => photo.id === item.photo_id)?.filename ?? null,
+        photo_thumbnail_url:
+          state.photos.find((photo) => photo.id === item.photo_id)?.thumbnail_url ?? null,
       })),
     };
   }
