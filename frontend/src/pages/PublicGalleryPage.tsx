@@ -190,24 +190,24 @@ export const PublicGalleryPage = () => {
           selection={
             selection.config?.is_enabled
               ? {
-                enabled: true,
-                selectedIds: selection.selectedIds,
-                selectedCount: selection.session?.selected_count ?? 0,
-                limitEnabled: selection.config.limit_enabled,
-                limitValue: selection.config.limit_value,
-                selectedOnly: selection.selectedOnly,
-                canMutate: selection.canMutateSession,
-                allowPhotoComments: selection.config.allow_photo_comments,
-                session: selection.session,
-                commentsByPhotoId: selection.commentsByPhotoId,
-                onToggleSelectedOnly: () => selection.setSelectedOnly(!selection.selectedOnly),
-                onTogglePhoto: (photoId: string) => {
-                  void selection.togglePhoto(photoId);
-                },
-                onUpdatePhotoComment: (photoId: string, comment: string) => {
-                  void selection.updatePhotoComment(photoId, comment);
-                },
-              }
+                  enabled: true,
+                  selectedIds: selection.selectedIds,
+                  selectedCount: selection.session?.selected_count ?? 0,
+                  limitEnabled: selection.config.limit_enabled,
+                  limitValue: selection.config.limit_value,
+                  selectedOnly: selection.selectedOnly,
+                  canMutate: selection.canMutateSession,
+                  allowPhotoComments: selection.config.allow_photo_comments,
+                  session: selection.session,
+                  commentsByPhotoId: selection.commentsByPhotoId,
+                  onToggleSelectedOnly: () => selection.setSelectedOnly(!selection.selectedOnly),
+                  onTogglePhoto: (photoId: string) => {
+                    void selection.togglePhoto(photoId);
+                  },
+                  onUpdatePhotoComment: (photoId: string, comment: string) => {
+                    void selection.updatePhotoComment(photoId, comment);
+                  },
+                }
               : undefined
           }
         />

@@ -18,14 +18,7 @@ import { type PhotoUploaderHandle } from '../components/PhotoUploader';
 import { usePagination, useSelection, useGalleryActions, useGalleryDragAndDrop } from '../hooks';
 import { shareLinkService } from '../services/shareLinkService';
 import { handleApiError } from '../lib/errorHandling';
-import type {
-  GalleryPhotoSortBy,
-  OwnerSelectionDetail,
-  OwnerSelectionRow,
-  SelectionSession,
-  ShareLink,
-  SortOrder,
-} from '../types';
+import type { GalleryPhotoSortBy, SelectionSession, ShareLink, SortOrder } from '../types';
 
 const DEFAULT_SORT_BY: GalleryPhotoSortBy = 'uploaded_at';
 const DEFAULT_SORT_ORDER: SortOrder = 'desc';
@@ -33,6 +26,17 @@ const DEFAULT_PUBLIC_SORT_BY: GalleryPhotoSortBy = 'original_filename';
 const DEFAULT_PUBLIC_SORT_ORDER: SortOrder = 'asc';
 const SEARCH_DEBOUNCE_MS = 400;
 const SEARCH_INPUT_ID = 'gallery-photo-search';
+
+interface FavoritesUserTab {
+  key: string;
+  shareLinkId: string;
+  sessionId: string;
+  clientName: string;
+  status: string;
+  selectedCount: number;
+  shareLinkLabel: string | null;
+  updatedAt: string;
+}
 
 const isGalleryPhotoSortBy = (value: string | null): value is GalleryPhotoSortBy =>
   value === 'uploaded_at' || value === 'original_filename' || value === 'file_size';
@@ -66,19 +70,15 @@ export const GalleryPage = () => {
     useState<GalleryPhotoSortBy>(DEFAULT_PUBLIC_SORT_BY);
   const [publicSortOrderInput, setPublicSortOrderInput] =
     useState<SortOrder>(DEFAULT_PUBLIC_SORT_ORDER);
+  const [activeContentTab, setActiveContentTab] = useState<'project' | 'favorites'>('project');
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showInitialLoadingState, setShowInitialLoadingState] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingShareLink, setEditingShareLink] = useState<ShareLink | null>(null);
   const [photoSizeById, setPhotoSizeById] = useState<Record<string, number>>({});
-  const [selectionRows, setSelectionRows] = useState<OwnerSelectionRow[]>([]);
-  const [selectedSelectionShareLinkId, setSelectedSelectionShareLinkId] = useState<string | null>(
-    null,
-  );
-  const [selectedSelectionSessionId, setSelectedSelectionSessionId] = useState<string | null>(null);
-  const [selectedSelectionDetail, setSelectedSelectionDetail] =
-    useState<OwnerSelectionDetail | null>(null);
-  const [selectedSelectionSessionDetail, setSelectedSelectionSessionDetail] =
+  const [favoritesTabs, setFavoritesTabs] = useState<FavoritesUserTab[]>([]);
+  const [selectedFavoritesTabKey, setSelectedFavoritesTabKey] = useState<string | null>(null);
+  const [selectedFavoritesSessionDetail, setSelectedFavoritesSessionDetail] =
     useState<SelectionSession | null>(null);
   const [isLoadingSelectionRows, setIsLoadingSelectionRows] = useState(false);
   const [isLoadingSelectionDetail, setIsLoadingSelectionDetail] = useState(false);
@@ -352,58 +352,88 @@ export const GalleryPage = () => {
     [photoUrls],
   );
 
+  const favoritesCount = favoritesTabs.length;
+  const selectedFavoritesTab = useMemo(
+    () => favoritesTabs.find((tab) => tab.key === selectedFavoritesTabKey) ?? null,
+    [favoritesTabs, selectedFavoritesTabKey],
+  );
+
   const fetchSelectionRows = useCallback(async () => {
     if (!galleryId) return;
     setIsLoadingSelectionRows(true);
     setSelectionSessionsError('');
     try {
       const rows = await shareLinkService.getGallerySelections(galleryId);
-      setSelectionRows(rows);
-      setSelectedSelectionShareLinkId((current) => {
-        if (current && rows.some((row) => row.sharelink_id === current)) return current;
-        return rows[0]?.sharelink_id ?? null;
+      const shareLinksById = new Map(shareLinks.map((shareLink) => [shareLink.id, shareLink]));
+      const detailResponses = await Promise.all(
+        rows.map(async (row) => {
+          const detail = await shareLinkService.getOwnerSelectionDetail(row.sharelink_id);
+          return { row, detail };
+        }),
+      );
+
+      const tabByUserKey = new Map<string, FavoritesUserTab>();
+      for (const { row, detail } of detailResponses) {
+        for (const session of detail.sessions) {
+          if (session.selected_count <= 0) {
+            continue;
+          }
+          const identityKey = [
+            (session.client_name || '').trim().toLowerCase(),
+            session.client_email?.trim().toLowerCase() || '',
+            session.client_phone?.trim() || '',
+          ].join('|');
+          const userKey = identityKey || `${row.sharelink_id}:${session.id}`;
+          const shareLink = shareLinksById.get(row.sharelink_id);
+          const nextTab: FavoritesUserTab = {
+            key: userKey,
+            shareLinkId: row.sharelink_id,
+            sessionId: session.id,
+            clientName: session.client_name || 'Unnamed client',
+            status: session.status,
+            selectedCount: session.selected_count,
+            shareLinkLabel: shareLink?.label || row.sharelink_label || null,
+            updatedAt: session.updated_at,
+          };
+          const existing = tabByUserKey.get(userKey);
+          if (!existing || Date.parse(nextTab.updatedAt) > Date.parse(existing.updatedAt)) {
+            tabByUserKey.set(userKey, nextTab);
+          }
+        }
+      }
+      const tabs = Array.from(tabByUserKey.values()).sort(
+        (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
+      );
+
+      setFavoritesTabs(tabs);
+      setSelectedFavoritesTabKey((current) => {
+        if (current && tabs.some((tab) => tab.key === current)) return current;
+        return tabs[0]?.key ?? null;
       });
     } catch (err) {
-      setSelectionSessionsError(handleApiError(err).message || 'Failed to load selection sessions');
+      setSelectionSessionsError(handleApiError(err).message || 'Failed to load favorites');
     } finally {
       setIsLoadingSelectionRows(false);
     }
-  }, [galleryId]);
-
-  const fetchSelectionDetailForLink = useCallback(async (shareLinkId: string) => {
-    setIsLoadingSelectionDetail(true);
-    setSelectionSessionsError('');
-    try {
-      const detail = await shareLinkService.getOwnerSelectionDetail(shareLinkId);
-      setSelectedSelectionDetail(detail);
-      setSelectedSelectionSessionId((current) => {
-        if (current && detail.sessions.some((session) => session.id === current)) return current;
-        return detail.session?.id ?? detail.sessions[0]?.id ?? null;
-      });
-    } catch (err) {
-      setSelectedSelectionDetail(null);
-      setSelectedSelectionSessionId(null);
-      setSelectionSessionsError(
-        handleApiError(err).message || 'Failed to load selected share link details',
-      );
-    } finally {
-      setIsLoadingSelectionDetail(false);
-    }
-  }, []);
+  }, [galleryId, shareLinks]);
 
   const fetchSelectionSessionDetail = useCallback(
     async (shareLinkId: string, sessionId: string) => {
+      setIsLoadingSelectionDetail(true);
+      setSelectionSessionsError('');
       try {
         const detail = await shareLinkService.getOwnerSelectionSessionDetail(
           shareLinkId,
           sessionId,
         );
-        setSelectedSelectionSessionDetail(detail);
+        setSelectedFavoritesSessionDetail(detail);
       } catch (err) {
-        setSelectedSelectionSessionDetail(null);
+        setSelectedFavoritesSessionDetail(null);
         setSelectionSessionsError(
-          handleApiError(err).message || 'Failed to load selection session',
+          handleApiError(err).message || 'Failed to load favorites session',
         );
+      } finally {
+        setIsLoadingSelectionDetail(false);
       }
     },
     [],
@@ -418,85 +448,66 @@ export const GalleryPage = () => {
 
   useEffect(() => {
     if (shareLinks.length === 0) {
-      setSelectionRows([]);
-      setSelectedSelectionShareLinkId(null);
-      setSelectedSelectionSessionId(null);
-      setSelectedSelectionDetail(null);
-      setSelectedSelectionSessionDetail(null);
+      setFavoritesTabs([]);
+      setSelectedFavoritesTabKey(null);
+      setSelectedFavoritesSessionDetail(null);
       return;
     }
     void fetchSelectionRows();
   }, [fetchSelectionRows, shareLinks]);
 
   useEffect(() => {
-    if (!selectedSelectionShareLinkId) {
-      setSelectedSelectionDetail(null);
-      setSelectedSelectionSessionId(null);
-      setSelectedSelectionSessionDetail(null);
+    if (!selectedFavoritesTab) {
+      setSelectedFavoritesSessionDetail(null);
       return;
     }
-    void fetchSelectionDetailForLink(selectedSelectionShareLinkId);
-  }, [fetchSelectionDetailForLink, selectedSelectionShareLinkId]);
+    void fetchSelectionSessionDetail(
+      selectedFavoritesTab.shareLinkId,
+      selectedFavoritesTab.sessionId,
+    );
+  }, [fetchSelectionSessionDetail, selectedFavoritesTab]);
 
-  useEffect(() => {
-    if (!selectedSelectionShareLinkId || !selectedSelectionSessionId) {
-      setSelectedSelectionSessionDetail(null);
-      return;
+  const handleCloseSelectionSession = useCallback(async () => {
+    if (!selectedFavoritesTab) return;
+    setIsMutatingSelectionSession(true);
+    setSelectionSessionsError('');
+    try {
+      await shareLinkService.closeOwnerSelectionSession(
+        selectedFavoritesTab.shareLinkId,
+        selectedFavoritesTab.sessionId,
+      );
+      await fetchSelectionRows();
+      await fetchSelectionSessionDetail(
+        selectedFavoritesTab.shareLinkId,
+        selectedFavoritesTab.sessionId,
+      );
+    } catch (err) {
+      setSelectionSessionsError(handleApiError(err).message || 'Failed to close favorites list');
+    } finally {
+      setIsMutatingSelectionSession(false);
     }
-    void fetchSelectionSessionDetail(selectedSelectionShareLinkId, selectedSelectionSessionId);
-  }, [fetchSelectionSessionDetail, selectedSelectionSessionId, selectedSelectionShareLinkId]);
+  }, [fetchSelectionRows, fetchSelectionSessionDetail, selectedFavoritesTab]);
 
-  const handleCloseSelectionSession = useCallback(
-    async (sessionId: string) => {
-      if (!selectedSelectionShareLinkId) return;
-      setIsMutatingSelectionSession(true);
-      setSelectionSessionsError('');
-      try {
-        await shareLinkService.closeOwnerSelectionSession(selectedSelectionShareLinkId, sessionId);
-        await fetchSelectionRows();
-        await fetchSelectionDetailForLink(selectedSelectionShareLinkId);
-        await fetchSelectionSessionDetail(selectedSelectionShareLinkId, sessionId);
-      } catch (err) {
-        setSelectionSessionsError(
-          handleApiError(err).message || 'Failed to close selection session',
-        );
-      } finally {
-        setIsMutatingSelectionSession(false);
-      }
-    },
-    [
-      fetchSelectionDetailForLink,
-      fetchSelectionRows,
-      fetchSelectionSessionDetail,
-      selectedSelectionShareLinkId,
-    ],
-  );
-
-  const handleReopenSelectionSession = useCallback(
-    async (sessionId: string) => {
-      if (!selectedSelectionShareLinkId) return;
-      setIsMutatingSelectionSession(true);
-      setSelectionSessionsError('');
-      try {
-        await shareLinkService.reopenOwnerSelectionSession(selectedSelectionShareLinkId, sessionId);
-        await fetchSelectionRows();
-        await fetchSelectionDetailForLink(selectedSelectionShareLinkId);
-        await fetchSelectionSessionDetail(selectedSelectionShareLinkId, sessionId);
-      } catch (err) {
-        setSelectionSessionsError(
-          handleApiError(err).message || 'Failed to reopen selection session',
-        );
-      } finally {
-        setIsMutatingSelectionSession(false);
-      }
-    },
-    [
-      fetchSelectionDetailForLink,
-      fetchSelectionRows,
-      fetchSelectionSessionDetail,
-      selectedSelectionShareLinkId,
-    ],
-  );
+  const handleReopenSelectionSession = useCallback(async () => {
+    if (!selectedFavoritesTab) return;
+    setIsMutatingSelectionSession(true);
+    setSelectionSessionsError('');
+    try {
+      await shareLinkService.reopenOwnerSelectionSession(
+        selectedFavoritesTab.shareLinkId,
+        selectedFavoritesTab.sessionId,
+      );
+      await fetchSelectionRows();
+      await fetchSelectionSessionDetail(
+        selectedFavoritesTab.shareLinkId,
+        selectedFavoritesTab.sessionId,
+      );
+    } catch (err) {
+      setSelectionSessionsError(handleApiError(err).message || 'Failed to reopen favorites list');
+    } finally {
+      setIsMutatingSelectionSession(false);
+    }
+  }, [fetchSelectionRows, fetchSelectionSessionDetail, selectedFavoritesTab]);
 
   useEffect(() => {
     if (!isInitialLoading) {
@@ -741,103 +752,152 @@ export const GalleryPage = () => {
           }}
         />
 
-        <GalleryPhotoSection
-          galleryId={galleryId}
-          pagination={pagination}
-          gridRef={gridRef}
-          photoUploaderRef={photoUploaderRef}
-          onModalStateChange={setIsModalOpen}
-          state={{
-            photoUrls,
-            gallerySizeBytes: gallery.total_size_bytes ?? 0,
-            isLoadingPhotos,
-            activeSearchTerm: activeSearch || undefined,
-            uploadError,
-            actionInfo,
-            error,
-            isSelectionMode,
-            isDownloadingZip,
-          }}
-          selection={{
-            areAllOnPageSelected,
-            selectionCount: selection.count,
-            selectedSizeBytes,
-            hasSelection: selection.hasSelection,
-            isPhotoSelected: (id: string) => selection.isSelected(id),
-            isCoverPhoto: (photoId: string | null | undefined) =>
-              gallery.cover_photo_id === photoId,
-          }}
-          actions={{
-            onUploadComplete: handleUploadComplete,
-            onDismissUploadError: () => setUploadError(''),
-            onDismissActionInfo: () => setActionInfo(''),
-            onDismissError: clearError,
-            onToggleSelectionMode: () => {
-              if (isSelectionMode) {
-                selection.clear();
-                setIsSelectionMode(false);
-              } else {
-                setIsSelectionMode(true);
-              }
-            },
-            onTogglePhotoSelection: handleTogglePhotoSelection,
-            onOpenPhoto: openPhoto,
-            onSetCover: handleSetCover,
-            onClearCover: handleClearCover,
-            onRenamePhoto: handleRenamePhoto,
-            onDeletePhoto: handleDeletePhoto,
-            onDownloadGallery: handleDownloadGallery,
-            onDownloadSelectedPhotos: handleDownloadSelectedPhotosWrapper,
-            onClearSearch: () => {
-              setSearchInput('');
-              updateFilterQueryParams({ search: null, resetPage: true });
-            },
-            onSelectAllPhotos: handleSelectAllPhotos,
-            onCancelSelection: () => {
-              selection.clear();
-              setIsSelectionMode(false);
-            },
-            onDeleteMultiplePhotos: handleDeleteMultiplePhotosWrapper,
-          }}
-        />
+        <div
+          role="tablist"
+          aria-label="Gallery sections"
+          className="flex items-center gap-2 overflow-x-auto"
+        >
+          <button
+            id="gallery-content-tab-project"
+            role="tab"
+            aria-selected={activeContentTab === 'project'}
+            aria-controls="gallery-content-panel-project"
+            type="button"
+            onClick={() => setActiveContentTab('project')}
+            className={`shrink-0 rounded-xl border px-4 py-2 text-sm font-semibold ${
+              activeContentTab === 'project'
+                ? 'border-accent/45 bg-accent/10 text-accent'
+                : 'border-border/50 bg-surface text-text hover:border-accent/30'
+            }`}
+          >
+            Project
+          </button>
+          <button
+            id="gallery-content-tab-favorites"
+            role="tab"
+            aria-selected={activeContentTab === 'favorites'}
+            aria-controls="gallery-content-panel-favorites"
+            type="button"
+            onClick={() => setActiveContentTab('favorites')}
+            className={`shrink-0 rounded-xl border px-4 py-2 text-sm font-semibold ${
+              activeContentTab === 'favorites'
+                ? 'border-accent/45 bg-accent/10 text-accent'
+                : 'border-border/50 bg-surface text-text hover:border-accent/30'
+            }`}
+          >
+            Favorites ({favoritesCount})
+          </button>
+        </div>
 
-        <ShareLinksSection
-          shareLinks={shareLinks}
-          isLoading={isLoadingShareLinks}
-          error={shareLinksError}
-          onRetry={fetchShareLinks}
-          isCreatingLink={isCreatingLink}
-          onCreateLink={handleCreateShareLink}
-          onEditLink={(link) => setEditingShareLink(link)}
-          onOpenLinkAnalytics={(linkId) => navigate(`/share-links/${linkId}`)}
-          onOpenDashboard={() => navigate('/share-links')}
-          onDeleteLink={handleDeleteShareLink}
-        />
+        {activeContentTab === 'project' ? (
+          <div
+            id="gallery-content-panel-project"
+            role="tabpanel"
+            aria-labelledby="gallery-content-tab-project"
+          >
+            <div className="space-y-8">
+              <GalleryPhotoSection
+                galleryId={galleryId}
+                pagination={pagination}
+                gridRef={gridRef}
+                photoUploaderRef={photoUploaderRef}
+                onModalStateChange={setIsModalOpen}
+                state={{
+                  photoUrls,
+                  gallerySizeBytes: gallery.total_size_bytes ?? 0,
+                  isLoadingPhotos,
+                  activeSearchTerm: activeSearch || undefined,
+                  uploadError,
+                  actionInfo,
+                  error,
+                  isSelectionMode,
+                  isDownloadingZip,
+                }}
+                selection={{
+                  areAllOnPageSelected,
+                  selectionCount: selection.count,
+                  selectedSizeBytes,
+                  hasSelection: selection.hasSelection,
+                  isPhotoSelected: (id: string) => selection.isSelected(id),
+                  isCoverPhoto: (photoId: string | null | undefined) =>
+                    gallery.cover_photo_id === photoId,
+                }}
+                actions={{
+                  onUploadComplete: handleUploadComplete,
+                  onDismissUploadError: () => setUploadError(''),
+                  onDismissActionInfo: () => setActionInfo(''),
+                  onDismissError: clearError,
+                  onToggleSelectionMode: () => {
+                    if (isSelectionMode) {
+                      selection.clear();
+                      setIsSelectionMode(false);
+                    } else {
+                      setIsSelectionMode(true);
+                    }
+                  },
+                  onTogglePhotoSelection: handleTogglePhotoSelection,
+                  onOpenPhoto: openPhoto,
+                  onSetCover: handleSetCover,
+                  onClearCover: handleClearCover,
+                  onRenamePhoto: handleRenamePhoto,
+                  onDeletePhoto: handleDeletePhoto,
+                  onDownloadGallery: handleDownloadGallery,
+                  onDownloadSelectedPhotos: handleDownloadSelectedPhotosWrapper,
+                  onClearSearch: () => {
+                    setSearchInput('');
+                    updateFilterQueryParams({ search: null, resetPage: true });
+                  },
+                  onSelectAllPhotos: handleSelectAllPhotos,
+                  onCancelSelection: () => {
+                    selection.clear();
+                    setIsSelectionMode(false);
+                  },
+                  onDeleteMultiplePhotos: handleDeleteMultiplePhotosWrapper,
+                }}
+              />
 
-        <GallerySelectionSessionsPanel
-          shareLinks={shareLinks}
-          rows={selectionRows}
-          selectedShareLinkId={selectedSelectionShareLinkId}
-          selectedSessionId={selectedSelectionSessionId}
-          detail={selectedSelectionDetail}
-          sessionDetail={selectedSelectionSessionDetail}
-          thumbnailByPhotoId={photoThumbnailById}
-          isLoadingRows={isLoadingSelectionRows}
-          isLoadingDetail={isLoadingSelectionDetail}
-          isMutating={isMutatingSelectionSession}
-          error={selectionSessionsError}
-          onSelectShareLink={setSelectedSelectionShareLinkId}
-          onSelectSession={setSelectedSelectionSessionId}
-          onCloseSession={(sessionId) => {
-            void handleCloseSelectionSession(sessionId);
-          }}
-          onReopenSession={(sessionId) => {
-            void handleReopenSelectionSession(sessionId);
-          }}
-          onRefresh={() => {
-            void fetchSelectionRows();
-          }}
-        />
+              <ShareLinksSection
+                shareLinks={shareLinks}
+                isLoading={isLoadingShareLinks}
+                error={shareLinksError}
+                onRetry={fetchShareLinks}
+                isCreatingLink={isCreatingLink}
+                onCreateLink={handleCreateShareLink}
+                onEditLink={(link) => setEditingShareLink(link)}
+                onOpenLinkAnalytics={(linkId) => navigate(`/share-links/${linkId}`)}
+                onOpenDashboard={() => navigate('/share-links')}
+                onDeleteLink={handleDeleteShareLink}
+              />
+            </div>
+          </div>
+        ) : (
+          <div
+            id="gallery-content-panel-favorites"
+            role="tabpanel"
+            aria-labelledby="gallery-content-tab-favorites"
+          >
+            <GallerySelectionSessionsPanel
+              userTabs={favoritesTabs}
+              selectedUserTabKey={selectedFavoritesTabKey}
+              selectedSession={selectedFavoritesSessionDetail}
+              thumbnailByPhotoId={photoThumbnailById}
+              isLoadingRows={isLoadingSelectionRows}
+              isLoadingDetail={isLoadingSelectionDetail}
+              isMutating={isMutatingSelectionSession}
+              error={selectionSessionsError}
+              onSelectUserTab={setSelectedFavoritesTabKey}
+              onCloseSession={() => {
+                void handleCloseSelectionSession();
+              }}
+              onReopenSession={() => {
+                void handleReopenSelectionSession();
+              }}
+              onRefresh={() => {
+                void fetchSelectionRows();
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Lightbox */}

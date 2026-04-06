@@ -93,10 +93,11 @@ export const PublicGalleryPhotoSection = ({
             <button
               type="button"
               onClick={selection.onToggleSelectedOnly}
-              className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${selection.selectedOnly
+              className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                selection.selectedOnly
                   ? 'bg-accent text-accent-foreground'
                   : 'border border-border/50 bg-surface text-text hover:border-accent/40'
-                }`}
+              }`}
             >
               {selection.selectedOnly ? 'Show all photos' : 'Show selected only'}
             </button>
@@ -123,10 +124,11 @@ export const PublicGalleryPhotoSection = ({
                       selection.onTogglePhoto(photo.photo_id);
                     }}
                     disabled={selection.session && !selection.canMutate}
-                    className={`absolute top-3 right-3 z-20 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${selection.selectedIds.has(photo.photo_id)
+                    className={`absolute top-3 right-3 z-20 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
+                      selection.selectedIds.has(photo.photo_id)
                         ? 'bg-accent text-accent-foreground'
                         : 'bg-black/45 text-white hover:bg-black/60'
-                      } ${selection.session && !selection.canMutate ? 'cursor-not-allowed opacity-70' : ''}`}
+                    } ${selection.session && !selection.canMutate ? 'cursor-not-allowed opacity-70' : ''}`}
                   >
                     {selection.selectedIds.has(photo.photo_id) ? 'Selected' : 'Select'}
                   </button>
@@ -149,8 +151,8 @@ export const PublicGalleryPhotoSection = ({
                 </button>
 
                 {selection?.enabled &&
-                  selection.allowPhotoComments &&
-                  selection.selectedIds.has(photo.photo_id) ? (
+                selection.allowPhotoComments &&
+                selection.selectedIds.has(photo.photo_id) ? (
                   <div className="absolute inset-x-2 bottom-2 z-20">
                     <textarea
                       key={`${photo.photo_id}-${selection.commentsByPhotoId[photo.photo_id] ?? ''}`}
