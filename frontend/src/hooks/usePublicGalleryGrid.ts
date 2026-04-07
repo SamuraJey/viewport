@@ -90,8 +90,8 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
         parseFloat(cs.getPropertyValue('row-gap')) || parseFloat(cs.getPropertyValue('gap')) || 20;
 
       const items = Array.from(grid.children) as HTMLElement[];
-      const shouldRecomputeAll = forceAll || lastComputedCountRef.current > photos.length;
-      const startIndex = shouldRecomputeAll ? 0 : lastComputedCountRef.current;
+      const needsFullRecompute = forceAll || lastComputedCountRef.current > photos.length;
+      const startIndex = needsFullRecompute ? 0 : lastComputedCountRef.current;
 
       for (let index = startIndex; index < items.length; index += 1) {
         const item = items[index];
