@@ -7,6 +7,16 @@ const getResumeStorageKey = (shareId: string) => `viewport-selection-resume-${sh
 
 const getResumeCookieString = (shareId: string) => `${getResumeStorageKey(shareId)}=`;
 
+const clearStoredResumeCookie = (shareId: string): void => {
+  if (typeof document === 'undefined') return;
+
+  const secureAttribute =
+    typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `${getResumeCookieString(
+    shareId,
+  )}; Path=/s/${shareId}; Max-Age=0; SameSite=Lax${secureAttribute}`;
+};
+
 const getStoredResumeToken = (shareId: string): string | undefined => {
   if (typeof window === 'undefined') return undefined;
   return window.localStorage.getItem(getResumeStorageKey(shareId)) ?? undefined;
@@ -19,9 +29,7 @@ const setStoredResumeToken = (shareId: string, token?: string | null): void => {
     window.localStorage.setItem(key, token.trim());
   } else {
     window.localStorage.removeItem(key);
-    document.cookie = `${getResumeCookieString(
-      shareId,
-    )} Path=/s/${shareId}; Max-Age=0; SameSite=Lax`;
+    clearStoredResumeCookie(shareId);
   }
 };
 

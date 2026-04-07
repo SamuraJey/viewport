@@ -634,52 +634,58 @@ export const ShareLinkDetailPage = () => {
                 {selectionDetail.sessions.map((session) => {
                   const active = session.id === selectedSessionId;
                   return (
-                    <button
+                    <div
                       key={session.id}
-                      type="button"
-                      onClick={() => setSelectedSessionId(session.id)}
-                      className={`w-full border-b border-border/40 px-4 py-3 text-left transition-colors ${
+                      className={`border-b border-border/40 transition-colors ${
                         active ? 'bg-accent/10' : 'hover:bg-surface'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-semibold text-text">{session.client_name}</p>
-                        <span className="text-xs text-muted">{session.status}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSessionId(session.id)}
+                        className="w-full px-4 py-3 text-left"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-semibold text-text">{session.client_name}</p>
+                          <span className="text-xs text-muted">{session.status}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted">
+                          selected: {session.selected_count} • updated:{' '}
+                          {new Date(session.updated_at).toLocaleString()}
+                        </p>
+                      </button>
+                      <div className="px-4 pb-3">
+                        <div className="flex gap-2">
+                          {session.status === 'closed' ? (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void mutateSessionStatus(session.id, 'reopen');
+                              }}
+                              disabled={isMutatingSelectionStatus}
+                              className="inline-flex items-center gap-1 rounded-lg border border-success/40 bg-success/10 px-2 py-1 text-xs font-semibold text-success disabled:opacity-60"
+                            >
+                              <LockOpen className="h-3 w-3" />
+                              Reopen
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void mutateSessionStatus(session.id, 'close');
+                              }}
+                              disabled={isMutatingSelectionStatus}
+                              className="inline-flex items-center gap-1 rounded-lg border border-danger/40 bg-danger/10 px-2 py-1 text-xs font-semibold text-danger disabled:opacity-60"
+                            >
+                              <Lock className="h-3 w-3" />
+                              Close
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <p className="mt-1 text-xs text-muted">
-                        selected: {session.selected_count} • updated:{' '}
-                        {new Date(session.updated_at).toLocaleString()}
-                      </p>
-                      <div className="mt-2 flex gap-2">
-                        {session.status === 'closed' ? (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void mutateSessionStatus(session.id, 'reopen');
-                            }}
-                            disabled={isMutatingSelectionStatus}
-                            className="inline-flex items-center gap-1 rounded-lg border border-success/40 bg-success/10 px-2 py-1 text-xs font-semibold text-success disabled:opacity-60"
-                          >
-                            <LockOpen className="h-3 w-3" />
-                            Reopen
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void mutateSessionStatus(session.id, 'close');
-                            }}
-                            disabled={isMutatingSelectionStatus}
-                            className="inline-flex items-center gap-1 rounded-lg border border-danger/40 bg-danger/10 px-2 py-1 text-xs font-semibold text-danger disabled:opacity-60"
-                          >
-                            <Lock className="h-3 w-3" />
-                            Close
-                          </button>
-                        )}
-                      </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>

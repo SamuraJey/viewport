@@ -55,15 +55,26 @@ def _selection_cookie_name(share_id: uuid.UUID) -> str:
     return f"{SELECTION_COOKIE_PREFIX}{share_id}"
 
 
-def _set_selection_cookie(response: Response, share_id: uuid.UUID, token: str) -> None:
+def _selection_cookie_path(share_id: uuid.UUID) -> str:
+    return f"/s/{share_id}"
+
+
+def _should_use_secure_selection_cookie(request: Request) -> bool:
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    if forwarded_proto:
+        return forwarded_proto.split(",")[0].strip().lower() == "https"
+    return request.url.scheme == "https"
+
+
+def _set_selection_cookie(request: Request, response: Response, share_id: uuid.UUID, token: str) -> None:
     response.set_cookie(
         key=_selection_cookie_name(share_id),
         value=token,
         max_age=SELECTION_COOKIE_MAX_AGE_SECONDS,
         httponly=True,
         samesite="lax",
-        secure=False,
-        path=f"/s/{share_id}",
+        secure=_should_use_secure_selection_cookie(request),
+        path=_selection_cookie_path(share_id),
     )
 
 
@@ -322,7 +333,7 @@ async def start_public_selection_session(
     if token_from_request:
         existing_by_token = await repo.get_session_by_resume_token(sharelink.id, token_from_request)
         if existing_by_token:
-            _set_selection_cookie(response, share_id, token_from_request)
+            _set_selection_cookie(request, response, share_id, token_from_request)
             return await _to_selection_session_response(
                 existing_by_token,
                 resume_token=token_from_request,
@@ -339,7 +350,7 @@ async def start_public_selection_session(
         client_note=client_note,
         resume_token_hash=resume_token_hash,
     )
-    _set_selection_cookie(response, share_id, resume_token)
+    _set_selection_cookie(request, response, share_id, resume_token)
     return await _to_selection_session_response(
         session,
         resume_token=resume_token,
@@ -361,7 +372,7 @@ async def get_public_selection_session(
     await _get_enabled_selection_config_or_404(sharelink.id, repo)
 
     session, resolved_token = await _get_session_by_token_or_404(request=request, share_id=share_id, repo=repo, resume_token=resume_token)
-    _set_selection_cookie(response, share_id, resolved_token)
+    _set_selection_cookie(request, response, share_id, resolved_token)
     return await _to_selection_session_response(
         session,
         resume_token=resolved_token,
@@ -382,7 +393,7 @@ async def toggle_public_selection_item(
     sharelink = await _get_public_sharelink_or_404(share_id, repo)
     config = await _get_enabled_selection_config_or_404(sharelink.id, repo)
     session, resolved_token = await _get_session_by_token_or_404(request=request, share_id=share_id, repo=repo, resume_token=resume_token)
-    _set_selection_cookie(response, share_id, resolved_token)
+    _set_selection_cookie(request, response, share_id, resolved_token)
     _validate_session_mutable(session)
 
     if not await repo.validate_photo_belongs_to_share_gallery(sharelink.id, photo_id):
@@ -424,7 +435,7 @@ async def update_public_selection_item_comment(
         raise HTTPException(status_code=403, detail="Photo comments are disabled")
 
     session, resolved_token = await _get_session_by_token_or_404(request=request, share_id=share_id, repo=repo, resume_token=resume_token)
-    _set_selection_cookie(response, share_id, resolved_token)
+    _set_selection_cookie(request, response, share_id, resolved_token)
     _validate_session_mutable(session)
 
     if not await repo.validate_photo_belongs_to_share_gallery(sharelink.id, photo_id):
@@ -455,7 +466,7 @@ async def update_public_selection_session(
     config = await _get_enabled_selection_config_or_404(sharelink.id, repo)
 
     session, resolved_token = await _get_session_by_token_or_404(request=request, share_id=share_id, repo=repo, resume_token=resume_token)
-    _set_selection_cookie(response, share_id, resolved_token)
+    _set_selection_cookie(request, response, share_id, resolved_token)
     _validate_session_mutable(session)
 
     client_note = _normalize_optional_text(req.client_note)
@@ -483,7 +494,7 @@ async def submit_public_selection_session(
     config = await _get_enabled_selection_config_or_404(sharelink.id, repo)
 
     session, resolved_token = await _get_session_by_token_or_404(request=request, share_id=share_id, repo=repo, resume_token=resume_token)
-    _set_selection_cookie(response, share_id, resolved_token)
+    _set_selection_cookie(request, response, share_id, resolved_token)
 
     if session.status == SelectionSessionStatus.CLOSED.value:
         raise HTTPException(status_code=409, detail="Selection is closed by photographer")

@@ -685,13 +685,6 @@ def notify_selection_submitted_task(self, payload: dict[str, Any]) -> dict[str, 
     return {"sent": True, "deduped": False}
 
 
-@celery_app.task(name="cleanup_selection_submit_locks")
-def cleanup_selection_submit_locks_task() -> dict[str, int]:
-    """Keep a simple periodic marker for notification lock maintenance."""
-    logger.info("Selection submit lock cleanup heartbeat")
-    return {"cleaned": 0}
-
-
 def run_async(coro: Any) -> Any:
     """Run async call from sync Celery task context."""
     import asyncio

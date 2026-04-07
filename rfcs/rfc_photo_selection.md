@@ -30,7 +30,7 @@
 
 ## 4) Предлагаемая предметная модель (MVP)
 
-Ниже модель с зафиксированным решением: **1 конфигурация + 1 клиентский список отбора на 1 share-link**. Для разных клиентов фотограф создает отдельные share-ссылки.
+Ниже модель с зафиксированным решением: **1 конфигурация + несколько независимых клиентских сессий отбора на 1 share-link**.
 
 ### 4.1 Таблица `share_link_selection_configs`
 
@@ -56,10 +56,10 @@
 
 ### 4.2 Таблица `share_link_selection_sessions`
 
-Единственный клиентский список выбора для конкретной share-ссылки.
+Независимая клиентская сессия выбора для конкретной share-ссылки.
 
 - `id` UUID PK
-- `sharelink_id` UUID FK -> `share_links.id` (CASCADE, unique)
+- `sharelink_id` UUID FK -> `share_links.id` (CASCADE)
 - `config_id` UUID FK -> `share_link_selection_configs.id` (CASCADE)
 - `client_name` varchar(127) NOT NULL
 - `client_email` varchar(255) nullable
@@ -73,7 +73,8 @@
 - `created_at`, `updated_at`
 
 Индексы:
-- `uq_share_link_selection_sessions_sharelink_id`
+- `resume_token_hash` unique
+- `sharelink_id`
 - `(status, updated_at desc)` для owner dashboard
 
 ### 4.3 Таблица `share_link_selection_items`

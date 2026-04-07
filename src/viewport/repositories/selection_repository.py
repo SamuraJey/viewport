@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import cast
 
 from sqlalchemy import case, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from viewport.models.gallery import Gallery, Photo
@@ -65,9 +66,17 @@ class SelectionRepository(BaseRepository):
 
         config = ShareLinkSelectionConfig(sharelink_id=sharelink_id)
         self.db.add(config)
-        await self.db.commit()
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            config = (await self.db.execute(stmt)).scalar_one_or_none()
+            if config is None:
+                raise
+            return await self._finish_read(config)
+
         await self.db.refresh(config)
-        return config
+        return await self._finish_read(config)
 
     async def update_config(
         self,

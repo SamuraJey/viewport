@@ -66,10 +66,6 @@ def create_celery_app(settings: CelerySettings | None = None) -> Celery:
             "task": "reconcile_storage_quotas",
             "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
         },
-        "cleanup-selection-submit-locks-daily": {
-            "task": "cleanup_selection_submit_locks",
-            "schedule": crontab(hour=4, minute=0),
-        },
     }
 
     return app
