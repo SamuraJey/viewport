@@ -1,6 +1,7 @@
 import type { MutableRefObject, TouchEventHandler } from 'react';
 import { ImageOff, Loader2 } from 'lucide-react';
 import { LazyImage } from '../LazyImage';
+import { MasonryPhotoCard } from './MasonryPhotoCard';
 import { PublicGalleryGridControls } from './PublicGalleryGridControls';
 import type { PublicGridDensity, PublicGridLayout } from '../../hooks/usePublicGalleryGrid';
 import type { PublicPhoto } from '../../services/shareLinkService';
@@ -69,21 +70,34 @@ export const PublicGalleryPhotoSection = ({
                 className={`pg-card relative group overflow-hidden rounded-xl transition-all duration-200 hover:shadow-md ${gridLayout === 'uniform' ? 'pg-card--uniform' : ''}`}
                 data-testid="public-batch"
                 data-photo-id={photo.photo_id}
+                style={{
+                  aspectRatio:
+                    photo.width && photo.height ? `${photo.width}/${photo.height}` : '4/3',
+                }}
               >
                 <button
                   onClick={() => onOpenPhoto(index)}
                   className="w-full h-full p-0 border-0 bg-transparent cursor-pointer block focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
                   aria-label={`Photo ${photo.photo_id}`}
                 >
-                  <LazyImage
-                    src={photo.thumbnail_url}
-                    alt={`Photo ${photo.photo_id}`}
-                    className={`pg-card__media ${gridLayout === 'uniform' ? 'pg-card__media--uniform' : ''}`}
-                    imgClassName="pg-card__img"
-                    objectFit={gridLayout === 'uniform' ? 'contain' : 'cover'}
-                    width={photo.width}
-                    height={photo.height}
-                  />
+                  {gridLayout === 'masonry' ? (
+                    <MasonryPhotoCard
+                      src={photo.thumbnail_url}
+                      alt={`Photo ${photo.photo_id}`}
+                      width={photo.width}
+                      height={photo.height}
+                    />
+                  ) : (
+                    <LazyImage
+                      src={photo.thumbnail_url}
+                      alt={`Photo ${photo.photo_id}`}
+                      className={`pg-card__media ${gridLayout === 'uniform' ? 'pg-card__media--uniform' : ''}`}
+                      imgClassName="pg-card__img"
+                      objectFit="contain"
+                      width={photo.width}
+                      height={photo.height}
+                    />
+                  )}
                 </button>
               </div>
             ))}

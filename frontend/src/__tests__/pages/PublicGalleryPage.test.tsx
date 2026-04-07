@@ -104,14 +104,16 @@ describe('PublicGalleryPage', () => {
     vi.restoreAllMocks();
   });
 
-  it('does not render fullscreen skeleton while loading', async () => {
-    const { container } = render(wrapper());
-    expect(container.querySelector('[data-testid="skeleton-loader"]')).not.toBeInTheDocument();
+  it('renders a masonry skeleton while loading', async () => {
+    render(wrapper());
+    expect(screen.getByLabelText('Loading photos')).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByText('Photos')).toBeInTheDocument();
       expect(screen.getByText('(2)')).toBeInTheDocument();
     });
+
+    expect(screen.queryByLabelText('Loading photos')).not.toBeInTheDocument();
   });
 
   it('renders gallery with cover, meta and photos', async () => {

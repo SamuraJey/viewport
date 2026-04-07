@@ -898,7 +898,7 @@ html.dark .pg-card:hover {
 }
 
 .pg-card__media--uniform {
-  height: 20rem;
+  height: 16rem;
   /* match private gallery h-80 for consistent rows */
   display: flex;
   align-items: center;
@@ -927,6 +927,10 @@ html.dark .pg-card:hover {
   .pg-grid-uniform--compact {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .pg-card__media--uniform {
+    height: 20rem;
+  }
 }
 
 @media (min-width: 1024px) {
@@ -945,6 +949,10 @@ html.dark .pg-card:hover {
   .pg-grid-uniform--compact {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+
+  .pg-card__media--uniform {
+    height: 24rem;
+  }
 }
 
 .pg-gesture-surface {
@@ -953,80 +961,6 @@ html.dark .pg-card:hover {
 
 .pg-download-btn {
   box-shadow: 0 6px 18px rgba(31, 144, 255, 0.12);
-}
-
-/* Masonry / column-based layout helpers (used previously). */
-.pg-columns {
-  column-gap: 1.25rem;
-  /* default single column on very small screens */
-  column-count: 1;
-}
-
-@media (min-width: 640px) {
-  .pg-columns {
-    column-count: 2;
-  }
-}
-
-@media (min-width: 1024px) {
-  .pg-columns {
-    column-count: 3;
-  }
-}
-
-/* Ensure cards behave correctly inside CSS columns (masonry) */
-.pg-columns>.pg-card {
-  display: inline-block;
-  width: 100%;
-  break-inside: avoid;
-  -webkit-column-break-inside: avoid;
-  page-break-inside: avoid;
-  margin-bottom: 1.25rem;
-  /* Reserve a stable height so images loading asynchronously don't
-     change the flow of the masonry columns. Adjust this value to taste. */
-  min-height: 220px;
-}
-
-/* Ensure the clickable button and image fill the reserved card area so
-   the layout doesn't jump when the image src is applied. Use object-fit
-   to preserve aspect and crop as needed. */
-.pg-columns>.pg-card>button {
-  display: block;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-}
-
-.pg-columns>.pg-card img,
-.pg-columns>.pg-card>button>img,
-.pg-columns>.pg-card .animate-pulse {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* Aspect-specific helpers: wide images should be shown contained and centered
-   to avoid very short heights distorting masonry; tall images keep cover. */
-.pg-columns>.pg-card img.photo--wide,
-.pg-columns>.pg-card>button>img.photo--wide {
-  object-fit: contain;
-  background-color: rgb(var(--color-neutral-50-rgb));
-}
-
-.dark .pg-columns>.pg-card img.photo--wide,
-html.dark .pg-columns>.pg-card>button>img.photo--wide {
-  background-color: rgb(24, 24, 27);
-}
-
-.pg-columns>.pg-card img.photo--tall,
-.pg-columns>.pg-card>button>img.photo--tall {
-  object-fit: cover;
-}
-
-.pg-columns>.pg-card img.photo--square,
-.pg-columns>.pg-card>button>img.photo--square {
-  object-fit: cover;
 }
 
 /* Fix for popup menus on photos */

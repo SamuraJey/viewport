@@ -39,7 +39,11 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const computeSpansRafRef = useRef<number | null>(null);
   const hasScheduledComputeRef = useRef(false);
+  const scheduledForceAllRef = useRef(false);
   const ratioCacheRef = useRef<Map<string, number>>(new Map());
+  const lastComputedCountRef = useRef(0);
+  const prevGridDensityRef = useRef<PublicGridDensity>('large');
+  const prevGridLayoutRef = useRef<PublicGridLayout>('masonry');
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchHandledRef = useRef(false);
 
@@ -74,43 +78,58 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
     return DEFAULT_FALLBACK_RATIO;
   }, []);
 
-  const computeSpans = useCallback(() => {
-    if (gridLayout !== 'masonry') return;
-    const grid = gridRef.current;
-    if (!grid) return;
+  const computeSpans = useCallback(
+    (forceAll = false) => {
+      if (gridLayout !== 'masonry') return;
+      const grid = gridRef.current;
+      if (!grid) return;
 
-    const cs = getComputedStyle(grid);
-    const rowHeight = parseFloat(cs.getPropertyValue('grid-auto-rows')) || 8;
-    const rowGap =
-      parseFloat(cs.getPropertyValue('row-gap')) || parseFloat(cs.getPropertyValue('gap')) || 20;
+      const cs = getComputedStyle(grid);
+      const rowHeight = parseFloat(cs.getPropertyValue('grid-auto-rows')) || 8;
+      const rowGap =
+        parseFloat(cs.getPropertyValue('row-gap')) || parseFloat(cs.getPropertyValue('gap')) || 20;
 
-    const items = Array.from(grid.children) as HTMLElement[];
-    items.forEach((item, index) => {
-      const photo = photos[index];
-      if (!photo) return;
+      const items = Array.from(grid.children) as HTMLElement[];
+      const shouldRecomputeAll = forceAll || lastComputedCountRef.current > photos.length;
+      const startIndex = shouldRecomputeAll ? 0 : lastComputedCountRef.current;
 
-      const ratio = getRatioFromPhotoOrImage(photo, item);
-      const itemWidth = item.getBoundingClientRect().width || item.offsetWidth || 0;
-      if (itemWidth <= 0) return;
+      for (let index = startIndex; index < items.length; index += 1) {
+        const item = items[index];
+        const photo = photos[index];
+        if (!photo) continue;
 
-      const targetHeight = itemWidth / ratio;
-      const span = Math.max(1, Math.ceil((targetHeight + rowGap) / (rowHeight + rowGap)));
-      const next = `span ${span}`;
-      if (item.style.gridRowEnd !== next) item.style.gridRowEnd = next;
-    });
-  }, [getRatioFromPhotoOrImage, gridLayout, photos]);
+        const ratio = getRatioFromPhotoOrImage(photo, item);
+        const itemWidth = item.getBoundingClientRect().width || item.offsetWidth || 0;
+        if (itemWidth <= 0) continue;
 
-  const scheduleComputeSpans = useCallback(() => {
-    if (gridLayout !== 'masonry') return;
-    if (hasScheduledComputeRef.current) return;
+        const targetHeight = itemWidth / ratio;
+        const span = Math.max(1, Math.ceil((targetHeight + rowGap) / (rowHeight + rowGap)));
+        const next = `span ${span}`;
+        if (item.style.gridRowEnd !== next) item.style.gridRowEnd = next;
+      }
 
-    hasScheduledComputeRef.current = true;
-    computeSpansRafRef.current = requestAnimationFrame(() => {
-      hasScheduledComputeRef.current = false;
-      computeSpansRafRef.current = null;
-      computeSpans();
-    });
-  }, [computeSpans, gridLayout]);
+      lastComputedCountRef.current = photos.length;
+    },
+    [getRatioFromPhotoOrImage, gridLayout, photos],
+  );
+
+  const scheduleComputeSpans = useCallback(
+    (forceAll = false) => {
+      if (gridLayout !== 'masonry') return;
+      scheduledForceAllRef.current = scheduledForceAllRef.current || forceAll;
+      if (hasScheduledComputeRef.current) return;
+
+      hasScheduledComputeRef.current = true;
+      computeSpansRafRef.current = requestAnimationFrame(() => {
+        hasScheduledComputeRef.current = false;
+        computeSpansRafRef.current = null;
+        const shouldForceAll = scheduledForceAllRef.current;
+        scheduledForceAllRef.current = false;
+        computeSpans(shouldForceAll);
+      });
+    },
+    [computeSpans, gridLayout],
+  );
 
   const cancelScheduledCompute = useCallback(() => {
     if (computeSpansRafRef.current) {
@@ -118,10 +137,15 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
       computeSpansRafRef.current = null;
     }
     hasScheduledComputeRef.current = false;
+    scheduledForceAllRef.current = false;
   }, []);
 
   useEffect(() => {
-    if (gridLayout !== 'masonry') return undefined;
+    if (gridLayout !== 'masonry') {
+      prevGridLayoutRef.current = gridLayout;
+      prevGridDensityRef.current = gridDensity;
+      return undefined;
+    }
     const grid = gridRef.current;
     if (!grid) return undefined;
 
@@ -142,22 +166,29 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
         }
       }
 
-      scheduleComputeSpans();
+      scheduleComputeSpans(false);
     };
 
-    const resizeObserver = new ResizeObserver(() => scheduleComputeSpans());
+    const resizeObserver = new ResizeObserver(() => scheduleComputeSpans(true));
     resizeObserver.observe(grid);
 
     grid.addEventListener('load', handleImageLoad, true);
 
-    scheduleComputeSpans();
+    const enteredMasonry = prevGridLayoutRef.current !== 'masonry';
+    const densityChanged = prevGridDensityRef.current !== gridDensity;
+    const shouldForceAll =
+      enteredMasonry || densityChanged || photos.length < lastComputedCountRef.current;
+
+    scheduleComputeSpans(shouldForceAll);
+    prevGridLayoutRef.current = gridLayout;
+    prevGridDensityRef.current = gridDensity;
 
     return () => {
       grid.removeEventListener('load', handleImageLoad, true);
       resizeObserver.disconnect();
       cancelScheduledCompute();
     };
-  }, [gridLayout, photos, scheduleComputeSpans, cancelScheduledCompute]);
+  }, [gridLayout, photos, gridDensity, scheduleComputeSpans, cancelScheduledCompute]);
 
   useEffect(() => {
     const activePhotoIds = new Set(photos.map((photo) => photo.photo_id));
@@ -169,28 +200,19 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
     });
   }, [photos]);
 
-  useEffect(() => {
-    if (gridLayout !== 'masonry') return;
-    scheduleComputeSpans();
-  }, [gridLayout, gridDensity, photos.length, scheduleComputeSpans]);
-
   const clearGridRowSpans = useCallback(() => {
     const grid = gridRef.current;
     if (!grid) return;
     Array.from(grid.children).forEach((item) => {
       (item as HTMLElement).style.gridRowEnd = '';
     });
+    lastComputedCountRef.current = 0;
   }, []);
 
   useLayoutEffect(() => {
     if (gridLayout === 'masonry') return;
     clearGridRowSpans();
   }, [gridLayout, photos.length, clearGridRowSpans]);
-
-  useLayoutEffect(() => {
-    if (gridLayout !== 'masonry') return;
-    scheduleComputeSpans();
-  }, [gridLayout, photos, scheduleComputeSpans]);
 
   useEffect(() => {
     return () => {

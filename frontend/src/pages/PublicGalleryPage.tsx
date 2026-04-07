@@ -4,6 +4,7 @@ import { Download as DownloadIcon } from 'lucide-react';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { PublicGalleryHero } from '../components/public-gallery/PublicGalleryHero';
 import { PublicGalleryPhotoSection } from '../components/public-gallery/PublicGalleryPhotoSection';
+import { SkeletonPhotoGrid } from '../components/public-gallery/SkeletonPhotoGrid';
 import {
   PublicGalleryError,
   PublicGalleryExpired,
@@ -94,10 +95,6 @@ export const PublicGalleryPage = () => {
     [photos],
   );
 
-  if (isLoading) {
-    return null;
-  }
-
   if (error) {
     if (errorStatus === 410) {
       return <PublicGalleryExpired />;
@@ -126,21 +123,25 @@ export const PublicGalleryPage = () => {
           </div>
         )}
 
-        <PublicGalleryPhotoSection
-          photos={photos}
-          totalPhotos={gallery?.total_photos ?? photos.length}
-          gridClassNames={gridClassNames}
-          gridLayout={gridLayout}
-          gridDensity={gridDensity}
-          gridRef={gridRef}
-          observerTargetRef={observerTargetRef}
-          isLoadingMore={isLoadingMore}
-          hasMore={hasMore}
-          onLayoutChange={setLayoutMode}
-          onDensityChange={setGridMode}
-          onOpenPhoto={openLightbox}
-          touchHandlers={touchHandlers}
-        />
+        {isLoading ? (
+          <SkeletonPhotoGrid />
+        ) : (
+          <PublicGalleryPhotoSection
+            photos={photos}
+            totalPhotos={gallery?.total_photos ?? photos.length}
+            gridClassNames={gridClassNames}
+            gridLayout={gridLayout}
+            gridDensity={gridDensity}
+            gridRef={gridRef}
+            observerTargetRef={observerTargetRef}
+            isLoadingMore={isLoadingMore}
+            hasMore={hasMore}
+            onLayoutChange={setLayoutMode}
+            onDensityChange={setGridMode}
+            onOpenPhoto={openLightbox}
+            touchHandlers={touchHandlers}
+          />
+        )}
 
         <div className="text-center mt-16 text-muted dark:text-muted-foreground text-sm font-medium">
           <p>Powered by Viewport - Your Photo Gallery Solution</p>
