@@ -275,4 +275,48 @@ describe('PublicGalleryPage', () => {
     expect(screen.getByText('Jane Client • in_progress')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /download all photos/i })).not.toBeInTheDocument();
   });
+
+  it('persists route resume token locally after opening favorites link', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    mockRouteParams = { shareId: 'abc123', resumeToken: 'resume-token' };
+
+    vi.mocked(shareLinkService.getPublicSelectionConfig).mockResolvedValue({
+      is_enabled: true,
+      list_title: 'Selected photos',
+      limit_enabled: false,
+      limit_value: null,
+      allow_photo_comments: false,
+      require_name: true,
+      require_email: false,
+      require_phone: false,
+      require_client_note: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+    vi.mocked(shareLinkService.getPublicSelectionSession).mockResolvedValue({
+      id: 'session-1',
+      sharelink_id: 'abc123',
+      status: 'in_progress',
+      client_name: 'Jane Client',
+      client_email: null,
+      client_phone: null,
+      client_note: null,
+      selected_count: 1,
+      submitted_at: null,
+      last_activity_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      resume_token: 'resume-token',
+      items: [],
+    } as any);
+
+    render(wrapper());
+
+    await waitFor(() => {
+      expect(window.localStorage.setItem).toHaveBeenCalledWith(
+        'viewport-selection-resume-abc123',
+        'resume-token',
+      );
+    });
+  });
 });

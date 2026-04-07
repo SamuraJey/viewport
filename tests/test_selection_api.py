@@ -1,9 +1,12 @@
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import IntegrityError
 
 from tests.helpers import upload_photo_via_presigned
+from viewport.repositories.selection_repository import SelectionRepository
 
 pytestmark = pytest.mark.requires_s3
 
@@ -445,3 +448,255 @@ class TestSelectionAPI:
         assert links_csv.status_code == 200
         assert "sharelink_id,label,public_url,selection_status,selected_count,updated_at" in links_csv.text
         assert f"/share/{share_id}" in links_csv.text
+
+    def test_public_selection_cookie_backed_requests_and_validation_errors(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr("viewport.api.selection.notify_selection_submitted_task.delay", lambda payload: None)
+
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"first", "first.jpg")
+        share_id = _create_sharelink(authenticated_client, gallery_id_fixture)
+
+        strict_config_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config",
+            json={
+                "is_enabled": True,
+                "require_email": True,
+                "require_phone": True,
+                "require_client_note": True,
+            },
+        )
+        assert strict_config_resp.status_code == 200
+
+        missing_email_resp = authenticated_client.post(
+            f"/s/{share_id}/selection/session",
+            json={"client_name": "Alice Client"},
+        )
+        assert missing_email_resp.status_code == 422
+        assert missing_email_resp.json()["detail"] == "client_email is required"
+
+        config_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config",
+            json={
+                "is_enabled": True,
+                "allow_photo_comments": False,
+                "require_email": False,
+                "require_phone": False,
+                "require_client_note": False,
+            },
+        )
+        assert config_resp.status_code == 200
+
+        start_resp = authenticated_client.post(
+            f"/s/{share_id}/selection/session",
+            json={"client_name": "Alice Client"},
+        )
+        assert start_resp.status_code == 200
+        session_id = start_resp.json()["id"]
+
+        me_resp = authenticated_client.get(f"/s/{share_id}/selection/session/me")
+        assert me_resp.status_code == 200
+        assert "set-cookie" in me_resp.headers
+
+        invalid_photo_resp = authenticated_client.put(f"/s/{share_id}/selection/session/items/{uuid4()}")
+        assert invalid_photo_resp.status_code == 404
+        assert invalid_photo_resp.json()["detail"] == "Photo not found for this share link"
+
+        select_resp = authenticated_client.put(f"/s/{share_id}/selection/session/items/{photo_id}")
+        assert select_resp.status_code == 200
+        assert select_resp.json()["selected"] is True
+        assert "set-cookie" in select_resp.headers
+
+        deselect_resp = authenticated_client.put(f"/s/{share_id}/selection/session/items/{photo_id}")
+        assert deselect_resp.status_code == 200
+        assert deselect_resp.json()["selected"] is False
+
+        comment_disabled_resp = authenticated_client.patch(
+            f"/s/{share_id}/selection/session/items/{photo_id}",
+            json={"comment": "Should fail"},
+        )
+        assert comment_disabled_resp.status_code == 403
+        assert comment_disabled_resp.json()["detail"] == "Photo comments are disabled"
+
+        enable_comments_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config",
+            json={"allow_photo_comments": True, "require_client_note": True},
+        )
+        assert enable_comments_resp.status_code == 200
+
+        invalid_photo_comment_resp = authenticated_client.patch(
+            f"/s/{share_id}/selection/session/items/{uuid4()}",
+            json={"comment": "Missing photo"},
+        )
+        assert invalid_photo_comment_resp.status_code == 404
+        assert invalid_photo_comment_resp.json()["detail"] == "Photo not found for this share link"
+
+        unselected_comment_resp = authenticated_client.patch(
+            f"/s/{share_id}/selection/session/items/{photo_id}",
+            json={"comment": "Still not selected"},
+        )
+        assert unselected_comment_resp.status_code == 404
+        assert unselected_comment_resp.json()["detail"] == "Photo is not selected"
+
+        reselect_resp = authenticated_client.put(f"/s/{share_id}/selection/session/items/{photo_id}")
+        assert reselect_resp.status_code == 200
+        assert reselect_resp.json()["selected"] is True
+
+        comment_resp = authenticated_client.patch(
+            f"/s/{share_id}/selection/session/items/{photo_id}",
+            json={"comment": "Needs retouch"},
+        )
+        assert comment_resp.status_code == 200
+        assert comment_resp.json()["comment"] == "Needs retouch"
+        assert "set-cookie" in comment_resp.headers
+
+        empty_note_resp = authenticated_client.patch(
+            f"/s/{share_id}/selection/session",
+            json={"client_note": "   "},
+        )
+        assert empty_note_resp.status_code == 422
+        assert empty_note_resp.json()["detail"] == "client_note is required"
+
+        note_resp = authenticated_client.patch(
+            f"/s/{share_id}/selection/session",
+            json={"client_note": "Ready to submit"},
+        )
+        assert note_resp.status_code == 200
+        assert note_resp.json()["client_note"] == "Ready to submit"
+        assert "set-cookie" in note_resp.headers
+
+        close_resp = authenticated_client.post(f"/share-links/{share_id}/selection/sessions/{session_id}/close")
+        assert close_resp.status_code == 200
+
+        submit_resp = authenticated_client.post(f"/s/{share_id}/selection/session/submit")
+        assert submit_resp.status_code == 409
+        assert submit_resp.json()["detail"] == "Selection is closed by photographer"
+
+    def test_owner_selection_config_validation_and_integrity_error_branches(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        fake_share_id = uuid4()
+
+        missing_config_resp = authenticated_client.get(f"/galleries/{gallery_id_fixture}/share-links/{fake_share_id}/selection-config")
+        assert missing_config_resp.status_code == 404
+        assert missing_config_resp.json()["detail"] == "Share link not found"
+
+        share_id = _create_sharelink(authenticated_client, gallery_id_fixture)
+
+        owner_config_resp = authenticated_client.get(f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config")
+        assert owner_config_resp.status_code == 200
+        assert owner_config_resp.json()["is_enabled"] is False
+
+        update_missing_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{fake_share_id}/selection-config",
+            json={"is_enabled": True},
+        )
+        assert update_missing_resp.status_code == 404
+        assert update_missing_resp.json()["detail"] == "Share link not found"
+
+        missing_limit_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config",
+            json={"limit_enabled": True},
+        )
+        assert missing_limit_resp.status_code == 422
+        assert missing_limit_resp.json()["detail"] == "limit_value is required when limit_enabled is true"
+
+        disabled_limit_with_value_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config",
+            json={"limit_enabled": False, "limit_value": 1},
+        )
+        assert disabled_limit_with_value_resp.status_code == 422
+        assert "limit_value must not be set when limit_enabled is false" in str(disabled_limit_with_value_resp.json()["detail"])
+
+        async def _raise_integrity_error(*args, **kwargs):
+            raise IntegrityError("update", {}, Exception("constraint violation"))
+
+        monkeypatch.setattr(SelectionRepository, "update_config", _raise_integrity_error)
+        integrity_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config",
+            json={"is_enabled": True},
+        )
+        assert integrity_resp.status_code == 422
+        assert integrity_resp.json()["detail"] == "Invalid selection configuration"
+
+    def test_owner_selection_missing_resource_endpoints_return_404(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+    ):
+        share_id = _create_sharelink(authenticated_client, gallery_id_fixture)
+        enable_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config",
+            json={"is_enabled": True},
+        )
+        assert enable_resp.status_code == 200
+
+        fake_share_id = uuid4()
+        fake_session_id = uuid4()
+        fake_gallery_id = uuid4()
+
+        owner_detail_missing_resp = authenticated_client.get(f"/share-links/{fake_share_id}/selection")
+        assert owner_detail_missing_resp.status_code == 404
+        assert owner_detail_missing_resp.json()["detail"] == "Share link not found"
+
+        close_missing_share_resp = authenticated_client.post(f"/share-links/{fake_share_id}/selection/close")
+        assert close_missing_share_resp.status_code == 404
+        assert close_missing_share_resp.json()["detail"] == "Share link not found"
+
+        reopen_missing_share_resp = authenticated_client.post(f"/share-links/{fake_share_id}/selection/reopen")
+        assert reopen_missing_share_resp.status_code == 404
+        assert reopen_missing_share_resp.json()["detail"] == "Share link not found"
+
+        close_no_sessions_resp = authenticated_client.post(f"/share-links/{share_id}/selection/close")
+        assert close_no_sessions_resp.status_code == 404
+        assert close_no_sessions_resp.json()["detail"] == "Selection session not found"
+
+        reopen_no_sessions_resp = authenticated_client.post(f"/share-links/{share_id}/selection/reopen")
+        assert reopen_no_sessions_resp.status_code == 404
+        assert reopen_no_sessions_resp.json()["detail"] == "Selection session not found"
+
+        owner_session_detail_missing_resp = authenticated_client.get(f"/share-links/{share_id}/selection/sessions/{fake_session_id}")
+        assert owner_session_detail_missing_resp.status_code == 404
+        assert owner_session_detail_missing_resp.json()["detail"] == "Selection session not found"
+
+        close_missing_session_resp = authenticated_client.post(f"/share-links/{share_id}/selection/sessions/{fake_session_id}/close")
+        assert close_missing_session_resp.status_code == 404
+        assert close_missing_session_resp.json()["detail"] == "Selection session not found"
+
+        reopen_missing_session_resp = authenticated_client.post(f"/share-links/{share_id}/selection/sessions/{fake_session_id}/reopen")
+        assert reopen_missing_session_resp.status_code == 404
+        assert reopen_missing_session_resp.json()["detail"] == "Selection session not found"
+
+        gallery_rows_missing_resp = authenticated_client.get(f"/galleries/{fake_gallery_id}/selections")
+        assert gallery_rows_missing_resp.status_code == 404
+        assert gallery_rows_missing_resp.json()["detail"] == "Gallery not found"
+
+        close_all_missing_resp = authenticated_client.post(f"/galleries/{fake_gallery_id}/selections/actions/close-all")
+        assert close_all_missing_resp.status_code == 404
+        assert close_all_missing_resp.json()["detail"] == "Gallery not found"
+
+        reopen_all_missing_resp = authenticated_client.post(f"/galleries/{fake_gallery_id}/selections/actions/open-all")
+        assert reopen_all_missing_resp.status_code == 404
+        assert reopen_all_missing_resp.json()["detail"] == "Gallery not found"
+
+        files_export_missing_resp = authenticated_client.get(f"/share-links/{fake_share_id}/selection/export/files.csv")
+        assert files_export_missing_resp.status_code == 404
+        assert files_export_missing_resp.json()["detail"] == "Share link not found"
+
+        lightroom_export_missing_resp = authenticated_client.get(f"/share-links/{fake_share_id}/selection/export/lightroom.txt")
+        assert lightroom_export_missing_resp.status_code == 404
+        assert lightroom_export_missing_resp.json()["detail"] == "Share link not found"
+
+        summary_export_missing_resp = authenticated_client.get(f"/galleries/{fake_gallery_id}/selections/export/summary.csv")
+        assert summary_export_missing_resp.status_code == 404
+        assert summary_export_missing_resp.json()["detail"] == "Gallery not found"
+
+        links_export_missing_resp = authenticated_client.get(f"/galleries/{fake_gallery_id}/selections/export/links.csv")
+        assert links_export_missing_resp.status_code == 404
+        assert links_export_missing_resp.json()["detail"] == "Gallery not found"
