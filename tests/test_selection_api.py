@@ -226,6 +226,39 @@ class TestSelectionAPI:
         assert detail_resp.status_code == 200
         assert detail_resp.json()["status"] == "submitted"
 
+    def test_public_selection_query_resume_token_does_not_fixate_cookie(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+    ):
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"first", "first.jpg")
+        share_id = _create_sharelink(authenticated_client, gallery_id_fixture)
+
+        enable_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config",
+            json={"is_enabled": True},
+        )
+        assert enable_resp.status_code == 200
+
+        start_resp = authenticated_client.post(
+            f"/s/{share_id}/selection/session",
+            json={"client_name": "Alice Client"},
+        )
+        assert start_resp.status_code == 200
+        resume_token = start_resp.json()["resume_token"]
+
+        toggle_resp = authenticated_client.put(f"/s/{share_id}/selection/session/items/{photo_id}?resume_token={resume_token}")
+        assert toggle_resp.status_code == 200
+
+        authenticated_client.cookies.clear()
+
+        restore_via_query = authenticated_client.get(f"/s/{share_id}/selection/session/me?resume_token={resume_token}")
+        assert restore_via_query.status_code == 200
+        assert "set-cookie" not in restore_via_query.headers
+
+        restore_without_token = authenticated_client.get(f"/s/{share_id}/selection/session/me")
+        assert restore_without_token.status_code == 404
+
     def test_reopen_all_gallery_selections_clears_submitted_at(
         self,
         authenticated_client: TestClient,
