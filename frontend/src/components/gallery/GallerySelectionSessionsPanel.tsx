@@ -29,6 +29,10 @@ interface GallerySelectionSessionsPanelProps {
 
 const RECENT_SELECTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
+const getFavoriteTabDomId = (key: string): string => `favorite-tab-${encodeURIComponent(key)}`;
+
+const getFavoritePanelDomId = (key: string): string => `favorite-panel-${encodeURIComponent(key)}`;
+
 interface FavoriteSelectionItemProps {
   item: SelectionItem;
   thumbnailSrc: string | null;
@@ -261,10 +265,10 @@ export const GallerySelectionSessionsPanel = ({
               return (
                 <button
                   key={userTab.key}
-                  id={`favorite-tab-${userTab.key}`}
+                  id={getFavoriteTabDomId(userTab.key)}
                   role="tab"
                   aria-selected={isActive}
-                  aria-controls={`favorite-panel-${userTab.key}`}
+                  aria-controls={getFavoritePanelDomId(userTab.key)}
                   type="button"
                   onClick={() => onSelectUserTab(userTab.key)}
                   className={`shrink-0 rounded-xl border px-3 py-2 text-left ${
@@ -298,9 +302,9 @@ export const GallerySelectionSessionsPanel = ({
             </div>
           ) : activeUserTab && selectedSession ? (
             <div
-              id={`favorite-panel-${activeUserTab.key}`}
+              id={getFavoritePanelDomId(activeUserTab.key)}
               role="tabpanel"
-              aria-labelledby={`favorite-tab-${activeUserTab.key}`}
+              aria-labelledby={getFavoriteTabDomId(activeUserTab.key)}
               className="space-y-4"
             >
               <div className="grid gap-2 sm:grid-cols-4">

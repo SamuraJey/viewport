@@ -62,14 +62,6 @@ class TestSelectionAPI:
         assert bob_session_id != alice_session_id
         assert bob_token != alice_token
 
-        # Same client + cookie resumes existing session instead of creating another one.
-        resume_bob = authenticated_client.post(
-            f"/s/{share_id}/selection/session",
-            json={"client_name": "Bob", "client_email": "bob@example.com"},
-        )
-        assert resume_bob.status_code == 200
-        assert resume_bob.json()["id"] == bob_session_id
-
         alice_toggle = authenticated_client.put(f"/s/{share_id}/selection/session/items/{first_photo_id}?resume_token={alice_token}")
         assert alice_toggle.status_code == 200
         assert alice_toggle.json()["selected"] is True
@@ -229,6 +221,41 @@ class TestSelectionAPI:
         assert detail_resp.status_code == 200
         assert detail_resp.json()["status"] == "submitted"
 
+    def test_public_selection_start_always_creates_new_session_even_with_resume_cookie(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+    ):
+        share_id = _create_sharelink(authenticated_client, gallery_id_fixture)
+
+        enable_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config",
+            json={"is_enabled": True},
+        )
+        assert enable_resp.status_code == 200
+
+        first_start_resp = authenticated_client.post(
+            f"/s/{share_id}/selection/session",
+            json={"client_name": "Alice Client"},
+        )
+        assert first_start_resp.status_code == 200
+        first_session = first_start_resp.json()
+
+        second_start_resp = authenticated_client.post(
+            f"/s/{share_id}/selection/session",
+            json={"client_name": "Bob Client"},
+        )
+        assert second_start_resp.status_code == 200
+        second_session = second_start_resp.json()
+
+        assert second_session["id"] != first_session["id"]
+        assert second_session["resume_token"] != first_session["resume_token"]
+        assert second_session["client_name"] == "Bob Client"
+
+        detail_resp = authenticated_client.get(f"/share-links/{share_id}/selection")
+        assert detail_resp.status_code == 200
+        assert detail_resp.json()["aggregate"]["total_sessions"] == 2
+
     def test_public_selection_query_resume_token_does_not_fixate_cookie(
         self,
         authenticated_client: TestClient,
@@ -284,7 +311,6 @@ class TestSelectionAPI:
             json={"client_name": "Alice Client"},
         )
         assert start_resp.status_code == 200
-        session_id = start_resp.json()["id"]
         resume_token = start_resp.json()["resume_token"]
 
         toggle_resp = authenticated_client.put(f"/s/{share_id}/selection/session/items/{photo_id}?resume_token={resume_token}")
@@ -292,17 +318,32 @@ class TestSelectionAPI:
 
         submit_resp = authenticated_client.post(f"/s/{share_id}/selection/session/submit?resume_token={resume_token}")
         assert submit_resp.status_code == 200
-        assert submit_resp.json()["submitted_at"] is not None
+        submitted_session_id = start_resp.json()["id"]
+        submitted_at = submit_resp.json()["submitted_at"]
+        assert submitted_at is not None
+
+        authenticated_client.cookies.clear()
+        second_start_resp = authenticated_client.post(
+            f"/s/{share_id}/selection/session",
+            json={"client_name": "Bulk Flow Client"},
+        )
+        assert second_start_resp.status_code == 200
+        second_session_id = second_start_resp.json()["id"]
 
         close_all_resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/selections/actions/close-all")
         assert close_all_resp.status_code == 200
-        assert close_all_resp.json()["affected_count"] >= 1
+        assert close_all_resp.json()["affected_count"] == 1
 
         open_all_resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/selections/actions/open-all")
         assert open_all_resp.status_code == 200
-        assert open_all_resp.json()["affected_count"] >= 1
+        assert open_all_resp.json()["affected_count"] == 1
 
-        reopened_detail = authenticated_client.get(f"/share-links/{share_id}/selection/sessions/{session_id}")
+        submitted_detail = authenticated_client.get(f"/share-links/{share_id}/selection/sessions/{submitted_session_id}")
+        assert submitted_detail.status_code == 200
+        assert submitted_detail.json()["status"] == "submitted"
+        assert submitted_detail.json()["submitted_at"] == submitted_at
+
+        reopened_detail = authenticated_client.get(f"/share-links/{share_id}/selection/sessions/{second_session_id}")
         assert reopened_detail.status_code == 200
         assert reopened_detail.json()["status"] == "in_progress"
         assert reopened_detail.json()["submitted_at"] is None

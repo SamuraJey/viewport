@@ -14,7 +14,7 @@ const clearStoredResumeCookie = (shareId: string): void => {
     typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : '';
   document.cookie = `${getResumeCookieString(
     shareId,
-  )}; Path=/s/${shareId}; Max-Age=0; SameSite=Lax${secureAttribute}`;
+  )}; Path=/; Max-Age=0; SameSite=Lax${secureAttribute}`;
 };
 
 const getStoredResumeToken = (shareId: string): string | undefined => {

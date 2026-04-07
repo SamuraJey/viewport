@@ -482,7 +482,7 @@ class SelectionRepository(BaseRepository):
                 ShareLink.gallery_id == gallery_id,
                 Gallery.owner_id == owner_id,
                 Gallery.is_deleted.is_(False),
-                ShareLinkSelectionSession.status != SelectionSessionStatus.CLOSED.value,
+                ShareLinkSelectionSession.status == SelectionSessionStatus.IN_PROGRESS.value,
             )
         )
         sessions = list((await self.db.execute(stmt)).scalars().all())

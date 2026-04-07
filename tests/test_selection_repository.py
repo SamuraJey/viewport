@@ -326,3 +326,50 @@ async def test_selection_repository_owner_row_summary_and_label_helpers(
 
     assert label_and_gallery == ("Alpha", "Selection Gallery")
     assert missing_label_and_gallery is None
+
+
+@pytest.mark.asyncio
+async def test_selection_repository_bulk_status_updates_skip_submitted_sessions(
+    repo: SelectionRepository,
+    db_session,
+):
+    user, gallery, sharelink, _, _ = await _create_owner_gallery_sharelinks(db_session)
+    config = await _create_config(db_session, sharelink, is_enabled=True)
+
+    submitted_at = datetime.now(UTC) - timedelta(minutes=15)
+    submitted_session = await _create_session(
+        db_session,
+        sharelink,
+        config,
+        client_name="Submitted Client",
+        status=SelectionSessionStatus.SUBMITTED.value,
+        selected_count=2,
+        submitted_at=submitted_at,
+    )
+    in_progress_session = await _create_session(
+        db_session,
+        sharelink,
+        config,
+        client_name="Open Client",
+        status=SelectionSessionStatus.IN_PROGRESS.value,
+        selected_count=1,
+    )
+
+    closed_count = await repo.close_all_for_gallery(gallery.id, user.id)
+    assert closed_count == 1
+
+    refreshed_submitted = await repo.get_session_by_id_for_sharelink(sharelink.id, submitted_session.id)
+    refreshed_closed = await repo.get_session_by_id_for_sharelink(sharelink.id, in_progress_session.id)
+    assert refreshed_submitted is not None
+    assert refreshed_submitted.status == SelectionSessionStatus.SUBMITTED.value
+    assert refreshed_submitted.submitted_at == submitted_at
+    assert refreshed_closed is not None
+    assert refreshed_closed.status == SelectionSessionStatus.CLOSED.value
+
+    reopened_count = await repo.reopen_all_for_gallery(gallery.id, user.id)
+    assert reopened_count == 1
+
+    reopened_session = await repo.get_session_by_id_for_sharelink(sharelink.id, in_progress_session.id)
+    assert reopened_session is not None
+    assert reopened_session.status == SelectionSessionStatus.IN_PROGRESS.value
+    assert reopened_session.submitted_at is None

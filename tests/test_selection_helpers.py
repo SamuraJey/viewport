@@ -58,7 +58,7 @@ def test_selection_cookie_uses_forwarded_proto_and_scoped_path():
 
     cookie_header = response.headers["set-cookie"]
     assert f"viewport-selection-resume-{share_id}=resume-token" in cookie_header
-    assert f"Path=/s/{share_id}" in cookie_header
+    assert "Path=/" in cookie_header
     assert "HttpOnly" in cookie_header
     assert "SameSite=lax" in cookie_header
     assert "Secure" in cookie_header

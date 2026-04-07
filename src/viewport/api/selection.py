@@ -56,7 +56,7 @@ def _selection_cookie_name(share_id: uuid.UUID) -> str:
 
 
 def _selection_cookie_path(share_id: uuid.UUID) -> str:
-    return f"/s/{share_id}"
+    return "/"
 
 
 def _should_use_secure_selection_cookie(request: Request) -> bool:
@@ -328,17 +328,6 @@ async def start_public_selection_session(
     config = await _get_enabled_selection_config_or_404(sharelink.id, repo)
 
     client_name, client_email, client_phone, client_note = _validate_contact_requirements(config, req)
-
-    token_from_request = _get_selection_resume_token(request, share_id, None)
-    if token_from_request:
-        existing_by_token = await repo.get_session_by_resume_token(sharelink.id, token_from_request)
-        if existing_by_token:
-            _set_selection_cookie(request, response, share_id, token_from_request)
-            return await _to_selection_session_response(
-                existing_by_token,
-                resume_token=token_from_request,
-                s3_client=s3_client,
-            )
 
     resume_token, resume_token_hash = repo.generate_resume_token()
     session = await repo.create_session(
