@@ -12,6 +12,8 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 let PublicGalleryPage: any;
+const mockNavigate = vi.fn();
+let mockRouteParams: { shareId: string; resumeToken?: string } = { shareId: 'abc123' };
 
 // Mock data for public gallery
 const mockPublicGallery = {
@@ -56,6 +58,7 @@ vi.mock('../../services/shareLinkService', () => ({
     updatePublicSelectionItemComment: vi.fn(),
     updatePublicSelectionSession: vi.fn(),
     submitPublicSelectionSession: vi.fn(),
+    getPublicPhotosByIds: vi.fn(),
   },
 }));
 
@@ -87,7 +90,8 @@ vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
     ...actual,
-    useParams: () => ({ shareId: 'abc123' }),
+    useParams: () => mockRouteParams,
+    useNavigate: () => mockNavigate,
   };
 });
 
@@ -100,6 +104,9 @@ const wrapper = () => (
 describe('PublicGalleryPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    mockNavigate.mockReset();
+    mockRouteParams = { shareId: 'abc123' };
+    window.localStorage.clear();
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { shareLinkService } = await import('../../services/shareLinkService');
     vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue(mockPublicGallery);
@@ -140,6 +147,7 @@ describe('PublicGalleryPage', () => {
     // Photos rendered
     const thumbs = screen.getAllByTestId('public-batch');
     expect(thumbs).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: /finish selection/i })).not.toBeInTheDocument();
   });
 
   it('opens photo lightbox when clicking a photo', async () => {
@@ -214,5 +222,57 @@ describe('PublicGalleryPage', () => {
     const expectedUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/s/abc123/download/all`;
     expect(openSpy).toHaveBeenCalledWith(expectedUrl, '_blank');
     openSpy.mockRestore();
+  });
+
+  it('renders dedicated favorites view with finish button and back navigation', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    mockRouteParams = { shareId: 'abc123', resumeToken: 'resume-token' };
+
+    vi.mocked(shareLinkService.getPublicSelectionConfig).mockResolvedValue({
+      is_enabled: true,
+      list_title: 'Selected photos',
+      limit_enabled: false,
+      limit_value: null,
+      allow_photo_comments: false,
+      require_name: true,
+      require_email: false,
+      require_phone: false,
+      require_client_note: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+    vi.mocked(shareLinkService.getPublicSelectionSession).mockResolvedValue({
+      id: 'session-1',
+      sharelink_id: 'abc123',
+      status: 'in_progress',
+      client_name: 'Jane Client',
+      client_email: null,
+      client_phone: null,
+      client_note: null,
+      selected_count: 1,
+      submitted_at: null,
+      last_activity_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      resume_token: 'resume-token',
+      items: [
+        {
+          photo_id: 'p1',
+          comment: null,
+          selected_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+    } as any);
+
+    render(wrapper());
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /finish selection/i })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: /back to gallery/i })).toBeInTheDocument();
+    expect(screen.getByText('Jane Client • in_progress')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /download all photos/i })).not.toBeInTheDocument();
   });
 });

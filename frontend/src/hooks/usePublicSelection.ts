@@ -27,10 +27,10 @@ const setStoredResumeToken = (shareId: string, token?: string | null): void => {
 
 interface UsePublicSelectionProps {
   shareId: string | undefined;
-  photoIds: string[];
+  initialResumeToken?: string;
 }
 
-export const usePublicSelection = ({ shareId, photoIds }: UsePublicSelectionProps) => {
+export const usePublicSelection = ({ shareId, initialResumeToken }: UsePublicSelectionProps) => {
   const [config, setConfig] = useState<SelectionConfig | null>(null);
   const [session, setSession] = useState<SelectionSession | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(false);
@@ -58,6 +58,17 @@ export const usePublicSelection = ({ shareId, photoIds }: UsePublicSelectionProp
     [shareId],
   );
 
+  const resolveResumeToken = useCallback(() => {
+    if (!shareId) return undefined;
+
+    const routeToken = initialResumeToken?.trim();
+    if (routeToken) {
+      return routeToken;
+    }
+
+    return getStoredResumeToken(shareId);
+  }, [initialResumeToken, shareId]);
+
   const loadSession = useCallback(
     async (resumeToken?: string) => {
       if (!shareId) return null;
@@ -70,6 +81,7 @@ export const usePublicSelection = ({ shareId, photoIds }: UsePublicSelectionProp
       } catch (err) {
         const apiError = handleApiError(err);
         if (apiError.statusCode === 404) {
+          setStoredResumeToken(shareId, null);
           setSession(null);
           return null;
         }
@@ -98,7 +110,7 @@ export const usePublicSelection = ({ shareId, photoIds }: UsePublicSelectionProp
         if (cancelled) return;
         setConfig(loadedConfig);
 
-        const token = getStoredResumeToken(shareId);
+        const token = resolveResumeToken();
         if (token) {
           await loadSession(token);
         } else {
@@ -124,11 +136,11 @@ export const usePublicSelection = ({ shareId, photoIds }: UsePublicSelectionProp
     return () => {
       cancelled = true;
     };
-  }, [loadSession, shareId]);
+  }, [loadSession, resolveResumeToken, shareId]);
 
   const refreshSession = useCallback(async () => {
     if (!shareId) return;
-    const token = getStoredResumeToken(shareId);
+    const token = resolveResumeToken();
     if (!token) {
       setSession(null);
       return;
@@ -140,16 +152,21 @@ export const usePublicSelection = ({ shareId, photoIds }: UsePublicSelectionProp
       const apiError = handleApiError(err);
       setError(apiError.message || 'Failed to refresh selection');
     }
-  }, [loadSession, shareId]);
+  }, [loadSession, resolveResumeToken, shareId]);
 
-  const startNewSession = useCallback(() => {
+  const clearSession = useCallback(() => {
     if (!shareId) return;
     setStoredResumeToken(shareId, null);
     setSession(null);
     setPendingPhotoToToggle(null);
     setError('');
-    setShowStartModal(true);
+    setShowStartModal(false);
   }, [shareId]);
+
+  const startNewSession = useCallback(() => {
+    clearSession();
+    setShowStartModal(true);
+  }, [clearSession]);
 
   const startSession = useCallback(
     async (payload: SelectionSessionStartRequest) => {
@@ -172,6 +189,7 @@ export const usePublicSelection = ({ shareId, photoIds }: UsePublicSelectionProp
           await refreshSession();
           setPendingPhotoToToggle(null);
         }
+        return created;
       } catch (err) {
         const apiError = handleApiError(err);
         setError(apiError.message || 'Failed to start selection session');
@@ -186,10 +204,6 @@ export const usePublicSelection = ({ shareId, photoIds }: UsePublicSelectionProp
   const togglePhoto = useCallback(
     async (photoId: string) => {
       if (!shareId || !config?.is_enabled) return;
-      if (!photoIds.includes(photoId)) {
-        setError('Photo is not available for this share link');
-        return;
-      }
 
       if (!session) {
         setPendingPhotoToToggle(photoId);
@@ -222,7 +236,7 @@ export const usePublicSelection = ({ shareId, photoIds }: UsePublicSelectionProp
         setIsMutating(false);
       }
     },
-    [canMutateSession, config?.is_enabled, photoIds, refreshSession, session, shareId],
+    [canMutateSession, config?.is_enabled, refreshSession, session, shareId],
   );
 
   const updatePhotoComment = useCallback(
@@ -325,6 +339,7 @@ export const usePublicSelection = ({ shareId, photoIds }: UsePublicSelectionProp
       setShowStartModal(false);
       setPendingPhotoToToggle(null);
     },
+    clearSession,
     startNewSession,
     refreshSession,
     startSession,

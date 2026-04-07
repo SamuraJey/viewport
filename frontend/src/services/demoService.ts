@@ -1391,6 +1391,7 @@ class DemoServiceStore {
 
     const now = nowIso();
     session.status = 'in_progress';
+    session.submitted_at = null;
     session.updated_at = now;
     session.last_activity_at = now;
     state.selectionSessions = state.selectionSessions ?? {};
@@ -1463,6 +1464,7 @@ class DemoServiceStore {
     }
     const now = nowIso();
     session.status = 'in_progress';
+    session.submitted_at = null;
     session.updated_at = now;
     session.last_activity_at = now;
     state.selectionSessions = state.selectionSessions ?? {};
@@ -1546,6 +1548,7 @@ class DemoServiceStore {
       for (const session of sessions) {
         if (session.status !== 'closed') continue;
         session.status = 'in_progress';
+        session.submitted_at = null;
         session.updated_at = now;
         session.last_activity_at = now;
         affected += 1;
@@ -1664,6 +1667,26 @@ class DemoServiceStore {
       width: photo.width,
       height: photo.height,
     }));
+  }
+
+  async getPublicPhotosByIds(shareId: string, photoIds: string[]) {
+    const state = this.findByShareId(shareId);
+    if (!state) {
+      throw this.createNotFoundError('Share link not found');
+    }
+
+    const photoMap = new Map(state.photos.map((photo) => [photo.id, photo]));
+    return photoIds
+      .map((photoId) => photoMap.get(photoId))
+      .filter((photo): photo is NonNullable<typeof photo> => Boolean(photo))
+      .map((photo) => ({
+        photo_id: photo.id,
+        thumbnail_url: photo.thumbnail_url,
+        full_url: photo.url,
+        filename: photo.filename,
+        width: photo.width,
+        height: photo.height,
+      }));
   }
 
   async deletePhoto(galleryId: string, photoId: string): Promise<void> {

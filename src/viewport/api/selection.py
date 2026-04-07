@@ -509,16 +509,17 @@ async def submit_public_selection_session(
         "selected_count": submitted_session.selected_count,
         "submitted_at": submitted_session.submitted_at.isoformat() if submitted_session.submitted_at else datetime.now(UTC).isoformat(),
     }
+    notification_enqueued = True
     try:
         await run_in_threadpool(notify_selection_submitted_task.delay, notification_payload)
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail="Selection submitted, but notification dispatch failed") from exc
+    except Exception:
+        notification_enqueued = False
 
     return SelectionSubmitResponse(
         status=submitted_session.status,
         selected_count=submitted_session.selected_count,
         submitted_at=submitted_session.submitted_at or datetime.now(UTC),
-        notification_enqueued=True,
+        notification_enqueued=notification_enqueued,
     )
 
 

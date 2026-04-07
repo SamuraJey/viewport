@@ -89,6 +89,15 @@ describe('shareLinkService', () => {
     expect(batchResponse).toEqual([{ photo_id: 'p1', full_url: '/p1' }]);
   });
 
+  it('fetches public photo cards by ids preserving query order', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [{ photo_id: 'p2' }, { photo_id: 'p1' }] } as any);
+
+    const result = await shareLinkService.getPublicPhotosByIds('share123', ['p2', 'p1']);
+
+    expect(api.get).toHaveBeenCalledWith('/s/share123/photos/by-ids?photo_ids=p2&photo_ids=p1');
+    expect(result).toEqual([{ photo_id: 'p2' }, { photo_id: 'p1' }]);
+  });
+
   it('fetches public selection session with resume token query', async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { id: 'session-1' } } as any);
 

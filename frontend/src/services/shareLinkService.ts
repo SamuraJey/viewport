@@ -209,6 +209,29 @@ const getAllPublicPhotoUrls = async (shareId: string): Promise<PublicPhoto[]> =>
   return response.data;
 };
 
+const getPublicPhotosByIds = async (
+  shareId: string,
+  photoIds: string[],
+): Promise<PublicPhoto[]> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getPublicPhotosByIds(shareId, photoIds);
+  }
+
+  const params = new URLSearchParams();
+  photoIds.forEach((photoId) => {
+    if (photoId.trim().length > 0) {
+      params.append('photo_ids', photoId.trim());
+    }
+  });
+
+  if (!params.toString()) {
+    return [];
+  }
+
+  const response = await api.get<PublicPhoto[]>(`/s/${shareId}/photos/by-ids?${params.toString()}`);
+  return response.data;
+};
+
 const getPublicSelectionConfig = async (shareId: string): Promise<SelectionConfig> => {
   if (isDemoModeEnabled()) {
     return getDemoService().getPublicSelectionConfig(shareId);
@@ -525,6 +548,7 @@ export const shareLinkService = {
   getSharedGallery,
   getPublicPhotoUrl,
   getAllPublicPhotoUrls,
+  getPublicPhotosByIds,
   getOwnerShareLinks,
   getShareLinkAnalytics,
   getPublicSelectionConfig,

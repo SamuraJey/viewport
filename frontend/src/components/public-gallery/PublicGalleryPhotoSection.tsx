@@ -10,6 +10,9 @@ interface PublicGalleryPhotoSectionProps {
   photos: PublicPhoto[];
   totalPhotos: number;
   displayedPhotos: number;
+  sectionTitle?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
   gridClassNames: string;
   gridLayout: PublicGridLayout;
   gridDensity: PublicGridDensity;
@@ -30,14 +33,10 @@ interface PublicGalleryPhotoSectionProps {
     enabled: boolean;
     selectedIds: Set<string>;
     selectedCount: number;
-    limitEnabled: boolean;
-    limitValue: number | null;
-    selectedOnly: boolean;
     canMutate: boolean;
     allowPhotoComments: boolean;
     session: SelectionSession | null;
     commentsByPhotoId: Record<string, string | null>;
-    onToggleSelectedOnly: () => void;
     onTogglePhoto: (photoId: string) => void;
     onUpdatePhotoComment: (photoId: string, comment: string) => void;
   };
@@ -47,6 +46,9 @@ export const PublicGalleryPhotoSection = ({
   photos,
   totalPhotos,
   displayedPhotos,
+  sectionTitle = 'Photos',
+  emptyTitle = 'No photos in this gallery',
+  emptyDescription = 'This gallery appears to be empty. Check back later for updates.',
   gridClassNames,
   gridLayout,
   gridDensity,
@@ -68,7 +70,7 @@ export const PublicGalleryPhotoSection = ({
     >
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-2xl font-bold text-text dark:text-accent-foreground flex items-center gap-2">
-          Photos{' '}
+          {sectionTitle}{' '}
           <span className="text-muted text-lg font-medium">
             ({displayedPhotos}
             {displayedPhotos !== totalPhotos ? ` / ${totalPhotos}` : ''})
@@ -82,28 +84,6 @@ export const PublicGalleryPhotoSection = ({
           onDensityChange={onDensityChange}
         />
       </div>
-
-      {selection?.enabled ? (
-        <div className="mb-6 rounded-2xl border border-border/50 bg-surface-1/70 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-text">
-              Selected: {selection.selectedCount}
-              {selection.limitEnabled && selection.limitValue ? ` / ${selection.limitValue}` : ''}
-            </p>
-            <button
-              type="button"
-              onClick={selection.onToggleSelectedOnly}
-              className={`rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
-                selection.selectedOnly
-                  ? 'bg-accent text-accent-foreground'
-                  : 'border border-border/50 bg-surface text-text hover:border-accent/40'
-              }`}
-            >
-              {selection.selectedOnly ? 'Show all photos' : 'Show selected only'}
-            </button>
-          </div>
-        </div>
-      ) : null}
 
       {photos.length > 0 ? (
         <>
@@ -123,7 +103,7 @@ export const PublicGalleryPhotoSection = ({
                       event.stopPropagation();
                       selection.onTogglePhoto(photo.photo_id);
                     }}
-                    disabled={selection.session && !selection.canMutate}
+                    disabled={Boolean(selection.session && !selection.canMutate)}
                     className={`absolute top-3 right-3 z-20 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
                       selection.selectedIds.has(photo.photo_id)
                         ? 'bg-accent text-accent-foreground'
@@ -192,11 +172,9 @@ export const PublicGalleryPhotoSection = ({
             <ImageOff className="h-8 w-8 text-muted" />
           </div>
           <h3 className="text-xl font-semibold text-text dark:text-accent-foreground">
-            No photos in this gallery
+            {emptyTitle}
           </h3>
-          <p className="mt-2 text-muted max-w-sm mx-auto">
-            This gallery appears to be empty. Check back later for updates.
-          </p>
+          <p className="mt-2 text-muted max-w-sm mx-auto">{emptyDescription}</p>
         </div>
       )}
     </div>

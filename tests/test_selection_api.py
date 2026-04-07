@@ -187,6 +187,90 @@ class TestSelectionAPI:
         assert idempotent_submit.status_code == 200
         assert idempotent_submit.json()["notification_enqueued"] is False
 
+    def test_public_selection_submit_succeeds_when_notification_dispatch_fails(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        def _raise_notification_error(payload):
+            raise RuntimeError("broker unavailable")
+
+        monkeypatch.setattr("viewport.api.selection.notify_selection_submitted_task.delay", _raise_notification_error)
+
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"first", "first.jpg")
+        share_id = _create_sharelink(authenticated_client, gallery_id_fixture)
+
+        enable_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config",
+            json={"is_enabled": True},
+        )
+        assert enable_resp.status_code == 200
+
+        start_resp = authenticated_client.post(
+            f"/s/{share_id}/selection/session",
+            json={"client_name": "Alice Client"},
+        )
+        assert start_resp.status_code == 200
+        resume_token = start_resp.json()["resume_token"]
+
+        toggle_resp = authenticated_client.put(f"/s/{share_id}/selection/session/items/{photo_id}?resume_token={resume_token}")
+        assert toggle_resp.status_code == 200
+
+        submit_resp = authenticated_client.post(f"/s/{share_id}/selection/session/submit?resume_token={resume_token}")
+        assert submit_resp.status_code == 200
+        assert submit_resp.json()["status"] == "submitted"
+        assert submit_resp.json()["notification_enqueued"] is False
+
+        detail_resp = authenticated_client.get(f"/s/{share_id}/selection/session/me?resume_token={resume_token}")
+        assert detail_resp.status_code == 200
+        assert detail_resp.json()["status"] == "submitted"
+
+    def test_reopen_all_gallery_selections_clears_submitted_at(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr("viewport.api.selection.notify_selection_submitted_task.delay", lambda payload: None)
+
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"first", "first.jpg")
+        share_id = _create_sharelink(authenticated_client, gallery_id_fixture)
+
+        enable_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config",
+            json={"is_enabled": True},
+        )
+        assert enable_resp.status_code == 200
+
+        start_resp = authenticated_client.post(
+            f"/s/{share_id}/selection/session",
+            json={"client_name": "Alice Client"},
+        )
+        assert start_resp.status_code == 200
+        session_id = start_resp.json()["id"]
+        resume_token = start_resp.json()["resume_token"]
+
+        toggle_resp = authenticated_client.put(f"/s/{share_id}/selection/session/items/{photo_id}?resume_token={resume_token}")
+        assert toggle_resp.status_code == 200
+
+        submit_resp = authenticated_client.post(f"/s/{share_id}/selection/session/submit?resume_token={resume_token}")
+        assert submit_resp.status_code == 200
+        assert submit_resp.json()["submitted_at"] is not None
+
+        close_all_resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/selections/actions/close-all")
+        assert close_all_resp.status_code == 200
+        assert close_all_resp.json()["affected_count"] >= 1
+
+        open_all_resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/selections/actions/open-all")
+        assert open_all_resp.status_code == 200
+        assert open_all_resp.json()["affected_count"] >= 1
+
+        reopened_detail = authenticated_client.get(f"/share-links/{share_id}/selection/sessions/{session_id}")
+        assert reopened_detail.status_code == 200
+        assert reopened_detail.json()["status"] == "in_progress"
+        assert reopened_detail.json()["submitted_at"] is None
+
     def test_public_selection_returns_404_for_inactive_and_410_for_expired(
         self,
         authenticated_client: TestClient,

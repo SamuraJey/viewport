@@ -501,6 +501,7 @@ class SelectionRepository(BaseRepository):
         sessions = list((await self.db.execute(stmt)).scalars().all())
         for session in sessions:
             session.status = SelectionSessionStatus.IN_PROGRESS.value
+            session.submitted_at = None
             session.updated_at = now
             session.last_activity_at = now
         if sessions:
