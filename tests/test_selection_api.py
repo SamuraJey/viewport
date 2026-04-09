@@ -594,6 +594,17 @@ class TestSelectionAPI:
         assert comment_resp.json()["comment"] == "Needs retouch"
         assert "set-cookie" in comment_resp.headers
 
+        clear_comment_resp = authenticated_client.patch(
+            f"/s/{share_id}/selection/session/items/{photo_id}",
+            json={"comment": ""},
+        )
+        assert clear_comment_resp.status_code == 200
+        assert clear_comment_resp.json()["comment"] is None
+
+        me_after_clear_resp = authenticated_client.get(f"/s/{share_id}/selection/session/me")
+        assert me_after_clear_resp.status_code == 200
+        assert me_after_clear_resp.json()["items"][0]["comment"] is None
+
         empty_note_resp = authenticated_client.patch(
             f"/s/{share_id}/selection/session",
             json={"client_note": "   "},

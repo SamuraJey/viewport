@@ -438,7 +438,9 @@ async def update_public_selection_item_comment(
         raise HTTPException(status_code=404, detail="Photo is not selected")
 
     comment = _normalize_optional_text(req.comment)
-    item = await repo.upsert_selection_item(session.id, photo_id, comment=comment)
+    item = await repo.update_selection_item_comment(session.id, photo_id, comment=comment)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Photo is not selected")
     await repo.touch_session(session)
     return _to_selection_item_response(item)
 

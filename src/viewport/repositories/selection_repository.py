@@ -4,7 +4,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import cast
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
@@ -229,29 +230,62 @@ class SelectionRepository(BaseRepository):
         await self.db.refresh(session, attribute_names=["items"])
         return session
 
-    async def upsert_selection_item(self, session_id: uuid.UUID, photo_id: uuid.UUID, comment: str | None = None) -> ShareLinkSelectionItem:
-        stmt = select(ShareLinkSelectionItem).where(ShareLinkSelectionItem.session_id == session_id, ShareLinkSelectionItem.photo_id == photo_id)
-        item = (await self.db.execute(stmt)).scalar_one_or_none()
+    async def upsert_selection_item(
+        self,
+        session_id: uuid.UUID,
+        photo_id: uuid.UUID,
+    ) -> ShareLinkSelectionItem:
         now = datetime.now(UTC)
-        if item:
-            item.updated_at = now
-            if comment is not None:
-                item.comment = comment
-            await self.db.commit()
-            await self.db.refresh(item)
-            return item
+        insert_values: dict[str, uuid.UUID | datetime] = {
+            "session_id": session_id,
+            "photo_id": photo_id,
+            "selected_at": now,
+            "updated_at": now,
+        }
+        update_values: dict[str, datetime] = {
+            "updated_at": now,
+        }
 
-        item = ShareLinkSelectionItem(
-            session_id=session_id,
-            photo_id=photo_id,
-            comment=comment,
-            selected_at=now,
-            updated_at=now,
+        stmt = (
+            insert(ShareLinkSelectionItem)
+            .values(**insert_values)
+            .on_conflict_do_update(
+                index_elements=[
+                    ShareLinkSelectionItem.session_id,
+                    ShareLinkSelectionItem.photo_id,
+                ],
+                set_=update_values,
+            )
         )
-        self.db.add(item)
+        await self.db.execute(stmt)
         await self.db.commit()
-        await self.db.refresh(item)
-        return item
+        refreshed_item = await self.get_selection_item(session_id, photo_id)
+        if refreshed_item is None:
+            raise RuntimeError("Selection item upsert did not persist a row")
+        return refreshed_item
+
+    async def update_selection_item_comment(
+        self,
+        session_id: uuid.UUID,
+        photo_id: uuid.UUID,
+        comment: str | None,
+    ) -> ShareLinkSelectionItem | None:
+        stmt = (
+            update(ShareLinkSelectionItem)
+            .where(
+                ShareLinkSelectionItem.session_id == session_id,
+                ShareLinkSelectionItem.photo_id == photo_id,
+            )
+            .values(
+                comment=comment,
+                updated_at=datetime.now(UTC),
+            )
+        )
+        result = await self.db.execute(stmt)
+        await self.db.commit()
+        if result.rowcount == 0:
+            return None
+        return await self.get_selection_item(session_id, photo_id)
 
     async def delete_selection_item(self, session_id: uuid.UUID, photo_id: uuid.UUID) -> bool:
         item = await self.get_selection_item(session_id, photo_id)
@@ -262,9 +296,13 @@ class SelectionRepository(BaseRepository):
         return True
 
     async def get_selection_item(self, session_id: uuid.UUID, photo_id: uuid.UUID) -> ShareLinkSelectionItem | None:
-        stmt = select(ShareLinkSelectionItem).where(
-            ShareLinkSelectionItem.session_id == session_id,
-            ShareLinkSelectionItem.photo_id == photo_id,
+        stmt = (
+            select(ShareLinkSelectionItem)
+            .execution_options(populate_existing=True)
+            .where(
+                ShareLinkSelectionItem.session_id == session_id,
+                ShareLinkSelectionItem.photo_id == photo_id,
+            )
         )
         item = (await self.db.execute(stmt)).scalar_one_or_none()
         return await self._finish_read(item)

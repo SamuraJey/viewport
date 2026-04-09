@@ -1,10 +1,13 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
@@ -211,11 +214,51 @@ async def test_selection_repository_updates_config_and_session_helpers(repo: Sel
     assert session_count == 2
 
     photo = await _create_photo(db_session, gallery, "frame-01.jpg")
-    item = await repo.upsert_selection_item(first_session.id, photo.id, comment="pick")
-    assert item.comment == "pick"
+    item = await repo.upsert_selection_item(first_session.id, photo.id)
+    assert item.comment is None
+    updated = await repo.update_selection_item_comment(first_session.id, photo.id, comment="pick")
+    assert updated is not None
+    assert updated.comment == "pick"
+    preserved = await repo.upsert_selection_item(first_session.id, photo.id)
+    assert preserved.comment == "pick"
+    cleared = await repo.update_selection_item_comment(first_session.id, photo.id, comment=None)
+    assert cleared is not None
+    assert cleared.comment is None
     assert await repo.delete_selection_item(first_session.id, photo.id) is True
     assert await repo.delete_selection_item(first_session.id, photo.id) is False
     assert await repo.get_latest_session_for_sharelink(uuid4()) is None
+
+
+@pytest.mark.asyncio
+async def test_selection_repository_upsert_selection_item_is_atomic_under_concurrent_inserts(
+    db_session,
+    async_engine,
+):
+    user, gallery, sharelink, _, _ = await _create_owner_gallery_sharelinks(db_session)
+    config = await _create_config(db_session, sharelink, is_enabled=True)
+    session = await _create_session(db_session, sharelink, config, client_name="Atomic")
+    photo = await _create_photo(db_session, gallery, "race-frame.jpg")
+    session_factory = async_sessionmaker(bind=async_engine, expire_on_commit=False)
+
+    async def _upsert_item():
+        async with session_factory() as session_db:
+            repo = SelectionRepository(session_db)
+            return await repo.upsert_selection_item(session.id, photo.id)
+
+    first_item, second_item = await asyncio.gather(_upsert_item(), _upsert_item())
+
+    assert first_item.session_id == session.id
+    assert second_item.session_id == session.id
+    count_stmt = (
+        select(func.count())
+        .select_from(ShareLinkSelectionItem)
+        .where(
+            ShareLinkSelectionItem.session_id == session.id,
+            ShareLinkSelectionItem.photo_id == photo.id,
+        )
+    )
+    row_count = int((await db_session.execute(count_stmt)).scalar() or 0)
+    assert row_count == 1
 
 
 @pytest.mark.asyncio
