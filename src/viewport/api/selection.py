@@ -436,6 +436,8 @@ async def update_public_selection_item_comment(
     existing_item = await repo.get_selection_item(session.id, photo_id)
     if not existing_item:
         raise HTTPException(status_code=404, detail="Photo is not selected")
+    if "comment" not in req.model_fields_set:
+        raise HTTPException(status_code=422, detail="comment is required")
 
     comment = _normalize_optional_text(req.comment)
     item = await repo.update_selection_item_comment(session.id, photo_id, comment=comment)

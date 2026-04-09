@@ -594,6 +594,17 @@ class TestSelectionAPI:
         assert comment_resp.json()["comment"] == "Needs retouch"
         assert "set-cookie" in comment_resp.headers
 
+        missing_comment_resp = authenticated_client.patch(
+            f"/s/{share_id}/selection/session/items/{photo_id}",
+            json={},
+        )
+        assert missing_comment_resp.status_code == 422
+        assert missing_comment_resp.json()["detail"] == "comment is required"
+
+        me_after_missing_comment_resp = authenticated_client.get(f"/s/{share_id}/selection/session/me")
+        assert me_after_missing_comment_resp.status_code == 200
+        assert me_after_missing_comment_resp.json()["items"][0]["comment"] == "Needs retouch"
+
         clear_comment_resp = authenticated_client.patch(
             f"/s/{share_id}/selection/session/items/{photo_id}",
             json={"comment": ""},
