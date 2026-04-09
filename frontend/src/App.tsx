@@ -70,6 +70,7 @@ function App() {
 
           {/* Public gallery sharing route */}
           <Route path="/share/:shareId" element={<PublicGalleryPage />} />
+          <Route path="/share/:shareId/favorites/:resumeToken" element={<PublicGalleryPage />} />
 
           {/* Protected routes */}
           <Route element={<ProtectedLayout />}>

@@ -3,11 +3,15 @@ import { ImageOff, Loader2 } from 'lucide-react';
 import { LazyImage } from '../LazyImage';
 import { PublicGalleryGridControls } from './PublicGalleryGridControls';
 import type { PublicGridDensity, PublicGridLayout } from '../../hooks/usePublicGalleryGrid';
-import type { PublicPhoto } from '../../services/shareLinkService';
+import type { PublicPhoto, SelectionSession } from '../../types';
 
 interface PublicGalleryPhotoSectionProps {
   photos: PublicPhoto[];
   totalPhotos: number;
+  displayedPhotos: number;
+  sectionTitle?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
   gridClassNames: string;
   gridLayout: PublicGridLayout;
   gridDensity: PublicGridDensity;
@@ -24,11 +28,26 @@ interface PublicGalleryPhotoSectionProps {
     onTouchEnd: TouchEventHandler<HTMLDivElement>;
     onTouchCancel: TouchEventHandler<HTMLDivElement>;
   };
+  selection?: {
+    enabled: boolean;
+    selectedIds: Set<string>;
+    selectedCount: number;
+    canMutate: boolean;
+    allowPhotoComments: boolean;
+    session: SelectionSession | null;
+    commentsByPhotoId: Record<string, string | null>;
+    onTogglePhoto: (photoId: string) => void;
+    onUpdatePhotoComment: (photoId: string, comment: string) => void;
+  };
 }
 
 export const PublicGalleryPhotoSection = ({
   photos,
   totalPhotos,
+  displayedPhotos,
+  sectionTitle = 'Photos',
+  emptyTitle = 'No photos in this gallery',
+  emptyDescription = 'This gallery appears to be empty. Check back later for updates.',
   gridClassNames,
   gridLayout,
   gridDensity,
@@ -40,6 +59,7 @@ export const PublicGalleryPhotoSection = ({
   onDensityChange,
   onOpenPhoto,
   touchHandlers,
+  selection,
 }: PublicGalleryPhotoSectionProps) => {
   return (
     <div
@@ -49,7 +69,11 @@ export const PublicGalleryPhotoSection = ({
     >
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-2xl font-bold text-text dark:text-accent-foreground flex items-center gap-2">
-          Photos <span className="text-muted text-lg font-medium">({totalPhotos})</span>
+          {sectionTitle}{' '}
+          <span className="text-muted text-lg font-medium">
+            ({displayedPhotos}
+            {displayedPhotos !== totalPhotos ? ` / ${totalPhotos}` : ''})
+          </span>
         </h2>
 
         <PublicGalleryGridControls
@@ -70,6 +94,25 @@ export const PublicGalleryPhotoSection = ({
                 data-testid="public-batch"
                 data-photo-id={photo.photo_id}
               >
+                {selection?.enabled ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      selection.onTogglePhoto(photo.photo_id);
+                    }}
+                    disabled={Boolean(selection.session && !selection.canMutate)}
+                    className={`absolute top-3 right-3 z-20 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
+                      selection.selectedIds.has(photo.photo_id)
+                        ? 'bg-accent text-accent-foreground'
+                        : 'bg-black/45 text-white hover:bg-black/60'
+                    } ${selection.session && !selection.canMutate ? 'cursor-not-allowed opacity-70' : ''}`}
+                  >
+                    {selection.selectedIds.has(photo.photo_id) ? 'Selected' : 'Select'}
+                  </button>
+                ) : null}
+
                 <button
                   onClick={() => onOpenPhoto(index)}
                   className="w-full h-full p-0 border-0 bg-transparent cursor-pointer block focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
@@ -85,6 +128,24 @@ export const PublicGalleryPhotoSection = ({
                     height={photo.height}
                   />
                 </button>
+
+                {selection?.enabled &&
+                selection.allowPhotoComments &&
+                selection.selectedIds.has(photo.photo_id) ? (
+                  <div className="absolute inset-x-2 bottom-2 z-20">
+                    <textarea
+                      key={`${photo.photo_id}-${selection.commentsByPhotoId[photo.photo_id] ?? ''}`}
+                      defaultValue={selection.commentsByPhotoId[photo.photo_id] ?? ''}
+                      placeholder="Comment for this photo"
+                      disabled={!selection.canMutate}
+                      onClick={(event) => event.stopPropagation()}
+                      onBlur={(event) =>
+                        selection.onUpdatePhotoComment(photo.photo_id, event.currentTarget.value)
+                      }
+                      className="min-h-14 w-full resize-none rounded-lg border border-border/40 bg-surface/90 px-2 py-1.5 text-xs text-text outline-none focus:border-accent/50 disabled:cursor-not-allowed disabled:opacity-70"
+                    />
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
@@ -110,11 +171,9 @@ export const PublicGalleryPhotoSection = ({
             <ImageOff className="h-8 w-8 text-muted" />
           </div>
           <h3 className="text-xl font-semibold text-text dark:text-accent-foreground">
-            No photos in this gallery
+            {emptyTitle}
           </h3>
-          <p className="mt-2 text-muted max-w-sm mx-auto">
-            This gallery appears to be empty. Check back later for updates.
-          </p>
+          <p className="mt-2 text-muted max-w-sm mx-auto">{emptyDescription}</p>
         </div>
       )}
     </div>

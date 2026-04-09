@@ -149,6 +149,24 @@ class ShareLinkRepository(BaseRepository):
         photo = (await self.db.execute(stmt)).scalar_one_or_none()
         return await self._finish_read(photo)
 
+    async def get_photos_by_ids_and_gallery(self, gallery_id: uuid.UUID, photo_ids: list[uuid.UUID]) -> list[Photo]:
+        from viewport.models.gallery import Gallery
+
+        if not photo_ids:
+            return await self._finish_read([])
+
+        stmt = (
+            select(Photo)
+            .join(Photo.gallery)
+            .where(
+                Photo.gallery_id == gallery_id,
+                Photo.id.in_(photo_ids),
+                Gallery.is_deleted.is_(False),
+            )
+        )
+        photos = list((await self.db.execute(stmt)).scalars().all())
+        return await self._finish_read(photos)
+
     @staticmethod
     def build_visitor_hash(ip_address: str | None, user_agent: str | None) -> str | None:
         normalized_ip = (ip_address or "").strip()

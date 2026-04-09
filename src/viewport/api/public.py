@@ -185,6 +185,45 @@ async def get_photos_by_sharelink(
     )
 
 
+@router.get("/{share_id}/photos/by-ids", response_model=list[PublicPhoto])
+async def get_public_photos_by_ids(
+    share_id: UUID,
+    response: Response,
+    photo_ids: list[UUID] = Query(..., description="Ordered list of photo ids to resolve"),
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    sharelink: ShareLink = Depends(get_valid_sharelink),
+    s3_client: AsyncS3Client = Depends(get_async_s3_client),
+) -> list[PublicPhoto]:
+    response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
+
+    unique_photo_ids = list(dict.fromkeys(photo_ids))
+    photos = await repo.get_photos_by_ids_and_gallery(sharelink.gallery_id, unique_photo_ids)
+    photo_map = {photo.id: photo for photo in photos}
+    ordered_photos = [photo_map[photo_id] for photo_id in unique_photo_ids if photo_id in photo_map]
+
+    if not ordered_photos:
+        return []
+
+    thumbnail_keys = [photo.thumbnail_object_key for photo in ordered_photos]
+    thumb_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys)
+    full_url_map = await s3_client.generate_presigned_urls_batch_for_dispositions(
+        {photo.object_key: _build_content_disposition(photo.display_name, disposition_type="inline") for photo in ordered_photos}
+    )
+
+    return [
+        PublicPhoto(
+            photo_id=str(photo.id),
+            thumbnail_url=thumb_url_map.get(photo.thumbnail_object_key, ""),
+            full_url=full_url_map.get(photo.object_key, ""),
+            filename=photo.display_name,
+            width=getattr(photo, "width", None),
+            height=getattr(photo, "height", None),
+        )
+        for photo in ordered_photos
+        if thumb_url_map.get(photo.thumbnail_object_key) and full_url_map.get(photo.object_key)
+    ]
+
+
 # intetionally not async
 @router.get("/{share_id}/download/all")
 def download_all_photos_zip(

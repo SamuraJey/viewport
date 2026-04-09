@@ -4,6 +4,17 @@ import { getDemoService } from './demoService';
 import type {
   ShareLink,
   ShareLinkAnalyticsResponse,
+  SelectionConfig,
+  SelectionConfigUpdateRequest,
+  SelectionPhotoCommentRequest,
+  SelectionSession,
+  SelectionSessionStartRequest,
+  SelectionSessionUpdateRequest,
+  SelectionSubmitResponse,
+  SelectionToggleResponse,
+  OwnerSelectionDetail,
+  OwnerSelectionRow,
+  BulkSelectionActionResponse,
   ShareLinkCreateRequest,
   ShareLinksDashboardResponse,
   ShareLinkUpdateRequest,
@@ -20,6 +31,54 @@ export type {
   ShareLinkUpdateRequest,
   PublicPhoto,
   SharedGallery,
+  SelectionConfig,
+  SelectionSession,
+  SelectionSubmitResponse,
+  OwnerSelectionDetail,
+  OwnerSelectionRow,
+};
+
+const triggerBlobDownload = (blob: Blob, filename: string): void => {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+};
+
+const parseDownloadFilename = (
+  contentDisposition: string | null | undefined,
+  fallback: string,
+): string => {
+  if (!contentDisposition) {
+    return fallback;
+  }
+
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    return decodeURIComponent(utf8Match[1]).replace(/[/\\]/g, '_');
+  }
+
+  const simpleMatch = contentDisposition.match(/filename="([^"]+)"/i);
+  if (simpleMatch?.[1]) {
+    return simpleMatch[1].replace(/[/\\]/g, '_');
+  }
+
+  return fallback;
+};
+
+const downloadOwnerExport = async (path: string, fallbackFilename: string): Promise<void> => {
+  const response = await api.get<Blob>(path, { responseType: 'blob' });
+  const contentDisposition =
+    (response.headers['content-disposition'] as string | undefined) ??
+    (response.headers['Content-Disposition' as keyof typeof response.headers] as
+      | string
+      | undefined);
+  const filename = parseDownloadFilename(contentDisposition, fallbackFilename);
+  triggerBlobDownload(response.data, filename);
 };
 
 const getShareLinks = async (galleryId: string): Promise<ShareLink[]> => {
@@ -150,6 +209,337 @@ const getAllPublicPhotoUrls = async (shareId: string): Promise<PublicPhoto[]> =>
   return response.data;
 };
 
+const getPublicPhotosByIds = async (
+  shareId: string,
+  photoIds: string[],
+): Promise<PublicPhoto[]> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getPublicPhotosByIds(shareId, photoIds);
+  }
+
+  const params = new URLSearchParams();
+  photoIds.forEach((photoId) => {
+    if (photoId.trim().length > 0) {
+      params.append('photo_ids', photoId.trim());
+    }
+  });
+
+  if (!params.toString()) {
+    return [];
+  }
+
+  const response = await api.get<PublicPhoto[]>(`/s/${shareId}/photos/by-ids?${params.toString()}`);
+  return response.data;
+};
+
+const getPublicSelectionConfig = async (shareId: string): Promise<SelectionConfig> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getPublicSelectionConfig(shareId);
+  }
+
+  const response = await api.get<SelectionConfig>(`/s/${shareId}/selection/config`);
+  return response.data;
+};
+
+const startPublicSelectionSession = async (
+  shareId: string,
+  payload: SelectionSessionStartRequest,
+): Promise<SelectionSession> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().startPublicSelectionSession(shareId, payload);
+  }
+
+  const response = await api.post<SelectionSession>(`/s/${shareId}/selection/session`, payload);
+  return response.data;
+};
+
+const getPublicSelectionSession = async (
+  shareId: string,
+  resumeToken?: string,
+): Promise<SelectionSession> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getPublicSelectionSession(shareId, resumeToken);
+  }
+
+  const params = new URLSearchParams();
+  if (resumeToken && resumeToken.trim().length > 0) {
+    params.set('resume_token', resumeToken.trim());
+  }
+  const query = params.toString();
+  const url = query
+    ? `/s/${shareId}/selection/session/me?${query}`
+    : `/s/${shareId}/selection/session/me`;
+  const response = await api.get<SelectionSession>(url);
+  return response.data;
+};
+
+const togglePublicSelectionItem = async (
+  shareId: string,
+  photoId: string,
+  resumeToken?: string,
+): Promise<SelectionToggleResponse> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().togglePublicSelectionItem(shareId, photoId, resumeToken);
+  }
+
+  const params = new URLSearchParams();
+  if (resumeToken && resumeToken.trim().length > 0) {
+    params.set('resume_token', resumeToken.trim());
+  }
+  const query = params.toString();
+  const url = query
+    ? `/s/${shareId}/selection/session/items/${photoId}?${query}`
+    : `/s/${shareId}/selection/session/items/${photoId}`;
+  const response = await api.put<SelectionToggleResponse>(url);
+  return response.data;
+};
+
+const updatePublicSelectionItemComment = async (
+  shareId: string,
+  photoId: string,
+  payload: SelectionPhotoCommentRequest,
+  resumeToken?: string,
+): Promise<SelectionSession['items'][number]> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().updatePublicSelectionItemComment(
+      shareId,
+      photoId,
+      payload,
+      resumeToken,
+    );
+  }
+
+  const params = new URLSearchParams();
+  if (resumeToken && resumeToken.trim().length > 0) {
+    params.set('resume_token', resumeToken.trim());
+  }
+  const query = params.toString();
+  const url = query
+    ? `/s/${shareId}/selection/session/items/${photoId}?${query}`
+    : `/s/${shareId}/selection/session/items/${photoId}`;
+  const response = await api.patch<SelectionSession['items'][number]>(url, payload);
+  return response.data;
+};
+
+const updatePublicSelectionSession = async (
+  shareId: string,
+  payload: SelectionSessionUpdateRequest,
+  resumeToken?: string,
+): Promise<SelectionSession> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().updatePublicSelectionSession(shareId, payload, resumeToken);
+  }
+
+  const params = new URLSearchParams();
+  if (resumeToken && resumeToken.trim().length > 0) {
+    params.set('resume_token', resumeToken.trim());
+  }
+  const query = params.toString();
+  const url = query
+    ? `/s/${shareId}/selection/session?${query}`
+    : `/s/${shareId}/selection/session`;
+  const response = await api.patch<SelectionSession>(url, payload);
+  return response.data;
+};
+
+const submitPublicSelectionSession = async (
+  shareId: string,
+  resumeToken?: string,
+): Promise<SelectionSubmitResponse> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().submitPublicSelectionSession(shareId, resumeToken);
+  }
+
+  const params = new URLSearchParams();
+  if (resumeToken && resumeToken.trim().length > 0) {
+    params.set('resume_token', resumeToken.trim());
+  }
+  const query = params.toString();
+  const url = query
+    ? `/s/${shareId}/selection/session/submit?${query}`
+    : `/s/${shareId}/selection/session/submit`;
+  const response = await api.post<SelectionSubmitResponse>(url);
+  return response.data;
+};
+
+const getOwnerSelectionConfig = async (
+  galleryId: string,
+  shareLinkId: string,
+): Promise<SelectionConfig> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getOwnerSelectionConfig(galleryId, shareLinkId);
+  }
+
+  const response = await api.get<SelectionConfig>(
+    `/galleries/${galleryId}/share-links/${shareLinkId}/selection-config`,
+  );
+  return response.data;
+};
+
+const updateOwnerSelectionConfig = async (
+  galleryId: string,
+  shareLinkId: string,
+  payload: SelectionConfigUpdateRequest,
+): Promise<SelectionConfig> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().updateOwnerSelectionConfig(galleryId, shareLinkId, payload);
+  }
+
+  const response = await api.patch<SelectionConfig>(
+    `/galleries/${galleryId}/share-links/${shareLinkId}/selection-config`,
+    payload,
+  );
+  return response.data;
+};
+
+const getOwnerSelectionDetail = async (shareLinkId: string): Promise<OwnerSelectionDetail> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getOwnerSelectionDetail(shareLinkId);
+  }
+
+  const response = await api.get<OwnerSelectionDetail>(`/share-links/${shareLinkId}/selection`);
+  return response.data;
+};
+
+const closeOwnerSelection = async (shareLinkId: string): Promise<SelectionSession> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().closeOwnerSelection(shareLinkId);
+  }
+
+  const response = await api.post<SelectionSession>(`/share-links/${shareLinkId}/selection/close`);
+  return response.data;
+};
+
+const reopenOwnerSelection = async (shareLinkId: string): Promise<SelectionSession> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().reopenOwnerSelection(shareLinkId);
+  }
+
+  const response = await api.post<SelectionSession>(`/share-links/${shareLinkId}/selection/reopen`);
+  return response.data;
+};
+
+const getOwnerSelectionSessionDetail = async (
+  shareLinkId: string,
+  sessionId: string,
+): Promise<SelectionSession> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getOwnerSelectionSessionDetail(shareLinkId, sessionId);
+  }
+
+  const response = await api.get<SelectionSession>(
+    `/share-links/${shareLinkId}/selection/sessions/${sessionId}`,
+  );
+  return response.data;
+};
+
+const closeOwnerSelectionSession = async (
+  shareLinkId: string,
+  sessionId: string,
+): Promise<SelectionSession> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().closeOwnerSelectionSession(shareLinkId, sessionId);
+  }
+
+  const response = await api.post<SelectionSession>(
+    `/share-links/${shareLinkId}/selection/sessions/${sessionId}/close`,
+  );
+  return response.data;
+};
+
+const reopenOwnerSelectionSession = async (
+  shareLinkId: string,
+  sessionId: string,
+): Promise<SelectionSession> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().reopenOwnerSelectionSession(shareLinkId, sessionId);
+  }
+
+  const response = await api.post<SelectionSession>(
+    `/share-links/${shareLinkId}/selection/sessions/${sessionId}/reopen`,
+  );
+  return response.data;
+};
+
+const getGallerySelections = async (galleryId: string): Promise<OwnerSelectionRow[]> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getGallerySelections(galleryId);
+  }
+
+  const response = await api.get<OwnerSelectionRow[]>(`/galleries/${galleryId}/selections`);
+  return response.data;
+};
+
+const closeAllGallerySelections = async (
+  galleryId: string,
+): Promise<BulkSelectionActionResponse> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().closeAllGallerySelections(galleryId);
+  }
+
+  const response = await api.post<BulkSelectionActionResponse>(
+    `/galleries/${galleryId}/selections/actions/close-all`,
+  );
+  return response.data;
+};
+
+const openAllGallerySelections = async (
+  galleryId: string,
+): Promise<BulkSelectionActionResponse> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().openAllGallerySelections(galleryId);
+  }
+
+  const response = await api.post<BulkSelectionActionResponse>(
+    `/galleries/${galleryId}/selections/actions/open-all`,
+  );
+  return response.data;
+};
+
+const exportShareLinkSelectionFilesCsv = async (shareLinkId: string): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    await getDemoService().exportShareLinkSelectionFilesCsv(shareLinkId);
+    return;
+  }
+  await downloadOwnerExport(
+    `/share-links/${shareLinkId}/selection/export/files.csv`,
+    `selection_${shareLinkId}_files.csv`,
+  );
+};
+
+const exportShareLinkSelectionLightroom = async (shareLinkId: string): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    await getDemoService().exportShareLinkSelectionLightroom(shareLinkId);
+    return;
+  }
+  await downloadOwnerExport(
+    `/share-links/${shareLinkId}/selection/export/lightroom.txt`,
+    `selection_${shareLinkId}_lightroom.txt`,
+  );
+};
+
+const exportGallerySelectionSummaryCsv = async (galleryId: string): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    await getDemoService().exportGallerySelectionSummaryCsv(galleryId);
+    return;
+  }
+  await downloadOwnerExport(
+    `/galleries/${galleryId}/selections/export/summary.csv`,
+    `gallery_${galleryId}_selection_summary.csv`,
+  );
+};
+
+const exportGallerySelectionLinksCsv = async (galleryId: string): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    await getDemoService().exportGallerySelectionLinksCsv(galleryId);
+    return;
+  }
+  await downloadOwnerExport(
+    `/galleries/${galleryId}/selections/export/links.csv`,
+    `gallery_${galleryId}_selection_links.csv`,
+  );
+};
+
 export const shareLinkService = {
   getShareLinks,
   createShareLink,
@@ -158,6 +548,29 @@ export const shareLinkService = {
   getSharedGallery,
   getPublicPhotoUrl,
   getAllPublicPhotoUrls,
+  getPublicPhotosByIds,
   getOwnerShareLinks,
   getShareLinkAnalytics,
+  getPublicSelectionConfig,
+  startPublicSelectionSession,
+  getPublicSelectionSession,
+  togglePublicSelectionItem,
+  updatePublicSelectionItemComment,
+  updatePublicSelectionSession,
+  submitPublicSelectionSession,
+  getOwnerSelectionConfig,
+  updateOwnerSelectionConfig,
+  getOwnerSelectionDetail,
+  closeOwnerSelection,
+  reopenOwnerSelection,
+  getOwnerSelectionSessionDetail,
+  closeOwnerSelectionSession,
+  reopenOwnerSelectionSession,
+  getGallerySelections,
+  closeAllGallerySelections,
+  openAllGallerySelections,
+  exportShareLinkSelectionFilesCsv,
+  exportShareLinkSelectionLightroom,
+  exportGallerySelectionSummaryCsv,
+  exportGallerySelectionLinksCsv,
 };

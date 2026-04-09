@@ -3,9 +3,12 @@ import { Link } from 'react-router-dom';
 import {
   BarChart3,
   Copy,
+  Download,
   ExternalLink,
   GalleryVerticalEnd,
   Loader2,
+  Lock,
+  LockOpen,
   PencilLine,
   RefreshCw,
   Trash2,
@@ -41,6 +44,11 @@ export const ShareLinksDashboardPage = () => {
   const [summary, setSummary] = useState<ShareLinksDashboardSummary>(EMPTY_SUMMARY);
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
   const [editingLink, setEditingLink] = useState<ShareLinkDashboardItem | null>(null);
+  const [selectionActionError, setSelectionActionError] = useState('');
+  const [selectionActionBusy, setSelectionActionBusy] = useState(false);
+  const [selectionRowsByLinkId, setSelectionRowsByLinkId] = useState<
+    Record<string, { status: string | null; selected_count: number }>
+  >({});
 
   const { page, pageSize, setTotal, goToPage } = pagination;
 
@@ -93,9 +101,53 @@ export const ShareLinksDashboardPage = () => {
     }
   }, [debouncedSearch, page, pageSize, setTotal]);
 
+  const fetchSelectionRows = useCallback(async () => {
+    setSelectionActionError('');
+    try {
+      const uniqueGalleryIds = Array.from(new Set(links.map((link) => link.gallery_id)));
+      const rowsByShareLinkId: Record<string, { status: string | null; selected_count: number }> =
+        {};
+
+      await Promise.all(
+        uniqueGalleryIds.map(async (galleryId) => {
+          try {
+            const rows = await shareLinkService.getGallerySelections(galleryId);
+            rows.forEach((row) => {
+              rowsByShareLinkId[row.sharelink_id] = {
+                status: row.status,
+                selected_count: row.selected_count,
+              };
+            });
+          } catch {
+            links
+              .filter((link) => link.gallery_id === galleryId)
+              .forEach((link) => {
+                rowsByShareLinkId[link.id] = {
+                  status: null,
+                  selected_count: 0,
+                };
+              });
+          }
+        }),
+      );
+
+      setSelectionRowsByLinkId(rowsByShareLinkId);
+    } catch {
+      // keep dashboard usable even if selection rows fail
+    }
+  }, [links]);
+
   useEffect(() => {
     void fetchLinks();
   }, [fetchLinks]);
+
+  useEffect(() => {
+    if (links.length === 0) {
+      setSelectionRowsByLinkId({});
+      return;
+    }
+    void fetchSelectionRows();
+  }, [fetchSelectionRows, links]);
 
   const handleCopyLink = async (linkId: string) => {
     const fullUrl = `${window.location.origin}/share/${linkId}`;
@@ -149,6 +201,72 @@ export const ShareLinksDashboardPage = () => {
     }
   };
 
+  const handleCloseAllSelections = async () => {
+    if (links.length === 0) return;
+    setSelectionActionBusy(true);
+    setSelectionActionError('');
+    try {
+      const uniqueGalleryIds = Array.from(new Set(links.map((link) => link.gallery_id)));
+      await Promise.all(
+        uniqueGalleryIds.map((galleryId) => shareLinkService.closeAllGallerySelections(galleryId)),
+      );
+      await fetchSelectionRows();
+    } catch (err) {
+      setSelectionActionError(handleApiError(err).message || 'Failed to close selections');
+    } finally {
+      setSelectionActionBusy(false);
+    }
+  };
+
+  const handleOpenAllSelections = async () => {
+    if (links.length === 0) return;
+    setSelectionActionBusy(true);
+    setSelectionActionError('');
+    try {
+      const uniqueGalleryIds = Array.from(new Set(links.map((link) => link.gallery_id)));
+      await Promise.all(
+        uniqueGalleryIds.map((galleryId) => shareLinkService.openAllGallerySelections(galleryId)),
+      );
+      await fetchSelectionRows();
+    } catch (err) {
+      setSelectionActionError(handleApiError(err).message || 'Failed to open selections');
+    } finally {
+      setSelectionActionBusy(false);
+    }
+  };
+
+  const handleExportSummary = async () => {
+    if (links.length === 0) return;
+    setSelectionActionBusy(true);
+    setSelectionActionError('');
+    try {
+      const uniqueGalleryIds = Array.from(new Set(links.map((link) => link.gallery_id)));
+      for (const galleryId of uniqueGalleryIds) {
+        await shareLinkService.exportGallerySelectionSummaryCsv(galleryId);
+      }
+    } catch (err) {
+      setSelectionActionError(handleApiError(err).message || 'Failed to export selection summary');
+    } finally {
+      setSelectionActionBusy(false);
+    }
+  };
+
+  const handleExportLinks = async () => {
+    if (links.length === 0) return;
+    setSelectionActionBusy(true);
+    setSelectionActionError('');
+    try {
+      const uniqueGalleryIds = Array.from(new Set(links.map((link) => link.gallery_id)));
+      for (const galleryId of uniqueGalleryIds) {
+        await shareLinkService.exportGallerySelectionLinksCsv(galleryId);
+      }
+    } catch (err) {
+      setSelectionActionError(handleApiError(err).message || 'Failed to export links summary');
+    } finally {
+      setSelectionActionBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -162,6 +280,38 @@ export const ShareLinksDashboardPage = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => void handleCloseAllSelections()}
+            disabled={selectionActionBusy || links.length === 0}
+            className="inline-flex items-center gap-2 rounded-xl border border-danger/40 bg-danger/10 px-3 py-2.5 text-sm font-semibold text-danger disabled:opacity-60"
+          >
+            <Lock className="h-4 w-4" />
+            Close all selections
+          </button>
+          <button
+            onClick={() => void handleOpenAllSelections()}
+            disabled={selectionActionBusy || links.length === 0}
+            className="inline-flex items-center gap-2 rounded-xl border border-success/40 bg-success/10 px-3 py-2.5 text-sm font-semibold text-success disabled:opacity-60"
+          >
+            <LockOpen className="h-4 w-4" />
+            Open all selections
+          </button>
+          <button
+            onClick={() => void handleExportSummary()}
+            disabled={selectionActionBusy || links.length === 0}
+            className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2.5 text-sm font-semibold text-text disabled:opacity-60"
+          >
+            <Download className="h-4 w-4" />
+            Export selection summaries
+          </button>
+          <button
+            onClick={() => void handleExportLinks()}
+            disabled={selectionActionBusy || links.length === 0}
+            className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2.5 text-sm font-semibold text-text disabled:opacity-60"
+          >
+            <Download className="h-4 w-4" />
+            Export selection links
+          </button>
           <input
             type="search"
             value={searchInput}
@@ -178,6 +328,12 @@ export const ShareLinksDashboardPage = () => {
           </button>
         </div>
       </div>
+
+      {selectionActionError ? (
+        <div className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+          {selectionActionError}
+        </div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs dark:bg-surface-dark-1">
@@ -216,6 +372,7 @@ export const ShareLinksDashboardPage = () => {
                 <th className="w-[30%] px-4 py-3 text-left">Link</th>
                 <th className="w-[20%] px-4 py-3 text-left">Gallery</th>
                 <th className="px-4 py-3 text-left">Status</th>
+                <th className="px-4 py-3 text-left">Selection</th>
                 <th className="px-4 py-3 text-right">Views</th>
                 <th className="px-4 py-3 text-right">ZIP</th>
                 <th className="px-4 py-3 text-right">Single</th>
@@ -225,7 +382,7 @@ export const ShareLinksDashboardPage = () => {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-muted">
+                  <td colSpan={8} className="px-4 py-10 text-center text-muted">
                     <span className="inline-flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Loading share links...
@@ -234,13 +391,13 @@ export const ShareLinksDashboardPage = () => {
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-danger">
+                  <td colSpan={8} className="px-4 py-10 text-center text-danger">
                     {error}
                   </td>
                 </tr>
               ) : links.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-muted">
+                  <td colSpan={8} className="px-4 py-10 text-center text-muted">
                     No share links found.
                   </td>
                 </tr>
@@ -277,6 +434,16 @@ export const ShareLinksDashboardPage = () => {
                       </td>
                       <td className="px-4 py-4 align-top">
                         <ShareLinkStatusBadge status={getShareLinkStatus(link)} />
+                      </td>
+                      <td className="px-4 py-4 align-top">
+                        <div className="text-xs">
+                          <p className="font-semibold text-text">
+                            {selectionRowsByLinkId[link.id]?.status ?? 'not_started'}
+                          </p>
+                          <p className="text-muted">
+                            selected: {selectionRowsByLinkId[link.id]?.selected_count ?? 0}
+                          </p>
+                        </div>
                       </td>
                       <td className="px-4 py-4 text-right font-semibold text-text align-top">
                         {numberFormatter.format(link.views ?? 0)}

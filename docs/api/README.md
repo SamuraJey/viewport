@@ -116,12 +116,39 @@ No version prefix in URL (assuming v1). Future versions will use:
 - `POST /galleries/{id}/share-links` - Create share link
 - `GET /galleries/{id}/share-links` - List share links
 - `DELETE /galleries/{id}/share-links/{link_id}` - Delete share link
+- `PATCH /galleries/{id}/share-links/{link_id}` - Update label, active state, expiration
+
+### Selection (Client Photo Picking)
+- `GET /s/{share_id}/selection/config` - Public read of enabled selection config
+- `POST /s/{share_id}/selection/session` - Start client selection session
+- `GET /s/{share_id}/selection/session/me` - Resolve session by resume token/cookie
+- `PUT /s/{share_id}/selection/session/items/{photo_id}` - Toggle selected photo
+- `PATCH /s/{share_id}/selection/session/items/{photo_id}` - Update per-photo comment
+- `PATCH /s/{share_id}/selection/session` - Update client note
+- `POST /s/{share_id}/selection/session/submit` - Submit selection
+- `GET /galleries/{gallery_id}/share-links/{sharelink_id}/selection-config` - Owner config
+- `PATCH /galleries/{gallery_id}/share-links/{sharelink_id}/selection-config` - Owner config update
+- `GET /share-links/{sharelink_id}/selection` - Owner selection detail/session snapshot
+- `POST /share-links/{sharelink_id}/selection/close` - Owner closes selection
+- `POST /share-links/{sharelink_id}/selection/reopen` - Owner reopens selection
+- `GET /galleries/{gallery_id}/selections` - Owner gallery-wide selection rows
+- `POST /galleries/{gallery_id}/selections/actions/close-all` - Close all sessions in gallery
+- `POST /galleries/{gallery_id}/selections/actions/open-all` - Reopen all closed sessions in gallery
+- `GET /share-links/{sharelink_id}/selection/export/files.csv` - Export selected filenames + comments
+- `GET /share-links/{sharelink_id}/selection/export/lightroom.txt` - Lightroom/CaptureOne text export
+- `GET /galleries/{gallery_id}/selections/export/summary.csv` - Gallery summary export
+- `GET /galleries/{gallery_id}/selections/export/links.csv` - Gallery links/status export
 
 ### Public Access
 - `GET /s/{share_id}` - View shared gallery
 - `GET /s/{share_id}/photos/{photo_id}` - View photo
 - `GET /s/{share_id}/download/all` - Download gallery as ZIP
 - `GET /s/{share_id}/download/{photo_id}` - Download single photo
+
+Selection/public access behavior:
+- Inactive share links return `404` (non-disclosing).
+- Expired share links return `410` (explicit expired state).
+- Public selection session recovery uses resume token and secure cookie.
 
 ## HTTP Status Codes
 
