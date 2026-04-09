@@ -56,6 +56,8 @@ export const PublicGalleryPage = () => {
     shareId,
     initialResumeToken: resumeToken,
   });
+  const isSelectionEnabled = selection.config?.is_enabled ?? false;
+  const openSelectionStartModal = selection.openStartModal;
 
   const favoritesPath = useMemo(() => {
     if (!shareId || !selection.session?.resume_token) {
@@ -268,18 +270,18 @@ export const PublicGalleryPage = () => {
   }, [shareId]);
 
   const handleOpenFavorites = useCallback(() => {
-    if (!shareId || !selection.config?.is_enabled) {
+    if (!shareId || !isSelectionEnabled) {
       return;
     }
 
-    if (!selection.session?.resume_token) {
+    if (!favoritesPath) {
       setOpenFavoritesAfterStart(true);
-      selection.openStartModal();
+      openSelectionStartModal();
       return;
     }
 
-    navigate(`/share/${shareId}/favorites/${selection.session.resume_token}`);
-  }, [navigate, selection, selection.config?.is_enabled, selection.session?.resume_token, shareId]);
+    navigate(favoritesPath);
+  }, [favoritesPath, isSelectionEnabled, navigate, openSelectionStartModal, shareId]);
 
   const handleBackToGallery = useCallback(() => {
     if (!shareId) {

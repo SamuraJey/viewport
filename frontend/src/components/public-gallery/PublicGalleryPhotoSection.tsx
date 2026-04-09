@@ -3,8 +3,7 @@ import { ImageOff, Loader2 } from 'lucide-react';
 import { LazyImage } from '../LazyImage';
 import { PublicGalleryGridControls } from './PublicGalleryGridControls';
 import type { PublicGridDensity, PublicGridLayout } from '../../hooks/usePublicGalleryGrid';
-import type { PublicPhoto } from '../../services/shareLinkService';
-import type { SelectionSession } from '../../types';
+import type { PublicPhoto, SelectionSession } from '../../types';
 
 interface PublicGalleryPhotoSectionProps {
   photos: PublicPhoto[];

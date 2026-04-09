@@ -478,6 +478,104 @@ describe('GalleryPage', () => {
     });
   });
 
+  describe('Favorites', () => {
+    it('uses opaque DOM-safe keys for client favorites tabs', async () => {
+      const { shareLinkService } = await import('../../services/shareLinkService');
+
+      vi.mocked(shareLinkService.getShareLinks).mockResolvedValue([
+        {
+          ...mockShareLink,
+          label: 'Client proofing',
+        },
+      ]);
+      vi.mocked(shareLinkService.getGallerySelections).mockResolvedValue([
+        {
+          sharelink_id: 'link1',
+          sharelink_label: 'Client proofing',
+          session_id: 'session-1',
+          status: 'in_progress',
+          client_name: 'Jane Doe',
+          selected_count: 1,
+          session_count: 1,
+          submitted_sessions: 0,
+          in_progress_sessions: 1,
+          closed_sessions: 0,
+          submitted_at: null,
+          updated_at: '2026-03-31T22:07:00Z',
+        },
+      ]);
+      vi.mocked(shareLinkService.getOwnerSelectionDetail).mockResolvedValue({
+        sharelink_id: 'link1',
+        sharelink_label: 'Client proofing',
+        config: {
+          is_enabled: true,
+          list_title: 'Selected photos',
+          limit_enabled: false,
+          limit_value: null,
+          allow_photo_comments: true,
+          require_name: true,
+          require_email: false,
+          require_phone: false,
+          require_client_note: false,
+          created_at: '2026-03-31T22:07:00Z',
+          updated_at: '2026-03-31T22:07:00Z',
+        },
+        aggregate: {
+          total_sessions: 1,
+          submitted_sessions: 0,
+          in_progress_sessions: 1,
+          closed_sessions: 0,
+          selected_count: 1,
+          latest_activity_at: '2026-03-31T22:07:00Z',
+        },
+        sessions: [
+          {
+            id: 'session-1',
+            status: 'in_progress',
+            client_name: 'Jane Doe',
+            client_email: 'Jane Doe+proofs@example.com',
+            client_phone: '+1 555 0100',
+            client_note: null,
+            selected_count: 1,
+            submitted_at: null,
+            last_activity_at: '2026-03-31T22:07:00Z',
+            created_at: '2026-03-31T22:07:00Z',
+            updated_at: '2026-03-31T22:07:00Z',
+          },
+        ],
+        session: null,
+      });
+      vi.mocked(shareLinkService.getOwnerSelectionSessionDetail).mockResolvedValue({
+        id: 'session-1',
+        sharelink_id: 'link1',
+        status: 'in_progress',
+        client_name: 'Jane Doe',
+        client_email: 'Jane Doe+proofs@example.com',
+        client_phone: '+1 555 0100',
+        client_note: null,
+        selected_count: 1,
+        submitted_at: null,
+        last_activity_at: '2026-03-31T22:07:00Z',
+        created_at: '2026-03-31T22:07:00Z',
+        updated_at: '2026-03-31T22:07:00Z',
+        items: [],
+      });
+
+      render(<GalleryPageWrapper />);
+
+      await userEvent.click(await screen.findByRole('tab', { name: /favorites/i }));
+
+      const clientTab = await screen.findByRole('tab', { name: /jane doe/i });
+      const panelId = clientTab.getAttribute('aria-controls');
+
+      expect(clientTab.id).toMatch(/^favorite-tab-favorites-user-[a-z0-9]+$/);
+      expect(panelId).toMatch(/^favorite-panel-favorites-user-[a-z0-9]+$/);
+      expect(clientTab.id).not.toContain('jane');
+      expect(clientTab.id).not.toContain('%');
+      expect(panelId).not.toContain(' ');
+    });
+  });
+
   describe('Empty State', () => {
     it('should show empty state when no photos', async () => {
       const emptyGallery = {

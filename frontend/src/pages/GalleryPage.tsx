@@ -50,6 +50,20 @@ interface FavoritesUserTab {
 const createSelectionSessionCacheKey = (shareLinkId: string, sessionId: string): string =>
   `${shareLinkId}:${sessionId}`;
 
+const hashFavoriteIdentityKey = (value: string): string => {
+  let hash = 0x811c9dc5;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+
+  return (hash >>> 0).toString(36);
+};
+
+const createFavoritesUserTabKey = (identityKey: string): string =>
+  `favorites-user-${hashFavoriteIdentityKey(identityKey)}`;
+
 const isGalleryPhotoSortBy = (value: string | null): value is GalleryPhotoSortBy =>
   value === 'uploaded_at' || value === 'original_filename' || value === 'file_size';
 
@@ -399,15 +413,17 @@ export const GalleryPage = () => {
           if (session.selected_count <= 0) {
             continue;
           }
-          const identityKey = [
+          const identityParts = [
             (session.client_name || '').trim().toLowerCase(),
             session.client_email?.trim().toLowerCase() || '',
             session.client_phone?.trim() || '',
-          ].join('|');
-          const userKey = identityKey || `${row.sharelink_id}:${session.id}`;
+          ];
+          const identityKey = identityParts.some(Boolean) ? identityParts.join('|') : null;
+          const userIdentityKey = identityKey ?? `${row.sharelink_id}:${session.id}`;
+          const userTabKey = createFavoritesUserTabKey(userIdentityKey);
           const shareLink = shareLinksById.get(row.sharelink_id);
           const nextTab: FavoritesUserTab = {
-            key: userKey,
+            key: userTabKey,
             shareLinkId: row.sharelink_id,
             sessionId: session.id,
             clientName: session.client_name || 'Unnamed client',
@@ -417,14 +433,14 @@ export const GalleryPage = () => {
             shareLinkLabel: shareLink?.label || row.sharelink_label || null,
             updatedAt: session.updated_at,
           };
-          const existing = tabByUserKey.get(userKey);
+          const existing = tabByUserKey.get(userIdentityKey);
           if (!existing) {
-            tabByUserKey.set(userKey, nextTab);
+            tabByUserKey.set(userIdentityKey, nextTab);
             continue;
           }
           const isNewer = Date.parse(nextTab.updatedAt) > Date.parse(existing.updatedAt);
           tabByUserKey.set(
-            userKey,
+            userIdentityKey,
             isNewer
               ? { ...nextTab, sessionCount: existing.sessionCount + 1 }
               : { ...existing, sessionCount: existing.sessionCount + 1 },
