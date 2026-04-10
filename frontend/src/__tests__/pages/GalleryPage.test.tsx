@@ -263,7 +263,7 @@ describe('GalleryPage', () => {
       });
 
       // Find photo images and their parent buttons
-      const photoImages = screen.getAllByAltText(/Photo photo/i);
+      const photoImages = screen.getAllByAltText(/photo\d\.jpg/i);
       expect(photoImages).toHaveLength(3);
 
       const firstPhotoButton = photoImages[0].closest('button');
@@ -295,7 +295,7 @@ describe('GalleryPage', () => {
       });
 
       // Open lightbox
-      const photoImages = screen.getAllByAltText(/Photo photo/i);
+      const photoImages = screen.getAllByAltText(/photo\d\.jpg/i);
       const photoButton = photoImages[0].closest('button');
       await userEvent.click(photoButton!);
 
@@ -335,7 +335,7 @@ describe('GalleryPage', () => {
       });
 
       // Find the first photo container and get its delete button
-      const photoImages = screen.getAllByAltText(/Photo photo/i);
+      const photoImages = screen.getAllByAltText(/photo\d\.jpg/i);
       const firstPhoto = photoImages[0];
 
       // Navigate to parent container and find the delete button within it
@@ -365,7 +365,7 @@ describe('GalleryPage', () => {
 
       // Wait for the photo to be removed from the UI to avoid act() warning
       await waitFor(() => {
-        expect(screen.queryByAltText('Photo photo1')).not.toBeInTheDocument();
+        expect(screen.queryByAltText('photo1.jpg')).not.toBeInTheDocument();
       });
     });
 
@@ -380,7 +380,7 @@ describe('GalleryPage', () => {
         expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
       });
 
-      const photoImages = screen.getAllByAltText(/Photo photo/i);
+      const photoImages = screen.getAllByAltText(/photo\d\.jpg/i);
       const firstPhoto = photoImages[0];
       const photoContainer = firstPhoto.closest('.group');
       expect(photoContainer).toBeInTheDocument();
@@ -399,7 +399,7 @@ describe('GalleryPage', () => {
       });
 
       await waitFor(() => {
-        expect(screen.queryByAltText('Photo photo1')).not.toBeInTheDocument();
+        expect(screen.queryByAltText('photo1.jpg')).not.toBeInTheDocument();
       });
     });
 
@@ -416,7 +416,7 @@ describe('GalleryPage', () => {
         expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
       });
 
-      const photoImages = screen.getAllByAltText(/Photo photo/i);
+      const photoImages = screen.getAllByAltText(/photo\d\.jpg/i);
       const firstPhoto = photoImages[0];
       const photoContainer = firstPhoto.closest('.group');
       expect(photoContainer).toBeInTheDocument();
@@ -430,7 +430,7 @@ describe('GalleryPage', () => {
       });
 
       await waitFor(() => {
-        expect(screen.queryByAltText('Photo photo1')).not.toBeInTheDocument();
+        expect(screen.queryByAltText('photo1.jpg')).not.toBeInTheDocument();
       });
 
       expect(screen.getByText('This photo was already deleted.')).toBeInTheDocument();

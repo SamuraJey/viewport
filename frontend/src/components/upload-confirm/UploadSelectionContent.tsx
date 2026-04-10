@@ -104,7 +104,7 @@ const FileCard = memo(
         </div>
 
         <div className="flex-1 p-3 min-w-0 flex flex-col">
-          <p className="text-sm font-medium text-text dark:text-white truncate" title={file.name}>
+          <p className="truncate text-sm font-medium text-text" title={file.name}>
             {file.name}
           </p>
           <span className="text-xs text-muted font-medium mt-0.5">{formatFileSize(file.size)}</span>
@@ -249,9 +249,7 @@ export const UploadSelectionContent = ({
       >
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-border/40">
           <div>
-            <h3 className="text-lg font-bold text-text dark:text-white tracking-tight">
-              Add photos
-            </h3>
+            <h3 className="text-lg font-bold tracking-tight text-text">Add photos</h3>
             <p className="text-sm text-muted mt-1 font-medium">
               Select images to upload to this gallery
             </p>
@@ -269,16 +267,14 @@ export const UploadSelectionContent = ({
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-accent/20 flex items-center justify-center">
                   <Upload className="w-8 h-8 text-accent" />
                 </div>
-                <p className="text-lg font-semibold text-text dark:text-white">Drop images here</p>
+                <p className="text-lg font-semibold text-text">Drop images here</p>
               </div>
             </div>
           )}
           <div className="w-24 h-24 rounded-full bg-surface-1 dark:bg-surface-dark-1 border-2 border-dashed border-border/50 flex items-center justify-center mb-6">
             <Images className="w-10 h-10 text-muted" />
           </div>
-          <h4 className="text-lg font-semibold text-text dark:text-white mb-2">
-            No photos selected
-          </h4>
+          <h4 className="mb-2 text-lg font-semibold text-text">No photos selected</h4>
           <p className="text-sm text-muted text-center mb-6 max-w-sm">
             Choose photos from your device or drag and drop them here to get started.
           </p>
@@ -309,9 +305,7 @@ export const UploadSelectionContent = ({
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-border/40">
         <div>
-          <h3 className="text-lg font-bold text-text dark:text-white tracking-tight">
-            Review files
-          </h3>
+          <h3 className="text-lg font-bold tracking-tight text-text">Review files</h3>
           <p className="text-sm text-muted mt-1 font-medium">
             {files.length} selected ({formatFileSize(totalSize)})
           </p>
@@ -373,7 +367,7 @@ export const UploadSelectionContent = ({
                   />
                 </svg>
               </div>
-              <p className="text-lg font-semibold text-text dark:text-white">Drop images here</p>
+              <p className="text-lg font-semibold text-text">Drop images here</p>
               <p className="text-sm text-muted">Add more photos to your upload</p>
             </div>
           </div>

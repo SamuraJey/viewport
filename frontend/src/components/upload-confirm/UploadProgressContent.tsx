@@ -16,7 +16,7 @@ export const UploadProgressContent = ({ progress }: UploadProgressContentProps) 
           <div className="w-12 h-12 rounded-full border-4 border-accent/20 border-t-accent animate-spin" />
         </div>
         <div className="flex-1 min-w-0 relative z-10">
-          <p className="text-lg font-bold text-text dark:text-white truncate">
+          <p className="truncate text-lg font-bold text-text">
             {progress.currentFile || 'Initiating upload...'}
           </p>
           {progress.currentBatch && progress.totalBatches && (

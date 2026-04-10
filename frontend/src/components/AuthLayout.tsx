@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
+import { ReadabilitySettingsButton } from './ReadabilitySettingsButton';
 import { ThemeSwitch } from './ThemeSwitch';
+import { SkipToContentLink } from './a11y/SkipToContentLink';
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -8,6 +10,7 @@ interface AuthLayoutProps {
 export const AuthLayout = ({ children }: AuthLayoutProps) => {
   return (
     <div className="auth-layout relative min-h-screen bg-surface dark:bg-surface-dark flex items-center justify-center p-4 overflow-hidden">
+      <SkipToContentLink />
       {/* Decorative gradient orbs */}
       <div className="pointer-events-none absolute -top-48 -left-48 h-150 w-150 rounded-full bg-accent/10 blur-3xl dark:bg-accent/5" />
       <div className="pointer-events-none absolute -bottom-48 -right-48 h-150 w-150 rounded-full bg-violet-500/10 blur-3xl dark:bg-violet-500/5" />
@@ -16,11 +19,19 @@ export const AuthLayout = ({ children }: AuthLayoutProps) => {
       {/* Subtle dot-grid texture */}
       <div className="auth-dot-grid pointer-events-none absolute inset-0 opacity-30 dark:opacity-15" />
 
-      {/* Theme toggle */}
-      <ThemeSwitch />
+      <div className="fixed right-4 top-4 z-50 flex items-center gap-2">
+        <ReadabilitySettingsButton />
+        <ThemeSwitch variant="inline" />
+      </div>
 
       {/* Animated card wrapper */}
-      <div className="relative z-10 w-full max-w-md animate-fade-in-up">{children}</div>
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="relative z-10 w-full max-w-md animate-fade-in-up"
+      >
+        {children}
+      </main>
     </div>
   );
 };

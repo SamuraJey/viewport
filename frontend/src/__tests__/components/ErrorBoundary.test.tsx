@@ -4,9 +4,9 @@ import { ErrorBoundary } from '../../components/ErrorBoundary';
 
 vi.mock('../../pages/ErrorPage', () => ({
   ErrorPage: ({ onRetry }: { onRetry?: () => void }) => (
-    <div data-testid="error-page" onClick={onRetry}>
+    <button type="button" data-testid="error-page" onClick={onRetry}>
       error
-    </div>
+    </button>
   ),
 }));
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { X, FileText, Check } from 'lucide-react';
+import { useAccessibleDialog } from '../hooks/useAccessibleDialog';
 import { sanitizeFilenameStem, isValidFilenameStem } from '../lib/filenameUtils';
 
 export interface PhotoRenameModalProps {
@@ -67,33 +68,35 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
       }
     }, [nameWithoutExtension, extension, currentFilename, onClose, onRename]);
 
-    useEffect(() => {
-      if (!isOpen) return;
-
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') onClose();
-        if (e.key === 'Enter' && !isRenaming) handleRename();
-      };
-
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, isRenaming, onClose, handleRename]);
-
     const handleCancel = () => {
       if (!isRenaming) onClose();
     };
 
+    const { dialogRef, titleId, descriptionId, handleBackdropClick } = useAccessibleDialog({
+      isOpen,
+      onClose: handleCancel,
+      initialFocusRef: inputRef,
+    });
+
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <motion.div
+        <motion.button
+          type="button"
+          aria-label="Close rename photo dialog"
           className="absolute inset-0 bg-black/50 backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={handleCancel}
+          onClick={handleBackdropClick}
         />
 
         <motion.div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={descriptionId}
+          tabIndex={-1}
           className="relative bg-surface dark:bg-surface-foreground rounded-lg shadow-xl w-full max-w-md border border-border dark:border-border/20 overflow-hidden"
           initial={{ opacity: 0, scale: 0.95, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -105,11 +108,14 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
               <div className="flex items-center justify-center w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
                 <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
-              <h2 className="text-lg font-semibold text-text dark:text-white">Rename Photo</h2>
+              <h2 id={titleId} className="text-lg font-semibold text-text dark:text-white">
+                Rename Photo
+              </h2>
             </div>
             <button
               onClick={handleCancel}
               disabled={isRenaming}
+              aria-label="Close rename photo dialog"
               className="p-1 text-muted hover:text-text dark:hover:text-text transition-all duration-200 hover:scale-110 disabled:opacity-50"
             >
               <X className="w-5 h-5" />
@@ -117,7 +123,7 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
           </div>
 
           <div className="p-6">
-            <div className="space-y-4">
+            <div id={descriptionId} className="space-y-4">
               <div>
                 <label
                   htmlFor="filename"

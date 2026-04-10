@@ -16,6 +16,7 @@ import { ShareLinkStatusBadge } from '../components/share-links/ShareLinkStatusB
 import { getShareLinkStatus } from '../components/share-links/shareLinkStatus';
 import { ShareLinkTrendChart } from '../components/share-links/ShareLinkTrendChart';
 import { useConfirmation } from '../hooks';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { copyTextToClipboard } from '../lib/clipboard';
 import { shareLinkService } from '../services/shareLinkService';
 import { handleApiError } from '../lib/errorHandling';
@@ -71,6 +72,11 @@ export const ShareLinkDetailPage = () => {
   } | null>(null);
 
   const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useDocumentTitle(
+    analytics?.share_link.label?.trim()
+      ? `${analytics.share_link.label} · Viewport`
+      : 'Share Link Details · Viewport',
+  );
 
   useEffect(
     () => () => {

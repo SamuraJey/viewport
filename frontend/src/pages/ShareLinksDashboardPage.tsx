@@ -18,6 +18,7 @@ import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorM
 import { ShareLinkStatusBadge } from '../components/share-links/ShareLinkStatusBadge';
 import { getShareLinkStatus } from '../components/share-links/shareLinkStatus';
 import { useConfirmation, usePagination } from '../hooks';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { shareLinkService } from '../services/shareLinkService';
 import { copyTextToClipboard } from '../lib/clipboard';
 import { handleApiError } from '../lib/errorHandling';
@@ -33,6 +34,7 @@ const EMPTY_SUMMARY: ShareLinksDashboardSummary = {
 };
 
 export const ShareLinksDashboardPage = () => {
+  useDocumentTitle('Share Links · Viewport');
   const pagination = usePagination({ pageSize: 20, syncWithUrl: true });
   const { openConfirm, ConfirmModal } = useConfirmation();
 

@@ -32,3 +32,5 @@ performance_tests/
 
 screenshots/
 *.har
+.omx/
+.codex

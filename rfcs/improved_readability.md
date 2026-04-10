@@ -203,6 +203,7 @@ Expected building blocks:
 Low-vision mode should be implemented through **root-level state + theme tokens / data attributes / CSS variables**, not by patching dozens of components independently.
 
 Preferred approach:
+
 - add a root attribute like `data-readability-mode="on"`
 - add additional root attributes for preferences, for example:
   - `data-readability-font-scale`

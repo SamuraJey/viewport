@@ -24,6 +24,7 @@ import {
 } from '../components/gallery/GalleryPageStates';
 import { type PhotoUploaderHandle } from '../components/PhotoUploader';
 import { usePagination, useSelection, useGalleryActions, useGalleryDragAndDrop } from '../hooks';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { shareLinkService } from '../services/shareLinkService';
 import { handleApiError } from '../lib/errorHandling';
 import type { GalleryPhotoSortBy, SelectionSession, ShareLink, SortOrder } from '../types';
@@ -237,6 +238,7 @@ export const GalleryPage = () => {
     },
     pagination,
   });
+  useDocumentTitle(gallery?.name?.trim() ? `${gallery.name} · Viewport` : 'Gallery · Viewport');
 
   useEffect(() => {
     if (!gallery) {

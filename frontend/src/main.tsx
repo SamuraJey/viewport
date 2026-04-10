@@ -2,6 +2,7 @@ import { StrictMode, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { DeferredLenis } from './components/DeferredLenis';
+import { ReadabilityInitializer } from './components/ReadabilityInitializer';
 import { ThemeInitializer } from './components/ThemeInitializer';
 import './index.css';
 import App from './App.tsx';
@@ -17,6 +18,7 @@ createRoot(document.getElementById('root')!).render(
   <AppWrapper>
     <DeferredLenis>
       <BrowserRouter>
+        <ReadabilityInitializer />
         <ThemeInitializer />
         <App />
       </BrowserRouter>

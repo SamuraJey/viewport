@@ -63,14 +63,12 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
     return (
       <div className="text-center py-24 px-6 bg-surface-foreground/5 dark:bg-surface-1/30 rounded-3xl border border-border/50 shadow-xs mb-8">
         <h1
-          className={`${emptyTitleSizeClass} font-bold text-text dark:text-accent-foreground mb-4 tracking-tight wrap-break-word`}
+          className={`${emptyTitleSizeClass} mb-4 font-bold tracking-tight text-text wrap-break-word`}
         >
           {galleryTitle}
         </h1>
         {gallery?.photographer && (
-          <p className="text-muted dark:text-muted text-lg sm:text-xl font-medium">
-            By {gallery.photographer}
-          </p>
+          <p className="text-lg font-medium text-muted sm:text-xl">By {gallery.photographer}</p>
         )}
       </div>
     );

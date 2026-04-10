@@ -41,7 +41,7 @@ describe('PhotoCard', () => {
       />,
     );
 
-    const image = screen.getByRole('img', { name: 'Photo photo-1' });
+    const image = screen.getByRole('img', { name: 'photo.jpg' });
 
     await waitFor(() => {
       expect(image).toHaveClass('opacity-100');

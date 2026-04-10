@@ -7,6 +7,7 @@ import { ErrorDisplay } from '../components/ErrorDisplay';
 import { CreateGalleryModal } from '../components/dashboard/CreateGalleryModal';
 import { EnhancedGalleryCard } from '../components/dashboard/EnhancedGalleryCard';
 import { useDashboardActions } from '../hooks';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { parseUtcDateTimeInputValue } from '../components/share-links/shareLinkDateTime';
 import { shareLinkService } from '../services/shareLinkService';
 import type { Gallery, GalleryListSortBy, SortOrder } from '../types';
@@ -45,6 +46,7 @@ const isSortOrder = (value: string | null): value is SortOrder =>
   value === 'asc' || value === 'desc';
 
 export const DashboardPage = () => {
+  useDocumentTitle('Dashboard · Viewport');
   const navigate = useNavigate();
   const {
     galleries,
@@ -556,19 +558,32 @@ export const DashboardPage = () => {
                 </div>
 
                 <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 dark:bg-surface-dark-1">
-                  <label className="flex cursor-pointer items-center justify-between gap-3">
-                    <span>
-                      <span className="block text-sm font-semibold text-text">Link status</span>
-                      <span className="block text-xs text-muted">Inactive links return 404</span>
-                    </span>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p
+                        id="dashboard-share-link-status-title"
+                        className="block text-sm font-semibold text-text"
+                      >
+                        Link status
+                      </p>
+                      <p
+                        id="dashboard-share-link-status-description"
+                        className="block text-xs text-muted"
+                      >
+                        Inactive links return 404
+                      </p>
+                    </div>
                     <input
+                      id="share-link-status"
                       type="checkbox"
                       checked={shareIsActiveInput}
                       onChange={(event) => setShareIsActiveInput(event.target.checked)}
                       disabled={isCreatingShareLink}
+                      aria-labelledby="dashboard-share-link-status-title"
+                      aria-describedby="dashboard-share-link-status-description"
                       className="h-4 w-4 accent-accent"
                     />
-                  </label>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

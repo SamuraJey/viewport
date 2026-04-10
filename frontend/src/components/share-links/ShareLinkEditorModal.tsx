@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { CalendarClock, Check, PencilLine, X } from 'lucide-react';
+import { useAccessibleDialog } from '../../hooks/useAccessibleDialog';
 import type { ShareLinkUpdateRequest } from '../../types';
 import { formatUtcDateTimeInputValue, parseUtcDateTimeInputValue } from './shareLinkDateTime';
 
@@ -29,6 +30,7 @@ export const ShareLinkEditorModal = ({
   const [expiresAt, setExpiresAt] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+  const labelInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isOpen || !link) {
@@ -61,10 +63,6 @@ export const ShareLinkEditorModal = ({
       nextExpiresAt !== currentExpiresAt
     );
   }, [label, isActive, expiresAt, link]);
-
-  if (!isOpen || !link) {
-    return null;
-  }
 
   const handleClose = () => {
     if (isSaving) {
@@ -105,17 +103,35 @@ export const ShareLinkEditorModal = ({
     }
   };
 
+  const { dialogRef, titleId, descriptionId, handleBackdropClick } = useAccessibleDialog({
+    isOpen,
+    onClose: handleClose,
+    initialFocusRef: labelInputRef,
+  });
+
+  if (!isOpen || !link) {
+    return null;
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <motion.div
+      <motion.button
+        type="button"
+        aria-label="Close share link editor"
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        onClick={handleClose}
+        onClick={handleBackdropClick}
       />
 
       <motion.div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        tabIndex={-1}
         className="relative w-full max-w-xl rounded-2xl border border-border/40 bg-surface shadow-2xl dark:bg-surface-dark"
         initial={{ opacity: 0, y: 20, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -128,12 +144,17 @@ export const ShareLinkEditorModal = ({
               <PencilLine className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-text">Edit Share Link</h2>
-              <p className="text-xs text-muted">Update label, status, and expiration</p>
+              <h2 id={titleId} className="text-lg font-bold text-text">
+                Edit Share Link
+              </h2>
+              <p id={descriptionId} className="text-xs text-muted">
+                Update label, status, and expiration
+              </p>
             </div>
           </div>
           <button
             onClick={handleClose}
+            aria-label="Close share link editor"
             className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-1 hover:text-text"
             disabled={isSaving}
           >
@@ -147,6 +168,7 @@ export const ShareLinkEditorModal = ({
               Label
             </label>
             <input
+              ref={labelInputRef}
               id="share-link-label"
               type="text"
               value={label}
@@ -159,21 +181,26 @@ export const ShareLinkEditorModal = ({
           </div>
 
           <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 dark:bg-surface-dark-1">
-            <label className="flex cursor-pointer items-center justify-between gap-3">
-              <span>
-                <span className="block text-sm font-semibold text-text">Link status</span>
-                <span className="block text-xs text-muted">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p id="share-link-active-title" className="block text-sm font-semibold text-text">
+                  Link status
+                </p>
+                <p id="share-link-active-description" className="block text-xs text-muted">
                   Inactive links return 404 without exposing details
-                </span>
-              </span>
+                </p>
+              </div>
               <input
+                id="share-link-active"
                 type="checkbox"
                 checked={isActive}
                 onChange={(event) => setIsActive(event.target.checked)}
                 disabled={isSaving}
+                aria-labelledby="share-link-active-title"
+                aria-describedby="share-link-active-description"
                 className="h-4 w-4 accent-accent"
               />
-            </label>
+            </div>
           </div>
 
           <div className="space-y-2">

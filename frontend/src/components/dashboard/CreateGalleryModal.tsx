@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { GALLERY_NAME_MAX_LENGTH } from '../../constants/gallery';
+import { useAccessibleDialog } from '../../hooks/useAccessibleDialog';
 
 interface CreateGalleryModalProps {
   isOpen: boolean;
@@ -24,6 +25,16 @@ export const CreateGalleryModal = ({
   onNameChange,
   onShootingDateChange,
 }: CreateGalleryModalProps) => {
+  const { dialogRef, titleId, descriptionId, handleBackdropClick } = useAccessibleDialog({
+    isOpen,
+    onClose,
+    initialFocusRef: inputRef as React.RefObject<HTMLElement | null>,
+  });
+
+  if (!isOpen) {
+    return null;
+  }
+
   if (!isOpen) {
     return null;
   }
@@ -39,13 +50,20 @@ export const CreateGalleryModal = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modal-title"
     >
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <button
+        type="button"
+        aria-label="Close dialog backdrop"
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={handleBackdropClick}
+      />
       <motion.div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        tabIndex={-1}
         className="relative bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 border border-border dark:border-border/20"
         initial={{ opacity: 0, scale: 0.92, y: 24 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -54,12 +72,14 @@ export const CreateGalleryModal = ({
         onClick={(event) => event.stopPropagation()}
       >
         <h2
-          id="modal-title"
+          id={titleId}
           className="font-oswald text-xl font-bold uppercase tracking-wide mb-1 text-text"
         >
           New Gallery
         </h2>
-        <p className="text-muted text-sm mb-5">Enter a name for your new gallery.</p>
+        <p id={descriptionId} className="text-muted text-sm mb-5">
+          Enter a name for your new gallery.
+        </p>
         <div className="space-y-4">
           <div>
             <label

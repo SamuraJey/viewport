@@ -10,6 +10,7 @@
   <script>
     ; (() => {
       const preferenceKey = 'theme-preference'
+      const readabilityKey = 'readability-preferences'
 
       const resolveSystemTheme = () =>
         window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
@@ -40,6 +41,45 @@
 
       document.documentElement.classList.remove('dark', 'light')
       document.documentElement.classList.add(resolvedTheme)
+
+      try {
+        const rawReadabilitySettings = localStorage.getItem(readabilityKey)
+        const parsedReadabilitySettings = rawReadabilitySettings
+          ? JSON.parse(rawReadabilitySettings)
+          : null
+
+        const enabled = parsedReadabilitySettings?.enabled === true
+        const fontScale =
+          parsedReadabilitySettings?.fontScale === '125' ||
+          parsedReadabilitySettings?.fontScale === '150' ||
+          parsedReadabilitySettings?.fontScale === '200'
+            ? parsedReadabilitySettings.fontScale
+            : '100'
+        const contrast =
+          parsedReadabilitySettings?.contrast === 'white-on-black' ||
+          parsedReadabilitySettings?.contrast === 'blue-on-light' ||
+          parsedReadabilitySettings?.contrast === 'brown-on-beige'
+            ? parsedReadabilitySettings.contrast
+            : 'black-on-white'
+        const lineSpacing =
+          parsedReadabilitySettings?.lineSpacing === 'comfortable' ||
+          parsedReadabilitySettings?.lineSpacing === 'spacious'
+            ? parsedReadabilitySettings.lineSpacing
+            : parsedReadabilitySettings?.spacing === 'comfortable' ||
+                parsedReadabilitySettings?.spacing === 'spacious'
+              ? parsedReadabilitySettings.spacing
+            : 'normal'
+
+        document.documentElement.dataset.readabilityMode = enabled ? 'on' : 'off'
+        document.documentElement.dataset.readabilityFontScale = fontScale
+        document.documentElement.dataset.readabilityContrast = contrast
+        document.documentElement.dataset.readabilityLineSpacing = lineSpacing
+      } catch (e) {
+        document.documentElement.dataset.readabilityMode = 'off'
+        document.documentElement.dataset.readabilityFontScale = '100'
+        document.documentElement.dataset.readabilityContrast = 'black-on-white'
+        document.documentElement.dataset.readabilityLineSpacing = 'normal'
+      }
     })()
   </script>
   <!-- Preload fonts for better performance -->

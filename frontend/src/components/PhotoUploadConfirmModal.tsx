@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, memo, useCallback } from 'react';
+import { useState, useRef, memo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle2, Images, Upload, X } from 'lucide-react';
 import type { PhotoUploadResponse } from '../services/photoService';
 import { usePhotoUpload } from '../hooks';
+import { useAccessibleDialog } from '../hooks/useAccessibleDialog';
 import { UploadSelectionContent } from './upload-confirm/UploadSelectionContent';
 import { UploadProgressContent } from './upload-confirm/UploadProgressContent';
 import { UploadResultContent } from './upload-confirm/UploadResultContent';
@@ -51,17 +52,6 @@ export const PhotoUploadConfirmModal = memo(
     const [showCancelWarning, setShowCancelWarning] = useState(false);
     const uploadButtonRef = useRef<HTMLButtonElement>(null);
     const isCancelledRef = useRef(false);
-
-    // Focus management when modal opens
-    useEffect(() => {
-      if (isOpen) {
-        // Focus upload button after modal opens
-        const timer = setTimeout(() => {
-          uploadButtonRef.current?.focus();
-        }, 300);
-        return () => clearTimeout(timer);
-      }
-    }, [isOpen]);
 
     // Force close modal (used after warning confirmation)
     const handleForceClose = useCallback(() => {
@@ -112,25 +102,11 @@ export const PhotoUploadConfirmModal = memo(
       onModalStateChange,
     ]);
 
-    // Handle Escape key
-    useEffect(() => {
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && isOpen) {
-          handleClose();
-        }
-      };
-
-      if (isOpen) {
-        document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-      }
-    }, [isOpen, handleClose]);
-
-    const handleBackdropClick = (event: React.MouseEvent) => {
-      if (event.target === event.currentTarget) {
-        handleClose();
-      }
-    };
+    const { dialogRef, titleId, descriptionId, handleBackdropClick } = useAccessibleDialog({
+      isOpen,
+      onClose: handleClose,
+      initialFocusRef: uploadButtonRef as React.RefObject<HTMLElement | null>,
+    });
 
     const modalTitle = result
       ? 'Upload complete'
@@ -147,12 +123,10 @@ export const PhotoUploadConfirmModal = memo(
     if (!isOpen) return null;
 
     return (
-      <div
-        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:p-6"
-        role="dialog"
-        aria-modal="true"
-      >
-        <motion.div
+      <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-3 sm:p-6">
+        <motion.button
+          type="button"
+          aria-label="Close upload dialog"
           className="fixed inset-0 bg-slate-950/60 backdrop-blur-md"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -161,6 +135,12 @@ export const PhotoUploadConfirmModal = memo(
         />
 
         <motion.div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={descriptionId}
+          tabIndex={-1}
           className="relative my-4 sm:my-8 flex w-full max-w-5xl min-h-0 max-h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-4xl border border-border/50 bg-surface/95 shadow-2xl backdrop-blur-xl sm:max-h-[calc(100vh-3rem)] dark:border-border/20 dark:bg-surface-foreground/95"
           initial={{ opacity: 0, scale: 0.95, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -189,10 +169,16 @@ export const PhotoUploadConfirmModal = memo(
                   )}
                 </div>
                 <div>
-                  <h2 className="text-2xl sm:text-3xl font-bold text-text dark:text-white tracking-tight">
+                  <h2
+                    id={titleId}
+                    className="text-2xl sm:text-3xl font-bold text-text dark:text-white tracking-tight"
+                  >
                     {modalTitle}
                   </h2>
-                  <p className="mt-1.5 max-w-3xl text-sm sm:text-base text-muted">
+                  <p
+                    id={descriptionId}
+                    className="mt-1.5 max-w-3xl text-sm sm:text-base text-muted"
+                  >
                     {modalSubtitle}
                   </p>
                 </div>

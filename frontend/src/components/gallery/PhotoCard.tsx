@@ -11,6 +11,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import type { GalleryPhoto } from '../../types';
+import { getAccessiblePhotoName } from '../../lib/accessibility';
 
 interface PhotoCardProps {
   photo: GalleryPhoto;
@@ -72,6 +73,11 @@ const PhotoCardComponent = ({
       console.error('Failed to download photo:', error);
     }
   };
+
+  const accessiblePhotoName = getAccessiblePhotoName({
+    displayName: photo.filename,
+    filename: photo.filename,
+  });
 
   return (
     <div
@@ -200,7 +206,7 @@ const PhotoCardComponent = ({
             onRenamePhoto(photo.id, photo.filename);
           }}
           className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
-          aria-label={`Photo ${photo.id}`}
+          aria-label={accessiblePhotoName}
           title={
             isSelectionMode
               ? 'Click to toggle selection. Use Shift+Click to select range.'
@@ -221,7 +227,7 @@ const PhotoCardComponent = ({
             <img
               ref={imageRef}
               src={photo.thumbnail_url}
-              alt={`Photo ${photo.id}`}
+              alt={accessiblePhotoName}
               crossOrigin="anonymous"
               className={`h-full w-full object-contain transition-opacity duration-300 ${
                 imageState === 'loaded' ? 'opacity-100' : 'opacity-0'
