@@ -228,7 +228,6 @@ const PhotoCardComponent = ({
               ref={imageRef}
               src={photo.thumbnail_url}
               alt={accessiblePhotoName}
-              crossOrigin="anonymous"
               className={`h-full w-full object-contain transition-opacity duration-300 ${
                 imageState === 'loaded' ? 'opacity-100' : 'opacity-0'
               }`}

@@ -649,8 +649,9 @@ export const PublicGalleryPage = () => {
               selection.closeStartModal();
               setOpenFavoritesAfterStart(false);
             }}
+            size="sm"
             initialFocusRef={startNameInputRef}
-            panelClassName="w-full max-w-md rounded-2xl border border-border/50 bg-surface p-5 shadow-xl dark:border-border/20 dark:bg-surface-dark"
+            panelClassName="rounded-3xl border border-border/50 bg-surface p-5 shadow-xl dark:border-border/20 dark:bg-surface-dark"
           >
             <div>
               <AppDialogTitle className="text-lg font-semibold text-text">

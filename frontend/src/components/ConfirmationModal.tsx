@@ -50,8 +50,9 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = React.memo(
         open={isOpen}
         onClose={handleClose}
         canClose={!isLoading}
+        size="sm"
         initialFocusRef={cancelButtonRef}
-        panelClassName="bg-surface dark:bg-surface-foreground rounded-2xl shadow-2xl w-full max-w-md border border-border dark:border-border/20 overflow-hidden"
+        panelClassName="overflow-hidden rounded-3xl border border-border/50 bg-surface shadow-2xl dark:border-border/20 dark:bg-surface-foreground"
       >
         <div className="flex items-center justify-between p-6 border-b border-border dark:border-border">
           <div className="flex items-center gap-3">

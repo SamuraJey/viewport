@@ -69,9 +69,10 @@ export const ReadabilitySettingsButton = ({
       <AppDialog
         open={isOpen}
         onClose={() => setIsOpen(false)}
+        size="lg"
         className="z-[60]"
         containerClassName="fixed inset-0 flex w-screen items-start justify-center overflow-y-auto p-4 sm:p-6 sm:items-center"
-        panelClassName="relative z-10 my-4 w-full max-w-xl overflow-y-auto rounded-3xl border border-border/50 bg-surface p-6 shadow-2xl max-sm:max-h-[calc(100dvh-2rem)] sm:max-h-[min(48rem,calc(100dvh-3rem))] dark:border-border/30 dark:bg-surface-dark"
+        panelClassName="relative z-10 my-4 overflow-y-auto rounded-3xl border border-border/50 bg-surface p-6 shadow-2xl max-sm:max-h-[calc(100dvh-2rem)] sm:max-h-[min(48rem,calc(100dvh-3rem))] dark:border-border/30 dark:bg-surface-dark"
       >
         <div className="flex items-start justify-between gap-4 border-b border-border/40 pb-4">
           <div>

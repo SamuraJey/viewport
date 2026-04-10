@@ -253,9 +253,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
     <AppDialog
       open={isOpen}
       onClose={onClose}
+      size="xl"
       initialFocusRef={firstFieldRef}
       panelProps={{ 'data-lenis-prevent': true }}
-      panelClassName="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-border/50 bg-surface shadow-2xl dark:border-border/40 dark:bg-surface-dark"
+      panelClassName="flex max-h-[min(92vh,58rem)] flex-col overflow-hidden rounded-3xl border border-border/50 bg-surface shadow-2xl dark:border-border/40 dark:bg-surface-dark"
     >
       {/* ── Header ── */}
       <div className="flex shrink-0 items-center gap-4 border-b border-border/50 bg-surface/95 px-6 py-4 backdrop-blur-md dark:border-border/40 dark:bg-surface-dark/95">

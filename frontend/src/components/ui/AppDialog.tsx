@@ -24,6 +24,7 @@ interface AppDialogProps extends PropsWithChildren {
   open: boolean;
   onClose: () => void;
   canClose?: boolean;
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '5xl';
   className?: string;
   containerClassName?: string;
   backdropClassName?: string;
@@ -36,6 +37,7 @@ export const AppDialog = ({
   open,
   onClose,
   canClose = true,
+  size = 'md',
   className,
   containerClassName,
   backdropClassName,
@@ -44,9 +46,22 @@ export const AppDialog = ({
   initialFocusRef,
   children,
 }: AppDialogProps) => {
+  const { className: panelPropsClassName, ...panelAttributes } = panelProps ?? {};
   const ignoreCloseRef = useRef(false);
   const openedAtRef = useRef(0);
   const wasOpenRef = useRef(false);
+  const sizeClassName =
+    size === 'sm'
+      ? 'max-w-md'
+      : size === 'lg'
+        ? 'max-w-xl'
+        : size === 'xl'
+          ? 'max-w-2xl'
+          : size === '2xl'
+            ? 'max-w-3xl'
+            : size === '5xl'
+              ? 'max-w-5xl'
+              : 'max-w-lg';
 
   if (open && !wasOpenRef.current) {
     ignoreCloseRef.current = true;
@@ -105,9 +120,9 @@ export const AppDialog = ({
           containerClassName,
         )}
       >
-        <DialogPanel {...panelProps}>
+        <DialogPanel {...panelAttributes} className={cn('w-full', panelPropsClassName)}>
           <motion.div
-            className={cn('relative w-full max-w-lg', panelClassName)}
+            className={cn('relative mx-auto w-full', sizeClassName, panelClassName)}
             initial={{ opacity: 0, scale: 0.96, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}

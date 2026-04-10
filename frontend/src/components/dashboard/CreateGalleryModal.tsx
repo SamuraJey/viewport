@@ -28,10 +28,6 @@ export const CreateGalleryModal = ({
     return null;
   }
 
-  if (!isOpen) {
-    return null;
-  }
-
   const charsLeft = GALLERY_NAME_MAX_LENGTH - newGalleryName.length;
   const isNearLimit = charsLeft <= 12;
   const isAtLimit = charsLeft <= 0;
@@ -40,8 +36,9 @@ export const CreateGalleryModal = ({
     <AppDialog
       open={isOpen}
       onClose={onClose}
+      size="sm"
       initialFocusRef={inputRef as React.RefObject<HTMLElement | null>}
-      panelClassName="bg-surface dark:bg-surface-dark rounded-2xl shadow-2xl p-6 max-w-sm mx-4 border border-border dark:border-border/20"
+      panelClassName="rounded-3xl border border-border/50 bg-surface p-6 shadow-2xl dark:border-border/20 dark:bg-surface-dark sm:p-7"
     >
       <AppDialogTitle className="font-oswald text-xl font-bold uppercase tracking-wide mb-1 text-text">
         New Gallery

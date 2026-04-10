@@ -119,10 +119,11 @@ export const PhotoUploadConfirmModal = memo(
       <AppDialog
         open={isOpen}
         onClose={handleClose}
+        size="5xl"
         initialFocusRef={uploadButtonRef as React.RefObject<HTMLElement | null>}
         containerClassName="fixed inset-0 flex w-screen items-start justify-center overflow-y-auto p-3 sm:p-6"
         backdropClassName="fixed inset-0 bg-slate-950/60 backdrop-blur-md"
-        panelClassName="relative my-4 sm:my-8 flex w-full max-w-5xl min-h-0 max-h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-4xl border border-border/50 bg-surface/95 shadow-2xl backdrop-blur-xl sm:max-h-[calc(100vh-3rem)] dark:border-border/20 dark:bg-surface-foreground/95"
+        panelClassName="relative my-4 sm:my-8 flex min-h-0 max-h-[calc(100vh-1.5rem)] flex-col overflow-hidden rounded-4xl border border-border/50 bg-surface/95 shadow-2xl backdrop-blur-xl sm:max-h-[calc(100vh-3rem)] dark:border-border/20 dark:bg-surface-foreground/95"
       >
         {/* Header */}
         <div className="sticky top-0 z-10 border-b border-border/50 bg-linear-to-r from-surface via-surface to-accent/5 px-5 py-5 backdrop-blur-md sm:px-7 sm:py-6 dark:from-surface-foreground dark:via-surface-foreground dark:to-accent/10">

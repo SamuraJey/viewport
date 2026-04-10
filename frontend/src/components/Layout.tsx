@@ -156,7 +156,7 @@ export const Layout = ({ children }: LayoutProps) => {
       </main>
       <footer className="border-t border-border/50 bg-surface/70 px-4 py-4 text-sm text-muted dark:bg-surface-dark/70">
         <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
-          <span>Viewport accessibility improvements are ongoing.</span>
+          <span>Viewport accessibility guidance and low-vision settings.</span>
           <Link to="/accessibility" className="font-semibold text-accent hover:underline">
             Accessibility
           </Link>

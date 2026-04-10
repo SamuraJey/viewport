@@ -4,6 +4,7 @@ import { ReadabilitySettingsButton } from '../components/ReadabilitySettingsButt
 import { SkipToContentLink } from '../components/a11y/SkipToContentLink';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { MAIN_CONTENT_ID } from '../lib/accessibility';
+import { useAuthStore } from '../stores/authStore';
 
 const shortcuts = [
   { keys: '/', description: 'Focus the gallery search field when available.' },
@@ -28,6 +29,9 @@ const supportAreas = [
 
 export const AccessibilityPage = () => {
   useDocumentTitle('Accessibility · Viewport');
+  const { isAuthenticated } = useAuthStore();
+  const backHref = isAuthenticated ? '/dashboard' : '/';
+  const backLabel = isAuthenticated ? 'Back to dashboard' : 'Back to home';
 
   return (
     <div className="min-h-screen bg-surface text-text dark:bg-surface-dark">
@@ -41,11 +45,11 @@ export const AccessibilityPage = () => {
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link
-            to="/"
+            to={backHref}
             className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2 text-sm font-semibold transition-all duration-200 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:bg-surface-dark-1"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to home
+            {backLabel}
           </Link>
           <span className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-accent">
             <Accessibility className="h-4 w-4" />
@@ -99,8 +103,9 @@ export const AccessibilityPage = () => {
               <h2 className="text-2xl font-bold">Known scope</h2>
             </div>
             <p className="mt-3 text-muted">
-              Accessibility improvements are ongoing. If a specific workflow still feels difficult,
-              use the low-vision mode first and verify the latest app version.
+              Viewport targets AA-level support aligned with ГОСТ Р 52872-2019. If a workflow feels
+              difficult to read or navigate, use the low-vision mode and keyboard shortcuts listed
+              here first.
             </p>
             <p className="mt-4 text-sm text-muted">
               Current target: AA-level support aligned with ГОСТ Р 52872-2019.

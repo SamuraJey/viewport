@@ -111,8 +111,9 @@ export const ShareLinkEditorModal = ({
       open={isOpen}
       onClose={handleClose}
       canClose={!isSaving}
+      size="lg"
       initialFocusRef={labelInputRef}
-      panelClassName="w-full max-w-xl rounded-2xl border border-border/40 bg-surface shadow-2xl dark:bg-surface-dark"
+      panelClassName="overflow-hidden rounded-3xl border border-border/50 bg-surface shadow-2xl dark:border-border/30 dark:bg-surface-dark"
     >
       <div className="flex items-center justify-between border-b border-border/40 px-6 py-4">
         <div className="flex items-center gap-3">
