@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { GalleryPage } from '../../pages/GalleryPage';
@@ -220,7 +220,8 @@ describe('GalleryPage', () => {
     });
 
     await userEvent.click(screen.getByRole('button', { name: /delete gallery/i }));
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    const deleteDialog = await screen.findByRole('dialog', { name: /delete gallery/i });
+    await userEvent.click(within(deleteDialog).getByRole('button', { name: 'Delete' }));
 
     await waitFor(() => {
       expect(galleryService.deleteGallery).toHaveBeenCalledWith('1');
@@ -352,11 +353,14 @@ describe('GalleryPage', () => {
       await userEvent.click(deleteButton!);
 
       // Expect confirmation modal to appear
-      expect(screen.getByText('Delete Photo')).toBeInTheDocument();
-      expect(screen.getByText(/Are you sure you want to delete this photo/)).toBeInTheDocument();
+      const deleteDialog = await screen.findByRole('dialog', { name: /delete photo/i });
+      expect(within(deleteDialog).getByText('Delete Photo')).toBeInTheDocument();
+      expect(
+        within(deleteDialog).getByText(/Are you sure you want to delete this photo/),
+      ).toBeInTheDocument();
 
       // Click confirm button in modal
-      const confirmButton = screen.getByRole('button', { name: 'Delete' });
+      const confirmButton = within(deleteDialog).getByRole('button', { name: 'Delete' });
       await userEvent.click(confirmButton);
 
       await waitFor(() => {
@@ -392,7 +396,8 @@ describe('GalleryPage', () => {
 
       await userEvent.hover(photoContainer!);
       await userEvent.click(deleteButton!);
-      await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      const deleteDialog = await screen.findByRole('dialog', { name: /delete photo/i });
+      await userEvent.click(within(deleteDialog).getByRole('button', { name: 'Delete' }));
 
       await waitFor(() => {
         expect(photoService.deletePhoto).toHaveBeenCalledWith('1', 'photo1');

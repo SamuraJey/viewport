@@ -20,7 +20,6 @@ export { useErrorDetails } from './useErrorDetails';
 export { useGalleryDragAndDrop } from './useGalleryDragAndDrop';
 export { usePublicGalleryGrid } from './usePublicGalleryGrid';
 export { useDocumentTitle } from './useDocumentTitle';
-export { useAccessibleDialog } from './useAccessibleDialog';
 
 // Re-export types
 export type { UsePaginationOptions, UsePaginationReturn } from './usePagination';

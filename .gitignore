@@ -34,3 +34,5 @@ screenshots/
 *.har
 .omx/
 .codex
+.playwright/
+.playwright-cli/

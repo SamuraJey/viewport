@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
@@ -9,6 +9,7 @@ describe('ReadabilitySettingsButton', () => {
   beforeEach(() => {
     window.localStorage.clear();
     vi.mocked(window.localStorage.setItem).mockClear();
+    document.getElementById('headlessui-portal-root')?.remove();
     document.documentElement.removeAttribute('data-readability-mode');
     document.documentElement.removeAttribute('data-readability-contrast');
     document.documentElement.removeAttribute('data-readability-font-scale');
@@ -34,7 +35,7 @@ describe('ReadabilitySettingsButton', () => {
     await user.click(screen.getByRole('button', { name: /open low-vision settings/i }));
 
     const dialog = screen.getByRole('dialog', { name: /low-vision mode/i });
-    expect(dialog.parentElement?.parentElement?.parentElement).toBe(document.body);
+    expect(document.body.contains(dialog)).toBe(true);
   });
 
   it('applies blue and beige contrast presets immediately', async () => {
@@ -47,12 +48,14 @@ describe('ReadabilitySettingsButton', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /open low-vision settings/i }));
-    await user.click(screen.getByRole('button', { name: /dark blue on light blue/i }));
+    const dialog = await screen.findByRole('dialog', { name: /low-vision mode/i });
+
+    await user.click(within(dialog).getByRole('button', { name: /dark blue on light blue/i }));
 
     expect(document.documentElement.dataset.readabilityMode).toBe('on');
     expect(document.documentElement.dataset.readabilityContrast).toBe('blue-on-light');
 
-    await user.click(screen.getByRole('button', { name: /brown on beige/i }));
+    await user.click(within(dialog).getByRole('button', { name: /brown on beige/i }));
 
     expect(document.documentElement.dataset.readabilityMode).toBe('on');
     expect(document.documentElement.dataset.readabilityContrast).toBe('brown-on-beige');

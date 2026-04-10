@@ -8,10 +8,10 @@ import {
   Link2,
   LogOut,
 } from 'lucide-react';
-import { AccessibleDialog } from '../components/a11y/AccessibleDialog';
 import { SkipToContentLink } from '../components/a11y/SkipToContentLink';
 import { ReadabilitySettingsButton } from '../components/ReadabilitySettingsButton';
 import { ThemeSwitch } from '../components/ThemeSwitch';
+import { AppDialog, AppDialogDescription, AppDialogTitle } from '../components/ui';
 import { PublicGalleryHero } from '../components/public-gallery/PublicGalleryHero';
 import { PublicGalleryPhotoSection } from '../components/public-gallery/PublicGalleryPhotoSection';
 import {
@@ -38,11 +38,6 @@ const createInitialStartForm = (): SelectionSessionStartRequest => ({
   client_phone: '',
   client_note: '',
 });
-
-const startSelectionDialogIds = {
-  titleId: 'public-selection-start-title',
-  descriptionId: 'public-selection-start-description',
-};
 
 export const PublicGalleryPage = () => {
   const { shareId, resumeToken } = useParams<{ shareId: string; resumeToken?: string }>();
@@ -648,24 +643,22 @@ export const PublicGalleryPage = () => {
         ) : null}
 
         {selection.showStartModal ? (
-          <AccessibleDialog
-            isOpen={selection.showStartModal}
+          <AppDialog
+            open={selection.showStartModal}
             onClose={() => {
               selection.closeStartModal();
               setOpenFavoritesAfterStart(false);
             }}
-            titleId={startSelectionDialogIds.titleId}
-            descriptionId={startSelectionDialogIds.descriptionId}
             initialFocusRef={startNameInputRef}
             panelClassName="w-full max-w-md rounded-2xl border border-border/50 bg-surface p-5 shadow-xl dark:border-border/20 dark:bg-surface-dark"
           >
             <div>
-              <h3 id={startSelectionDialogIds.titleId} className="text-lg font-semibold text-text">
+              <AppDialogTitle className="text-lg font-semibold text-text">
                 Start selection
-              </h3>
-              <p id={startSelectionDialogIds.descriptionId} className="mt-2 text-sm text-muted">
+              </AppDialogTitle>
+              <AppDialogDescription className="mt-2 text-sm text-muted">
                 Enter your details to begin selecting photos.
-              </p>
+              </AppDialogDescription>
               <div className="mt-4 space-y-3">
                 <div>
                   <label
@@ -801,7 +794,7 @@ export const PublicGalleryPage = () => {
                 </div>
               </div>
             </div>
-          </AccessibleDialog>
+          </AppDialog>
         ) : null}
 
         <div className="mt-16 flex flex-wrap items-center justify-center gap-3 text-center text-sm font-medium text-muted dark:text-muted-foreground">
