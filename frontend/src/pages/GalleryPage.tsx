@@ -860,15 +860,16 @@ export const GalleryPage = () => {
     return <GalleryNotFoundState />;
   }
 
+  const contentTabClassName = ({ selected }: { selected: boolean }): string =>
+    `inline-flex h-12 shrink-0 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${selected
+      ? 'border-accent/60 bg-accent/12 text-accent shadow-[0_0_0_1px_rgba(56,189,248,0.08),0_12px_24px_-18px_rgba(56,189,248,0.9)]'
+      : 'border-border/70 bg-surface/70 text-text hover:border-accent/35 hover:text-text'
+    }`;
+
   const contentTabItems = [
     {
       key: 'project' as const,
-      tabClassName: ({ selected }: { selected: boolean }) =>
-        `shrink-0 rounded-xl border px-4 py-2 text-sm font-semibold ${
-          selected
-            ? 'border-accent/45 bg-accent/10 text-accent'
-            : 'border-border/50 bg-surface text-text hover:border-accent/30'
-        }`,
+      tabClassName: contentTabClassName,
       tab: 'Project',
       panel: (
         <div className="space-y-8">
@@ -949,12 +950,7 @@ export const GalleryPage = () => {
     },
     {
       key: 'favorites' as const,
-      tabClassName: ({ selected }: { selected: boolean }) =>
-        `shrink-0 rounded-xl border px-4 py-2 text-sm font-semibold ${
-          selected
-            ? 'border-accent/45 bg-accent/10 text-accent'
-            : 'border-border/50 bg-surface text-text hover:border-accent/30'
-        }`,
+      tabClassName: contentTabClassName,
       tab: `Favorites (${hasLoadedFavorites ? favoritesSessionCount : favoritesCount})`,
       panel: (
         <GallerySelectionSessionsPanel
@@ -1039,7 +1035,8 @@ export const GalleryPage = () => {
           items={contentTabItems}
           selectedKey={activeContentTab}
           onChange={handleSelectContentTab}
-          listClassName="flex items-center gap-2 overflow-x-auto"
+          listClassName="flex items-center gap-3 overflow-x-auto pl-8"
+          panelsClassName="mt-8"
         />
       </div>
 
