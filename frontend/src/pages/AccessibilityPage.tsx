@@ -41,6 +41,7 @@ export const AccessibilityPage = () => {
       </div>
       <main
         id={MAIN_CONTENT_ID}
+        tabIndex={-1}
         className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-4 py-12 sm:px-6"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
