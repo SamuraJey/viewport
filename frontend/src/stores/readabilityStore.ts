@@ -132,11 +132,7 @@ const updateSettings = (
   partial: Partial<ReadabilitySettings>,
 ): Partial<ReadabilityState> => {
   const nextSettings: ReadabilitySettings = {
-    enabled:
-      (partial.enabled ?? currentState.enabled) ||
-      partial.contrast !== undefined ||
-      partial.fontScale !== undefined ||
-      partial.lineSpacing !== undefined,
+    enabled: partial.enabled ?? currentState.enabled,
     fontScale: partial.fontScale ?? currentState.fontScale,
     contrast: partial.contrast ?? currentState.contrast,
     lineSpacing: partial.lineSpacing ?? currentState.lineSpacing,

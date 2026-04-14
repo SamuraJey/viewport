@@ -41,4 +41,23 @@ describe('readabilityStore', () => {
       lineSpacing: 'spacious',
     });
   });
+
+  it('does not auto-enable low-vision mode when updating presets only', () => {
+    act(() => {
+      useReadabilityStore.getState().setContrast('white-on-black');
+      useReadabilityStore.getState().setFontScale('150');
+      useReadabilityStore.getState().setLineSpacing('spacious');
+    });
+
+    expect(useReadabilityStore.getState().enabled).toBe(false);
+    expect(document.documentElement.dataset.readabilityMode).toBe('off');
+
+    const latestPersistenceCall = vi.mocked(window.localStorage.setItem).mock.calls.at(-1);
+    expect(JSON.parse(latestPersistenceCall?.[1] || '{}')).toMatchObject({
+      enabled: false,
+      contrast: 'white-on-black',
+      fontScale: '150',
+      lineSpacing: 'spacious',
+    });
+  });
 });

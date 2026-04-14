@@ -47,6 +47,9 @@ export const ReadabilitySettingsButton = ({
     variant === 'floating'
       ? 'fixed right-18 top-4 z-50 inline-flex h-11 min-w-11 items-center justify-center rounded-xl border border-border/50 bg-surface/80 px-3 text-text shadow-lg backdrop-blur-md transition-all hover:shadow-xl hover:-translate-y-0.5 dark:bg-surface-dark/80'
       : 'inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-border/40 bg-surface-1 px-3 text-text shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-border/60 dark:bg-surface-dark-1';
+  const controlsDisabled = !enabled;
+  const disabledControlClassName =
+    'disabled:cursor-not-allowed disabled:border-border/30 disabled:bg-surface-1/60 disabled:text-muted disabled:shadow-none disabled:hover:translate-y-0 disabled:hover:border-border/30 disabled:hover:text-muted dark:disabled:bg-surface-dark-1/60';
 
   return (
     <>
@@ -125,11 +128,13 @@ export const ReadabilitySettingsButton = ({
                   key={option.value}
                   type="button"
                   onClick={() => setContrast(option.value)}
+                  disabled={controlsDisabled}
+                  aria-disabled={controlsDisabled}
                   className={`rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition-colors ${
                     contrast === option.value
                       ? 'border-accent bg-accent/10 text-accent'
                       : 'border-border/50 bg-surface-1 text-text dark:bg-surface-dark-1'
-                  }`}
+                  } ${disabledControlClassName}`}
                 >
                   {option.label}
                 </button>
@@ -150,11 +155,13 @@ export const ReadabilitySettingsButton = ({
                   key={option}
                   type="button"
                   onClick={() => setFontScale(option)}
+                  disabled={controlsDisabled}
+                  aria-disabled={controlsDisabled}
                   className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
                     fontScale === option
                       ? 'bg-accent text-accent-foreground'
                       : 'border border-border/50 bg-surface-1 text-text dark:bg-surface-dark-1'
-                  }`}
+                  } ${disabledControlClassName}`}
                 >
                   {option}%
                 </button>
@@ -172,11 +179,13 @@ export const ReadabilitySettingsButton = ({
                   key={option.value}
                   type="button"
                   onClick={() => setLineSpacing(option.value)}
+                  disabled={controlsDisabled}
+                  aria-disabled={controlsDisabled}
                   className={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
                     lineSpacing === option.value
                       ? 'bg-accent text-accent-foreground'
                       : 'border border-border/50 bg-surface-1 text-text dark:bg-surface-dark-1'
-                  }`}
+                  } ${disabledControlClassName}`}
                 >
                   {option.label}
                 </button>
