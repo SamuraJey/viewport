@@ -1,5 +1,6 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it } from 'vitest';
 import { useState } from 'react';
 import { AppDialog, AppDialogDescription, AppDialogTitle } from '../../../components/ui';
 
@@ -28,43 +29,46 @@ const DialogHarness = ({ canClose = true }: DialogHarnessProps) => {
 };
 
 describe('AppDialog', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
+  it('closes when clicking outside the dialog panel', async () => {
+    const user = userEvent.setup();
 
-  afterEach(() => {
-    vi.runOnlyPendingTimers();
-    vi.useRealTimers();
-  });
-
-  it('ignores escape immediately after opening and closes after the guard window', async () => {
     render(<DialogHarness />);
 
-    fireEvent.click(screen.getByRole('button', { name: /open dialog/i }));
+    await user.click(screen.getByRole('button', { name: /open dialog/i }));
 
-    expect(screen.getByRole('dialog', { name: /test dialog/i })).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: /test dialog/i });
 
-    fireEvent.keyDown(document, { key: 'Escape' });
+    const backdrop = dialog.querySelector('[aria-hidden="true"]');
+    expect(backdrop).not.toBeNull();
+    await user.click(backdrop as HTMLElement);
 
-    expect(screen.getByRole('dialog', { name: /test dialog/i })).toBeInTheDocument();
-
-    await act(async () => {
-      vi.advanceTimersByTime(200);
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /test dialog/i })).not.toBeInTheDocument();
     });
+  });
+
+  it('closes on Escape when canClose is enabled', async () => {
+    const user = userEvent.setup();
+
+    render(<DialogHarness />);
+
+    await user.click(screen.getByRole('button', { name: /open dialog/i }));
+    expect(await screen.findByRole('dialog', { name: /test dialog/i })).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: 'Escape' });
 
-    expect(screen.queryByRole('dialog', { name: /test dialog/i })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /test dialog/i })).not.toBeInTheDocument();
+    });
   });
 
   it('keeps the dialog open when canClose is disabled', async () => {
+    const user = userEvent.setup();
+
     render(<DialogHarness canClose={false} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /open dialog/i }));
-
-    await act(async () => {
-      vi.advanceTimersByTime(200);
-    });
+    await user.click(screen.getByRole('button', { name: /open dialog/i }));
+    expect(await screen.findByRole('dialog', { name: /test dialog/i })).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: 'Escape' });
 

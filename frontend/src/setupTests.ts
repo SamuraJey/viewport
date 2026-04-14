@@ -24,6 +24,16 @@ Object.defineProperty(window, 'IntersectionObserver', {
   },
 });
 
+Object.defineProperty(window, 'ResizeObserver', {
+  writable: true,
+  configurable: true,
+  value: class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+});
+
 // Mock URL methods
 Object.defineProperty(URL, 'createObjectURL', {
   writable: true,

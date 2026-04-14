@@ -6,6 +6,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { CreateGalleryModal } from '../components/dashboard/CreateGalleryModal';
 import { EnhancedGalleryCard } from '../components/dashboard/EnhancedGalleryCard';
+import {
+  AppDialog,
+  AppDialogDescription,
+  AppDialogTitle,
+  AppListbox,
+  AppSwitch,
+} from '../components/ui';
 import { useDashboardActions } from '../hooks';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { parseUtcDateTimeInputValue } from '../components/share-links/shareLinkDateTime';
@@ -34,6 +41,17 @@ const cardVariants = {
 const DEFAULT_SORT_BY: GalleryListSortBy = 'created_at';
 const DEFAULT_SORT_ORDER: SortOrder = 'desc';
 const SEARCH_DEBOUNCE_MS = 300;
+const DASHBOARD_SORT_OPTIONS: { value: GalleryListSortBy; label: string }[] = [
+  { value: 'created_at', label: 'Date created' },
+  { value: 'shooting_date', label: 'Shooting date' },
+  { value: 'name', label: 'Name' },
+  { value: 'photo_count', label: 'Photo count' },
+  { value: 'total_size_bytes', label: 'Size' },
+];
+const DASHBOARD_ORDER_OPTIONS: { value: SortOrder; label: string }[] = [
+  { value: 'desc', label: 'Descending' },
+  { value: 'asc', label: 'Ascending' },
+];
 
 const isDashboardSortBy = (value: string | null): value is GalleryListSortBy =>
   value === 'created_at' ||
@@ -432,48 +450,29 @@ export const DashboardPage = () => {
           />
         </label>
 
-        <label className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm dark:bg-surface-dark">
+        <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm dark:bg-surface-dark">
           <span className="text-muted">Sort:</span>
-          <select
+          <AppListbox
             value={sortBy}
-            onChange={(event) => handleSortByChange(event.target.value as GalleryListSortBy)}
-            className="bg-transparent text-text outline-none scheme-light dark:scheme-dark"
+            onChange={handleSortByChange}
+            options={DASHBOARD_SORT_OPTIONS}
             aria-label="Sort galleries by"
-          >
-            <option value="created_at" className="bg-surface text-text dark:bg-surface-dark">
-              Date created
-            </option>
-            <option value="shooting_date" className="bg-surface text-text dark:bg-surface-dark">
-              Shooting date
-            </option>
-            <option value="name" className="bg-surface text-text dark:bg-surface-dark">
-              Name
-            </option>
-            <option value="photo_count" className="bg-surface text-text dark:bg-surface-dark">
-              Photo count
-            </option>
-            <option value="total_size_bytes" className="bg-surface text-text dark:bg-surface-dark">
-              Size
-            </option>
-          </select>
-        </label>
+            buttonClassName="min-w-0 border-none bg-transparent px-0 py-0 text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            optionsClassName="bg-surface p-1 dark:bg-surface-dark-1"
+          />
+        </div>
 
-        <label className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm dark:bg-surface-dark">
+        <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm dark:bg-surface-dark">
           <span className="text-muted">Order:</span>
-          <select
+          <AppListbox
             value={sortOrder}
-            onChange={(event) => handleSortOrderChange(event.target.value as SortOrder)}
-            className="bg-transparent text-text outline-none scheme-light dark:scheme-dark"
+            onChange={handleSortOrderChange}
+            options={DASHBOARD_ORDER_OPTIONS}
             aria-label="Sort order"
-          >
-            <option value="desc" className="bg-surface text-text dark:bg-surface-dark">
-              Descending
-            </option>
-            <option value="asc" className="bg-surface text-text dark:bg-surface-dark">
-              Ascending
-            </option>
-          </select>
-        </label>
+            buttonClassName="min-w-0 border-none bg-transparent px-0 py-0 text-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            optionsClassName="bg-surface p-1 dark:bg-surface-dark-1"
+          />
+        </div>
       </div>
 
       {error && renderError()}
@@ -502,17 +501,13 @@ export const DashboardPage = () => {
 
       <AnimatePresence>
         {shareModalGallery ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <AppDialog
+            open
+            onClose={handleCloseShareModal}
+            size="xl"
+            panelClassName="rounded-2xl border border-border/40 bg-surface shadow-2xl dark:bg-surface-dark"
+          >
             <motion.div
-              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={handleCloseShareModal}
-            />
-
-            <motion.div
-              className="relative w-full max-w-xl rounded-2xl border border-border/40 bg-surface shadow-2xl dark:bg-surface-dark"
               initial={{ opacity: 0, y: 20, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.97 }}
@@ -524,13 +519,16 @@ export const DashboardPage = () => {
                     <Share2 className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-text">Create Share Link</h2>
-                    <p className="text-xs text-muted">
+                    <AppDialogTitle className="text-lg font-bold text-text">
+                      Create Share Link
+                    </AppDialogTitle>
+                    <AppDialogDescription className="text-xs text-muted">
                       For {shareModalGallery.name || 'Untitled gallery'}
-                    </p>
+                    </AppDialogDescription>
                   </div>
                 </div>
                 <button
+                  type="button"
                   onClick={handleCloseShareModal}
                   className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-1 hover:text-text"
                   disabled={isCreatingShareLink}
@@ -573,15 +571,14 @@ export const DashboardPage = () => {
                         Inactive links return 404
                       </p>
                     </div>
-                    <input
-                      id="share-link-status"
-                      type="checkbox"
+                    <AppSwitch
                       checked={shareIsActiveInput}
-                      onChange={(event) => setShareIsActiveInput(event.target.checked)}
+                      onChange={setShareIsActiveInput}
                       disabled={isCreatingShareLink}
                       aria-labelledby="dashboard-share-link-status-title"
                       aria-describedby="dashboard-share-link-status-description"
-                      className="h-4 w-4 accent-accent"
+                      className="h-8 w-12 rounded-full bg-muted/40 p-0.5 transition-colors data-checked:bg-accent"
+                      thumbClassName="size-7 translate-x-0 bg-white shadow-sm group-data-checked:translate-x-4"
                     />
                   </div>
                 </div>
@@ -651,7 +648,7 @@ export const DashboardPage = () => {
                 </button>
               </div>
             </motion.div>
-          </div>
+          </AppDialog>
         ) : null}
       </AnimatePresence>
 

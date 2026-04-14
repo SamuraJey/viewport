@@ -20,8 +20,6 @@ type DataAttributes = {
   [key in `data-${string}`]?: string | number | boolean | undefined;
 };
 
-const CLOSE_GUARD_MS = 200;
-
 interface AppDialogProps extends PropsWithChildren {
   open: boolean;
   onClose: () => void;
@@ -49,8 +47,8 @@ export const AppDialog = ({
   children,
 }: AppDialogProps) => {
   const { className: panelPropsClassName, ...panelAttributes } = panelProps ?? {};
-  const openedAtRef = useRef<number | null>(null);
-  const wasOpenRef = useRef(false);
+  const ignoreInitialCloseRef = useRef(false);
+  const frameRef = useRef<number | null>(null);
   const sizeClassName =
     size === 'sm'
       ? 'max-w-md'
@@ -65,17 +63,27 @@ export const AppDialog = ({
               : 'max-w-lg';
 
   useLayoutEffect(() => {
-    const wasOpen = wasOpenRef.current;
-    wasOpenRef.current = open;
-
     if (!open) {
-      openedAtRef.current = null;
+      ignoreInitialCloseRef.current = false;
+      if (frameRef.current !== null) {
+        cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
       return;
     }
 
-    if (!wasOpen) {
-      openedAtRef.current = Date.now();
-    }
+    ignoreInitialCloseRef.current = true;
+    frameRef.current = requestAnimationFrame(() => {
+      ignoreInitialCloseRef.current = false;
+      frameRef.current = null;
+    });
+
+    return () => {
+      if (frameRef.current !== null) {
+        cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
+    };
   }, [open]);
 
   const handleClose = () => {
@@ -83,7 +91,7 @@ export const AppDialog = ({
       return;
     }
 
-    if (openedAtRef.current !== null && Date.now() - openedAtRef.current < CLOSE_GUARD_MS) {
+    if (ignoreInitialCloseRef.current) {
       return;
     }
 

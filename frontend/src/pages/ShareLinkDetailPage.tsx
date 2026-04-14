@@ -15,6 +15,7 @@ import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorM
 import { ShareLinkStatusBadge } from '../components/share-links/ShareLinkStatusBadge';
 import { getShareLinkStatus } from '../components/share-links/shareLinkStatus';
 import { ShareLinkTrendChart } from '../components/share-links/ShareLinkTrendChart';
+import { AppSwitch } from '../components/ui';
 import { useConfirmation } from '../hooks';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { copyTextToClipboard } from '../lib/clipboard';
@@ -29,6 +30,10 @@ import type {
 
 const numberFormatter = new Intl.NumberFormat();
 const DAY_PRESETS = [7, 30, 90] as const;
+const SETTINGS_SWITCH_CLASS =
+  'h-8 w-12 rounded-full bg-muted/40 p-0.5 transition-colors data-checked:bg-accent';
+const SETTINGS_SWITCH_THUMB_CLASS =
+  'size-7 translate-x-0 bg-white shadow-sm group-data-checked:translate-x-4';
 
 const parseIsoDayAsLocalDate = (isoDay: string): Date => {
   const [year, month, day] = isoDay.split('-').map((part) => Number.parseInt(part, 10));
@@ -509,21 +514,22 @@ export const ShareLinkDetailPage = () => {
         {selectionConfigDraft ? (
           <>
             <div className="grid gap-4 lg:grid-cols-2">
-              <label className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
+              <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
                 <span className="font-semibold text-text">Enable selection</span>
                 <div className="mt-2">
-                  <input
-                    type="checkbox"
+                  <AppSwitch
                     checked={selectionConfigDraft.is_enabled}
-                    onChange={(event) =>
+                    onChange={(checked) =>
                       setSelectionConfigDraft((prev) =>
-                        prev ? { ...prev, is_enabled: event.target.checked } : prev,
+                        prev ? { ...prev, is_enabled: checked } : prev,
                       )
                     }
-                    className="h-4 w-4 accent-accent"
+                    className={SETTINGS_SWITCH_CLASS}
+                    thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+                    aria-label="Enable selection"
                   />
                 </div>
-              </label>
+              </div>
 
               <label className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
                 <span className="font-semibold text-text">List title</span>
@@ -538,18 +544,19 @@ export const ShareLinkDetailPage = () => {
                 />
               </label>
 
-              <label className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
+              <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
                 <span className="font-semibold text-text">Limit selection count</span>
                 <div className="mt-2 flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                  <AppSwitch
                     checked={selectionConfigDraft.limit_enabled}
-                    onChange={(event) =>
+                    onChange={(checked) =>
                       setSelectionConfigDraft((prev) =>
-                        prev ? { ...prev, limit_enabled: event.target.checked } : prev,
+                        prev ? { ...prev, limit_enabled: checked } : prev,
                       )
                     }
-                    className="h-4 w-4 accent-accent"
+                    className={SETTINGS_SWITCH_CLASS}
+                    thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+                    aria-label="Limit selection count"
                   />
                   {selectionConfigDraft.limit_enabled ? (
                     <input
@@ -565,65 +572,69 @@ export const ShareLinkDetailPage = () => {
                     />
                   ) : null}
                 </div>
-              </label>
+              </div>
 
-              <label className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
+              <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
                 <span className="font-semibold text-text">Photo comments</span>
                 <div className="mt-2">
-                  <input
-                    type="checkbox"
+                  <AppSwitch
                     checked={selectionConfigDraft.allow_photo_comments}
-                    onChange={(event) =>
+                    onChange={(checked) =>
                       setSelectionConfigDraft((prev) =>
-                        prev ? { ...prev, allow_photo_comments: event.target.checked } : prev,
+                        prev ? { ...prev, allow_photo_comments: checked } : prev,
                       )
                     }
-                    className="h-4 w-4 accent-accent"
+                    className={SETTINGS_SWITCH_CLASS}
+                    thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+                    aria-label="Photo comments"
                   />
                 </div>
-              </label>
+              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
-              <label className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
-                <input
-                  type="checkbox"
+              <div className="inline-flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
+                <span>Require email</span>
+                <AppSwitch
                   checked={selectionConfigDraft.require_email}
-                  onChange={(event) =>
+                  onChange={(checked) =>
                     setSelectionConfigDraft((prev) =>
-                      prev ? { ...prev, require_email: event.target.checked } : prev,
+                      prev ? { ...prev, require_email: checked } : prev,
                     )
                   }
-                  className="h-4 w-4 accent-accent"
+                  className={SETTINGS_SWITCH_CLASS}
+                  thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+                  aria-label="Require email"
                 />
-                Require email
-              </label>
-              <label className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
-                <input
-                  type="checkbox"
+              </div>
+              <div className="inline-flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
+                <span>Require phone</span>
+                <AppSwitch
                   checked={selectionConfigDraft.require_phone}
-                  onChange={(event) =>
+                  onChange={(checked) =>
                     setSelectionConfigDraft((prev) =>
-                      prev ? { ...prev, require_phone: event.target.checked } : prev,
+                      prev ? { ...prev, require_phone: checked } : prev,
                     )
                   }
-                  className="h-4 w-4 accent-accent"
+                  className={SETTINGS_SWITCH_CLASS}
+                  thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+                  aria-label="Require phone"
                 />
-                Require phone
-              </label>
-              <label className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
-                <input
-                  type="checkbox"
+              </div>
+              <div className="inline-flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
+                <span>Require note</span>
+                <AppSwitch
                   checked={selectionConfigDraft.require_client_note}
-                  onChange={(event) =>
+                  onChange={(checked) =>
                     setSelectionConfigDraft((prev) =>
-                      prev ? { ...prev, require_client_note: event.target.checked } : prev,
+                      prev ? { ...prev, require_client_note: checked } : prev,
                     )
                   }
-                  className="h-4 w-4 accent-accent"
+                  className={SETTINGS_SWITCH_CLASS}
+                  thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+                  aria-label="Require note"
                 />
-                Require note
-              </label>
+              </div>
             </div>
           </>
         ) : (

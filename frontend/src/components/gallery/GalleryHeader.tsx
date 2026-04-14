@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { formatDateOnly, formatFileSize } from '../../lib/utils';
 import type { GalleryDetail, GalleryPhotoSortBy, SortOrder } from '../../types';
-import { AppPopover } from '../ui';
+import { AppListbox, AppPopover } from '../ui';
 
 interface SortOption {
   value: `${GalleryPhotoSortBy}:${SortOrder}`;
@@ -239,33 +239,24 @@ export const GalleryHeader = ({
             </label>
 
             <div className="flex items-center gap-3 lg:ml-auto">
-              <label
-                className={`relative flex h-11 w-full items-center rounded-xl border bg-surface px-3 text-sm text-text transition-all duration-200 dark:bg-surface-dark-2 lg:w-64 ${
-                  isDefaultPrivateSort
-                    ? 'border-border/40 hover:border-accent/40 dark:border-border/30'
-                    : 'border-accent/45 bg-accent/5 text-accent dark:border-accent/55'
-                }`}
-              >
-                <ArrowUpDown className="h-4 w-4 text-muted" />
-                <select
-                  value={activeSortValue}
-                  onChange={(event) =>
-                    onSortChange(parseSortValue(event.target.value, DEFAULT_PRIVATE_SORT_STATE))
-                  }
-                  className="h-full w-full cursor-pointer appearance-none bg-transparent pl-2 pr-7 text-sm font-semibold text-text scheme-light focus:outline-hidden dark:scheme-dark"
-                  aria-label="Sort photos"
-                >
-                  {SORT_OPTIONS.map((option) => (
-                    <option
-                      key={option.value}
-                      value={option.value}
-                      className="bg-surface text-text dark:bg-surface-dark"
-                    >
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <AppListbox
+                value={activeSortValue}
+                onChange={(value) =>
+                  onSortChange(parseSortValue(value, DEFAULT_PRIVATE_SORT_STATE))
+                }
+                options={SORT_OPTIONS}
+                className="w-full lg:w-64"
+                aria-label="Sort photos"
+                startContent={<ArrowUpDown className="h-4 w-4 text-muted" />}
+                buttonClassName={(open) =>
+                  `h-11 border px-3 text-sm font-semibold transition-all duration-200 dark:bg-surface-dark-2 ${
+                    open || !isDefaultPrivateSort
+                      ? 'border-accent/45 bg-accent/5 text-accent dark:border-accent/55'
+                      : 'border-border/40 bg-surface text-text hover:border-accent/40 dark:border-border/30'
+                  }`
+                }
+                optionsClassName="bg-surface p-1 dark:bg-surface-dark-1"
+              />
 
               <AppPopover
                 className="relative"
@@ -296,29 +287,19 @@ export const GalleryHeader = ({
                       >
                         Public gallery sort
                       </label>
-                      <div className="relative flex h-10 items-center rounded-xl border border-border/40 bg-surface-1 px-2.5 dark:border-border/30 dark:bg-surface-dark-2">
-                        <ArrowUpDown className="h-4 w-4 text-muted" />
-                        <select
-                          id="gallery-public-sort"
-                          value={activePublicSortValue}
-                          onChange={(event) =>
-                            onPublicSortChange(
-                              parseSortValue(event.target.value, DEFAULT_PUBLIC_SORT_STATE),
-                            )
-                          }
-                          className="h-full w-full cursor-pointer appearance-none bg-transparent pl-2 pr-6 text-sm font-semibold text-text scheme-light focus:outline-hidden dark:scheme-dark"
-                        >
-                          {SORT_OPTIONS.map((option) => (
-                            <option
-                              key={`public-${option.value}`}
-                              value={option.value}
-                              className="bg-surface text-text dark:bg-surface-dark"
-                            >
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <AppListbox
+                        value={activePublicSortValue}
+                        onChange={(value) =>
+                          onPublicSortChange(parseSortValue(value, DEFAULT_PUBLIC_SORT_STATE))
+                        }
+                        options={SORT_OPTIONS.map((option) => ({
+                          ...option,
+                          value: option.value,
+                        }))}
+                        aria-label="Public gallery sort"
+                        startContent={<ArrowUpDown className="h-4 w-4 text-muted" />}
+                        buttonClassName="h-10 border border-border/40 bg-surface-1 px-2.5 text-sm font-semibold text-text dark:border-border/30 dark:bg-surface-dark-2"
+                      />
                       {isSavingPublicSortSettings && (
                         <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
