@@ -355,7 +355,25 @@ export const PublicGalleryPage = () => {
   );
 
   if (isLoading) {
-    return null;
+    return (
+      <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
+        <SkipToContentLink targetId="main-content" />
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex min-h-screen items-center justify-center px-4"
+        >
+          <div
+            role="status"
+            aria-live="polite"
+            aria-label="Loading gallery"
+            className="rounded-2xl border border-border/50 bg-surface-1/70 px-5 py-4 text-sm font-medium text-muted shadow-xs"
+          >
+            Loading gallery...
+          </div>
+        </main>
+      </div>
+    );
   }
 
   if (error) {

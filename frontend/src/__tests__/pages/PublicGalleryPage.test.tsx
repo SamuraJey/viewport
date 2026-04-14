@@ -124,6 +124,7 @@ describe('PublicGalleryPage', () => {
   it('does not render fullscreen skeleton while loading', async () => {
     const { container } = render(wrapper());
     expect(container.querySelector('[data-testid="skeleton-loader"]')).not.toBeInTheDocument();
+    expect(screen.getByRole('status', { name: /loading gallery/i })).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByText('Photos')).toBeInTheDocument();
@@ -148,6 +149,7 @@ describe('PublicGalleryPage', () => {
     const thumbs = screen.getAllByTestId('public-batch');
     expect(thumbs).toHaveLength(2);
     expect(screen.queryByRole('button', { name: /finish selection/i })).not.toBeInTheDocument();
+    expect(document.getElementById('gallery-content')).toBeInTheDocument();
   });
 
   it('opens photo lightbox when clicking a photo', async () => {
@@ -165,6 +167,16 @@ describe('PublicGalleryPage', () => {
     await waitFor(() => expect(screen.getByTestId('lightbox')).toBeInTheDocument());
     // Check that lightbox slides are rendered
     expect(screen.getAllByTestId('lightbox-slide')).toHaveLength(2);
+  });
+
+  it('keeps decorative hero images out of the accessible image tree', async () => {
+    render(wrapper());
+
+    await waitFor(() => {
+      expect(screen.getByText('Photos')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole('img', { name: /gallery cover/i })).not.toBeInTheDocument();
   });
 
   it('shows empty state when no photos', async () => {

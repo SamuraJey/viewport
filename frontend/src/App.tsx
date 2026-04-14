@@ -36,8 +36,13 @@ const PublicGalleryPage = lazy(() =>
   import('./pages/PublicGalleryPage').then((module) => ({ default: module.PublicGalleryPage })),
 );
 
-const RouteFallback = () => (
-  <div className="pointer-events-none fixed inset-x-0 top-0 z-100">
+export const RouteFallback = () => (
+  <div
+    role="status"
+    aria-live="polite"
+    aria-label="Loading page"
+    className="pointer-events-none fixed inset-x-0 top-0 z-100"
+  >
     <div className="h-0.5 w-full bg-accent/70 animate-pulse" />
   </div>
 );

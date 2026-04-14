@@ -64,6 +64,8 @@ export const PublicGalleryPhotoSection = ({
 }: PublicGalleryPhotoSectionProps) => {
   return (
     <div
+      id="gallery-content"
+      tabIndex={-1}
       className="bg-surface-foreground/5 rounded-3xl border border-border/50 p-6 shadow-xs sm:p-8"
       {...touchHandlers}
       style={{ touchAction: 'pan-y' }}

@@ -78,7 +78,8 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
     <div className="pg-hero relative w-full text-accent-foreground bg-surface-foreground/15 dark:bg-surface/20 overflow-hidden shadow-md">
       <img
         src={gallery.cover.thumbnail_url}
-        alt="Gallery cover preview"
+        alt=""
+        aria-hidden="true"
         loading="eager"
         fetchPriority="high"
         className="absolute inset-0 w-full h-full object-cover"
@@ -87,7 +88,8 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
       <img
         ref={heroImgRef}
         src={gallery.cover.full_url}
-        alt="Gallery cover"
+        alt=""
+        aria-hidden="true"
         loading="eager"
         fetchPriority="high"
         decoding="async"
@@ -128,7 +130,11 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
             className="w-12 h-12 border-2 border-white/50 rounded-full flex items-center justify-center hover:bg-white/20 hover:border-white hover:scale-110 transition-all duration-300 backdrop-blur-xs"
             onClick={(event) => {
               event.preventDefault();
-              document.getElementById('gallery-content')?.scrollIntoView({ behavior: 'smooth' });
+              const target = document.getElementById('gallery-content');
+              if (target && typeof target.scrollIntoView === 'function') {
+                target.scrollIntoView({ behavior: 'smooth' });
+              }
+              target?.focus();
             }}
           >
             <svg

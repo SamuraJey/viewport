@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import App from '../../App';
+import App, { RouteFallback } from '../../App';
 import { LandingPage } from '../../pages/LandingPage';
 import { useAuthStore } from '../../stores/authStore';
 import { getDemoService } from '../../services/demoService';
@@ -124,5 +124,11 @@ describe('LandingPage and root route', () => {
       expect(mockStoreLogin).toHaveBeenCalledWith(mockDemoUser, mockDemoTokens);
       expect(mockNavigate).toHaveBeenCalledWith('/dashboard');
     });
+  });
+
+  it('announces route loading state accessibly', () => {
+    render(<RouteFallback />);
+
+    expect(screen.getByRole('status', { name: /loading page/i })).toBeInTheDocument();
   });
 });

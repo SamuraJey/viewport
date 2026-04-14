@@ -51,24 +51,21 @@
         const enabled = parsedReadabilitySettings?.enabled === true
         const fontScale =
           parsedReadabilitySettings?.fontScale === '125' ||
-          parsedReadabilitySettings?.fontScale === '150' ||
-          parsedReadabilitySettings?.fontScale === '200'
+            parsedReadabilitySettings?.fontScale === '150'
             ? parsedReadabilitySettings.fontScale
             : '100'
         const contrast =
-          parsedReadabilitySettings?.contrast === 'white-on-black' ||
-          parsedReadabilitySettings?.contrast === 'blue-on-light' ||
-          parsedReadabilitySettings?.contrast === 'brown-on-beige'
+          parsedReadabilitySettings?.contrast === 'white-on-black'
             ? parsedReadabilitySettings.contrast
             : 'black-on-white'
         const lineSpacing =
           parsedReadabilitySettings?.lineSpacing === 'comfortable' ||
-          parsedReadabilitySettings?.lineSpacing === 'spacious'
+            parsedReadabilitySettings?.lineSpacing === 'spacious'
             ? parsedReadabilitySettings.lineSpacing
             : parsedReadabilitySettings?.spacing === 'comfortable' ||
-                parsedReadabilitySettings?.spacing === 'spacious'
+              parsedReadabilitySettings?.spacing === 'spacious'
               ? parsedReadabilitySettings.spacing
-            : 'normal'
+              : 'normal'
 
         document.documentElement.dataset.readabilityMode = enabled ? 'on' : 'off'
         document.documentElement.dataset.readabilityFontScale = fontScale
