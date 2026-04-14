@@ -80,7 +80,11 @@ export const AppListbox = <TValue extends string>({
               'z-30 max-h-72 overflow-auto rounded-xl border border-border/50 bg-surface p-1 shadow-lg outline-none transition duration-150 ease-out [--anchor-gap:0.5rem] data-closed:scale-95 data-closed:opacity-0 dark:border-border/40 dark:bg-surface-dark-1',
               optionsClassName,
             )}
-            style={{ width: 'var(--button-width)' }}
+            style={{
+              minWidth: 'var(--button-width)',
+              width: 'max-content',
+              maxWidth: 'min(24rem, calc(100vw - 2rem))',
+            }}
           >
             {options.map((option) => (
               <ListboxOption key={option.value} value={option.value} disabled={option.disabled}>
@@ -102,9 +106,11 @@ export const AppListbox = <TValue extends string>({
                       )}
                     />
                     <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium">{option.label}</div>
+                      <div className="font-medium whitespace-nowrap">{option.label}</div>
                       {option.description ? (
-                        <div className="mt-0.5 text-xs text-muted">{option.description}</div>
+                        <div className="mt-0.5 text-xs text-muted whitespace-normal">
+                          {option.description}
+                        </div>
                       ) : null}
                     </div>
                   </div>

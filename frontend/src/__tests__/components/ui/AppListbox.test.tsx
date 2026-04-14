@@ -63,4 +63,19 @@ describe('AppListbox', () => {
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
     });
   });
+
+  it('sizes the options panel to fit content without shrinking below the trigger', async () => {
+    const user = userEvent.setup();
+
+    render(<AppListboxHarness />);
+
+    await user.click(screen.getByLabelText(/sort galleries by/i));
+
+    const listbox = screen.getByRole('listbox');
+    const style = listbox.getAttribute('style') ?? '';
+    expect(style).toContain('min-width: var(--button-width);');
+    expect(style).toContain('width: max-content;');
+    const optionLabels = screen.getAllByText('Date created');
+    expect(optionLabels.at(-1)).toHaveClass('whitespace-nowrap');
+  });
 });

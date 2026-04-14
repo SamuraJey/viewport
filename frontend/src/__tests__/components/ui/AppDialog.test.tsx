@@ -37,6 +37,8 @@ describe('AppDialog', () => {
     await user.click(screen.getByRole('button', { name: /open dialog/i }));
 
     const dialog = await screen.findByRole('dialog', { name: /test dialog/i });
+    const panel = dialog.querySelector('[id^="headlessui-dialog-panel"]');
+    expect(panel).toHaveClass('max-w-lg');
 
     const backdrop = dialog.querySelector('[aria-hidden="true"]');
     expect(backdrop).not.toBeNull();

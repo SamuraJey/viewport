@@ -122,9 +122,12 @@ export const AppDialog = ({
           containerClassName,
         )}
       >
-        <DialogPanel {...panelAttributes} className={cn('w-full', panelPropsClassName)}>
+        <DialogPanel
+          {...panelAttributes}
+          className={cn('mx-auto w-full', sizeClassName, panelPropsClassName)}
+        >
           <motion.div
-            className={cn('relative mx-auto w-full', sizeClassName, panelClassName)}
+            className={cn('relative w-full', panelClassName)}
             initial={{ opacity: 0, scale: 0.96, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
