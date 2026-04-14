@@ -425,19 +425,19 @@ body {
   outline-offset: var(--readability-focus-ring-offset);
 }
 
-html[data-readability-font-scale='125'] {
+html[data-readability-mode='on'][data-readability-font-scale='125'] {
   --readability-font-scale-factor: 1.25;
 }
 
-html[data-readability-font-scale='150'] {
+html[data-readability-mode='on'][data-readability-font-scale='150'] {
   --readability-font-scale-factor: 1.5;
 }
 
-html[data-readability-line-spacing='comfortable'] {
+html[data-readability-mode='on'][data-readability-line-spacing='comfortable'] {
   --readability-line-height: 1.75;
 }
 
-html[data-readability-line-spacing='spacious'] {
+html[data-readability-mode='on'][data-readability-line-spacing='spacious'] {
   --readability-line-height: 2;
 }
 
