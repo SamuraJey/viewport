@@ -11,7 +11,7 @@ interface AppPopoverProps {
   buttonContent: ReactNode | ((open: boolean) => ReactNode);
   buttonRef?: RefObject<HTMLButtonElement | null>;
   panelClassName?: string;
-  panel: ReactNode | ((close: () => void) => ReactNode);
+  panel: ReactNode;
   anchor?: PopoverAnchor;
 }
 
@@ -25,7 +25,7 @@ export const AppPopover = ({
   anchor = 'bottom end',
 }: AppPopoverProps) => (
   <Popover className={className}>
-    {({ open, close }) => (
+    {({ open }) => (
       <>
         <PopoverButton
           ref={buttonRef}
@@ -49,7 +49,7 @@ export const AppPopover = ({
                 exit={{ opacity: 0, scale: 0.96, y: -4 }}
                 transition={{ duration: 0.16, ease: 'easeOut' }}
               >
-                {typeof panel === 'function' ? panel(close) : panel}
+                {panel}
               </motion.div>
             </PopoverPanel>
           ) : null}

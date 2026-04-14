@@ -20,6 +20,8 @@ type DataAttributes = {
   [key in `data-${string}`]?: string | number | boolean | undefined;
 };
 
+const CLOSE_GUARD_MS = 200;
+
 interface AppDialogProps extends PropsWithChildren {
   open: boolean;
   onClose: () => void;
@@ -47,8 +49,7 @@ export const AppDialog = ({
   children,
 }: AppDialogProps) => {
   const { className: panelPropsClassName, ...panelAttributes } = panelProps ?? {};
-  const ignoreCloseRef = useRef(false);
-  const openedAtRef = useRef(0);
+  const openedAtRef = useRef<number | null>(null);
   const wasOpenRef = useRef(false);
   const sizeClassName =
     size === 'sm'
@@ -63,37 +64,30 @@ export const AppDialog = ({
               ? 'max-w-5xl'
               : 'max-w-lg';
 
-  if (open && !wasOpenRef.current) {
-    ignoreCloseRef.current = true;
-    openedAtRef.current = Date.now();
-  }
-
   useLayoutEffect(() => {
+    const wasOpen = wasOpenRef.current;
     wasOpenRef.current = open;
 
     if (!open) {
-      ignoreCloseRef.current = false;
+      openedAtRef.current = null;
       return;
     }
 
-    const timeoutId = window.setTimeout(() => {
-      ignoreCloseRef.current = false;
-    }, 200);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-      ignoreCloseRef.current = false;
-    };
+    if (!wasOpen) {
+      openedAtRef.current = Date.now();
+    }
   }, [open]);
 
   const handleClose = () => {
-    if (ignoreCloseRef.current || Date.now() - openedAtRef.current < 200) {
+    if (!canClose) {
       return;
     }
 
-    if (canClose) {
-      onClose();
+    if (openedAtRef.current !== null && Date.now() - openedAtRef.current < CLOSE_GUARD_MS) {
+      return;
     }
+
+    onClose();
   };
 
   if (!open) {

@@ -19,8 +19,13 @@ interface SortOption {
   label: string;
 }
 
-const DEFAULT_PRIVATE_SORT: SortOption['value'] = 'uploaded_at:desc';
-const DEFAULT_PUBLIC_SORT: SortOption['value'] = 'original_filename:asc';
+const OPEN_PUBLIC_SORT_EVENT = 'gallery:open-public-sort';
+const DEFAULT_PRIVATE_SORT_STATE = { sortBy: 'uploaded_at', sortOrder: 'desc' } as const;
+const DEFAULT_PUBLIC_SORT_STATE = { sortBy: 'original_filename', sortOrder: 'asc' } as const;
+const toSortValue = ({ sortBy, sortOrder }: { sortBy: GalleryPhotoSortBy; sortOrder: SortOrder }) =>
+  `${sortBy}:${sortOrder}` as SortOption['value'];
+const DEFAULT_PRIVATE_SORT = toSortValue(DEFAULT_PRIVATE_SORT_STATE);
+const DEFAULT_PUBLIC_SORT = toSortValue(DEFAULT_PUBLIC_SORT_STATE);
 
 const SORT_OPTIONS: SortOption[] = [
   { value: 'original_filename:asc', label: 'Filename (A to Z)' },
@@ -96,7 +101,7 @@ export const GalleryHeader = ({
   const activeSortLabel =
     SORT_OPTIONS.find((option) => option.value === activeSortValue)?.label ||
     SORT_OPTIONS.find((option) => option.value === DEFAULT_PRIVATE_SORT)!.label;
-  const hasActiveFilters = activePublicSortValue !== DEFAULT_PUBLIC_SORT;
+  const hasCustomPublicSort = activePublicSortValue !== DEFAULT_PUBLIC_SORT;
   const isDefaultPrivateSort = activeSortValue === DEFAULT_PRIVATE_SORT;
 
   useLayoutEffect(() => {
@@ -147,10 +152,10 @@ export const GalleryHeader = ({
       filtersButtonRef.current?.click();
     };
 
-    window.addEventListener('gallery:open-public-sort', handleOpenPublicSort as EventListener);
+    window.addEventListener(OPEN_PUBLIC_SORT_EVENT, handleOpenPublicSort as EventListener);
 
     return () => {
-      window.removeEventListener('gallery:open-public-sort', handleOpenPublicSort as EventListener);
+      window.removeEventListener(OPEN_PUBLIC_SORT_EVENT, handleOpenPublicSort as EventListener);
     };
   }, []);
 
@@ -245,12 +250,7 @@ export const GalleryHeader = ({
                 <select
                   value={activeSortValue}
                   onChange={(event) =>
-                    onSortChange(
-                      parseSortValue(event.target.value, {
-                        sortBy: 'uploaded_at',
-                        sortOrder: 'desc',
-                      }),
-                    )
+                    onSortChange(parseSortValue(event.target.value, DEFAULT_PRIVATE_SORT_STATE))
                   }
                   className="h-full w-full cursor-pointer appearance-none bg-transparent pl-2 pr-7 text-sm font-semibold text-text scheme-light focus:outline-hidden dark:scheme-dark"
                   aria-label="Sort photos"
@@ -272,7 +272,7 @@ export const GalleryHeader = ({
                 buttonRef={filtersButtonRef}
                 buttonClassName={(open) =>
                   `inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0 ${
-                    open || hasActiveFilters
+                    open || hasCustomPublicSort
                       ? 'border-accent/45 bg-accent/10 text-accent'
                       : 'border-border/40 bg-surface text-text hover:border-accent/40 hover:text-accent dark:border-border/30 dark:bg-surface-dark-2'
                   }`
@@ -287,7 +287,7 @@ export const GalleryHeader = ({
                   </>
                 )}
                 panelClassName="w-80 rounded-2xl border border-border/50 bg-surface p-4 shadow-lg dark:border-border/40 dark:bg-surface-dark-1"
-                panel={() => (
+                panel={
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <label
@@ -303,10 +303,7 @@ export const GalleryHeader = ({
                           value={activePublicSortValue}
                           onChange={(event) =>
                             onPublicSortChange(
-                              parseSortValue(event.target.value, {
-                                sortBy: 'original_filename',
-                                sortOrder: 'asc',
-                              }),
+                              parseSortValue(event.target.value, DEFAULT_PUBLIC_SORT_STATE),
                             )
                           }
                           className="h-full w-full cursor-pointer appearance-none bg-transparent pl-2 pr-6 text-sm font-semibold text-text scheme-light focus:outline-hidden dark:scheme-dark"
@@ -332,7 +329,7 @@ export const GalleryHeader = ({
 
                     <p className="text-xs text-muted">Changes are applied automatically.</p>
                   </div>
-                )}
+                }
               />
             </div>
           </div>

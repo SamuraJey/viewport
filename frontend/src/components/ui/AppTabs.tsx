@@ -4,7 +4,6 @@ import { cn } from '../../lib/utils';
 
 interface AppTabRenderState {
   selected: boolean;
-  hover: boolean;
   disabled: boolean;
 }
 
@@ -60,8 +59,8 @@ export const AppTabs = <TKey extends string>({
 
           return (
             <Tab key={item.key} as={Fragment} disabled={item.disabled} {...tabProps}>
-              {({ selected, hover, disabled }) => {
-                const state = { selected, hover, disabled };
+              {({ selected, disabled }) => {
+                const state = { selected, disabled };
 
                 return (
                   <button
