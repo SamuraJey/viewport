@@ -399,7 +399,7 @@ html.dark {
 }
 
 html {
-  font-size: calc(16px * var(--readability-font-scale-factor));
+  font-size: calc(100% * var(--readability-font-scale-factor));
 }
 
 body {

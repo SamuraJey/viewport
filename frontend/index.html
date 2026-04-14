@@ -62,10 +62,7 @@
           parsedReadabilitySettings?.lineSpacing === 'comfortable' ||
             parsedReadabilitySettings?.lineSpacing === 'spacious'
             ? parsedReadabilitySettings.lineSpacing
-            : parsedReadabilitySettings?.spacing === 'comfortable' ||
-              parsedReadabilitySettings?.spacing === 'spacious'
-              ? parsedReadabilitySettings.spacing
-              : 'normal'
+            : 'normal'
 
         document.documentElement.dataset.readabilityMode = enabled ? 'on' : 'off'
         document.documentElement.dataset.readabilityFontScale = fontScale

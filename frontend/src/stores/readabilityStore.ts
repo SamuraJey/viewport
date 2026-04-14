@@ -38,10 +38,8 @@ const isFontScale = (value: unknown): value is ReadabilityFontScale =>
 const normalizeContrast = (value: unknown): ReadabilityContrast | null => {
   switch (value) {
     case 'black-on-white':
-    case 'black-white':
       return 'black-on-white';
     case 'white-on-black':
-    case 'white-black':
       return 'white-on-black';
     default:
       return null;
@@ -53,7 +51,6 @@ const normalizeLineSpacing = (value: unknown): ReadabilityLineSpacing | null => 
     case 'normal':
       return 'normal';
     case 'comfortable':
-    case 'relaxed':
       return 'comfortable';
     case 'spacious':
       return 'spacious';
@@ -68,26 +65,18 @@ const parseStoredSettings = (): ReadabilitySettings => {
   }
 
   try {
-    const raw =
-      window.localStorage.getItem(READABILITY_STORAGE_KEY) ??
-      window.localStorage.getItem('readability-settings');
+    const raw = window.localStorage.getItem(READABILITY_STORAGE_KEY);
     if (!raw) {
       return DEFAULT_SETTINGS;
     }
 
-    const parsed = JSON.parse(raw) as Partial<
-      ReadabilitySettings & {
-        spacing?: ReadabilityLineSpacing;
-        lineSpacing?: ReadabilityLineSpacing;
-      }
-    >;
+    const parsed = JSON.parse(raw) as Partial<ReadabilitySettings>;
 
     return {
       enabled: parsed.enabled === true,
       fontScale: isFontScale(parsed.fontScale) ? parsed.fontScale : DEFAULT_SETTINGS.fontScale,
       contrast: normalizeContrast(parsed.contrast) ?? DEFAULT_SETTINGS.contrast,
-      lineSpacing:
-        normalizeLineSpacing(parsed.lineSpacing ?? parsed.spacing) ?? DEFAULT_SETTINGS.lineSpacing,
+      lineSpacing: normalizeLineSpacing(parsed.lineSpacing) ?? DEFAULT_SETTINGS.lineSpacing,
     };
   } catch {
     return DEFAULT_SETTINGS;

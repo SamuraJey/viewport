@@ -22,6 +22,7 @@ interface AppTabsProps<TKey extends string> {
   items: AppTabItem<TKey>[];
   selectedKey: TKey;
   onChange: (key: TKey) => void;
+  preserveInactivePanels?: boolean;
   className?: string;
   listClassName?: string;
   panelsClassName?: string;
@@ -32,6 +33,7 @@ export const AppTabs = <TKey extends string>({
   items,
   selectedKey,
   onChange,
+  preserveInactivePanels = false,
   className,
   listClassName,
   panelsClassName,
@@ -64,6 +66,7 @@ export const AppTabs = <TKey extends string>({
 
                 return (
                   <button
+                    type="button"
                     className={cn(
                       typeof item.tabClassName === 'function'
                         ? item.tabClassName(state)
@@ -85,7 +88,7 @@ export const AppTabs = <TKey extends string>({
             key={item.key}
             id={item.panelId}
             className={cn(defaultPanelClassName, item.panelClassName)}
-            unmount={false}
+            unmount={!preserveInactivePanels}
           >
             {item.panel}
           </TabPanel>

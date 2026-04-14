@@ -60,4 +60,28 @@ describe('readabilityStore', () => {
       lineSpacing: 'spacious',
     });
   });
+
+  it('ignores legacy readability storage formats during hydration', () => {
+    window.localStorage.setItem(
+      'readability-settings',
+      JSON.stringify({
+        enabled: true,
+        contrast: 'white-black',
+        fontScale: '150',
+        spacing: 'comfortable',
+      }),
+    );
+
+    act(() => {
+      useReadabilityStore.getState().hydrate();
+    });
+
+    expect(useReadabilityStore.getState()).toMatchObject({
+      enabled: false,
+      contrast: 'black-on-white',
+      fontScale: '100',
+      lineSpacing: 'normal',
+      isHydrated: true,
+    });
+  });
 });
