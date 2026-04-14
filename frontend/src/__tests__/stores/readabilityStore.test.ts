@@ -61,6 +61,19 @@ describe('readabilityStore', () => {
     });
   });
 
+  it('keeps the UI working when localStorage persistence throws', () => {
+    vi.mocked(window.localStorage.setItem).mockImplementationOnce(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    });
+
+    act(() => {
+      useReadabilityStore.getState().setEnabled(true);
+    });
+
+    expect(useReadabilityStore.getState().enabled).toBe(true);
+    expect(document.documentElement.dataset.readabilityMode).toBe('on');
+  });
+
   it('ignores legacy readability storage formats during hydration', () => {
     window.localStorage.setItem(
       'readability-settings',

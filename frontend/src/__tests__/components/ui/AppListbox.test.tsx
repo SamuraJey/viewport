@@ -38,9 +38,11 @@ describe('AppListbox', () => {
     render(<AppListboxHarness onChange={handleChange} />);
 
     await user.click(screen.getByLabelText(/sort galleries by/i));
-    await user.click(screen.getByRole('option', { name: /name/i }));
+    await user.click(screen.getAllByText('Name').at(-1)!);
 
-    expect(handleChange).toHaveBeenCalledWith('name');
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith('name');
+    });
     expect(screen.getByLabelText(/sort galleries by/i)).toHaveTextContent('Name');
   });
 

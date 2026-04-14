@@ -5,6 +5,21 @@ import { cn } from '../../lib/utils';
 
 type PopoverAnchor = ComponentProps<typeof PopoverPanel>['anchor'];
 
+const panelVariants = {
+  closed: {
+    opacity: 0,
+    scale: 0.96,
+    y: -4,
+    transition: { duration: 0.16, ease: 'easeOut' as const },
+  },
+  open: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { duration: 0.16, ease: 'easeOut' as const },
+  },
+};
+
 interface AppPopoverProps {
   className?: string;
   buttonClassName?: string | ((open: boolean) => string);
@@ -40,17 +55,15 @@ export const AppPopover = ({
           {open ? (
             <PopoverPanel
               static
+              as={motion.div}
               anchor={anchor}
               className={cn('z-20 origin-top-right', panelClassName)}
+              variants={panelVariants}
+              initial="closed"
+              animate="open"
+              exit="closed"
             >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.96, y: -4 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.96, y: -4 }}
-                transition={{ duration: 0.16, ease: 'easeOut' }}
-              >
-                {panel}
-              </motion.div>
+              {panel}
             </PopoverPanel>
           ) : null}
         </AnimatePresence>

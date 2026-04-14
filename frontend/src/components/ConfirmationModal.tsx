@@ -68,6 +68,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = React.memo(
             </AppDialogTitle>
           </div>
           <button
+            type="button"
             onClick={handleClose}
             disabled={isLoading}
             aria-label="Close confirmation dialog"
@@ -85,14 +86,16 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = React.memo(
 
         <div className="flex items-center justify-end gap-3 p-6 border-t border-border bg-surface-1/50 dark:bg-surface-dark-1/50">
           <button
+            type="button"
             ref={cancelButtonRef}
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isLoading}
             className="px-5 py-2.5 text-text dark:text-text bg-surface-1 dark:bg-surface-dark-1 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-xl border border-border dark:border-border/40 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 font-medium"
           >
             {cancelText}
           </button>
           <button
+            type="button"
             onClick={handleConfirm}
             disabled={isLoading}
             className={`flex items-center gap-2 px-5 py-2.5 text-white rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none disabled:opacity-60 font-medium ${

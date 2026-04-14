@@ -100,7 +100,11 @@ const persistReadabilitySettings = (settings: ReadabilitySettings) => {
     return;
   }
 
-  window.localStorage.setItem(READABILITY_STORAGE_KEY, JSON.stringify(settings));
+  try {
+    window.localStorage.setItem(READABILITY_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // Readability preferences should not break the UI when storage is unavailable.
+  }
 };
 
 const initialSettings = parseStoredSettings();

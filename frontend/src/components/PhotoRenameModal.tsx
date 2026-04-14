@@ -90,6 +90,7 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
             </AppDialogTitle>
           </div>
           <button
+            type="button"
             onClick={handleCancel}
             disabled={isRenaming}
             aria-label="Close rename photo dialog"
@@ -118,6 +119,17 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
                   type="text"
                   value={nameWithoutExtension}
                   onChange={(e) => setNameWithoutExtension(e.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      if (!isRenaming) {
+                        void handleRename();
+                      }
+                    } else if (event.key === 'Escape') {
+                      event.preventDefault();
+                      handleCancel();
+                    }
+                  }}
                   disabled={isRenaming}
                   className="flex-1 px-3 py-2 border border-border dark:border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-accent dark:bg-surface-foreground dark:text-accent-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="Enter new filename"
@@ -136,6 +148,7 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
 
         <div className="flex items-center justify-end gap-3 p-6 border-t border-border bg-surface-1/50 dark:bg-surface-dark-1/50">
           <button
+            type="button"
             onClick={handleCancel}
             disabled={isRenaming}
             className="px-5 py-2.5 text-text dark:text-muted bg-surface-1 dark:bg-surface-dark-1 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-xl border border-border dark:border-border/40 shadow-sm transition-all duration-200 disabled:opacity-50 font-medium"
@@ -143,6 +156,7 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
             Cancel
           </button>
           <button
+            type="button"
             onClick={handleRename}
             disabled={
               isRenaming ||

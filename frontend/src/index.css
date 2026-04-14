@@ -425,6 +425,11 @@ body {
   outline-offset: var(--readability-focus-ring-offset);
 }
 
+:where(main[id='main-content'], [id='main-content'][tabindex='-1']):focus-visible {
+  outline: var(--readability-focus-ring-width) solid rgb(var(--readability-focus-ring-rgb));
+  outline-offset: var(--readability-focus-ring-offset);
+}
+
 html[data-readability-mode='on'][data-readability-font-scale='125'] {
   --readability-font-scale-factor: 1.25;
 }
