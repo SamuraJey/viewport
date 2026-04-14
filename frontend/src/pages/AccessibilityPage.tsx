@@ -90,8 +90,8 @@ export const AccessibilityPage = () => {
               interface.
             </p>
             <ul className="mt-4 space-y-3 text-sm text-text">
-              <li>• Font scale presets: 100%, 125%, 150%, 200%</li>
-              <li>• Contrast themes: black/white, white/black, blue/cyan, brown/beige</li>
+              <li>• Font scale presets: 100%, 125%, 150%</li>
+              <li>• Contrast themes: black/white and white/black</li>
               <li>• Spacing presets for more comfortable line-height</li>
               <li>• Larger key controls and stronger focus styling while the mode is active</li>
             </ul>

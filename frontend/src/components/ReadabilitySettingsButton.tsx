@@ -16,11 +16,9 @@ interface ReadabilitySettingsButtonProps {
 const contrastOptions: { value: ReadabilityContrast; label: string }[] = [
   { value: 'black-on-white', label: 'Black on white' },
   { value: 'white-on-black', label: 'White on black' },
-  { value: 'blue-on-light', label: 'Dark blue on light blue' },
-  { value: 'brown-on-beige', label: 'Brown on beige' },
 ];
 
-const fontScaleOptions: ReadabilityFontScale[] = ['100', '125', '150', '200'];
+const fontScaleOptions: ReadabilityFontScale[] = ['100', '125', '150'];
 const lineSpacingOptions: { value: ReadabilityLineSpacing; label: string }[] = [
   { value: 'normal', label: 'Normal' },
   { value: 'comfortable', label: 'Relaxed' },

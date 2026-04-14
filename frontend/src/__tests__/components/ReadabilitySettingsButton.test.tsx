@@ -38,7 +38,7 @@ describe('ReadabilitySettingsButton', () => {
     expect(document.body.contains(dialog)).toBe(true);
   });
 
-  it('applies blue and beige contrast presets immediately', async () => {
+  it('applies the remaining contrast preset immediately', async () => {
     const user = userEvent.setup();
 
     render(
@@ -51,20 +51,15 @@ describe('ReadabilitySettingsButton', () => {
     const dialog = await screen.findByRole('dialog', { name: /low-vision mode/i });
 
     await user.click(screen.getByRole('switch', { name: /enable low-vision mode/i }));
-    await user.click(within(dialog).getByRole('button', { name: /dark blue on light blue/i }));
+    await user.click(within(dialog).getByRole('button', { name: /white on black/i }));
 
     expect(document.documentElement.dataset.readabilityMode).toBe('on');
-    expect(document.documentElement.dataset.readabilityContrast).toBe('blue-on-light');
-
-    await user.click(within(dialog).getByRole('button', { name: /brown on beige/i }));
-
-    expect(document.documentElement.dataset.readabilityMode).toBe('on');
-    expect(document.documentElement.dataset.readabilityContrast).toBe('brown-on-beige');
+    expect(document.documentElement.dataset.readabilityContrast).toBe('white-on-black');
 
     const latestPersistenceCall = vi.mocked(window.localStorage.setItem).mock.calls.at(-1);
     expect(JSON.parse(latestPersistenceCall?.[1] || '{}')).toMatchObject({
       enabled: true,
-      contrast: 'brown-on-beige',
+      contrast: 'white-on-black',
     });
   });
 

@@ -1,11 +1,7 @@
 import { create } from 'zustand';
 
-export type ReadabilityFontScale = '100' | '125' | '150' | '200';
-export type ReadabilityContrast =
-  | 'black-on-white'
-  | 'white-on-black'
-  | 'blue-on-light'
-  | 'brown-on-beige';
+export type ReadabilityFontScale = '100' | '125' | '150';
+export type ReadabilityContrast = 'black-on-white' | 'white-on-black';
 export type ReadabilityLineSpacing = 'normal' | 'comfortable' | 'spacious';
 
 export interface ReadabilitySettings {
@@ -37,7 +33,7 @@ const DEFAULT_SETTINGS: ReadabilitySettings = {
 };
 
 const isFontScale = (value: unknown): value is ReadabilityFontScale =>
-  value === '100' || value === '125' || value === '150' || value === '200';
+  value === '100' || value === '125' || value === '150';
 
 const normalizeContrast = (value: unknown): ReadabilityContrast | null => {
   switch (value) {
@@ -47,12 +43,6 @@ const normalizeContrast = (value: unknown): ReadabilityContrast | null => {
     case 'white-on-black':
     case 'white-black':
       return 'white-on-black';
-    case 'blue-on-light':
-    case 'blue-cyan':
-      return 'blue-on-light';
-    case 'brown-on-beige':
-    case 'brown-beige':
-      return 'brown-on-beige';
     default:
       return null;
   }
