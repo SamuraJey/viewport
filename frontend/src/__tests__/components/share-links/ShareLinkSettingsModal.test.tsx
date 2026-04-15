@@ -17,7 +17,9 @@ const createdLink: ShareLink = {
 };
 
 describe('ShareLinkSettingsModal', () => {
-  it('renders the complete creation setup before creating a link', () => {
+  it('renders logical setup tabs before creating a link', async () => {
+    const user = userEvent.setup();
+
     render(
       <ShareLinkSettingsModal
         isOpen
@@ -29,11 +31,21 @@ describe('ShareLinkSettingsModal', () => {
     );
 
     const dialog = screen.getByRole('dialog', { name: /create share link/i });
+    expect(within(dialog).getByRole('tab', { name: /link/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('tab', { name: /access/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('tab', { name: /selection/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('tab', { name: /review/i })).toBeInTheDocument();
     expect(within(dialog).getByText('Link identity')).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('tab', { name: /access/i }));
     expect(within(dialog).getByText('Availability')).toBeInTheDocument();
     expect(within(dialog).getAllByText('Expiration')[0]).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('tab', { name: /selection/i }));
     expect(within(dialog).getByText('Client photo selection')).toBeInTheDocument();
-    expect(within(dialog).getByText('Review')).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('tab', { name: /review/i }));
+    expect(within(dialog).getAllByText('Review')[0]).toBeInTheDocument();
   });
 
   it('creates an active no-expiration link by submitting the visible setup', async () => {
@@ -77,6 +89,7 @@ describe('ShareLinkSettingsModal', () => {
       />,
     );
 
+    await user.click(screen.getByRole('tab', { name: /access/i }));
     await user.click(screen.getByRole('button', { name: /create paused/i }));
     await user.click(screen.getByRole('button', { name: /create link/i }));
 
@@ -105,6 +118,7 @@ describe('ShareLinkSettingsModal', () => {
       />,
     );
 
+    await user.click(screen.getByRole('tab', { name: /selection/i }));
     await user.click(screen.getByRole('switch', { name: /enable client photo selection/i }));
     await user.click(screen.getByRole('button', { name: /create link/i }));
 

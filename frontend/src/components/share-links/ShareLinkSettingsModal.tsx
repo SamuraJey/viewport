@@ -4,10 +4,14 @@ import {
   Check,
   Copy,
   ExternalLink,
+  FileText,
   Loader2,
   PencilLine,
   Share2,
   SlidersHorizontal,
+  Sparkles,
+  Timer,
+  Users,
   X,
 } from 'lucide-react';
 import type {
@@ -17,11 +21,12 @@ import type {
   ShareLinkUpdateRequest,
 } from '../../types';
 import { copyTextToClipboard } from '../../lib/clipboard';
-import { AppDialog, AppDialogDescription, AppDialogTitle, AppSwitch } from '../ui';
+import { AppDialog, AppDialogDescription, AppDialogTitle, AppSwitch, AppTabs } from '../ui';
 import { formatUtcDateTimeInputValue, parseUtcDateTimeInputValue } from './shareLinkDateTime';
 
 type ShareLinkSettingsMode = 'create' | 'edit';
 type TtlPreset = 'none' | '24h' | '7d' | '30d' | 'custom';
+type SettingsTabId = 'link' | 'access' | 'selection' | 'review';
 
 interface EditableShareLink {
   id: string;
@@ -63,6 +68,18 @@ const TTL_OPTIONS: { value: TtlPreset; label: string; description: string }[] = 
   { value: '7d', label: '7 days', description: 'Client delivery default' },
   { value: '30d', label: '30 days', description: 'Longer campaign access' },
   { value: 'custom', label: 'Custom date', description: 'Pick an exact UTC time' },
+];
+
+const SETTINGS_TABS: {
+  id: SettingsTabId;
+  label: string;
+  Icon: typeof FileText;
+  createOnly?: boolean;
+}[] = [
+  { id: 'link', label: 'Link', Icon: FileText },
+  { id: 'access', label: 'Access', Icon: Timer },
+  { id: 'selection', label: 'Selection', Icon: Users, createOnly: true },
+  { id: 'review', label: 'Review', Icon: Sparkles },
 ];
 
 const DEFAULT_SELECTION_DRAFT: SelectionSettingsDraft = {
@@ -155,6 +172,7 @@ export const ShareLinkSettingsModal = ({
   const [error, setError] = useState('');
   const [selectionSaveError, setSelectionSaveError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState<SettingsTabId>('link');
   const labelInputRef = useRef<HTMLInputElement>(null);
   const copyButtonRef = useRef<HTMLButtonElement>(null);
   const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -178,6 +196,7 @@ export const ShareLinkSettingsModal = ({
     setCopied(false);
     setCreatedLink(null);
     setSelectionDraft(DEFAULT_SELECTION_DRAFT);
+    setActiveTab('link');
 
     if (mode === 'edit' && link) {
       setLabel(link.label ?? '');
@@ -370,6 +389,295 @@ export const ShareLinkSettingsModal = ({
         : 'Set up public access before creating the link'
       : 'Update label, availability, and expiration';
 
+  const linkPanel = (
+    <section className="space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold text-text">Link identity</h3>
+        <p className="text-xs text-muted">Used internally to recognize this share link.</p>
+      </div>
+      <input
+        ref={labelInputRef}
+        id="share-link-label"
+        type="text"
+        aria-label="Share link internal label"
+        value={label}
+        onChange={(event) => setLabel(event.target.value)}
+        maxLength={127}
+        placeholder="Client proofing"
+        className="w-full rounded-xl border border-border/50 bg-surface-1 px-3 py-2.5 text-sm text-text outline-none transition-colors placeholder:text-muted focus:border-accent dark:bg-surface-dark-1"
+        disabled={isSaving}
+      />
+      <div className="rounded-2xl border border-border/50 bg-surface-1 px-4 py-4 dark:bg-surface-dark-1">
+        <p className="text-xs font-semibold uppercase text-muted">Current label</p>
+        <p className="mt-1 text-sm font-semibold text-text">
+          {normalizedLabel || 'Untitled share link'}
+        </p>
+      </div>
+    </section>
+  );
+
+  const accessPanel = (
+    <div className="space-y-5">
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-text">Availability</h3>
+          <p className="text-xs text-muted">Choose whether the public URL works immediately.</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {[
+            {
+              value: true,
+              label: mode === 'create' ? 'Active on create' : 'Active',
+              description: 'Visitors can open the link immediately.',
+            },
+            {
+              value: false,
+              label: mode === 'create' ? 'Create paused' : 'Paused',
+              description: 'Public access stays hidden until you activate it.',
+            },
+          ].map((option) => (
+            <button
+              key={option.label}
+              type="button"
+              onClick={() => setIsActive(option.value)}
+              disabled={isSaving}
+              className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                isActive === option.value
+                  ? 'border-accent bg-accent/10 text-text'
+                  : 'border-border/50 bg-surface-1 text-text hover:border-accent/40'
+              }`}
+            >
+              <span className="block text-sm font-semibold">{option.label}</span>
+              <span className="mt-1 block text-xs text-muted">{option.description}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-text">Expiration</h3>
+          <p className="text-xs text-muted">TTL is stored in UTC.</p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          {TTL_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setTtlPreset(option.value)}
+              disabled={isSaving}
+              className={`rounded-xl border px-3 py-3 text-left transition-colors ${
+                ttlPreset === option.value
+                  ? 'border-accent bg-accent/10 text-text'
+                  : 'border-border/50 bg-surface-1 text-text hover:border-accent/40'
+              }`}
+            >
+              <span className="block text-sm font-semibold">{option.label}</span>
+              <span className="mt-1 block text-xs text-muted">{option.description}</span>
+            </button>
+          ))}
+        </div>
+        {ttlPreset === 'custom' ? (
+          <div className="space-y-2">
+            <label htmlFor="share-link-expiration" className="text-xs font-semibold text-text">
+              Custom expiration
+            </label>
+            <div className="relative">
+              <CalendarClock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+              <input
+                id="share-link-expiration"
+                type="datetime-local"
+                value={customExpiresAt}
+                onChange={(event) => setCustomExpiresAt(event.target.value)}
+                className="w-full rounded-xl border border-border/50 bg-surface-1 py-2.5 pl-9 pr-3 text-sm text-text outline-none transition-colors focus:border-accent dark:bg-surface-dark-1"
+                disabled={isSaving}
+              />
+            </div>
+          </div>
+        ) : null}
+      </section>
+    </div>
+  );
+
+  const selectionPanel = (
+    <section className="space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold text-text">Client photo selection</h3>
+        <p className="text-xs text-muted">
+          Configure favorites collection before sharing the link.
+        </p>
+      </div>
+
+      <div className="space-y-3 rounded-2xl border border-border/50 bg-surface-1 px-4 py-4 dark:bg-surface-dark-1">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-text">Enable selection</p>
+            <p className="text-xs text-muted">Clients can start a favorites list.</p>
+          </div>
+          <AppSwitch
+            checked={selectionDraft.is_enabled}
+            onChange={(checked) => setSelectionDraft((prev) => ({ ...prev, is_enabled: checked }))}
+            disabled={isSaving}
+            aria-label="Enable client photo selection"
+            className={SETTINGS_SWITCH_CLASS}
+            thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+          />
+        </div>
+
+        <label className="block space-y-1.5 text-sm">
+          <span className="font-semibold text-text">List title</span>
+          <input
+            value={selectionDraft.list_title}
+            onChange={(event) =>
+              setSelectionDraft((prev) => ({
+                ...prev,
+                list_title: event.target.value,
+              }))
+            }
+            maxLength={127}
+            className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm text-text outline-none focus:border-accent"
+            disabled={isSaving}
+          />
+        </label>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-border/50 bg-surface px-3 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-text">Limit selections</p>
+                <p className="text-xs text-muted">Set a maximum photo count.</p>
+              </div>
+              <AppSwitch
+                checked={selectionDraft.limit_enabled}
+                onChange={(checked) =>
+                  setSelectionDraft((prev) => ({ ...prev, limit_enabled: checked }))
+                }
+                disabled={isSaving}
+                aria-label="Limit selection count"
+                className={SETTINGS_SWITCH_CLASS}
+                thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+              />
+            </div>
+            {selectionDraft.limit_enabled ? (
+              <input
+                type="number"
+                min={1}
+                value={selectionDraft.limit_value}
+                onChange={(event) =>
+                  setSelectionDraft((prev) => ({
+                    ...prev,
+                    limit_value: event.target.value,
+                  }))
+                }
+                className="mt-3 w-28 rounded-lg border border-border/50 bg-surface-1 px-2 py-1.5 text-sm text-text outline-none focus:border-accent"
+                disabled={isSaving}
+                aria-label="Selection limit"
+              />
+            ) : null}
+          </div>
+
+          <div className="rounded-xl border border-border/50 bg-surface px-3 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-text">Photo comments</p>
+                <p className="text-xs text-muted">Allow notes on selected photos.</p>
+              </div>
+              <AppSwitch
+                checked={selectionDraft.allow_photo_comments}
+                onChange={(checked) =>
+                  setSelectionDraft((prev) => ({
+                    ...prev,
+                    allow_photo_comments: checked,
+                  }))
+                }
+                disabled={isSaving}
+                aria-label="Allow photo comments"
+                className={SETTINGS_SWITCH_CLASS}
+                thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-3">
+          {[
+            ['require_email', 'Require email'],
+            ['require_phone', 'Require phone'],
+            ['require_client_note', 'Require note'],
+          ].map(([key, text]) => (
+            <div
+              key={key}
+              className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm text-text"
+            >
+              <span>{text}</span>
+              <AppSwitch
+                checked={Boolean(selectionDraft[key as keyof SelectionSettingsDraft])}
+                onChange={(checked) => setSelectionDraft((prev) => ({ ...prev, [key]: checked }))}
+                disabled={isSaving}
+                aria-label={text}
+                className={SETTINGS_SWITCH_CLASS}
+                thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+
+  const reviewPanel = (
+    <section className="space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold text-text">Review</h3>
+        <p className="text-xs text-muted">Confirm the public state before saving.</p>
+      </div>
+      <dl className="grid gap-3 text-sm sm:grid-cols-2">
+        <div className="rounded-2xl border border-border/50 bg-surface-1 px-4 py-3 dark:bg-surface-dark-1">
+          <dt className="text-xs font-semibold uppercase text-muted">Label</dt>
+          <dd className="mt-1 text-text">{normalizedLabel || 'Untitled share link'}</dd>
+        </div>
+        <div className="rounded-2xl border border-border/50 bg-surface-1 px-4 py-3 dark:bg-surface-dark-1">
+          <dt className="text-xs font-semibold uppercase text-muted">Public access</dt>
+          <dd className="mt-1 text-text">{isActive ? 'Active' : 'Paused'}</dd>
+        </div>
+        <div className="rounded-2xl border border-border/50 bg-surface-1 px-4 py-3 dark:bg-surface-dark-1">
+          <dt className="text-xs font-semibold uppercase text-muted">Expiration</dt>
+          <dd className="mt-1 text-text">{formatExpirySummary(resolvedExpiresAt)}</dd>
+        </div>
+        <div className="rounded-2xl border border-border/50 bg-surface-1 px-4 py-3 dark:bg-surface-dark-1">
+          <dt className="text-xs font-semibold uppercase text-muted">Selection</dt>
+          <dd className="mt-1 text-text">
+            {showSelectionSettings && selectionDraft.is_enabled ? 'Enabled' : 'Off'}
+          </dd>
+        </div>
+      </dl>
+    </section>
+  );
+
+  const tabItems = SETTINGS_TABS.filter((tab) => !(tab.createOnly && !showSelectionSettings)).map(
+    ({ id, label: tabLabel, Icon }) => ({
+      key: id,
+      tabClassName: ({ selected }: { selected: boolean }) =>
+        `flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset ${
+          selected ? 'border-accent text-accent' : 'border-transparent text-muted hover:text-text'
+        }`,
+      tab: (
+        <>
+          <Icon className="h-4 w-4" />
+          {tabLabel}
+        </>
+      ),
+      panel:
+        id === 'link'
+          ? linkPanel
+          : id === 'access'
+            ? accessPanel
+            : id === 'selection'
+              ? selectionPanel
+              : reviewPanel,
+    }),
+  );
+
   return (
     <AppDialog
       open={isOpen}
@@ -472,260 +780,17 @@ export const ShareLinkSettingsModal = ({
         </div>
       ) : (
         <>
-          <div className="max-h-[calc(100vh-13rem)] space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
-            <section className="space-y-2">
-              <div>
-                <h3 className="text-sm font-semibold text-text">Link identity</h3>
-                <p className="text-xs text-muted">Used internally to recognize this share link.</p>
-              </div>
-              <input
-                ref={labelInputRef}
-                id="share-link-label"
-                type="text"
-                aria-label="Share link internal label"
-                value={label}
-                onChange={(event) => setLabel(event.target.value)}
-                maxLength={127}
-                placeholder="Client proofing"
-                className="w-full rounded-xl border border-border/50 bg-surface-1 px-3 py-2.5 text-sm text-text outline-none transition-colors placeholder:text-muted focus:border-accent dark:bg-surface-dark-1"
-                disabled={isSaving}
-              />
-            </section>
+          <AppTabs
+            items={tabItems}
+            selectedKey={activeTab}
+            onChange={setActiveTab}
+            preserveInactivePanels
+            listClassName="flex shrink-0 gap-1 overflow-x-auto border-b border-border/50 bg-surface/80 px-4 dark:border-border/40 dark:bg-surface-dark/80"
+            panelsClassName="max-h-[calc(100vh-16rem)] overflow-y-auto"
+            defaultPanelClassName="px-5 py-5 sm:px-6"
+          />
 
-            <section className="space-y-3">
-              <div>
-                <h3 className="text-sm font-semibold text-text">Availability</h3>
-                <p className="text-xs text-muted">
-                  Choose whether the public URL works immediately.
-                </p>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {[
-                  {
-                    value: true,
-                    label: 'Active on create',
-                    description: 'Visitors can open the link immediately.',
-                  },
-                  {
-                    value: false,
-                    label: 'Create paused',
-                    description: 'Public access stays hidden until you activate it.',
-                  },
-                ].map((option) => (
-                  <button
-                    key={option.label}
-                    type="button"
-                    onClick={() => setIsActive(option.value)}
-                    disabled={isSaving}
-                    className={`rounded-xl border px-4 py-3 text-left transition-colors ${
-                      isActive === option.value
-                        ? 'border-accent bg-accent/10 text-text'
-                        : 'border-border/50 bg-surface-1 text-text hover:border-accent/40'
-                    }`}
-                  >
-                    <span className="block text-sm font-semibold">{option.label}</span>
-                    <span className="mt-1 block text-xs text-muted">{option.description}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="space-y-3">
-              <div>
-                <h3 className="text-sm font-semibold text-text">Expiration</h3>
-                <p className="text-xs text-muted">TTL is stored in UTC.</p>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                {TTL_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setTtlPreset(option.value)}
-                    disabled={isSaving}
-                    className={`rounded-xl border px-3 py-3 text-left transition-colors ${
-                      ttlPreset === option.value
-                        ? 'border-accent bg-accent/10 text-text'
-                        : 'border-border/50 bg-surface-1 text-text hover:border-accent/40'
-                    }`}
-                  >
-                    <span className="block text-sm font-semibold">{option.label}</span>
-                    <span className="mt-1 block text-xs text-muted">{option.description}</span>
-                  </button>
-                ))}
-              </div>
-              {ttlPreset === 'custom' ? (
-                <div className="space-y-2">
-                  <label
-                    htmlFor="share-link-expiration"
-                    className="text-xs font-semibold text-text"
-                  >
-                    Custom expiration
-                  </label>
-                  <div className="relative">
-                    <CalendarClock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-                    <input
-                      id="share-link-expiration"
-                      type="datetime-local"
-                      value={customExpiresAt}
-                      onChange={(event) => setCustomExpiresAt(event.target.value)}
-                      className="w-full rounded-xl border border-border/50 bg-surface-1 py-2.5 pl-9 pr-3 text-sm text-text outline-none transition-colors focus:border-accent dark:bg-surface-dark-1"
-                      disabled={isSaving}
-                    />
-                  </div>
-                </div>
-              ) : null}
-            </section>
-
-            {showSelectionSettings ? (
-              <section className="space-y-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-text">Client photo selection</h3>
-                  <p className="text-xs text-muted">
-                    Configure favorites collection before sharing the link.
-                  </p>
-                </div>
-
-                <div className="space-y-3 rounded-2xl border border-border/50 bg-surface-1 px-4 py-4 dark:bg-surface-dark-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-text">Enable selection</p>
-                      <p className="text-xs text-muted">Clients can start a favorites list.</p>
-                    </div>
-                    <AppSwitch
-                      checked={selectionDraft.is_enabled}
-                      onChange={(checked) =>
-                        setSelectionDraft((prev) => ({ ...prev, is_enabled: checked }))
-                      }
-                      disabled={isSaving}
-                      aria-label="Enable client photo selection"
-                      className={SETTINGS_SWITCH_CLASS}
-                      thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
-                    />
-                  </div>
-
-                  <label className="block space-y-1.5 text-sm">
-                    <span className="font-semibold text-text">List title</span>
-                    <input
-                      value={selectionDraft.list_title}
-                      onChange={(event) =>
-                        setSelectionDraft((prev) => ({
-                          ...prev,
-                          list_title: event.target.value,
-                        }))
-                      }
-                      maxLength={127}
-                      className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm text-text outline-none focus:border-accent"
-                      disabled={isSaving}
-                    />
-                  </label>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl border border-border/50 bg-surface px-3 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-text">Limit selections</p>
-                          <p className="text-xs text-muted">Set a maximum photo count.</p>
-                        </div>
-                        <AppSwitch
-                          checked={selectionDraft.limit_enabled}
-                          onChange={(checked) =>
-                            setSelectionDraft((prev) => ({ ...prev, limit_enabled: checked }))
-                          }
-                          disabled={isSaving}
-                          aria-label="Limit selection count"
-                          className={SETTINGS_SWITCH_CLASS}
-                          thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
-                        />
-                      </div>
-                      {selectionDraft.limit_enabled ? (
-                        <input
-                          type="number"
-                          min={1}
-                          value={selectionDraft.limit_value}
-                          onChange={(event) =>
-                            setSelectionDraft((prev) => ({
-                              ...prev,
-                              limit_value: event.target.value,
-                            }))
-                          }
-                          className="mt-3 w-28 rounded-lg border border-border/50 bg-surface-1 px-2 py-1.5 text-sm text-text outline-none focus:border-accent"
-                          disabled={isSaving}
-                          aria-label="Selection limit"
-                        />
-                      ) : null}
-                    </div>
-
-                    <div className="rounded-xl border border-border/50 bg-surface px-3 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-text">Photo comments</p>
-                          <p className="text-xs text-muted">Allow notes on selected photos.</p>
-                        </div>
-                        <AppSwitch
-                          checked={selectionDraft.allow_photo_comments}
-                          onChange={(checked) =>
-                            setSelectionDraft((prev) => ({
-                              ...prev,
-                              allow_photo_comments: checked,
-                            }))
-                          }
-                          disabled={isSaving}
-                          aria-label="Allow photo comments"
-                          className={SETTINGS_SWITCH_CLASS}
-                          thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {[
-                      ['require_email', 'Require email'],
-                      ['require_phone', 'Require phone'],
-                      ['require_client_note', 'Require note'],
-                    ].map(([key, text]) => (
-                      <div
-                        key={key}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm text-text"
-                      >
-                        <span>{text}</span>
-                        <AppSwitch
-                          checked={Boolean(selectionDraft[key as keyof SelectionSettingsDraft])}
-                          onChange={(checked) =>
-                            setSelectionDraft((prev) => ({ ...prev, [key]: checked }))
-                          }
-                          disabled={isSaving}
-                          aria-label={text}
-                          className={SETTINGS_SWITCH_CLASS}
-                          thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            ) : null}
-
-            <section className="rounded-2xl border border-border/50 bg-surface-1 px-4 py-4 dark:bg-surface-dark-1">
-              <h3 className="text-sm font-semibold text-text">Review</h3>
-              <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
-                <div>
-                  <dt className="text-xs font-semibold uppercase text-muted">Public access</dt>
-                  <dd className="mt-1 text-text">{isActive ? 'Active' : 'Paused'}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase text-muted">Expiration</dt>
-                  <dd className="mt-1 text-text">{formatExpirySummary(resolvedExpiresAt)}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase text-muted">Selection</dt>
-                  <dd className="mt-1 text-text">
-                    {showSelectionSettings && selectionDraft.is_enabled ? 'Enabled' : 'Off'}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-
+          <div className="space-y-2 px-5 pb-4 sm:px-6">
             {hasMissingCustomExpiry ? (
               <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                 Choose a custom expiration date or select another TTL.
