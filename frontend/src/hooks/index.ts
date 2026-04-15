@@ -19,6 +19,7 @@ export { usePhotoUpload } from './usePhotoUpload';
 export { useErrorDetails } from './useErrorDetails';
 export { useGalleryDragAndDrop } from './useGalleryDragAndDrop';
 export { usePublicGalleryGrid } from './usePublicGalleryGrid';
+export { useDocumentTitle } from './useDocumentTitle';
 
 // Re-export types
 export type { UsePaginationOptions, UsePaginationReturn } from './usePagination';

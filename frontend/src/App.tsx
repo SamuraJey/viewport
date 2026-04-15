@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { RequireAuth } from './components/RequireAuth';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/Layout';
+import { AccessibilityPage } from './pages/AccessibilityPage';
 import { NotFoundPage, ErrorPage } from './pages/ErrorPage';
 import { useAuthStore } from './stores/authStore';
 
@@ -35,8 +36,13 @@ const PublicGalleryPage = lazy(() =>
   import('./pages/PublicGalleryPage').then((module) => ({ default: module.PublicGalleryPage })),
 );
 
-const RouteFallback = () => (
-  <div className="pointer-events-none fixed inset-x-0 top-0 z-100">
+export const RouteFallback = () => (
+  <div
+    role="status"
+    aria-live="polite"
+    aria-label="Loading page"
+    className="pointer-events-none fixed inset-x-0 top-0 z-100"
+  >
     <div className="h-0.5 w-full bg-accent/70 animate-pulse" />
   </div>
 );
@@ -67,6 +73,7 @@ function App() {
           />
 
           <Route path="/" element={<LandingPage />} />
+          <Route path="/accessibility" element={<AccessibilityPage />} />
 
           {/* Public gallery sharing route */}
           <Route path="/share/:shareId" element={<PublicGalleryPage />} />

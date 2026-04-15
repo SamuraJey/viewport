@@ -13,13 +13,16 @@ import {
   Sparkles,
   UploadCloud,
 } from 'lucide-react';
-import { ThemeSwitch } from '../components/ThemeSwitch';
-import { EnhancedGalleryCard } from '../components/dashboard/EnhancedGalleryCard';
 import { AuthCard } from '../components/auth/AuthCard';
+import { ReadabilitySettingsButton } from '../components/ReadabilitySettingsButton';
+import { ThemeSwitch } from '../components/ThemeSwitch';
+import { SkipToContentLink } from '../components/a11y/SkipToContentLink';
+import { EnhancedGalleryCard } from '../components/dashboard/EnhancedGalleryCard';
 import type { Gallery } from '../types';
 import { useAuthStore } from '../stores/authStore';
 import { getDemoService } from '../services/demoService';
 import { enableDemoMode } from '../lib/demoMode';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import reactLogo from '../assets/react.svg';
 
 const featureItems = [
@@ -109,6 +112,7 @@ const previewCardVariants = {
 };
 
 export const LandingPage = () => {
+  useDocumentTitle('Viewport · Gallery delivery made simple');
   const prefersReducedMotion = useReducedMotion();
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
@@ -122,7 +126,8 @@ export const LandingPage = () => {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
+    <div className="relative min-h-screen overflow-hidden bg-surface text-text dark:bg-surface-dark">
+      <SkipToContentLink />
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -left-32 -top-20 h-96 w-96 rounded-full bg-accent/15 blur-3xl dark:bg-accent/10" />
         <div className="absolute right-0 top-28 h-72 w-72 rounded-full bg-sky-400/15 blur-3xl dark:bg-sky-400/10" />
@@ -148,8 +153,12 @@ export const LandingPage = () => {
             <a href="#subscriptions" className="hover:text-accent transition-colors">
               Plans
             </a>
+            <Link to="/accessibility" className="hover:text-accent transition-colors">
+              Accessibility
+            </Link>
           </nav>
           <div className="flex items-center gap-2">
+            <ReadabilitySettingsButton />
             <ThemeSwitch variant="inline" />
             <Link
               to="/auth/login"
@@ -161,7 +170,7 @@ export const LandingPage = () => {
         </div>
       </header>
 
-      <main className="relative z-10">
+      <main id="main-content" tabIndex={-1} className="relative z-10">
         <section className="mx-auto grid w-full max-w-7xl gap-10 px-4 pb-20 pt-16 sm:px-6 lg:grid-cols-[1.2fr_1fr] lg:items-center lg:pt-24">
           <motion.div
             initial={prefersReducedMotion ? false : { opacity: 0, y: 28 }}
@@ -265,7 +274,7 @@ export const LandingPage = () => {
                 <span className="mb-3 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
                   <Icon className="h-5 w-5" />
                 </span>
-                <h3 className="text-xl font-bold text-text dark:text-accent-foreground">{title}</h3>
+                <h3 className="text-xl font-bold text-text">{title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted">{description}</p>
               </article>
             ))}

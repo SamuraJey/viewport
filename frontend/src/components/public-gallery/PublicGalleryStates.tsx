@@ -3,10 +3,7 @@ import { Clock3 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const PublicGallerySkeleton = () => (
-  <div
-    className="min-h-screen bg-surface dark:bg-surface-foreground/5"
-    data-testid="skeleton-loader"
-  >
+  <div className="min-h-screen bg-surface" data-testid="skeleton-loader">
     <div className="h-screen bg-surface-foreground/10 dark:bg-surface/10 animate-pulse flex items-center justify-center rounded-b-3xl">
       <div className="text-center space-y-5">
         <div className="h-4 w-32 bg-surface-foreground/20 dark:bg-surface/20 rounded-full mx-auto" />
@@ -42,10 +39,8 @@ export const PublicGalleryError = ({ error }: PublicGalleryErrorProps) => (
       <div className="w-20 h-20 bg-danger/10 rounded-full flex items-center justify-center mx-auto mb-6">
         <AlertCircle className="w-10 h-10 text-danger" />
       </div>
-      <h1 className="text-3xl font-bold text-text dark:text-accent-foreground mb-3 tracking-tight">
-        Gallery Not Available
-      </h1>
-      <p className="text-muted dark:text-muted-foreground text-lg font-medium">{error}</p>
+      <h1 className="mb-3 text-3xl font-bold tracking-tight text-text">Gallery Not Available</h1>
+      <p className="text-lg font-medium text-muted">{error}</p>
     </div>
   </div>
 );
@@ -56,10 +51,8 @@ export const PublicGalleryExpired = () => (
       <div className="w-20 h-20 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-6">
         <Clock3 className="w-10 h-10 text-accent" />
       </div>
-      <h1 className="text-3xl font-bold text-text dark:text-accent-foreground mb-3 tracking-tight">
-        Link Has Expired
-      </h1>
-      <p className="text-muted dark:text-muted-foreground text-base sm:text-lg font-medium">
+      <h1 className="mb-3 text-3xl font-bold tracking-tight text-text">Link Has Expired</h1>
+      <p className="text-base font-medium text-muted sm:text-lg">
         This share link is no longer active. Ask the photographer for a new one.
       </p>
 

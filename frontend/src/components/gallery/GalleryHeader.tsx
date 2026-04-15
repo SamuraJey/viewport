@@ -12,14 +12,20 @@ import {
 } from 'lucide-react';
 import { formatDateOnly, formatFileSize } from '../../lib/utils';
 import type { GalleryDetail, GalleryPhotoSortBy, SortOrder } from '../../types';
+import { AppListbox, AppPopover } from '../ui';
 
 interface SortOption {
   value: `${GalleryPhotoSortBy}:${SortOrder}`;
   label: string;
 }
 
-const DEFAULT_PRIVATE_SORT: SortOption['value'] = 'uploaded_at:desc';
-const DEFAULT_PUBLIC_SORT: SortOption['value'] = 'original_filename:asc';
+const OPEN_PUBLIC_SORT_EVENT = 'gallery:open-public-sort';
+const DEFAULT_PRIVATE_SORT_STATE = { sortBy: 'uploaded_at', sortOrder: 'desc' } as const;
+const DEFAULT_PUBLIC_SORT_STATE = { sortBy: 'original_filename', sortOrder: 'asc' } as const;
+const toSortValue = ({ sortBy, sortOrder }: { sortBy: GalleryPhotoSortBy; sortOrder: SortOrder }) =>
+  `${sortBy}:${sortOrder}` as SortOption['value'];
+const DEFAULT_PRIVATE_SORT = toSortValue(DEFAULT_PRIVATE_SORT_STATE);
+const DEFAULT_PUBLIC_SORT = toSortValue(DEFAULT_PUBLIC_SORT_STATE);
 
 const SORT_OPTIONS: SortOption[] = [
   { value: 'original_filename:asc', label: 'Filename (A to Z)' },
@@ -87,16 +93,15 @@ export const GalleryHeader = ({
   onSortChange,
 }: GalleryHeaderProps) => {
   const titleRef = useRef<HTMLHeadingElement | null>(null);
-  const filtersPopoverRef = useRef<HTMLDivElement | null>(null);
+  const filtersButtonRef = useRef<HTMLButtonElement | null>(null);
   const [titleFontSizePx, setTitleFontSizePx] = useState(48);
-  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   const activeSortValue = `${sortBy}:${sortOrder}` as SortOption['value'];
   const activePublicSortValue = `${publicSortBy}:${publicSortOrder}` as SortOption['value'];
   const activeSortLabel =
     SORT_OPTIONS.find((option) => option.value === activeSortValue)?.label ||
     SORT_OPTIONS.find((option) => option.value === DEFAULT_PRIVATE_SORT)!.label;
-  const hasActiveFilters = activePublicSortValue !== DEFAULT_PUBLIC_SORT;
+  const hasCustomPublicSort = activePublicSortValue !== DEFAULT_PUBLIC_SORT;
   const isDefaultPrivateSort = activeSortValue === DEFAULT_PRIVATE_SORT;
 
   useLayoutEffect(() => {
@@ -140,53 +145,17 @@ export const GalleryHeader = ({
   }, [gallery.name]);
 
   useEffect(() => {
-    if (!isFiltersOpen) {
-      return;
-    }
-
-    const onPointerDown = (event: Event) => {
-      if (filtersPopoverRef.current?.contains(event.target as Node)) {
+    const handleOpenPublicSort = () => {
+      if (filtersButtonRef.current?.getAttribute('aria-expanded') === 'true') {
         return;
       }
-      setIsFiltersOpen(false);
+      filtersButtonRef.current?.click();
     };
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsFiltersOpen(false);
-      }
-    };
-
-    const supportsPointerEvents = typeof window !== 'undefined' && 'PointerEvent' in window;
-
-    if (supportsPointerEvents) {
-      document.addEventListener('pointerdown', onPointerDown);
-    } else {
-      document.addEventListener('mousedown', onPointerDown);
-      document.addEventListener('touchstart', onPointerDown);
-    }
-    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener(OPEN_PUBLIC_SORT_EVENT, handleOpenPublicSort as EventListener);
 
     return () => {
-      if (supportsPointerEvents) {
-        document.removeEventListener('pointerdown', onPointerDown);
-      } else {
-        document.removeEventListener('mousedown', onPointerDown);
-        document.removeEventListener('touchstart', onPointerDown);
-      }
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [isFiltersOpen]);
-
-  useEffect(() => {
-    const handleOpenPublicSort = () => {
-      setIsFiltersOpen(true);
-    };
-
-    window.addEventListener('gallery:open-public-sort', handleOpenPublicSort as EventListener);
-
-    return () => {
-      window.removeEventListener('gallery:open-public-sort', handleOpenPublicSort as EventListener);
+      window.removeEventListener(OPEN_PUBLIC_SORT_EVENT, handleOpenPublicSort as EventListener);
     };
   }, []);
 
@@ -270,108 +239,79 @@ export const GalleryHeader = ({
             </label>
 
             <div className="flex items-center gap-3 lg:ml-auto">
-              <label
-                className={`relative flex h-11 w-full items-center rounded-xl border bg-surface px-3 text-sm text-text transition-all duration-200 dark:bg-surface-dark-2 lg:w-64 ${
-                  isDefaultPrivateSort
-                    ? 'border-border/40 hover:border-accent/40 dark:border-border/30'
-                    : 'border-accent/45 bg-accent/5 text-accent dark:border-accent/55'
-                }`}
-              >
-                <ArrowUpDown className="h-4 w-4 text-muted" />
-                <select
-                  value={activeSortValue}
-                  onChange={(event) =>
-                    onSortChange(
-                      parseSortValue(event.target.value, {
-                        sortBy: 'uploaded_at',
-                        sortOrder: 'desc',
-                      }),
-                    )
-                  }
-                  className="h-full w-full cursor-pointer appearance-none bg-transparent pl-2 pr-7 text-sm font-semibold text-text scheme-light focus:outline-hidden dark:scheme-dark"
-                  aria-label="Sort photos"
-                >
-                  {SORT_OPTIONS.map((option) => (
-                    <option
-                      key={option.value}
-                      value={option.value}
-                      className="bg-surface text-text dark:bg-surface-dark"
-                    >
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <AppListbox
+                value={activeSortValue}
+                onChange={(value) =>
+                  onSortChange(parseSortValue(value, DEFAULT_PRIVATE_SORT_STATE))
+                }
+                options={SORT_OPTIONS}
+                className="w-full lg:w-64"
+                aria-label="Sort photos"
+                startContent={<ArrowUpDown className="h-4 w-4 text-muted" />}
+                buttonClassName={(open) =>
+                  `h-11 border px-3 text-sm font-semibold transition-all duration-200 dark:bg-surface-dark-2 ${
+                    open || !isDefaultPrivateSort
+                      ? 'border-accent/45 bg-accent/5 text-accent dark:border-accent/55'
+                      : 'border-border/40 bg-surface text-text hover:border-accent/40 dark:border-border/30'
+                  }`
+                }
+                optionsClassName="bg-surface p-1 dark:bg-surface-dark-1"
+              />
 
-              <div ref={filtersPopoverRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsFiltersOpen((prev) => !prev)}
-                  className={`inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0 ${
-                    isFiltersOpen || hasActiveFilters
+              <AppPopover
+                className="relative"
+                buttonRef={filtersButtonRef}
+                buttonClassName={(open) =>
+                  `inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0 ${
+                    open || hasCustomPublicSort
                       ? 'border-accent/45 bg-accent/10 text-accent'
                       : 'border-border/40 bg-surface text-text hover:border-accent/40 hover:text-accent dark:border-border/30 dark:bg-surface-dark-2'
-                  }`}
-                  aria-expanded={isFiltersOpen}
-                  aria-controls="gallery-public-sort-popover"
-                >
-                  <SlidersHorizontal className="h-4 w-4" />
-                  Public sort
-                  <ChevronDown className="h-4 w-4" />
-                </button>
-
-                {isFiltersOpen && (
-                  <div
-                    id="gallery-public-sort-popover"
-                    className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-80 rounded-2xl border border-border/50 bg-surface p-4 shadow-lg dark:border-border/40 dark:bg-surface-dark-1"
-                  >
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label
-                          htmlFor="gallery-public-sort"
-                          className="text-xs font-bold uppercase tracking-wider text-muted"
-                        >
-                          Public gallery sort
-                        </label>
-                        <div className="relative flex h-10 items-center rounded-xl border border-border/40 bg-surface-1 px-2.5 dark:border-border/30 dark:bg-surface-dark-2">
-                          <ArrowUpDown className="h-4 w-4 text-muted" />
-                          <select
-                            id="gallery-public-sort"
-                            value={activePublicSortValue}
-                            onChange={(event) =>
-                              onPublicSortChange(
-                                parseSortValue(event.target.value, {
-                                  sortBy: 'original_filename',
-                                  sortOrder: 'asc',
-                                }),
-                              )
-                            }
-                            className="h-full w-full cursor-pointer appearance-none bg-transparent pl-2 pr-6 text-sm font-semibold text-text scheme-light focus:outline-hidden dark:scheme-dark"
-                          >
-                            {SORT_OPTIONS.map((option) => (
-                              <option
-                                key={`public-${option.value}`}
-                                value={option.value}
-                                className="bg-surface text-text dark:bg-surface-dark"
-                              >
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        {isSavingPublicSortSettings && (
-                          <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            Saving public sorting...
-                          </p>
-                        )}
-                      </div>
-
-                      <p className="text-xs text-muted">Changes are applied automatically.</p>
-                    </div>
-                  </div>
+                  }`
+                }
+                buttonContent={(open) => (
+                  <>
+                    <SlidersHorizontal className="h-4 w-4" />
+                    Public sort
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+                    />
+                  </>
                 )}
-              </div>
+                panelClassName="w-80 rounded-2xl border border-border/50 bg-surface p-4 shadow-lg dark:border-border/40 dark:bg-surface-dark-1"
+                panel={
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label
+                        htmlFor="gallery-public-sort"
+                        className="text-xs font-bold uppercase tracking-wider text-muted"
+                      >
+                        Public gallery sort
+                      </label>
+                      <AppListbox
+                        value={activePublicSortValue}
+                        onChange={(value) =>
+                          onPublicSortChange(parseSortValue(value, DEFAULT_PUBLIC_SORT_STATE))
+                        }
+                        options={SORT_OPTIONS.map((option) => ({
+                          ...option,
+                          value: option.value,
+                        }))}
+                        aria-label="Public gallery sort"
+                        startContent={<ArrowUpDown className="h-4 w-4 text-muted" />}
+                        buttonClassName="h-10 border border-border/40 bg-surface-1 px-2.5 text-sm font-semibold text-text dark:border-border/30 dark:bg-surface-dark-2"
+                      />
+                      {isSavingPublicSortSettings && (
+                        <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Saving public sorting...
+                        </p>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-muted">Changes are applied automatically.</p>
+                  </div>
+                }
+              />
             </div>
           </div>
 

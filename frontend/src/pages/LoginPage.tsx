@@ -9,9 +9,11 @@ import { AuthLayout } from '../components/AuthLayout';
 import { AuthCard } from '../components/auth/AuthCard';
 import { AuthPasswordField, AuthTextField } from '../components/auth/AuthFields';
 import { disableDemoMode, enableDemoMode } from '../lib/demoMode';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { getDemoService } from '../services/demoService';
 
 export const LoginPage = () => {
+  useDocumentTitle('Login · Viewport');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -137,16 +139,14 @@ export const LoginPage = () => {
                 <div className="w-full border-t border-border/60 dark:border-border/40"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-surface dark:bg-surface-foreground text-muted font-medium">
-                  New to Viewport?
-                </span>
+                <span className="px-4 bg-surface text-muted font-medium">New to Viewport?</span>
               </div>
             </div>
 
             <div className="text-center">
               <Link
                 to="/auth/register"
-                className="inline-flex items-center gap-2 text-sm font-semibold text-text dark:text-accent-foreground hover:text-accent dark:hover:text-accent-foreground transition-colors duration-200 p-2 rounded-lg hover:bg-surface-1/50"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-text hover:text-accent transition-colors duration-200 p-2 rounded-lg hover:bg-surface-1/50"
               >
                 <UserPlus className="h-4 w-4" />
                 Create your account

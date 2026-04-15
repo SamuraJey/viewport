@@ -32,3 +32,7 @@ performance_tests/
 
 screenshots/
 *.har
+.omx/
+.codex
+.playwright/
+.playwright-cli/

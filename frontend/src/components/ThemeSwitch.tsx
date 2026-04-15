@@ -1,6 +1,7 @@
 import { useTheme } from '../hooks/useTheme';
 import { Sun, Moon } from 'lucide-react';
 import { useState } from 'react';
+import { AppSwitch } from './ui';
 
 type ThemeSwitchVariant = 'floating' | 'inline';
 
@@ -10,13 +11,13 @@ interface ThemeSwitchProps {
 }
 
 export const ThemeSwitch = ({ className = '', variant = 'floating' }: ThemeSwitchProps) => {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const [isAnimating, setIsAnimating] = useState(false);
 
-  const handleToggle = () => {
+  const handleToggle = (checked: boolean) => {
     if (isAnimating) return;
     setIsAnimating(true);
-    toggleTheme();
+    setTheme(checked ? 'dark' : 'light');
     setTimeout(() => setIsAnimating(false), 400); // Синхронизировано с длительностью анимации темы
   };
 
@@ -28,11 +29,13 @@ export const ThemeSwitch = ({ className = '', variant = 'floating' }: ThemeSwitc
       : 'relative z-auto h-10 w-10 bg-surface-1 dark:bg-surface-dark-1 shadow-sm hover:shadow-md hover:-translate-y-0.5';
 
   return (
-    <button
-      onClick={handleToggle}
+    <AppSwitch
+      checked={theme === 'dark'}
+      onChange={handleToggle}
       disabled={isAnimating}
       className={`${baseClasses} ${variantClasses} ${className}`}
-      aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+      showThumb={false}
+      aria-label="Dark mode"
     >
       <div className={`${isAnimating ? 'animate-spin-once' : ''}`}>
         {theme === 'dark' ? (
@@ -41,6 +44,6 @@ export const ThemeSwitch = ({ className = '', variant = 'floating' }: ThemeSwitc
           <Moon className="h-5 w-5 text-indigo-600 fill-indigo-600/10" />
         )}
       </div>
-    </button>
+    </AppSwitch>
   );
 };

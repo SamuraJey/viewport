@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -8,7 +8,10 @@ import {
   Link2,
   LogOut,
 } from 'lucide-react';
+import { SkipToContentLink } from '../components/a11y/SkipToContentLink';
+import { ReadabilitySettingsButton } from '../components/ReadabilitySettingsButton';
 import { ThemeSwitch } from '../components/ThemeSwitch';
+import { AppDialog, AppDialogDescription, AppDialogTitle } from '../components/ui';
 import { PublicGalleryHero } from '../components/public-gallery/PublicGalleryHero';
 import { PublicGalleryPhotoSection } from '../components/public-gallery/PublicGalleryPhotoSection';
 import {
@@ -21,9 +24,11 @@ import { usePublicGalleryGrid } from '../hooks/usePublicGalleryGrid';
 import { copyTextToClipboard } from '../lib/clipboard';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { handleApiError } from '../lib/errorHandling';
+import { getAccessiblePhotoName } from '../lib/accessibility';
 import { getDemoService } from '../services/demoService';
 import { shareLinkService } from '../services/shareLinkService';
 import type { PublicPhoto, SelectionSessionStartRequest } from '../types';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -48,6 +53,7 @@ export const PublicGalleryPage = () => {
   const [selectedPhotos, setSelectedPhotos] = useState<PublicPhoto[]>([]);
   const [selectedPhotosError, setSelectedPhotosError] = useState('');
   const [isLoadingSelectedPhotos, setIsLoadingSelectedPhotos] = useState(false);
+  const startNameInputRef = useRef<HTMLInputElement | null>(null);
 
   const { gallery, photos, isLoading, isLoadingMore, hasMore, error, errorStatus, loadMorePhotos } =
     usePublicGallery({ shareId });
@@ -331,7 +337,10 @@ export const PublicGalleryPage = () => {
         thumbnailSrc: photo.thumbnail_url,
         width: photo.width || undefined,
         height: photo.height || undefined,
-        alt: photo.filename || `Photo ${photo.photo_id}`,
+        alt: getAccessiblePhotoName({
+          displayName: photo.filename,
+          filename: photo.filename,
+        }),
         download: photo.full_url,
         downloadFilename: photo.filename || `photo-${photo.photo_id}.jpg`,
       })),
@@ -339,9 +348,32 @@ export const PublicGalleryPage = () => {
   );
 
   const combinedSelectionError = selectedPhotosError || selection.error;
+  useDocumentTitle(
+    isFavoritesView
+      ? `${gallery?.gallery_name || 'Favorites'} · Viewport`
+      : `${gallery?.gallery_name || 'Public Gallery'} · Viewport`,
+  );
 
   if (isLoading) {
-    return null;
+    return (
+      <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
+        <SkipToContentLink targetId="main-content" />
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex min-h-screen items-center justify-center px-4"
+        >
+          <div
+            role="status"
+            aria-live="polite"
+            aria-label="Loading gallery"
+            className="rounded-2xl border border-border/50 bg-surface-1/70 px-5 py-4 text-sm font-medium text-muted shadow-xs"
+          >
+            Loading gallery...
+          </div>
+        </main>
+      </div>
+    );
   }
 
   if (error) {
@@ -352,14 +384,16 @@ export const PublicGalleryPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-surface dark:bg-surface-foreground/5 text-text dark:text-accent-foreground">
-      <div className="fixed top-6 right-6 z-30">
+    <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
+      <SkipToContentLink targetId="main-content" />
+      <div className="fixed top-6 right-6 z-30 flex items-center gap-2">
+        <ReadabilitySettingsButton />
         <ThemeSwitch variant="inline" />
       </div>
 
       <PublicGalleryHero gallery={gallery} />
 
-      <div id="gallery-content" className="w-full px-4 py-16 sm:px-6 lg:px-10">
+      <main id="main-content" tabIndex={-1} className="w-full px-4 py-16 sm:px-6 lg:px-10">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/50 bg-surface-1/70 px-4 py-3 shadow-xs">
           <div className="flex flex-wrap items-center gap-2">
             {isFavoritesView ? (
@@ -627,54 +661,115 @@ export const PublicGalleryPage = () => {
         ) : null}
 
         {selection.showStartModal ? (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-border/50 bg-surface p-5 shadow-xl">
-              <h3 className="text-lg font-semibold text-text">Start selection</h3>
-              <p className="mt-2 text-sm text-muted">
+          <AppDialog
+            open={selection.showStartModal}
+            onClose={() => {
+              selection.closeStartModal();
+              setOpenFavoritesAfterStart(false);
+            }}
+            size="sm"
+            initialFocusRef={startNameInputRef}
+            panelClassName="rounded-3xl border border-border/50 bg-surface p-5 shadow-xl dark:border-border/20 dark:bg-surface-dark"
+          >
+            <div>
+              <AppDialogTitle className="text-lg font-semibold text-text">
+                Start selection
+              </AppDialogTitle>
+              <AppDialogDescription className="mt-2 text-sm text-muted">
                 Enter your details to begin selecting photos.
-              </p>
+              </AppDialogDescription>
               <div className="mt-4 space-y-3">
-                <input
-                  value={startForm.client_name}
-                  onChange={(event) =>
-                    setStartForm((prev) => ({ ...prev, client_name: event.target.value }))
-                  }
-                  placeholder="Your name"
-                  className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
-                />
-                {selection.config?.require_email ? (
+                <div>
+                  <label
+                    htmlFor="selection-client-name"
+                    className="mb-1.5 block text-sm font-medium text-text"
+                  >
+                    Your name
+                  </label>
                   <input
-                    value={startForm.client_email ?? ''}
+                    id="selection-client-name"
+                    ref={startNameInputRef}
+                    value={startForm.client_name}
                     onChange={(event) =>
-                      setStartForm((prev) => ({ ...prev, client_email: event.target.value }))
+                      setStartForm((prev) => ({ ...prev, client_name: event.target.value }))
                     }
-                    placeholder="Email"
-                    className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
+                    placeholder="Your name"
+                    aria-invalid={startFormError ? 'true' : undefined}
+                    aria-describedby={startFormError ? 'selection-start-error' : undefined}
+                    className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent dark:bg-surface-dark-1"
                   />
+                </div>
+                {selection.config?.require_email ? (
+                  <div>
+                    <label
+                      htmlFor="selection-client-email"
+                      className="mb-1.5 block text-sm font-medium text-text"
+                    >
+                      Email
+                    </label>
+                    <input
+                      id="selection-client-email"
+                      type="email"
+                      value={startForm.client_email ?? ''}
+                      onChange={(event) =>
+                        setStartForm((prev) => ({ ...prev, client_email: event.target.value }))
+                      }
+                      placeholder="Email"
+                      aria-invalid={startFormError ? 'true' : undefined}
+                      aria-describedby={startFormError ? 'selection-start-error' : undefined}
+                      className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent dark:bg-surface-dark-1"
+                    />
+                  </div>
                 ) : null}
                 {selection.config?.require_phone ? (
-                  <input
-                    value={startForm.client_phone ?? ''}
-                    onChange={(event) =>
-                      setStartForm((prev) => ({ ...prev, client_phone: event.target.value }))
-                    }
-                    placeholder="Phone"
-                    className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
-                  />
+                  <div>
+                    <label
+                      htmlFor="selection-client-phone"
+                      className="mb-1.5 block text-sm font-medium text-text"
+                    >
+                      Phone
+                    </label>
+                    <input
+                      id="selection-client-phone"
+                      value={startForm.client_phone ?? ''}
+                      onChange={(event) =>
+                        setStartForm((prev) => ({ ...prev, client_phone: event.target.value }))
+                      }
+                      placeholder="Phone"
+                      aria-invalid={startFormError ? 'true' : undefined}
+                      aria-describedby={startFormError ? 'selection-start-error' : undefined}
+                      className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent dark:bg-surface-dark-1"
+                    />
+                  </div>
                 ) : null}
                 {selection.config?.require_client_note ? (
-                  <textarea
-                    value={startForm.client_note ?? ''}
-                    onChange={(event) =>
-                      setStartForm((prev) => ({ ...prev, client_note: event.target.value }))
-                    }
-                    placeholder="Note"
-                    className="w-full min-h-20 rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
-                  />
+                  <div>
+                    <label
+                      htmlFor="selection-client-note"
+                      className="mb-1.5 block text-sm font-medium text-text"
+                    >
+                      Note
+                    </label>
+                    <textarea
+                      id="selection-client-note"
+                      value={startForm.client_note ?? ''}
+                      onChange={(event) =>
+                        setStartForm((prev) => ({ ...prev, client_note: event.target.value }))
+                      }
+                      placeholder="Note"
+                      aria-invalid={startFormError ? 'true' : undefined}
+                      aria-describedby={startFormError ? 'selection-start-error' : undefined}
+                      className="w-full min-h-20 rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent dark:bg-surface-dark-1"
+                    />
+                  </div>
                 ) : null}
 
                 {startFormError ? (
-                  <div className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                  <div
+                    id="selection-start-error"
+                    role="alert"
+                    className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger"
+                  >
                     {startFormError}
                   </div>
                 ) : null}
@@ -718,13 +813,16 @@ export const PublicGalleryPage = () => {
                 </div>
               </div>
             </div>
-          </div>
+          </AppDialog>
         ) : null}
 
-        <div className="mt-16 text-center text-sm font-medium text-muted dark:text-muted-foreground">
+        <div className="mt-16 flex flex-wrap items-center justify-center gap-3 text-center text-sm font-medium text-muted dark:text-muted-foreground">
           <p>Powered by Viewport - Your Photo Gallery Solution</p>
+          <Link to="/accessibility" className="font-semibold text-accent hover:underline">
+            Accessibility
+          </Link>
         </div>
-      </div>
+      </main>
 
       {renderLightbox(lightboxSlides, displayedPhotos.length)}
     </div>

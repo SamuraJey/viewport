@@ -70,7 +70,7 @@ export const UploadModalFooter = ({
     {/* Left side text */}
     <div className="text-sm font-medium">
       {!result ? (
-        <span className={hasValidFiles ? 'text-text dark:text-white' : 'text-muted'}>
+        <span className={hasValidFiles ? 'text-text' : 'text-muted'}>
           {hasValidFiles ? `${validUploadCount} ready to upload` : 'No valid files to upload'}
         </span>
       ) : (
@@ -94,7 +94,7 @@ export const UploadModalFooter = ({
             <button
               onClick={onRetryFailed}
               disabled={isUploading}
-              className="px-4 py-2 bg-surface-1 dark:bg-surface-dark-1 border border-border/50 hover:bg-surface-2 dark:hover:bg-surface-dark-2 disabled:opacity-50 text-text dark:text-white text-sm font-medium rounded-xl transition-all duration-200 active:scale-95 flex items-center gap-2"
+              className="flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2 text-sm font-medium text-text transition-all duration-200 hover:bg-surface-2 active:scale-95 disabled:opacity-50 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
             >
               <Upload className="w-4 h-4" />
               Retry {failedCount}
@@ -122,7 +122,7 @@ export const UploadModalFooter = ({
             ref={uploadButtonRef}
             onClick={onUpload}
             disabled={!hasValidFiles || isUploading}
-            className="px-5 py-2.5 bg-text hover:bg-text/90 text-surface dark:bg-white dark:text-black text-sm font-medium rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-w-30 justify-center shadow-xs focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:focus:ring-offset-surface-foreground"
+            className="flex min-w-30 items-center justify-center gap-2 rounded-xl bg-text px-5 py-2.5 text-sm font-medium text-surface shadow-xs transition-all duration-200 hover:bg-text/90 focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:focus:ring-offset-surface-foreground disabled:cursor-not-allowed disabled:opacity-50"
           >
             {!isUploading && <Upload className="w-4 h-4" />}
             {isUploading ? 'Uploading...' : 'Upload'}

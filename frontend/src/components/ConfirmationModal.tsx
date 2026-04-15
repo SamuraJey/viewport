@@ -1,6 +1,6 @@
-import React, { useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React from 'react';
 import { X, AlertTriangle, Check } from 'lucide-react';
+import { AppDialog, AppDialogDescription, AppDialogTitle } from './ui';
 
 export interface ConfirmationModalProps {
   isOpen: boolean;
@@ -25,17 +25,12 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = React.memo(
     isDangerous = false,
   }) => {
     const [isLoading, setIsLoading] = React.useState(false);
-
-    useEffect(() => {
-      if (!isOpen) return;
-
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && !isLoading) onClose();
-      };
-
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, isLoading, onClose]);
+    const cancelButtonRef = React.useRef<HTMLButtonElement>(null);
+    const handleClose = () => {
+      if (!isLoading) {
+        onClose();
+      }
+    };
 
     const handleConfirm = async () => {
       setIsLoading(true);
@@ -51,86 +46,79 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = React.memo(
     };
 
     return (
-      <AnimatePresence>
-        {isOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              onClick={() => !isLoading && onClose()}
-            />
-
-            <motion.div
-              className="relative bg-surface dark:bg-surface-foreground rounded-2xl shadow-2xl w-full max-w-md border border-border dark:border-border/20 overflow-hidden"
-              initial={{ opacity: 0, scale: 0.95, y: 16 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 16 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+      <AppDialog
+        open={isOpen}
+        onClose={handleClose}
+        canClose={!isLoading}
+        size="sm"
+        initialFocusRef={cancelButtonRef}
+        panelClassName="overflow-hidden rounded-3xl border border-border/50 bg-surface shadow-2xl dark:border-border/20 dark:bg-surface-foreground"
+      >
+        <div className="flex items-center justify-between p-6 border-b border-border dark:border-border">
+          <div className="flex items-center gap-3">
+            <div
+              className={`flex items-center justify-center w-10 h-10 rounded-xl ${isDangerous ? 'bg-red-100 dark:bg-red-900/50' : 'bg-blue-100 dark:bg-blue-900/50'}`}
             >
-              <div className="flex items-center justify-between p-6 border-b border-border dark:border-border">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`flex items-center justify-center w-10 h-10 rounded-xl ${isDangerous ? 'bg-red-100 dark:bg-red-900/50' : 'bg-blue-100 dark:bg-blue-900/50'}`}
-                  >
-                    <AlertTriangle
-                      className={`w-5 h-5 ${isDangerous ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}
-                    />
-                  </div>
-                  <h2 className="font-oswald text-lg font-bold uppercase tracking-wide text-text dark:text-white">
-                    {title}
-                  </h2>
-                </div>
-                <button
-                  onClick={onClose}
-                  disabled={isLoading}
-                  className="p-1.5 text-muted hover:text-text dark:hover:text-text rounded-lg hover:bg-surface-1 dark:hover:bg-surface-dark-1 transition-all duration-200 disabled:opacity-50"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="p-6">
-                <p className="text-text dark:text-text leading-relaxed">{message}</p>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 p-6 border-t border-border bg-surface-1/50 dark:bg-surface-dark-1/50">
-                <button
-                  onClick={onClose}
-                  disabled={isLoading}
-                  className="px-5 py-2.5 text-text dark:text-text bg-surface-1 dark:bg-surface-dark-1 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-xl border border-border dark:border-border/40 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 font-medium"
-                >
-                  {cancelText}
-                </button>
-                <button
-                  onClick={handleConfirm}
-                  disabled={isLoading}
-                  className={`flex items-center gap-2 px-5 py-2.5 text-white rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none disabled:opacity-60 font-medium ${
-                    isDangerous
-                      ? 'bg-red-500 hover:bg-red-600 disabled:bg-red-400'
-                      : 'bg-accent hover:bg-accent/90 disabled:bg-accent/60'
-                  }`}
-                >
-                  {isLoading ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      {isDangerous && <AlertTriangle className="w-4 h-4" />}
-                      {!isDangerous && <Check className="w-4 h-4" />}
-                      {confirmText}
-                    </>
-                  )}
-                </button>
-              </div>
-            </motion.div>
+              <AlertTriangle
+                className={`w-5 h-5 ${isDangerous ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}
+              />
+            </div>
+            <AppDialogTitle className="font-oswald text-lg font-bold uppercase tracking-wide text-text dark:text-white">
+              {title}
+            </AppDialogTitle>
           </div>
-        )}
-      </AnimatePresence>
+          <button
+            type="button"
+            onClick={handleClose}
+            disabled={isLoading}
+            aria-label="Close confirmation dialog"
+            className="p-1.5 text-muted hover:text-text dark:hover:text-text rounded-lg hover:bg-surface-1 dark:hover:bg-surface-dark-1 transition-all duration-200 disabled:opacity-50"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-6">
+          <AppDialogDescription className="text-text dark:text-text leading-relaxed">
+            {message}
+          </AppDialogDescription>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 p-6 border-t border-border bg-surface-1/50 dark:bg-surface-dark-1/50">
+          <button
+            type="button"
+            ref={cancelButtonRef}
+            onClick={handleClose}
+            disabled={isLoading}
+            className="px-5 py-2.5 text-text dark:text-text bg-surface-1 dark:bg-surface-dark-1 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-xl border border-border dark:border-border/40 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 font-medium"
+          >
+            {cancelText}
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={isLoading}
+            className={`flex items-center gap-2 px-5 py-2.5 text-white rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none disabled:opacity-60 font-medium ${
+              isDangerous
+                ? 'bg-red-500 hover:bg-red-600 disabled:bg-red-400'
+                : 'bg-accent hover:bg-accent/90 disabled:bg-accent/60'
+            }`}
+          >
+            {isLoading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>
+                {isDangerous && <AlertTriangle className="w-4 h-4" />}
+                {!isDangerous && <Check className="w-4 h-4" />}
+                {confirmText}
+              </>
+            )}
+          </button>
+        </div>
+      </AppDialog>
     );
   },
 );

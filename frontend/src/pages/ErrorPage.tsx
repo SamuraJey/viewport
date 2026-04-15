@@ -11,6 +11,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { useErrorDetails } from '../hooks';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 interface ErrorPageProps {
   statusCode?: number;
@@ -108,6 +109,7 @@ const ErrorPageContent = ({
     error,
     errorInfo,
   );
+  useDocumentTitle(`${errorDetails.title} · Viewport`);
 
   const errorIcon = statusIcons[errorStatus] ?? <AlertTriangle className="w-20 h-20 text-muted" />;
 

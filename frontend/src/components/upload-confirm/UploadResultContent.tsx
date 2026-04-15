@@ -19,7 +19,7 @@ export const UploadResultContent = ({ result }: UploadResultContentProps) => {
           )}
         </div>
         <div>
-          <p className="font-bold text-base sm:text-lg text-text dark:text-white">
+          <p className="text-base font-bold text-text sm:text-lg">
             {result.failed_uploads === 0 ? 'All Files Uploaded!' : 'Upload Complete'}
           </p>
           <p className="text-sm text-muted mt-0.5">
@@ -62,7 +62,7 @@ export const UploadResultContent = ({ result }: UploadResultContentProps) => {
 
       {failedResults.length > 0 && (
         <div className="space-y-3 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
-          <p className="text-sm font-semibold text-text dark:text-white">Failed uploads:</p>
+          <p className="text-sm font-semibold text-text">Failed uploads:</p>
           {failedResults.map((failedResult, index) => (
             <div
               key={`${failedResult.filename}-${index}`}
@@ -70,9 +70,7 @@ export const UploadResultContent = ({ result }: UploadResultContentProps) => {
             >
               <XCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-text dark:text-white truncate">
-                  {failedResult.filename}
-                </p>
+                <p className="truncate text-sm font-medium text-text">{failedResult.filename}</p>
                 <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
                   {failedResult.error}
                 </p>

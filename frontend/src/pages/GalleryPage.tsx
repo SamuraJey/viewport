@@ -17,6 +17,7 @@ import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { GallerySelectionSessionsPanel } from '../components/gallery/GallerySelectionSessionsPanel';
 import { GalleryDragOverlay } from '../components/gallery/GalleryDragOverlay';
 import { GalleryPhotoSection } from '../components/gallery/GalleryPhotoSection';
+import { AppTabs } from '../components/ui';
 import {
   GalleryInitialLoadingState,
   GalleryLoadErrorState,
@@ -24,6 +25,7 @@ import {
 } from '../components/gallery/GalleryPageStates';
 import { type PhotoUploaderHandle } from '../components/PhotoUploader';
 import { usePagination, useSelection, useGalleryActions, useGalleryDragAndDrop } from '../hooks';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { shareLinkService } from '../services/shareLinkService';
 import { handleApiError } from '../lib/errorHandling';
 import type { GalleryPhotoSortBy, SelectionSession, ShareLink, SortOrder } from '../types';
@@ -237,6 +239,7 @@ export const GalleryPage = () => {
     },
     pagination,
   });
+  useDocumentTitle(gallery?.name?.trim() ? `${gallery.name} · Viewport` : 'Gallery · Viewport');
 
   useEffect(() => {
     if (!gallery) {
@@ -857,6 +860,124 @@ export const GalleryPage = () => {
     return <GalleryNotFoundState />;
   }
 
+  const contentTabClassName = ({ selected }: { selected: boolean }): string =>
+    `inline-flex h-12 shrink-0 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+      selected
+        ? 'border-accent/60 bg-accent/12 text-accent shadow-[0_0_0_1px_rgba(56,189,248,0.08),0_12px_24px_-18px_rgba(56,189,248,0.9)]'
+        : 'border-border/70 bg-surface/70 text-text hover:border-accent/35 hover:text-text'
+    }`;
+
+  const contentTabItems = [
+    {
+      key: 'project' as const,
+      tabClassName: contentTabClassName,
+      tab: 'Project',
+      panel: (
+        <div className="space-y-8">
+          <GalleryPhotoSection
+            galleryId={galleryId}
+            pagination={pagination}
+            gridRef={gridRef}
+            photoUploaderRef={photoUploaderRef}
+            onModalStateChange={setIsModalOpen}
+            state={{
+              photoUrls,
+              gallerySizeBytes: gallery.total_size_bytes ?? 0,
+              isLoadingPhotos,
+              activeSearchTerm: activeSearch || undefined,
+              uploadError,
+              actionInfo,
+              error,
+              isSelectionMode,
+              isDownloadingZip,
+            }}
+            selection={{
+              areAllOnPageSelected,
+              selectionCount: selection.count,
+              selectedSizeBytes,
+              hasSelection: selection.hasSelection,
+              isPhotoSelected: (id: string) => selection.isSelected(id),
+              isCoverPhoto: (photoId: string | null | undefined) =>
+                gallery.cover_photo_id === photoId,
+            }}
+            actions={{
+              onUploadComplete: handleUploadComplete,
+              onDismissUploadError: () => setUploadError(''),
+              onDismissActionInfo: () => setActionInfo(''),
+              onDismissError: clearError,
+              onToggleSelectionMode: () => {
+                if (isSelectionMode) {
+                  selection.clear();
+                  setIsSelectionMode(false);
+                } else {
+                  setIsSelectionMode(true);
+                }
+              },
+              onTogglePhotoSelection: handleTogglePhotoSelection,
+              onOpenPhoto: openPhoto,
+              onSetCover: handleSetCover,
+              onClearCover: handleClearCover,
+              onRenamePhoto: handleRenamePhoto,
+              onDeletePhoto: handleDeletePhoto,
+              onDownloadGallery: handleDownloadGallery,
+              onDownloadSelectedPhotos: handleDownloadSelectedPhotosWrapper,
+              onClearSearch: () => {
+                setSearchInput('');
+                updateFilterQueryParams({ search: null, resetPage: true });
+              },
+              onSelectAllPhotos: handleSelectAllPhotos,
+              onCancelSelection: () => {
+                selection.clear();
+                setIsSelectionMode(false);
+              },
+              onDeleteMultiplePhotos: handleDeleteMultiplePhotosWrapper,
+            }}
+          />
+
+          <ShareLinksSection
+            shareLinks={shareLinks}
+            isLoading={isLoadingShareLinks}
+            error={shareLinksError}
+            onRetry={fetchShareLinks}
+            isCreatingLink={isCreatingLink}
+            onCreateLink={handleCreateShareLink}
+            onEditLink={(link) => setEditingShareLink(link)}
+            onOpenLinkAnalytics={(linkId) => navigate(`/share-links/${linkId}`)}
+            onOpenDashboard={() => navigate('/share-links')}
+            onDeleteLink={handleDeleteShareLink}
+          />
+        </div>
+      ),
+    },
+    {
+      key: 'favorites' as const,
+      tabClassName: contentTabClassName,
+      tab: `Favorites (${hasLoadedFavorites ? favoritesSessionCount : favoritesCount})`,
+      panel: (
+        <GallerySelectionSessionsPanel
+          userTabs={favoritesTabs}
+          selectedUserTabKey={selectedFavoritesTabKey}
+          selectedSession={selectedFavoritesSessionDetail}
+          thumbnailByPhotoId={photoThumbnailById}
+          isLoadingRows={isLoadingSelectionRows}
+          isLoadingDetail={isLoadingSelectionDetail}
+          isMutating={isMutatingSelectionSession}
+          error={selectionSessionsError}
+          onSelectUserTab={handleSelectFavoritesTab}
+          onCloseSession={() => {
+            void handleCloseSelectionSession();
+          }}
+          onReopenSession={() => {
+            void handleReopenSelectionSession();
+          }}
+          onRefresh={() => {
+            void fetchSelectionRows();
+          }}
+        />
+      ),
+    },
+  ];
+
   return (
     <div
       className="relative min-h-screen pb-20"
@@ -911,152 +1032,13 @@ export const GalleryPage = () => {
           }}
         />
 
-        <div
-          role="tablist"
-          aria-label="Gallery sections"
-          className="flex items-center gap-2 overflow-x-auto"
-        >
-          <button
-            id="gallery-content-tab-project"
-            role="tab"
-            aria-selected={activeContentTab === 'project'}
-            aria-controls="gallery-content-panel-project"
-            type="button"
-            onClick={() => handleSelectContentTab('project')}
-            className={`shrink-0 rounded-xl border px-4 py-2 text-sm font-semibold ${
-              activeContentTab === 'project'
-                ? 'border-accent/45 bg-accent/10 text-accent'
-                : 'border-border/50 bg-surface text-text hover:border-accent/30'
-            }`}
-          >
-            Project
-          </button>
-          <button
-            id="gallery-content-tab-favorites"
-            role="tab"
-            aria-selected={activeContentTab === 'favorites'}
-            aria-controls="gallery-content-panel-favorites"
-            type="button"
-            onClick={() => handleSelectContentTab('favorites')}
-            className={`shrink-0 rounded-xl border px-4 py-2 text-sm font-semibold ${
-              activeContentTab === 'favorites'
-                ? 'border-accent/45 bg-accent/10 text-accent'
-                : 'border-border/50 bg-surface text-text hover:border-accent/30'
-            }`}
-          >
-            Favorites ({hasLoadedFavorites ? favoritesSessionCount : favoritesCount})
-          </button>
-        </div>
-
-        {activeContentTab === 'project' ? (
-          <div
-            id="gallery-content-panel-project"
-            role="tabpanel"
-            aria-labelledby="gallery-content-tab-project"
-          >
-            <div className="space-y-8">
-              <GalleryPhotoSection
-                galleryId={galleryId}
-                pagination={pagination}
-                gridRef={gridRef}
-                photoUploaderRef={photoUploaderRef}
-                onModalStateChange={setIsModalOpen}
-                state={{
-                  photoUrls,
-                  gallerySizeBytes: gallery.total_size_bytes ?? 0,
-                  isLoadingPhotos,
-                  activeSearchTerm: activeSearch || undefined,
-                  uploadError,
-                  actionInfo,
-                  error,
-                  isSelectionMode,
-                  isDownloadingZip,
-                }}
-                selection={{
-                  areAllOnPageSelected,
-                  selectionCount: selection.count,
-                  selectedSizeBytes,
-                  hasSelection: selection.hasSelection,
-                  isPhotoSelected: (id: string) => selection.isSelected(id),
-                  isCoverPhoto: (photoId: string | null | undefined) =>
-                    gallery.cover_photo_id === photoId,
-                }}
-                actions={{
-                  onUploadComplete: handleUploadComplete,
-                  onDismissUploadError: () => setUploadError(''),
-                  onDismissActionInfo: () => setActionInfo(''),
-                  onDismissError: clearError,
-                  onToggleSelectionMode: () => {
-                    if (isSelectionMode) {
-                      selection.clear();
-                      setIsSelectionMode(false);
-                    } else {
-                      setIsSelectionMode(true);
-                    }
-                  },
-                  onTogglePhotoSelection: handleTogglePhotoSelection,
-                  onOpenPhoto: openPhoto,
-                  onSetCover: handleSetCover,
-                  onClearCover: handleClearCover,
-                  onRenamePhoto: handleRenamePhoto,
-                  onDeletePhoto: handleDeletePhoto,
-                  onDownloadGallery: handleDownloadGallery,
-                  onDownloadSelectedPhotos: handleDownloadSelectedPhotosWrapper,
-                  onClearSearch: () => {
-                    setSearchInput('');
-                    updateFilterQueryParams({ search: null, resetPage: true });
-                  },
-                  onSelectAllPhotos: handleSelectAllPhotos,
-                  onCancelSelection: () => {
-                    selection.clear();
-                    setIsSelectionMode(false);
-                  },
-                  onDeleteMultiplePhotos: handleDeleteMultiplePhotosWrapper,
-                }}
-              />
-
-              <ShareLinksSection
-                shareLinks={shareLinks}
-                isLoading={isLoadingShareLinks}
-                error={shareLinksError}
-                onRetry={fetchShareLinks}
-                isCreatingLink={isCreatingLink}
-                onCreateLink={handleCreateShareLink}
-                onEditLink={(link) => setEditingShareLink(link)}
-                onOpenLinkAnalytics={(linkId) => navigate(`/share-links/${linkId}`)}
-                onOpenDashboard={() => navigate('/share-links')}
-                onDeleteLink={handleDeleteShareLink}
-              />
-            </div>
-          </div>
-        ) : (
-          <div
-            id="gallery-content-panel-favorites"
-            role="tabpanel"
-            aria-labelledby="gallery-content-tab-favorites"
-          >
-            <GallerySelectionSessionsPanel
-              userTabs={favoritesTabs}
-              selectedUserTabKey={selectedFavoritesTabKey}
-              selectedSession={selectedFavoritesSessionDetail}
-              thumbnailByPhotoId={photoThumbnailById}
-              isLoadingRows={isLoadingSelectionRows}
-              isLoadingDetail={isLoadingSelectionDetail}
-              isMutating={isMutatingSelectionSession}
-              error={selectionSessionsError}
-              onSelectUserTab={handleSelectFavoritesTab}
-              onCloseSession={() => {
-                void handleCloseSelectionSession();
-              }}
-              onReopenSession={() => {
-                void handleReopenSelectionSession();
-              }}
-              onRefresh={() => {
-                void fetchSelectionRows();
-              }}
-            />
-          </div>
-        )}
+        <AppTabs
+          items={contentTabItems}
+          selectedKey={activeContentTab}
+          onChange={handleSelectContentTab}
+          listClassName="flex items-center gap-3 overflow-x-auto pl-8"
+          panelsClassName="mt-8"
+        />
       </div>
 
       {/* Lightbox */}

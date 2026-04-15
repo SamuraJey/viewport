@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { GalleryPage } from '../../pages/GalleryPage';
@@ -220,7 +220,8 @@ describe('GalleryPage', () => {
     });
 
     await userEvent.click(screen.getByRole('button', { name: /delete gallery/i }));
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    const deleteDialog = await screen.findByRole('dialog', { name: /delete gallery/i });
+    await userEvent.click(within(deleteDialog).getByRole('button', { name: 'Delete' }));
 
     await waitFor(() => {
       expect(galleryService.deleteGallery).toHaveBeenCalledWith('1');
@@ -263,7 +264,7 @@ describe('GalleryPage', () => {
       });
 
       // Find photo images and their parent buttons
-      const photoImages = screen.getAllByAltText(/Photo photo/i);
+      const photoImages = screen.getAllByAltText(/photo\d\.jpg/i);
       expect(photoImages).toHaveLength(3);
 
       const firstPhotoButton = photoImages[0].closest('button');
@@ -295,7 +296,7 @@ describe('GalleryPage', () => {
       });
 
       // Open lightbox
-      const photoImages = screen.getAllByAltText(/Photo photo/i);
+      const photoImages = screen.getAllByAltText(/photo\d\.jpg/i);
       const photoButton = photoImages[0].closest('button');
       await userEvent.click(photoButton!);
 
@@ -335,7 +336,7 @@ describe('GalleryPage', () => {
       });
 
       // Find the first photo container and get its delete button
-      const photoImages = screen.getAllByAltText(/Photo photo/i);
+      const photoImages = screen.getAllByAltText(/photo\d\.jpg/i);
       const firstPhoto = photoImages[0];
 
       // Navigate to parent container and find the delete button within it
@@ -352,11 +353,14 @@ describe('GalleryPage', () => {
       await userEvent.click(deleteButton!);
 
       // Expect confirmation modal to appear
-      expect(screen.getByText('Delete Photo')).toBeInTheDocument();
-      expect(screen.getByText(/Are you sure you want to delete this photo/)).toBeInTheDocument();
+      const deleteDialog = await screen.findByRole('dialog', { name: /delete photo/i });
+      expect(within(deleteDialog).getByText('Delete Photo')).toBeInTheDocument();
+      expect(
+        within(deleteDialog).getByText(/Are you sure you want to delete this photo/),
+      ).toBeInTheDocument();
 
       // Click confirm button in modal
-      const confirmButton = screen.getByRole('button', { name: 'Delete' });
+      const confirmButton = within(deleteDialog).getByRole('button', { name: 'Delete' });
       await userEvent.click(confirmButton);
 
       await waitFor(() => {
@@ -365,7 +369,7 @@ describe('GalleryPage', () => {
 
       // Wait for the photo to be removed from the UI to avoid act() warning
       await waitFor(() => {
-        expect(screen.queryByAltText('Photo photo1')).not.toBeInTheDocument();
+        expect(screen.queryByAltText('photo1.jpg')).not.toBeInTheDocument();
       });
     });
 
@@ -380,7 +384,7 @@ describe('GalleryPage', () => {
         expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
       });
 
-      const photoImages = screen.getAllByAltText(/Photo photo/i);
+      const photoImages = screen.getAllByAltText(/photo\d\.jpg/i);
       const firstPhoto = photoImages[0];
       const photoContainer = firstPhoto.closest('.group');
       expect(photoContainer).toBeInTheDocument();
@@ -392,14 +396,15 @@ describe('GalleryPage', () => {
 
       await userEvent.hover(photoContainer!);
       await userEvent.click(deleteButton!);
-      await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+      const deleteDialog = await screen.findByRole('dialog', { name: /delete photo/i });
+      await userEvent.click(within(deleteDialog).getByRole('button', { name: 'Delete' }));
 
       await waitFor(() => {
         expect(photoService.deletePhoto).toHaveBeenCalledWith('1', 'photo1');
       });
 
       await waitFor(() => {
-        expect(screen.queryByAltText('Photo photo1')).not.toBeInTheDocument();
+        expect(screen.queryByAltText('photo1.jpg')).not.toBeInTheDocument();
       });
     });
 
@@ -416,7 +421,7 @@ describe('GalleryPage', () => {
         expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
       });
 
-      const photoImages = screen.getAllByAltText(/Photo photo/i);
+      const photoImages = screen.getAllByAltText(/photo\d\.jpg/i);
       const firstPhoto = photoImages[0];
       const photoContainer = firstPhoto.closest('.group');
       expect(photoContainer).toBeInTheDocument();
@@ -430,7 +435,7 @@ describe('GalleryPage', () => {
       });
 
       await waitFor(() => {
-        expect(screen.queryByAltText('Photo photo1')).not.toBeInTheDocument();
+        expect(screen.queryByAltText('photo1.jpg')).not.toBeInTheDocument();
       });
 
       expect(screen.getByText('This photo was already deleted.')).toBeInTheDocument();

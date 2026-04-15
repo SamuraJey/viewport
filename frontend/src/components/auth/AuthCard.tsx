@@ -13,10 +13,10 @@ export const AuthCard = ({ title, subtitle, children }: AuthCardProps) => (
       <div className="w-14 h-14 bg-accent rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-accent/20">
         <Camera className="h-7 w-7 text-white" />
       </div>
-      <h2 className="font-oswald text-3xl sm:text-4xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground mb-3">
+      <h2 className="font-oswald text-3xl sm:text-4xl font-bold uppercase tracking-wider text-text mb-3">
         {title}
       </h2>
-      <p className="text-muted dark:text-muted-foreground font-cuprum text-lg">{subtitle}</p>
+      <p className="text-muted font-cuprum text-lg">{subtitle}</p>
     </div>
     {children}
   </div>

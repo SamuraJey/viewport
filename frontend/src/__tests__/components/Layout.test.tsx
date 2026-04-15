@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
 import { useAuthStore } from '../../stores/authStore';
@@ -157,5 +158,28 @@ describe('Layout', () => {
 
     // Should have main content area
     expect(screen.getByTestId('content')).toBeInTheDocument();
+  });
+
+  it('moves focus to main content when skip link is activated', async () => {
+    const user = userEvent.setup();
+
+    vi.mocked(useAuthStore).mockReturnValue({
+      user: null,
+      logout: mockLogout,
+    } as any);
+
+    renderWithRouter(
+      <Layout>
+        <div>Content</div>
+      </Layout>,
+    );
+
+    await user.tab();
+    const skipLink = screen.getByRole('link', { name: /skip to main content/i });
+    expect(skipLink).toHaveFocus();
+
+    await user.keyboard('{Enter}');
+
+    expect(screen.getByRole('main')).toHaveFocus();
   });
 });

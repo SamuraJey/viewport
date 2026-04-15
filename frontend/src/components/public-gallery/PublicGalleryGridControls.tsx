@@ -8,7 +8,7 @@ interface PublicGalleryGridControlsProps {
   onDensityChange: (mode: PublicGridDensity) => void;
 }
 
-const inactiveLabelClass = 'text-text/80 dark:text-accent-foreground/80';
+const inactiveLabelClass = 'text-text/80';
 
 interface SegmentedOption<T extends string> {
   value: T;

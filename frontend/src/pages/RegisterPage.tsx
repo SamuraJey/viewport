@@ -8,8 +8,10 @@ import { AuthLayout } from '../components/AuthLayout';
 import { AuthCard } from '../components/auth/AuthCard';
 import { AuthPasswordField, AuthTextField } from '../components/auth/AuthFields';
 import { disableDemoMode } from '../lib/demoMode';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 export const RegisterPage = () => {
+  useDocumentTitle('Register · Viewport');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -115,9 +117,7 @@ export const RegisterPage = () => {
             onChange={(e) => setConfirmPassword(e.target.value)}
             aria-label="Confirm password"
           />
-          <p className="text-xs text-muted dark:text-text mt-2">
-            Password must be at least 8 characters long.
-          </p>
+          <p className="mt-2 text-xs text-muted">Password must be at least 8 characters long.</p>
         </div>
         {error && (
           <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 px-4 py-3 rounded-xl text-center text-sm font-medium shadow-xs">
@@ -146,15 +146,13 @@ export const RegisterPage = () => {
             <div className="w-full border-t border-border/60 dark:border-border/40"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-4 bg-surface dark:bg-surface-foreground text-muted font-medium">
-              Already have an account?
-            </span>
+            <span className="px-4 bg-surface text-muted font-medium">Already have an account?</span>
           </div>
         </div>
         <div className="text-center">
           <Link
             to="/auth/login"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-text dark:text-accent-foreground hover:text-accent dark:hover:text-accent-foreground transition-colors duration-200 p-2 rounded-lg hover:bg-surface-1/50"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-text hover:text-accent transition-colors duration-200 p-2 rounded-lg hover:bg-surface-1/50"
           >
             Sign in to your account
           </Link>
@@ -164,13 +162,11 @@ export const RegisterPage = () => {
   );
 
   const renderSuccess = () => (
-    <div className="relative z-10 w-full max-w-md p-10 flex flex-col gap-6 bg-surface dark:bg-surface-foreground/95 backdrop-blur-lg rounded-2xl border border-border/50 dark:border-white/10 text-center shadow-xl">
+    <div className="relative z-10 w-full max-w-md p-10 flex flex-col gap-6 rounded-2xl border border-border/50 bg-surface text-center shadow-xl backdrop-blur-lg dark:border-white/10 dark:bg-surface-foreground/95">
       <div className="w-20 h-20 mx-auto bg-green-50 dark:bg-green-500/10 rounded-full flex items-center justify-center mb-2">
         <CheckCircle className="h-10 w-10 text-green-500" />
       </div>
-      <h2 className="text-3xl font-bold text-text dark:text-white tracking-tight">
-        Registration Successful!
-      </h2>
+      <h2 className="text-3xl font-bold tracking-tight text-text">Registration Successful!</h2>
       <p className="text-lg text-muted font-medium">Redirecting you to sign in...</p>
     </div>
   );

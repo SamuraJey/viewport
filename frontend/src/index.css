@@ -68,7 +68,6 @@ picture,
 }
 
 @media (prefers-reduced-motion: reduce) {
-
   ::view-transition-old(root),
   ::view-transition-new(root),
   ::view-transition-group(root) {
@@ -300,6 +299,12 @@ html.dark {
   --color-danger-rgb: 239 68 68;
   --color-success-rgb: 16 185 129;
   --color-photo-overlay-rgb: var(--color-black-rgb);
+
+  --readability-font-scale-factor: 1;
+  --readability-line-height: 1.5;
+  --readability-focus-ring-width: 3px;
+  --readability-focus-ring-offset: 3px;
+  --readability-focus-ring-rgb: var(--color-primary-500-rgb);
 }
 
 /* Dark theme overrides (use semantic inversions appropriate for dark) */
@@ -391,6 +396,115 @@ html.dark {
   --color-danger-rgb: 248 113 113;
   --color-success-rgb: 34 197 94;
   --color-photo-overlay-rgb: var(--color-black-rgb);
+}
+
+html {
+  font-size: calc(100% * var(--readability-font-scale-factor));
+}
+
+body {
+  line-height: var(--readability-line-height);
+}
+
+.skip-link {
+  text-decoration: none;
+}
+
+:where(
+  a[href],
+  button,
+  input,
+  textarea,
+  select,
+  summary,
+  [role='button'],
+  [role='tab'],
+  [tabindex]:not([tabindex='-1'])
+):focus-visible {
+  outline: var(--readability-focus-ring-width) solid rgb(var(--readability-focus-ring-rgb));
+  outline-offset: var(--readability-focus-ring-offset);
+}
+
+:where(main[id='main-content'], [id='main-content'][tabindex='-1']):focus-visible {
+  outline: var(--readability-focus-ring-width) solid rgb(var(--readability-focus-ring-rgb));
+  outline-offset: var(--readability-focus-ring-offset);
+}
+
+html[data-readability-mode='on'][data-readability-font-scale='125'] {
+  --readability-font-scale-factor: 1.25;
+}
+
+html[data-readability-mode='on'][data-readability-font-scale='150'] {
+  --readability-font-scale-factor: 1.5;
+}
+
+html[data-readability-mode='on'][data-readability-line-spacing='comfortable'] {
+  --readability-line-height: 1.75;
+}
+
+html[data-readability-mode='on'][data-readability-line-spacing='spacious'] {
+  --readability-line-height: 2;
+}
+
+html[data-readability-mode='on'] {
+  --readability-focus-ring-width: 4px;
+  --readability-focus-ring-offset: 4px;
+}
+
+html[data-readability-mode='on']
+  :where(button, [role='button'], a[class], input, select, textarea, summary) {
+  min-height: 44px;
+}
+
+html[data-readability-mode='on'][data-readability-contrast='black-on-white'] {
+  --color-border-rgb: 0 0 0;
+  --color-text-rgb: 0 0 0;
+  --color-muted-rgb: 38 38 38;
+  --color-surface-rgb: 255 255 255;
+  --color-surface-1-rgb: 255 255 255;
+  --color-surface-2-rgb: 245 245 245;
+  --color-surface-dark-rgb: 255 255 255;
+  --color-surface-dark-1-rgb: 255 255 255;
+  --color-surface-dark-2-rgb: 245 245 245;
+  --color-surface-foreground-rgb: 255 255 255;
+  --color-accent-rgb: 0 0 0;
+  --color-accent-foreground-rgb: 255 255 255;
+  --readability-focus-ring-rgb: 0 0 0;
+}
+
+html[data-readability-mode='on'][data-readability-contrast='white-on-black'] {
+  --color-border-rgb: 255 255 255;
+  --color-text-rgb: 255 255 255;
+  --color-muted-rgb: 230 230 230;
+  --color-surface-rgb: 0 0 0;
+  --color-surface-1-rgb: 0 0 0;
+  --color-surface-2-rgb: 18 18 18;
+  --color-surface-dark-rgb: 0 0 0;
+  --color-surface-dark-1-rgb: 0 0 0;
+  --color-surface-dark-2-rgb: 18 18 18;
+  --color-surface-foreground-rgb: 0 0 0;
+  --color-accent-rgb: 255 255 255;
+  --color-accent-foreground-rgb: 0 0 0;
+  --color-danger-rgb: 255 140 140;
+  --color-success-rgb: 150 255 170;
+  --readability-focus-ring-rgb: 255 255 255;
+}
+
+html[data-readability-mode='on'] [class*='dark:text-accent-foreground'],
+html[data-readability-mode='on'] [class*='dark:text-white'] {
+  color: rgb(var(--color-text-rgb)) !important;
+}
+
+html[data-readability-mode='on'] [class*='dark:text-muted-foreground'] {
+  color: rgb(var(--color-muted-rgb)) !important;
+}
+
+html[data-readability-mode='on'] [class*='bg-text'][class*='dark:bg-white'] {
+  background-color: rgb(var(--color-text-rgb)) !important;
+}
+
+html[data-readability-mode='on'] [class*='bg-text'][class*='dark:text-black'] {
+  color: rgb(var(--color-surface-rgb)) !important;
 }
 
 /* ===== THEME SHADOW NORMALIZATION =====
@@ -861,7 +975,9 @@ html.dark .pg-card {
 
 .dark .pg-card:hover,
 html.dark .pg-card:hover {
-  box-shadow: 0 6px 22px rgba(255, 255, 255, 0.08), 0 0 20px rgba(255, 255, 255, 0.05);
+  box-shadow:
+    0 6px 22px rgba(255, 255, 255, 0.08),
+    0 0 20px rgba(255, 255, 255, 0.05);
 }
 
 .pg-grid {
@@ -975,7 +1091,7 @@ html.dark .pg-card:hover {
 }
 
 /* Ensure cards behave correctly inside CSS columns (masonry) */
-.pg-columns>.pg-card {
+.pg-columns > .pg-card {
   display: inline-block;
   width: 100%;
   break-inside: avoid;
@@ -990,16 +1106,16 @@ html.dark .pg-card:hover {
 /* Ensure the clickable button and image fill the reserved card area so
    the layout doesn't jump when the image src is applied. Use object-fit
    to preserve aspect and crop as needed. */
-.pg-columns>.pg-card>button {
+.pg-columns > .pg-card > button {
   display: block;
   width: 100%;
   height: 100%;
   padding: 0;
 }
 
-.pg-columns>.pg-card img,
-.pg-columns>.pg-card>button>img,
-.pg-columns>.pg-card .animate-pulse {
+.pg-columns > .pg-card img,
+.pg-columns > .pg-card > button > img,
+.pg-columns > .pg-card .animate-pulse {
   display: block;
   width: 100%;
   height: 100%;
@@ -1008,24 +1124,24 @@ html.dark .pg-card:hover {
 
 /* Aspect-specific helpers: wide images should be shown contained and centered
    to avoid very short heights distorting masonry; tall images keep cover. */
-.pg-columns>.pg-card img.photo--wide,
-.pg-columns>.pg-card>button>img.photo--wide {
+.pg-columns > .pg-card img.photo--wide,
+.pg-columns > .pg-card > button > img.photo--wide {
   object-fit: contain;
   background-color: rgb(var(--color-neutral-50-rgb));
 }
 
-.dark .pg-columns>.pg-card img.photo--wide,
-html.dark .pg-columns>.pg-card>button>img.photo--wide {
+.dark .pg-columns > .pg-card img.photo--wide,
+html.dark .pg-columns > .pg-card > button > img.photo--wide {
   background-color: rgb(24, 24, 27);
 }
 
-.pg-columns>.pg-card img.photo--tall,
-.pg-columns>.pg-card>button>img.photo--tall {
+.pg-columns > .pg-card img.photo--tall,
+.pg-columns > .pg-card > button > img.photo--tall {
   object-fit: cover;
 }
 
-.pg-columns>.pg-card img.photo--square,
-.pg-columns>.pg-card>button>img.photo--square {
+.pg-columns > .pg-card img.photo--square,
+.pg-columns > .pg-card > button > img.photo--square {
   object-fit: cover;
 }
 
@@ -1037,7 +1153,10 @@ html.dark .popup-container {
 }
 
 /* Fix for popup action buttons inside popups - only override neutral ones, preserve accent colors */
-html.dark .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(.popup-action--success):not(.popup-action--danger) {
+html.dark
+  .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(
+    .popup-action--success
+  ):not(.popup-action--danger) {
   background-color: rgb(63, 63, 70) !important;
   color: rgb(244, 244, 245) !important;
   border-color: rgb(82, 82, 91) !important;
@@ -1178,16 +1297,20 @@ html.dark .auth-layout a:hover {
 /* ===== AUTH LAYOUT DECORATION ===== */
 /* Subtle radial dot-grid pattern for auth pages */
 .auth-dot-grid {
-  background-image: radial-gradient(circle,
-      rgb(var(--color-accent-rgb) / 0.18) 1px,
-      transparent 1px);
+  background-image: radial-gradient(
+    circle,
+    rgb(var(--color-accent-rgb) / 0.18) 1px,
+    transparent 1px
+  );
   background-size: 28px 28px;
 }
 
 html.dark .auth-dot-grid {
-  background-image: radial-gradient(circle,
-      rgb(var(--color-accent-rgb) / 0.1) 1px,
-      transparent 1px);
+  background-image: radial-gradient(
+    circle,
+    rgb(var(--color-accent-rgb) / 0.1) 1px,
+    transparent 1px
+  );
 }
 
 /* ===== CUSTOM SCROLLBAR ===== */

@@ -24,6 +24,16 @@ Object.defineProperty(window, 'IntersectionObserver', {
   },
 });
 
+Object.defineProperty(window, 'ResizeObserver', {
+  writable: true,
+  configurable: true,
+  value: class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+});
+
 // Mock URL methods
 Object.defineProperty(URL, 'createObjectURL', {
   writable: true,
@@ -34,24 +44,31 @@ Object.defineProperty(URL, 'revokeObjectURL', {
   value: vi.fn(),
 });
 
-// Mock localStorage and sessionStorage
+// Mock localStorage and sessionStorage with in-memory persistence
+const createStorageMock = () => {
+  let store = new Map<string, string>();
+
+  return {
+    getItem: vi.fn((key: string) => store.get(key) ?? null),
+    setItem: vi.fn((key: string, value: string) => {
+      store.set(String(key), String(value));
+    }),
+    removeItem: vi.fn((key: string) => {
+      store.delete(String(key));
+    }),
+    clear: vi.fn(() => {
+      store = new Map();
+    }),
+  };
+};
+
 Object.defineProperty(window, 'localStorage', {
   writable: true,
-  value: {
-    getItem: vi.fn(),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
-  },
+  value: createStorageMock(),
 });
 Object.defineProperty(window, 'sessionStorage', {
   writable: true,
-  value: {
-    getItem: vi.fn(),
-    setItem: vi.fn(),
-    removeItem: vi.fn(),
-    clear: vi.fn(),
-  },
+  value: createStorageMock(),
 });
 
 // Mock window.location

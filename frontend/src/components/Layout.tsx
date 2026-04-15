@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../stores/authStore';
-import { ThemeSwitch } from './ThemeSwitch';
-import { LogOut, Camera, Home, Share2 } from 'lucide-react';
-import { useState, useMemo } from 'react';
-import { ProfileModal } from './ProfileModal';
-import { NetworkStatus } from './ErrorDisplay';
 import { AnimatePresence } from 'framer-motion';
+import { Camera, Home, LogOut, Share2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { isDemoModeEnabled } from '../lib/demoMode';
+import { NetworkStatus } from './ErrorDisplay';
+import { ReadabilitySettingsButton } from './ReadabilitySettingsButton';
+import { SkipToContentLink } from './a11y/SkipToContentLink';
+import { ProfileModal } from './ProfileModal';
+import { ThemeSwitch } from './ThemeSwitch';
+import { useAuthStore } from '../stores/authStore';
 
 /** Returns up to 2 uppercase initials for a display name or email. */
 const getUserInitials = (name?: string | null, email?: string): string => {
@@ -59,6 +61,7 @@ export const Layout = ({ children }: LayoutProps) => {
 
   return (
     <div className="min-h-screen bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
+      <SkipToContentLink />
       <header className="sticky top-0 z-40 border-b border-border bg-surface/95 py-2 backdrop-blur-lg dark:bg-surface-dark/95 sm:py-3">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-3 sm:px-4">
           <Link
@@ -86,6 +89,12 @@ export const Layout = ({ children }: LayoutProps) => {
                 Dashboard
               </Link>
               <Link
+                to="/accessibility"
+                className={`${topNavButtonBaseClass} ${topNavButtonInactiveClass}`}
+              >
+                Accessibility
+              </Link>
+              <Link
                 to="/share-links"
                 aria-current={isShareLinksActive ? 'page' : undefined}
                 className={`${topNavButtonBaseClass} ${isShareLinksActive ? topNavButtonActiveClass : topNavButtonInactiveClass}`}
@@ -94,6 +103,7 @@ export const Layout = ({ children }: LayoutProps) => {
                 Share Links
               </Link>
             </div>
+            <ReadabilitySettingsButton />
             <ThemeSwitch variant="inline" />
             {user ? (
               <>
@@ -136,10 +146,22 @@ export const Layout = ({ children }: LayoutProps) => {
           </nav>
         </div>
       </header>
-      <main className="max-w-7xl xl:max-w-380 2xl:max-w-480 mx-auto px-4 xl:px-6 2xl:px-8 py-8">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="max-w-7xl xl:max-w-380 2xl:max-w-480 mx-auto px-4 xl:px-6 2xl:px-8 py-8"
+      >
         <NetworkStatus />
         {children}
       </main>
+      <footer className="border-t border-border/50 bg-surface/70 px-4 py-4 text-sm text-muted dark:bg-surface-dark/70">
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
+          <span>Viewport accessibility guidance and low-vision settings.</span>
+          <Link to="/accessibility" className="font-semibold text-accent hover:underline">
+            Accessibility
+          </Link>
+        </div>
+      </footer>
       <AnimatePresence>
         {isProfileOpen && <ProfileModal isOpen={isProfileOpen} onClose={closeProfile} />}
       </AnimatePresence>
