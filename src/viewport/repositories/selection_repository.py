@@ -457,6 +457,75 @@ class SelectionRepository(BaseRepository):
             )
         )
 
+    async def get_sharelink_selection_summaries(
+        self,
+        sharelink_ids: list[uuid.UUID],
+    ) -> dict[uuid.UUID, tuple[bool, int, int, int, int, int, datetime | None]]:
+        if not sharelink_ids:
+            return await self._finish_read({})
+
+        session_aggregate_subquery = (
+            select(
+                ShareLinkSelectionSession.sharelink_id.label("sharelink_id"),
+                func.count(ShareLinkSelectionSession.id).label("total_sessions"),
+                func.sum(
+                    case(
+                        (ShareLinkSelectionSession.status == SelectionSessionStatus.SUBMITTED.value, 1),
+                        else_=0,
+                    )
+                ).label("submitted_sessions"),
+                func.sum(
+                    case(
+                        (ShareLinkSelectionSession.status == SelectionSessionStatus.IN_PROGRESS.value, 1),
+                        else_=0,
+                    )
+                ).label("in_progress_sessions"),
+                func.sum(
+                    case(
+                        (ShareLinkSelectionSession.status == SelectionSessionStatus.CLOSED.value, 1),
+                        else_=0,
+                    )
+                ).label("closed_sessions"),
+                func.coalesce(func.sum(ShareLinkSelectionSession.selected_count), 0).label("selected_count"),
+                func.max(ShareLinkSelectionSession.updated_at).label("latest_activity_at"),
+            )
+            .where(ShareLinkSelectionSession.sharelink_id.in_(sharelink_ids))
+            .group_by(ShareLinkSelectionSession.sharelink_id)
+            .subquery()
+        )
+
+        stmt = (
+            select(
+                ShareLink.id,
+                func.coalesce(ShareLinkSelectionConfig.is_enabled, False).label("is_enabled"),
+                func.coalesce(session_aggregate_subquery.c.total_sessions, 0).label("total_sessions"),
+                func.coalesce(session_aggregate_subquery.c.submitted_sessions, 0).label("submitted_sessions"),
+                func.coalesce(session_aggregate_subquery.c.in_progress_sessions, 0).label("in_progress_sessions"),
+                func.coalesce(session_aggregate_subquery.c.closed_sessions, 0).label("closed_sessions"),
+                func.coalesce(session_aggregate_subquery.c.selected_count, 0).label("selected_count"),
+                session_aggregate_subquery.c.latest_activity_at,
+            )
+            .select_from(ShareLink)
+            .outerjoin(ShareLinkSelectionConfig, ShareLinkSelectionConfig.sharelink_id == ShareLink.id)
+            .outerjoin(session_aggregate_subquery, session_aggregate_subquery.c.sharelink_id == ShareLink.id)
+            .where(ShareLink.id.in_(sharelink_ids))
+        )
+
+        rows = (await self.db.execute(stmt)).all()
+        summaries: dict[uuid.UUID, tuple[bool, int, int, int, int, int, datetime | None]] = {}
+        for row in rows:
+            sharelink_id = cast(uuid.UUID, row.id)
+            summaries[sharelink_id] = (
+                bool(row.is_enabled),
+                int(row.total_sessions or 0),
+                int(row.submitted_sessions or 0),
+                int(row.in_progress_sessions or 0),
+                int(row.closed_sessions or 0),
+                int(row.selected_count or 0),
+                cast(datetime | None, row.latest_activity_at),
+            )
+        return await self._finish_read(summaries)
+
     async def get_gallery_session_aggregates(
         self,
         gallery_id: uuid.UUID,

@@ -8,7 +8,9 @@ import pytest_asyncio
 from viewport.models.gallery import Gallery
 from viewport.models.sharelink import ShareLink
 from viewport.models.sharelink_analytics import ShareLinkDailyStat
+from viewport.models.sharelink_selection import SelectionSessionStatus, ShareLinkSelectionConfig, ShareLinkSelectionSession
 from viewport.models.user import User
+from viewport.repositories.selection_repository import SelectionRepository
 from viewport.repositories.sharelink_repository import ShareLinkRepository
 
 
@@ -237,3 +239,54 @@ async def test_get_sharelinks_by_owner_filters_by_status(repo: ShareLinkReposito
 
     assert expired_total == 1
     assert [row[0].label for row in expired_rows] == ["Expired"]
+
+
+@pytest.mark.asyncio
+async def test_get_sharelink_selection_summaries_is_bounded_to_requested_ids(db_session):
+    user = User(email=f"selection-{uuid4()}@example.com", password_hash="hashed", display_name="selection user")
+    db_session.add(user)
+    await db_session.commit()
+
+    gallery = Gallery(owner_id=user.id, name="Selection Summary Gallery")
+    db_session.add(gallery)
+    await db_session.commit()
+
+    first_link = ShareLink(gallery_id=gallery.id, label="First")
+    second_link = ShareLink(gallery_id=gallery.id, label="Second")
+    db_session.add_all([first_link, second_link])
+    await db_session.commit()
+
+    first_config = ShareLinkSelectionConfig(sharelink_id=first_link.id, is_enabled=True)
+    second_config = ShareLinkSelectionConfig(sharelink_id=second_link.id, is_enabled=True)
+    db_session.add_all([first_config, second_config])
+    await db_session.commit()
+
+    db_session.add_all(
+        [
+            ShareLinkSelectionSession(
+                sharelink_id=first_link.id,
+                config_id=first_config.id,
+                client_name="Client A",
+                status=SelectionSessionStatus.IN_PROGRESS.value,
+                selected_count=3,
+                resume_token_hash="hash-a",
+            ),
+            ShareLinkSelectionSession(
+                sharelink_id=second_link.id,
+                config_id=second_config.id,
+                client_name="Client B",
+                status=SelectionSessionStatus.SUBMITTED.value,
+                selected_count=5,
+                resume_token_hash="hash-b",
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    selection_repo = SelectionRepository(db_session)
+    summaries = await selection_repo.get_sharelink_selection_summaries([first_link.id])
+
+    assert set(summaries.keys()) == {first_link.id}
+    assert summaries[first_link.id][0] is True
+    assert summaries[first_link.id][3] == 1
+    assert summaries[first_link.id][5] == 3

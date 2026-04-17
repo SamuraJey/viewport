@@ -1,5 +1,5 @@
 import { MemoryRouter } from 'react-router-dom';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ShareLinksDashboardPage } from '../../pages/ShareLinksDashboardPage';
@@ -59,6 +59,16 @@ describe('ShareLinksDashboardPage', () => {
           single_downloads: 3,
           created_at: '2026-04-10T10:00:00Z',
           updated_at: '2026-04-12T10:00:00Z',
+          selection_summary: {
+            is_enabled: true,
+            status: 'in_progress',
+            total_sessions: 1,
+            submitted_sessions: 0,
+            in_progress_sessions: 1,
+            closed_sessions: 0,
+            selected_count: 4,
+            latest_activity_at: '2026-04-12T10:00:00Z',
+          },
         },
         {
           id: 'link-2',
@@ -72,6 +82,16 @@ describe('ShareLinksDashboardPage', () => {
           single_downloads: 0,
           created_at: '2026-04-11T10:00:00Z',
           updated_at: '2026-04-13T10:00:00Z',
+          selection_summary: {
+            is_enabled: false,
+            status: 'not_started',
+            total_sessions: 0,
+            submitted_sessions: 0,
+            in_progress_sessions: 0,
+            closed_sessions: 0,
+            selected_count: 0,
+            latest_activity_at: null,
+          },
         },
       ],
       total: 2,
@@ -84,19 +104,6 @@ describe('ShareLinksDashboardPage', () => {
         active_links: 1,
       },
     } as any);
-
-    vi.mocked(shareLinkService.getGallerySelections).mockResolvedValue([
-      {
-        sharelink_id: 'link-1',
-        status: 'in_progress',
-        selected_count: 4,
-      },
-      {
-        sharelink_id: 'link-2',
-        status: 'submitted',
-        selected_count: 1,
-      },
-    ] as any);
   });
 
   const renderPage = () =>
@@ -179,5 +186,109 @@ describe('ShareLinksDashboardPage', () => {
     await user.click(screen.getByRole('button', { name: /paused/i }));
 
     expect(await screen.findAllByText(/across filtered results/i)).toHaveLength(2);
+  });
+
+  it('keeps the latest dashboard response when older requests resolve later', async () => {
+    let resolveFirst: ((value: any) => void) | undefined;
+    let resolveSecond: ((value: any) => void) | undefined;
+
+    vi.mocked(shareLinkService.getOwnerShareLinks)
+      .mockImplementationOnce(
+        () =>
+          new Promise<any>((resolve: (value: any) => void) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<any>((resolve: (value: any) => void) => {
+            resolveSecond = resolve;
+          }),
+      );
+
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: /refresh list/i }));
+
+    resolveSecond?.({
+      share_links: [
+        {
+          id: 'latest-link',
+          gallery_id: 'gallery-9',
+          gallery_name: 'Latest Gallery',
+          label: 'Latest result',
+          is_active: true,
+          expires_at: null,
+          views: 1,
+          zip_downloads: 0,
+          single_downloads: 0,
+          created_at: '2026-04-20T10:00:00Z',
+          updated_at: '2026-04-20T10:00:00Z',
+          selection_summary: {
+            is_enabled: false,
+            status: 'not_started',
+            total_sessions: 0,
+            submitted_sessions: 0,
+            in_progress_sessions: 0,
+            closed_sessions: 0,
+            selected_count: 0,
+            latest_activity_at: null,
+          },
+        },
+      ],
+      total: 1,
+      page: 1,
+      size: 20,
+      summary: {
+        views: 1,
+        zip_downloads: 0,
+        single_downloads: 0,
+        active_links: 1,
+      },
+    });
+
+    await screen.findByText('Latest result');
+
+    resolveFirst?.({
+      share_links: [
+        {
+          id: 'stale-link',
+          gallery_id: 'gallery-8',
+          gallery_name: 'Stale Gallery',
+          label: 'Stale result',
+          is_active: true,
+          expires_at: null,
+          views: 5,
+          zip_downloads: 0,
+          single_downloads: 0,
+          created_at: '2026-04-19T10:00:00Z',
+          updated_at: '2026-04-19T10:00:00Z',
+          selection_summary: {
+            is_enabled: false,
+            status: 'not_started',
+            total_sessions: 0,
+            submitted_sessions: 0,
+            in_progress_sessions: 0,
+            closed_sessions: 0,
+            selected_count: 0,
+            latest_activity_at: null,
+          },
+        },
+      ],
+      total: 1,
+      page: 1,
+      size: 20,
+      summary: {
+        views: 5,
+        zip_downloads: 0,
+        single_downloads: 0,
+        active_links: 1,
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Latest result')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Stale result')).not.toBeInTheDocument();
   });
 });

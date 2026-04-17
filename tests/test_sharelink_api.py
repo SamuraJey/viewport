@@ -105,6 +105,8 @@ class TestSharelinkAPI:
         assert isinstance(data["share_links"], list)
         assert data["share_links"][0]["gallery_id"] == gallery_id_fixture
         assert "gallery_name" in data["share_links"][0]
+        assert "selection_summary" in data["share_links"][0]
+        assert {"is_enabled", "status", "selected_count", "total_sessions"} <= set(data["share_links"][0]["selection_summary"].keys())
         assert "summary" in data
         assert {"views", "zip_downloads", "single_downloads", "active_links"} <= set(data["summary"].keys())
 
@@ -183,6 +185,8 @@ class TestSharelinkAPI:
         data = response.json()
         assert data["share_link"]["id"] == sharelink_id
         assert data["share_link"]["gallery_id"] == gallery_id_fixture
+        assert "selection_summary" in data
+        assert {"is_enabled", "status", "selected_count", "total_sessions"} <= set(data["selection_summary"].keys())
         assert len(data["points"]) == 7
         assert {"day", "views_total", "views_unique", "zip_downloads", "single_downloads"} <= set(data["points"][0].keys())
 

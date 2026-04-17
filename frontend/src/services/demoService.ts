@@ -23,6 +23,7 @@ import type {
   ShareLinkAnalyticsResponse,
   ShareLinkDailyPoint,
   ShareLinksDashboardResponse,
+  ShareLinkSelectionSummary,
   ShareLinkUpdateRequest,
   SelectionConfig,
   SelectionConfigUpdateRequest,
@@ -368,6 +369,46 @@ class DemoServiceStore {
 
   private createValidationError(message: string): ApiError {
     return new ApiError(422, message, { detail: message });
+  }
+
+  private buildSelectionSummary(
+    state: DemoGalleryState,
+    shareLinkId: string,
+  ): ShareLinkSelectionSummary {
+    state.selectionConfigs = state.selectionConfigs ?? {};
+    const config = state.selectionConfigs[shareLinkId] ?? defaultSelectionConfig();
+    const sessions = [...((state.selectionSessions ?? {})[shareLinkId] ?? [])];
+    const submittedSessions = sessions.filter((entry) => entry.status === 'submitted').length;
+    const inProgressSessions = sessions.filter((entry) => entry.status === 'in_progress').length;
+    const closedSessions = sessions.filter((entry) => entry.status === 'closed').length;
+    const selectedCount = sessions.reduce((sum, entry) => sum + (entry.selected_count || 0), 0);
+    const latestActivity =
+      sessions.length > 0
+        ? sessions
+            .map((entry) => Date.parse(entry.updated_at))
+            .filter((value) => !Number.isNaN(value))
+            .sort((left, right) => right - left)[0]
+        : null;
+
+    let status: ShareLinkSelectionSummary['status'] = 'not_started';
+    if (submittedSessions > 0) {
+      status = 'submitted';
+    } else if (inProgressSessions > 0) {
+      status = 'in_progress';
+    } else if (closedSessions > 0) {
+      status = 'closed';
+    }
+
+    return {
+      is_enabled: config.is_enabled,
+      status,
+      total_sessions: sessions.length,
+      submitted_sessions: submittedSessions,
+      in_progress_sessions: inProgressSessions,
+      closed_sessions: closedSessions,
+      selected_count: selectedCount,
+      latest_activity_at: latestActivity !== null ? new Date(latestActivity).toISOString() : null,
+    };
   }
 
   private getSelectionConfigForShareId(shareId: string): {
@@ -824,6 +865,7 @@ class DemoServiceStore {
         ...link,
         gallery_id: entry.gallery.id,
         gallery_name: entry.gallery.name,
+        selection_summary: this.buildSelectionSummary(entry, link.id),
       })),
     );
 
@@ -919,6 +961,7 @@ class DemoServiceStore {
         gallery_id: state.gallery.id,
         gallery_name: state.gallery.name,
       },
+      selection_summary: this.buildSelectionSummary(state, link.id),
       points,
     };
   }

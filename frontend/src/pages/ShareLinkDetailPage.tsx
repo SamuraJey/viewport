@@ -80,6 +80,7 @@ export const ShareLinkDetailPage = () => {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [selectedSessionDetail, setSelectedSessionDetail] = useState<SelectionSession | null>(null);
   const [isSelectionLoading, setIsSelectionLoading] = useState(false);
+  const [hasAttemptedSelectionLoad, setHasAttemptedSelectionLoad] = useState(false);
   const [selectionError, setSelectionError] = useState('');
   const [isSavingSelectionConfig, setIsSavingSelectionConfig] = useState(false);
   const [isMutatingSelectionStatus, setIsMutatingSelectionStatus] = useState(false);
@@ -110,6 +111,16 @@ export const ShareLinkDetailPage = () => {
     },
     [],
   );
+
+  useEffect(() => {
+    setSelectionDetail(null);
+    setSelectedSessionId(null);
+    setSelectedSessionDetail(null);
+    setSelectionConfigDraft(null);
+    setSelectionError('');
+    setIsSelectionLoading(false);
+    setHasAttemptedSelectionLoad(false);
+  }, [shareLinkId]);
 
   const fetchAnalytics = useCallback(async () => {
     if (!shareLinkId) {
@@ -147,6 +158,7 @@ export const ShareLinkDetailPage = () => {
     if (!shareLinkId) return;
 
     setIsSelectionLoading(true);
+    setHasAttemptedSelectionLoad(true);
     setSelectionError('');
     try {
       const detail = await shareLinkService.getOwnerSelectionDetail(shareLinkId);
@@ -187,12 +199,40 @@ export const ShareLinkDetailPage = () => {
   }, [fetchAnalytics]);
 
   useEffect(() => {
+    if (
+      activeTab !== 'selection' ||
+      isSelectionLoading ||
+      selectionDetail ||
+      hasAttemptedSelectionLoad
+    ) {
+      return;
+    }
     void fetchSelectionDetail();
-  }, [fetchSelectionDetail]);
+  }, [
+    activeTab,
+    fetchSelectionDetail,
+    hasAttemptedSelectionLoad,
+    isSelectionLoading,
+    selectionDetail,
+  ]);
 
   useEffect(() => {
+    if (
+      activeTab !== 'selection' ||
+      !selectedSessionId ||
+      isSelectionLoading ||
+      selectedSessionDetail?.id === selectedSessionId
+    ) {
+      return;
+    }
     void fetchSelectedSessionDetail();
-  }, [fetchSelectedSessionDetail]);
+  }, [
+    activeTab,
+    fetchSelectedSessionDetail,
+    isSelectionLoading,
+    selectedSessionDetail?.id,
+    selectedSessionId,
+  ]);
 
   const totals = useMemo(() => {
     const points = analytics?.points ?? [];
@@ -295,6 +335,7 @@ export const ShareLinkDetailPage = () => {
         require_phone: updated.require_phone,
         require_client_note: updated.require_client_note,
       });
+      await fetchAnalytics();
       await fetchSelectionDetail();
     } catch (err) {
       setSelectionError(handleApiError(err).message || 'Failed to save selection settings');
@@ -317,6 +358,7 @@ export const ShareLinkDetailPage = () => {
       if (sessionId === selectedSessionId) {
         await fetchSelectedSessionDetail();
       }
+      await fetchAnalytics();
     } catch (err) {
       setSelectionError(
         handleApiError(err).message ||
@@ -393,7 +435,9 @@ export const ShareLinkDetailPage = () => {
 
   const selectionTabLabel = selectionDetail?.aggregate
     ? `Photo selection (${selectionDetail.aggregate.total_sessions})`
-    : 'Photo selection';
+    : analytics.selection_summary.total_sessions > 0
+      ? `Photo selection (${analytics.selection_summary.total_sessions})`
+      : 'Photo selection';
 
   const detailTabItems = [
     {
@@ -523,25 +567,25 @@ export const ShareLinkDetailPage = () => {
                 <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
                   <p className="text-xs uppercase tracking-wide text-muted">Selection enabled</p>
                   <p className="mt-2 text-lg font-semibold text-text">
-                    {selectionDetail?.config.is_enabled ? 'Enabled' : 'Disabled'}
+                    {analytics.selection_summary.is_enabled ? 'Enabled' : 'Disabled'}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
                   <p className="text-xs uppercase tracking-wide text-muted">Total sessions</p>
                   <p className="mt-2 text-lg font-semibold text-text">
-                    {numberFormatter.format(selectionDetail?.aggregate.total_sessions ?? 0)}
+                    {numberFormatter.format(analytics.selection_summary.total_sessions)}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
                   <p className="text-xs uppercase tracking-wide text-muted">In progress</p>
                   <p className="mt-2 text-lg font-semibold text-text">
-                    {numberFormatter.format(selectionDetail?.aggregate.in_progress_sessions ?? 0)}
+                    {numberFormatter.format(analytics.selection_summary.in_progress_sessions)}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
                   <p className="text-xs uppercase tracking-wide text-muted">Selected photos</p>
                   <p className="mt-2 text-lg font-semibold text-text">
-                    {numberFormatter.format(selectionDetail?.aggregate.selected_count ?? 0)}
+                    {numberFormatter.format(analytics.selection_summary.selected_count)}
                   </p>
                 </div>
               </div>
@@ -939,9 +983,21 @@ export const ShareLinkDetailPage = () => {
           </div>
 
           {selectionError ? (
-            <p className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-              {selectionError}
-            </p>
+            <div className="space-y-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              <p>{selectionError}</p>
+              {!selectionDetail ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHasAttemptedSelectionLoad(false);
+                    setSelectionError('');
+                  }}
+                  className="inline-flex items-center gap-2 rounded-lg border border-danger/30 px-3 py-2 text-xs font-semibold transition-colors hover:bg-danger/10"
+                >
+                  Retry selection load
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
       ),

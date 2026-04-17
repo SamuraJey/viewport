@@ -45,6 +45,16 @@ describe('ShareLinkDetailPage', () => {
         created_at: '2026-04-10T10:00:00Z',
         updated_at: '2026-04-12T10:00:00Z',
       },
+      selection_summary: {
+        is_enabled: true,
+        status: 'in_progress',
+        total_sessions: 1,
+        submitted_sessions: 0,
+        in_progress_sessions: 1,
+        closed_sessions: 0,
+        selected_count: 3,
+        latest_activity_at: '2026-04-12T10:00:00Z',
+      },
       points: [
         {
           day: '2026-04-10',
@@ -137,6 +147,7 @@ describe('ShareLinkDetailPage', () => {
 
     expect(await screen.findByRole('heading', { name: /client proofing/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /overview/i })).toBeInTheDocument();
+    expect(shareLinkService.getOwnerSelectionDetail).not.toHaveBeenCalled();
     expect(
       screen.queryByText(/manage selection configuration and per-client selection sessions/i),
     ).not.toBeInTheDocument();
@@ -157,7 +168,41 @@ describe('ShareLinkDetailPage', () => {
     expect(
       await screen.findByText(/manage selection configuration and per-client selection sessions/i),
     ).toBeInTheDocument();
+    expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('button', { name: /save selection settings/i })).toBeInTheDocument();
+  });
+
+  it('does not refetch heavy selection detail when leaving and returning to the tab', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByRole('heading', { name: /client proofing/i });
+
+    await user.click(screen.getByRole('tab', { name: /photo selection/i }));
+    await screen.findByText(/manage selection configuration and per-client selection sessions/i);
+    expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('tab', { name: /overview/i }));
+    await user.click(screen.getByRole('tab', { name: /photo selection/i }));
+
+    expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retry-loop heavy selection loading after a failure', async () => {
+    const user = userEvent.setup();
+    vi.mocked(shareLinkService.getOwnerSelectionDetail).mockRejectedValueOnce(
+      new Error('selection failed'),
+    );
+
+    renderPage();
+
+    await screen.findByRole('heading', { name: /client proofing/i });
+    await user.click(screen.getByRole('tab', { name: /photo selection/i }));
+
+    expect(
+      await screen.findByRole('button', { name: /retry selection load/i }),
+    ).toBeInTheDocument();
+    expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(1);
   });
 
   it('loads analytics for the default 30 day window', async () => {

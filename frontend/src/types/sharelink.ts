@@ -17,6 +17,23 @@ export interface ShareLink {
 export interface ShareLinkDashboardItem extends ShareLink {
   gallery_id: string;
   gallery_name: string;
+  selection_summary: ShareLinkSelectionSummary;
+}
+
+export interface ShareLinkAnalyticsItem extends ShareLink {
+  gallery_id: string;
+  gallery_name: string;
+}
+
+export interface ShareLinkSelectionSummary {
+  is_enabled: boolean;
+  status: string;
+  total_sessions: number;
+  submitted_sessions: number;
+  in_progress_sessions: number;
+  closed_sessions: number;
+  selected_count: number;
+  latest_activity_at: string | null;
 }
 
 export interface ShareLinksDashboardSummary {
@@ -43,7 +60,8 @@ export interface ShareLinkDailyPoint {
 }
 
 export interface ShareLinkAnalyticsResponse {
-  share_link: ShareLinkDashboardItem;
+  share_link: ShareLinkAnalyticsItem;
+  selection_summary: ShareLinkSelectionSummary;
   points: ShareLinkDailyPoint[];
 }
 

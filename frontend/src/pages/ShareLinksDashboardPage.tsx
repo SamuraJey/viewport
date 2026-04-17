@@ -96,14 +96,12 @@ export const ShareLinksDashboardPage = () => {
   const [editingLink, setEditingLink] = useState<ShareLinkDashboardItem | null>(null);
   const [selectionActionError, setSelectionActionError] = useState('');
   const [selectionActionBusy, setSelectionActionBusy] = useState(false);
-  const [selectionRowsByLinkId, setSelectionRowsByLinkId] = useState<
-    Record<string, { status: string | null; selected_count: number }>
-  >({});
 
   const { page, pageSize, setTotal, goToPage } = pagination;
 
   const previousSearchRef = useRef(debouncedSearch);
   const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestRequestIdRef = useRef(0);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -132,6 +130,8 @@ export const ShareLinksDashboardPage = () => {
   );
 
   const fetchLinks = useCallback(async () => {
+    const requestId = latestRequestIdRef.current + 1;
+    latestRequestIdRef.current = requestId;
     setIsLoading(true);
     setError('');
 
@@ -142,63 +142,27 @@ export const ShareLinksDashboardPage = () => {
         debouncedSearch || undefined,
         statusFilter === 'all' ? undefined : statusFilter,
       );
+      if (latestRequestIdRef.current !== requestId) {
+        return;
+      }
       setLinks(response.share_links);
       setTotal(response.total);
       setSummary(response.summary ?? EMPTY_SUMMARY);
     } catch (err) {
+      if (latestRequestIdRef.current !== requestId) {
+        return;
+      }
       setError(handleApiError(err).message || 'Failed to load share links dashboard');
     } finally {
-      setIsLoading(false);
+      if (latestRequestIdRef.current === requestId) {
+        setIsLoading(false);
+      }
     }
   }, [debouncedSearch, page, pageSize, setTotal, statusFilter]);
-
-  const fetchSelectionRows = useCallback(async () => {
-    setSelectionActionError('');
-    try {
-      const uniqueGalleryIds = Array.from(new Set(links.map((link) => link.gallery_id)));
-      const rowsByShareLinkId: Record<string, { status: string | null; selected_count: number }> =
-        {};
-
-      await Promise.all(
-        uniqueGalleryIds.map(async (galleryId) => {
-          try {
-            const rows = await shareLinkService.getGallerySelections(galleryId);
-            rows.forEach((row) => {
-              rowsByShareLinkId[row.sharelink_id] = {
-                status: row.status,
-                selected_count: row.selected_count,
-              };
-            });
-          } catch {
-            links
-              .filter((link) => link.gallery_id === galleryId)
-              .forEach((link) => {
-                rowsByShareLinkId[link.id] = {
-                  status: '__unavailable__',
-                  selected_count: 0,
-                };
-              });
-          }
-        }),
-      );
-
-      setSelectionRowsByLinkId(rowsByShareLinkId);
-    } catch {
-      // keep dashboard usable even if selection rows fail
-    }
-  }, [links]);
 
   useEffect(() => {
     void fetchLinks();
   }, [fetchLinks]);
-
-  useEffect(() => {
-    if (links.length === 0) {
-      setSelectionRowsByLinkId({});
-      return;
-    }
-    void fetchSelectionRows();
-  }, [fetchSelectionRows, links]);
 
   const handleCopyLink = async (linkId: string) => {
     const fullUrl = `${window.location.origin}/share/${linkId}`;
@@ -261,7 +225,7 @@ export const ShareLinksDashboardPage = () => {
       await Promise.all(
         uniqueGalleryIds.map((galleryId) => shareLinkService.closeAllGallerySelections(galleryId)),
       );
-      await fetchSelectionRows();
+      await fetchLinks();
     } catch (err) {
       setSelectionActionError(handleApiError(err).message || 'Failed to close selections');
     } finally {
@@ -278,7 +242,7 @@ export const ShareLinksDashboardPage = () => {
       await Promise.all(
         uniqueGalleryIds.map((galleryId) => shareLinkService.openAllGallerySelections(galleryId)),
       );
-      await fetchSelectionRows();
+      await fetchLinks();
     } catch (err) {
       setSelectionActionError(handleApiError(err).message || 'Failed to open selections');
     } finally {
@@ -322,7 +286,7 @@ export const ShareLinksDashboardPage = () => {
     return links.reduce(
       (acc, link) => {
         const status = getShareLinkStatus(link);
-        const selectionStatus = selectionRowsByLinkId[link.id]?.status ?? null;
+        const selectionStatus = link.selection_summary.status ?? null;
 
         if (status === 'active') acc.active += 1;
         if (status === 'inactive') acc.inactive += 1;
@@ -340,7 +304,7 @@ export const ShareLinksDashboardPage = () => {
         selectionSubmitted: 0,
       },
     );
-  }, [links, selectionRowsByLinkId]);
+  }, [links]);
 
   const summaryItems = [
     {
@@ -507,8 +471,8 @@ export const ShareLinksDashboardPage = () => {
               filteredLinks.map((link) => {
                 const fullUrl = `${window.location.origin}/share/${link.id}`;
                 const linkStatus = getShareLinkStatus(link);
-                const selectionStatus = selectionRowsByLinkId[link.id]?.status ?? null;
-                const selectionCount = selectionRowsByLinkId[link.id]?.selected_count ?? 0;
+                const selectionStatus = link.selection_summary.status ?? null;
+                const selectionCount = link.selection_summary.selected_count ?? 0;
 
                 return (
                   <article
@@ -715,11 +679,7 @@ export const ShareLinksDashboardPage = () => {
             <div className="flex items-center justify-between gap-3">
               <span>Selection status unavailable</span>
               <strong className="text-text">
-                {
-                  Object.values(selectionRowsByLinkId).filter(
-                    (row) => row.status === '__unavailable__',
-                  ).length
-                }
+                {links.filter((link) => link.selection_summary.status === '__unavailable__').length}
               </strong>
             </div>
           </div>

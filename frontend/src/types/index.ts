@@ -41,6 +41,8 @@ export type {
 export type {
   ShareLink,
   ShareLinkDashboardItem,
+  ShareLinkAnalyticsItem,
+  ShareLinkSelectionSummary,
   ShareLinksDashboardSummary,
   ShareLinksDashboardResponse,
   ShareLinkDailyPoint,
