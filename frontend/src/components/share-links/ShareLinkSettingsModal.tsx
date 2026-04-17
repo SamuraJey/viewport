@@ -26,7 +26,7 @@ import { formatUtcDateTimeInputValue, parseUtcDateTimeInputValue } from './share
 
 type ShareLinkSettingsMode = 'create' | 'edit';
 type TtlPreset = 'none' | '24h' | '7d' | '30d' | 'custom';
-type SettingsTabId = 'link' | 'access' | 'selection' | 'review';
+type SettingsTabId = 'setup' | 'link' | 'access' | 'selection' | 'review';
 
 interface EditableShareLink {
   id: string;
@@ -196,7 +196,7 @@ export const ShareLinkSettingsModal = ({
     setCopied(false);
     setCreatedLink(null);
     setSelectionDraft(DEFAULT_SELECTION_DRAFT);
-    setActiveTab('link');
+    setActiveTab(mode === 'create' ? 'setup' : 'link');
 
     if (mode === 'edit' && link) {
       setLabel(link.label ?? '');
@@ -499,6 +499,13 @@ export const ShareLinkSettingsModal = ({
     </div>
   );
 
+  const setupPanel = (
+    <div className="space-y-6">
+      {linkPanel}
+      {accessPanel}
+    </div>
+  );
+
   const selectionPanel = (
     <section className="space-y-4">
       <div>
@@ -654,29 +661,51 @@ export const ShareLinkSettingsModal = ({
     </section>
   );
 
-  const tabItems = SETTINGS_TABS.filter((tab) => !(tab.createOnly && !showSelectionSettings)).map(
-    ({ id, label: tabLabel, Icon }) => ({
-      key: id,
-      tabClassName: ({ selected }: { selected: boolean }) =>
-        `flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset ${
-          selected ? 'border-accent text-accent' : 'border-transparent text-muted hover:text-text'
-        }`,
-      tab: (
-        <>
-          <Icon className="h-4 w-4" />
-          {tabLabel}
-        </>
-      ),
-      panel:
-        id === 'link'
-          ? linkPanel
-          : id === 'access'
-            ? accessPanel
-            : id === 'selection'
-              ? selectionPanel
-              : reviewPanel,
-    }),
-  );
+  const tabItems = (
+    mode === 'create'
+      ? [
+          { id: 'setup' as const, label: 'Setup', Icon: FileText, panel: setupPanel },
+          ...(showSelectionSettings
+            ? [
+                {
+                  id: 'selection' as const,
+                  label: 'Selection',
+                  Icon: Users,
+                  panel: selectionPanel,
+                },
+              ]
+            : []),
+          { id: 'review' as const, label: 'Review', Icon: Sparkles, panel: reviewPanel },
+        ]
+      : SETTINGS_TABS.filter((tab) => !(tab.createOnly && !showSelectionSettings)).map(
+          ({ id, label: tabLabel, Icon }) => ({
+            id,
+            label: tabLabel,
+            Icon,
+            panel:
+              id === 'link'
+                ? linkPanel
+                : id === 'access'
+                  ? accessPanel
+                  : id === 'selection'
+                    ? selectionPanel
+                    : reviewPanel,
+          }),
+        )
+  ).map(({ id, label: tabLabel, Icon, panel }) => ({
+    key: id,
+    tabClassName: ({ selected }: { selected: boolean }) =>
+      `flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset ${
+        selected ? 'border-accent text-accent' : 'border-transparent text-muted hover:text-text'
+      }`,
+    tab: (
+      <>
+        <Icon className="h-4 w-4" />
+        {tabLabel}
+      </>
+    ),
+    panel,
+  }));
 
   return (
     <AppDialog
