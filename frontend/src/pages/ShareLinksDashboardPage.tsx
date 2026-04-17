@@ -54,8 +54,6 @@ const formatDateLabel = (value?: string | null, fallback = 'Not set') => {
 
 const formatSelectionStatusLabel = (status: string | null | undefined) => {
   switch (status) {
-    case '__unavailable__':
-      return 'Unavailable';
     case 'submitted':
       return 'Submitted';
     case 'in_progress':
@@ -674,12 +672,6 @@ export const ShareLinksDashboardPage = () => {
               <span>Submitted selection sessions</span>
               <strong className="text-text">
                 {numberFormatter.format(pageInsights.selectionSubmitted)}
-              </strong>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span>Selection status unavailable</span>
-              <strong className="text-text">
-                {links.filter((link) => link.selection_summary.status === '__unavailable__').length}
               </strong>
             </div>
           </div>

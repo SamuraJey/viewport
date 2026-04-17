@@ -15,10 +15,10 @@ from viewport.repositories.photo_query_helpers import build_photo_order_clauses
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 from viewport.sharelink_utils import is_sharelink_expired
 
+OwnerShareLinkStatus = Literal["active", "inactive", "expired"]
+
 
 class ShareLinkRepository(BaseRepository):
-    OwnerShareLinkStatus = Literal["active", "inactive", "expired"]
-
     async def get_sharelink_by_id(self, sharelink_id: uuid.UUID) -> ShareLink | None:
         stmt = select(ShareLink).where(ShareLink.id == sharelink_id)
         sharelink = (await self.db.execute(stmt)).scalar_one_or_none()

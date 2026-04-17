@@ -242,6 +242,28 @@ async def test_get_sharelinks_by_owner_filters_by_status(repo: ShareLinkReposito
 
 
 @pytest.mark.asyncio
+async def test_get_sharelinks_by_owner_treats_expiry_boundary_as_expired(repo: ShareLinkRepository, db_session):
+    user = User(email=f"sharelink-boundary-{uuid4()}@example.com", password_hash="hashed", display_name="sharelink user")
+    db_session.add(user)
+    await db_session.commit()
+
+    gallery = Gallery(owner_id=user.id, name="Boundary Gallery")
+    db_session.add(gallery)
+    await db_session.commit()
+
+    now = datetime.now(UTC).replace(tzinfo=None)
+    boundary_expired_sharelink = ShareLink(gallery_id=gallery.id, label="BoundaryExpired", expires_at=now, is_active=True)
+    db_session.add(boundary_expired_sharelink)
+    await db_session.commit()
+
+    _, active_total, _ = await repo.get_sharelinks_by_owner(user.id, page=1, size=10, status="active")
+    _, expired_total, _ = await repo.get_sharelinks_by_owner(user.id, page=1, size=10, status="expired")
+
+    assert active_total == 0
+    assert expired_total == 1
+
+
+@pytest.mark.asyncio
 async def test_get_sharelink_selection_summaries_is_bounded_to_requested_ids(db_session):
     user = User(email=f"selection-{uuid4()}@example.com", password_hash="hashed", display_name="selection user")
     db_session.add(user)

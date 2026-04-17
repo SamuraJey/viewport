@@ -9,7 +9,7 @@ export const getShareLinkStatus = (
     return 'inactive';
   }
 
-  if (link.expires_at && new Date(link.expires_at).getTime() < Date.now()) {
+  if (link.expires_at && new Date(link.expires_at).getTime() <= Date.now()) {
     return 'expired';
   }
 
