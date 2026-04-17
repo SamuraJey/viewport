@@ -1018,6 +1018,9 @@ export const GalleryPage = () => {
           sortBy={sortBy}
           sortOrder={sortOrder}
           onDeleteGallery={handleDeleteGallery}
+          onCreateShareLink={() => setIsShareLinkCreateOpen(true)}
+          isCreatingShareLink={isCreatingLink}
+          shareLinkCount={shareLinks.length}
           onSearchChange={setSearchInput}
           onSortChange={({
             sortBy: nextSortBy,

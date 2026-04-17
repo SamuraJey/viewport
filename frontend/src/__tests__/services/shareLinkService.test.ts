@@ -71,7 +71,12 @@ describe('shareLinkService', () => {
       offset: 20,
     });
 
-    expect(api.get).toHaveBeenCalledWith('/s/share123?limit=10&offset=20');
+    expect(api.get).toHaveBeenCalledWith('/s/share123?limit=10&offset=20', {
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+    });
     expect(result).toEqual({ photos: [], total_photos: 0 });
   });
 

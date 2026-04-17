@@ -2,20 +2,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  BarChart3,
   Copy,
   Download,
+  ExternalLink,
   FileText,
   Loader2,
   Lock,
   LockOpen,
   PencilLine,
+  SlidersHorizontal,
   Trash2,
 } from 'lucide-react';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
 import { ShareLinkStatusBadge } from '../components/share-links/ShareLinkStatusBadge';
 import { getShareLinkStatus } from '../components/share-links/shareLinkStatus';
 import { ShareLinkTrendChart } from '../components/share-links/ShareLinkTrendChart';
-import { AppSwitch } from '../components/ui';
+import { AppSwitch, AppTabs } from '../components/ui';
 import { useConfirmation } from '../hooks';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { copyTextToClipboard } from '../lib/clipboard';
@@ -35,6 +38,8 @@ const SETTINGS_SWITCH_CLASS =
 const SETTINGS_SWITCH_THUMB_CLASS =
   'size-7 translate-x-0 bg-white shadow-sm group-data-checked:translate-x-4';
 
+type DetailTabKey = 'overview' | 'analytics' | 'selection';
+
 const parseIsoDayAsLocalDate = (isoDay: string): Date => {
   const [year, month, day] = isoDay.split('-').map((part) => Number.parseInt(part, 10));
   if (!year || !month || !day) {
@@ -45,12 +50,26 @@ const parseIsoDayAsLocalDate = (isoDay: string): Date => {
 
 const formatDay = (isoDay: string) => parseIsoDayAsLocalDate(isoDay).toLocaleDateString();
 
+const formatDateTime = (value?: string | null, fallback = 'Not set') => {
+  if (!value) {
+    return fallback;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return fallback;
+  }
+
+  return date.toLocaleString();
+};
+
 export const ShareLinkDetailPage = () => {
   const { shareLinkId } = useParams<{ shareLinkId: string }>();
   const navigate = useNavigate();
   const { openConfirm, ConfirmModal } = useConfirmation();
 
   const [days, setDays] = useState<(typeof DAY_PRESETS)[number]>(30);
+  const [activeTab, setActiveTab] = useState<DetailTabKey>('overview');
   const [analytics, setAnalytics] = useState<ShareLinkAnalyticsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -184,6 +203,12 @@ export const ShareLinkDetailPage = () => {
       singleDownloads: points.reduce((sum, point) => sum + point.single_downloads, 0),
     };
   }, [analytics]);
+
+  const latestPoint = analytics?.points[analytics.points.length - 1] ?? null;
+  const recentPoints = useMemo(
+    () => [...(analytics?.points ?? [])].slice(-5).reverse(),
+    [analytics?.points],
+  );
 
   const handleCopyLink = async () => {
     if (!analytics) return;
@@ -358,6 +383,570 @@ export const ShareLinkDetailPage = () => {
   }
 
   const status = getShareLinkStatus(analytics.share_link);
+  const publicUrl = `${window.location.origin}/share/${analytics.share_link.id}`;
+  const tabClassName = ({ selected }: { selected: boolean }) =>
+    `inline-flex h-11 items-center justify-center whitespace-nowrap rounded-2xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+      selected
+        ? 'border-accent/60 bg-accent/12 text-accent shadow-[0_0_0_1px_rgba(56,189,248,0.08),0_12px_24px_-18px_rgba(56,189,248,0.9)]'
+        : 'border-border/70 bg-surface/70 text-text hover:border-accent/35 hover:text-text'
+    }`;
+
+  const selectionTabLabel = selectionDetail?.aggregate
+    ? `Photo selection (${selectionDetail.aggregate.total_sessions})`
+    : 'Photo selection';
+
+  const detailTabItems = [
+    {
+      key: 'overview' as const,
+      tabClassName,
+      tab: 'Overview',
+      panel: (
+        <div className="space-y-6">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Views Total
+              </p>
+              <p className="mt-2 text-2xl font-bold text-text">
+                {numberFormatter.format(totals.totalViews)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Views Unique
+              </p>
+              <p className="mt-2 text-2xl font-bold text-text">
+                {numberFormatter.format(totals.uniqueViews)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                ZIP Downloads
+              </p>
+              <p className="mt-2 text-2xl font-bold text-text">
+                {numberFormatter.format(totals.zipDownloads)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Single Downloads
+              </p>
+              <p className="mt-2 text-2xl font-bold text-text">
+                {numberFormatter.format(totals.singleDownloads)}
+              </p>
+            </div>
+          </div>
+
+          <ShareLinkTrendChart points={analytics.points} />
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)]">
+            <div className="rounded-2xl border border-border/50 bg-surface p-5 shadow-xs">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-text">Recent daily activity</h2>
+                  <p className="text-sm text-muted">
+                    Quick read of the latest {recentPoints.length || 0} analytics points.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('analytics')}
+                  className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  Open daily breakdown
+                </button>
+              </div>
+
+              {recentPoints.length > 0 ? (
+                <div className="mt-4 space-y-3">
+                  {recentPoints.map((point) => (
+                    <div
+                      key={point.day}
+                      className="grid gap-3 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm text-text md:grid-cols-[minmax(0,1fr)_repeat(4,minmax(0,auto))] md:items-center"
+                    >
+                      <div>
+                        <p className="font-semibold">{formatDay(point.day)}</p>
+                        <p className="text-xs text-muted">Day summary</p>
+                      </div>
+                      <span className="text-xs text-muted md:text-right">
+                        Total{' '}
+                        <strong className="text-text">
+                          {numberFormatter.format(point.views_total)}
+                        </strong>
+                      </span>
+                      <span className="text-xs text-muted md:text-right">
+                        Unique{' '}
+                        <strong className="text-text">
+                          {numberFormatter.format(point.views_unique)}
+                        </strong>
+                      </span>
+                      <span className="text-xs text-muted md:text-right">
+                        ZIP{' '}
+                        <strong className="text-text">
+                          {numberFormatter.format(point.zip_downloads)}
+                        </strong>
+                      </span>
+                      <span className="text-xs text-muted md:text-right">
+                        Single{' '}
+                        <strong className="text-text">
+                          {numberFormatter.format(point.single_downloads)}
+                        </strong>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-muted">No analytics points yet.</p>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-border/50 bg-surface p-5 shadow-xs">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-text">Selection admin</h2>
+                  <p className="text-sm text-muted">
+                    Keep advanced photo-selection settings separate from the main link overview.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('selection')}
+                  className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Open selection
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-muted">Selection enabled</p>
+                  <p className="mt-2 text-lg font-semibold text-text">
+                    {selectionDetail?.config.is_enabled ? 'Enabled' : 'Disabled'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-muted">Total sessions</p>
+                  <p className="mt-2 text-lg font-semibold text-text">
+                    {numberFormatter.format(selectionDetail?.aggregate.total_sessions ?? 0)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-muted">In progress</p>
+                  <p className="mt-2 text-lg font-semibold text-text">
+                    {numberFormatter.format(selectionDetail?.aggregate.in_progress_sessions ?? 0)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-muted">Selected photos</p>
+                  <p className="mt-2 text-lg font-semibold text-text">
+                    {numberFormatter.format(selectionDetail?.aggregate.selected_count ?? 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'analytics' as const,
+      tabClassName,
+      tab: 'Daily analytics',
+      panel: (
+        <div className="overflow-hidden rounded-2xl border border-border/50 bg-surface shadow-xs">
+          <div className="border-b border-border/50 bg-surface-1 px-4 py-3">
+            <h2 className="text-lg font-semibold text-text">Daily analytics breakdown</h2>
+            <p className="text-sm text-muted">
+              Reverse chronological table for comparing day-by-day engagement.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-surface-1 text-muted">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs uppercase tracking-wide">Day</th>
+                  <th className="px-4 py-3 text-right text-xs uppercase tracking-wide">
+                    Views total
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs uppercase tracking-wide">
+                    Views unique
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs uppercase tracking-wide">ZIP</th>
+                  <th className="px-4 py-3 text-right text-xs uppercase tracking-wide">Single</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...analytics.points].reverse().map((point) => (
+                  <tr key={point.day} className="border-t border-border/40">
+                    <td className="px-4 py-3 font-semibold text-text">{formatDay(point.day)}</td>
+                    <td className="px-4 py-3 text-right text-text">
+                      {numberFormatter.format(point.views_total)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-text">
+                      {numberFormatter.format(point.views_unique)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-text">
+                      {numberFormatter.format(point.zip_downloads)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-text">
+                      {numberFormatter.format(point.single_downloads)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'selection' as const,
+      tabClassName,
+      tab: selectionTabLabel,
+      panel: (
+        <div className="space-y-5 rounded-2xl border border-border/50 bg-surface p-6 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-text">Photo Selection</h2>
+              <p className="text-sm text-muted">
+                Manage selection configuration and per-client selection sessions.
+              </p>
+            </div>
+            {isSelectionLoading ? (
+              <span className="inline-flex items-center gap-2 text-sm text-muted">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading selection...
+              </span>
+            ) : null}
+          </div>
+
+          {selectionDetail?.aggregate ? (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="rounded-xl border border-border/50 bg-surface-1 px-3 py-2">
+                <p className="text-xs text-muted">Total sessions</p>
+                <p className="text-lg font-semibold text-text">
+                  {selectionDetail.aggregate.total_sessions}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border/50 bg-surface-1 px-3 py-2">
+                <p className="text-xs text-muted">Submitted</p>
+                <p className="text-lg font-semibold text-text">
+                  {selectionDetail.aggregate.submitted_sessions}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border/50 bg-surface-1 px-3 py-2">
+                <p className="text-xs text-muted">In progress</p>
+                <p className="text-lg font-semibold text-text">
+                  {selectionDetail.aggregate.in_progress_sessions}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border/50 bg-surface-1 px-3 py-2">
+                <p className="text-xs text-muted">Closed</p>
+                <p className="text-lg font-semibold text-text">
+                  {selectionDetail.aggregate.closed_sessions}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border/50 bg-surface-1 px-3 py-2">
+                <p className="text-xs text-muted">Selected photos</p>
+                <p className="text-lg font-semibold text-text">
+                  {selectionDetail.aggregate.selected_count}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {selectionConfigDraft ? (
+            <>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
+                  <span className="font-semibold text-text">Enable selection</span>
+                  <div className="mt-2">
+                    <AppSwitch
+                      checked={selectionConfigDraft.is_enabled}
+                      onChange={(checked) =>
+                        setSelectionConfigDraft((prev) =>
+                          prev ? { ...prev, is_enabled: checked } : prev,
+                        )
+                      }
+                      className={SETTINGS_SWITCH_CLASS}
+                      thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+                      aria-label="Enable selection"
+                    />
+                  </div>
+                </div>
+
+                <label className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
+                  <span className="font-semibold text-text">List title</span>
+                  <input
+                    value={selectionConfigDraft.list_title}
+                    onChange={(event) =>
+                      setSelectionConfigDraft((prev) =>
+                        prev ? { ...prev, list_title: event.target.value } : prev,
+                      )
+                    }
+                    className="mt-2 w-full rounded-lg border border-border/50 bg-surface px-3 py-2 text-sm text-text outline-none focus:border-accent"
+                  />
+                </label>
+
+                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
+                  <span className="font-semibold text-text">Limit selection count</span>
+                  <div className="mt-2 flex items-center gap-2">
+                    <AppSwitch
+                      checked={selectionConfigDraft.limit_enabled}
+                      onChange={(checked) =>
+                        setSelectionConfigDraft((prev) =>
+                          prev ? { ...prev, limit_enabled: checked } : prev,
+                        )
+                      }
+                      className={SETTINGS_SWITCH_CLASS}
+                      thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+                      aria-label="Limit selection count"
+                    />
+                    {selectionConfigDraft.limit_enabled ? (
+                      <input
+                        type="number"
+                        min={1}
+                        value={selectionConfigDraft.limit_value}
+                        onChange={(event) =>
+                          setSelectionConfigDraft((prev) =>
+                            prev ? { ...prev, limit_value: event.target.value } : prev,
+                          )
+                        }
+                        className="w-24 rounded-lg border border-border/50 bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-accent"
+                      />
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
+                  <span className="font-semibold text-text">Photo comments</span>
+                  <div className="mt-2">
+                    <AppSwitch
+                      checked={selectionConfigDraft.allow_photo_comments}
+                      onChange={(checked) =>
+                        setSelectionConfigDraft((prev) =>
+                          prev ? { ...prev, allow_photo_comments: checked } : prev,
+                        )
+                      }
+                      className={SETTINGS_SWITCH_CLASS}
+                      thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+                      aria-label="Photo comments"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="inline-flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
+                  <span>Require email</span>
+                  <AppSwitch
+                    checked={selectionConfigDraft.require_email}
+                    onChange={(checked) =>
+                      setSelectionConfigDraft((prev) =>
+                        prev ? { ...prev, require_email: checked } : prev,
+                      )
+                    }
+                    className={SETTINGS_SWITCH_CLASS}
+                    thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+                    aria-label="Require email"
+                  />
+                </div>
+                <div className="inline-flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
+                  <span>Require phone</span>
+                  <AppSwitch
+                    checked={selectionConfigDraft.require_phone}
+                    onChange={(checked) =>
+                      setSelectionConfigDraft((prev) =>
+                        prev ? { ...prev, require_phone: checked } : prev,
+                      )
+                    }
+                    className={SETTINGS_SWITCH_CLASS}
+                    thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+                    aria-label="Require phone"
+                  />
+                </div>
+                <div className="inline-flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
+                  <span>Require note</span>
+                  <AppSwitch
+                    checked={selectionConfigDraft.require_client_note}
+                    onChange={(checked) =>
+                      setSelectionConfigDraft((prev) =>
+                        prev ? { ...prev, require_client_note: checked } : prev,
+                      )
+                    }
+                    className={SETTINGS_SWITCH_CLASS}
+                    thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
+                    aria-label="Require note"
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-muted">Selection settings are unavailable.</p>
+          )}
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+            <div className="overflow-hidden rounded-xl border border-border/50 bg-surface-1">
+              <div className="border-b border-border/50 px-4 py-3">
+                <h3 className="text-sm font-semibold text-text">Sessions</h3>
+              </div>
+              {selectionDetail?.sessions?.length ? (
+                <div className="max-h-96 overflow-auto">
+                  {selectionDetail.sessions.map((session) => {
+                    const active = session.id === selectedSessionId;
+                    return (
+                      <div
+                        key={session.id}
+                        className={`border-b border-border/40 transition-colors ${
+                          active ? 'bg-accent/10' : 'hover:bg-surface'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSessionId(session.id)}
+                          className="w-full px-4 py-3 text-left"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-semibold text-text">{session.client_name}</p>
+                            <span className="text-xs text-muted">{session.status}</span>
+                          </div>
+                          <p className="mt-1 text-xs text-muted">
+                            selected: {session.selected_count} • updated:{' '}
+                            {new Date(session.updated_at).toLocaleString()}
+                          </p>
+                        </button>
+                        <div className="px-4 pb-3">
+                          <div className="flex gap-2">
+                            {session.status === 'closed' ? (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void mutateSessionStatus(session.id, 'reopen');
+                                }}
+                                disabled={isMutatingSelectionStatus}
+                                className="inline-flex items-center gap-1 rounded-lg border border-success/40 bg-success/10 px-2 py-1 text-xs font-semibold text-success disabled:opacity-60"
+                              >
+                                <LockOpen className="h-3 w-3" />
+                                Reopen
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void mutateSessionStatus(session.id, 'close');
+                                }}
+                                disabled={isMutatingSelectionStatus}
+                                className="inline-flex items-center gap-1 rounded-lg border border-danger/40 bg-danger/10 px-2 py-1 text-xs font-semibold text-danger disabled:opacity-60"
+                              >
+                                <Lock className="h-3 w-3" />
+                                Close
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="p-4 text-sm text-muted">
+                  Selection sessions have not been started yet.
+                </p>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-border/50 bg-surface-1 p-4">
+              <h3 className="text-sm font-semibold text-text">Selected session detail</h3>
+              {selectedSessionDetail ? (
+                <div className="mt-3 space-y-3">
+                  <div className="rounded-lg border border-border/50 bg-surface p-3 text-sm">
+                    <p className="text-text">
+                      Status: <span className="font-semibold">{selectedSessionDetail.status}</span>
+                    </p>
+                    <p className="mt-1 text-muted">Client: {selectedSessionDetail.client_name}</p>
+                    <p className="text-muted">Selected: {selectedSessionDetail.selected_count}</p>
+                    {selectedSessionDetail.client_note ? (
+                      <p className="mt-2 text-muted">Note: {selectedSessionDetail.client_note}</p>
+                    ) : null}
+                  </div>
+
+                  <div className="max-h-80 space-y-2 overflow-auto">
+                    {selectedSessionDetail.items.length > 0 ? (
+                      selectedSessionDetail.items.map((item) => (
+                        <div
+                          key={item.photo_id}
+                          className="rounded-lg border border-border/40 bg-surface p-2 text-xs"
+                        >
+                          <p className="font-semibold text-text">
+                            {item.photo_display_name || item.photo_id}
+                          </p>
+                          {item.comment ? <p className="mt-1 text-muted">{item.comment}</p> : null}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted">No selected photos in this session.</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-muted">
+                  Select a session to inspect chosen photos.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={isSavingSelectionConfig}
+              onClick={() => {
+                void handleSaveSelectionConfig();
+              }}
+              className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground disabled:opacity-60"
+            >
+              {isSavingSelectionConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Save selection settings
+            </button>
+
+            <button
+              type="button"
+              disabled={!selectionDetail?.sessions?.length || isExporting}
+              onClick={() => {
+                void handleExportFilesCsv();
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2 text-sm font-semibold text-text disabled:opacity-60"
+            >
+              <Download className="h-4 w-4" />
+              Export CSV
+            </button>
+
+            <button
+              type="button"
+              disabled={!selectionDetail?.sessions?.length || isExporting}
+              onClick={() => {
+                void handleExportLightroom();
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2 text-sm font-semibold text-text disabled:opacity-60"
+            >
+              <FileText className="h-4 w-4" />
+              Export Lightroom
+            </button>
+          </div>
+
+          {selectionError ? (
+            <p className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {selectionError}
+            </p>
+          ) : null}
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -372,23 +961,36 @@ export const ShareLinkDetailPage = () => {
       </div>
 
       <div className="flex flex-col gap-4 rounded-2xl border border-border/50 bg-surface p-6 shadow-xs dark:bg-surface-dark lg:flex-row lg:items-start lg:justify-between">
-        <div>
+        <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">
               {analytics.share_link.label || 'Untitled Share Link'}
             </h1>
             <ShareLinkStatusBadge status={status} />
           </div>
-          <p className="mt-2 text-sm text-muted">Link id: {analytics.share_link.id}</p>
+          <p className="text-sm text-muted">Link id: {analytics.share_link.id}</p>
           <Link
             to={`/galleries/${analytics.share_link.gallery_id}`}
-            className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-accent hover:underline"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-accent hover:underline"
           >
             Open source gallery: {analytics.share_link.gallery_name}
           </Link>
+          <p className="text-sm text-muted">
+            The overview focuses on link health and engagement. Advanced photo-selection controls
+            are moved into their own tab.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={publicUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Open link
+          </a>
           <button
             onClick={handleCopyLink}
             className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-success/30 bg-success/10 px-3 py-2 text-sm font-semibold text-success"
@@ -413,422 +1015,64 @@ export const ShareLinkDetailPage = () => {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {DAY_PRESETS.map((preset) => (
-          <button
-            key={preset}
-            onClick={() => setDays(preset)}
-            className={`rounded-xl px-3 py-2 text-sm font-semibold ${
-              days === preset
-                ? 'bg-accent text-accent-foreground'
-                : 'border border-border/50 bg-surface-1 text-text'
-            }`}
-          >
-            Last {preset} days
-          </button>
-        ))}
-      </div>
-
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Views Total</p>
-          <p className="mt-2 text-2xl font-bold text-text">
-            {numberFormatter.format(totals.totalViews)}
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Public status</p>
+          <p className="mt-2 text-lg font-semibold capitalize text-text">{status}</p>
+        </div>
+        <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Expires</p>
+          <p className="mt-2 text-lg font-semibold text-text">
+            {formatDateTime(analytics.share_link.expires_at, 'No expiration')}
           </p>
         </div>
         <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Views Unique</p>
-          <p className="mt-2 text-2xl font-bold text-text">
-            {numberFormatter.format(totals.uniqueViews)}
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Source gallery</p>
+          <p className="mt-2 text-lg font-semibold text-text">
+            {analytics.share_link.gallery_name}
           </p>
         </div>
         <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">ZIP Downloads</p>
-          <p className="mt-2 text-2xl font-bold text-text">
-            {numberFormatter.format(totals.zipDownloads)}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-            Single Downloads
-          </p>
-          <p className="mt-2 text-2xl font-bold text-text">
-            {numberFormatter.format(totals.singleDownloads)}
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Updated</p>
+          <p className="mt-2 text-lg font-semibold text-text">
+            {formatDateTime(analytics.share_link.updated_at ?? analytics.share_link.created_at)}
           </p>
         </div>
       </div>
 
-      <ShareLinkTrendChart points={analytics.points} />
-
-      <div className="rounded-2xl border border-border/50 bg-surface p-6 shadow-xs space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-bold text-text">Photo Selection</h2>
-            <p className="text-sm text-muted">
-              Manage selection configuration and per-client selection sessions.
-            </p>
-          </div>
-          {isSelectionLoading ? (
-            <span className="inline-flex items-center gap-2 text-sm text-muted">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading selection...
-            </span>
-          ) : null}
-        </div>
-
-        {selectionDetail?.aggregate ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <div className="rounded-xl border border-border/50 bg-surface-1 px-3 py-2">
-              <p className="text-xs text-muted">Total sessions</p>
-              <p className="text-lg font-semibold text-text">
-                {selectionDetail.aggregate.total_sessions}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/50 bg-surface-1 px-3 py-2">
-              <p className="text-xs text-muted">Submitted</p>
-              <p className="text-lg font-semibold text-text">
-                {selectionDetail.aggregate.submitted_sessions}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/50 bg-surface-1 px-3 py-2">
-              <p className="text-xs text-muted">In progress</p>
-              <p className="text-lg font-semibold text-text">
-                {selectionDetail.aggregate.in_progress_sessions}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/50 bg-surface-1 px-3 py-2">
-              <p className="text-xs text-muted">Closed</p>
-              <p className="text-lg font-semibold text-text">
-                {selectionDetail.aggregate.closed_sessions}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/50 bg-surface-1 px-3 py-2">
-              <p className="text-xs text-muted">Selected photos</p>
-              <p className="text-lg font-semibold text-text">
-                {selectionDetail.aggregate.selected_count}
-              </p>
-            </div>
-          </div>
-        ) : null}
-
-        {selectionConfigDraft ? (
-          <>
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
-                <span className="font-semibold text-text">Enable selection</span>
-                <div className="mt-2">
-                  <AppSwitch
-                    checked={selectionConfigDraft.is_enabled}
-                    onChange={(checked) =>
-                      setSelectionConfigDraft((prev) =>
-                        prev ? { ...prev, is_enabled: checked } : prev,
-                      )
-                    }
-                    className={SETTINGS_SWITCH_CLASS}
-                    thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
-                    aria-label="Enable selection"
-                  />
-                </div>
-              </div>
-
-              <label className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
-                <span className="font-semibold text-text">List title</span>
-                <input
-                  value={selectionConfigDraft.list_title}
-                  onChange={(event) =>
-                    setSelectionConfigDraft((prev) =>
-                      prev ? { ...prev, list_title: event.target.value } : prev,
-                    )
-                  }
-                  className="mt-2 w-full rounded-lg border border-border/50 bg-surface px-3 py-2 text-sm text-text outline-none focus:border-accent"
-                />
-              </label>
-
-              <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
-                <span className="font-semibold text-text">Limit selection count</span>
-                <div className="mt-2 flex items-center gap-2">
-                  <AppSwitch
-                    checked={selectionConfigDraft.limit_enabled}
-                    onChange={(checked) =>
-                      setSelectionConfigDraft((prev) =>
-                        prev ? { ...prev, limit_enabled: checked } : prev,
-                      )
-                    }
-                    className={SETTINGS_SWITCH_CLASS}
-                    thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
-                    aria-label="Limit selection count"
-                  />
-                  {selectionConfigDraft.limit_enabled ? (
-                    <input
-                      type="number"
-                      min={1}
-                      value={selectionConfigDraft.limit_value}
-                      onChange={(event) =>
-                        setSelectionConfigDraft((prev) =>
-                          prev ? { ...prev, limit_value: event.target.value } : prev,
-                        )
-                      }
-                      className="w-24 rounded-lg border border-border/50 bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-accent"
-                    />
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
-                <span className="font-semibold text-text">Photo comments</span>
-                <div className="mt-2">
-                  <AppSwitch
-                    checked={selectionConfigDraft.allow_photo_comments}
-                    onChange={(checked) =>
-                      setSelectionConfigDraft((prev) =>
-                        prev ? { ...prev, allow_photo_comments: checked } : prev,
-                      )
-                    }
-                    className={SETTINGS_SWITCH_CLASS}
-                    thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
-                    aria-label="Photo comments"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="inline-flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
-                <span>Require email</span>
-                <AppSwitch
-                  checked={selectionConfigDraft.require_email}
-                  onChange={(checked) =>
-                    setSelectionConfigDraft((prev) =>
-                      prev ? { ...prev, require_email: checked } : prev,
-                    )
-                  }
-                  className={SETTINGS_SWITCH_CLASS}
-                  thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
-                  aria-label="Require email"
-                />
-              </div>
-              <div className="inline-flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
-                <span>Require phone</span>
-                <AppSwitch
-                  checked={selectionConfigDraft.require_phone}
-                  onChange={(checked) =>
-                    setSelectionConfigDraft((prev) =>
-                      prev ? { ...prev, require_phone: checked } : prev,
-                    )
-                  }
-                  className={SETTINGS_SWITCH_CLASS}
-                  thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
-                  aria-label="Require phone"
-                />
-              </div>
-              <div className="inline-flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
-                <span>Require note</span>
-                <AppSwitch
-                  checked={selectionConfigDraft.require_client_note}
-                  onChange={(checked) =>
-                    setSelectionConfigDraft((prev) =>
-                      prev ? { ...prev, require_client_note: checked } : prev,
-                    )
-                  }
-                  className={SETTINGS_SWITCH_CLASS}
-                  thumbClassName={SETTINGS_SWITCH_THUMB_CLASS}
-                  aria-label="Require note"
-                />
-              </div>
-            </div>
-          </>
-        ) : (
-          <p className="text-sm text-muted">Selection settings are unavailable.</p>
-        )}
-
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-          <div className="rounded-xl border border-border/50 bg-surface-1 overflow-hidden">
-            <div className="border-b border-border/50 px-4 py-3">
-              <h3 className="text-sm font-semibold text-text">Sessions</h3>
-            </div>
-            {selectionDetail?.sessions?.length ? (
-              <div className="max-h-96 overflow-auto">
-                {selectionDetail.sessions.map((session) => {
-                  const active = session.id === selectedSessionId;
-                  return (
-                    <div
-                      key={session.id}
-                      className={`border-b border-border/40 transition-colors ${
-                        active ? 'bg-accent/10' : 'hover:bg-surface'
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setSelectedSessionId(session.id)}
-                        className="w-full px-4 py-3 text-left"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-semibold text-text">{session.client_name}</p>
-                          <span className="text-xs text-muted">{session.status}</span>
-                        </div>
-                        <p className="mt-1 text-xs text-muted">
-                          selected: {session.selected_count} • updated:{' '}
-                          {new Date(session.updated_at).toLocaleString()}
-                        </p>
-                      </button>
-                      <div className="px-4 pb-3">
-                        <div className="flex gap-2">
-                          {session.status === 'closed' ? (
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void mutateSessionStatus(session.id, 'reopen');
-                              }}
-                              disabled={isMutatingSelectionStatus}
-                              className="inline-flex items-center gap-1 rounded-lg border border-success/40 bg-success/10 px-2 py-1 text-xs font-semibold text-success disabled:opacity-60"
-                            >
-                              <LockOpen className="h-3 w-3" />
-                              Reopen
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void mutateSessionStatus(session.id, 'close');
-                              }}
-                              disabled={isMutatingSelectionStatus}
-                              className="inline-flex items-center gap-1 rounded-lg border border-danger/40 bg-danger/10 px-2 py-1 text-xs font-semibold text-danger disabled:opacity-60"
-                            >
-                              <Lock className="h-3 w-3" />
-                              Close
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="p-4 text-sm text-muted">
-                Selection sessions have not been started yet.
-              </p>
-            )}
-          </div>
-
-          <div className="rounded-xl border border-border/50 bg-surface-1 p-4">
-            <h3 className="text-sm font-semibold text-text">Selected session detail</h3>
-            {selectedSessionDetail ? (
-              <div className="mt-3 space-y-3">
-                <div className="rounded-lg border border-border/50 bg-surface p-3 text-sm">
-                  <p className="text-text">
-                    Status: <span className="font-semibold">{selectedSessionDetail.status}</span>
-                  </p>
-                  <p className="mt-1 text-muted">Client: {selectedSessionDetail.client_name}</p>
-                  <p className="text-muted">Selected: {selectedSessionDetail.selected_count}</p>
-                  {selectedSessionDetail.client_note ? (
-                    <p className="mt-2 text-muted">Note: {selectedSessionDetail.client_note}</p>
-                  ) : null}
-                </div>
-
-                <div className="max-h-80 space-y-2 overflow-auto">
-                  {selectedSessionDetail.items.length > 0 ? (
-                    selectedSessionDetail.items.map((item) => (
-                      <div
-                        key={item.photo_id}
-                        className="rounded-lg border border-border/40 bg-surface p-2 text-xs"
-                      >
-                        <p className="font-semibold text-text">
-                          {item.photo_display_name || item.photo_id}
-                        </p>
-                        {item.comment ? <p className="mt-1 text-muted">{item.comment}</p> : null}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted">No selected photos in this session.</p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <p className="mt-3 text-sm text-muted">Select a session to inspect chosen photos.</p>
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={isSavingSelectionConfig}
-            onClick={() => {
-              void handleSaveSelectionConfig();
-            }}
-            className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground disabled:opacity-60"
-          >
-            {isSavingSelectionConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Save selection settings
-          </button>
-
-          <button
-            type="button"
-            disabled={!selectionDetail?.sessions?.length || isExporting}
-            onClick={() => {
-              void handleExportFilesCsv();
-            }}
-            className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2 text-sm font-semibold text-text disabled:opacity-60"
-          >
-            <Download className="h-4 w-4" />
-            Export CSV
-          </button>
-
-          <button
-            type="button"
-            disabled={!selectionDetail?.sessions?.length || isExporting}
-            onClick={() => {
-              void handleExportLightroom();
-            }}
-            className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2 text-sm font-semibold text-text disabled:opacity-60"
-          >
-            <FileText className="h-4 w-4" />
-            Export Lightroom
-          </button>
-        </div>
-
-        {selectionError ? (
-          <p className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-            {selectionError}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/50 bg-surface p-4 shadow-xs">
+        <div>
+          <h2 className="text-lg font-semibold text-text">Analytics window</h2>
+          <p className="text-sm text-muted">
+            {latestPoint
+              ? `Latest activity recorded on ${formatDay(latestPoint.day)}.`
+              : 'No analytics points yet.'}
           </p>
-        ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {DAY_PRESETS.map((preset) => (
+            <button
+              key={preset}
+              onClick={() => setDays(preset)}
+              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+                days === preset
+                  ? 'bg-accent text-accent-foreground'
+                  : 'border border-border/50 bg-surface-1 text-text'
+              }`}
+            >
+              Last {preset} days
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border/50 bg-surface shadow-xs">
-        <table className="min-w-full text-sm">
-          <thead className="bg-surface-1 text-muted">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs uppercase tracking-wide">Day</th>
-              <th className="px-4 py-3 text-right text-xs uppercase tracking-wide">Views total</th>
-              <th className="px-4 py-3 text-right text-xs uppercase tracking-wide">Views unique</th>
-              <th className="px-4 py-3 text-right text-xs uppercase tracking-wide">ZIP</th>
-              <th className="px-4 py-3 text-right text-xs uppercase tracking-wide">Single</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...analytics.points].reverse().map((point) => (
-              <tr key={point.day} className="border-t border-border/40">
-                <td className="px-4 py-3 font-semibold text-text">{formatDay(point.day)}</td>
-                <td className="px-4 py-3 text-right text-text">
-                  {numberFormatter.format(point.views_total)}
-                </td>
-                <td className="px-4 py-3 text-right text-text">
-                  {numberFormatter.format(point.views_unique)}
-                </td>
-                <td className="px-4 py-3 text-right text-text">
-                  {numberFormatter.format(point.zip_downloads)}
-                </td>
-                <td className="px-4 py-3 text-right text-text">
-                  {numberFormatter.format(point.single_downloads)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <AppTabs
+        items={detailTabItems}
+        selectedKey={activeTab}
+        onChange={setActiveTab}
+        listClassName="flex flex-wrap items-center gap-3"
+        panelsClassName="mt-6"
+      />
 
       <ShareLinkEditorModal
         isOpen={editingOpen}

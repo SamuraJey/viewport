@@ -149,7 +149,12 @@ const getSharedGallery = async (
   const queryString = params.toString();
   const url = queryString ? `/s/${shareId}?${queryString}` : `/s/${shareId}`;
 
-  const response = await api.get(url);
+  const response = await api.get(url, {
+    headers: {
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
+    },
+  });
   return response.data;
 };
 

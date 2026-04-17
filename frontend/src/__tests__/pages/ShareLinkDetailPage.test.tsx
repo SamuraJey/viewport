@@ -1,0 +1,170 @@
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ShareLinkDetailPage } from '../../pages/ShareLinkDetailPage';
+import { shareLinkService } from '../../services/shareLinkService';
+
+vi.mock('../../services/shareLinkService', () => ({
+  shareLinkService: {
+    getShareLinkAnalytics: vi.fn(),
+    getOwnerSelectionDetail: vi.fn(),
+    getOwnerSelectionSessionDetail: vi.fn(),
+    updateShareLink: vi.fn(),
+    deleteShareLink: vi.fn(),
+    updateOwnerSelectionConfig: vi.fn(),
+    closeOwnerSelectionSession: vi.fn(),
+    reopenOwnerSelectionSession: vi.fn(),
+    exportShareLinkSelectionFilesCsv: vi.fn(),
+    exportShareLinkSelectionLightroom: vi.fn(),
+  },
+}));
+
+vi.mock('../../hooks', () => ({
+  useConfirmation: () => ({
+    openConfirm: vi.fn(),
+    ConfirmModal: null,
+  }),
+}));
+
+describe('ShareLinkDetailPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    vi.mocked(shareLinkService.getShareLinkAnalytics).mockResolvedValue({
+      share_link: {
+        id: 'link-1',
+        gallery_id: 'gallery-1',
+        gallery_name: 'Spring Session',
+        label: 'Client proofing',
+        is_active: true,
+        expires_at: null,
+        views: 12,
+        zip_downloads: 2,
+        single_downloads: 3,
+        created_at: '2026-04-10T10:00:00Z',
+        updated_at: '2026-04-12T10:00:00Z',
+      },
+      points: [
+        {
+          day: '2026-04-10',
+          views_total: 5,
+          views_unique: 4,
+          zip_downloads: 1,
+          single_downloads: 1,
+        },
+        {
+          day: '2026-04-11',
+          views_total: 7,
+          views_unique: 6,
+          zip_downloads: 1,
+          single_downloads: 2,
+        },
+      ],
+    } as any);
+
+    vi.mocked(shareLinkService.getOwnerSelectionDetail).mockResolvedValue({
+      sharelink_id: 'link-1',
+      sharelink_label: 'Client proofing',
+      config: {
+        is_enabled: true,
+        list_title: 'Selected photos',
+        limit_enabled: false,
+        limit_value: null,
+        allow_photo_comments: true,
+        require_email: false,
+        require_phone: false,
+        require_client_note: false,
+        created_at: '2026-04-10T10:00:00Z',
+        updated_at: '2026-04-12T10:00:00Z',
+      },
+      aggregate: {
+        total_sessions: 1,
+        submitted_sessions: 0,
+        in_progress_sessions: 1,
+        closed_sessions: 0,
+        selected_count: 3,
+        latest_activity_at: '2026-04-12T10:00:00Z',
+      },
+      sessions: [
+        {
+          id: 'session-1',
+          sharelink_id: 'link-1',
+          status: 'in_progress',
+          client_name: 'Ivan',
+          client_email: null,
+          client_phone: null,
+          client_note: null,
+          selected_count: 3,
+          submitted_at: null,
+          last_activity_at: '2026-04-12T10:00:00Z',
+          created_at: '2026-04-10T10:00:00Z',
+          updated_at: '2026-04-12T10:00:00Z',
+          items: [],
+        },
+      ],
+      session: null,
+    } as any);
+
+    vi.mocked(shareLinkService.getOwnerSelectionSessionDetail).mockResolvedValue({
+      id: 'session-1',
+      sharelink_id: 'link-1',
+      status: 'in_progress',
+      client_name: 'Ivan',
+      client_email: null,
+      client_phone: null,
+      client_note: null,
+      selected_count: 3,
+      submitted_at: null,
+      last_activity_at: '2026-04-12T10:00:00Z',
+      created_at: '2026-04-10T10:00:00Z',
+      updated_at: '2026-04-12T10:00:00Z',
+      items: [],
+    } as any);
+  });
+
+  const renderPage = () =>
+    render(
+      <MemoryRouter initialEntries={['/share-links/link-1']}>
+        <Routes>
+          <Route path="/share-links/:shareLinkId" element={<ShareLinkDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+  it('shows overview first and keeps selection admin behind its own tab', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: /client proofing/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /overview/i })).toBeInTheDocument();
+    expect(
+      screen.queryByText(/manage selection configuration and per-client selection sessions/i),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/recent daily activity/i)).toBeInTheDocument();
+  });
+
+  it('switches between analytics and selection tabs', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByRole('heading', { name: /client proofing/i });
+
+    await user.click(screen.getByRole('tab', { name: /daily analytics/i }));
+    expect(await screen.findByText(/daily analytics breakdown/i)).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /views total/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: /photo selection/i }));
+    expect(
+      await screen.findByText(/manage selection configuration and per-client selection sessions/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /save selection settings/i })).toBeInTheDocument();
+  });
+
+  it('loads analytics for the default 30 day window', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(shareLinkService.getShareLinkAnalytics).toHaveBeenCalledWith('link-1', 30);
+    });
+  });
+});

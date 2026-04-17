@@ -7,6 +7,7 @@ import {
   HardDrive,
   Loader2,
   Search,
+  Share2,
   SlidersHorizontal,
   Trash2,
 } from 'lucide-react';
@@ -69,6 +70,9 @@ interface GalleryHeaderProps {
   sortBy: GalleryPhotoSortBy;
   sortOrder: SortOrder;
   onDeleteGallery: () => void;
+  onCreateShareLink?: () => void;
+  isCreatingShareLink?: boolean;
+  shareLinkCount?: number;
   onSearchChange: (value: string) => void;
   onSortChange: (value: { sortBy: GalleryPhotoSortBy; sortOrder: SortOrder }) => void;
 }
@@ -89,6 +93,9 @@ export const GalleryHeader = ({
   sortBy,
   sortOrder,
   onDeleteGallery,
+  onCreateShareLink,
+  isCreatingShareLink = false,
+  shareLinkCount = 0,
   onSearchChange,
   onSortChange,
 }: GalleryHeaderProps) => {
@@ -180,15 +187,37 @@ export const GalleryHeader = ({
             </h1>
           </div>
 
-          <button
-            onClick={onDeleteGallery}
-            className="inline-flex h-10 w-fit items-center gap-2 rounded-lg border border-danger/25 bg-danger/10 px-4 text-sm font-bold text-danger transition-all duration-200 hover:-translate-y-0.5 hover:border-danger/40 hover:bg-danger/15 hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0"
-            title="Delete Gallery"
-            aria-label="Delete gallery"
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {onCreateShareLink ? (
+              <button
+                type="button"
+                onClick={onCreateShareLink}
+                disabled={isCreatingShareLink}
+                className="inline-flex h-10 w-fit items-center gap-2 rounded-lg border border-accent/20 bg-accent px-4 text-sm font-bold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60 disabled:transform-none"
+                aria-label="Share gallery"
+              >
+                {isCreatingShareLink ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Share2 className="h-4 w-4" />
+                )}
+                <span>Share gallery</span>
+                <span className="rounded-full bg-accent-foreground/12 px-2 py-0.5 text-[11px] font-semibold text-accent-foreground/90">
+                  {shareLinkCount}
+                </span>
+              </button>
+            ) : null}
+
+            <button
+              onClick={onDeleteGallery}
+              className="inline-flex h-10 w-fit items-center gap-2 rounded-lg border border-danger/25 bg-danger/10 px-4 text-sm font-bold text-danger transition-all duration-200 hover:-translate-y-0.5 hover:border-danger/40 hover:bg-danger/15 hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0"
+              title="Delete Gallery"
+              aria-label="Delete gallery"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
