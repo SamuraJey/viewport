@@ -14,6 +14,7 @@ import {
 import { formatDateOnly, formatFileSize } from '../../lib/utils';
 import type { GalleryDetail, GalleryPhotoSortBy, SortOrder } from '../../types';
 import { AppListbox, AppPopover } from '../ui';
+import { GalleryDescriptionsPanel } from './GalleryDescriptionsPanel';
 
 interface SortOption {
   value: `${GalleryPhotoSortBy}:${SortOrder}`;
@@ -70,6 +71,14 @@ interface GalleryHeaderProps {
   sortBy: GalleryPhotoSortBy;
   sortOrder: SortOrder;
   onDeleteGallery: () => void;
+  privateNotes: string;
+  publicDescription: string;
+  isSavingDescriptions: boolean;
+  isDescriptionsDirty: boolean;
+  onPrivateNotesChange: (value: string) => void;
+  onPublicDescriptionChange: (value: string) => void;
+  onSaveDescriptions: () => Promise<boolean>;
+  onResetDescriptions: () => void;
   onCreateShareLink?: () => void;
   isCreatingShareLink?: boolean;
   shareLinkCount?: number;
@@ -93,6 +102,14 @@ export const GalleryHeader = ({
   sortBy,
   sortOrder,
   onDeleteGallery,
+  privateNotes,
+  publicDescription,
+  isSavingDescriptions,
+  isDescriptionsDirty,
+  onPrivateNotesChange,
+  onPublicDescriptionChange,
+  onSaveDescriptions,
+  onResetDescriptions,
   onCreateShareLink,
   isCreatingShareLink = false,
   shareLinkCount = 0,
@@ -185,6 +202,17 @@ export const GalleryHeader = ({
             >
               {gallery.name || `Gallery #${gallery.id}`}
             </h1>
+
+            <GalleryDescriptionsPanel
+              privateNotes={privateNotes}
+              publicDescription={publicDescription}
+              isSaving={isSavingDescriptions}
+              isDirty={isDescriptionsDirty}
+              onPrivateNotesChange={onPrivateNotesChange}
+              onPublicDescriptionChange={onPublicDescriptionChange}
+              onSave={onSaveDescriptions}
+              onReset={onResetDescriptions}
+            />
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">

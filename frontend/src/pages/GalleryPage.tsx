@@ -14,7 +14,6 @@ import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorM
 import { ShareLinkSettingsModal } from '../components/share-links/ShareLinkSettingsModal';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import { GalleryHeader } from '../components/gallery/GalleryHeader';
-import { GalleryDescriptionsPanel } from '../components/gallery/GalleryDescriptionsPanel';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { GallerySelectionSessionsPanel } from '../components/gallery/GallerySelectionSessionsPanel';
 import { GalleryDragOverlay } from '../components/gallery/GalleryDragOverlay';
@@ -268,18 +267,14 @@ export const GalleryPage = () => {
     privateNotesInput !== currentPrivateNotes ||
     publicDescriptionInput !== currentPublicDescription;
 
-  const handleSaveDescriptions = useCallback(() => {
-    void (async () => {
-      const isSaved = await handleSaveGalleryDescriptions(
-        privateNotesInput,
-        publicDescriptionInput,
-      );
-      if (!isSaved) {
-        return;
-      }
-      setPrivateNotesInput((privateNotesInput || '').trim());
-      setPublicDescriptionInput((publicDescriptionInput || '').trim());
-    })();
+  const handleSaveDescriptions = useCallback(async () => {
+    const isSaved = await handleSaveGalleryDescriptions(privateNotesInput, publicDescriptionInput);
+    if (!isSaved) {
+      return false;
+    }
+    setPrivateNotesInput((privateNotesInput || '').trim());
+    setPublicDescriptionInput((publicDescriptionInput || '').trim());
+    return true;
   }, [handleSaveGalleryDescriptions, privateNotesInput, publicDescriptionInput]);
 
   useEffect(() => {
@@ -1044,6 +1039,17 @@ export const GalleryPage = () => {
           sortBy={sortBy}
           sortOrder={sortOrder}
           onDeleteGallery={handleDeleteGallery}
+          privateNotes={privateNotesInput}
+          publicDescription={publicDescriptionInput}
+          isSavingDescriptions={isSavingDescriptions}
+          isDescriptionsDirty={isDescriptionsDirty}
+          onPrivateNotesChange={setPrivateNotesInput}
+          onPublicDescriptionChange={setPublicDescriptionInput}
+          onSaveDescriptions={handleSaveDescriptions}
+          onResetDescriptions={() => {
+            setPrivateNotesInput(currentPrivateNotes);
+            setPublicDescriptionInput(currentPublicDescription);
+          }}
           onCreateShareLink={() => setIsShareLinkCreateOpen(true)}
           isCreatingShareLink={isCreatingLink}
           shareLinkCount={shareLinks.length}
@@ -1061,20 +1067,6 @@ export const GalleryPage = () => {
               resetPage: true,
             });
           }}
-        />
-
-        <GalleryDescriptionsPanel
-          privateNotes={privateNotesInput}
-          publicDescription={publicDescriptionInput}
-          isSaving={isSavingDescriptions}
-          isDirty={isDescriptionsDirty}
-          onPrivateNotesChange={setPrivateNotesInput}
-          onPublicDescriptionChange={setPublicDescriptionInput}
-          onReset={() => {
-            setPrivateNotesInput(currentPrivateNotes);
-            setPublicDescriptionInput(currentPublicDescription);
-          }}
-          onSave={handleSaveDescriptions}
         />
 
         <AppTabs

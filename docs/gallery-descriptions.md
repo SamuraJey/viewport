@@ -17,8 +17,11 @@ Viewport stores two gallery-level text fields for gallery copy:
 - Both fields are treated as plain text.
 - Empty strings are normalized to `null`.
 - Public rendering preserves line breaks and does not allow HTML or markdown.
+- Length limits:
+  - `private_notes`: 1000 characters
+  - `public_description`: 255 characters
 
 ## UI flow
 
-- Owners edit both fields from the private gallery page using an explicit save action.
+- Owners edit both fields from the private gallery page inside a compact modal opened from the gallery workspace.
 - Public visitors see only `public_description`, typically in the public gallery hero area.

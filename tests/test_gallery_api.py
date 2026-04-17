@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tests.helpers import register_and_login, upload_photo_via_presigned
-from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH, PHOTO_SEARCH_MAX_LENGTH
+from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH, GALLERY_PRIVATE_NOTES_MAX_LENGTH, GALLERY_PUBLIC_DESCRIPTION_MAX_LENGTH, PHOTO_SEARCH_MAX_LENGTH
 
 pytestmark = pytest.mark.requires_s3
 
@@ -224,6 +224,17 @@ class TestGalleryAPI:
         payload = detail_response.json()
         assert payload["private_notes"] is None
         assert payload["public_description"] is None
+
+    def test_update_gallery_descriptions_respect_max_lengths(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        response = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}",
+            json={
+                "private_notes": "a" * (GALLERY_PRIVATE_NOTES_MAX_LENGTH + 1),
+                "public_description": "b" * (GALLERY_PUBLIC_DESCRIPTION_MAX_LENGTH + 1),
+            },
+        )
+
+        assert response.status_code == 422
 
     def test_list_galleries_omits_description_fields(self, authenticated_client: TestClient, gallery_id_fixture: str):
         update_response = authenticated_client.patch(

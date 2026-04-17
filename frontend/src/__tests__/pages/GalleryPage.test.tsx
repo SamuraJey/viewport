@@ -318,7 +318,9 @@ describe('GalleryPage', () => {
 
       render(<GalleryPageWrapper />);
 
-      const privateNotesInput = await screen.findByLabelText(/private notes/i);
+      await userEvent.click(await screen.findByRole('button', { name: /edit/i }));
+
+      const privateNotesInput = await screen.findByLabelText(/private note/i);
       const publicDescriptionInput = await screen.findByLabelText(/public description/i);
 
       expect(privateNotesInput).toHaveValue(mockGalleryData.private_notes);
@@ -329,7 +331,7 @@ describe('GalleryPage', () => {
       await userEvent.clear(publicDescriptionInput);
       await userEvent.type(publicDescriptionInput, 'Updated public description');
 
-      await userEvent.click(screen.getByRole('button', { name: /save descriptions/i }));
+      await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
       await waitFor(() => {
         expect(vi.mocked(galleryService.updateGallery)).toHaveBeenCalledWith('1', {
