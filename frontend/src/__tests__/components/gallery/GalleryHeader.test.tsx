@@ -63,4 +63,24 @@ describe('GalleryHeader', () => {
 
     expect(screen.getByLabelText(/public gallery sort/i)).toBeInTheDocument();
   });
+
+  it('renders a share-gallery quick action when provided', async () => {
+    const user = userEvent.setup();
+    const onCreateShareLink = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <GalleryHeader
+          {...createProps()}
+          onCreateShareLink={onCreateShareLink}
+          shareLinkCount={3}
+        />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: /share gallery/i }));
+
+    expect(onCreateShareLink).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('3')).toBeInTheDocument();
+  });
 });

@@ -84,19 +84,19 @@ describe('ShareLinksSection', () => {
     expect(screen.getByText('15')).toBeInTheDocument();
   });
 
-  it('should sort share links by creation date (oldest first)', () => {
+  it('should sort share links by creation date (newest first)', () => {
     render(<ShareLinksSection {...defaultProps} />);
 
     const linkElements = screen.getAllByRole('listitem');
     expect(linkElements).toHaveLength(3);
 
-    // Check that the first link shown is the oldest (link-1 from 2024-01-01)
+    // Check that the first link shown is the newest (link-3 from 2024-01-03)
     const firstLink = linkElements[0];
-    expect(firstLink).toHaveTextContent('link-1');
+    expect(firstLink).toHaveTextContent('link-3');
 
-    // Check that the last link shown is the newest (link-3 from 2024-01-03)
+    // Check that the last link shown is the oldest (link-1 from 2024-01-01)
     const lastLink = linkElements[2];
-    expect(lastLink).toHaveTextContent('link-3');
+    expect(lastLink).toHaveTextContent('link-1');
   });
 
   it('should display numbered links starting from 1', () => {
@@ -165,7 +165,7 @@ describe('ShareLinksSection', () => {
     const deleteButtons = screen.getAllByRole('button', { name: /delete link/i });
     await user.click(deleteButtons[0]);
 
-    expect(mockOnDeleteLink).toHaveBeenCalledWith('link-1');
+    expect(mockOnDeleteLink).toHaveBeenCalledWith('link-3');
   });
 
   it('should display empty state when no share links exist', () => {
@@ -206,6 +206,31 @@ describe('ShareLinksSection', () => {
     render(<ShareLinksSection {...defaultProps} shareLinks={[]} isLoading={true} />);
 
     expect(screen.getByText('Loading share links...')).toBeInTheDocument();
+  });
+
+  it('collapses long lists until the user asks to see more', async () => {
+    const user = userEvent.setup();
+    const extraLinks = [
+      ...mockShareLinks,
+      {
+        id: 'link-4',
+        created_at: '2024-01-04T10:00:00Z',
+        expires_at: null,
+        views: 1,
+        zip_downloads: 0,
+        single_downloads: 0,
+      },
+    ] satisfies ShareLink[];
+
+    render(<ShareLinksSection {...defaultProps} shareLinks={extraLinks} />);
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(3);
+    expect(screen.getByRole('button', { name: /show 1 more/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /show 1 more/i }));
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(4);
+    expect(screen.getByRole('button', { name: /show less/i })).toBeInTheDocument();
   });
 
   it('should render retry state when share links fail to load', async () => {

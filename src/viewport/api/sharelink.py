@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -6,7 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from viewport.auth_utils import get_current_user
 from viewport.models.db import get_db
+from viewport.models.sharelink_selection import SelectionSessionStatus
 from viewport.repositories.gallery_repository import GalleryRepository
+from viewport.repositories.selection_repository import SelectionRepository
 from viewport.repositories.sharelink_repository import ShareLinkRepository
 from viewport.schemas.sharelink import (
     GalleryShareLinkResponse,
@@ -14,8 +17,10 @@ from viewport.schemas.sharelink import (
     ShareLinkCreateRequest,
     ShareLinkDailyPointResponse,
     ShareLinkDashboardItemResponse,
+    ShareLinkDashboardListItemResponse,
     ShareLinkDashboardResponse,
     ShareLinkDashboardSummaryResponse,
+    ShareLinkSelectionSummaryResponse,
     ShareLinkUpdateRequest,
 )
 
@@ -32,11 +37,58 @@ def get_sharelink_repository(db: AsyncSession = Depends(get_db)) -> ShareLinkRep
     return ShareLinkRepository(db)
 
 
+def get_selection_repository(db: AsyncSession = Depends(get_db)) -> SelectionRepository:
+    return SelectionRepository(db)
+
+
 def _normalize_label(label: str | None) -> str | None:
     if label is None:
         return None
     normalized = label.strip()
     return normalized or None
+
+
+def _selection_rollup_status(
+    total_sessions: int,
+    submitted_sessions: int,
+    in_progress_sessions: int,
+    closed_sessions: int,
+) -> str:
+    if total_sessions <= 0:
+        return "not_started"
+    if submitted_sessions > 0:
+        return SelectionSessionStatus.SUBMITTED.value
+    if in_progress_sessions > 0:
+        return SelectionSessionStatus.IN_PROGRESS.value
+    if closed_sessions > 0:
+        return SelectionSessionStatus.CLOSED.value
+    return "not_started"
+
+
+def _to_selection_summary_response(
+    is_enabled: bool,
+    total_sessions: int,
+    submitted_sessions: int,
+    in_progress_sessions: int,
+    closed_sessions: int,
+    selected_count: int,
+    latest_activity_at: datetime | None,
+) -> ShareLinkSelectionSummaryResponse:
+    return ShareLinkSelectionSummaryResponse(
+        is_enabled=is_enabled,
+        status=_selection_rollup_status(
+            total_sessions,
+            submitted_sessions,
+            in_progress_sessions,
+            closed_sessions,
+        ),
+        total_sessions=total_sessions,
+        submitted_sessions=submitted_sessions,
+        in_progress_sessions=in_progress_sessions,
+        closed_sessions=closed_sessions,
+        selected_count=selected_count,
+        latest_activity_at=latest_activity_at,
+    )
 
 
 @gallery_router.get("", response_model=list[GalleryShareLinkResponse])
@@ -103,13 +155,28 @@ async def list_owner_sharelinks(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     search: str | None = Query(None, max_length=127),
+    status_filter: Literal["active", "inactive", "expired"] | None = Query(
+        None,
+        alias="status",
+    ),
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    selection_repo: SelectionRepository = Depends(get_selection_repository),
     user=Depends(get_current_user),
 ) -> ShareLinkDashboardResponse:
-    rows, total, summary = await repo.get_sharelinks_by_owner(user.id, page=page, size=size, search=search)
+    rows, total, summary = await repo.get_sharelinks_by_owner(
+        user.id,
+        page=page,
+        size=size,
+        search=search,
+        status=status_filter,
+    )
+
+    sharelink_ids = [sharelink.id for sharelink, _ in rows]
+    selection_summaries = await selection_repo.get_sharelink_selection_summaries(sharelink_ids)
+    empty_selection_summary = (False, 0, 0, 0, 0, 0, None)
 
     share_links = [
-        ShareLinkDashboardItemResponse(
+        ShareLinkDashboardListItemResponse(
             id=sharelink.id,
             gallery_id=sharelink.gallery_id,
             gallery_name=gallery_name,
@@ -121,6 +188,7 @@ async def list_owner_sharelinks(
             single_downloads=sharelink.single_downloads,
             created_at=sharelink.created_at,
             updated_at=sharelink.updated_at,
+            selection_summary=_to_selection_summary_response(*selection_summaries.get(sharelink.id, empty_selection_summary)),
         )
         for sharelink, gallery_name in rows
     ]
@@ -139,6 +207,7 @@ async def get_sharelink_analytics(
     sharelink_id: UUID,
     days: int = Query(30, ge=1, le=365),
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    selection_repo: SelectionRepository = Depends(get_selection_repository),
     user=Depends(get_current_user),
 ) -> ShareLinkAnalyticsResponse:
     row = await repo.get_sharelink_for_owner(sharelink_id, user.id)
@@ -178,7 +247,14 @@ async def get_sharelink_analytics(
         updated_at=sharelink.updated_at,
     )
 
-    return ShareLinkAnalyticsResponse(share_link=share_link, points=points)
+    sharelink_selection_summaries = await selection_repo.get_sharelink_selection_summaries([sharelink.id])
+    selection_summary = _to_selection_summary_response(*(sharelink_selection_summaries.get(sharelink.id, (False, 0, 0, 0, 0, 0, None))))
+
+    return ShareLinkAnalyticsResponse(
+        share_link=share_link,
+        selection_summary=selection_summary,
+        points=points,
+    )
 
 
 router.include_router(gallery_router)
