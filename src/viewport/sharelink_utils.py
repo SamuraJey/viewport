@@ -11,4 +11,4 @@ def normalize_sharelink_expires_at(expires_at: datetime | None) -> datetime | No
 
 def is_sharelink_expired(expires_at: datetime | None) -> bool:
     normalized_expires_at = normalize_sharelink_expires_at(expires_at)
-    return bool(normalized_expires_at and normalized_expires_at < datetime.now(UTC))
+    return bool(normalized_expires_at and normalized_expires_at <= datetime.now(UTC))

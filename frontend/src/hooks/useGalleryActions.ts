@@ -6,7 +6,12 @@ import type { PhotoUploadResponse } from '../services/photoService';
 import { shareLinkService, type ShareLink } from '../services/shareLinkService';
 import { useErrorHandler, useConfirmation, useModal } from '../hooks';
 import { handleApiError } from '../lib/errorHandling';
-import type { GalleryPhotoSortBy, ShareLinkUpdateRequest, SortOrder } from '../types';
+import type {
+  GalleryPhotoSortBy,
+  ShareLinkCreateRequest,
+  ShareLinkUpdateRequest,
+  SortOrder,
+} from '../types';
 
 interface UseGalleryActionsProps {
   galleryId: string;
@@ -332,14 +337,16 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
     }
   };
 
-  const handleCreateShareLink = async () => {
+  const handleCreateShareLink = async (payload: ShareLinkCreateRequest): Promise<ShareLink> => {
     setIsCreatingLink(true);
     clearError();
     try {
-      await shareLinkService.createShareLink(galleryId);
+      const created = await shareLinkService.createShareLink(galleryId, payload);
       await fetchShareLinks(false);
+      return created;
     } catch (err) {
       handleError(err);
+      throw err;
     } finally {
       setIsCreatingLink(false);
     }

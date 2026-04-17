@@ -108,6 +108,7 @@ vi.mock('../../services/shareLinkService', () => ({
   shareLinkService: {
     getShareLinks: vi.fn(),
     createShareLink: vi.fn(),
+    updateOwnerSelectionConfig: vi.fn(),
     deleteShareLink: vi.fn(),
     getGallerySelections: vi.fn(),
     getOwnerSelectionDetail: vi.fn(),
@@ -500,8 +501,18 @@ describe('GalleryPage', () => {
       const createLinkButton = screen.getByRole('button', { name: /create new share link/i });
       await userEvent.click(createLinkButton);
 
+      const createDialog = await screen.findByRole('dialog', { name: /create share link/i });
+      expect(within(createDialog).getByText('Availability')).toBeInTheDocument();
+      expect(shareLinkService.createShareLink).not.toHaveBeenCalled();
+
+      await userEvent.click(within(createDialog).getByRole('button', { name: /create link/i }));
+
       await waitFor(() => {
-        expect(shareLinkService.createShareLink).toHaveBeenCalledWith('1');
+        expect(shareLinkService.createShareLink).toHaveBeenCalledWith('1', {
+          label: null,
+          is_active: true,
+          expires_at: null,
+        });
       });
 
       await waitFor(() => {

@@ -23,6 +23,7 @@ import type {
   ShareLinkAnalyticsResponse,
   ShareLinkDailyPoint,
   ShareLinksDashboardResponse,
+  ShareLinkSelectionSummary,
   ShareLinkUpdateRequest,
   SelectionConfig,
   SelectionConfigUpdateRequest,
@@ -380,6 +381,46 @@ class DemoServiceStore {
 
   private createValidationError(message: string): ApiError {
     return new ApiError(422, message, { detail: message });
+  }
+
+  private buildSelectionSummary(
+    state: DemoGalleryState,
+    shareLinkId: string,
+  ): ShareLinkSelectionSummary {
+    state.selectionConfigs = state.selectionConfigs ?? {};
+    const config = state.selectionConfigs[shareLinkId] ?? defaultSelectionConfig();
+    const sessions = [...((state.selectionSessions ?? {})[shareLinkId] ?? [])];
+    const submittedSessions = sessions.filter((entry) => entry.status === 'submitted').length;
+    const inProgressSessions = sessions.filter((entry) => entry.status === 'in_progress').length;
+    const closedSessions = sessions.filter((entry) => entry.status === 'closed').length;
+    const selectedCount = sessions.reduce((sum, entry) => sum + (entry.selected_count || 0), 0);
+    const latestActivity =
+      sessions.length > 0
+        ? sessions
+            .map((entry) => Date.parse(entry.updated_at))
+            .filter((value) => !Number.isNaN(value))
+            .sort((left, right) => right - left)[0]
+        : null;
+
+    let status: ShareLinkSelectionSummary['status'] = 'not_started';
+    if (submittedSessions > 0) {
+      status = 'submitted';
+    } else if (inProgressSessions > 0) {
+      status = 'in_progress';
+    } else if (closedSessions > 0) {
+      status = 'closed';
+    }
+
+    return {
+      is_enabled: config.is_enabled,
+      status,
+      total_sessions: sessions.length,
+      submitted_sessions: submittedSessions,
+      in_progress_sessions: inProgressSessions,
+      closed_sessions: closedSessions,
+      selected_count: selectedCount,
+      latest_activity_at: latestActivity !== null ? new Date(latestActivity).toISOString() : null,
+    };
   }
 
   private getSelectionConfigForShareId(shareId: string): {
@@ -848,17 +889,19 @@ class DemoServiceStore {
     page = 1,
     size = 20,
     search?: string,
+    status?: 'active' | 'inactive' | 'expired',
   ): Promise<ShareLinksDashboardResponse> {
     const allLinks = this.galleries.flatMap((entry) =>
       entry.shareLinks.map((link) => ({
         ...link,
         gallery_id: entry.gallery.id,
         gallery_name: entry.gallery.name,
+        selection_summary: this.buildSelectionSummary(entry, link.id),
       })),
     );
 
     const normalizedSearch = search?.trim().toLowerCase() || '';
-    const filtered = normalizedSearch
+    const searched = normalizedSearch
       ? allLinks.filter((link) =>
           `${link.label ?? ''} ${link.gallery_name} ${link.id}`
             .toLowerCase()
@@ -866,12 +909,28 @@ class DemoServiceStore {
         )
       : allLinks;
 
+    const now = Date.now();
+    const filtered = status
+      ? searched.filter((item) => {
+          const expiresAt = item.expires_at ? Date.parse(item.expires_at) : null;
+          const isExpired = expiresAt !== null && !Number.isNaN(expiresAt) && expiresAt <= now;
+
+          if (status === 'active') {
+            return item.is_active !== false && !isExpired;
+          }
+          if (status === 'inactive') {
+            return item.is_active === false;
+          }
+          return item.is_active !== false && isExpired;
+        })
+      : searched;
+
     const sorted = filtered.sort(
-      (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
+      (left, right) =>
+        Date.parse(right.updated_at ?? right.created_at) -
+        Date.parse(left.updated_at ?? left.created_at),
     );
     const start = (page - 1) * size;
-
-    const now = Date.now();
     const summary = sorted.reduce(
       (acc, item) => {
         acc.views += item.views || 0;
@@ -879,7 +938,7 @@ class DemoServiceStore {
         acc.single_downloads += item.single_downloads || 0;
 
         const expiresAt = item.expires_at ? Date.parse(item.expires_at) : null;
-        const isExpired = expiresAt !== null && !Number.isNaN(expiresAt) && expiresAt < now;
+        const isExpired = expiresAt !== null && !Number.isNaN(expiresAt) && expiresAt <= now;
         if (item.is_active !== false && !isExpired) {
           acc.active_links += 1;
         }
@@ -933,6 +992,7 @@ class DemoServiceStore {
         gallery_id: state.gallery.id,
         gallery_name: state.gallery.name,
       },
+      selection_summary: this.buildSelectionSummary(state, link.id),
       points,
     };
   }

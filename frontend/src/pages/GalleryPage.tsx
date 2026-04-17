@@ -11,6 +11,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
+import { ShareLinkSettingsModal } from '../components/share-links/ShareLinkSettingsModal';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import { GalleryHeader } from '../components/gallery/GalleryHeader';
 import { GalleryDescriptionsPanel } from '../components/gallery/GalleryDescriptionsPanel';
@@ -105,6 +106,7 @@ export const GalleryPage = () => {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showInitialLoadingState, setShowInitialLoadingState] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isShareLinkCreateOpen, setIsShareLinkCreateOpen] = useState(false);
   const [editingShareLink, setEditingShareLink] = useState<ShareLink | null>(null);
   const [photoSizeById, setPhotoSizeById] = useState<Record<string, number>>({});
   const [favoritesTabs, setFavoritesTabs] = useState<FavoritesUserTab[]>([]);
@@ -966,7 +968,7 @@ export const GalleryPage = () => {
             error={shareLinksError}
             onRetry={fetchShareLinks}
             isCreatingLink={isCreatingLink}
-            onCreateLink={handleCreateShareLink}
+            onCreateLink={() => setIsShareLinkCreateOpen(true)}
             onEditLink={(link) => setEditingShareLink(link)}
             onOpenLinkAnalytics={(linkId) => navigate(`/share-links/${linkId}`)}
             onOpenDashboard={() => navigate('/share-links')}
@@ -1042,6 +1044,9 @@ export const GalleryPage = () => {
           sortBy={sortBy}
           sortOrder={sortOrder}
           onDeleteGallery={handleDeleteGallery}
+          onCreateShareLink={() => setIsShareLinkCreateOpen(true)}
+          isCreatingShareLink={isCreatingLink}
+          shareLinkCount={shareLinks.length}
           onSearchChange={setSearchInput}
           onSortChange={({
             sortBy: nextSortBy,
@@ -1105,6 +1110,22 @@ export const GalleryPage = () => {
             onRename={handleRenameConfirm}
           />
         )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {gallery ? (
+          <ShareLinkSettingsModal
+            isOpen={isShareLinkCreateOpen}
+            mode="create"
+            galleryName={gallery.name}
+            onClose={() => setIsShareLinkCreateOpen(false)}
+            onCreate={handleCreateShareLink}
+            onSaveSelectionConfig={(shareLinkId, payload) =>
+              shareLinkService.updateOwnerSelectionConfig(galleryId, shareLinkId, payload)
+            }
+            onManageCreated={(shareLinkId) => navigate(`/share-links/${shareLinkId}`)}
+          />
+        ) : null}
       </AnimatePresence>
 
       <AnimatePresence>

@@ -47,6 +47,21 @@ class ShareLinkDashboardItemResponse(ShareLinkResponse):
     gallery_name: str
 
 
+class ShareLinkSelectionSummaryResponse(BaseModel):
+    is_enabled: bool
+    status: str
+    total_sessions: int
+    submitted_sessions: int
+    in_progress_sessions: int
+    closed_sessions: int
+    selected_count: int
+    latest_activity_at: datetime | None
+
+
+class ShareLinkDashboardListItemResponse(ShareLinkDashboardItemResponse):
+    selection_summary: ShareLinkSelectionSummaryResponse
+
+
 class ShareLinkDashboardSummaryResponse(BaseModel):
     views: int
     zip_downloads: int
@@ -55,7 +70,7 @@ class ShareLinkDashboardSummaryResponse(BaseModel):
 
 
 class ShareLinkDashboardResponse(BaseModel):
-    share_links: list[ShareLinkDashboardItemResponse]
+    share_links: list[ShareLinkDashboardListItemResponse]
     total: int
     page: int
     size: int
@@ -72,4 +87,5 @@ class ShareLinkDailyPointResponse(BaseModel):
 
 class ShareLinkAnalyticsResponse(BaseModel):
     share_link: ShareLinkDashboardItemResponse
+    selection_summary: ShareLinkSelectionSummaryResponse
     points: list[ShareLinkDailyPointResponse]

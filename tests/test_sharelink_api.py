@@ -105,6 +105,8 @@ class TestSharelinkAPI:
         assert isinstance(data["share_links"], list)
         assert data["share_links"][0]["gallery_id"] == gallery_id_fixture
         assert "gallery_name" in data["share_links"][0]
+        assert "selection_summary" in data["share_links"][0]
+        assert {"is_enabled", "status", "selected_count", "total_sessions"} <= set(data["share_links"][0]["selection_summary"].keys())
         assert "summary" in data
         assert {"views", "zip_downloads", "single_downloads", "active_links"} <= set(data["summary"].keys())
 
@@ -128,6 +130,33 @@ class TestSharelinkAPI:
         assert data["total"] == 1
         assert len(data["share_links"]) == 1
         assert data["share_links"][0]["label"] == "Needle Label"
+
+    def test_owner_sharelinks_dashboard_filters_by_status(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        active_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"label": "Active Link"},
+        )
+        assert active_resp.status_code == 201
+
+        inactive_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"label": "Inactive Link"},
+        )
+        assert inactive_resp.status_code == 201
+        inactive_id = inactive_resp.json()["id"]
+        patch_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{inactive_id}",
+            json={"is_active": False},
+        )
+        assert patch_resp.status_code == 200
+
+        response = authenticated_client.get("/share-links?page=1&size=20&status=inactive")
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["total"] == 1
+        assert len(data["share_links"]) == 1
+        assert data["share_links"][0]["label"] == "Inactive Link"
 
     def test_update_sharelink_rejects_null_is_active(self, authenticated_client: TestClient, gallery_id_fixture: str):
         create_resp = authenticated_client.post(
@@ -156,6 +185,8 @@ class TestSharelinkAPI:
         data = response.json()
         assert data["share_link"]["id"] == sharelink_id
         assert data["share_link"]["gallery_id"] == gallery_id_fixture
+        assert "selection_summary" in data
+        assert {"is_enabled", "status", "selected_count", "total_sessions"} <= set(data["selection_summary"].keys())
         assert len(data["points"]) == 7
         assert {"day", "views_total", "views_unique", "zip_downloads", "single_downloads"} <= set(data["points"][0].keys())
 

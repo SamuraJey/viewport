@@ -71,8 +71,21 @@ describe('shareLinkService', () => {
       offset: 20,
     });
 
-    expect(api.get).toHaveBeenCalledWith('/s/share123?limit=10&offset=20');
+    expect(api.get).toHaveBeenCalledWith('/s/share123?limit=10&offset=20', {
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+    });
     expect(result).toEqual({ photos: [], total_photos: 0 });
+  });
+
+  it('fetches owner share links with a backend status filter', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { share_links: [], total: 0 } } as any);
+
+    await shareLinkService.getOwnerShareLinks(2, 25, 'ivan', 'inactive');
+
+    expect(api.get).toHaveBeenCalledWith('/share-links?page=2&size=25&search=ivan&status=inactive');
   });
 
   it('fetches public photo urls', async () => {
