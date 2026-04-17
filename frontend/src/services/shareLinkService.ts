@@ -162,9 +162,10 @@ const getOwnerShareLinks = async (
   page = 1,
   size = 20,
   search?: string,
+  status?: 'active' | 'inactive' | 'expired',
 ): Promise<ShareLinksDashboardResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getOwnerShareLinks(page, size, search);
+    return getDemoService().getOwnerShareLinks(page, size, search, status);
   }
 
   const params = new URLSearchParams({
@@ -173,6 +174,9 @@ const getOwnerShareLinks = async (
   });
   if (search && search.trim().length > 0) {
     params.set('search', search.trim());
+  }
+  if (status) {
+    params.set('status', status);
   }
 
   const response = await api.get<ShareLinksDashboardResponse>(`/share-links?${params.toString()}`);

@@ -5,6 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ShareLinksDashboardPage } from '../../pages/ShareLinksDashboardPage';
 import { shareLinkService } from '../../services/shareLinkService';
 
+const mockSetTotal = vi.fn();
+const mockGoToPage = vi.fn();
+
 vi.mock('../../services/shareLinkService', () => ({
   shareLinkService: {
     getOwnerShareLinks: vi.fn(),
@@ -23,8 +26,8 @@ vi.mock('../../hooks', () => ({
     page: 1,
     pageSize: 20,
     total: 0,
-    setTotal: vi.fn(),
-    goToPage: vi.fn(),
+    setTotal: mockSetTotal,
+    goToPage: mockGoToPage,
   }),
   useConfirmation: () => ({
     openConfirm: ({ onConfirm }: { onConfirm: () => Promise<void> }) => {
@@ -152,14 +155,29 @@ describe('ShareLinksDashboardPage', () => {
     );
   });
 
-  it('filters the current page locally by status', async () => {
+  it('requests backend-filtered results by status and resets pagination', async () => {
     const user = userEvent.setup();
     renderPage();
 
     await screen.findByText('Preview for Ivan');
     await user.click(screen.getByRole('button', { name: /paused/i }));
 
-    expect(screen.queryByText('Preview for Ivan')).not.toBeInTheDocument();
-    expect(screen.getByText('Untitled share link')).toBeInTheDocument();
+    expect(mockGoToPage).toHaveBeenCalledWith(1);
+    expect(shareLinkService.getOwnerShareLinks).toHaveBeenLastCalledWith(
+      1,
+      20,
+      undefined,
+      'inactive',
+    );
+  });
+
+  it('updates summary hints when a backend status filter is active', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText('Preview for Ivan');
+    await user.click(screen.getByRole('button', { name: /paused/i }));
+
+    expect(await screen.findAllByText(/across filtered results/i)).toHaveLength(2);
   });
 });

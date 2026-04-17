@@ -817,6 +817,7 @@ class DemoServiceStore {
     page = 1,
     size = 20,
     search?: string,
+    status?: 'active' | 'inactive' | 'expired',
   ): Promise<ShareLinksDashboardResponse> {
     const allLinks = this.galleries.flatMap((entry) =>
       entry.shareLinks.map((link) => ({
@@ -827,7 +828,7 @@ class DemoServiceStore {
     );
 
     const normalizedSearch = search?.trim().toLowerCase() || '';
-    const filtered = normalizedSearch
+    const searched = normalizedSearch
       ? allLinks.filter((link) =>
           `${link.label ?? ''} ${link.gallery_name} ${link.id}`
             .toLowerCase()
@@ -835,12 +836,28 @@ class DemoServiceStore {
         )
       : allLinks;
 
+    const now = Date.now();
+    const filtered = status
+      ? searched.filter((item) => {
+          const expiresAt = item.expires_at ? Date.parse(item.expires_at) : null;
+          const isExpired = expiresAt !== null && !Number.isNaN(expiresAt) && expiresAt < now;
+
+          if (status === 'active') {
+            return item.is_active !== false && !isExpired;
+          }
+          if (status === 'inactive') {
+            return item.is_active === false;
+          }
+          return item.is_active !== false && isExpired;
+        })
+      : searched;
+
     const sorted = filtered.sort(
-      (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
+      (left, right) =>
+        Date.parse(right.updated_at ?? right.created_at) -
+        Date.parse(left.updated_at ?? left.created_at),
     );
     const start = (page - 1) * size;
-
-    const now = Date.now();
     const summary = sorted.reduce(
       (acc, item) => {
         acc.views += item.views || 0;

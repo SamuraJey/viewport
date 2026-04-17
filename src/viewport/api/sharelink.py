@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -103,10 +104,20 @@ async def list_owner_sharelinks(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     search: str | None = Query(None, max_length=127),
+    status_filter: Literal["active", "inactive", "expired"] | None = Query(
+        None,
+        alias="status",
+    ),
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     user=Depends(get_current_user),
 ) -> ShareLinkDashboardResponse:
-    rows, total, summary = await repo.get_sharelinks_by_owner(user.id, page=page, size=size, search=search)
+    rows, total, summary = await repo.get_sharelinks_by_owner(
+        user.id,
+        page=page,
+        size=size,
+        search=search,
+        status=status_filter,
+    )
 
     share_links = [
         ShareLinkDashboardItemResponse(

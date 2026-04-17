@@ -140,6 +140,7 @@ export const ShareLinksDashboardPage = () => {
         page,
         pageSize,
         debouncedSearch || undefined,
+        statusFilter === 'all' ? undefined : statusFilter,
       );
       setLinks(response.share_links);
       setTotal(response.total);
@@ -149,7 +150,7 @@ export const ShareLinksDashboardPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [debouncedSearch, page, pageSize, setTotal]);
+  }, [debouncedSearch, page, pageSize, setTotal, statusFilter]);
 
   const fetchSelectionRows = useCallback(async () => {
     setSelectionActionError('');
@@ -345,12 +346,12 @@ export const ShareLinksDashboardPage = () => {
     {
       label: 'Total views',
       value: numberFormatter.format(summary.views),
-      hint: 'Across all share links',
+      hint: statusFilter === 'all' ? 'Across all share links' : 'Across filtered results',
     },
     {
       label: 'Active links',
       value: numberFormatter.format(summary.active_links),
-      hint: 'Across all share links',
+      hint: statusFilter === 'all' ? 'Across all share links' : 'Across filtered results',
     },
     {
       label: 'Downloads',
@@ -364,18 +365,15 @@ export const ShareLinksDashboardPage = () => {
     },
   ];
 
-  const filteredLinks = useMemo(() => {
-    const nextLinks =
-      statusFilter === 'all'
-        ? links
-        : links.filter((link) => getShareLinkStatus(link) === statusFilter);
-
-    return [...nextLinks].sort(
-      (a, b) =>
-        new Date(b.updated_at ?? b.created_at).getTime() -
-        new Date(a.updated_at ?? a.created_at).getTime(),
-    );
-  }, [links, statusFilter]);
+  const filteredLinks = useMemo(
+    () =>
+      [...links].sort(
+        (a, b) =>
+          new Date(b.updated_at ?? b.created_at).getTime() -
+          new Date(a.updated_at ?? a.created_at).getTime(),
+      ),
+    [links],
+  );
 
   return (
     <div className="space-y-6">
@@ -457,7 +455,10 @@ export const ShareLinksDashboardPage = () => {
                   <button
                     key={filter.value}
                     type="button"
-                    onClick={() => setStatusFilter(filter.value)}
+                    onClick={() => {
+                      setStatusFilter(filter.value);
+                      goToPage(1);
+                    }}
                     className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
                       active
                         ? 'border-accent/50 bg-accent/10 text-accent'
@@ -479,7 +480,13 @@ export const ShareLinksDashboardPage = () => {
               </span>{' '}
               links on this page
             </p>
-            {!isLoading && !error ? <p>Filter affects the current page only</p> : null}
+            {!isLoading && !error ? (
+              <p>
+                {statusFilter === 'all'
+                  ? 'Sorted by latest activity first'
+                  : `Filtered across all links: ${STATUS_FILTERS.find((filter) => filter.value === statusFilter)?.label}`}
+              </p>
+            ) : null}
           </div>
 
           <div className="mt-4 space-y-3">

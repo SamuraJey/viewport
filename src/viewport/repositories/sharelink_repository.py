@@ -1,6 +1,7 @@
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from hashlib import sha256
+from typing import Literal
 
 from sqlalchemy import String, and_, case, cast, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -16,6 +17,8 @@ from viewport.sharelink_utils import is_sharelink_expired
 
 
 class ShareLinkRepository(BaseRepository):
+    OwnerShareLinkStatus = Literal["active", "inactive", "expired"]
+
     async def get_sharelink_by_id(self, sharelink_id: uuid.UUID) -> ShareLink | None:
         stmt = select(ShareLink).where(ShareLink.id == sharelink_id)
         sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
@@ -58,8 +61,16 @@ class ShareLinkRepository(BaseRepository):
         row = (await self.db.execute(stmt)).one_or_none()
         return await self._finish_read(row)
 
-    async def get_sharelinks_by_owner(self, owner_id: uuid.UUID, page: int, size: int, search: str | None = None) -> tuple[list[tuple[ShareLink, str]], int, dict[str, int]]:
+    async def get_sharelinks_by_owner(
+        self,
+        owner_id: uuid.UUID,
+        page: int,
+        size: int,
+        search: str | None = None,
+        status: OwnerShareLinkStatus | None = None,
+    ) -> tuple[list[tuple[ShareLink, str]], int, dict[str, int]]:
         filters = [Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False)]
+        now = datetime.now(UTC).replace(tzinfo=None)
         normalized_search = (search or "").strip()
         if normalized_search:
             pattern = f"%{normalized_search}%"
@@ -71,10 +82,21 @@ class ShareLinkRepository(BaseRepository):
                 )
             )
 
+        if status == "active":
+            filters.extend(
+                [
+                    ShareLink.is_active.is_(True),
+                    or_(ShareLink.expires_at.is_(None), ShareLink.expires_at > now),
+                ]
+            )
+        elif status == "inactive":
+            filters.append(ShareLink.is_active.is_(False))
+        elif status == "expired":
+            filters.extend([ShareLink.is_active.is_(True), ShareLink.expires_at.is_not(None), ShareLink.expires_at <= now])
+
         count_stmt = select(func.count()).select_from(ShareLink).join(ShareLink.gallery).where(*filters)
         total = int((await self.db.execute(count_stmt)).scalar() or 0)
 
-        now = datetime.now(UTC).replace(tzinfo=None)
         summary_stmt = (
             select(
                 func.coalesce(func.sum(ShareLink.views), 0),
@@ -108,7 +130,7 @@ class ShareLinkRepository(BaseRepository):
             "active_links": int(summary_row[3] or 0),
         }
 
-        stmt = select(ShareLink, Gallery.name).join(ShareLink.gallery).where(*filters).order_by(ShareLink.created_at.desc()).offset((page - 1) * size).limit(size)
+        stmt = select(ShareLink, Gallery.name).join(ShareLink.gallery).where(*filters).order_by(ShareLink.updated_at.desc(), ShareLink.created_at.desc()).offset((page - 1) * size).limit(size)
         rows = list((await self.db.execute(stmt)).all())
         return await self._finish_read((rows, total, summary))
 

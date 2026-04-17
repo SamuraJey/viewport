@@ -205,3 +205,35 @@ async def test_get_sharelinks_by_owner_counts_active_links_using_naive_utc_now(r
     assert summary["views"] == 0
     assert summary["zip_downloads"] == 0
     assert summary["single_downloads"] == 0
+
+
+@pytest.mark.asyncio
+async def test_get_sharelinks_by_owner_filters_by_status(repo: ShareLinkRepository, db_session):
+    user = User(email=f"sharelink-{uuid4()}@example.com", password_hash="hashed", display_name="sharelink user")
+    db_session.add(user)
+    await db_session.commit()
+
+    gallery = Gallery(owner_id=user.id, name="Status Gallery")
+    db_session.add(gallery)
+    await db_session.commit()
+
+    now = datetime.now(UTC).replace(tzinfo=None)
+    active_sharelink = ShareLink(gallery_id=gallery.id, label="Active", expires_at=now + timedelta(days=1), is_active=True)
+    inactive_sharelink = ShareLink(gallery_id=gallery.id, label="Inactive", expires_at=now + timedelta(days=1), is_active=False)
+    expired_sharelink = ShareLink(gallery_id=gallery.id, label="Expired", expires_at=now - timedelta(days=1), is_active=True)
+    db_session.add_all([active_sharelink, inactive_sharelink, expired_sharelink])
+    await db_session.commit()
+
+    active_rows, active_total, active_summary = await repo.get_sharelinks_by_owner(user.id, page=1, size=10, status="active")
+    inactive_rows, inactive_total, _ = await repo.get_sharelinks_by_owner(user.id, page=1, size=10, status="inactive")
+    expired_rows, expired_total, _ = await repo.get_sharelinks_by_owner(user.id, page=1, size=10, status="expired")
+
+    assert active_total == 1
+    assert [row[0].label for row in active_rows] == ["Active"]
+    assert active_summary["active_links"] == 1
+
+    assert inactive_total == 1
+    assert [row[0].label for row in inactive_rows] == ["Inactive"]
+
+    assert expired_total == 1
+    assert [row[0].label for row in expired_rows] == ["Expired"]
