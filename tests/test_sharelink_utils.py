@@ -1,5 +1,7 @@
 from datetime import UTC, datetime, timedelta, timezone
 
+from freezegun.api import FrozenDateTimeFactory
+
 from viewport.sharelink_utils import is_sharelink_expired, normalize_sharelink_expires_at
 
 
@@ -23,14 +25,19 @@ def test_normalize_sharelink_expires_at_converts_aware_datetimes_to_utc():
     assert normalized.tzinfo == UTC
 
 
-def test_is_sharelink_expired_treats_boundary_as_expired():
-    now = datetime.now(UTC).replace(microsecond=0)
+def test_is_sharelink_expired_treats_boundary_as_expired(freezer: FrozenDateTimeFactory):
+    now = datetime(2026, 4, 17, 10, 0, 0, tzinfo=UTC)
+    freezer.move_to(now)
+
     expires_at = now
 
     assert is_sharelink_expired(expires_at) is True
 
 
-def test_is_sharelink_expired_is_strictly_future_for_later_timestamps():
+def test_is_sharelink_expired_is_strictly_future_for_later_timestamps(freezer: FrozenDateTimeFactory):
+    now = datetime(2026, 4, 17, 10, 0, 0, tzinfo=UTC)
+    freezer.move_to(now)
+
     expires_at = datetime.now(UTC).replace(microsecond=0) + timedelta(minutes=5)
 
     assert is_sharelink_expired(expires_at) is False

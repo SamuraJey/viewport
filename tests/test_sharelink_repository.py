@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 import pytest_asyncio
+from freezegun.api import FrozenDateTimeFactory
 
 from viewport.models.gallery import Gallery
 from viewport.models.sharelink import ShareLink
@@ -242,7 +243,14 @@ async def test_get_sharelinks_by_owner_filters_by_status(repo: ShareLinkReposito
 
 
 @pytest.mark.asyncio
-async def test_get_sharelinks_by_owner_treats_expiry_boundary_as_expired(repo: ShareLinkRepository, db_session):
+async def test_get_sharelinks_by_owner_treats_expiry_boundary_as_expired(
+    repo: ShareLinkRepository,
+    db_session,
+    freezer: FrozenDateTimeFactory,
+):
+    now = datetime(2026, 4, 17, 10, 0, 0, tzinfo=UTC)
+    freezer.move_to(now)
+
     user = User(email=f"sharelink-boundary-{uuid4()}@example.com", password_hash="hashed", display_name="sharelink user")
     db_session.add(user)
     await db_session.commit()
@@ -251,8 +259,12 @@ async def test_get_sharelinks_by_owner_treats_expiry_boundary_as_expired(repo: S
     db_session.add(gallery)
     await db_session.commit()
 
-    now = datetime.now(UTC).replace(tzinfo=None)
-    boundary_expired_sharelink = ShareLink(gallery_id=gallery.id, label="BoundaryExpired", expires_at=now, is_active=True)
+    boundary_expired_sharelink = ShareLink(
+        gallery_id=gallery.id,
+        label="BoundaryExpired",
+        expires_at=now.replace(tzinfo=None),
+        is_active=True,
+    )
     db_session.add(boundary_expired_sharelink)
     await db_session.commit()
 

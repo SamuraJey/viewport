@@ -173,6 +173,7 @@ async def list_owner_sharelinks(
 
     sharelink_ids = [sharelink.id for sharelink, _ in rows]
     selection_summaries = await selection_repo.get_sharelink_selection_summaries(sharelink_ids)
+    empty_selection_summary = (False, 0, 0, 0, 0, 0, None)
 
     share_links = [
         ShareLinkDashboardListItemResponse(
@@ -187,12 +188,7 @@ async def list_owner_sharelinks(
             single_downloads=sharelink.single_downloads,
             created_at=sharelink.created_at,
             updated_at=sharelink.updated_at,
-            selection_summary=_to_selection_summary_response(
-                *selection_summaries.get(
-                    sharelink.id,
-                    (False, 0, 0, 0, 0, 0, None),
-                )
-            ),
+            selection_summary=_to_selection_summary_response(*selection_summaries.get(sharelink.id, empty_selection_summary)),
         )
         for sharelink, gallery_name in rows
     ]
@@ -251,7 +247,8 @@ async def get_sharelink_analytics(
         updated_at=sharelink.updated_at,
     )
 
-    selection_summary = _to_selection_summary_response(*(await selection_repo.get_sharelink_selection_summaries([sharelink.id])).get(sharelink.id, (False, 0, 0, 0, 0, 0, None)))
+    sharelink_selection_summaries = await selection_repo.get_sharelink_selection_summaries([sharelink.id])
+    selection_summary = _to_selection_summary_response(*(sharelink_selection_summaries.get(sharelink.id, (False, 0, 0, 0, 0, 0, None))))
 
     return ShareLinkAnalyticsResponse(
         share_link=share_link,

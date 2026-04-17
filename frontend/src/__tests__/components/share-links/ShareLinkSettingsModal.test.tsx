@@ -136,4 +136,34 @@ describe('ShareLinkSettingsModal', () => {
       });
     });
   });
+
+  it('blocks fractional selection limits', async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn().mockResolvedValue(createdLink);
+
+    render(
+      <ShareLinkSettingsModal
+        isOpen
+        mode="create"
+        galleryName="Client Gallery"
+        onClose={vi.fn()}
+        onCreate={onCreate}
+      />,
+    );
+
+    await user.click(screen.getByRole('tab', { name: /selection/i }));
+    await user.click(screen.getByRole('switch', { name: /limit selection count/i }));
+
+    const limitInput = screen.getByLabelText('Selection limit');
+    await user.clear(limitInput);
+    await user.type(limitInput, '1.5');
+
+    const submitButton = screen.getByRole('button', { name: /create link/i });
+    expect(submitButton).toBeDisabled();
+    expect(screen.getByText('Selection limit must be at least 1.')).toBeInTheDocument();
+
+    await user.clear(limitInput);
+    await user.type(limitInput, '3');
+    expect(submitButton).toBeEnabled();
+  });
 });

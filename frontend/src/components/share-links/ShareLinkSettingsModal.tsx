@@ -98,6 +98,20 @@ const SETTINGS_SWITCH_CLASS =
 const SETTINGS_SWITCH_THUMB_CLASS =
   'size-6 translate-x-0 bg-white shadow-sm group-data-checked:translate-x-5';
 
+const parseSelectionLimit = (value: string): number | null => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 1) {
+    return null;
+  }
+
+  return parsed;
+};
+
 const addHoursIso = (hours: number): string => {
   const date = new Date(Date.now() + hours * 60 * 60 * 1000);
   return date.toISOString();
@@ -224,20 +238,23 @@ export const ShareLinkSettingsModal = ({
     [customExpiresAt, ttlPreset],
   );
 
+  const selectionLimit = useMemo(
+    () => parseSelectionLimit(selectionDraft.limit_value),
+    [selectionDraft],
+  );
+
   const selectionPayload = useMemo<SelectionConfigUpdateRequest>(
     () => ({
       is_enabled: selectionDraft.is_enabled,
       list_title: selectionDraft.list_title.trim() || DEFAULT_SELECTION_DRAFT.list_title,
       limit_enabled: selectionDraft.limit_enabled,
-      limit_value: selectionDraft.limit_enabled
-        ? Number.parseInt(selectionDraft.limit_value, 10)
-        : null,
+      limit_value: selectionDraft.limit_enabled && selectionLimit !== null ? selectionLimit : null,
       allow_photo_comments: selectionDraft.allow_photo_comments,
       require_email: selectionDraft.require_email,
       require_phone: selectionDraft.require_phone,
       require_client_note: selectionDraft.require_client_note,
     }),
-    [selectionDraft],
+    [selectionDraft, selectionLimit],
   );
 
   const normalizedLabel = label.trim();
@@ -273,8 +290,7 @@ export const ShareLinkSettingsModal = ({
   const hasMissingCustomExpiry = ttlPreset === 'custom' && customExpiresAt.trim().length === 0;
   const hasInvalidSelectionLimit =
     selectionDraft.limit_enabled &&
-    (!Number.isInteger(Number.parseInt(selectionDraft.limit_value, 10)) ||
-      Number.parseInt(selectionDraft.limit_value, 10) < 1);
+    (selectionDraft.limit_value.trim().length === 0 || selectionLimit === null);
   const canSubmit =
     !isSaving &&
     !createdLink &&
