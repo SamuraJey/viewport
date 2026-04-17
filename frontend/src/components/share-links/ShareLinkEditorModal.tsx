@@ -20,13 +20,19 @@ export const ShareLinkEditorModal = ({
   link,
   onClose,
   onSave,
-}: ShareLinkEditorModalProps) => (
-  <ShareLinkSettingsModal
-    isOpen={isOpen}
-    mode="edit"
-    link={link}
-    showSelectionSettings={false}
-    onClose={onClose}
-    onSave={onSave}
-  />
-);
+}: ShareLinkEditorModalProps) => {
+  if (!isOpen || !link) {
+    return null;
+  }
+
+  return (
+    <ShareLinkSettingsModal
+      isOpen={isOpen}
+      mode="edit"
+      link={link}
+      showSelectionSettings={false}
+      onClose={onClose}
+      onSave={onSave}
+    />
+  );
+};

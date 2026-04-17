@@ -840,7 +840,7 @@ class DemoServiceStore {
     const filtered = status
       ? searched.filter((item) => {
           const expiresAt = item.expires_at ? Date.parse(item.expires_at) : null;
-          const isExpired = expiresAt !== null && !Number.isNaN(expiresAt) && expiresAt < now;
+          const isExpired = expiresAt !== null && !Number.isNaN(expiresAt) && expiresAt <= now;
 
           if (status === 'active') {
             return item.is_active !== false && !isExpired;
@@ -865,7 +865,7 @@ class DemoServiceStore {
         acc.single_downloads += item.single_downloads || 0;
 
         const expiresAt = item.expires_at ? Date.parse(item.expires_at) : null;
-        const isExpired = expiresAt !== null && !Number.isNaN(expiresAt) && expiresAt < now;
+        const isExpired = expiresAt !== null && !Number.isNaN(expiresAt) && expiresAt <= now;
         if (item.is_active !== false && !isExpired) {
           acc.active_links += 1;
         }
