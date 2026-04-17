@@ -78,25 +78,44 @@ class PresignedUrlCacheService:
             return "none"
         return hashlib.sha256(response_content_disposition.encode("utf-8")).hexdigest()[:32]
 
-    def build_cache_key_prefix(self, bucket: str, object_key: str) -> str:
+    @staticmethod
+    def _namespace_token(cache_namespace: str | None) -> str:
+        """Build a stable cache namespace token for environment-specific isolation."""
+        if not cache_namespace:
+            return "default"
+        return hashlib.sha256(cache_namespace.encode("utf-8")).hexdigest()[:16]
+
+    def build_cache_key_prefix(
+        self,
+        bucket: str,
+        object_key: str,
+        cache_namespace: str | None = None,
+    ) -> str:
         """Build the prefix for cache keys (without disposition hash)."""
         encoded_key = self._encode_object_key(object_key)
-        return f"{PRESIGNED_CACHE_PREFIX}:{bucket}:{encoded_key}"
+        namespace_token = self._namespace_token(cache_namespace)
+        return f"{PRESIGNED_CACHE_PREFIX}:{bucket}:{namespace_token}:{encoded_key}"
 
     def build_cache_key(
         self,
         bucket: str,
         object_key: str,
         response_content_disposition: str | None = None,
+        cache_namespace: str | None = None,
     ) -> str:
         """Build full cache key including disposition hash."""
-        prefix = self.build_cache_key_prefix(bucket, object_key)
+        prefix = self.build_cache_key_prefix(bucket, object_key, cache_namespace)
         disposition = self._disposition_hash(response_content_disposition)
         return f"{prefix}:{disposition}"
 
-    def build_index_key(self, bucket: str, object_key: str) -> str:
+    def build_index_key(
+        self,
+        bucket: str,
+        object_key: str,
+        cache_namespace: str | None = None,
+    ) -> str:
         """Build index key for tracking all cache entries for an object."""
-        return f"{self.build_cache_key_prefix(bucket, object_key)}:{PRESIGNED_INDEX_SUFFIX}"
+        return f"{self.build_cache_key_prefix(bucket, object_key, cache_namespace)}:{PRESIGNED_INDEX_SUFFIX}"
 
     @staticmethod
     def _index_key_from_cache_key(cache_key: str) -> str:
@@ -120,6 +139,7 @@ class PresignedUrlCacheService:
         bucket: str,
         object_key: str,
         response_content_disposition: str | None = None,
+        cache_namespace: str | None = None,
     ) -> str | None:
         """Get cached presigned URL.
 
@@ -131,7 +151,7 @@ class PresignedUrlCacheService:
         Returns:
             Cached URL or None if not found/unavailable.
         """
-        cache_key = self.build_cache_key(bucket, object_key, response_content_disposition)
+        cache_key = self.build_cache_key(bucket, object_key, response_content_disposition, cache_namespace)
         return await self.get_url_by_key(cache_key)
 
     async def get_url_by_key(self, cache_key: str) -> str | None:
@@ -149,6 +169,7 @@ class PresignedUrlCacheService:
         response_content_disposition: str | None,
         url: str,
         expires_in: int,
+        cache_namespace: str | None = None,
     ) -> None:
         """Cache a presigned URL.
 
@@ -159,7 +180,7 @@ class PresignedUrlCacheService:
             url: The presigned URL to cache
             expires_in: URL expiration time in seconds
         """
-        cache_key = self.build_cache_key(bucket, object_key, response_content_disposition)
+        cache_key = self.build_cache_key(bucket, object_key, response_content_disposition, cache_namespace)
         await self.set_url_by_key(cache_key, url, expires_in)
 
     async def set_url_by_key(self, cache_key: str, url: str, expires_in: int) -> None:
@@ -188,6 +209,7 @@ class PresignedUrlCacheService:
         bucket: str,
         object_keys: list[str],
         response_content_disposition: str | None = None,
+        cache_namespace: str | None = None,
     ) -> dict[str, str]:
         """Get multiple cached presigned URLs.
 
@@ -202,7 +224,7 @@ class PresignedUrlCacheService:
         if not object_keys:
             return {}
 
-        cache_keys = [self.build_cache_key(bucket, key, response_content_disposition) for key in object_keys]
+        cache_keys = [self.build_cache_key(bucket, key, response_content_disposition, cache_namespace) for key in object_keys]
         cached = await self.get_urls_batch_by_keys(cache_keys)
 
         # Map cache keys back to object keys
@@ -286,6 +308,7 @@ class PresignedUrlCacheService:
         self,
         bucket: str,
         object_keys: Iterable[str],
+        cache_namespace: str | None = None,
     ) -> None:
         """Clear all cached URLs for given object keys (any content disposition).
 
@@ -303,7 +326,7 @@ class PresignedUrlCacheService:
         if not deduplicated:
             return
 
-        index_keys = [self.build_index_key(bucket, key) for key in deduplicated]
+        index_keys = [self.build_index_key(bucket, key, cache_namespace) for key in deduplicated]
 
         try:
             # Get all cache keys from index sets

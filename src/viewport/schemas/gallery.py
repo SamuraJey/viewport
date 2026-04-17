@@ -4,7 +4,14 @@ from typing import Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH, PHOTO_SEARCH_MAX_LENGTH, PUBLIC_GALLERY_SORT_BY_DEFAULT, PUBLIC_GALLERY_SORT_ORDER_DEFAULT
+from viewport.gallery_constants import (
+    GALLERY_NAME_MAX_LENGTH,
+    GALLERY_PRIVATE_NOTES_MAX_LENGTH,
+    GALLERY_PUBLIC_DESCRIPTION_MAX_LENGTH,
+    PHOTO_SEARCH_MAX_LENGTH,
+    PUBLIC_GALLERY_SORT_BY_DEFAULT,
+    PUBLIC_GALLERY_SORT_ORDER_DEFAULT,
+)
 from viewport.schemas.photo import GalleryPhotoResponse
 
 
@@ -55,9 +62,22 @@ class GalleryPhotoQueryParams(BaseModel):
         return normalized or None
 
 
+def _normalize_optional_gallery_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
 class GalleryCreateRequest(BaseModel):
     name: str = Field("", max_length=GALLERY_NAME_MAX_LENGTH, description="Custom name for the gallery")
     shooting_date: date | None = Field(None, description="Displayed shooting date (YYYY-MM-DD)")
+    private_notes: str | None = Field(None, max_length=GALLERY_PRIVATE_NOTES_MAX_LENGTH, description="Private owner-only notes for the gallery")
+    public_description: str | None = Field(
+        None,
+        max_length=GALLERY_PUBLIC_DESCRIPTION_MAX_LENGTH,
+        description="Public description shown on shared gallery pages",
+    )
     public_sort_by: GalleryPhotoSortBy = Field(
         GalleryPhotoSortBy(PUBLIC_GALLERY_SORT_BY_DEFAULT),
         description="Default sort field for shared/public gallery",
@@ -67,16 +87,32 @@ class GalleryCreateRequest(BaseModel):
         description="Default sort direction for shared/public gallery",
     )
 
+    @field_validator("private_notes", "public_description")
+    @classmethod
+    def normalize_create_optional_text(cls, value: str | None) -> str | None:
+        return _normalize_optional_gallery_text(value)
+
 
 class GalleryUpdateRequest(BaseModel):
     name: str | None = Field(None, max_length=GALLERY_NAME_MAX_LENGTH, description="New name for the gallery")
     shooting_date: date | None = Field(None, description="Displayed shooting date (YYYY-MM-DD)")
+    private_notes: str | None = Field(None, max_length=GALLERY_PRIVATE_NOTES_MAX_LENGTH, description="Private owner-only notes for the gallery")
+    public_description: str | None = Field(
+        None,
+        max_length=GALLERY_PUBLIC_DESCRIPTION_MAX_LENGTH,
+        description="Public description shown on shared gallery pages",
+    )
     public_sort_by: GalleryPhotoSortBy | None = Field(None, description="Default sort field for shared/public gallery")
     public_sort_order: SortOrder | None = Field(None, description="Default sort direction for shared/public gallery")
 
+    @field_validator("private_notes", "public_description")
+    @classmethod
+    def normalize_optional_text(cls, value: str | None) -> str | None:
+        return _normalize_optional_gallery_text(value)
+
     @model_validator(mode="after")
     def validate_payload(self) -> Self:
-        if self.name is None and self.shooting_date is None and self.public_sort_by is None and self.public_sort_order is None:
+        if not self.model_fields_set:
             raise ValueError("At least one field must be provided for update")
         return self
 
@@ -103,6 +139,8 @@ class GalleryDetailResponse(BaseModel):
     name: str = Field("", description="Custom name for the gallery")
     created_at: datetime
     shooting_date: date
+    private_notes: str | None = Field(None, description="Private owner-only notes for the gallery")
+    public_description: str | None = Field(None, description="Public description shown on shared gallery pages")
     public_sort_by: GalleryPhotoSortBy = Field(..., description="Default sort field for shared/public gallery")
     public_sort_order: SortOrder = Field(..., description="Default sort direction for shared/public gallery")
     cover_photo_id: str | None = Field(None, description="Optional cover photo id")

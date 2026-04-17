@@ -598,8 +598,8 @@ class TestPresignedURLCaching:
     async def test_generate_presigned_urls_batch_with_cache(self, s3_client):
         """Test batch URL generation uses cache."""
         mock_cache = MagicMock()
-        mock_cache.build_cache_key = MagicMock(side_effect=lambda b, k, d: f"cache:{k}")
-        mock_cache.get_urls_batch_by_keys = AsyncMock(return_value={"cache:key1.jpg": "https://cached1.example.com"})
+        mock_cache.build_cache_key = MagicMock(side_effect=lambda b, k, d, ns: f"cache:{ns}:{k}")
+        mock_cache.get_urls_batch_by_keys = AsyncMock(return_value={f"cache:{s3_client._presigned_cache_namespace}:key1.jpg": "https://cached1.example.com"})
         mock_cache.set_urls_batch = AsyncMock()
 
         with (
@@ -635,7 +635,7 @@ class TestPresignedURLCaching:
     async def test_generate_presigned_urls_batch_for_dispositions_with_cache(self, s3_client):
         """Test disposition-specific batch generation with cache."""
         mock_cache = MagicMock()
-        mock_cache.build_cache_key = MagicMock(side_effect=lambda b, k, d: f"cache:{k}:{d[:4] if d else 'none'}")
+        mock_cache.build_cache_key = MagicMock(side_effect=lambda b, k, d, ns: f"cache:{ns}:{k}:{d[:4] if d else 'none'}")
         mock_cache.get_urls_batch_by_keys = AsyncMock(return_value={})
         mock_cache.set_urls_batch = AsyncMock()
 
@@ -690,7 +690,11 @@ class TestPresignedURLCaching:
         with patch("viewport.s3_service.get_presigned_cache_service", return_value=mock_cache):
             await s3_client.clear_presigned_cache_for_object_keys(["key1.jpg", "key2.jpg"])
 
-            mock_cache.clear_urls_for_object_keys.assert_called_once_with(s3_client.settings.bucket, ["key1.jpg", "key2.jpg"])
+            mock_cache.clear_urls_for_object_keys.assert_called_once_with(
+                s3_client.settings.bucket,
+                ["key1.jpg", "key2.jpg"],
+                s3_client._presigned_cache_namespace,
+            )
 
     @pytest.mark.asyncio
     async def test_clear_presigned_cache_for_object_keys_no_cache(self, s3_client):

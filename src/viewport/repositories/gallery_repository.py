@@ -21,6 +21,13 @@ logger = logging.getLogger(__name__)
 class GalleryRepository(BaseRepository):
     LIKE_ESCAPE_CHAR = "\\"
 
+    @staticmethod
+    def _normalize_optional_text(value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
     @classmethod
     def _escape_like_term(cls, value: str) -> str:
         """Escape SQL LIKE wildcards so search behaves as a literal substring match."""
@@ -82,6 +89,8 @@ class GalleryRepository(BaseRepository):
         owner_id: uuid.UUID,
         name: str,
         shooting_date: date | None = None,
+        private_notes: str | None = None,
+        public_description: str | None = None,
         public_sort_by: GalleryPhotoSortBy = GalleryPhotoSortBy.ORIGINAL_FILENAME,
         public_sort_order: SortOrder = SortOrder.ASC,
     ) -> Gallery:
@@ -90,6 +99,8 @@ class GalleryRepository(BaseRepository):
             owner_id=owner_id,
             name=name,
             shooting_date=shooting_date or datetime.now(UTC).date(),
+            private_notes=self._normalize_optional_text(private_notes),
+            public_description=self._normalize_optional_text(public_description),
             public_sort_by=public_sort_by.value,
             public_sort_order=public_sort_order.value,
         )
@@ -166,24 +177,35 @@ class GalleryRepository(BaseRepository):
         owner_id: uuid.UUID,
         name: str | None = None,
         shooting_date: date | None = None,
+        private_notes: str | None = None,
+        public_description: str | None = None,
         public_sort_by: GalleryPhotoSortBy | None = None,
         public_sort_order: SortOrder | None = None,
+        fields_set: set[str] | None = None,
     ) -> Gallery | None:
         gallery = await self.get_gallery_by_id_and_owner(gallery_id, owner_id)
         if not gallery:
             return None
 
+        resolved_fields_set = fields_set or set()
+        explicit_field_tracking = fields_set is not None
         updated = False
-        if name is not None:
+        if (explicit_field_tracking and "name" in resolved_fields_set and name is not None) or (not explicit_field_tracking and name is not None):
             gallery.name = name
             updated = True
-        if shooting_date is not None:
+        if (explicit_field_tracking and "shooting_date" in resolved_fields_set and shooting_date is not None) or (not explicit_field_tracking and shooting_date is not None):
             gallery.shooting_date = shooting_date
             updated = True
-        if public_sort_by is not None:
+        if (explicit_field_tracking and "private_notes" in resolved_fields_set) or (not explicit_field_tracking and private_notes is not None):
+            gallery.private_notes = self._normalize_optional_text(private_notes)
+            updated = True
+        if (explicit_field_tracking and "public_description" in resolved_fields_set) or (not explicit_field_tracking and public_description is not None):
+            gallery.public_description = self._normalize_optional_text(public_description)
+            updated = True
+        if (explicit_field_tracking and "public_sort_by" in resolved_fields_set and public_sort_by is not None) or (not explicit_field_tracking and public_sort_by is not None):
             gallery.public_sort_by = public_sort_by.value
             updated = True
-        if public_sort_order is not None:
+        if (explicit_field_tracking and "public_sort_order" in resolved_fields_set and public_sort_order is not None) or (not explicit_field_tracking and public_sort_order is not None):
             gallery.public_sort_order = public_sort_order.value
             updated = True
 

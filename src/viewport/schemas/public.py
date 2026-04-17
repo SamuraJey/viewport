@@ -24,6 +24,7 @@ class PublicGalleryResponse(BaseModel):
     cover: PublicCover | None = None
     photographer: str = ""
     gallery_name: str = ""
+    public_description: str | None = None
     date: str = ""
     site_url: str = ""
     total_photos: int = 0

@@ -44,6 +44,7 @@ class AsyncS3Client:
         self.settings = S3Settings()
         self._session: aioboto3.Session | None = None
         self._endpoint_url = self._get_endpoint_url()
+        self._presigned_cache_namespace = self._endpoint_url or "aws"
         # Use aggressive connection pooling configuration:
         # - Small pool size (15 connections max)
         # - Read timeout forces connections to close after idle period
@@ -479,7 +480,12 @@ class AsyncS3Client:
         cache = get_presigned_cache_service()
 
         if cache is not None:
-            cache_key = cache.build_cache_key(self.settings.bucket, key, response_content_disposition)
+            cache_key = cache.build_cache_key(
+                self.settings.bucket,
+                key,
+                response_content_disposition,
+                self._presigned_cache_namespace,
+            )
             cached = await cache.get_url_by_key(cache_key)
             if cached:
                 logger.debug("Using cached presigned URL for: %s", key)
@@ -566,7 +572,15 @@ class AsyncS3Client:
         to_generate: list[str] = []
 
         if cache is not None:
-            cache_keys = [cache.build_cache_key(self.settings.bucket, key, response_content_disposition) for key in unique_keys]
+            cache_keys = [
+                cache.build_cache_key(
+                    self.settings.bucket,
+                    key,
+                    response_content_disposition,
+                    self._presigned_cache_namespace,
+                )
+                for key in unique_keys
+            ]
             cache_key_by_object_key = dict(zip(unique_keys, cache_keys, strict=False))
             cached_by_cache_key = await cache.get_urls_batch_by_keys(cache_keys)
 
@@ -615,7 +629,15 @@ class AsyncS3Client:
         to_generate: list[tuple[str, str | None]] = []
 
         if cache is not None:
-            cache_key_by_object_key: dict[str, str] = {key: cache.build_cache_key(self.settings.bucket, key, disposition) for key, disposition in key_dispositions.items()}
+            cache_key_by_object_key: dict[str, str] = {
+                key: cache.build_cache_key(
+                    self.settings.bucket,
+                    key,
+                    disposition,
+                    self._presigned_cache_namespace,
+                )
+                for key, disposition in key_dispositions.items()
+            }
             cache_keys = list(cache_key_by_object_key.values())
             cached_by_cache_key = await cache.get_urls_batch_by_keys(cache_keys)
 
@@ -649,7 +671,11 @@ class AsyncS3Client:
         """Clear cached presigned URLs for the given object keys."""
         cache = get_presigned_cache_service()
         if cache is not None:
-            await cache.clear_urls_for_object_keys(self.settings.bucket, object_keys)
+            await cache.clear_urls_for_object_keys(
+                self.settings.bucket,
+                object_keys,
+                self._presigned_cache_namespace,
+            )
 
     async def list_object_keys(self, prefix: str) -> list[str]:
         """List all object keys for a prefix."""

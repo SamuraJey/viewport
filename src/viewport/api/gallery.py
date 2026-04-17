@@ -139,6 +139,8 @@ async def create_gallery(
         current_user.id,
         request.name,
         request.shooting_date,
+        private_notes=request.private_notes,
+        public_description=request.public_description,
         public_sort_by=request.public_sort_by,
         public_sort_order=request.public_sort_order,
     )
@@ -268,6 +270,8 @@ async def get_gallery_detail(
         name=gallery.name,
         created_at=gallery.created_at,
         shooting_date=gallery.shooting_date,
+        private_notes=gallery.private_notes,
+        public_description=gallery.public_description,
         public_sort_by=gallery.public_sort_by,
         public_sort_order=gallery.public_sort_order,
         cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
@@ -413,8 +417,11 @@ async def update_gallery(
         current_user.id,
         name=request.name,
         shooting_date=request.shooting_date,
+        private_notes=request.private_notes,
+        public_description=request.public_description,
         public_sort_by=request.public_sort_by,
         public_sort_order=request.public_sort_order,
+        fields_set=request.model_fields_set,
     )
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")

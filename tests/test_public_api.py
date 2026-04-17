@@ -141,6 +141,29 @@ class TestPublicAPI:
         data = public_resp.json()
         assert data.get("date") == "10.06.2024"
 
+    def test_public_gallery_returns_public_description_only(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        update_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}",
+            json={
+                "private_notes": "owner-only note",
+                "public_description": "Public gallery copy",
+            },
+        )
+        assert update_resp.status_code == 200
+
+        share_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"},
+        )
+        assert share_resp.status_code == 201
+        share_id = share_resp.json()["id"]
+
+        public_resp = authenticated_client.get(f"/s/{share_id}")
+        assert public_resp.status_code == 200
+        payload = public_resp.json()
+        assert payload["public_description"] == "Public gallery copy"
+        assert "private_notes" not in payload
+
     def test_stream_photo_and_downloads(self, authenticated_client: TestClient, gallery_id_fixture: str):
         # Upload photo and create sharelink
         content = b"streamcontent"

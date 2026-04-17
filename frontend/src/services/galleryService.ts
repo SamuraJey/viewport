@@ -54,7 +54,14 @@ const getGallery = async (
   return response.data;
 };
 
-type CreateGalleryPayload = string | { name?: string; shooting_date?: string | null };
+type CreateGalleryPayload =
+  | string
+  | {
+      name?: string;
+      shooting_date?: string | null;
+      private_notes?: string | null;
+      public_description?: string | null;
+    };
 
 const createGallery = async (payload: CreateGalleryPayload): Promise<Gallery> => {
   const body = typeof payload === 'string' ? { name: payload } : payload;
@@ -81,6 +88,8 @@ type UpdateGalleryPayload =
   | {
       name?: string;
       shooting_date?: string | null;
+      private_notes?: string | null;
+      public_description?: string | null;
       public_sort_by?: GalleryPhotoSortBy;
       public_sort_order?: SortOrder;
     };

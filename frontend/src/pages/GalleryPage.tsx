@@ -13,6 +13,7 @@ import { PhotoRenameModal } from '../components/PhotoRenameModal';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import { GalleryHeader } from '../components/gallery/GalleryHeader';
+import { GalleryDescriptionsPanel } from '../components/gallery/GalleryDescriptionsPanel';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { GallerySelectionSessionsPanel } from '../components/gallery/GallerySelectionSessionsPanel';
 import { GalleryDragOverlay } from '../components/gallery/GalleryDragOverlay';
@@ -94,6 +95,8 @@ export const GalleryPage = () => {
   const sortOrder: SortOrder = isSortOrder(orderParam) ? orderParam : DEFAULT_SORT_ORDER;
 
   const [searchInput, setSearchInput] = useState(urlSearch);
+  const [privateNotesInput, setPrivateNotesInput] = useState('');
+  const [publicDescriptionInput, setPublicDescriptionInput] = useState('');
   const [publicSortByInput, setPublicSortByInput] =
     useState<GalleryPhotoSortBy>(DEFAULT_PUBLIC_SORT_BY);
   const [publicSortOrderInput, setPublicSortOrderInput] =
@@ -209,6 +212,7 @@ export const GalleryPage = () => {
     setShootingDateInput,
     isSavingShootingDate,
     isSavingPublicSortSettings,
+    isSavingDescriptions,
     error,
     clearError,
     ConfirmModal,
@@ -218,6 +222,7 @@ export const GalleryPage = () => {
     handleUploadComplete,
     handleSaveShootingDate,
     handleSavePublicSortSettings,
+    handleSaveGalleryDescriptions,
     handleDeleteGallery,
     handleDownloadGallery,
     handleDownloadSelectedPhotos,
@@ -246,6 +251,8 @@ export const GalleryPage = () => {
       return;
     }
 
+    setPrivateNotesInput(gallery.private_notes ?? '');
+    setPublicDescriptionInput(gallery.public_description ?? '');
     setPublicSortByInput(gallery.public_sort_by ?? DEFAULT_PUBLIC_SORT_BY);
     setPublicSortOrderInput(gallery.public_sort_order ?? DEFAULT_PUBLIC_SORT_ORDER);
   }, [gallery]);
@@ -253,6 +260,25 @@ export const GalleryPage = () => {
   const currentGalleryShootingDate = gallery?.shooting_date?.slice(0, 10) ?? '';
   const currentPublicSortBy = gallery?.public_sort_by ?? DEFAULT_PUBLIC_SORT_BY;
   const currentPublicSortOrder = gallery?.public_sort_order ?? DEFAULT_PUBLIC_SORT_ORDER;
+  const currentPrivateNotes = gallery?.private_notes ?? '';
+  const currentPublicDescription = gallery?.public_description ?? '';
+  const isDescriptionsDirty =
+    privateNotesInput !== currentPrivateNotes ||
+    publicDescriptionInput !== currentPublicDescription;
+
+  const handleSaveDescriptions = useCallback(() => {
+    void (async () => {
+      const isSaved = await handleSaveGalleryDescriptions(
+        privateNotesInput,
+        publicDescriptionInput,
+      );
+      if (!isSaved) {
+        return;
+      }
+      setPrivateNotesInput((privateNotesInput || '').trim());
+      setPublicDescriptionInput((publicDescriptionInput || '').trim());
+    })();
+  }, [handleSaveGalleryDescriptions, privateNotesInput, publicDescriptionInput]);
 
   useEffect(() => {
     if (!gallery || isSavingShootingDate) {
@@ -1030,6 +1056,20 @@ export const GalleryPage = () => {
               resetPage: true,
             });
           }}
+        />
+
+        <GalleryDescriptionsPanel
+          privateNotes={privateNotesInput}
+          publicDescription={publicDescriptionInput}
+          isSaving={isSavingDescriptions}
+          isDirty={isDescriptionsDirty}
+          onPrivateNotesChange={setPrivateNotesInput}
+          onPublicDescriptionChange={setPublicDescriptionInput}
+          onReset={() => {
+            setPrivateNotesInput(currentPrivateNotes);
+            setPublicDescriptionInput(currentPublicDescription);
+          }}
+          onSave={handleSaveDescriptions}
         />
 
         <AppTabs

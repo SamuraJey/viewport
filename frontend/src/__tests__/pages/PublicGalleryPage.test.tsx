@@ -34,6 +34,7 @@ const mockPublicGallery = {
   cover: { photo_id: 'p1', thumbnail_url: '/thumbs/p1.jpg', full_url: '/full/p1.jpg' },
   photographer: 'Jane Doe',
   gallery_name: 'Public Gallery',
+  public_description: 'A public-facing note for clients browsing the gallery.',
   date: '2025-09-21',
   site_url: 'https://example.com',
   total_photos: 2,
@@ -44,6 +45,7 @@ const mockEmptyGallery = {
   cover: null,
   photographer: undefined,
   gallery_name: 'Empty Gallery',
+  public_description: 'Still worth sharing even without a cover photo.',
   total_photos: 0,
 };
 
@@ -143,6 +145,9 @@ describe('PublicGalleryPage', () => {
     // Cover title and photographer
     expect(screen.getByText('Public Gallery')).toBeInTheDocument();
     expect(screen.getByText('By Jane Doe')).toBeInTheDocument();
+    expect(
+      screen.getByText('A public-facing note for clients browsing the gallery.'),
+    ).toBeInTheDocument();
     // Download All button present
     expect(screen.getByRole('button', { name: /download all photos/i })).toBeInTheDocument();
     // Photos rendered
@@ -186,6 +191,7 @@ describe('PublicGalleryPage', () => {
     render(wrapper());
 
     await waitFor(() => expect(screen.getByText('No photos in this gallery')).toBeInTheDocument());
+    expect(screen.getByText('Still worth sharing even without a cover photo.')).toBeInTheDocument();
     expect(
       screen.getByText('This gallery appears to be empty. Check back later for updates.'),
     ).toBeInTheDocument();

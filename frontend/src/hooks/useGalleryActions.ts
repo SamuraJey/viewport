@@ -38,6 +38,7 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
   const [isSavingPublicSortSettings, setIsSavingPublicSortSettings] = useState(false);
+  const [isSavingDescriptions, setIsSavingDescriptions] = useState(false);
 
   const { error, clearError, handleError } = useErrorHandler();
   const { openConfirm, ConfirmModal } = useConfirmation();
@@ -214,6 +215,35 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
         return false;
       } finally {
         setIsSavingPublicSortSettings(false);
+      }
+    },
+    [clearError, galleryId, handleError],
+  );
+
+  const handleSaveGalleryDescriptions = useCallback(
+    async (privateNotes: string, publicDescription: string): Promise<boolean> => {
+      setIsSavingDescriptions(true);
+      clearError();
+      try {
+        await galleryService.updateGallery(galleryId, {
+          private_notes: privateNotes,
+          public_description: publicDescription,
+        });
+        setGallery((prev: GalleryDetail | null) =>
+          prev
+            ? {
+                ...prev,
+                private_notes: privateNotes.trim() || null,
+                public_description: publicDescription.trim() || null,
+              }
+            : prev,
+        );
+        return true;
+      } catch (err) {
+        handleError(err);
+        return false;
+      } finally {
+        setIsSavingDescriptions(false);
       }
     },
     [clearError, galleryId, handleError],
@@ -468,6 +498,7 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
     setShootingDateInput,
     isSavingShootingDate,
     isSavingPublicSortSettings,
+    isSavingDescriptions,
     error,
     clearError,
     ConfirmModal,
@@ -477,6 +508,7 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
     handleUploadComplete,
     handleSaveShootingDate,
     handleSavePublicSortSettings,
+    handleSaveGalleryDescriptions,
     handleDeleteGallery,
     handleDownloadGallery,
     handleDownloadSelectedPhotos,

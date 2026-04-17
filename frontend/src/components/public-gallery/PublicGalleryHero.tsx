@@ -10,6 +10,7 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
   const heroImgRef = useRef<HTMLImageElement>(null);
   const heroUrl = gallery?.cover?.full_url;
   const galleryTitle = gallery?.gallery_name || 'Shared Gallery';
+  const publicDescription = gallery?.public_description?.trim() || '';
   const titleLength = galleryTitle.length;
   const emptyTitleSizeClass =
     titleLength > 80
@@ -70,6 +71,11 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
         {gallery?.photographer && (
           <p className="text-lg font-medium text-muted sm:text-xl">By {gallery.photographer}</p>
         )}
+        {publicDescription ? (
+          <p className="mx-auto mt-4 max-w-3xl whitespace-pre-line text-sm leading-7 text-muted sm:text-base">
+            {publicDescription}
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -115,6 +121,11 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
           <div className="mt-4 sm:mt-6 text-lg sm:text-xl font-medium text-white/90 drop-shadow-md">
             {gallery.photographer && <span>By {gallery.photographer}</span>}
           </div>
+          {publicDescription ? (
+            <p className="mt-4 max-w-3xl whitespace-pre-line text-sm leading-7 text-white/90 drop-shadow-md sm:text-base">
+              {publicDescription}
+            </p>
+          ) : null}
         </div>
       </div>
 

@@ -42,12 +42,17 @@ import { ApiError } from '../lib/errorHandling';
 import { isDemoModeEnabled } from '../lib/demoMode';
 
 interface DemoGalleryState {
-  gallery: Gallery;
+  gallery: DemoStoredGallery;
   photos: GalleryPhoto[];
   shareLinks: ShareLink[];
   selectionConfigs?: Record<string, SelectionConfig>;
   selectionSessions?: Record<string, SelectionSession[]>;
 }
+
+type DemoStoredGallery = Gallery & {
+  private_notes?: string | null;
+  public_description?: string | null;
+};
 
 interface DemoPersistedState {
   galleries: DemoGalleryState[];
@@ -139,7 +144,14 @@ const toGalleryWithComputedFields = (state: DemoGalleryState): Gallery => {
     : null;
 
   return {
-    ...state.gallery,
+    id: state.gallery.id,
+    owner_id: state.gallery.owner_id,
+    name: state.gallery.name,
+    created_at: state.gallery.created_at,
+    shooting_date: state.gallery.shooting_date,
+    public_sort_by: state.gallery.public_sort_by,
+    public_sort_order: state.gallery.public_sort_order,
+    cover_photo_id: state.gallery.cover_photo_id,
     photo_count: state.photos.length,
     total_size_bytes: totalSize,
     has_active_share_links: hasActiveShareLinks,
@@ -169,7 +181,7 @@ const buildPhoto = (galleryId: string, index: number): GalleryPhoto => {
 };
 
 const seedState = (): DemoGalleryState[] => {
-  const galleries: Gallery[] = [
+  const galleries: DemoStoredGallery[] = [
     {
       id: 'demo-gallery-fashion',
       owner_id: DEMO_OWNER_ID,
@@ -536,6 +548,8 @@ class DemoServiceStore {
 
     return {
       ...state.gallery,
+      private_notes: state.gallery.private_notes ?? null,
+      public_description: state.gallery.public_description ?? null,
       photos: pagePhotos,
       total_photos: filteredAndSortedPhotos.length,
       total_size_bytes: totalSize,
@@ -658,9 +672,14 @@ class DemoServiceStore {
     return this.toGalleryDetail(state, options);
   }
 
-  async createGallery(payload: { name?: string; shooting_date?: string | null }): Promise<Gallery> {
+  async createGallery(payload: {
+    name?: string;
+    shooting_date?: string | null;
+    private_notes?: string | null;
+    public_description?: string | null;
+  }): Promise<Gallery> {
     const createdAt = nowIso();
-    const gallery: Gallery = {
+    const gallery: DemoStoredGallery = {
       id: makeDemoId(),
       owner_id: DEMO_OWNER_ID,
       name: payload.name?.trim() || 'Untitled Gallery',
@@ -669,6 +688,8 @@ class DemoServiceStore {
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
       cover_photo_id: null,
+      private_notes: payload.private_notes?.trim() || null,
+      public_description: payload.public_description?.trim() || null,
       photo_count: 0,
       total_size_bytes: 0,
       has_active_share_links: false,
@@ -697,6 +718,8 @@ class DemoServiceStore {
     payload: {
       name?: string;
       shooting_date?: string | null;
+      private_notes?: string | null;
+      public_description?: string | null;
       public_sort_by?: GalleryPhotoSortBy;
       public_sort_order?: SortOrder;
     },
@@ -707,6 +730,14 @@ class DemoServiceStore {
       ...state.gallery,
       name: payload.name?.trim() || state.gallery.name,
       shooting_date: payload.shooting_date ?? state.gallery.shooting_date,
+      private_notes:
+        payload.private_notes !== undefined
+          ? payload.private_notes?.trim() || null
+          : (state.gallery.private_notes ?? null),
+      public_description:
+        payload.public_description !== undefined
+          ? payload.public_description?.trim() || null
+          : (state.gallery.public_description ?? null),
       public_sort_by: payload.public_sort_by ?? state.gallery.public_sort_by,
       public_sort_order: payload.public_sort_order ?? state.gallery.public_sort_order,
     };
@@ -964,6 +995,7 @@ class DemoServiceStore {
     return {
       gallery_name: state.gallery.name,
       photographer: this.user.display_name || this.user.email,
+      public_description: state.gallery.public_description ?? null,
       date: state.gallery.shooting_date,
       site_url: window.location.origin,
       total_photos: sortedPhotos.length,

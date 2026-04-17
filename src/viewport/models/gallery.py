@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 from enum import IntEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, SmallInteger, String, event, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text, event, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -33,6 +33,8 @@ class Gallery(Base):
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     # Displayed shooting date (defaults to gallery creation date)
     shooting_date: Mapped[date] = mapped_column(Date, nullable=False, default=lambda: datetime.now(UTC).date())
+    private_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    public_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Controls default sorting for shared/public gallery views.
     public_sort_by: Mapped[str] = mapped_column(
         String(32),

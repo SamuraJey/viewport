@@ -44,6 +44,8 @@ export interface Gallery {
 }
 
 export interface GalleryDetail extends Gallery {
+  private_notes?: string | null;
+  public_description?: string | null;
   photos: GalleryPhoto[];
   total_photos: number;
 }

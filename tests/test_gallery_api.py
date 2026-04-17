@@ -177,9 +177,70 @@ class TestGalleryAPI:
         assert "public_sort_order" in data
         assert "photos" in data
         assert "share_links" not in data
+        assert "private_notes" in data
+        assert "public_description" in data
         assert "total_photos" in data
         assert "total_size_bytes" in data
         assert isinstance(data["photos"], list)
+
+    def test_update_gallery_descriptions_round_trip(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        response = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}",
+            json={
+                "private_notes": "Internal follow-up note",
+                "public_description": "Shared gallery introduction",
+            },
+        )
+
+        assert response.status_code == 200
+
+        detail_response = authenticated_client.get(f"/galleries/{gallery_id_fixture}")
+        assert detail_response.status_code == 200
+        payload = detail_response.json()
+        assert payload["private_notes"] == "Internal follow-up note"
+        assert payload["public_description"] == "Shared gallery introduction"
+
+    def test_update_gallery_descriptions_normalizes_blank_strings_to_null(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        seeded = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}",
+            json={
+                "private_notes": "Temporary note",
+                "public_description": "Temporary description",
+            },
+        )
+        assert seeded.status_code == 200
+
+        cleared = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}",
+            json={
+                "private_notes": "   ",
+                "public_description": "",
+            },
+        )
+        assert cleared.status_code == 200
+
+        detail_response = authenticated_client.get(f"/galleries/{gallery_id_fixture}")
+        assert detail_response.status_code == 200
+        payload = detail_response.json()
+        assert payload["private_notes"] is None
+        assert payload["public_description"] is None
+
+    def test_list_galleries_omits_description_fields(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        update_response = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}",
+            json={
+                "private_notes": "Internal note",
+                "public_description": "Public copy",
+            },
+        )
+        assert update_response.status_code == 200
+
+        list_response = authenticated_client.get("/galleries")
+        assert list_response.status_code == 200
+
+        gallery_payload = next(item for item in list_response.json()["galleries"] if item["id"] == gallery_id_fixture)
+        assert "private_notes" not in gallery_payload
+        assert "public_description" not in gallery_payload
 
     def test_get_gallery_supports_photo_search_and_sort(self, authenticated_client: TestClient, gallery_id_fixture: str):
         upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"zeta-payload", "zeta.jpg")

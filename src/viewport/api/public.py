@@ -179,6 +179,7 @@ async def get_photos_by_sharelink(
         cover=cover,
         photographer=photographer,
         gallery_name=gallery_name,
+        public_description=getattr(gallery, "public_description", None),
         date=date_str,
         site_url=site_url,
         total_photos=total_photos,

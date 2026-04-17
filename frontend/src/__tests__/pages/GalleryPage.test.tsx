@@ -32,6 +32,8 @@ const mockGalleryData = {
   created_at: '2024-01-01T10:00:00Z',
   owner_id: 'user1',
   shooting_date: '2024-01-01',
+  private_notes: 'Client asked for warm edits and teaser delivery by Friday.',
+  public_description: 'A quiet preview from the winter editorial session.',
   public_sort_by: 'original_filename' as const,
   public_sort_order: 'asc' as const,
   cover_photo_id: null,
@@ -307,6 +309,38 @@ describe('GalleryPage', () => {
   });
 
   describe('Photo Actions', () => {
+    it('renders gallery description editors and saves updated descriptions', async () => {
+      const { galleryService } = await import('../../services/galleryService');
+      vi.mocked(galleryService.updateGallery).mockResolvedValue({
+        ...mockGalleryData,
+      } as any);
+
+      render(<GalleryPageWrapper />);
+
+      const privateNotesInput = await screen.findByLabelText(/private notes/i);
+      const publicDescriptionInput = await screen.findByLabelText(/public description/i);
+
+      expect(privateNotesInput).toHaveValue(mockGalleryData.private_notes);
+      expect(publicDescriptionInput).toHaveValue(mockGalleryData.public_description);
+
+      await userEvent.clear(privateNotesInput);
+      await userEvent.type(privateNotesInput, 'Updated private note');
+      await userEvent.clear(publicDescriptionInput);
+      await userEvent.type(publicDescriptionInput, 'Updated public description');
+
+      await userEvent.click(screen.getByRole('button', { name: /save descriptions/i }));
+
+      await waitFor(() => {
+        expect(vi.mocked(galleryService.updateGallery)).toHaveBeenCalledWith('1', {
+          private_notes: 'Updated private note',
+          public_description: 'Updated public description',
+        });
+      });
+
+      expect(privateNotesInput).toHaveValue('Updated private note');
+      expect(publicDescriptionInput).toHaveValue('Updated public description');
+    });
+
     it('should not send update when shooting date is cleared', async () => {
       const { galleryService } = await import('../../services/galleryService');
 

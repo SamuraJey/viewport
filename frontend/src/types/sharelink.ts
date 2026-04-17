@@ -78,6 +78,7 @@ export interface SharedGallery {
   cover?: { photo_id: string; full_url: string; thumbnail_url: string } | null;
   photographer?: string;
   gallery_name?: string;
+  public_description?: string | null;
   date?: string;
   site_url?: string;
   total_photos?: number;

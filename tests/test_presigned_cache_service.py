@@ -88,10 +88,20 @@ class TestCacheKeyGeneration:
 
         result = service.build_cache_key("bucket", "key.jpg", "attachment")
 
-        # Should have format: presign:bucket:encoded_key:disposition_hash
+        # Should have format: presign:bucket:namespace:encoded_key:disposition_hash
         parts = result.split(":")
-        assert len(parts) == 4
+        assert len(parts) == 5
         assert parts[0] == PRESIGNED_CACHE_PREFIX
+
+    def test_build_cache_key_uses_namespace(self):
+        """Test cache keys differ between cache namespaces."""
+        mock_redis = MockRedisService()
+        service = PresignedUrlCacheService(mock_redis)  # type: ignore
+
+        localhost_key = service.build_cache_key("bucket", "key.jpg", None, "http://localhost:9000")
+        lan_key = service.build_cache_key("bucket", "key.jpg", None, "http://192.168.1.50:9000")
+
+        assert localhost_key != lan_key
 
     def test_build_index_key(self):
         """Test index key generation."""
@@ -104,9 +114,9 @@ class TestCacheKeyGeneration:
 
     def test_index_key_from_cache_key(self):
         """Test extracting index key from cache key."""
-        cache_key = "presign:bucket:encoded_key:disposition_hash"
+        cache_key = "presign:bucket:namespace:encoded_key:disposition_hash"
         result = PresignedUrlCacheService._index_key_from_cache_key(cache_key)
-        assert result == "presign:bucket:encoded_key:idx"
+        assert result == "presign:bucket:namespace:encoded_key:idx"
 
     def test_index_key_from_cache_key_no_prefix(self):
         """Test index key extraction when no colons present."""
