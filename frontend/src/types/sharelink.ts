@@ -9,6 +9,7 @@ export interface ShareLink {
   scope_type?: ShareScopeType;
   gallery_id?: string | null;
   project_id?: string | null;
+  selection_summary?: ShareLinkSelectionSummary | null;
   label?: string | null;
   is_active?: boolean;
   expires_at: string | null;

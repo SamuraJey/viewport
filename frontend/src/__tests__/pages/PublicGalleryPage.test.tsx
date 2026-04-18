@@ -317,6 +317,56 @@ describe('PublicGalleryPage', () => {
     expect(container.querySelector('img[src="/full/project-cover.jpg"]')).not.toBeNull();
   });
 
+  it('keeps a sticky project selection bar visible while browsing project galleries', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    mockRouteParams = { shareId: 'abc123', folderId: 'gallery-1' };
+    vi.mocked(shareLinkService.getSharedGallery).mockImplementation(async (_shareId, options) => {
+      if (options?.folderId) {
+        return mockProjectGallery as any;
+      }
+      return mockProjectShare as any;
+    });
+    vi.mocked(shareLinkService.getPublicSelectionConfig).mockResolvedValue({
+      is_enabled: true,
+      list_title: 'Selected photos',
+      limit_enabled: true,
+      limit_value: 12,
+      allow_photo_comments: false,
+      require_name: true,
+      require_email: false,
+      require_phone: false,
+      require_client_note: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+    vi.mocked(shareLinkService.getPublicSelectionSession).mockResolvedValue({
+      id: 'session-1',
+      sharelink_id: 'abc123',
+      status: 'in_progress',
+      client_name: 'Jane Client',
+      client_email: null,
+      client_phone: null,
+      client_note: null,
+      selected_count: 4,
+      submitted_at: null,
+      last_activity_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      resume_token: 'resume-token',
+      items: [],
+    } as any);
+    window.localStorage.setItem('viewport-selection-resume-abc123', 'resume-token');
+
+    render(wrapper());
+
+    const stickyBar = await screen.findByTestId('project-selection-sticky-bar');
+    expect(within(stickyBar).getByText('4 selected')).toBeInTheDocument();
+    expect(within(stickyBar).getByRole('button', { name: /open favorites/i })).toBeInTheDocument();
+    expect(
+      within(stickyBar).getByRole('button', { name: /finish selection/i }),
+    ).toBeInTheDocument();
+  });
+
   it('renders dedicated favorites view with finish button and back navigation', async () => {
     const { shareLinkService } = await import('../../services/shareLinkService');
     mockRouteParams = { shareId: 'abc123', resumeToken: 'resume-token' };

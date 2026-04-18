@@ -306,6 +306,9 @@ export const PublicGalleryPage = () => {
   const isProjectShare = projectShare !== null;
   const projectGalleryTabs = projectNavigation ?? projectShare;
   const isProjectFolderView = Boolean(folderShare?.parent_share_id && !isFavoritesView);
+  const showStickyProjectSelectionBar = Boolean(
+    projectGalleryTabs && selection.config?.is_enabled && !isFavoritesView,
+  );
   const heroTitle = isProjectFolderView
     ? folderShare?.project_name || projectGalleryTabs?.project_name || 'Public Project'
     : folderShare?.gallery_name || 'Public Gallery';
@@ -390,6 +393,23 @@ export const PublicGalleryPage = () => {
     },
     [selection],
   );
+
+  const handleStickyFinishSelection = useCallback(() => {
+    if (!isSelectionEnabled) {
+      return;
+    }
+
+    if (!selection.session) {
+      handleOpenSelectionStart(false);
+      return;
+    }
+
+    if (!selection.canMutateSession || selection.isMutating) {
+      return;
+    }
+
+    void selection.submitSelection();
+  }, [handleOpenSelectionStart, isSelectionEnabled, selection]);
 
   const lightboxSlides = useMemo(
     () =>
@@ -508,7 +528,11 @@ export const PublicGalleryPage = () => {
         cover={heroCover}
       />
 
-      <main id="main-content" tabIndex={-1} className="w-full px-4 py-16 sm:px-6 lg:px-10">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className={`w-full px-4 py-16 sm:px-6 lg:px-10 ${showStickyProjectSelectionBar ? 'pb-36 sm:pb-40' : ''}`}
+      >
         {projectGalleryTabs ? (
           <section className="mb-6 rounded-2xl border border-border/50 bg-surface-1/70 p-4 shadow-xs">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -989,6 +1013,58 @@ export const PublicGalleryPage = () => {
           </Link>
         </div>
       </main>
+
+      {showStickyProjectSelectionBar ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-4 sm:px-6 lg:px-10">
+          <section
+            data-testid="project-selection-sticky-bar"
+            className="pointer-events-auto mx-auto flex w-full max-w-6xl flex-col gap-3 rounded-3xl border border-border/50 bg-surface/95 px-4 py-4 shadow-xl backdrop-blur-xl dark:bg-surface-dark/95 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
+                Project selection
+              </p>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-text">
+                <span className="rounded-full bg-accent/10 px-3 py-1 font-semibold text-accent">
+                  {selection.session?.selected_count ?? 0} selected
+                </span>
+                {selection.config?.limit_enabled && selection.config.limit_value ? (
+                  <span className="text-muted">Limit {selection.config.limit_value}</span>
+                ) : null}
+                {selection.session?.status ? (
+                  <span className="text-muted">Status: {selection.session.status}</span>
+                ) : (
+                  <span className="text-muted">
+                    Start selecting in any gallery to keep one shared shortlist.
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleOpenFavorites}
+                className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2.5 text-sm font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent"
+              >
+                <Heart className="h-4 w-4" />
+                Open favorites
+              </button>
+              <button
+                type="button"
+                onClick={handleStickyFinishSelection}
+                disabled={
+                  selection.isMutating || Boolean(selection.session && !selection.canMutateSession)
+                }
+                className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Finish selection
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {renderLightbox(lightboxSlides, displayedPhotos.length)}
     </div>

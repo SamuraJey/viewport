@@ -276,8 +276,54 @@ describe('ShareLinkDetailPage', () => {
         selected_count: 6,
         latest_activity_at: '2026-04-12T10:00:00Z',
       },
-      sessions: [],
+      sessions: [
+        {
+          id: 'project-session-1',
+          status: 'submitted',
+          client_name: 'Anna',
+          client_email: null,
+          client_phone: null,
+          client_note: null,
+          selected_count: 2,
+          submitted_at: '2026-04-12T10:00:00Z',
+          last_activity_at: '2026-04-12T10:00:00Z',
+          created_at: '2026-04-12T09:00:00Z',
+          updated_at: '2026-04-12T10:00:00Z',
+        },
+      ],
       session: null,
+    } as any);
+    vi.mocked(shareLinkService.getOwnerSelectionSessionDetail).mockResolvedValueOnce({
+      id: 'project-session-1',
+      sharelink_id: 'link-project',
+      status: 'submitted',
+      client_name: 'Anna',
+      client_email: null,
+      client_phone: null,
+      client_note: null,
+      selected_count: 2,
+      submitted_at: '2026-04-12T10:00:00Z',
+      last_activity_at: '2026-04-12T10:00:00Z',
+      created_at: '2026-04-12T09:00:00Z',
+      updated_at: '2026-04-12T10:00:00Z',
+      items: [
+        {
+          photo_id: 'photo-1',
+          photo_display_name: '001.jpg',
+          gallery_name: 'Ceremony',
+          comment: null,
+          selected_at: '2026-04-12T09:10:00Z',
+          updated_at: '2026-04-12T09:10:00Z',
+        },
+        {
+          photo_id: 'photo-2',
+          photo_display_name: '002.jpg',
+          gallery_name: 'Portraits',
+          comment: 'Retouch',
+          selected_at: '2026-04-12T09:15:00Z',
+          updated_at: '2026-04-12T09:15:00Z',
+        },
+      ],
     } as any);
 
     const user = userEvent.setup();
@@ -306,5 +352,7 @@ describe('ShareLinkDetailPage', () => {
     ).toBeInTheDocument();
     expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledWith('link-project');
     expect(screen.getByText('6')).toBeInTheDocument();
+    expect(await screen.findByText('Ceremony')).toBeInTheDocument();
+    expect(screen.getByText('Portraits')).toBeInTheDocument();
   });
 });

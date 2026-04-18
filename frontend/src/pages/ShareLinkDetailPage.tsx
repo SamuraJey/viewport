@@ -461,6 +461,26 @@ export const ShareLinkDetailPage = () => {
       ? `Photo selection (${selectionSummary.total_sessions})`
       : 'Photo selection';
 
+  const selectedSessionItemGroups = (() => {
+    const items = selectedSessionDetail?.items ?? [];
+    const groups = new Map<string, typeof items>();
+
+    for (const item of items) {
+      const groupKey = item.gallery_name?.trim() || 'Selected photos';
+      const existingGroup = groups.get(groupKey);
+      if (existingGroup) {
+        existingGroup.push(item);
+      } else {
+        groups.set(groupKey, [item]);
+      }
+    }
+
+    return Array.from(groups.entries()).map(([galleryName, items]) => ({
+      galleryName,
+      items,
+    }));
+  })();
+
   const detailTabItems = [
     {
       key: 'overview' as const,
@@ -942,20 +962,38 @@ export const ShareLinkDetailPage = () => {
                     ) : null}
                   </div>
 
-                  <div className="max-h-80 space-y-2 overflow-auto">
+                  <div className="max-h-80 space-y-3 overflow-auto">
                     {selectedSessionDetail.items.length > 0 ? (
-                      selectedSessionDetail.items.map((item) => (
+                      (isProjectLink
+                        ? selectedSessionItemGroups
+                        : [{ galleryName: '', items: selectedSessionDetail.items }]
+                      ).map((group) => (
                         <div
-                          key={item.photo_id}
-                          className="rounded-lg border border-border/40 bg-surface p-2 text-xs"
+                          key={group.galleryName || 'selected-photos'}
+                          className="space-y-2 rounded-xl border border-border/40 bg-surface-1/60 p-3"
                         >
-                          <p className="font-semibold text-text">
-                            {item.photo_display_name || item.photo_id}
-                          </p>
-                          {item.gallery_name ? (
-                            <p className="mt-1 text-muted">Gallery: {item.gallery_name}</p>
+                          {isProjectLink ? (
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-text">{group.galleryName}</p>
+                              <span className="text-xs text-muted">
+                                {group.items.length} photo{group.items.length === 1 ? '' : 's'}
+                              </span>
+                            </div>
                           ) : null}
-                          {item.comment ? <p className="mt-1 text-muted">{item.comment}</p> : null}
+
+                          {group.items.map((item) => (
+                            <div
+                              key={item.photo_id}
+                              className="rounded-lg border border-border/40 bg-surface p-2 text-xs"
+                            >
+                              <p className="font-semibold text-text">
+                                {item.photo_display_name || item.photo_id}
+                              </p>
+                              {item.comment ? (
+                                <p className="mt-1 text-muted">{item.comment}</p>
+                              ) : null}
+                            </div>
+                          ))}
                         </div>
                       ))
                     ) : (

@@ -49,6 +49,7 @@ class GalleryShareLinkResponse(ShareLinkBase):
 class ScopedShareLinkResponse(GalleryShareLinkResponse):
     gallery_id: UUID | None = None
     project_id: UUID | None = None
+    selection_summary: "ShareLinkSelectionSummaryResponse | None" = None
 
 
 class ShareLinkResponse(ScopedShareLinkResponse):

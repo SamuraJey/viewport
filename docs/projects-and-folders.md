@@ -104,10 +104,11 @@ Gallery endpoints still work and now accept project placement fields where relev
 - `DashboardPage.tsx` shows **Projects** and **Standalone galleries**
 - `ProjectPage.tsx` manages project galleries and project share links using the same gallery cards as standalone galleries
 - project gallery visibility and ordering are managed from in-card actions; order is persisted via `project_position`
+- when project share links already have active or submitted selection sessions, risky changes (hide as `direct_only`, delete gallery, reorder gallery) warn the owner before proceeding
 - `GalleryPage.tsx` remains photo-first for gallery-level work
 - `PublicGalleryPage.tsx` now renders either:
   - a gallery share page with photos, or
-  - a project share page that opens the first listed gallery, keeps a project-scoped hero, and renders a horizontal list of gallery names
+  - a project share page that opens the first listed gallery, keeps a project-scoped hero, renders a horizontal list of gallery names, and keeps a sticky selection bar visible during proofing
 
 ## Selection and favorites
 
@@ -115,7 +116,7 @@ Gallery endpoints still work and now accept project placement fields where relev
 - A gallery share link still runs selection only inside that gallery
 - A project share link can now run **one shared selection flow across all listed galleries** in the project
 - `direct_only` galleries stay excluded from project selection
-- Project selection owner detail and CSV exports include **gallery context** for each selected photo
+- Project selection owner detail groups selected photos by gallery and CSV/plain-text exports include **gallery context** for each selected photo
 
 ## Backward compatibility
 

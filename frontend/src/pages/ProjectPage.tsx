@@ -123,6 +123,43 @@ export const ProjectPage = () => {
     [project?.folders],
   );
 
+  const projectSelectionWarningSummary = useMemo(() => {
+    const affectedLinks = shareLinks.filter((link) => {
+      const summary = link.selection_summary;
+      return Boolean(
+        summary && (summary.in_progress_sessions > 0 || summary.submitted_sessions > 0),
+      );
+    });
+
+    const inProgressSessions = affectedLinks.reduce(
+      (sum, link) => sum + (link.selection_summary?.in_progress_sessions ?? 0),
+      0,
+    );
+    const submittedSessions = affectedLinks.reduce(
+      (sum, link) => sum + (link.selection_summary?.submitted_sessions ?? 0),
+      0,
+    );
+
+    return {
+      affectedLinks,
+      inProgressSessions,
+      submittedSessions,
+      totalSensitiveSessions: inProgressSessions + submittedSessions,
+      hasSensitiveSessions: affectedLinks.length > 0,
+    };
+  }, [shareLinks]);
+
+  const projectSelectionWarningLabel = useMemo(() => {
+    if (!projectSelectionWarningSummary.hasSensitiveSessions) {
+      return '';
+    }
+
+    const sessionLabel =
+      projectSelectionWarningSummary.totalSensitiveSessions === 1 ? 'session' : 'sessions';
+    const linkLabel = projectSelectionWarningSummary.affectedLinks.length === 1 ? 'link' : 'links';
+    return `${projectSelectionWarningSummary.totalSensitiveSessions} active/submitted selection ${sessionLabel} across ${projectSelectionWarningSummary.affectedLinks.length} project ${linkLabel}`;
+  }, [projectSelectionWarningSummary]);
+
   const handleCreateFolder = async () => {
     if (!folderDraft.name.trim()) {
       return;
@@ -193,10 +230,33 @@ export const ProjectPage = () => {
     }
   };
 
+  const requestVisibilityChange = (
+    folder: ProjectFolderSummary,
+    visibility: 'listed' | 'direct_only',
+  ) => {
+    if (visibility !== 'direct_only' || !projectSelectionWarningSummary.hasSensitiveSessions) {
+      void handleVisibilityChange(folder, visibility);
+      return;
+    }
+
+    openConfirm({
+      title: 'Hide gallery from project share?',
+      message: `This project currently has ${projectSelectionWarningLabel}. Making "${folder.name}" direct-link-only can hide its photos from active client favorites and project proofing views.`,
+      confirmText: 'Hide anyway',
+      onConfirm: async () => {
+        await handleVisibilityChange(folder, visibility);
+      },
+    });
+  };
+
   const handleDeleteGallery = (gallery: Gallery) => {
+    const warningMessage = projectSelectionWarningSummary.hasSensitiveSessions
+      ? ` This project currently has ${projectSelectionWarningLabel}. Deleting "${gallery.name || `Gallery #${gallery.id}`}" can remove photos that clients already selected from live project proofing.`
+      : '';
+
     openConfirm({
       title: 'Delete Gallery?',
-      message: `Are you sure you want to delete "${gallery.name || `Gallery #${gallery.id}`}" and all its contents? This action cannot be undone.`,
+      message: `Are you sure you want to delete "${gallery.name || `Gallery #${gallery.id}`}" and all its contents? This action cannot be undone.${warningMessage}`,
       isDangerous: true,
       confirmText: 'Delete',
       onConfirm: async () => {
@@ -253,6 +313,33 @@ export const ProjectPage = () => {
     }
   };
 
+  const requestReorderFolder = (folder: ProjectFolderSummary, targetIndex: number) => {
+    if (!project) {
+      return;
+    }
+
+    const currentIndex = project.folders.findIndex(
+      (projectFolder) => projectFolder.id === folder.id,
+    );
+    if (currentIndex === -1 || currentIndex === targetIndex) {
+      return;
+    }
+
+    if (!projectSelectionWarningSummary.hasSensitiveSessions) {
+      void handleReorderFolder(folder.id, targetIndex);
+      return;
+    }
+
+    openConfirm({
+      title: 'Reorder project galleries?',
+      message: `This project currently has ${projectSelectionWarningLabel}. Reordering "${folder.name}" can change the default gallery order, client navigation flow, and shared hero source while those proofing sessions are still in use.`,
+      confirmText: 'Reorder anyway',
+      onConfirm: async () => {
+        await handleReorderFolder(folder.id, targetIndex);
+      },
+    });
+  };
+
   const handleDeleteProject = async () => {
     try {
       await projectService.deleteProject(projectId);
@@ -260,6 +347,22 @@ export const ProjectPage = () => {
     } catch (err) {
       setError(handleApiError(err).message || 'Failed to delete project');
     }
+  };
+
+  const requestDeleteProject = () => {
+    const warningMessage = projectSelectionWarningSummary.hasSensitiveSessions
+      ? ` This project currently has ${projectSelectionWarningLabel}. Deleting the whole project can invalidate active proofing sessions and remove photos clients already selected.`
+      : '';
+
+    openConfirm({
+      title: 'Delete project?',
+      message: `Are you sure you want to delete "${project?.name || 'this project'}" and all of its galleries? This action cannot be undone.${warningMessage}`,
+      isDangerous: true,
+      confirmText: 'Delete project',
+      onConfirm: async () => {
+        await handleDeleteProject();
+      },
+    });
   };
 
   const handleCreateProjectShareLink = async (payload: {
@@ -377,7 +480,7 @@ export const ProjectPage = () => {
             </button>
             <button
               type="button"
-              onClick={() => void handleDeleteProject()}
+              onClick={requestDeleteProject}
               className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-2.5 text-sm font-semibold text-danger"
             >
               Delete project
@@ -387,6 +490,12 @@ export const ProjectPage = () => {
         {error ? (
           <div className="mt-4 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
             {error}
+          </div>
+        ) : null}
+        {projectSelectionWarningSummary.hasSensitiveSessions ? (
+          <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+            This project has {projectSelectionWarningLabel}. Hiding, deleting, or reordering
+            galleries will ask for confirmation before changing the live proofing layout.
           </div>
         ) : null}
       </section>
@@ -491,9 +600,7 @@ export const ProjectPage = () => {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      void handleVisibilityChange(folder, 'direct_only')
-                                    }
+                                    onClick={() => requestVisibilityChange(folder, 'direct_only')}
                                     disabled={isUpdatingFolder === folder.id}
                                     className={`flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
                                       (folder.project_visibility ?? 'listed') === 'direct_only'
@@ -516,9 +623,7 @@ export const ProjectPage = () => {
                                   </p>
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      void handleReorderFolder(folder.id, currentIndex - 1)
-                                    }
+                                    onClick={() => requestReorderFolder(folder, currentIndex - 1)}
                                     disabled={isFirstGallery || isReorderingFolder === folder.id}
                                     className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
@@ -534,9 +639,7 @@ export const ProjectPage = () => {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      void handleReorderFolder(folder.id, currentIndex + 1)
-                                    }
+                                    onClick={() => requestReorderFolder(folder, currentIndex + 1)}
                                     disabled={isLastGallery || isReorderingFolder === folder.id}
                                     className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
@@ -552,7 +655,7 @@ export const ProjectPage = () => {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => void handleReorderFolder(folder.id, 0)}
+                                    onClick={() => requestReorderFolder(folder, 0)}
                                     disabled={isFirstGallery || isReorderingFolder === folder.id}
                                     className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50"
                                   >

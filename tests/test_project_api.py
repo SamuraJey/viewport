@@ -180,6 +180,10 @@ class TestProjectAPI:
         assert enable_selection_resp.status_code == 200
         assert enable_selection_resp.json()["is_enabled"] is True
 
+        owner_project_links_resp = authenticated_client.get(f"/projects/{project_id}/share-links")
+        assert owner_project_links_resp.status_code == 200
+        assert owner_project_links_resp.json()[0]["selection_summary"]["is_enabled"] is True
+
         selection_resp = authenticated_client.get(f"/s/{project_share_id}/selection/config")
         assert selection_resp.status_code == 200
         assert selection_resp.json()["is_enabled"] is True

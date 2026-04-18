@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { ProjectPage } from '../../pages/ProjectPage';
@@ -32,6 +32,42 @@ vi.mock('../../services/galleryService', () => ({
     deleteGallery: vi.fn(),
   },
 }));
+
+const renderProjectPage = () =>
+  render(
+    <MemoryRouter initialEntries={['/projects/project-1']}>
+      <Routes>
+        <Route path="/projects/:id" element={<ProjectPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+const projectSelectionSummary = {
+  is_enabled: true,
+  status: 'in_progress',
+  total_sessions: 2,
+  submitted_sessions: 1,
+  in_progress_sessions: 1,
+  closed_sessions: 0,
+  selected_count: 6,
+  latest_activity_at: '2026-04-18T00:00:00Z',
+};
+
+const projectProofingShareLink = (overrides: Record<string, unknown> = {}) => ({
+  id: 'link-1',
+  scope_type: 'project',
+  project_id: 'project-1',
+  label: 'Client proofing',
+  is_active: true,
+  expires_at: null,
+  views: 0,
+  zip_downloads: 0,
+  single_downloads: 0,
+  created_at: '2026-04-18T00:00:00Z',
+  updated_at: '2026-04-18T00:00:00Z',
+  selection_summary: projectSelectionSummary,
+  ...overrides,
+});
 
 describe('ProjectPage', () => {
   beforeEach(async () => {
@@ -108,13 +144,7 @@ describe('ProjectPage', () => {
   });
 
   it('reuses the gallery share-links section UI for project links', async () => {
-    render(
-      <MemoryRouter initialEntries={['/projects/project-1']}>
-        <Routes>
-          <Route path="/projects/:id" element={<ProjectPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderProjectPage();
 
     expect(await screen.findByRole('heading', { name: /share links/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create new share link/i })).toBeInTheDocument();
@@ -125,13 +155,7 @@ describe('ProjectPage', () => {
   it('lets project share creation expose selection settings', async () => {
     const user = userEvent.setup();
 
-    render(
-      <MemoryRouter initialEntries={['/projects/project-1']}>
-        <Routes>
-          <Route path="/projects/:id" element={<ProjectPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderProjectPage();
 
     await screen.findByRole('heading', { name: /share links/i });
     await user.click(screen.getByRole('button', { name: /create new share link/i }));
@@ -143,13 +167,7 @@ describe('ProjectPage', () => {
   });
 
   it('renders project galleries as full gallery cards instead of tab buttons', async () => {
-    render(
-      <MemoryRouter initialEntries={['/projects/project-1']}>
-        <Routes>
-          <Route path="/projects/:id" element={<ProjectPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderProjectPage();
 
     expect(await screen.findByRole('heading', { name: 'Photos' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '3eds' })).toBeInTheDocument();
@@ -162,16 +180,93 @@ describe('ProjectPage', () => {
   });
 
   it('shows persisted project gallery order on the cards', async () => {
-    render(
-      <MemoryRouter initialEntries={['/projects/project-1']}>
-        <Routes>
-          <Route path="/projects/:id" element={<ProjectPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
+    renderProjectPage();
 
     await screen.findByRole('heading', { name: 'Photos' });
     expect(screen.getByText('Position 1 of 2')).toBeInTheDocument();
     expect(screen.getByText('Position 2 of 2')).toBeInTheDocument();
+  });
+
+  it('warns before deleting a gallery when project proofing sessions already exist', async () => {
+    const user = userEvent.setup();
+    const { shareLinkService } = await import('../../services/shareLinkService');
+
+    vi.mocked(shareLinkService.getProjectShareLinks).mockResolvedValueOnce([
+      projectProofingShareLink(),
+    ] as any);
+
+    renderProjectPage();
+
+    expect(
+      await screen.findByText(/active\/submitted selection sessions across 1 project link/i),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText('Delete 3eds'));
+
+    expect(
+      await screen.findByText(/can remove photos that clients already selected/i),
+    ).toBeInTheDocument();
+  });
+
+  it('warns before hiding a gallery from the project when proofing sessions already exist', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+
+    vi.mocked(shareLinkService.getProjectShareLinks).mockResolvedValueOnce([
+      projectProofingShareLink(),
+    ] as any);
+
+    renderProjectPage();
+
+    expect(
+      await screen.findByText(/active\/submitted selection sessions across 1 project link/i),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Change project visibility for Photos'));
+    fireEvent.click(await screen.findByRole('button', { name: /direct link only/i }));
+
+    expect(await screen.findByText('Hide gallery from project share?')).toBeInTheDocument();
+  });
+
+  it('warns before reordering galleries when proofing sessions already exist', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+
+    vi.mocked(shareLinkService.getProjectShareLinks).mockResolvedValueOnce([
+      projectProofingShareLink(),
+    ] as any);
+
+    renderProjectPage();
+
+    expect(
+      await screen.findByText(/active\/submitted selection sessions across 1 project link/i),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Change project visibility for 3eds'));
+    fireEvent.click(await screen.findByRole('button', { name: /move earlier/i }));
+
+    expect(await screen.findByText('Reorder project galleries?')).toBeInTheDocument();
+  });
+
+  it('warns before deleting the whole project when project proofing sessions already exist', async () => {
+    const user = userEvent.setup();
+    const { shareLinkService } = await import('../../services/shareLinkService');
+
+    vi.mocked(shareLinkService.getProjectShareLinks).mockResolvedValueOnce([
+      projectProofingShareLink(),
+    ] as any);
+
+    renderProjectPage();
+
+    expect(
+      await screen.findByText(/active\/submitted selection sessions across 1 project link/i),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /delete project/i }));
+
+    expect(await screen.findByText('Delete project?')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /can invalidate active proofing sessions and remove photos clients already selected/i,
+      ),
+    ).toBeInTheDocument();
   });
 });

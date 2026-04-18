@@ -1422,7 +1422,10 @@ class DemoServiceStore {
     if (!state) {
       throw this.createNotFoundError('Project not found');
     }
-    return state.shareLinks.map((link) => ({ ...link }));
+    return state.shareLinks.map((link) => ({
+      ...link,
+      selection_summary: this.buildSelectionSummary(state, link.id),
+    }));
   }
 
   async createProjectShareLink(

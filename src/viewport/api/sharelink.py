@@ -161,13 +161,25 @@ async def delete_sharelink(gallery_id: UUID, sharelink_id: UUID, repo: GalleryRe
 async def list_project_sharelinks(
     project_id: UUID,
     repo: ProjectRepository = Depends(get_project_repository),
+    selection_repo: SelectionRepository = Depends(get_selection_repository),
     user=Depends(get_current_user),
 ) -> list[ScopedShareLinkResponse]:
     project = await repo.get_project_by_id_and_owner(project_id, user.id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     sharelinks = await repo.get_sharelinks_by_project(project_id, user.id)
-    return [ScopedShareLinkResponse.model_validate(sharelink) for sharelink in sharelinks]
+    selection_summaries = await selection_repo.get_sharelink_selection_summaries(
+        [sharelink.id for sharelink in sharelinks],
+    )
+    empty_selection_summary = (False, 0, 0, 0, 0, 0, None)
+    return [
+        ScopedShareLinkResponse.model_validate(sharelink).model_copy(
+            update={
+                "selection_summary": _to_selection_summary_response(*selection_summaries.get(sharelink.id, empty_selection_summary)),
+            }
+        )
+        for sharelink in sharelinks
+    ]
 
 
 @project_router.post("", response_model=ScopedShareLinkResponse, status_code=status.HTTP_201_CREATED)
