@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, FolderPlus, Share2 } from 'lucide-react';
-import { AppDialog, AppDialogDescription, AppDialogTitle } from '../components/ui';
+import { ArrowLeft, Check, EyeOff, FolderPlus, Settings2, Share2 } from 'lucide-react';
+import { EnhancedGalleryCard } from '../components/dashboard/EnhancedGalleryCard';
+import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
+import { AppDialog, AppDialogDescription, AppDialogTitle, AppPopover } from '../components/ui';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
 import { ShareLinkSettingsModal } from '../components/share-links/ShareLinkSettingsModal';
+import { useConfirmation } from '../hooks';
 import { handleApiError } from '../lib/errorHandling';
 import { formatDateOnly, formatFileSize } from '../lib/utils';
 import { galleryService } from '../services/galleryService';
 import { projectService } from '../services/projectService';
 import { shareLinkService } from '../services/shareLinkService';
-import type { ProjectDetail, ProjectFolderSummary, ShareLink } from '../types';
+import type { Gallery, ProjectDetail, ProjectFolderSummary, ShareLink } from '../types';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 const emptyFolderDraft: {
@@ -22,10 +26,53 @@ const emptyFolderDraft: {
   project_visibility: 'listed',
 };
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.05, delayChildren: 0.03 },
+  },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 20, scale: 0.98 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { type: 'spring' as const, stiffness: 320, damping: 26 },
+  },
+  exit: { opacity: 0, scale: 0.95, y: -6, transition: { duration: 0.14 } },
+};
+
+const toProjectGalleryCard = (folder: ProjectFolderSummary): Gallery => ({
+  id: folder.id,
+  owner_id: folder.owner_id,
+  project_id: folder.project_id,
+  project_name: folder.project_name,
+  project_position: folder.project_position,
+  project_visibility: folder.project_visibility,
+  name: folder.name,
+  created_at: folder.created_at,
+  shooting_date: folder.shooting_date,
+  public_sort_by: 'original_filename',
+  public_sort_order: 'asc',
+  cover_photo_id: folder.cover_photo_id,
+  photo_count: folder.photo_count,
+  total_size_bytes: folder.total_size_bytes,
+  has_active_share_links: folder.has_active_share_links,
+  cover_photo_thumbnail_url: folder.cover_photo_thumbnail_url,
+  recent_photo_thumbnail_urls: folder.recent_photo_thumbnail_urls,
+});
+
+const VISIBILITY_ACTION_BUTTON_CLASS =
+  'flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-accent';
+
 export const ProjectPage = () => {
   const { id } = useParams<{ id: string }>();
   const projectId = id!;
   const navigate = useNavigate();
+  const { openConfirm, ConfirmModal } = useConfirmation();
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,10 +80,16 @@ export const ProjectPage = () => {
   const [isFolderDialogOpen, setIsFolderDialogOpen] = useState(false);
   const [folderDraft, setFolderDraft] = useState(emptyFolderDraft);
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [isCreatingShareLink, setIsCreatingShareLink] = useState(false);
   const [isShareLinkCreateOpen, setIsShareLinkCreateOpen] = useState(false);
   const [editingShareLink, setEditingShareLink] = useState<ShareLink | null>(null);
   const [isUpdatingFolder, setIsUpdatingFolder] = useState<string | null>(null);
+  const [sharingGallery, setSharingGallery] = useState<Gallery | null>(null);
+  const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null);
+  const [renameInput, setRenameInput] = useState('');
+  const [isRenamingGallery, setIsRenamingGallery] = useState(false);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
+  const renameInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const loadProject = useCallback(async () => {
     if (!projectId) return;
@@ -90,6 +143,40 @@ export const ProjectPage = () => {
     }
   };
 
+  const beginInlineRename = (gallery: Gallery) => {
+    setError('');
+    setRenameGalleryId(gallery.id);
+    setRenameInput(gallery.name);
+  };
+
+  const cancelInlineRename = () => {
+    setRenameGalleryId(null);
+    setRenameInput('');
+  };
+
+  const handleConfirmRename = async () => {
+    if (!renameGalleryId) return;
+    const normalizedName = renameInput.trim();
+    const currentGallery = project?.folders.find((folder) => folder.id === renameGalleryId);
+    const currentName = currentGallery?.name?.trim() ?? '';
+
+    if (!normalizedName || normalizedName === currentName) {
+      cancelInlineRename();
+      return;
+    }
+
+    try {
+      setIsRenamingGallery(true);
+      await galleryService.updateGallery(renameGalleryId, { name: normalizedName });
+      cancelInlineRename();
+      await loadProject();
+    } catch (err) {
+      setError(handleApiError(err).message || 'Failed to rename gallery');
+    } finally {
+      setIsRenamingGallery(false);
+    }
+  };
+
   const handleVisibilityChange = async (
     folder: ProjectFolderSummary,
     visibility: 'listed' | 'direct_only',
@@ -103,6 +190,24 @@ export const ProjectPage = () => {
     } finally {
       setIsUpdatingFolder(null);
     }
+  };
+
+  const handleDeleteGallery = (gallery: Gallery) => {
+    openConfirm({
+      title: 'Delete Gallery?',
+      message: `Are you sure you want to delete "${gallery.name || `Gallery #${gallery.id}`}" and all its contents? This action cannot be undone.`,
+      isDangerous: true,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        try {
+          await galleryService.deleteGallery(gallery.id);
+          await loadProject();
+        } catch (err) {
+          setError(handleApiError(err).message || 'Failed to delete gallery');
+          throw err;
+        }
+      },
+    });
   };
 
   const handleDeleteProject = async () => {
@@ -119,9 +224,14 @@ export const ProjectPage = () => {
     is_active?: boolean;
     expires_at?: string | null;
   }) => {
-    const created = await shareLinkService.createProjectShareLink(projectId, payload);
-    await loadProject();
-    return created;
+    try {
+      setIsCreatingShareLink(true);
+      const created = await shareLinkService.createProjectShareLink(projectId, payload);
+      await loadProject();
+      return created;
+    } finally {
+      setIsCreatingShareLink(false);
+    }
   };
 
   const handleUpdateProjectShareLink = async (payload: {
@@ -138,6 +248,18 @@ export const ProjectPage = () => {
   const handleDeleteProjectShareLink = async (shareLinkId: string) => {
     await shareLinkService.deleteProjectShareLink(projectId, shareLinkId);
     await loadProject();
+  };
+
+  const handleCreateGalleryShareLink = async (payload: {
+    label?: string | null;
+    is_active?: boolean;
+    expires_at?: string | null;
+  }) => {
+    if (!sharingGallery) {
+      throw new Error('Gallery not selected');
+    }
+
+    return shareLinkService.createShareLink(sharingGallery.id, payload);
   };
 
   if (isLoading) {
@@ -176,7 +298,7 @@ export const ProjectPage = () => {
                 {project.name}
               </h1>
               <p className="mt-2 text-sm text-muted">
-                {formatDateOnly(project.shooting_date)} · {project.folder_count} folders ·{' '}
+                {formatDateOnly(project.shooting_date)} · {project.folder_count} galleries ·{' '}
                 {listedFolderCount} visible in project share
               </p>
             </div>
@@ -200,7 +322,7 @@ export const ProjectPage = () => {
               className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
             >
               <FolderPlus className="h-4 w-4" />
-              Add folder
+              Add gallery
             </button>
             <button
               type="button"
@@ -229,139 +351,146 @@ export const ProjectPage = () => {
       <section className="rounded-3xl border border-border/50 bg-surface p-6 shadow-xs dark:border-border/30 dark:bg-surface-dark">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold text-text">Folders</h2>
+            <h2 className="text-xl font-semibold text-text">Galleries</h2>
             <p className="text-sm text-muted">
-              Folders marked direct-only are hidden from project-wide public shares.
+              Project galleries use the same card layout as standalone galleries. Visibility lives
+              inside each card, and direct-link-only galleries stay hidden from project-wide public
+              shares.
             </p>
           </div>
         </div>
-        <div className="space-y-3">
+        <div className="space-y-4">
           {project.folders.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border/40 bg-surface-1/50 px-4 py-10 text-center text-sm text-muted">
-              No folders yet. Add the first folder to start uploading photos.
+              No galleries yet. Add the first gallery to start uploading photos.
             </div>
           ) : (
-            project.folders.map((folder) => (
-              <div
-                key={folder.id}
-                className="flex flex-col gap-3 rounded-2xl border border-border/40 bg-surface-1/50 p-4 lg:flex-row lg:items-center lg:justify-between"
+            <div className="space-y-5">
+              <motion.div
+                className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
               >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link
-                      to={`/galleries/${folder.id}`}
-                      className="font-semibold text-text hover:text-accent"
-                    >
-                      {folder.name || `Folder #${folder.id.slice(0, 8)}`}
-                    </Link>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                        (folder.project_visibility ?? 'listed') === 'listed'
-                          ? 'bg-accent/10 text-accent'
-                          : 'bg-amber-500/10 text-amber-600'
-                      }`}
-                    >
-                      {(folder.project_visibility ?? 'listed') === 'listed'
-                        ? 'Visible in project'
-                        : 'Direct link only'}
-                    </span>
-                    {folder.has_active_share_links ? (
-                      <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-600">
-                        Direct share active
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 text-sm text-muted">
-                    {folder.photo_count} photos · {formatFileSize(folder.total_size_bytes)} ·{' '}
-                    {formatDateOnly(folder.shooting_date)}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={folder.project_visibility ?? 'listed'}
-                    disabled={isUpdatingFolder === folder.id}
-                    onChange={(event) => {
-                      void handleVisibilityChange(
-                        folder,
-                        event.target.value as 'listed' | 'direct_only',
-                      );
-                    }}
-                    className="rounded-xl border border-border/40 bg-surface px-3 py-2 text-sm text-text"
-                  >
-                    <option value="listed">Visible in project</option>
-                    <option value="direct_only">Direct link only</option>
-                  </select>
-                  <Link
-                    to={`/galleries/${folder.id}`}
-                    className="rounded-xl border border-border/40 bg-surface px-3 py-2 text-sm font-semibold text-text hover:border-accent/40"
-                  >
-                    Open folder
-                  </Link>
-                </div>
-              </div>
-            ))
+                <AnimatePresence mode="popLayout">
+                  {project.folders.map((folder) => {
+                    const galleryCard = toProjectGalleryCard(folder);
+
+                    return (
+                      <div key={folder.id}>
+                        <EnhancedGalleryCard
+                          gallery={galleryCard}
+                          isRenamingThis={renameGalleryId === galleryCard.id}
+                          renameInput={renameInput}
+                          isRenaming={isRenamingGallery}
+                          renameInputRef={renameInputRef}
+                          onRenameInputChange={setRenameInput}
+                          onConfirmRename={handleConfirmRename}
+                          onCancelRename={cancelInlineRename}
+                          onBeginRename={beginInlineRename}
+                          onDelete={handleDeleteGallery}
+                          onShare={(gallery) => setSharingGallery(gallery)}
+                          extraTopBadges={
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium backdrop-blur-sm ${
+                                (folder.project_visibility ?? 'listed') === 'listed'
+                                  ? 'bg-accent/90 text-accent-foreground'
+                                  : 'bg-amber-500/85 text-slate-950'
+                              }`}
+                            >
+                              {(folder.project_visibility ?? 'listed') === 'listed' ? (
+                                <Check className="h-3 w-3" />
+                              ) : (
+                                <EyeOff className="h-3 w-3" />
+                              )}
+                              {(folder.project_visibility ?? 'listed') === 'listed'
+                                ? 'Visible in project'
+                                : 'Direct link only'}
+                            </span>
+                          }
+                          extraActions={
+                            <AppPopover
+                              key={`${folder.id}-${folder.project_visibility ?? 'listed'}`}
+                              className="relative"
+                              buttonClassName={VISIBILITY_ACTION_BUTTON_CLASS}
+                              buttonAriaLabel={`Change project visibility for ${folder.name}`}
+                              buttonContent={<Settings2 className="h-4 w-4" />}
+                              panelClassName="w-56 rounded-2xl border border-border/40 bg-surface p-2 shadow-2xl dark:bg-surface-dark"
+                              panel={
+                                <div className="space-y-1">
+                                  <p className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+                                    Project visibility
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleVisibilityChange(folder, 'listed')}
+                                    disabled={isUpdatingFolder === folder.id}
+                                    className={`flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
+                                      (folder.project_visibility ?? 'listed') === 'listed'
+                                        ? 'bg-accent/10 text-accent'
+                                        : 'text-text hover:bg-surface-1'
+                                    }`}
+                                  >
+                                    <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                                    <span>
+                                      <span className="block font-semibold">
+                                        Visible in project
+                                      </span>
+                                      <span className="block text-xs text-muted">
+                                        Shows in project-wide public links.
+                                      </span>
+                                    </span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void handleVisibilityChange(folder, 'direct_only')
+                                    }
+                                    disabled={isUpdatingFolder === folder.id}
+                                    className={`flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
+                                      (folder.project_visibility ?? 'listed') === 'direct_only'
+                                        ? 'bg-amber-500/10 text-amber-600'
+                                        : 'text-text hover:bg-surface-1'
+                                    }`}
+                                  >
+                                    <EyeOff className="mt-0.5 h-4 w-4 shrink-0" />
+                                    <span>
+                                      <span className="block font-semibold">Direct link only</span>
+                                      <span className="block text-xs text-muted">
+                                        Hidden from project shares, available by direct gallery
+                                        link.
+                                      </span>
+                                    </span>
+                                  </button>
+                                </div>
+                              }
+                            />
+                          }
+                          variants={cardVariants}
+                        />
+                      </div>
+                    );
+                  })}
+                </AnimatePresence>
+              </motion.div>
+              <p className="text-sm text-muted">
+                Direct-link-only galleries stay hidden from project-wide public shares, but they
+                keep their own direct share links.
+              </p>
+            </div>
           )}
         </div>
       </section>
 
-      <section className="rounded-3xl border border-border/50 bg-surface p-6 shadow-xs dark:border-border/30 dark:bg-surface-dark">
-        <div className="mb-4">
-          <h2 className="text-xl font-semibold text-text">Project share links</h2>
-          <p className="text-sm text-muted">
-            These links expose only folders marked visible in project.
-          </p>
-        </div>
-        <div className="space-y-3">
-          {shareLinks.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border/40 bg-surface-1/50 px-4 py-8 text-sm text-muted">
-              No project share links yet.
-            </div>
-          ) : (
-            shareLinks.map((link) => (
-              <div
-                key={link.id}
-                className="flex flex-col gap-3 rounded-2xl border border-border/40 bg-surface-1/50 p-4 lg:flex-row lg:items-center lg:justify-between"
-              >
-                <div>
-                  <div className="font-semibold text-text">
-                    {link.label || 'Untitled project link'}
-                  </div>
-                  <div className="text-sm text-muted">
-                    {link.is_active === false
-                      ? 'Inactive'
-                      : link.expires_at
-                        ? `Expires ${formatDateOnly(link.expires_at)}`
-                        : 'No expiration'}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditingShareLink(link)}
-                    className="rounded-xl border border-border/40 bg-surface px-3 py-2 text-sm font-semibold text-text hover:border-accent/40"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/share-links/${link.id}`)}
-                    className="rounded-xl border border-border/40 bg-surface px-3 py-2 text-sm font-semibold text-text hover:border-accent/40"
-                  >
-                    Analytics
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDeleteProjectShareLink(link.id)}
-                    className="rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-semibold text-danger"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
+      <ShareLinksSection
+        shareLinks={shareLinks}
+        isCreatingLink={isCreatingShareLink}
+        onCreateLink={() => setIsShareLinkCreateOpen(true)}
+        onDeleteLink={(linkId) => void handleDeleteProjectShareLink(linkId)}
+        onEditLink={(link) => setEditingShareLink(link)}
+        onOpenLinkAnalytics={(linkId) => navigate(`/share-links/${linkId}`)}
+        onOpenDashboard={() => navigate('/share-links')}
+      />
 
       <AppDialog
         open={isFolderDialogOpen}
@@ -374,10 +503,10 @@ export const ProjectPage = () => {
         panelClassName="rounded-3xl border border-border/50 bg-surface p-6 shadow-2xl dark:border-border/20 dark:bg-surface-dark"
       >
         <AppDialogTitle className="text-lg font-semibold text-text">
-          Add folder to project
+          Add gallery to project
         </AppDialogTitle>
         <AppDialogDescription className="mt-2 text-sm text-muted">
-          This creates a folder using the existing gallery upload flow.
+          This creates a gallery using the existing gallery upload flow.
         </AppDialogDescription>
         <div className="mt-4 space-y-4">
           <div>
@@ -385,7 +514,7 @@ export const ProjectPage = () => {
               className="mb-1.5 block text-sm font-medium text-text"
               htmlFor="project-folder-name"
             >
-              Folder name
+              Gallery name
             </label>
             <input
               id="project-folder-name"
@@ -395,7 +524,7 @@ export const ProjectPage = () => {
                 setFolderDraft((prev) => ({ ...prev, name: event.target.value }))
               }
               className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
-              placeholder="Folder name"
+              placeholder="Gallery name"
             />
           </div>
           <div>
@@ -452,7 +581,7 @@ export const ProjectPage = () => {
             onClick={() => void handleCreateFolder()}
             className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground"
           >
-            {isCreatingFolder ? 'Creating…' : 'Create folder'}
+            {isCreatingFolder ? 'Creating…' : 'Create gallery'}
           </button>
         </div>
       </AppDialog>
@@ -473,6 +602,27 @@ export const ProjectPage = () => {
         onClose={() => setEditingShareLink(null)}
         onSave={handleUpdateProjectShareLink}
       />
+
+      <ShareLinkSettingsModal
+        isOpen={Boolean(sharingGallery)}
+        mode="create"
+        galleryName={sharingGallery?.name}
+        onClose={() => setSharingGallery(null)}
+        onCreate={handleCreateGalleryShareLink}
+        onSaveSelectionConfig={(shareLinkId, payload) => {
+          if (!sharingGallery) {
+            throw new Error('Gallery not selected');
+          }
+          return shareLinkService.updateOwnerSelectionConfig(
+            sharingGallery.id,
+            shareLinkId,
+            payload,
+          );
+        }}
+        onManageCreated={(shareLinkId) => navigate(`/share-links/${shareLinkId}`)}
+      />
+
+      {ConfirmModal}
     </div>
   );
 };

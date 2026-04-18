@@ -162,6 +162,46 @@ const toGalleryWithComputedFields = (state: DemoGalleryState): Gallery => {
   };
 };
 
+const buildSeedGalleryState = (
+  gallery: Gallery,
+  photoCount: number,
+  shareLinks: ShareLink[],
+  selectionConfigFactory?: (link: ShareLink, index: number) => Partial<SelectionConfig>,
+): DemoGalleryState => {
+  const photos = Array.from({ length: photoCount }, (_, index) => buildPhoto(gallery.id, index));
+  const coverPhoto = photos[0]?.id ?? null;
+
+  const selectionConfigs: Record<string, SelectionConfig> = Object.fromEntries(
+    shareLinks.map((link, index) => [
+      link.id,
+      {
+        ...defaultSelectionConfig(),
+        ...(selectionConfigFactory?.(link, index) ?? {}),
+      },
+    ]),
+  );
+
+  return {
+    gallery: {
+      ...gallery,
+      cover_photo_id: coverPhoto,
+      photo_count: photos.length,
+      total_size_bytes: photos.reduce((sum, photo) => sum + (photo.file_size || 0), 0),
+      has_active_share_links: shareLinks.some((link) => link.is_active !== false),
+      cover_photo_thumbnail_url:
+        photos.find((photo) => photo.id === coverPhoto)?.thumbnail_url ?? null,
+      recent_photo_thumbnail_urls: photos
+        .slice(0, 3)
+        .map((photo) => photo.thumbnail_url)
+        .filter(Boolean),
+    },
+    photos,
+    shareLinks,
+    selectionConfigs,
+    selectionSessions: {},
+  };
+};
+
 const buildPhoto = (galleryId: string, index: number): GalleryPhoto => {
   const seed = `${galleryId}-${index}`;
   const width = 2200 + (index % 5) * 120;
@@ -176,6 +216,137 @@ const buildPhoto = (galleryId: string, index: number): GalleryPhoto => {
     height,
     file_size: 2_100_000 + index * 110_000,
     uploaded_at: nowIso(),
+  };
+};
+
+const buildSeedProjectContent = (): {
+  galleries: DemoGalleryState[];
+  projects: DemoProjectState[];
+} => {
+  const projectId = 'demo-project-porto-delivery';
+  const createdAt = '2026-04-04T09:30:00Z';
+
+  const photosShareLink: ShareLink = {
+    id: 'sg-demo-project-porto-photos',
+    scope_type: 'gallery',
+    gallery_id: 'demo-project-porto-photos',
+    project_id: null,
+    label: 'Photos delivery',
+    is_active: true,
+    expires_at: null,
+    views: 11,
+    zip_downloads: 2,
+    single_downloads: 6,
+    created_at: createdAt,
+    updated_at: createdAt,
+  };
+
+  const editsShareLink: ShareLink = {
+    id: 'sg-demo-project-porto-3eds',
+    scope_type: 'gallery',
+    gallery_id: 'demo-project-porto-3eds',
+    project_id: null,
+    label: '3eds delivery',
+    is_active: true,
+    expires_at: null,
+    views: 7,
+    zip_downloads: 1,
+    single_downloads: 3,
+    created_at: createdAt,
+    updated_at: createdAt,
+  };
+
+  const projectShareLink: ShareLink = {
+    id: 'sp-demo-project-porto',
+    scope_type: 'project',
+    project_id: projectId,
+    gallery_id: null,
+    label: 'Full project delivery',
+    is_active: true,
+    expires_at: null,
+    views: 14,
+    zip_downloads: 3,
+    single_downloads: 0,
+    created_at: createdAt,
+    updated_at: createdAt,
+  };
+
+  return {
+    galleries: [
+      buildSeedGalleryState(
+        {
+          id: 'demo-project-porto-photos',
+          owner_id: DEMO_OWNER_ID,
+          project_id: projectId,
+          project_name: 'Porto Wedding Delivery',
+          project_position: 0,
+          project_visibility: 'listed',
+          name: 'Photos',
+          created_at: createdAt,
+          shooting_date: '2026-04-03T11:00:00Z',
+          public_sort_by: 'original_filename',
+          public_sort_order: 'asc',
+          cover_photo_id: null,
+          photo_count: 0,
+          total_size_bytes: 0,
+          has_active_share_links: false,
+          cover_photo_thumbnail_url: null,
+          recent_photo_thumbnail_urls: [],
+        },
+        12,
+        [photosShareLink],
+        (_link, index) =>
+          index === 0
+            ? {
+                is_enabled: true,
+                allow_photo_comments: true,
+                limit_enabled: true,
+                limit_value: 15,
+              }
+            : {},
+      ),
+      buildSeedGalleryState(
+        {
+          id: 'demo-project-porto-3eds',
+          owner_id: DEMO_OWNER_ID,
+          project_id: projectId,
+          project_name: 'Porto Wedding Delivery',
+          project_position: 1,
+          project_visibility: 'listed',
+          name: '3eds',
+          created_at: createdAt,
+          shooting_date: '2026-04-03T11:00:00Z',
+          public_sort_by: 'original_filename',
+          public_sort_order: 'asc',
+          cover_photo_id: null,
+          photo_count: 0,
+          total_size_bytes: 0,
+          has_active_share_links: false,
+          cover_photo_thumbnail_url: null,
+          recent_photo_thumbnail_urls: [],
+        },
+        8,
+        [editsShareLink],
+      ),
+    ],
+    projects: [
+      {
+        project: {
+          id: projectId,
+          owner_id: DEMO_OWNER_ID,
+          name: 'Porto Wedding Delivery',
+          created_at: createdAt,
+          shooting_date: '2026-04-03T11:00:00Z',
+          folder_count: 0,
+          listed_folder_count: 0,
+          total_photo_count: 0,
+          total_size_bytes: 0,
+          has_active_share_links: false,
+          recent_folder_thumbnail_urls: [],
+        },
+        shareLinks: [projectShareLink],
+      },
+    ],
   };
 };
 
@@ -228,14 +399,13 @@ const seedState = (): DemoGalleryState[] => {
     },
   ];
 
-  return galleries.map((gallery, galleryIndex) => {
-    const photoCount = galleryIndex === 0 ? 14 : galleryIndex === 1 ? 10 : 8;
-    const photos = Array.from({ length: photoCount }, (_, index) => buildPhoto(gallery.id, index));
-    const coverPhoto = photos[0]?.id ?? null;
-
+  const standaloneGalleries = galleries.map((gallery, galleryIndex) => {
     const shareLinks: ShareLink[] = [
       {
         id: `${gallery.id}-share-${makeDemoId().slice(0, 8)}`,
+        scope_type: 'gallery',
+        gallery_id: gallery.id,
+        project_id: null,
         label: galleryIndex === 0 ? 'Preview for Ivan' : null,
         is_active: true,
         expires_at: null,
@@ -246,39 +416,98 @@ const seedState = (): DemoGalleryState[] => {
         updated_at: nowIso(),
       },
     ];
-    const selectionConfigs: Record<string, SelectionConfig> = Object.fromEntries(
-      shareLinks.map((link) => [
-        link.id,
-        {
-          ...defaultSelectionConfig(),
-          is_enabled: galleryIndex === 0,
-          allow_photo_comments: galleryIndex === 0,
-          limit_enabled: galleryIndex === 0,
-          limit_value: galleryIndex === 0 ? 10 : null,
-        },
-      ]),
-    );
 
-    return {
-      gallery: {
-        ...gallery,
-        cover_photo_id: coverPhoto,
-        photo_count: photos.length,
-        total_size_bytes: photos.reduce((sum, photo) => sum + (photo.file_size || 0), 0),
-        has_active_share_links: shareLinks.some((link) => link.is_active !== false),
-        cover_photo_thumbnail_url:
-          photos.find((photo) => photo.id === coverPhoto)?.thumbnail_url ?? null,
-        recent_photo_thumbnail_urls: photos
-          .slice(0, 3)
-          .map((photo) => photo.thumbnail_url)
-          .filter(Boolean),
-      },
-      photos,
+    return buildSeedGalleryState(
+      gallery,
+      galleryIndex === 0 ? 14 : galleryIndex === 1 ? 10 : 8,
       shareLinks,
-      selectionConfigs,
-      selectionSessions: {},
-    };
+      () => ({
+        is_enabled: galleryIndex === 0,
+        allow_photo_comments: galleryIndex === 0,
+        limit_enabled: galleryIndex === 0,
+        limit_value: galleryIndex === 0 ? 10 : null,
+      }),
+    );
   });
+
+  return [...buildSeedProjectContent().galleries, ...standaloneGalleries];
+};
+
+const buildInitialProjectState = (): DemoProjectState[] => buildSeedProjectContent().projects;
+
+const buildProjectsFromGalleryState = (galleries: DemoGalleryState[]): DemoProjectState[] => {
+  const groupedProjects = new Map<string, DemoProjectState>();
+
+  for (const entry of galleries) {
+    const projectId = entry.gallery.project_id;
+    if (!projectId) {
+      continue;
+    }
+
+    if (!groupedProjects.has(projectId)) {
+      groupedProjects.set(projectId, {
+        project: {
+          id: projectId,
+          owner_id: entry.gallery.owner_id,
+          name: entry.gallery.project_name?.trim() || 'Untitled Project',
+          created_at: entry.gallery.created_at,
+          shooting_date: entry.gallery.shooting_date,
+          folder_count: 0,
+          listed_folder_count: 0,
+          total_photo_count: 0,
+          total_size_bytes: 0,
+          has_active_share_links: false,
+          recent_folder_thumbnail_urls: [],
+        },
+        shareLinks: [],
+      });
+    }
+  }
+
+  return Array.from(groupedProjects.values()).sort(
+    (left, right) => Date.parse(right.project.created_at) - Date.parse(left.project.created_at),
+  );
+};
+
+const ensureProjectRecords = (state: DemoPersistedState | null): DemoPersistedState | null => {
+  if (!state) {
+    return null;
+  }
+
+  if ((state.projects?.length ?? 0) > 0) {
+    return state;
+  }
+
+  const reconstructedProjects = buildProjectsFromGalleryState(state.galleries);
+  if (reconstructedProjects.length === 0) {
+    return state;
+  }
+
+  return {
+    ...state,
+    projects: reconstructedProjects,
+  };
+};
+
+const ensureProjectDemoContent = (state: DemoPersistedState | null): DemoPersistedState | null => {
+  if (!state) {
+    return null;
+  }
+
+  const hasProjectContent =
+    (state.projects?.length ?? 0) > 0 ||
+    state.galleries.some((entry) => Boolean(entry.gallery.project_id));
+
+  if (hasProjectContent) {
+    return state;
+  }
+
+  const seedProjectContent = buildSeedProjectContent();
+  return {
+    ...state,
+    galleries: [...seedProjectContent.galleries, ...state.galleries],
+    projects: seedProjectContent.projects,
+  };
 };
 
 const demoUser: User = {
@@ -324,12 +553,12 @@ class DemoServiceStore {
   private user: User;
 
   constructor() {
-    const restored = this.restoreState();
+    const restored = ensureProjectRecords(ensureProjectDemoContent(this.restoreState()));
     this.galleries = (restored?.galleries || seedState()).map((galleryState) => ({
       ...galleryState,
       selectionSessions: normalizeSelectionSessionMap(galleryState.selectionSessions),
     }));
-    this.projects = restored?.projects || [];
+    this.projects = restored ? (restored.projects ?? []) : buildInitialProjectState();
     this.user = restored?.user || { ...demoUser };
     this.recalculateStorageUsed();
     this.recalculateProjects();

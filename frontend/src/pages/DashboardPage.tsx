@@ -328,9 +328,9 @@ export const DashboardPage = () => {
       <div className="mb-6 inline-flex rounded-full bg-accent/10 p-4">
         <Plus className="h-8 w-8 text-accent" />
       </div>
-      <h3 className="mb-2 text-2xl font-semibold text-text">No standalone folders yet</h3>
+      <h3 className="mb-2 text-2xl font-semibold text-text">No standalone galleries yet</h3>
       <p className="mx-auto mb-8 max-w-md text-lg text-muted">
-        Create a standalone folder for quick uploads or add a folder inside a project.
+        Create a standalone gallery for quick uploads or add a gallery inside a project.
       </p>
       <button
         onClick={handleOpenModal}
@@ -343,7 +343,7 @@ export const DashboardPage = () => {
         ) : (
           <Plus className="h-5 w-5" />
         )}
-        Create First Folder
+        Create First Gallery
       </button>
     </div>
   );
@@ -428,10 +428,10 @@ export const DashboardPage = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">
-            Projects & Folders
+            Projects & Galleries
           </h1>
           <p className="font-cuprum text-lg text-muted">
-            Organize folders inside projects, or keep standalone folders for quick work.
+            Organize galleries inside projects, or keep standalone galleries for quick work.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -459,7 +459,7 @@ export const DashboardPage = () => {
             ) : (
               <Plus className="h-5 w-5" />
             )}
-            New Folder
+            New Gallery
           </button>
         </div>
       </div>
@@ -521,13 +521,13 @@ export const DashboardPage = () => {
           <div>
             <h2 className="text-2xl font-semibold text-text">Projects</h2>
             <p className="text-sm text-muted">
-              Project-wide shares show only folders marked visible.
+              Project-wide shares show only galleries marked visible.
             </p>
           </div>
         </div>
         {projects.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border/40 bg-surface-1/50 px-4 py-8 text-sm text-muted">
-            No projects yet. Create a project to group related folders.
+            No projects yet. Create a project to group related galleries.
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -546,7 +546,7 @@ export const DashboardPage = () => {
                 </h3>
                 <div className="mt-4 flex flex-wrap gap-2 text-sm text-muted">
                   <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
-                    {project.folder_count} folders
+                    {project.folder_count} galleries
                   </span>
                   <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
                     {project.total_photo_count} photos
@@ -563,8 +563,8 @@ export const DashboardPage = () => {
 
       <section className="space-y-4">
         <div>
-          <h2 className="text-2xl font-semibold text-text">Standalone folders</h2>
-          <p className="text-sm text-muted">These folders are not assigned to a project yet.</p>
+          <h2 className="text-2xl font-semibold text-text">Standalone galleries</h2>
+          <p className="text-sm text-muted">These galleries are not assigned to a project yet.</p>
         </div>
 
         {isLoading && showLoadingSkeleton

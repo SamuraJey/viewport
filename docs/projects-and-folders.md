@@ -1,9 +1,9 @@
-# Projects and Folders
+# Projects and Galleries
 
 Viewport now supports a two-level organization model:
 
 - **Project** = photographer-facing parent container
-- **Gallery** = folder inside a project, or a standalone folder when `project_id` is `null`
+- **Gallery** = gallery inside a project, or a standalone gallery when `project_id` is `null`
 
 This keeps the existing upload/photo pipeline gallery-based while adding project-level grouping and sharing.
 
@@ -20,7 +20,7 @@ This keeps the existing upload/photo pipeline gallery-based while adding project
 - `shooting_date`
 - `is_deleted`
 
-### Gallery as folder
+### Gallery placement inside a project
 
 `galleries` remains the upload unit and now also stores project placement:
 
@@ -30,14 +30,14 @@ This keeps the existing upload/photo pipeline gallery-based while adding project
 
 `project_visibility` values:
 
-- `listed` — folder is visible inside a project share
-- `direct_only` — folder is hidden from project shares and only accessible through its own direct share link
+- `listed` — gallery is visible inside a project share
+- `direct_only` — gallery is hidden from project shares and only accessible through its own direct share link
 
 ## Share scopes
 
 `share_links` now supports two scopes:
 
-- `scope_type = "gallery"` — direct link to one folder
+- `scope_type = "gallery"` — direct link to one gallery
 - `scope_type = "project"` — link to the whole project
 
 Only one target is allowed per share link:
@@ -47,23 +47,29 @@ Only one target is allowed per share link:
 
 ## Public visibility rules
 
-### Folder share
+### Gallery share
 
-`GET /s/{share_id}` returns a folder/gallery response with photos.
+`GET /s/{share_id}` returns a gallery response with photos.
 
 ### Project share
 
-`GET /s/{share_id}` returns a project response with listed folders only.
+`GET /s/{share_id}` returns a project response with listed galleries only.
 
-`GET /s/{share_id}/folders/{folder_id}` opens a folder from the project share only when that folder is `listed`.
+`GET /s/{share_id}/folders/{folder_id}` opens a gallery from the project share only when that gallery is `listed`.
 
-### Hidden folders
+Shared project UX is gallery-tab based:
+
+- opening `/share/{share_id}` for a project automatically opens the first listed gallery
+- the public page renders a horizontal list of gallery names
+- no preview cards are shown for project navigation
+
+### Hidden galleries
 
 For `project_visibility = "direct_only"`:
 
-- the folder is **not shown** in project share responses
-- the folder is **not reachable** through `/s/{project_share_id}/folders/{folder_id}`
-- the folder **is reachable** through its own direct gallery share link
+- the gallery is **not shown** in project share responses
+- the gallery is **not reachable** through `/s/{project_share_id}/folders/{folder_id}`
+- the gallery **is reachable** through its own direct gallery share link
 
 ### Link lifecycle semantics
 
@@ -94,12 +100,12 @@ Gallery endpoints still work and now accept project placement fields where relev
 
 ## Frontend surfaces
 
-- `DashboardPage.tsx` shows **Projects** and **Standalone folders**
-- `ProjectPage.tsx` manages project folders and project share links
-- `GalleryPage.tsx` remains photo-first for folder-level work
+- `DashboardPage.tsx` shows **Projects** and **Standalone galleries**
+- `ProjectPage.tsx` manages project galleries and project share links using a horizontal gallery-name strip instead of preview cards
+- `GalleryPage.tsx` remains photo-first for gallery-level work
 - `PublicGalleryPage.tsx` now renders either:
-  - a folder share page with photos, or
-  - a project share page with listed folders
+  - a gallery share page with photos, or
+  - a project share page that opens the first listed gallery and renders a horizontal list of gallery names
 
 ## Backward compatibility
 

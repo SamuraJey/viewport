@@ -111,9 +111,9 @@ describe('DashboardPage', () => {
 
     await screen.findByText('Wedding Weekend');
 
-    expect(screen.getByText('Projects & Folders')).toBeInTheDocument();
+    expect(screen.getByText('Projects & Galleries')).toBeInTheDocument();
     expect(screen.getByText('Projects')).toBeInTheDocument();
-    expect(screen.getByText('Standalone folders')).toBeInTheDocument();
+    expect(screen.getByText('Standalone galleries')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create new project' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create new gallery' })).toBeInTheDocument();
     expect(screen.getByLabelText('Search galleries')).toBeInTheDocument();
@@ -233,9 +233,9 @@ describe('DashboardPage', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('No projects yet. Create a project to group related folders.'),
+        screen.getByText('No projects yet. Create a project to group related galleries.'),
       ).toBeInTheDocument();
-      expect(screen.getByText('No standalone folders yet')).toBeInTheDocument();
+      expect(screen.getByText('No standalone galleries yet')).toBeInTheDocument();
     });
   });
 });

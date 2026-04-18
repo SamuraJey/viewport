@@ -49,7 +49,7 @@ const buildDemoState = (expiresAt: string) => ({
   },
 });
 
-describe('demoService.getOwnerShareLinks', () => {
+describe('demoService', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
@@ -69,8 +69,46 @@ describe('demoService.getOwnerShareLinks', () => {
     const active = await service.getOwnerShareLinks(1, 20, undefined, 'active');
     const expired = await service.getOwnerShareLinks(1, 20, undefined, 'expired');
 
-    expect(active.total).toBe(0);
-    expect(expired.total).toBe(1);
-    expect(expired.share_links[0]?.id).toBe('link-1');
+    expect(active.share_links.some((link) => link.id === 'link-1')).toBe(false);
+    expect(expired.share_links.some((link) => link.id === 'link-1')).toBe(true);
+  });
+
+  it('backfills a seeded multi-gallery project for legacy demo state', async () => {
+    localStorage.setItem(
+      DEMO_STATE_STORAGE_KEY,
+      JSON.stringify({
+        galleries: buildDemoState('2026-04-17T12:00:00.000Z').galleries,
+        user: buildDemoState('2026-04-17T12:00:00.000Z').user,
+      }),
+    );
+
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    const projects = await service.getProjects(1, 20);
+    const seededProject = projects.projects.find(
+      (project) => project.name === 'Porto Wedding Delivery',
+    );
+
+    expect(seededProject).toBeTruthy();
+    expect(seededProject?.folder_count).toBe(2);
+
+    const detail = await service.getProject(seededProject!.id);
+    expect(detail.folders.map((folder) => folder.name)).toEqual(['Photos', '3eds']);
+  });
+
+  it('creates multiple galleries inside a project in demo mode', async () => {
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    const project = await service.createProject({ name: 'Client Delivery' });
+
+    await service.createProjectFolder(project.id, { name: 'Photos' });
+    await service.createProjectFolder(project.id, { name: '3eds' });
+
+    const detail = await service.getProject(project.id);
+
+    expect(detail.folder_count).toBe(2);
+    expect(detail.folders.map((folder) => folder.name)).toEqual(['Photos', '3eds']);
   });
 });

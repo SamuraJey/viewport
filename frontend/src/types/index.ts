@@ -63,6 +63,7 @@ export type {
   PublicPhoto,
   PublicProjectFolder,
   SharedGallery,
+  SharedProjectShare,
   SharedGalleryQueryOptions,
   SelectionConfig,
   SelectionConfigUpdateRequest,

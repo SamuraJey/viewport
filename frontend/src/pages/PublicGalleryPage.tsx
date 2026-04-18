@@ -27,7 +27,7 @@ import { handleApiError } from '../lib/errorHandling';
 import { getAccessiblePhotoName } from '../lib/accessibility';
 import { getDemoService } from '../services/demoService';
 import { shareLinkService } from '../services/shareLinkService';
-import type { PublicPhoto, SelectionSessionStartRequest } from '../types';
+import type { PublicPhoto, SelectionSessionStartRequest, SharedProjectShare } from '../types';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -57,6 +57,7 @@ export const PublicGalleryPage = () => {
   const [selectedPhotos, setSelectedPhotos] = useState<PublicPhoto[]>([]);
   const [selectedPhotosError, setSelectedPhotosError] = useState('');
   const [isLoadingSelectedPhotos, setIsLoadingSelectedPhotos] = useState(false);
+  const [projectNavigation, setProjectNavigation] = useState<SharedProjectShare | null>(null);
   const startNameInputRef = useRef<HTMLInputElement | null>(null);
 
   const { gallery, photos, isLoading, isLoadingMore, hasMore, error, errorStatus, loadMorePhotos } =
@@ -303,6 +304,49 @@ export const PublicGalleryPage = () => {
   const projectShare = gallery?.scope_type === 'project' ? gallery : null;
   const folderShare = gallery?.scope_type === 'project' ? null : gallery;
   const isProjectShare = projectShare !== null;
+  const projectGalleryTabs = projectNavigation ?? projectShare;
+
+  useEffect(() => {
+    if (!shareId || isFavoritesView) {
+      setProjectNavigation(null);
+      return;
+    }
+
+    if (!folderId) {
+      setProjectNavigation(projectShare);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadProjectNavigation = async () => {
+      try {
+        const response = await shareLinkService.getSharedGallery(shareId);
+        if (cancelled) {
+          return;
+        }
+        setProjectNavigation(response.scope_type === 'project' ? response : null);
+      } catch {
+        if (!cancelled) {
+          setProjectNavigation(null);
+        }
+      }
+    };
+
+    void loadProjectNavigation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [folderId, isFavoritesView, projectShare, shareId]);
+
+  useEffect(() => {
+    if (isFavoritesView || folderId || !projectShare?.folders.length) {
+      return;
+    }
+
+    navigate(projectShare.folders[0].route_path, { replace: true });
+  }, [folderId, isFavoritesView, navigate, projectShare]);
 
   const handleLogoutSelection = useCallback(() => {
     if (!shareId) {
@@ -393,69 +437,48 @@ export const PublicGalleryPage = () => {
     return <PublicGalleryError error={error} />;
   }
 
-  if (isProjectShare && !isFavoritesView) {
+  if (isProjectShare && !folderId && !isFavoritesView) {
+    if (projectShare.folders.length === 0) {
+      return (
+        <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
+          <SkipToContentLink targetId="main-content" />
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="mx-auto flex min-h-screen max-w-4xl items-center px-4 py-16 sm:px-6 lg:px-10"
+          >
+            <div className="w-full rounded-3xl border border-border/50 bg-surface p-8 shadow-xs">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
+                Project share
+              </p>
+              <h1 className="mt-3 font-oswald text-4xl font-bold uppercase tracking-wide text-text">
+                {projectShare.project_name || 'Public Project'}
+              </h1>
+              <p className="mt-3 text-sm text-muted">
+                No visible galleries are available in this project.
+              </p>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
         <SkipToContentLink targetId="main-content" />
-        <div className="fixed top-6 right-6 z-30 flex items-center gap-2">
-          <ReadabilitySettingsButton />
-          <ThemeSwitch variant="inline" />
-        </div>
-
         <main
           id="main-content"
           tabIndex={-1}
-          className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-10"
+          className="mx-auto flex min-h-screen max-w-4xl items-center px-4 py-16 sm:px-6 lg:px-10"
         >
-          <section className="rounded-3xl border border-border/50 bg-surface-1/70 p-8 shadow-xs">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
-              Project share
-            </p>
-            <h1 className="mt-3 font-oswald text-4xl font-bold uppercase tracking-wide text-text">
-              {projectShare.project_name || 'Public Project'}
-            </h1>
-            <p className="mt-3 text-sm text-muted">
-              {projectShare.photographer || 'Photographer'} · {projectShare.date || 'No date'} ·{' '}
-              {projectShare.total_listed_folders || 0} folders ·{' '}
-              {projectShare.total_listed_photos || 0} photos
-            </p>
-          </section>
-
-          <div className="mt-6 flex justify-end">
-            <button
-              onClick={handleDownloadAll}
-              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
-            >
-              <DownloadIcon className="h-4 w-4" />
-              Download visible folders
-            </button>
+          <div
+            role="status"
+            aria-live="polite"
+            aria-label="Opening project gallery"
+            className="rounded-2xl border border-border/50 bg-surface-1/70 px-5 py-4 text-sm font-medium text-muted shadow-xs"
+          >
+            Opening the first gallery…
           </div>
-
-          <section className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {projectShare.folders.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border/40 bg-surface-1/50 px-4 py-10 text-sm text-muted">
-                No visible folders in this project.
-              </div>
-            ) : (
-              projectShare.folders.map((folder) => (
-                <Link
-                  key={folder.folder_id}
-                  to={folder.route_path}
-                  className="rounded-2xl border border-border/40 bg-surface p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40"
-                >
-                  {folder.cover_thumbnail_url ? (
-                    <img
-                      src={folder.cover_thumbnail_url}
-                      alt={folder.folder_name}
-                      className="mb-4 h-48 w-full rounded-xl object-cover"
-                    />
-                  ) : null}
-                  <h2 className="font-semibold text-text">{folder.folder_name}</h2>
-                  <p className="mt-1 text-sm text-muted">{folder.photo_count} photos</p>
-                </Link>
-              ))
-            )}
-          </section>
         </main>
       </div>
     );
@@ -472,6 +495,57 @@ export const PublicGalleryPage = () => {
       <PublicGalleryHero gallery={folderShare} />
 
       <main id="main-content" tabIndex={-1} className="w-full px-4 py-16 sm:px-6 lg:px-10">
+        {projectGalleryTabs ? (
+          <section className="mb-6 rounded-2xl border border-border/50 bg-surface-1/70 p-4 shadow-xs">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
+                  Project
+                </p>
+                <h2 className="mt-1 text-lg font-semibold text-text">
+                  {projectGalleryTabs.project_name || 'Public Project'}
+                </h2>
+                <p className="mt-1 text-sm text-muted">
+                  {projectGalleryTabs.photographer || 'Photographer'} ·{' '}
+                  {projectGalleryTabs.total_listed_folders || 0} galleries ·{' '}
+                  {projectGalleryTabs.total_listed_photos || 0} photos
+                </p>
+              </div>
+              {!isFavoritesView ? (
+                <button
+                  onClick={handleDownloadAll}
+                  className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
+                >
+                  <DownloadIcon className="h-4 w-4" />
+                  Download Project
+                </button>
+              ) : null}
+            </div>
+
+            <div className="mt-4 overflow-x-auto pb-1">
+              <div className="flex min-w-max gap-2">
+                {projectGalleryTabs.folders.map((projectGallery, index) => {
+                  const isActive =
+                    projectGallery.folder_id === folderId || (!folderId && index === 0);
+                  return (
+                    <Link
+                      key={projectGallery.folder_id}
+                      to={projectGallery.route_path}
+                      className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
+                        isActive
+                          ? 'border-accent/50 bg-accent/10 text-accent'
+                          : 'border-border/40 bg-surface text-text hover:border-accent/30'
+                      }`}
+                    >
+                      {projectGallery.folder_name}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
         <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/50 bg-surface-1/70 px-4 py-3 shadow-xs">
           <div className="flex flex-wrap items-center gap-2">
             {isFavoritesView ? (
@@ -493,7 +567,7 @@ export const PublicGalleryPage = () => {
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {!isFavoritesView && photos.length > 0 ? (
+            {!isFavoritesView && photos.length > 0 && !projectGalleryTabs ? (
               <button
                 onClick={handleDownloadAll}
                 className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"

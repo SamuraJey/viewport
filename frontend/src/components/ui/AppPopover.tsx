@@ -23,6 +23,7 @@ const panelVariants = {
 interface AppPopoverProps {
   className?: string;
   buttonClassName?: string | ((open: boolean) => string);
+  buttonAriaLabel?: string;
   buttonContent: ReactNode | ((open: boolean) => ReactNode);
   buttonRef?: RefObject<HTMLButtonElement | null>;
   panelClassName?: string;
@@ -33,6 +34,7 @@ interface AppPopoverProps {
 export const AppPopover = ({
   className,
   buttonClassName,
+  buttonAriaLabel,
   buttonContent,
   buttonRef,
   panelClassName,
@@ -44,6 +46,7 @@ export const AppPopover = ({
       <>
         <PopoverButton
           ref={buttonRef}
+          aria-label={buttonAriaLabel}
           className={cn(
             typeof buttonClassName === 'function' ? buttonClassName(open) : buttonClassName,
           )}
