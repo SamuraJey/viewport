@@ -51,6 +51,7 @@ class PublicProjectResponse(BaseModel):
     photographer: str = ""
     date: str = ""
     site_url: str = ""
+    cover: PublicCover | None = None
     total_listed_folders: int = 0
     total_listed_photos: int = 0
     folders: list[PublicProjectFolder] = Field(default_factory=list)

@@ -200,6 +200,42 @@ async def _build_public_gallery_response(
     )
 
 
+async def _build_project_cover(
+    *,
+    gallery: Gallery | None,
+    gallery_repo: GalleryRepository,
+    s3_client: AsyncS3Client,
+) -> PublicCover | None:
+    if gallery is None:
+        return None
+
+    cover_photo = None
+    if gallery.cover_photo_id:
+        cover_photo = await gallery_repo.get_photo_by_id_and_gallery(gallery.cover_photo_id, gallery.id)
+
+    if cover_photo is None:
+        recent_photos = await gallery_repo.get_photos_by_gallery_id(gallery.id)
+        cover_photo = recent_photos[0] if recent_photos else None
+
+    if cover_photo is None or not cover_photo.object_key or not cover_photo.thumbnail_object_key:
+        return None
+
+    full_url = await s3_client.generate_presigned_url_async(
+        cover_photo.object_key,
+        response_content_disposition=_build_content_disposition(cover_photo.display_name, disposition_type="inline"),
+    )
+    thumbnail_url = await s3_client.generate_presigned_url_async(cover_photo.thumbnail_object_key)
+
+    return PublicCover(
+        photo_id=str(cover_photo.id),
+        full_url=full_url,
+        thumbnail_url=thumbnail_url,
+        filename=cover_photo.display_name,
+        width=getattr(cover_photo, "width", None),
+        height=getattr(cover_photo, "height", None),
+    )
+
+
 async def _build_public_project_response(
     *,
     share_id: UUID,
@@ -217,6 +253,11 @@ async def _build_public_project_response(
         raise HTTPException(status_code=404, detail="Project not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
     folders = await project_repo.get_visible_project_folders(project.id)
+    project_cover = await _build_project_cover(
+        gallery=folders[0] if folders else None,
+        gallery_repo=gallery_repo,
+        s3_client=s3_client,
+    )
     folder_items: list[PublicProjectFolder] = []
     total_listed_photos = 0
     for folder in folders:
@@ -259,6 +300,7 @@ async def _build_public_project_response(
         photographer=photographer,
         date=_date_str(getattr(project, "shooting_date", None), getattr(project, "created_at", None), getattr(sharelink, "created_at", None)),
         site_url=_site_url(request),
+        cover=project_cover,
         total_listed_folders=len(folder_items),
         total_listed_photos=total_listed_photos,
         folders=folder_items,

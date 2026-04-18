@@ -1636,6 +1636,16 @@ class DemoServiceStore {
     const listedFolders = listedFolderStates
       .map((entry) => toGalleryWithComputedFields(entry))
       .sort((left, right) => (left.project_position ?? 0) - (right.project_position ?? 0));
+    const leftmostFolderState = [...listedFolderStates].sort(
+      (left, right) => (left.gallery.project_position ?? 0) - (right.gallery.project_position ?? 0),
+    )[0];
+    const leftmostCoverPhoto = leftmostFolderState
+      ? leftmostFolderState.gallery.cover_photo_id
+        ? (leftmostFolderState.photos.find(
+            (photo) => photo.id === leftmostFolderState.gallery.cover_photo_id,
+          ) ?? leftmostFolderState.photos[0])
+        : leftmostFolderState.photos[0]
+      : null;
 
     if (options?.folderId) {
       const folderState = listedFolderStates.find((entry) => entry.gallery.id === options.folderId);
@@ -1691,6 +1701,13 @@ class DemoServiceStore {
       photographer: this.user.display_name || this.user.email,
       date: projectState.project.shooting_date,
       site_url: window.location.origin,
+      cover: leftmostCoverPhoto
+        ? {
+            photo_id: leftmostCoverPhoto.id,
+            full_url: leftmostCoverPhoto.url,
+            thumbnail_url: leftmostCoverPhoto.thumbnail_url,
+          }
+        : null,
       total_listed_folders: listedFolders.length,
       total_listed_photos: listedFolders.reduce(
         (sum, folder) => sum + (folder.photo_count || 0),

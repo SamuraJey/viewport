@@ -171,3 +171,76 @@ class TestProjectAPI:
         assert analytics_payload["share_link"]["scope_type"] == "project"
         assert analytics_payload["share_link"]["views"] == 1
         assert analytics_payload["points"][-1]["views_total"] == 1
+
+    def test_project_share_cover_and_folder_order_follow_project_positions(self, authenticated_client: TestClient):
+        project_resp = authenticated_client.post("/projects", json={"name": "Ordered Project"})
+        assert project_resp.status_code == 201
+        project_id = project_resp.json()["id"]
+
+        first_folder_resp = authenticated_client.post(
+            f"/projects/{project_id}/folders",
+            json={"name": "First", "project_visibility": "listed"},
+        )
+        second_folder_resp = authenticated_client.post(
+            f"/projects/{project_id}/folders",
+            json={"name": "Second", "project_visibility": "listed"},
+        )
+        assert first_folder_resp.status_code == 201
+        assert second_folder_resp.status_code == 201
+        first_folder_id = first_folder_resp.json()["id"]
+        second_folder_id = second_folder_resp.json()["id"]
+
+        first_photo_id = upload_photo_via_presigned(
+            authenticated_client,
+            first_folder_id,
+            b"first",
+            "first.jpg",
+        )
+        second_photo_id = upload_photo_via_presigned(
+            authenticated_client,
+            second_folder_id,
+            b"second",
+            "second.jpg",
+        )
+
+        project_share_resp = authenticated_client.post(f"/projects/{project_id}/share-links", json={})
+        assert project_share_resp.status_code == 201
+        project_share_id = project_share_resp.json()["id"]
+
+        initial_public_resp = authenticated_client.get(f"/s/{project_share_id}")
+        assert initial_public_resp.status_code == 200
+        initial_payload = initial_public_resp.json()
+        assert initial_payload["project_name"] == "Ordered Project"
+        assert [folder["folder_id"] for folder in initial_payload["folders"]] == [
+            first_folder_id,
+            second_folder_id,
+        ]
+        assert initial_payload["cover"]["photo_id"] == first_photo_id
+
+        move_second_left_resp = authenticated_client.patch(
+            f"/galleries/{second_folder_id}",
+            json={"project_position": 0},
+        )
+        move_first_right_resp = authenticated_client.patch(
+            f"/galleries/{first_folder_id}",
+            json={"project_position": 1},
+        )
+        assert move_second_left_resp.status_code == 200
+        assert move_first_right_resp.status_code == 200
+
+        detail_resp = authenticated_client.get(f"/projects/{project_id}")
+        assert detail_resp.status_code == 200
+        assert [folder["id"] for folder in detail_resp.json()["folders"]] == [
+            second_folder_id,
+            first_folder_id,
+        ]
+
+        reordered_public_resp = authenticated_client.get(f"/s/{project_share_id}")
+        assert reordered_public_resp.status_code == 200
+        reordered_payload = reordered_public_resp.json()
+        assert reordered_payload["project_name"] == "Ordered Project"
+        assert [folder["folder_id"] for folder in reordered_payload["folders"]] == [
+            second_folder_id,
+            first_folder_id,
+        ]
+        assert reordered_payload["cover"]["photo_id"] == second_photo_id

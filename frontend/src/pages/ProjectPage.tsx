@@ -84,6 +84,7 @@ export const ProjectPage = () => {
   const [isShareLinkCreateOpen, setIsShareLinkCreateOpen] = useState(false);
   const [editingShareLink, setEditingShareLink] = useState<ShareLink | null>(null);
   const [isUpdatingFolder, setIsUpdatingFolder] = useState<string | null>(null);
+  const [isReorderingFolder, setIsReorderingFolder] = useState<string | null>(null);
   const [sharingGallery, setSharingGallery] = useState<Gallery | null>(null);
   const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState('');
@@ -208,6 +209,48 @@ export const ProjectPage = () => {
         }
       },
     });
+  };
+
+  const handleReorderFolder = async (folderId: string, targetIndex: number) => {
+    if (!project) {
+      return;
+    }
+
+    const currentIndex = project.folders.findIndex((folder) => folder.id === folderId);
+    if (currentIndex === -1) {
+      return;
+    }
+
+    const boundedTargetIndex = Math.max(0, Math.min(targetIndex, project.folders.length - 1));
+    if (boundedTargetIndex === currentIndex) {
+      return;
+    }
+
+    const reorderedFolders = [...project.folders];
+    const [movedFolder] = reorderedFolders.splice(currentIndex, 1);
+    reorderedFolders.splice(boundedTargetIndex, 0, movedFolder);
+
+    const updates = reorderedFolders
+      .map((folder, index) => ({ folder, index }))
+      .filter(({ folder, index }) => (folder.project_position ?? 0) !== index);
+
+    if (updates.length === 0) {
+      return;
+    }
+
+    setIsReorderingFolder(folderId);
+    try {
+      await Promise.all(
+        updates.map(({ folder, index }) =>
+          galleryService.updateGallery(folder.id, { project_position: index }),
+        ),
+      );
+      await loadProject();
+    } catch (err) {
+      setError(handleApiError(err).message || 'Failed to reorder galleries');
+    } finally {
+      setIsReorderingFolder(null);
+    }
   };
 
   const handleDeleteProject = async () => {
@@ -375,6 +418,11 @@ export const ProjectPage = () => {
                 <AnimatePresence mode="popLayout">
                   {project.folders.map((folder) => {
                     const galleryCard = toProjectGalleryCard(folder);
+                    const currentIndex = project.folders.findIndex(
+                      (projectFolder) => projectFolder.id === folder.id,
+                    );
+                    const isFirstGallery = currentIndex === 0;
+                    const isLastGallery = currentIndex === project.folders.length - 1;
 
                     return (
                       <div key={folder.id}>
@@ -462,12 +510,68 @@ export const ProjectPage = () => {
                                       </span>
                                     </span>
                                   </button>
+                                  <div className="my-2 h-px bg-border/50" />
+                                  <p className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+                                    Project order
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void handleReorderFolder(folder.id, currentIndex - 1)
+                                    }
+                                    disabled={isFirstGallery || isReorderingFolder === folder.id}
+                                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <span>
+                                      <span className="block font-semibold">Move earlier</span>
+                                      <span className="block text-xs text-muted">
+                                        Shift this gallery toward the left/start.
+                                      </span>
+                                    </span>
+                                    <span className="text-xs font-semibold text-muted">
+                                      {isFirstGallery ? 'First' : '←'}
+                                    </span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void handleReorderFolder(folder.id, currentIndex + 1)
+                                    }
+                                    disabled={isLastGallery || isReorderingFolder === folder.id}
+                                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <span>
+                                      <span className="block font-semibold">Move later</span>
+                                      <span className="block text-xs text-muted">
+                                        Shift this gallery toward the right/end.
+                                      </span>
+                                    </span>
+                                    <span className="text-xs font-semibold text-muted">
+                                      {isLastGallery ? 'Last' : '→'}
+                                    </span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleReorderFolder(folder.id, 0)}
+                                    disabled={isFirstGallery || isReorderingFolder === folder.id}
+                                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <span>
+                                      <span className="block font-semibold">Make leftmost</span>
+                                      <span className="block text-xs text-muted">
+                                        This gallery will drive the shared project hero.
+                                      </span>
+                                    </span>
+                                  </button>
                                 </div>
                               }
                             />
                           }
                           variants={cardVariants}
                         />
+                        <div className="mt-2 px-1 text-xs text-muted">
+                          Position {currentIndex + 1} of {project.folders.length}
+                        </div>
                       </div>
                     );
                   })}

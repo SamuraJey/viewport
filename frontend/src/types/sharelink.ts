@@ -131,6 +131,7 @@ export interface SharedProjectShare {
   photographer?: string;
   date?: string;
   site_url?: string;
+  cover?: { photo_id: string; full_url: string; thumbnail_url: string } | null;
   total_listed_folders?: number;
   total_listed_photos?: number;
   folders: PublicProjectFolder[];

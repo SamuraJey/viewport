@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { ProjectPage } from '../../pages/ProjectPage';
 
@@ -27,6 +28,7 @@ vi.mock('../../services/shareLinkService', () => ({
 vi.mock('../../services/galleryService', () => ({
   galleryService: {
     updateGallery: vi.fn(),
+    deleteGallery: vi.fn(),
   },
 }));
 
@@ -136,5 +138,30 @@ describe('ProjectPage', () => {
     expect(screen.getByText('Direct link only')).toBeInTheDocument();
     expect(screen.getByLabelText('Change project visibility for Photos')).toBeInTheDocument();
     expect(screen.getByLabelText('Change project visibility for 3eds')).toBeInTheDocument();
+  });
+
+  it('supports reordering project galleries from the card actions', async () => {
+    const user = userEvent.setup();
+    const { galleryService } = await import('../../services/galleryService');
+
+    render(
+      <MemoryRouter initialEntries={['/projects/project-1']}>
+        <Routes>
+          <Route path="/projects/:id" element={<ProjectPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole('heading', { name: 'Photos' });
+
+    await user.click(screen.getByLabelText('Change project visibility for 3eds'));
+    await user.click(screen.getByRole('button', { name: /move earlier/i }));
+
+    expect(galleryService.updateGallery).toHaveBeenCalledWith('gallery-2', {
+      project_position: 0,
+    });
+    expect(galleryService.updateGallery).toHaveBeenCalledWith('gallery-1', {
+      project_position: 1,
+    });
   });
 });

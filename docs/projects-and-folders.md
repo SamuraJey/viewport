@@ -60,6 +60,7 @@ Only one target is allowed per share link:
 Shared project UX is gallery-tab based:
 
 - opening `/share/{share_id}` for a project automatically opens the first listed gallery
+- the public hero stays project-scoped: it keeps the project title and uses the cover from the leftmost listed gallery
 - the public page renders a horizontal list of gallery names
 - no preview cards are shown for project navigation
 
@@ -101,11 +102,12 @@ Gallery endpoints still work and now accept project placement fields where relev
 ## Frontend surfaces
 
 - `DashboardPage.tsx` shows **Projects** and **Standalone galleries**
-- `ProjectPage.tsx` manages project galleries and project share links using a horizontal gallery-name strip instead of preview cards
+- `ProjectPage.tsx` manages project galleries and project share links using the same gallery cards as standalone galleries
+- project gallery visibility and ordering are managed from in-card actions; order is persisted via `project_position`
 - `GalleryPage.tsx` remains photo-first for gallery-level work
 - `PublicGalleryPage.tsx` now renders either:
   - a gallery share page with photos, or
-  - a project share page that opens the first listed gallery and renders a horizontal list of gallery names
+  - a project share page that opens the first listed gallery, keeps a project-scoped hero, and renders a horizontal list of gallery names
 
 ## Backward compatibility
 

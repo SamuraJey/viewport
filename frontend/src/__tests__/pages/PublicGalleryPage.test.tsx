@@ -58,6 +58,11 @@ const mockProjectShare = {
   photographer: 'Jane Doe',
   date: '2025-09-21',
   site_url: 'https://example.com',
+  cover: {
+    photo_id: 'project-cover',
+    thumbnail_url: '/thumbs/project-cover.jpg',
+    full_url: '/full/project-cover.jpg',
+  },
   total_listed_folders: 2,
   total_listed_photos: 8,
   folders: [
@@ -290,24 +295,26 @@ describe('PublicGalleryPage', () => {
 
   it('renders a horizontal project gallery list without preview cards', async () => {
     const { shareLinkService } = await import('../../services/shareLinkService');
-    mockRouteParams = { shareId: 'abc123', folderId: 'gallery-1' };
+    mockRouteParams = { shareId: 'abc123', folderId: 'gallery-2' };
     vi.mocked(shareLinkService.getSharedGallery).mockImplementation(async (_shareId, options) => {
       if (options?.folderId) {
-        return mockProjectGallery as any;
+        return { ...mockProjectGallery, gallery_name: '3eds' } as any;
       }
       return mockProjectShare as any;
     });
 
-    render(wrapper());
+    const { container } = render(wrapper());
 
     await waitFor(() => {
       expect(screen.getByRole('link', { name: 'Photos' })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: '3eds' })).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('heading', { name: 'Photos' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Wedding Weekend' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1, name: '3eds' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /download project/i })).toBeInTheDocument();
     expect(screen.queryByText('Download visible folders')).not.toBeInTheDocument();
+    expect(container.querySelector('img[src="/full/project-cover.jpg"]')).not.toBeNull();
   });
 
   it('renders dedicated favorites view with finish button and back navigation', async () => {

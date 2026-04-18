@@ -305,6 +305,15 @@ export const PublicGalleryPage = () => {
   const folderShare = gallery?.scope_type === 'project' ? null : gallery;
   const isProjectShare = projectShare !== null;
   const projectGalleryTabs = projectNavigation ?? projectShare;
+  const isProjectFolderView = Boolean(folderShare?.parent_share_id && !isFavoritesView);
+  const heroTitle = isProjectFolderView
+    ? folderShare?.project_name || projectGalleryTabs?.project_name || 'Public Project'
+    : folderShare?.gallery_name || 'Public Gallery';
+  const heroDate = isProjectFolderView ? projectGalleryTabs?.date : folderShare?.date;
+  const heroPhotographer = isProjectFolderView
+    ? projectGalleryTabs?.photographer || folderShare?.photographer
+    : folderShare?.photographer;
+  const heroCover = isProjectFolderView ? (projectGalleryTabs?.cover ?? null) : folderShare?.cover;
 
   useEffect(() => {
     if (!shareId || isFavoritesView) {
@@ -403,8 +412,8 @@ export const PublicGalleryPage = () => {
   useDocumentTitle(
     isFavoritesView
       ? `${folderShare?.gallery_name || 'Favorites'} · Viewport`
-      : isProjectShare
-        ? `${projectShare.project_name || 'Public Project'} · Viewport`
+      : isProjectShare || isProjectFolderView
+        ? `${projectGalleryTabs?.project_name || folderShare?.project_name || 'Public Project'} · Viewport`
         : `${folderShare?.gallery_name || 'Public Gallery'} · Viewport`,
   );
 
@@ -492,7 +501,12 @@ export const PublicGalleryPage = () => {
         <ThemeSwitch variant="inline" />
       </div>
 
-      <PublicGalleryHero gallery={folderShare} />
+      <PublicGalleryHero
+        title={heroTitle}
+        date={heroDate}
+        photographer={heroPhotographer}
+        cover={heroCover}
+      />
 
       <main id="main-content" tabIndex={-1} className="w-full px-4 py-16 sm:px-6 lg:px-10">
         {projectGalleryTabs ? (
