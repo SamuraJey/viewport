@@ -156,12 +156,6 @@ export const ShareLinkDetailPage = () => {
 
   const fetchSelectionDetail = useCallback(async () => {
     if (!shareLinkId) return;
-    if (analytics?.share_link.scope_type === 'project') {
-      setSelectionDetail(null);
-      setSelectionConfigDraft(null);
-      setSelectionError('');
-      return;
-    }
 
     setIsSelectionLoading(true);
     setHasAttemptedSelectionLoad(true);
@@ -181,7 +175,7 @@ export const ShareLinkDetailPage = () => {
     } finally {
       setIsSelectionLoading(false);
     }
-  }, [analytics?.share_link.scope_type, hydrateSelectionDraft, selectedSessionId, shareLinkId]);
+  }, [hydrateSelectionDraft, selectedSessionId, shareLinkId]);
 
   const fetchSelectedSessionDetail = useCallback(async () => {
     if (!shareLinkId || !selectedSessionId) {
@@ -203,12 +197,6 @@ export const ShareLinkDetailPage = () => {
   useEffect(() => {
     void fetchAnalytics();
   }, [fetchAnalytics]);
-
-  useEffect(() => {
-    if (analytics?.share_link.scope_type === 'project' && activeTab === 'selection') {
-      setActiveTab('overview');
-    }
-  }, [activeTab, analytics?.share_link.scope_type]);
 
   useEffect(() => {
     if (
@@ -324,7 +312,7 @@ export const ShareLinkDetailPage = () => {
   };
 
   const handleSaveSelectionConfig = async () => {
-    if (!shareLinkId || !analytics?.share_link.gallery_id || !selectionConfigDraft) return;
+    if (!shareLinkId || !selectionConfigDraft) return;
 
     const payload: SelectionConfigUpdateRequest = {
       is_enabled: selectionConfigDraft.is_enabled,
@@ -347,11 +335,7 @@ export const ShareLinkDetailPage = () => {
     setSelectionError('');
     setIsSavingSelectionConfig(true);
     try {
-      const updated = await shareLinkService.updateOwnerSelectionConfig(
-        analytics.share_link.gallery_id,
-        shareLinkId,
-        payload,
-      );
+      const updated = await shareLinkService.updateShareLinkSelectionConfig(shareLinkId, payload);
       setSelectionConfigDraft({
         is_enabled: updated.is_enabled,
         list_title: updated.list_title,
@@ -455,7 +439,7 @@ export const ShareLinkDetailPage = () => {
   const isProjectLink = analytics.share_link.scope_type === 'project';
   const selectionSummary = analytics.selection_summary ?? {
     is_enabled: false,
-    status: 'not_available',
+    status: 'not_started',
     total_sessions: 0,
     submitted_sessions: 0,
     in_progress_sessions: 0,
@@ -471,13 +455,11 @@ export const ShareLinkDetailPage = () => {
         : 'border-border/70 bg-surface/70 text-text hover:border-accent/35 hover:text-text'
     }`;
 
-  const selectionTabLabel = isProjectLink
-    ? 'Selection unavailable'
-    : selectionDetail?.aggregate
-      ? `Photo selection (${selectionDetail.aggregate.total_sessions})`
-      : selectionSummary.total_sessions > 0
-        ? `Photo selection (${selectionSummary.total_sessions})`
-        : 'Photo selection';
+  const selectionTabLabel = selectionDetail?.aggregate
+    ? `Photo selection (${selectionDetail.aggregate.total_sessions})`
+    : selectionSummary.total_sessions > 0
+      ? `Photo selection (${selectionSummary.total_sessions})`
+      : 'Photo selection';
 
   const detailTabItems = [
     {
@@ -585,53 +567,53 @@ export const ShareLinkDetailPage = () => {
               )}
             </div>
 
-            {!isProjectLink ? (
-              <div className="rounded-2xl border border-border/50 bg-surface p-5 shadow-xs">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-semibold text-text">Selection admin</h2>
-                    <p className="text-sm text-muted">
-                      Keep advanced photo-selection settings separate from the main link overview.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('selection')}
-                    className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent"
-                  >
-                    <SlidersHorizontal className="h-4 w-4" />
-                    Open selection
-                  </button>
+            <div className="rounded-2xl border border-border/50 bg-surface p-5 shadow-xs">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-text">Selection admin</h2>
+                  <p className="text-sm text-muted">
+                    {isProjectLink
+                      ? 'Manage one shared selection flow across every listed gallery in this project link.'
+                      : 'Keep advanced photo-selection settings separate from the main link overview.'}
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('selection')}
+                  className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                  Open selection
+                </button>
+              </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
-                    <p className="text-xs uppercase tracking-wide text-muted">Selection enabled</p>
-                    <p className="mt-2 text-lg font-semibold text-text">
-                      {selectionSummary.is_enabled ? 'Enabled' : 'Disabled'}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
-                    <p className="text-xs uppercase tracking-wide text-muted">Total sessions</p>
-                    <p className="mt-2 text-lg font-semibold text-text">
-                      {numberFormatter.format(selectionSummary.total_sessions)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
-                    <p className="text-xs uppercase tracking-wide text-muted">In progress</p>
-                    <p className="mt-2 text-lg font-semibold text-text">
-                      {numberFormatter.format(selectionSummary.in_progress_sessions)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
-                    <p className="text-xs uppercase tracking-wide text-muted">Selected photos</p>
-                    <p className="mt-2 text-lg font-semibold text-text">
-                      {numberFormatter.format(selectionSummary.selected_count)}
-                    </p>
-                  </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-muted">Selection enabled</p>
+                  <p className="mt-2 text-lg font-semibold text-text">
+                    {selectionSummary.is_enabled ? 'Enabled' : 'Disabled'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-muted">Total sessions</p>
+                  <p className="mt-2 text-lg font-semibold text-text">
+                    {numberFormatter.format(selectionSummary.total_sessions)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-muted">In progress</p>
+                  <p className="mt-2 text-lg font-semibold text-text">
+                    {numberFormatter.format(selectionSummary.in_progress_sessions)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-muted">Selected photos</p>
+                  <p className="mt-2 text-lg font-semibold text-text">
+                    {numberFormatter.format(selectionSummary.selected_count)}
+                  </p>
                 </div>
               </div>
-            ) : null}
+            </div>
           </div>
         </div>
       ),
@@ -970,6 +952,9 @@ export const ShareLinkDetailPage = () => {
                           <p className="font-semibold text-text">
                             {item.photo_display_name || item.photo_id}
                           </p>
+                          {item.gallery_name ? (
+                            <p className="mt-1 text-muted">Gallery: {item.gallery_name}</p>
+                          ) : null}
                           {item.comment ? <p className="mt-1 text-muted">{item.comment}</p> : null}
                         </div>
                       ))
@@ -1046,10 +1031,6 @@ export const ShareLinkDetailPage = () => {
     },
   ];
 
-  if (isProjectLink) {
-    detailTabItems.pop();
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
@@ -1088,7 +1069,7 @@ export const ShareLinkDetailPage = () => {
           )}
           <p className="text-sm text-muted">
             {isProjectLink
-              ? 'This project link shows only link health and engagement because photo selection is gallery-only.'
+              ? 'This project link can collect one shared photo-selection flow across all listed galleries in the project.'
               : 'The overview focuses on link health and engagement. Advanced photo-selection controls are moved into their own tab.'}
           </p>
         </div>

@@ -183,6 +183,8 @@ export interface SelectionItem {
   photo_id: string;
   photo_display_name?: string | null;
   photo_thumbnail_url?: string | null;
+  gallery_id?: string | null;
+  gallery_name?: string | null;
   comment: string | null;
   selected_at: string;
   updated_at: string;
@@ -260,7 +262,9 @@ export interface OwnerSelectionSessionListItem {
 export interface OwnerSelectionDetail {
   sharelink_id: string;
   sharelink_label: string | null;
+  scope_type?: ShareScopeType | null;
   gallery_name?: string | null;
+  project_name?: string | null;
   config: SelectionConfig;
   aggregate: OwnerSelectionAggregate;
   sessions: OwnerSelectionSessionListItem[];

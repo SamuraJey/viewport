@@ -13,6 +13,7 @@ vi.mock('../../services/shareLinkService', () => ({
     updateShareLink: vi.fn(),
     deleteShareLink: vi.fn(),
     updateOwnerSelectionConfig: vi.fn(),
+    updateShareLinkSelectionConfig: vi.fn(),
     closeOwnerSelectionSession: vi.fn(),
     reopenOwnerSelectionSession: vi.fn(),
     exportShareLinkSelectionFilesCsv: vi.fn(),
@@ -76,6 +77,7 @@ describe('ShareLinkDetailPage', () => {
     vi.mocked(shareLinkService.getOwnerSelectionDetail).mockResolvedValue({
       sharelink_id: 'link-1',
       sharelink_label: 'Client proofing',
+      scope_type: 'gallery',
       config: {
         is_enabled: true,
         list_title: 'Selected photos',
@@ -213,7 +215,7 @@ describe('ShareLinkDetailPage', () => {
     });
   });
 
-  it('hides selection management entirely for project-scoped links', async () => {
+  it('shows project-scoped selection management in the dedicated tab', async () => {
     vi.mocked(shareLinkService.getShareLinkAnalytics).mockResolvedValueOnce({
       share_link: {
         id: 'link-project',
@@ -229,7 +231,16 @@ describe('ShareLinkDetailPage', () => {
         created_at: '2026-04-10T10:00:00Z',
         updated_at: '2026-04-12T10:00:00Z',
       },
-      selection_summary: null,
+      selection_summary: {
+        is_enabled: true,
+        status: 'submitted',
+        total_sessions: 2,
+        submitted_sessions: 1,
+        in_progress_sessions: 1,
+        closed_sessions: 0,
+        selected_count: 6,
+        latest_activity_at: '2026-04-12T10:00:00Z',
+      },
       points: [
         {
           day: '2026-04-10',
@@ -240,6 +251,36 @@ describe('ShareLinkDetailPage', () => {
         },
       ],
     } as any);
+    vi.mocked(shareLinkService.getOwnerSelectionDetail).mockResolvedValueOnce({
+      sharelink_id: 'link-project',
+      sharelink_label: 'Project delivery',
+      scope_type: 'project',
+      project_name: 'Wedding Weekend',
+      config: {
+        is_enabled: true,
+        list_title: 'Selected photos',
+        limit_enabled: false,
+        limit_value: null,
+        allow_photo_comments: true,
+        require_email: false,
+        require_phone: false,
+        require_client_note: false,
+        created_at: '2026-04-10T10:00:00Z',
+        updated_at: '2026-04-12T10:00:00Z',
+      },
+      aggregate: {
+        total_sessions: 2,
+        submitted_sessions: 1,
+        in_progress_sessions: 1,
+        closed_sessions: 0,
+        selected_count: 6,
+        latest_activity_at: '2026-04-12T10:00:00Z',
+      },
+      sessions: [],
+      session: null,
+    } as any);
+
+    const user = userEvent.setup();
 
     render(
       <MemoryRouter initialEntries={['/share-links/link-project']}>
@@ -252,10 +293,18 @@ describe('ShareLinkDetailPage', () => {
     expect(await screen.findByRole('heading', { name: /project delivery/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /overview/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /daily analytics/i })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: /selection/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/selection admin/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /open selection/i })).not.toBeInTheDocument();
-    expect(shareLinkService.getOwnerSelectionDetail).not.toHaveBeenCalled();
-    expect(screen.getByText(/photo selection is gallery-only/i)).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /photo selection/i })).toBeInTheDocument();
+    expect(
+      screen.getByText(/shared photo-selection flow across all listed galleries/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /open selection/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: /photo selection/i }));
+
+    expect(
+      await screen.findByText(/manage selection configuration and per-client selection sessions/i),
+    ).toBeInTheDocument();
+    expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledWith('link-project');
+    expect(screen.getByText('6')).toBeInTheDocument();
   });
 });

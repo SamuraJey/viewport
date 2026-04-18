@@ -46,18 +46,25 @@ import type {
 import { ApiError } from '../lib/errorHandling';
 import { isDemoModeEnabled } from '../lib/demoMode';
 
-interface DemoGalleryState {
-  gallery: Gallery;
-  photos: GalleryPhoto[];
-  shareLinks: ShareLink[];
+interface DemoSelectionState {
   selectionConfigs?: Record<string, SelectionConfig>;
   selectionSessions?: Record<string, SelectionSession[]>;
 }
 
-interface DemoProjectState {
+interface DemoGalleryState extends DemoSelectionState {
+  gallery: Gallery;
+  photos: GalleryPhoto[];
+  shareLinks: ShareLink[];
+}
+
+interface DemoProjectState extends DemoSelectionState {
   project: Project;
   shareLinks: ShareLink[];
 }
+
+type DemoSelectionOwnerLookup =
+  | { kind: 'gallery'; state: DemoGalleryState }
+  | { kind: 'project'; state: DemoProjectState };
 
 interface DemoPersistedState {
   galleries: DemoGalleryState[];
@@ -104,7 +111,7 @@ const setStoredActiveSelectionSession = (shareId: string, resumeToken?: string |
 };
 
 const normalizeSelectionSessionMap = (
-  sessionMap: DemoGalleryState['selectionSessions'],
+  sessionMap: DemoSelectionState['selectionSessions'],
 ): Record<string, SelectionSession[]> => {
   return Object.fromEntries(
     Object.entries(sessionMap ?? {}).map(([shareId, value]) => {
@@ -345,6 +352,16 @@ const buildSeedProjectContent = (): {
           recent_folder_thumbnail_urls: [],
         },
         shareLinks: [projectShareLink],
+        selectionConfigs: {
+          [projectShareLink.id]: {
+            ...defaultSelectionConfig(),
+            is_enabled: true,
+            allow_photo_comments: true,
+            limit_enabled: true,
+            limit_value: 20,
+          },
+        },
+        selectionSessions: {},
       },
     ],
   };
@@ -558,7 +575,12 @@ class DemoServiceStore {
       ...galleryState,
       selectionSessions: normalizeSelectionSessionMap(galleryState.selectionSessions),
     }));
-    this.projects = restored ? (restored.projects ?? []) : buildInitialProjectState();
+    this.projects = (restored ? (restored.projects ?? []) : buildInitialProjectState()).map(
+      (projectState) => ({
+        ...projectState,
+        selectionSessions: normalizeSelectionSessionMap(projectState.selectionSessions),
+      }),
+    );
     this.user = restored?.user || { ...demoUser };
     this.recalculateStorageUsed();
     this.recalculateProjects();
@@ -615,7 +637,7 @@ class DemoServiceStore {
   }
 
   private buildSelectionSummary(
-    state: DemoGalleryState,
+    state: DemoSelectionState,
     shareLinkId: string,
   ): ShareLinkSelectionSummary {
     state.selectionConfigs = state.selectionConfigs ?? {};
@@ -655,14 +677,16 @@ class DemoServiceStore {
   }
 
   private getSelectionConfigForShareId(shareId: string): {
-    state: DemoGalleryState;
+    owner: DemoSelectionOwnerLookup;
+    state: DemoSelectionState;
     link: ShareLink;
     config: SelectionConfig;
   } {
-    const state = this.findByShareId(shareId);
-    if (!state) {
+    const owner = this.findSelectionOwnerByShareId(shareId);
+    if (!owner) {
       throw this.createNotFoundError('ShareLink not found');
     }
+    const { state } = owner;
     const link = state.shareLinks.find((item) => item.id === shareId);
     if (!link) {
       throw this.createNotFoundError('ShareLink not found');
@@ -681,7 +705,7 @@ class DemoServiceStore {
       state.selectionConfigs[shareId] = config;
       this.persistState();
     }
-    return { state, link, config };
+    return { owner, state, link, config };
   }
 
   private getSelectionSessionForShareId(
@@ -693,13 +717,14 @@ class DemoServiceStore {
       useStoredToken?: boolean;
     },
   ): {
-    state: DemoGalleryState;
+    owner: DemoSelectionOwnerLookup;
+    state: DemoSelectionState;
     link: ShareLink;
     config: SelectionConfig;
     sessions: SelectionSession[];
     session: SelectionSession | null;
   } {
-    const { state, link, config } = this.getSelectionConfigForShareId(shareId);
+    const { owner, state, link, config } = this.getSelectionConfigForShareId(shareId);
     state.selectionSessions = state.selectionSessions ?? {};
     const sessions = [...(state.selectionSessions[shareId] ?? [])].sort(
       (left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at),
@@ -728,7 +753,7 @@ class DemoServiceStore {
     if (mustExist && !session) {
       throw this.createNotFoundError('Selection session not found');
     }
-    return { state, link, config, sessions, session };
+    return { owner, state, link, config, sessions, session };
   }
 
   private getSelectionRollupStatus(sessions: SelectionSession[]): string {
@@ -746,6 +771,41 @@ class DemoServiceStore {
     if (session.status === 'submitted') {
       throw this.createConflictError('Selection is already submitted');
     }
+  }
+
+  private getSelectionPhotoContextById(
+    shareId: string,
+  ): Map<string, { photo: GalleryPhoto; gallery: Gallery }> {
+    return new Map(
+      this.getSelectablePhotosForShareLink(shareId).map(({ photo, gallery }) => [
+        photo.id,
+        { photo, gallery },
+      ]),
+    );
+  }
+
+  private withSelectionItemContext(
+    shareId: string,
+    item: SelectionSession['items'][number],
+  ): SelectionSession['items'][number] {
+    const photoContext = this.getSelectionPhotoContextById(shareId).get(item.photo_id);
+    return {
+      ...item,
+      photo_display_name: photoContext?.photo.filename ?? null,
+      photo_thumbnail_url: photoContext?.photo.thumbnail_url ?? null,
+      gallery_id: photoContext?.gallery.id ?? null,
+      gallery_name: photoContext?.gallery.name ?? null,
+    };
+  }
+
+  private withSelectionSessionContext(
+    shareId: string,
+    session: SelectionSession,
+  ): SelectionSession {
+    return {
+      ...session,
+      items: session.items.map((item) => this.withSelectionItemContext(shareId, item)),
+    };
   }
 
   private recalculateStorageUsed() {
@@ -1309,6 +1369,54 @@ class DemoServiceStore {
     );
   }
 
+  private findSelectionOwnerByShareId(shareId: string): DemoSelectionOwnerLookup | null {
+    const galleryState = this.findByShareId(shareId);
+    if (galleryState) {
+      return { kind: 'gallery', state: galleryState };
+    }
+
+    const projectState = this.findProjectByShareId(shareId);
+    if (projectState) {
+      return { kind: 'project', state: projectState };
+    }
+
+    return null;
+  }
+
+  private getListedProjectGalleryStates(projectId: string): DemoGalleryState[] {
+    return this.galleries
+      .filter((entry) => entry.gallery.project_id === projectId)
+      .filter((entry) => (entry.gallery.project_visibility ?? 'listed') === 'listed')
+      .sort(
+        (left, right) =>
+          (left.gallery.project_position ?? 0) - (right.gallery.project_position ?? 0),
+      );
+  }
+
+  private getSelectablePhotosForShareLink(shareId: string): Array<{
+    photo: GalleryPhoto;
+    gallery: Gallery;
+  }> {
+    const owner = this.findSelectionOwnerByShareId(shareId);
+    if (!owner) {
+      throw this.createNotFoundError('ShareLink not found');
+    }
+
+    if (owner.kind === 'gallery') {
+      return owner.state.photos.map((photo) => ({
+        photo,
+        gallery: owner.state.gallery,
+      }));
+    }
+
+    return this.getListedProjectGalleryStates(owner.state.project.id).flatMap((entry) =>
+      entry.photos.map((photo) => ({
+        photo,
+        gallery: entry.gallery,
+      })),
+    );
+  }
+
   async getProjectShareLinks(projectId: string): Promise<ShareLink[]> {
     const state = this.projects.find((entry) => entry.project.id === projectId);
     if (!state) {
@@ -1341,6 +1449,10 @@ class DemoServiceStore {
       updated_at: nowIso(),
     };
     state.shareLinks.push(link);
+    state.selectionConfigs = state.selectionConfigs ?? {};
+    state.selectionConfigs[link.id] = defaultSelectionConfig();
+    state.selectionSessions = state.selectionSessions ?? {};
+    state.selectionSessions[link.id] = state.selectionSessions[link.id] ?? [];
     this.recalculateProjects();
     this.persistState();
     return { ...link };
@@ -1384,6 +1496,13 @@ class DemoServiceStore {
       throw this.createNotFoundError('Project not found');
     }
     state.shareLinks = state.shareLinks.filter((link) => link.id !== shareLinkId);
+    if (state.selectionConfigs) {
+      delete state.selectionConfigs[shareLinkId];
+    }
+    if (state.selectionSessions) {
+      delete state.selectionSessions[shareLinkId];
+    }
+    setStoredActiveSelectionSession(shareLinkId, null);
     this.recalculateProjects();
     this.persistState();
   }
@@ -1413,7 +1532,7 @@ class DemoServiceStore {
         gallery_name: null,
         project_id: entry.project.id,
         project_name: entry.project.name,
-        selection_summary: null,
+        selection_summary: this.buildSelectionSummary(entry, link.id),
       })),
     );
     const allLinks = [...galleryLinks, ...projectLinks];
@@ -1525,7 +1644,9 @@ class DemoServiceStore {
             project_id: projectState!.project.id,
             project_name: projectState!.project.name,
           },
-      selection_summary: galleryState ? this.buildSelectionSummary(galleryState, link.id) : null,
+      selection_summary: galleryState
+        ? this.buildSelectionSummary(galleryState, link.id)
+        : this.buildSelectionSummary(projectState!, link.id),
       points,
     };
   }
@@ -1748,7 +1869,7 @@ class DemoServiceStore {
     if (existingToken && existingToken.trim().length > 0) {
       const existing = sessions.find((entry) => entry.resume_token === existingToken.trim());
       if (existing) {
-        return { ...existing, items: [...existing.items] };
+        return this.withSelectionSessionContext(shareId, existing);
       }
     }
 
@@ -1792,7 +1913,7 @@ class DemoServiceStore {
     state.selectionSessions[shareId] = sessions;
     setStoredActiveSelectionSession(shareId, session.resume_token);
     this.persistState();
-    return { ...session, items: [...session.items] };
+    return this.withSelectionSessionContext(shareId, session);
   }
 
   async getPublicSelectionSession(
@@ -1812,7 +1933,7 @@ class DemoServiceStore {
       throw this.createNotFoundError('Selection session not found');
     }
     setStoredActiveSelectionSession(shareId, session.resume_token);
-    return { ...session, items: [...session.items] };
+    return this.withSelectionSessionContext(shareId, session);
   }
 
   async togglePublicSelectionItem(
@@ -1820,7 +1941,7 @@ class DemoServiceStore {
     photoId: string,
     resumeToken?: string,
   ): Promise<SelectionToggleResponse> {
-    const { state, config, session } = this.getSelectionSessionForShareId(shareId, {
+    const { config, session } = this.getSelectionSessionForShareId(shareId, {
       mustExist: true,
       resumeToken,
     });
@@ -1831,8 +1952,10 @@ class DemoServiceStore {
       throw this.createNotFoundError('Selection session not found');
     }
     this.ensureSelectionMutable(session);
-    const photoExists = state.photos.some((photo) => photo.id === photoId);
-    if (!photoExists) {
+    const selectablePhotoIds = new Set(
+      this.getSelectablePhotosForShareLink(shareId).map(({ photo }) => photo.id),
+    );
+    if (!selectablePhotoIds.has(photoId)) {
       throw this.createNotFoundError('Photo not found for this share link');
     }
 
@@ -1901,7 +2024,7 @@ class DemoServiceStore {
     session.last_activity_at = item.updated_at;
     session.updated_at = item.updated_at;
     this.persistState();
-    return { ...item };
+    return this.withSelectionItemContext(shareId, item);
   }
 
   async updatePublicSelectionSession(
@@ -1929,7 +2052,7 @@ class DemoServiceStore {
     session.last_activity_at = now;
     session.updated_at = now;
     this.persistState();
-    return { ...session, items: [...session.items] };
+    return this.withSelectionSessionContext(shareId, session);
   }
 
   async submitPublicSelectionSession(
@@ -2007,12 +2130,17 @@ class DemoServiceStore {
     return { ...state.selectionConfigs[shareLinkId] };
   }
 
-  async updateOwnerSelectionConfig(
-    galleryId: string,
+  async getShareLinkSelectionConfig(shareLinkId: string): Promise<SelectionConfig> {
+    const { config } = this.getSelectionConfigForShareId(shareLinkId);
+    return { ...config };
+  }
+
+  private applySelectionConfigUpdate(
+    state: DemoSelectionState,
     shareLinkId: string,
+    current: SelectionConfig,
     payload: SelectionConfigUpdateRequest,
-  ): Promise<SelectionConfig> {
-    const current = await this.getOwnerSelectionConfig(galleryId, shareLinkId);
+  ): SelectionConfig {
     const next: SelectionConfig = {
       ...current,
       ...payload,
@@ -2027,15 +2155,33 @@ class DemoServiceStore {
       next.limit_value = null;
     }
 
-    const state = this.getGalleryState(galleryId);
     state.selectionConfigs = state.selectionConfigs ?? {};
     state.selectionConfigs[shareLinkId] = next;
     this.persistState();
     return { ...next };
   }
 
+  async updateOwnerSelectionConfig(
+    galleryId: string,
+    shareLinkId: string,
+    payload: SelectionConfigUpdateRequest,
+  ): Promise<SelectionConfig> {
+    const current = await this.getOwnerSelectionConfig(galleryId, shareLinkId);
+    const state = this.getGalleryState(galleryId);
+    return this.applySelectionConfigUpdate(state, shareLinkId, current, payload);
+  }
+
+  async updateShareLinkSelectionConfig(
+    shareLinkId: string,
+    payload: SelectionConfigUpdateRequest,
+  ): Promise<SelectionConfig> {
+    const current = await this.getShareLinkSelectionConfig(shareLinkId);
+    const { state } = this.getSelectionConfigForShareId(shareLinkId);
+    return this.applySelectionConfigUpdate(state, shareLinkId, current, payload);
+  }
+
   async getOwnerSelectionDetail(shareLinkId: string): Promise<OwnerSelectionDetail> {
-    const { state, link, config } = this.getSelectionConfigForShareId(shareLinkId);
+    const { owner, state, link, config } = this.getSelectionConfigForShareId(shareLinkId);
     const sessions = [...((state.selectionSessions ?? {})[shareLinkId] ?? [])].sort(
       (left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at),
     );
@@ -2052,20 +2198,12 @@ class DemoServiceStore {
             .sort((left, right) => right - left)[0]
         : null;
 
-    const withPhotoDisplayName = (entry: SelectionSession): SelectionSession => ({
-      ...entry,
-      items: entry.items.map((item) => ({
-        ...item,
-        photo_display_name:
-          state.photos.find((photo) => photo.id === item.photo_id)?.filename ?? null,
-        photo_thumbnail_url:
-          state.photos.find((photo) => photo.id === item.photo_id)?.thumbnail_url ?? null,
-      })),
-    });
-
     return {
       sharelink_id: link.id,
       sharelink_label: link.label ?? null,
+      scope_type: owner.kind === 'project' ? 'project' : 'gallery',
+      gallery_name: owner.kind === 'gallery' ? owner.state.gallery.name : null,
+      project_name: owner.kind === 'project' ? owner.state.project.name : null,
       config: { ...config },
       aggregate: {
         total_sessions: sessions.length,
@@ -2088,7 +2226,7 @@ class DemoServiceStore {
         created_at: entry.created_at,
         updated_at: entry.updated_at,
       })),
-      session: session ? withPhotoDisplayName(session) : null,
+      session: session ? this.withSelectionSessionContext(shareLinkId, session) : null,
     };
   }
 
@@ -2110,7 +2248,7 @@ class DemoServiceStore {
       (entry) => (entry.id === session.id ? session : entry),
     );
     this.persistState();
-    return { ...session, items: [...session.items] };
+    return this.withSelectionSessionContext(shareLinkId, session);
   }
 
   async reopenOwnerSelection(shareLinkId: string): Promise<SelectionSession> {
@@ -2132,14 +2270,14 @@ class DemoServiceStore {
       (entry) => (entry.id === session.id ? session : entry),
     );
     this.persistState();
-    return { ...session, items: [...session.items] };
+    return this.withSelectionSessionContext(shareLinkId, session);
   }
 
   async getOwnerSelectionSessionDetail(
     shareLinkId: string,
     sessionId: string,
   ): Promise<SelectionSession> {
-    const { state, session } = this.getSelectionSessionForShareId(shareLinkId, {
+    const { session } = this.getSelectionSessionForShareId(shareLinkId, {
       mustExist: true,
       sessionId,
       useStoredToken: false,
@@ -2147,16 +2285,7 @@ class DemoServiceStore {
     if (!session) {
       throw this.createNotFoundError('Selection session not found');
     }
-    return {
-      ...session,
-      items: session.items.map((item) => ({
-        ...item,
-        photo_display_name:
-          state.photos.find((photo) => photo.id === item.photo_id)?.filename ?? null,
-        photo_thumbnail_url:
-          state.photos.find((photo) => photo.id === item.photo_id)?.thumbnail_url ?? null,
-      })),
-    };
+    return this.withSelectionSessionContext(shareLinkId, session);
   }
 
   async closeOwnerSelectionSession(
@@ -2180,7 +2309,7 @@ class DemoServiceStore {
       (entry) => (entry.id === session.id ? session : entry),
     );
     this.persistState();
-    return { ...session, items: [...session.items] };
+    return this.withSelectionSessionContext(shareLinkId, session);
   }
 
   async reopenOwnerSelectionSession(
@@ -2205,7 +2334,7 @@ class DemoServiceStore {
       (entry) => (entry.id === session.id ? session : entry),
     );
     this.persistState();
-    return { ...session, items: [...session.items] };
+    return this.withSelectionSessionContext(shareLinkId, session);
   }
 
   async getGallerySelections(galleryId: string): Promise<OwnerSelectionRow[]> {
@@ -2292,36 +2421,55 @@ class DemoServiceStore {
   }
 
   async exportShareLinkSelectionFilesCsv(shareLinkId: string): Promise<void> {
-    const { state, sessions } = this.getSelectionSessionForShareId(shareLinkId, {
+    const { owner, sessions } = this.getSelectionSessionForShareId(shareLinkId, {
       mustExist: false,
     });
     if (sessions.length === 0) {
       throw this.createNotFoundError('Selection session not found');
     }
-    const lines = ['filename,comment'];
+    const lines =
+      owner.kind === 'project' ? ['gallery_name,filename,comment'] : ['filename,comment'];
     for (const session of sessions) {
       for (const item of session.items) {
-        const photo = state.photos.find((entry) => entry.id === item.photo_id);
-        if (!photo) continue;
+        const itemWithContext = this.withSelectionItemContext(shareLinkId, item);
+        if (!itemWithContext.photo_display_name) continue;
         const escapedComment = (item.comment || '').replaceAll('"', '""');
-        lines.push(`${photo.filename},"${escapedComment}"`);
+        if (owner.kind === 'project') {
+          const escapedGallery = (itemWithContext.gallery_name || '').replaceAll('"', '""');
+          lines.push(
+            `"${escapedGallery}",${itemWithContext.photo_display_name},"${escapedComment}"`,
+          );
+        } else {
+          lines.push(`${itemWithContext.photo_display_name},"${escapedComment}"`);
+        }
       }
     }
     triggerDownload(`selection_${shareLinkId}_files.csv`, lines.join('\n'));
   }
 
   async exportShareLinkSelectionLightroom(shareLinkId: string): Promise<void> {
-    const { state, sessions } = this.getSelectionSessionForShareId(shareLinkId, {
+    const { owner, sessions } = this.getSelectionSessionForShareId(shareLinkId, {
       mustExist: false,
     });
     if (sessions.length === 0) {
       throw this.createNotFoundError('Selection session not found');
     }
-    const content = sessions
-      .flatMap((session) => session.items)
-      .map((item) => state.photos.find((entry) => entry.id === item.photo_id)?.filename)
-      .filter((value): value is string => Boolean(value))
-      .join('|');
+    const content =
+      owner.kind === 'project'
+        ? sessions
+            .flatMap((session) => session.items)
+            .map((item) => this.withSelectionItemContext(shareLinkId, item))
+            .filter((item) => Boolean(item.photo_display_name))
+            .map(
+              (item) =>
+                `${item.gallery_name || 'Unknown gallery'} | ${item.photo_display_name as string}`,
+            )
+            .join('\n')
+        : sessions
+            .flatMap((session) => session.items)
+            .map((item) => this.withSelectionItemContext(shareLinkId, item).photo_display_name)
+            .filter((value): value is string => Boolean(value))
+            .join('|');
     triggerDownload(`selection_${shareLinkId}_lightroom.txt`, content);
   }
 
@@ -2403,12 +2551,9 @@ class DemoServiceStore {
   }
 
   async getPublicPhotosByIds(shareId: string, photoIds: string[]) {
-    const state = this.findByShareId(shareId);
-    if (!state) {
-      throw this.createNotFoundError('Share link not found');
-    }
-
-    const photoMap = new Map(state.photos.map((photo) => [photo.id, photo]));
+    const photoMap = new Map(
+      this.getSelectablePhotosForShareLink(shareId).map(({ photo }) => [photo.id, photo]),
+    );
     return photoIds
       .map((photoId) => photoMap.get(photoId))
       .filter((photo): photo is NonNullable<typeof photo> => Boolean(photo))

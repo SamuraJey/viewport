@@ -109,11 +109,19 @@ Gallery endpoints still work and now accept project placement fields where relev
   - a gallery share page with photos, or
   - a project share page that opens the first listed gallery, keeps a project-scoped hero, and renders a horizontal list of gallery names
 
+## Selection and favorites
+
+- Selection stays **sharelink-scoped**
+- A gallery share link still runs selection only inside that gallery
+- A project share link can now run **one shared selection flow across all listed galleries** in the project
+- `direct_only` galleries stay excluded from project selection
+- Project selection owner detail and CSV exports include **gallery context** for each selected photo
+
 ## Backward compatibility
 
 - Existing gallery share links are preserved as `scope_type = "gallery"`
-- Selection/favorites remains **gallery-scope only**
-- Project shares do not expose selection flows
+- Gallery-scoped selection/favorites remains unchanged
+- Project shares can now expose selection flows without creating per-gallery proofing links
 
 ## Migration notes
 

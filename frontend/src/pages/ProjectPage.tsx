@@ -694,9 +694,11 @@ export const ProjectPage = () => {
         isOpen={isShareLinkCreateOpen}
         mode="create"
         galleryName={project.name}
-        showSelectionSettings={false}
         onClose={() => setIsShareLinkCreateOpen(false)}
         onCreate={handleCreateProjectShareLink}
+        onSaveSelectionConfig={(shareLinkId, payload) =>
+          shareLinkService.updateShareLinkSelectionConfig(shareLinkId, payload)
+        }
         onManageCreated={(shareLinkId) => navigate(`/share-links/${shareLinkId}`)}
       />
 

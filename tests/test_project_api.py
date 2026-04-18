@@ -122,7 +122,8 @@ class TestProjectAPI:
         assert any(item["scope_type"] == "project" for item in items)
         project_item = next(item for item in items if item["scope_type"] == "project")
         assert project_item["project_name"] == "Campaign X"
-        assert project_item["selection_summary"] is None
+        assert project_item["selection_summary"] is not None
+        assert project_item["selection_summary"]["is_enabled"] is False
 
         search_resp = authenticated_client.get("/share-links?page=1&size=20&search=Campaign")
         assert search_resp.status_code == 200
@@ -130,17 +131,158 @@ class TestProjectAPI:
         assert len(search_items) == 1
         assert search_items[0]["scope_type"] == "project"
 
-    def test_selection_endpoints_return_404_for_project_share_links(self, authenticated_client: TestClient):
-        project_resp = authenticated_client.post("/projects", json={"name": "No Selection Project"})
+    def test_project_share_selection_supports_multi_gallery_picks(
+        self,
+        authenticated_client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr("viewport.api.selection.notify_selection_submitted_task.delay", lambda payload: None)
+
+        project_resp = authenticated_client.post("/projects", json={"name": "Project Selection"})
         assert project_resp.status_code == 201
         project_id = project_resp.json()["id"]
 
-        project_share_resp = authenticated_client.post(f"/projects/{project_id}/share-links", json={})
+        first_folder_resp = authenticated_client.post(
+            f"/projects/{project_id}/folders",
+            json={"name": "Ceremony", "project_visibility": "listed"},
+        )
+        second_folder_resp = authenticated_client.post(
+            f"/projects/{project_id}/folders",
+            json={"name": "Portraits", "project_visibility": "listed"},
+        )
+        hidden_folder_resp = authenticated_client.post(
+            f"/projects/{project_id}/folders",
+            json={"name": "Backstage", "project_visibility": "direct_only"},
+        )
+        assert first_folder_resp.status_code == 201
+        assert second_folder_resp.status_code == 201
+        assert hidden_folder_resp.status_code == 201
+
+        first_folder_id = first_folder_resp.json()["id"]
+        second_folder_id = second_folder_resp.json()["id"]
+        hidden_folder_id = hidden_folder_resp.json()["id"]
+
+        first_photo_id = upload_photo_via_presigned(authenticated_client, first_folder_id, b"one", "one.jpg")
+        second_photo_id = upload_photo_via_presigned(authenticated_client, second_folder_id, b"two", "two.jpg")
+        hidden_photo_id = upload_photo_via_presigned(authenticated_client, hidden_folder_id, b"secret", "secret.jpg")
+
+        project_share_resp = authenticated_client.post(
+            f"/projects/{project_id}/share-links",
+            json={"label": "Project proofing"},
+        )
         assert project_share_resp.status_code == 201
         project_share_id = project_share_resp.json()["id"]
 
+        enable_selection_resp = authenticated_client.patch(
+            f"/projects/{project_id}/share-links/{project_share_id}/selection-config",
+            json={"is_enabled": True, "allow_photo_comments": True},
+        )
+        assert enable_selection_resp.status_code == 200
+        assert enable_selection_resp.json()["is_enabled"] is True
+
         selection_resp = authenticated_client.get(f"/s/{project_share_id}/selection/config")
-        assert selection_resp.status_code == 404
+        assert selection_resp.status_code == 200
+        assert selection_resp.json()["is_enabled"] is True
+
+        start_resp = authenticated_client.post(
+            f"/s/{project_share_id}/selection/session",
+            json={"client_name": "Project Client"},
+        )
+        assert start_resp.status_code == 200
+        resume_token = start_resp.json()["resume_token"]
+
+        first_toggle_resp = authenticated_client.put(f"/s/{project_share_id}/selection/session/items/{first_photo_id}?resume_token={resume_token}")
+        second_toggle_resp = authenticated_client.put(f"/s/{project_share_id}/selection/session/items/{second_photo_id}?resume_token={resume_token}")
+        hidden_toggle_resp = authenticated_client.put(f"/s/{project_share_id}/selection/session/items/{hidden_photo_id}?resume_token={resume_token}")
+        assert first_toggle_resp.status_code == 200
+        assert second_toggle_resp.status_code == 200
+        assert hidden_toggle_resp.status_code == 404
+
+        session_resp = authenticated_client.get(f"/s/{project_share_id}/selection/session/me?resume_token={resume_token}")
+        assert session_resp.status_code == 200
+        assert session_resp.json()["selected_count"] == 2
+        assert {item["gallery_name"] for item in session_resp.json()["items"]} == {
+            "Ceremony",
+            "Portraits",
+        }
+
+        selected_photos_resp = authenticated_client.get(
+            f"/s/{project_share_id}/photos/by-ids",
+            params=[("photo_ids", first_photo_id), ("photo_ids", second_photo_id)],
+        )
+        assert selected_photos_resp.status_code == 200
+        assert [photo["filename"] for photo in selected_photos_resp.json()] == ["one.jpg", "two.jpg"]
+
+        submit_resp = authenticated_client.post(f"/s/{project_share_id}/selection/session/submit?resume_token={resume_token}")
+        assert submit_resp.status_code == 200
+        assert submit_resp.json()["selected_count"] == 2
+
+        detail_resp = authenticated_client.get(f"/share-links/{project_share_id}/selection")
+        assert detail_resp.status_code == 200
+        assert detail_resp.json()["scope_type"] == "project"
+        assert detail_resp.json()["aggregate"]["total_sessions"] == 1
+        assert detail_resp.json()["aggregate"]["selected_count"] == 2
+
+        session_detail_resp = authenticated_client.get(f"/share-links/{project_share_id}/selection/sessions/{start_resp.json()['id']}")
+        assert session_detail_resp.status_code == 200
+        assert {item["gallery_name"] for item in session_detail_resp.json()["items"]} == {
+            "Ceremony",
+            "Portraits",
+        }
+
+        files_csv_resp = authenticated_client.get(f"/share-links/{project_share_id}/selection/export/files.csv")
+        assert files_csv_resp.status_code == 200
+        assert "gallery_name,filename,comment" in files_csv_resp.text
+        assert "Ceremony" in files_csv_resp.text
+        assert "Portraits" in files_csv_resp.text
+
+        lightroom_resp = authenticated_client.get(f"/share-links/{project_share_id}/selection/export/lightroom.txt")
+        assert lightroom_resp.status_code == 200
+        assert "Ceremony | one.jpg" in lightroom_resp.text
+        assert "Portraits | two.jpg" in lightroom_resp.text
+
+    def test_project_selection_config_uses_inactive_and_expired_share_semantics(
+        self,
+        authenticated_client: TestClient,
+    ):
+        project_resp = authenticated_client.post("/projects", json={"name": "Selection Status Project"})
+        assert project_resp.status_code == 201
+        project_id = project_resp.json()["id"]
+
+        inactive_share_resp = authenticated_client.post(f"/projects/{project_id}/share-links", json={})
+        assert inactive_share_resp.status_code == 201
+        inactive_share_id = inactive_share_resp.json()["id"]
+
+        enable_resp = authenticated_client.patch(
+            f"/projects/{project_id}/share-links/{inactive_share_id}/selection-config",
+            json={"is_enabled": True},
+        )
+        assert enable_resp.status_code == 200
+
+        disable_resp = authenticated_client.patch(
+            f"/projects/{project_id}/share-links/{inactive_share_id}",
+            json={"is_active": False},
+        )
+        assert disable_resp.status_code == 200
+
+        inactive_selection_resp = authenticated_client.get(f"/s/{inactive_share_id}/selection/config")
+        assert inactive_selection_resp.status_code == 404
+
+        expired_share_resp = authenticated_client.post(
+            f"/projects/{project_id}/share-links",
+            json={"expires_at": (datetime.now(UTC) - timedelta(days=1)).isoformat()},
+        )
+        assert expired_share_resp.status_code == 201
+        expired_share_id = expired_share_resp.json()["id"]
+
+        expired_enable_resp = authenticated_client.patch(
+            f"/projects/{project_id}/share-links/{expired_share_id}/selection-config",
+            json={"is_enabled": True},
+        )
+        assert expired_enable_resp.status_code == 200
+
+        expired_selection_resp = authenticated_client.get(f"/s/{expired_share_id}/selection/config")
+        assert expired_selection_resp.status_code == 410
 
     def test_project_folder_navigation_does_not_double_count_project_share_views(self, authenticated_client: TestClient):
         project_resp = authenticated_client.post("/projects", json={"name": "Analytics Project"})

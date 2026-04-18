@@ -453,6 +453,30 @@ const updateOwnerSelectionConfig = async (
   return response.data;
 };
 
+const getShareLinkSelectionConfig = async (shareLinkId: string): Promise<SelectionConfig> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getShareLinkSelectionConfig(shareLinkId);
+  }
+
+  const response = await api.get<SelectionConfig>(`/share-links/${shareLinkId}/selection-config`);
+  return response.data;
+};
+
+const updateShareLinkSelectionConfig = async (
+  shareLinkId: string,
+  payload: SelectionConfigUpdateRequest,
+): Promise<SelectionConfig> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().updateShareLinkSelectionConfig(shareLinkId, payload);
+  }
+
+  const response = await api.patch<SelectionConfig>(
+    `/share-links/${shareLinkId}/selection-config`,
+    payload,
+  );
+  return response.data;
+};
+
 const getOwnerSelectionDetail = async (shareLinkId: string): Promise<OwnerSelectionDetail> => {
   if (isDemoModeEnabled()) {
     return getDemoService().getOwnerSelectionDetail(shareLinkId);
@@ -625,6 +649,8 @@ export const shareLinkService = {
   submitPublicSelectionSession,
   getOwnerSelectionConfig,
   updateOwnerSelectionConfig,
+  getShareLinkSelectionConfig,
+  updateShareLinkSelectionConfig,
   getOwnerSelectionDetail,
   closeOwnerSelection,
   reopenOwnerSelection,

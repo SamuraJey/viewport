@@ -128,6 +128,10 @@ No version prefix in URL (assuming v1). Future versions will use:
 - `POST /s/{share_id}/selection/session/submit` - Submit selection
 - `GET /galleries/{gallery_id}/share-links/{sharelink_id}/selection-config` - Owner config
 - `PATCH /galleries/{gallery_id}/share-links/{sharelink_id}/selection-config` - Owner config update
+- `GET /projects/{project_id}/share-links/{sharelink_id}/selection-config` - Project-link owner config
+- `PATCH /projects/{project_id}/share-links/{sharelink_id}/selection-config` - Project-link owner config update
+- `GET /share-links/{sharelink_id}/selection-config` - Owner config by share link id
+- `PATCH /share-links/{sharelink_id}/selection-config` - Owner config update by share link id
 - `GET /share-links/{sharelink_id}/selection` - Owner selection detail/session snapshot
 - `POST /share-links/{sharelink_id}/selection/close` - Owner closes selection
 - `POST /share-links/{sharelink_id}/selection/reopen` - Owner reopens selection
@@ -149,6 +153,9 @@ Selection/public access behavior:
 - Inactive share links return `404` (non-disclosing).
 - Expired share links return `410` (explicit expired state).
 - Public selection session recovery uses resume token and secure cookie.
+- Project share links can run one shared selection session across all currently `listed` galleries in the project.
+- Project selection rejects `direct_only` galleries and keeps gallery context in owner detail/CSV export responses.
+- For project selections, the plain-text Lightroom/CaptureOne export prefixes each filename with its source gallery name to disambiguate multi-gallery picks.
 
 ## HTTP Status Codes
 

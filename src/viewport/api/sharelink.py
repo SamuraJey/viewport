@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from viewport.auth_utils import get_current_user
 from viewport.models.db import get_db
-from viewport.models.sharelink import ShareScopeType
 from viewport.models.sharelink_selection import SelectionSessionStatus
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.project_repository import ProjectRepository
@@ -267,7 +266,7 @@ async def list_owner_sharelinks(
             single_downloads=sharelink.single_downloads,
             created_at=sharelink.created_at,
             updated_at=sharelink.updated_at,
-            selection_summary=None if sharelink.scope_type == ShareScopeType.PROJECT.value else _to_selection_summary_response(*selection_summaries.get(sharelink.id, empty_selection_summary)),
+            selection_summary=_to_selection_summary_response(*selection_summaries.get(sharelink.id, empty_selection_summary)),
         )
         for sharelink, gallery_name, project_name in rows
     ]
@@ -330,9 +329,7 @@ async def get_sharelink_analytics(
     )
 
     sharelink_selection_summaries = await selection_repo.get_sharelink_selection_summaries([sharelink.id])
-    selection_summary = None
-    if sharelink.scope_type == ShareScopeType.GALLERY.value:
-        selection_summary = _to_selection_summary_response(*(sharelink_selection_summaries.get(sharelink.id, (False, 0, 0, 0, 0, 0, None))))
+    selection_summary = _to_selection_summary_response(*sharelink_selection_summaries.get(sharelink.id, (False, 0, 0, 0, 0, 0, None)))
 
     return ShareLinkAnalyticsResponse(
         share_link=share_link,

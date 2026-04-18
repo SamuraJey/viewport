@@ -111,4 +111,62 @@ describe('demoService', () => {
     expect(detail.folder_count).toBe(2);
     expect(detail.folders.map((folder) => folder.name)).toEqual(['Photos', '3eds']);
   });
+
+  it('supports one project selection session across multiple listed galleries in demo mode', async () => {
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    const shareLinks = await service.getProjectShareLinks('demo-project-porto-delivery');
+    const projectShareLink = shareLinks.find((link) => link.id === 'sp-demo-project-porto');
+    expect(projectShareLink).toBeTruthy();
+
+    const config = await service.getPublicSelectionConfig(projectShareLink!.id);
+    expect(config.is_enabled).toBe(true);
+
+    const session = await service.startPublicSelectionSession(projectShareLink!.id, {
+      client_name: 'Client Demo',
+    });
+    const resumeToken = session.resume_token ?? undefined;
+
+    const project = await service.getProject('demo-project-porto-delivery');
+    const firstFolderId = project.folders[0].id;
+    const secondFolderId = project.folders[1].id;
+
+    const firstGallery = await service.getSharedGallery(projectShareLink!.id, {
+      folderId: firstFolderId,
+    });
+    const secondGallery = await service.getSharedGallery(projectShareLink!.id, {
+      folderId: secondFolderId,
+    });
+
+    if (firstGallery.scope_type !== 'gallery' || secondGallery.scope_type !== 'gallery') {
+      throw new Error('Expected nested project routes to resolve to gallery payloads');
+    }
+
+    await service.togglePublicSelectionItem(
+      projectShareLink!.id,
+      firstGallery.photos[0].photo_id,
+      resumeToken,
+    );
+    await service.togglePublicSelectionItem(
+      projectShareLink!.id,
+      secondGallery.photos[0].photo_id,
+      resumeToken,
+    );
+
+    const restoredSession = await service.getPublicSelectionSession(
+      projectShareLink!.id,
+      resumeToken,
+    );
+    expect(restoredSession.selected_count).toBe(2);
+    expect(new Set(restoredSession.items.map((item) => item.gallery_name))).toEqual(
+      new Set(['Photos', '3eds']),
+    );
+
+    const selectedPhotos = await service.getPublicPhotosByIds(
+      projectShareLink!.id,
+      restoredSession.items.map((item) => item.photo_id),
+    );
+    expect(selectedPhotos).toHaveLength(2);
+  });
 });

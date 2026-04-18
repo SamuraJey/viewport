@@ -61,6 +61,8 @@ class SelectionItemResponse(BaseModel):
     photo_id: str
     photo_display_name: str | None = None
     photo_thumbnail_url: str | None = None
+    gallery_id: str | None = None
+    gallery_name: str | None = None
     comment: str | None
     selected_at: datetime
     updated_at: datetime
@@ -138,6 +140,7 @@ class OwnerSelectionSessionListItemResponse(BaseModel):
 class OwnerSelectionDetailResponse(BaseModel):
     sharelink_id: str
     sharelink_label: str | None
+    scope_type: str | None = None
     config: SelectionConfigResponse
     aggregate: OwnerSelectionAggregateResponse
     sessions: list[OwnerSelectionSessionListItemResponse] = Field(default_factory=list)

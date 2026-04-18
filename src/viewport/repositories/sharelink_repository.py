@@ -206,6 +206,28 @@ class ShareLinkRepository(BaseRepository):
         photos = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read(photos)
 
+    async def get_photos_by_ids_and_project(
+        self,
+        project_id: uuid.UUID,
+        photo_ids: list[uuid.UUID],
+        *,
+        listed_only: bool = True,
+    ) -> list[Photo]:
+        if not photo_ids:
+            return await self._finish_read([])
+
+        filters = [
+            Photo.id.in_(photo_ids),
+            Gallery.project_id == project_id,
+            Gallery.is_deleted.is_(False),
+        ]
+        if listed_only:
+            filters.append(Gallery.project_visibility == "listed")
+
+        stmt = select(Photo).join(Photo.gallery).where(*filters)
+        photos = list((await self.db.execute(stmt)).scalars().all())
+        return await self._finish_read(photos)
+
     @staticmethod
     def build_visitor_hash(ip_address: str | None, user_agent: str | None) -> str | None:
         normalized_ip = (ip_address or "").strip()

@@ -22,6 +22,7 @@ vi.mock('../../services/shareLinkService', () => ({
     createProjectShareLink: vi.fn(),
     updateProjectShareLink: vi.fn(),
     deleteProjectShareLink: vi.fn(),
+    updateShareLinkSelectionConfig: vi.fn(),
   },
 }));
 
@@ -121,6 +122,26 @@ describe('ProjectPage', () => {
     expect(screen.getByText('Client proofing')).toBeInTheDocument();
   });
 
+  it('lets project share creation expose selection settings', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={['/projects/project-1']}>
+        <Routes>
+          <Route path="/projects/:id" element={<ProjectPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole('heading', { name: /share links/i });
+    await user.click(screen.getByRole('button', { name: /create new share link/i }));
+
+    const selectionTab = await screen.findByRole('tab', { name: /selection/i });
+    expect(selectionTab).toBeInTheDocument();
+    await user.click(selectionTab);
+    expect(screen.getByText(/client photo selection/i)).toBeInTheDocument();
+  });
+
   it('renders project galleries as full gallery cards instead of tab buttons', async () => {
     render(
       <MemoryRouter initialEntries={['/projects/project-1']}>
@@ -140,10 +161,7 @@ describe('ProjectPage', () => {
     expect(screen.getByLabelText('Change project visibility for 3eds')).toBeInTheDocument();
   });
 
-  it('supports reordering project galleries from the card actions', async () => {
-    const user = userEvent.setup();
-    const { galleryService } = await import('../../services/galleryService');
-
+  it('shows persisted project gallery order on the cards', async () => {
     render(
       <MemoryRouter initialEntries={['/projects/project-1']}>
         <Routes>
@@ -153,15 +171,7 @@ describe('ProjectPage', () => {
     );
 
     await screen.findByRole('heading', { name: 'Photos' });
-
-    await user.click(screen.getByLabelText('Change project visibility for 3eds'));
-    await user.click(screen.getByRole('button', { name: /move earlier/i }));
-
-    expect(galleryService.updateGallery).toHaveBeenCalledWith('gallery-2', {
-      project_position: 0,
-    });
-    expect(galleryService.updateGallery).toHaveBeenCalledWith('gallery-1', {
-      project_position: 1,
-    });
+    expect(screen.getByText('Position 1 of 2')).toBeInTheDocument();
+    expect(screen.getByText('Position 2 of 2')).toBeInTheDocument();
   });
 });

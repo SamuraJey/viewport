@@ -408,10 +408,18 @@ async def get_public_photos_by_ids(
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
 ) -> list[PublicPhoto]:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
-    gallery_id = _require_gallery_share_id(sharelink)
-
     unique_photo_ids = list(dict.fromkeys(photo_ids))
-    photos = await repo.get_photos_by_ids_and_gallery(gallery_id, unique_photo_ids)
+    if sharelink.scope_type == ShareScopeType.PROJECT.value:
+        if sharelink.project_id is None:
+            raise HTTPException(status_code=404, detail="Project not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+        photos = await repo.get_photos_by_ids_and_project(
+            sharelink.project_id,
+            unique_photo_ids,
+            listed_only=True,
+        )
+    else:
+        gallery_id = _require_gallery_share_id(sharelink)
+        photos = await repo.get_photos_by_ids_and_gallery(gallery_id, unique_photo_ids)
     photo_map = {photo.id: photo for photo in photos}
     ordered_photos = [photo_map[photo_id] for photo_id in unique_photo_ids if photo_id in photo_map]
 
