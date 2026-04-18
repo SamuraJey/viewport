@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { SharedGallery } from '../../services/shareLinkService';
+import type { SharedFolderShare } from '../../types/sharelink';
 
 interface PublicGalleryHeroProps {
-  gallery: SharedGallery | null;
+  gallery: SharedFolderShare | null;
 }
 
 export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {

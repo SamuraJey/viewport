@@ -17,6 +17,7 @@ let mockRouteParams: { shareId: string; resumeToken?: string } = { shareId: 'abc
 
 // Mock data for public gallery
 const mockPublicGallery = {
+  scope_type: 'gallery' as const,
   photos: [
     {
       photo_id: 'p1',
@@ -40,6 +41,7 @@ const mockPublicGallery = {
 };
 
 const mockEmptyGallery = {
+  scope_type: 'gallery' as const,
   photos: [],
   cover: null,
   photographer: undefined,

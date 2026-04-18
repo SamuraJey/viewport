@@ -1,17 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { CreateGalleryModal } from '../components/dashboard/CreateGalleryModal';
+import { CreateProjectModal } from '../components/dashboard/CreateProjectModal';
 import { EnhancedGalleryCard } from '../components/dashboard/EnhancedGalleryCard';
 import { ShareLinkSettingsModal } from '../components/share-links/ShareLinkSettingsModal';
 import { AppListbox } from '../components/ui';
 import { useDashboardActions } from '../hooks';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { shareLinkService } from '../services/shareLinkService';
-import type { Gallery, GalleryListSortBy, SortOrder } from '../types';
+import { projectService } from '../services/projectService';
+import type { Gallery, GalleryListSortBy, Project, SortOrder } from '../types';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -102,9 +104,16 @@ export const DashboardPage = () => {
   const [renameInput, setRenameInput] = useState('');
   const [showLoadingSkeleton, setShowLoadingSkeleton] = useState(false);
   const [shareModalGallery, setShareModalGallery] = useState<Gallery | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectError, setProjectError] = useState('');
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectShootingDate, setNewProjectShootingDate] = useState('');
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
 
   const newGalleryInputRef = useRef<HTMLInputElement>(null);
   const renameInputRef = useRef<HTMLTextAreaElement>(null);
+  const newProjectInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void fetchGalleries({
@@ -113,12 +122,27 @@ export const DashboardPage = () => {
       search: urlSearch.trim() || undefined,
       sort_by: sortBy,
       order: sortOrder,
+      standalone_only: true,
     });
   }, [fetchGalleries, page, pageSize, sortBy, sortOrder, urlSearch]);
 
   useEffect(() => {
     setSearchInput(urlSearch);
   }, [urlSearch]);
+
+  const fetchProjects = useCallback(async () => {
+    try {
+      setProjectError('');
+      const response = await projectService.getProjects(1, 50, urlSearch.trim() || undefined);
+      setProjects(response.projects);
+    } catch (err: unknown) {
+      setProjectError((err as Error)?.message || 'Failed to load projects');
+    }
+  }, [urlSearch]);
+
+  useEffect(() => {
+    void fetchProjects();
+  }, [fetchProjects]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -183,6 +207,36 @@ export const DashboardPage = () => {
 
   const handleConfirmCreate = () => {
     void createGallery(newGalleryName, newGalleryShootingDate);
+  };
+
+  useEffect(() => {
+    if (isProjectModalOpen) {
+      newProjectInputRef.current?.focus();
+    }
+  }, [isProjectModalOpen]);
+
+  const handleOpenProjectModal = () => {
+    setNewProjectName('');
+    setNewProjectShootingDate(new Date().toISOString().slice(0, 10));
+    setProjectError('');
+    setIsProjectModalOpen(true);
+  };
+
+  const handleConfirmCreateProject = async () => {
+    if (!newProjectName.trim()) return;
+    try {
+      setIsCreatingProject(true);
+      await projectService.createProject({
+        name: newProjectName.trim(),
+        shooting_date: newProjectShootingDate || undefined,
+      });
+      setIsProjectModalOpen(false);
+      await fetchProjects();
+    } catch (err: unknown) {
+      setProjectError((err as Error)?.message || 'Failed to create project');
+    } finally {
+      setIsCreatingProject(false);
+    }
   };
 
   const beginInlineRename = (gallery: Gallery) => {
@@ -274,9 +328,9 @@ export const DashboardPage = () => {
       <div className="mb-6 inline-flex rounded-full bg-accent/10 p-4">
         <Plus className="h-8 w-8 text-accent" />
       </div>
-      <h3 className="mb-2 text-2xl font-semibold text-text">No galleries yet</h3>
+      <h3 className="mb-2 text-2xl font-semibold text-text">No standalone folders yet</h3>
       <p className="mx-auto mb-8 max-w-md text-lg text-muted">
-        Create your first gallery to start organizing and sharing your photos.
+        Create a standalone folder for quick uploads or add a folder inside a project.
       </p>
       <button
         onClick={handleOpenModal}
@@ -289,7 +343,7 @@ export const DashboardPage = () => {
         ) : (
           <Plus className="h-5 w-5" />
         )}
-        Create First Gallery
+        Create First Folder
       </button>
     </div>
   );
@@ -374,25 +428,40 @@ export const DashboardPage = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">
-            My Galleries
+            Projects & Folders
           </h1>
           <p className="font-cuprum text-lg text-muted">
-            Your personal space to organize and share moments.
+            Organize folders inside projects, or keep standalone folders for quick work.
           </p>
         </div>
-        <button
-          onClick={handleOpenModal}
-          disabled={isCreating}
-          className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-          aria-label="Create new gallery"
-        >
-          {isCreating ? (
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent-foreground/20 border-t-accent-foreground" />
-          ) : (
-            <Plus className="h-5 w-5" />
-          )}
-          New Gallery
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={handleOpenProjectModal}
+            disabled={isCreatingProject}
+            className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-5 py-2.5 font-semibold text-text shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+            aria-label="Create new project"
+          >
+            {isCreatingProject ? (
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-text/20 border-t-text" />
+            ) : (
+              <Plus className="h-5 w-5" />
+            )}
+            New Project
+          </button>
+          <button
+            onClick={handleOpenModal}
+            disabled={isCreating}
+            className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+            aria-label="Create new gallery"
+          >
+            {isCreating ? (
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent-foreground/20 border-t-accent-foreground" />
+            ) : (
+              <Plus className="h-5 w-5" />
+            )}
+            New Folder
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto_auto]">
@@ -437,15 +506,89 @@ export const DashboardPage = () => {
         </div>
       </div>
 
+      {projectError ? (
+        <ErrorDisplay
+          error={projectError}
+          onRetry={fetchProjects}
+          onDismiss={() => setProjectError('')}
+          variant="banner"
+        />
+      ) : null}
       {error && renderError()}
 
-      {isLoading && showLoadingSkeleton
-        ? renderLoading()
-        : isLoading
-          ? null
-          : galleries.length === 0
-            ? renderEmptyState()
-            : renderGalleryGrid()}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold text-text">Projects</h2>
+            <p className="text-sm text-muted">
+              Project-wide shares show only folders marked visible.
+            </p>
+          </div>
+        </div>
+        {projects.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border/40 bg-surface-1/50 px-4 py-8 text-sm text-muted">
+            No projects yet. Create a project to group related folders.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {projects.map((project) => (
+              <button
+                key={project.id}
+                type="button"
+                onClick={() => navigate(`/projects/${project.id}`)}
+                className="rounded-2xl border border-border/40 bg-surface p-5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 dark:bg-surface-dark"
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
+                  Project
+                </p>
+                <h3 className="mt-2 font-oswald text-2xl font-bold uppercase tracking-wide text-text">
+                  {project.name}
+                </h3>
+                <div className="mt-4 flex flex-wrap gap-2 text-sm text-muted">
+                  <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
+                    {project.folder_count} folders
+                  </span>
+                  <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
+                    {project.total_photo_count} photos
+                  </span>
+                  <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
+                    {project.has_active_share_links ? 'Share active' : 'No share link'}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-2xl font-semibold text-text">Standalone folders</h2>
+          <p className="text-sm text-muted">These folders are not assigned to a project yet.</p>
+        </div>
+
+        {isLoading && showLoadingSkeleton
+          ? renderLoading()
+          : isLoading
+            ? null
+            : galleries.length === 0
+              ? renderEmptyState()
+              : renderGalleryGrid()}
+      </section>
+
+      <AnimatePresence>
+        <CreateProjectModal
+          isOpen={isProjectModalOpen}
+          isCreating={isCreatingProject}
+          name={newProjectName}
+          shootingDate={newProjectShootingDate}
+          inputRef={newProjectInputRef}
+          onClose={() => setIsProjectModalOpen(false)}
+          onConfirm={() => void handleConfirmCreateProject()}
+          onNameChange={setNewProjectName}
+          onShootingDateChange={setNewProjectShootingDate}
+        />
+      </AnimatePresence>
 
       <AnimatePresence>
         <CreateGalleryModal

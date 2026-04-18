@@ -1,0 +1,204 @@
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from viewport.auth_utils import get_current_user
+from viewport.dependencies import get_s3_client as get_async_s3_client
+from viewport.models.db import get_db
+from viewport.models.gallery import ProjectVisibility as GalleryProjectVisibility
+from viewport.models.project import Project
+from viewport.models.user import User
+from viewport.repositories.gallery_repository import GalleryRepository
+from viewport.repositories.project_repository import ProjectRepository
+from viewport.s3_service import AsyncS3Client
+from viewport.schemas.gallery import GalleryCreateRequest
+from viewport.schemas.project import ProjectCreateRequest, ProjectDetailResponse, ProjectFolderSummaryResponse, ProjectListResponse, ProjectResponse, ProjectUpdateRequest
+
+router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+def get_project_repository(db: AsyncSession = Depends(get_db)) -> ProjectRepository:
+    return ProjectRepository(db)
+
+
+def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
+    return GalleryRepository(db)
+
+
+async def _build_project_response(
+    project: Project,
+    repo: ProjectRepository,
+    s3_client: AsyncS3Client,
+) -> ProjectResponse:
+    folder_count = await repo.get_project_folder_count(project.id, listed_only=False)
+    listed_folder_count = await repo.get_project_folder_count(project.id, listed_only=True)
+    total_photo_count = await repo.get_project_total_photo_count(project.id, listed_only=False)
+    total_size_bytes = await repo.get_project_total_size(project.id, listed_only=False)
+    has_active_share_links = await repo.has_active_share_links(project.id)
+    recent_keys = await repo.get_recent_project_thumbnail_keys(project.id, listed_only=False, limit=3)
+    recent_url_map = await s3_client.generate_presigned_urls_batch(recent_keys, expires_in=7200) if recent_keys else {}
+
+    return ProjectResponse(
+        id=str(project.id),
+        owner_id=str(project.owner_id),
+        name=project.name,
+        created_at=project.created_at,
+        shooting_date=project.shooting_date,
+        folder_count=folder_count,
+        listed_folder_count=listed_folder_count,
+        total_photo_count=total_photo_count,
+        total_size_bytes=total_size_bytes,
+        has_active_share_links=has_active_share_links,
+        recent_folder_thumbnail_urls=[recent_url_map[key] for key in recent_keys if key in recent_url_map],
+    )
+
+
+async def _build_project_folder_responses(
+    galleries: list,
+    gallery_repo: GalleryRepository,
+    s3_client: AsyncS3Client,
+    *,
+    project_name: str,
+) -> list[ProjectFolderSummaryResponse]:
+    if not galleries:
+        return []
+
+    gallery_ids = [gallery.id for gallery in galleries]
+    cover_photo_ids = [gallery.cover_photo_id for gallery in galleries if gallery.cover_photo_id]
+    (
+        photo_count_by_gallery,
+        total_size_by_gallery,
+        active_share_gallery_ids,
+        cover_thumbnail_by_photo_id,
+        recent_thumbnail_keys_by_gallery,
+    ) = await gallery_repo.get_gallery_list_enrichment(gallery_ids, cover_photo_ids, recent_limit=3)
+
+    all_thumbnail_keys: list[str] = []
+    all_thumbnail_keys.extend(cover_thumbnail_by_photo_id.values())
+    for keys in recent_thumbnail_keys_by_gallery.values():
+        all_thumbnail_keys.extend(keys)
+
+    presigned_by_key = await s3_client.generate_presigned_urls_batch(list(dict.fromkeys(all_thumbnail_keys)), expires_in=7200) if all_thumbnail_keys else {}
+
+    responses: list[ProjectFolderSummaryResponse] = []
+    for gallery in galleries:
+        cover_key = cover_thumbnail_by_photo_id.get(gallery.cover_photo_id) if gallery.cover_photo_id else None
+        recent_keys = recent_thumbnail_keys_by_gallery.get(gallery.id, [])
+        responses.append(
+            ProjectFolderSummaryResponse(
+                id=str(gallery.id),
+                owner_id=str(gallery.owner_id),
+                project_id=str(gallery.project_id) if gallery.project_id else None,
+                project_name=project_name,
+                project_position=int(getattr(gallery, "project_position", 0) or 0),
+                project_visibility=getattr(gallery, "project_visibility", "listed"),
+                name=gallery.name,
+                created_at=gallery.created_at,
+                shooting_date=gallery.shooting_date,
+                cover_photo_id=str(gallery.cover_photo_id) if gallery.cover_photo_id else None,
+                photo_count=photo_count_by_gallery.get(gallery.id, 0),
+                total_size_bytes=total_size_by_gallery.get(gallery.id, 0),
+                has_active_share_links=gallery.id in active_share_gallery_ids,
+                cover_photo_thumbnail_url=presigned_by_key.get(cover_key) if cover_key else None,
+                recent_photo_thumbnail_urls=[presigned_by_key[key] for key in recent_keys if key in presigned_by_key],
+            )
+        )
+    return responses
+
+
+@router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+async def create_project(
+    request: ProjectCreateRequest,
+    repo: ProjectRepository = Depends(get_project_repository),
+    current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_async_s3_client),
+) -> ProjectResponse:
+    project = await repo.create_project(current_user.id, request.name, request.shooting_date)
+    return await _build_project_response(project, repo, s3_client)
+
+
+@router.get("", response_model=ProjectListResponse)
+async def list_projects(
+    repo: ProjectRepository = Depends(get_project_repository),
+    current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_async_s3_client),
+    search: str | None = Query(None, max_length=128),
+    page: int = Query(1, ge=1),
+    size: int = Query(10, ge=1, le=100),
+) -> ProjectListResponse:
+    projects, total = await repo.get_projects_by_owner(current_user.id, page=page, size=size, search=search)
+    responses = [await _build_project_response(project, repo, s3_client) for project in projects]
+    return ProjectListResponse(projects=responses, total=total, page=page, size=size)
+
+
+@router.get("/{project_id}", response_model=ProjectDetailResponse)
+async def get_project_detail(
+    project_id: uuid.UUID,
+    repo: ProjectRepository = Depends(get_project_repository),
+    gallery_repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_async_s3_client),
+) -> ProjectDetailResponse:
+    project = await repo.get_project_by_id_and_owner(project_id, current_user.id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    base_response = await _build_project_response(project, repo, s3_client)
+    folders = await repo.get_project_folders_by_owner(project_id, current_user.id)
+    folder_responses = await _build_project_folder_responses(folders, gallery_repo, s3_client, project_name=project.name)
+    return ProjectDetailResponse(**base_response.model_dump(), folders=folder_responses)
+
+
+@router.patch("/{project_id}", response_model=ProjectResponse)
+async def update_project(
+    project_id: uuid.UUID,
+    request: ProjectUpdateRequest,
+    repo: ProjectRepository = Depends(get_project_repository),
+    current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_async_s3_client),
+) -> ProjectResponse:
+    project = await repo.update_project(project_id, current_user.id, name=request.name, shooting_date=request.shooting_date)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return await _build_project_response(project, repo, s3_client)
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project(
+    project_id: uuid.UUID,
+    repo: ProjectRepository = Depends(get_project_repository),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    deleted, reason = await repo.delete_project(project_id, current_user.id)
+    if reason:
+        raise HTTPException(status_code=409, detail=reason)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+
+@router.post("/{project_id}/folders", response_model=ProjectFolderSummaryResponse, status_code=status.HTTP_201_CREATED)
+async def create_project_folder(
+    project_id: uuid.UUID,
+    request: GalleryCreateRequest,
+    project_repo: ProjectRepository = Depends(get_project_repository),
+    gallery_repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_async_s3_client),
+) -> ProjectFolderSummaryResponse:
+    project = await project_repo.get_project_by_id_and_owner(project_id, current_user.id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    gallery = await gallery_repo.create_gallery(
+        current_user.id,
+        request.name,
+        request.shooting_date,
+        public_sort_by=request.public_sort_by,
+        public_sort_order=request.public_sort_order,
+        project_id=project.id,
+        project_position=request.project_position,
+        project_visibility=GalleryProjectVisibility(request.project_visibility.value),
+    )
+    folder_responses = await _build_project_folder_responses([gallery], gallery_repo, s3_client, project_name=project.name)
+    return folder_responses[0]

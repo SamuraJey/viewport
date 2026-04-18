@@ -146,8 +146,11 @@ const getSharedGallery = async (
     params.append('offset', options.offset.toString());
   }
 
+  const basePath = options?.folderId
+    ? `/s/${shareId}/folders/${options.folderId}`
+    : `/s/${shareId}`;
   const queryString = params.toString();
-  const url = queryString ? `/s/${shareId}?${queryString}` : `/s/${shareId}`;
+  const url = queryString ? `${basePath}?${queryString}` : basePath;
 
   const response = await api.get(url, {
     headers: {
@@ -156,6 +159,55 @@ const getSharedGallery = async (
     },
   });
   return response.data;
+};
+
+const getProjectShareLinks = async (projectId: string): Promise<ShareLink[]> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getProjectShareLinks(projectId);
+  }
+
+  const response = await api.get<ShareLink[]>(`/projects/${projectId}/share-links`);
+  return response.data;
+};
+
+const createProjectShareLink = async (
+  projectId: string,
+  payload?: ShareLinkCreateRequest,
+): Promise<ShareLink> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().createProjectShareLink(projectId, payload);
+  }
+
+  const response = await api.post<ShareLink>(
+    `/projects/${projectId}/share-links`,
+    payload ?? { expires_at: null },
+  );
+  return response.data;
+};
+
+const updateProjectShareLink = async (
+  projectId: string,
+  shareLinkId: string,
+  payload: ShareLinkUpdateRequest,
+): Promise<ShareLink> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().updateProjectShareLink(projectId, shareLinkId, payload);
+  }
+
+  const response = await api.patch<ShareLink>(
+    `/projects/${projectId}/share-links/${shareLinkId}`,
+    payload,
+  );
+  return response.data;
+};
+
+const deleteProjectShareLink = async (projectId: string, shareLinkId: string): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    await getDemoService().deleteProjectShareLink(projectId, shareLinkId);
+    return;
+  }
+
+  await api.delete(`/projects/${projectId}/share-links/${shareLinkId}`);
 };
 
 const getOwnerShareLinks = async (
@@ -552,6 +604,10 @@ const exportGallerySelectionLinksCsv = async (galleryId: string): Promise<void> 
 export const shareLinkService = {
   getShareLinks,
   createShareLink,
+  getProjectShareLinks,
+  createProjectShareLink,
+  updateProjectShareLink,
+  deleteProjectShareLink,
   updateShareLink,
   deleteShareLink,
   getSharedGallery,

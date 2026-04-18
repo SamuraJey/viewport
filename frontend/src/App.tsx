@@ -22,6 +22,9 @@ const LandingPage = lazy(() =>
 const GalleryPage = lazy(() =>
   import('./pages/GalleryPage').then((module) => ({ default: module.GalleryPage })),
 );
+const ProjectPage = lazy(() =>
+  import('./pages/ProjectPage').then((module) => ({ default: module.ProjectPage })),
+);
 const ShareLinksDashboardPage = lazy(() =>
   import('./pages/ShareLinksDashboardPage').then((module) => ({
     default: module.ShareLinksDashboardPage,
@@ -77,12 +80,14 @@ function App() {
 
           {/* Public gallery sharing route */}
           <Route path="/share/:shareId" element={<PublicGalleryPage />} />
+          <Route path="/share/:shareId/folders/:folderId" element={<PublicGalleryPage />} />
           <Route path="/share/:shareId/favorites/:resumeToken" element={<PublicGalleryPage />} />
 
           {/* Protected routes */}
           <Route element={<ProtectedLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/galleries/:id" element={<GalleryPage />} />
+            <Route path="/projects/:id" element={<ProjectPage />} />
             <Route path="/share-links" element={<ShareLinksDashboardPage />} />
             <Route path="/share-links/:shareLinkId" element={<ShareLinkDetailPage />} />
           </Route>

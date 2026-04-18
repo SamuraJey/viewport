@@ -212,4 +212,50 @@ describe('ShareLinkDetailPage', () => {
       expect(shareLinkService.getShareLinkAnalytics).toHaveBeenCalledWith('link-1', 30);
     });
   });
+
+  it('hides selection management entirely for project-scoped links', async () => {
+    vi.mocked(shareLinkService.getShareLinkAnalytics).mockResolvedValueOnce({
+      share_link: {
+        id: 'link-project',
+        scope_type: 'project',
+        project_id: 'project-1',
+        project_name: 'Wedding Weekend',
+        label: 'Project delivery',
+        is_active: true,
+        expires_at: null,
+        views: 12,
+        zip_downloads: 2,
+        single_downloads: 0,
+        created_at: '2026-04-10T10:00:00Z',
+        updated_at: '2026-04-12T10:00:00Z',
+      },
+      selection_summary: null,
+      points: [
+        {
+          day: '2026-04-10',
+          views_total: 5,
+          views_unique: 4,
+          zip_downloads: 1,
+          single_downloads: 0,
+        },
+      ],
+    } as any);
+
+    render(
+      <MemoryRouter initialEntries={['/share-links/link-project']}>
+        <Routes>
+          <Route path="/share-links/:shareLinkId" element={<ShareLinkDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: /project delivery/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /overview/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /daily analytics/i })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /selection/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/selection admin/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /open selection/i })).not.toBeInTheDocument();
+    expect(shareLinkService.getOwnerSelectionDetail).not.toHaveBeenCalled();
+    expect(screen.getByText(/photo selection is gallery-only/i)).toBeInTheDocument();
+  });
 });

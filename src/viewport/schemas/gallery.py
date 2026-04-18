@@ -27,10 +27,17 @@ class GalleryListSortBy(StrEnum):
     TOTAL_SIZE_BYTES = "total_size_bytes"
 
 
+class ProjectVisibility(StrEnum):
+    LISTED = "listed"
+    DIRECT_ONLY = "direct_only"
+
+
 class GalleryListQueryParams(BaseModel):
     search: str | None = Field(None, max_length=GALLERY_NAME_MAX_LENGTH, description="Case-insensitive partial gallery name search")
     sort_by: GalleryListSortBy = Field(GalleryListSortBy.CREATED_AT, description="Gallery sorting field")
     order: SortOrder = Field(SortOrder.DESC, description="Sort direction")
+    standalone_only: bool = Field(False, description="Return only galleries that are not assigned to a project")
+    project_id: str | None = Field(None, description="Optional project filter")
 
     @field_validator("search")
     @classmethod
@@ -58,6 +65,9 @@ class GalleryPhotoQueryParams(BaseModel):
 class GalleryCreateRequest(BaseModel):
     name: str = Field("", max_length=GALLERY_NAME_MAX_LENGTH, description="Custom name for the gallery")
     shooting_date: date | None = Field(None, description="Displayed shooting date (YYYY-MM-DD)")
+    project_id: str | None = Field(None, description="Optional parent project id")
+    project_position: int | None = Field(None, ge=0, description="Folder ordering position inside project")
+    project_visibility: ProjectVisibility = Field(ProjectVisibility.LISTED, description="Folder visibility inside project shares")
     public_sort_by: GalleryPhotoSortBy = Field(
         GalleryPhotoSortBy(PUBLIC_GALLERY_SORT_BY_DEFAULT),
         description="Default sort field for shared/public gallery",
@@ -71,12 +81,15 @@ class GalleryCreateRequest(BaseModel):
 class GalleryUpdateRequest(BaseModel):
     name: str | None = Field(None, max_length=GALLERY_NAME_MAX_LENGTH, description="New name for the gallery")
     shooting_date: date | None = Field(None, description="Displayed shooting date (YYYY-MM-DD)")
+    project_id: str | None = Field(None, description="Optional parent project id")
+    project_position: int | None = Field(None, ge=0, description="Folder ordering position inside project")
+    project_visibility: ProjectVisibility | None = Field(None, description="Folder visibility inside project shares")
     public_sort_by: GalleryPhotoSortBy | None = Field(None, description="Default sort field for shared/public gallery")
     public_sort_order: SortOrder | None = Field(None, description="Default sort direction for shared/public gallery")
 
     @model_validator(mode="after")
     def validate_payload(self) -> Self:
-        if self.name is None and self.shooting_date is None and self.public_sort_by is None and self.public_sort_order is None:
+        if not self.model_fields_set:
             raise ValueError("At least one field must be provided for update")
         return self
 
@@ -84,6 +97,10 @@ class GalleryUpdateRequest(BaseModel):
 class GalleryResponse(BaseModel):
     id: str
     owner_id: str
+    project_id: str | None = Field(None, description="Optional parent project id")
+    project_name: str | None = Field(None, description="Optional parent project name")
+    project_position: int = Field(0, description="Ordering position within the project")
+    project_visibility: ProjectVisibility = Field(ProjectVisibility.LISTED, description="Visibility inside project shares")
     name: str = Field("", description="Custom name for the gallery")
     created_at: datetime
     shooting_date: date
@@ -100,6 +117,10 @@ class GalleryResponse(BaseModel):
 class GalleryDetailResponse(BaseModel):
     id: str
     owner_id: str
+    project_id: str | None = Field(None, description="Optional parent project id")
+    project_name: str | None = Field(None, description="Optional parent project name")
+    project_position: int = Field(0, description="Ordering position within the project")
+    project_visibility: ProjectVisibility = Field(ProjectVisibility.LISTED, description="Visibility inside project shares")
     name: str = Field("", description="Custom name for the gallery")
     created_at: datetime
     shooting_date: date

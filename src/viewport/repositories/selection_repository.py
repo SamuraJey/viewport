@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from viewport.models.gallery import Gallery, Photo
-from viewport.models.sharelink import ShareLink
+from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_selection import SelectionSessionStatus, ShareLinkSelectionConfig, ShareLinkSelectionItem, ShareLinkSelectionSession
 from viewport.repositories.base_repository import BaseRepository
 
@@ -26,7 +26,7 @@ class SelectionRepository(BaseRepository):
         return token, SelectionRepository._hash_resume_token(token)
 
     async def get_public_sharelink(self, share_id: uuid.UUID) -> ShareLink | None:
-        stmt = select(ShareLink).where(ShareLink.id == share_id).options(selectinload(ShareLink.gallery))
+        stmt = select(ShareLink).where(ShareLink.id == share_id, ShareLink.scope_type == ShareScopeType.GALLERY.value).options(selectinload(ShareLink.gallery))
         sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
         return await self._finish_read(sharelink)
 
@@ -36,6 +36,7 @@ class SelectionRepository(BaseRepository):
             .join(ShareLink.gallery)
             .where(
                 ShareLink.id == sharelink_id,
+                ShareLink.scope_type == ShareScopeType.GALLERY.value,
                 Gallery.owner_id == owner_id,
                 Gallery.is_deleted.is_(False),
             )
@@ -51,6 +52,7 @@ class SelectionRepository(BaseRepository):
             .where(
                 ShareLink.id == sharelink_id,
                 ShareLink.gallery_id == gallery_id,
+                ShareLink.scope_type == ShareScopeType.GALLERY.value,
                 Gallery.owner_id == owner_id,
                 Gallery.is_deleted.is_(False),
             )
@@ -283,7 +285,7 @@ class SelectionRepository(BaseRepository):
         )
         result = await self.db.execute(stmt)
         await self.db.commit()
-        if result.rowcount == 0:
+        if getattr(result, "rowcount", 0) == 0:
             return None
         return await self.get_selection_item(session_id, photo_id)
 
@@ -379,6 +381,7 @@ class SelectionRepository(BaseRepository):
             .outerjoin(ShareLinkSelectionConfig, ShareLinkSelectionConfig.sharelink_id == ShareLink.id)
             .where(
                 ShareLink.id == sharelink_id,
+                ShareLink.scope_type == ShareScopeType.GALLERY.value,
                 Gallery.owner_id == owner_id,
                 Gallery.is_deleted.is_(False),
             )
@@ -731,6 +734,7 @@ class SelectionRepository(BaseRepository):
             .join(ShareLink.gallery)
             .where(
                 ShareLink.id == sharelink_id,
+                ShareLink.scope_type == ShareScopeType.GALLERY.value,
                 Gallery.owner_id == owner_id,
                 Gallery.is_deleted.is_(False),
             )

@@ -178,6 +178,20 @@ export const ShareLinksDashboardPage = () => {
     }, 2000);
   };
 
+  const isProjectLink = (link: ShareLinkDashboardItem) => link.scope_type === 'project';
+
+  const getSelectionSummary = (link: ShareLinkDashboardItem) =>
+    link.selection_summary ?? {
+      is_enabled: false,
+      status: 'not_available',
+      total_sessions: 0,
+      submitted_sessions: 0,
+      in_progress_sessions: 0,
+      closed_sessions: 0,
+      selected_count: 0,
+      latest_activity_at: null,
+    };
+
   const handleDeleteLink = (link: ShareLinkDashboardItem) => {
     openConfirm({
       title: 'Delete share link',
@@ -186,7 +200,11 @@ export const ShareLinksDashboardPage = () => {
       confirmText: 'Delete',
       onConfirm: async () => {
         try {
-          await shareLinkService.deleteShareLink(link.gallery_id, link.id);
+          if (isProjectLink(link)) {
+            await shareLinkService.deleteProjectShareLink(link.project_id!, link.id);
+          } else {
+            await shareLinkService.deleteShareLink(link.gallery_id!, link.id);
+          }
           await fetchLinks();
         } catch (err) {
           setError(handleApiError(err).message || 'Failed to delete share link');
@@ -205,7 +223,15 @@ export const ShareLinksDashboardPage = () => {
     }
 
     try {
-      await shareLinkService.updateShareLink(editingLink.gallery_id, editingLink.id, payload);
+      if (isProjectLink(editingLink)) {
+        await shareLinkService.updateProjectShareLink(
+          editingLink.project_id!,
+          editingLink.id,
+          payload,
+        );
+      } else {
+        await shareLinkService.updateShareLink(editingLink.gallery_id!, editingLink.id, payload);
+      }
       await fetchLinks();
     } catch (err) {
       const message = handleApiError(err).message || 'Failed to update share link';
@@ -219,7 +245,13 @@ export const ShareLinksDashboardPage = () => {
     setSelectionActionBusy(true);
     setSelectionActionError('');
     try {
-      const uniqueGalleryIds = Array.from(new Set(links.map((link) => link.gallery_id)));
+      const uniqueGalleryIds = Array.from(
+        new Set(
+          links
+            .filter((link) => !isProjectLink(link) && link.gallery_id)
+            .map((link) => link.gallery_id!),
+        ),
+      );
       await Promise.all(
         uniqueGalleryIds.map((galleryId) => shareLinkService.closeAllGallerySelections(galleryId)),
       );
@@ -236,7 +268,13 @@ export const ShareLinksDashboardPage = () => {
     setSelectionActionBusy(true);
     setSelectionActionError('');
     try {
-      const uniqueGalleryIds = Array.from(new Set(links.map((link) => link.gallery_id)));
+      const uniqueGalleryIds = Array.from(
+        new Set(
+          links
+            .filter((link) => !isProjectLink(link) && link.gallery_id)
+            .map((link) => link.gallery_id!),
+        ),
+      );
       await Promise.all(
         uniqueGalleryIds.map((galleryId) => shareLinkService.openAllGallerySelections(galleryId)),
       );
@@ -253,7 +291,13 @@ export const ShareLinksDashboardPage = () => {
     setSelectionActionBusy(true);
     setSelectionActionError('');
     try {
-      const uniqueGalleryIds = Array.from(new Set(links.map((link) => link.gallery_id)));
+      const uniqueGalleryIds = Array.from(
+        new Set(
+          links
+            .filter((link) => !isProjectLink(link) && link.gallery_id)
+            .map((link) => link.gallery_id!),
+        ),
+      );
       for (const galleryId of uniqueGalleryIds) {
         await shareLinkService.exportGallerySelectionSummaryCsv(galleryId);
       }
@@ -269,7 +313,13 @@ export const ShareLinksDashboardPage = () => {
     setSelectionActionBusy(true);
     setSelectionActionError('');
     try {
-      const uniqueGalleryIds = Array.from(new Set(links.map((link) => link.gallery_id)));
+      const uniqueGalleryIds = Array.from(
+        new Set(
+          links
+            .filter((link) => !isProjectLink(link) && link.gallery_id)
+            .map((link) => link.gallery_id!),
+        ),
+      );
       for (const galleryId of uniqueGalleryIds) {
         await shareLinkService.exportGallerySelectionLinksCsv(galleryId);
       }
@@ -284,7 +334,8 @@ export const ShareLinksDashboardPage = () => {
     return links.reduce(
       (acc, link) => {
         const status = getShareLinkStatus(link);
-        const selectionStatus = link.selection_summary.status ?? null;
+        const selectionSummary = getSelectionSummary(link);
+        const selectionStatus = selectionSummary.status ?? null;
 
         if (status === 'active') acc.active += 1;
         if (status === 'inactive') acc.inactive += 1;
@@ -469,8 +520,9 @@ export const ShareLinksDashboardPage = () => {
               filteredLinks.map((link) => {
                 const fullUrl = `${window.location.origin}/share/${link.id}`;
                 const linkStatus = getShareLinkStatus(link);
-                const selectionStatus = link.selection_summary.status ?? null;
-                const selectionCount = link.selection_summary.selected_count ?? 0;
+                const selectionSummary = getSelectionSummary(link);
+                const selectionStatus = selectionSummary.status ?? null;
+                const selectionCount = selectionSummary.selected_count ?? 0;
 
                 return (
                   <article
@@ -485,7 +537,9 @@ export const ShareLinksDashboardPage = () => {
                           </h3>
                           <ShareLinkStatusBadge status={linkStatus} />
                           <span className="rounded-full border border-border/50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
-                            Selection {formatSelectionStatusLabel(selectionStatus)}
+                            {isProjectLink(link)
+                              ? 'Project link'
+                              : `Selection ${formatSelectionStatusLabel(selectionStatus)}`}
                           </span>
                         </div>
 
@@ -502,13 +556,23 @@ export const ShareLinksDashboardPage = () => {
                         </div>
 
                         <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted">
-                          <Link
-                            to={`/galleries/${link.gallery_id}`}
-                            className="inline-flex min-w-0 items-center gap-2 font-medium text-text transition-colors hover:text-accent"
-                          >
-                            <GalleryVerticalEnd className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{link.gallery_name}</span>
-                          </Link>
+                          {isProjectLink(link) ? (
+                            <Link
+                              to={`/projects/${link.project_id}`}
+                              className="inline-flex min-w-0 items-center gap-2 font-medium text-text transition-colors hover:text-accent"
+                            >
+                              <GalleryVerticalEnd className="h-4 w-4 shrink-0" />
+                              <span className="truncate">{link.project_name}</span>
+                            </Link>
+                          ) : (
+                            <Link
+                              to={`/galleries/${link.gallery_id}`}
+                              className="inline-flex min-w-0 items-center gap-2 font-medium text-text transition-colors hover:text-accent"
+                            >
+                              <GalleryVerticalEnd className="h-4 w-4 shrink-0" />
+                              <span className="truncate">{link.gallery_name}</span>
+                            </Link>
+                          )}
                           <span>
                             Created{' '}
                             <strong className="font-semibold text-text">

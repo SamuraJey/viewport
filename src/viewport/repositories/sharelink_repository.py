@@ -8,7 +8,8 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload
 
 from viewport.models.gallery import Gallery, Photo
-from viewport.models.sharelink import ShareLink
+from viewport.models.project import Project
+from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_analytics import ShareLinkDailyStat, ShareLinkDailyVisitor
 from viewport.repositories.base_repository import BaseRepository
 from viewport.repositories.photo_query_helpers import build_photo_order_clauses
@@ -19,6 +20,21 @@ OwnerShareLinkStatus = Literal["active", "inactive", "expired"]
 
 
 class ShareLinkRepository(BaseRepository):
+    @staticmethod
+    def _owner_filter(owner_id: uuid.UUID):
+        return or_(
+            and_(
+                ShareLink.scope_type == ShareScopeType.GALLERY.value,
+                Gallery.owner_id == owner_id,
+                Gallery.is_deleted.is_(False),
+            ),
+            and_(
+                ShareLink.scope_type == ShareScopeType.PROJECT.value,
+                Project.owner_id == owner_id,
+                Project.is_deleted.is_(False),
+            ),
+        )
+
     async def get_sharelink_by_id(self, sharelink_id: uuid.UUID) -> ShareLink | None:
         stmt = select(ShareLink).where(ShareLink.id == sharelink_id)
         sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
@@ -29,10 +45,7 @@ class ShareLinkRepository(BaseRepository):
         return is_sharelink_expired(sharelink.expires_at)
 
     async def get_valid_sharelink(self, sharelink_id: uuid.UUID) -> ShareLink | None:
-        """Get sharelink with eager loading of gallery and gallery.owner to avoid lazy loading issues."""
-        stmt = select(ShareLink).where(ShareLink.id == sharelink_id).options(selectinload(ShareLink.gallery).selectinload(Gallery.owner))
-        sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
-        await self._finish_read(None)
+        sharelink = await self.get_sharelink_for_public_access(sharelink_id)
         if not sharelink:
             return None
         if not sharelink.is_active:
@@ -42,24 +55,24 @@ class ShareLinkRepository(BaseRepository):
         return sharelink
 
     async def get_sharelink_for_public_access(self, sharelink_id: uuid.UUID) -> ShareLink | None:
-        """Get sharelink with gallery/owner data without filtering by active/expiry state."""
-        stmt = select(ShareLink).where(ShareLink.id == sharelink_id).options(selectinload(ShareLink.gallery).selectinload(Gallery.owner))
+        stmt = (
+            select(ShareLink)
+            .where(ShareLink.id == sharelink_id)
+            .options(
+                selectinload(ShareLink.gallery).selectinload(Gallery.owner),
+                selectinload(ShareLink.project).selectinload(Project.owner),
+            )
+        )
         sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
         await self._finish_read(None)
         return sharelink
 
-    async def get_sharelink_for_owner(self, sharelink_id: uuid.UUID, owner_id: uuid.UUID) -> tuple[ShareLink, str] | None:
-        stmt = (
-            select(ShareLink, Gallery.name)
-            .join(ShareLink.gallery)
-            .where(
-                ShareLink.id == sharelink_id,
-                Gallery.owner_id == owner_id,
-                Gallery.is_deleted.is_(False),
-            )
-        )
+    async def get_sharelink_for_owner(self, sharelink_id: uuid.UUID, owner_id: uuid.UUID) -> tuple[ShareLink, str | None, str | None] | None:
+        stmt = select(ShareLink, Gallery.name, Project.name).outerjoin(ShareLink.gallery).outerjoin(ShareLink.project).where(ShareLink.id == sharelink_id, self._owner_filter(owner_id))
         row = (await self.db.execute(stmt)).one_or_none()
-        return await self._finish_read(row)
+        if row is None:
+            return await self._finish_read(None)
+        return await self._finish_read((row[0], row[1], row[2]))
 
     async def get_sharelinks_by_owner(
         self,
@@ -68,8 +81,8 @@ class ShareLinkRepository(BaseRepository):
         size: int,
         search: str | None = None,
         status: OwnerShareLinkStatus | None = None,
-    ) -> tuple[list[tuple[ShareLink, str]], int, dict[str, int]]:
-        filters = [Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False)]
+    ) -> tuple[list[tuple[ShareLink, str | None, str | None]], int, dict[str, int]]:
+        filters = [self._owner_filter(owner_id)]
         now = datetime.now(UTC).replace(tzinfo=None)
         normalized_search = (search or "").strip()
         if normalized_search:
@@ -78,6 +91,7 @@ class ShareLinkRepository(BaseRepository):
                 or_(
                     ShareLink.label.ilike(pattern),
                     Gallery.name.ilike(pattern),
+                    Project.name.ilike(pattern),
                     cast(ShareLink.id, String).ilike(pattern),
                 )
             )
@@ -94,7 +108,9 @@ class ShareLinkRepository(BaseRepository):
         elif status == "expired":
             filters.extend([ShareLink.is_active.is_(True), ShareLink.expires_at.is_not(None), ShareLink.expires_at <= now])
 
-        count_stmt = select(func.count()).select_from(ShareLink).join(ShareLink.gallery).where(*filters)
+        base_stmt = select(ShareLink).outerjoin(ShareLink.gallery).outerjoin(ShareLink.project).where(*filters)
+
+        count_stmt = select(func.count()).select_from(base_stmt.subquery())
         total = int((await self.db.execute(count_stmt)).scalar() or 0)
 
         summary_stmt = (
@@ -119,7 +135,8 @@ class ShareLinkRepository(BaseRepository):
                 ),
             )
             .select_from(ShareLink)
-            .join(ShareLink.gallery)
+            .outerjoin(ShareLink.gallery)
+            .outerjoin(ShareLink.project)
             .where(*filters)
         )
         summary_row = (await self.db.execute(summary_stmt)).one()
@@ -130,13 +147,19 @@ class ShareLinkRepository(BaseRepository):
             "active_links": int(summary_row[3] or 0),
         }
 
-        stmt = select(ShareLink, Gallery.name).join(ShareLink.gallery).where(*filters).order_by(ShareLink.updated_at.desc(), ShareLink.created_at.desc()).offset((page - 1) * size).limit(size)
-        rows = list((await self.db.execute(stmt)).all())
+        stmt = (
+            select(ShareLink, Gallery.name, Project.name)
+            .outerjoin(ShareLink.gallery)
+            .outerjoin(ShareLink.project)
+            .where(*filters)
+            .order_by(ShareLink.updated_at.desc(), ShareLink.created_at.desc())
+            .offset((page - 1) * size)
+            .limit(size)
+        )
+        rows = [(row[0], row[1], row[2]) for row in (await self.db.execute(stmt)).all()]
         return await self._finish_read((rows, total, summary))
 
     async def get_photo_count_by_gallery(self, gallery_id: uuid.UUID) -> int:
-        from viewport.models.gallery import Gallery
-
         stmt = select(func.count()).select_from(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
         count = int((await self.db.execute(stmt)).scalar() or 0)
         return await self._finish_read(count)
@@ -149,8 +172,6 @@ class ShareLinkRepository(BaseRepository):
         sort_by: GalleryPhotoSortBy = GalleryPhotoSortBy.ORIGINAL_FILENAME,
         order: SortOrder = SortOrder.ASC,
     ) -> list[Photo]:
-        from viewport.models.gallery import Gallery
-
         stmt = (
             select(Photo)
             .join(Photo.gallery)
@@ -165,15 +186,11 @@ class ShareLinkRepository(BaseRepository):
         return await self._finish_read(photos)
 
     async def get_photo_by_id_and_gallery(self, photo_id: uuid.UUID, gallery_id: uuid.UUID) -> Photo | None:
-        from viewport.models.gallery import Gallery
-
         stmt = select(Photo).join(Photo.gallery).where(Photo.id == photo_id, Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
         photo = (await self.db.execute(stmt)).scalar_one_or_none()
         return await self._finish_read(photo)
 
     async def get_photos_by_ids_and_gallery(self, gallery_id: uuid.UUID, photo_ids: list[uuid.UUID]) -> list[Photo]:
-        from viewport.models.gallery import Gallery
-
         if not photo_ids:
             return await self._finish_read([])
 
@@ -251,7 +268,7 @@ class ShareLinkRepository(BaseRepository):
                 )
             )
             inserted = await self.db.execute(visitor_stmt)
-            is_unique = bool(inserted.rowcount)
+            is_unique = bool(getattr(inserted, "rowcount", 0))
 
         await self.db.execute(update(ShareLink).where(ShareLink.id == sharelink_id).values(views=ShareLink.views + 1))
         await self._upsert_daily_stat(

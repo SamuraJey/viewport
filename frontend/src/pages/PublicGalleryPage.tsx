@@ -40,7 +40,11 @@ const createInitialStartForm = (): SelectionSessionStartRequest => ({
 });
 
 export const PublicGalleryPage = () => {
-  const { shareId, resumeToken } = useParams<{ shareId: string; resumeToken?: string }>();
+  const { shareId, resumeToken, folderId } = useParams<{
+    shareId: string;
+    resumeToken?: string;
+    folderId?: string;
+  }>();
   const navigate = useNavigate();
   const isFavoritesView = Boolean(resumeToken);
 
@@ -56,7 +60,7 @@ export const PublicGalleryPage = () => {
   const startNameInputRef = useRef<HTMLInputElement | null>(null);
 
   const { gallery, photos, isLoading, isLoadingMore, hasMore, error, errorStatus, loadMorePhotos } =
-    usePublicGallery({ shareId });
+    usePublicGallery({ shareId, folderId });
 
   const selection = usePublicSelection({
     shareId,
@@ -296,6 +300,10 @@ export const PublicGalleryPage = () => {
     navigate(`/share/${shareId}`);
   }, [navigate, shareId]);
 
+  const projectShare = gallery?.scope_type === 'project' ? gallery : null;
+  const folderShare = gallery?.scope_type === 'project' ? null : gallery;
+  const isProjectShare = projectShare !== null;
+
   const handleLogoutSelection = useCallback(() => {
     if (!shareId) {
       return;
@@ -350,8 +358,10 @@ export const PublicGalleryPage = () => {
   const combinedSelectionError = selectedPhotosError || selection.error;
   useDocumentTitle(
     isFavoritesView
-      ? `${gallery?.gallery_name || 'Favorites'} · Viewport`
-      : `${gallery?.gallery_name || 'Public Gallery'} · Viewport`,
+      ? `${folderShare?.gallery_name || 'Favorites'} · Viewport`
+      : isProjectShare
+        ? `${projectShare.project_name || 'Public Project'} · Viewport`
+        : `${folderShare?.gallery_name || 'Public Gallery'} · Viewport`,
   );
 
   if (isLoading) {
@@ -383,6 +393,74 @@ export const PublicGalleryPage = () => {
     return <PublicGalleryError error={error} />;
   }
 
+  if (isProjectShare && !isFavoritesView) {
+    return (
+      <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
+        <SkipToContentLink targetId="main-content" />
+        <div className="fixed top-6 right-6 z-30 flex items-center gap-2">
+          <ReadabilitySettingsButton />
+          <ThemeSwitch variant="inline" />
+        </div>
+
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-10"
+        >
+          <section className="rounded-3xl border border-border/50 bg-surface-1/70 p-8 shadow-xs">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
+              Project share
+            </p>
+            <h1 className="mt-3 font-oswald text-4xl font-bold uppercase tracking-wide text-text">
+              {projectShare.project_name || 'Public Project'}
+            </h1>
+            <p className="mt-3 text-sm text-muted">
+              {projectShare.photographer || 'Photographer'} · {projectShare.date || 'No date'} ·{' '}
+              {projectShare.total_listed_folders || 0} folders ·{' '}
+              {projectShare.total_listed_photos || 0} photos
+            </p>
+          </section>
+
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={handleDownloadAll}
+              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
+            >
+              <DownloadIcon className="h-4 w-4" />
+              Download visible folders
+            </button>
+          </div>
+
+          <section className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {projectShare.folders.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border/40 bg-surface-1/50 px-4 py-10 text-sm text-muted">
+                No visible folders in this project.
+              </div>
+            ) : (
+              projectShare.folders.map((folder) => (
+                <Link
+                  key={folder.folder_id}
+                  to={folder.route_path}
+                  className="rounded-2xl border border-border/40 bg-surface p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40"
+                >
+                  {folder.cover_thumbnail_url ? (
+                    <img
+                      src={folder.cover_thumbnail_url}
+                      alt={folder.folder_name}
+                      className="mb-4 h-48 w-full rounded-xl object-cover"
+                    />
+                  ) : null}
+                  <h2 className="font-semibold text-text">{folder.folder_name}</h2>
+                  <p className="mt-1 text-sm text-muted">{folder.photo_count} photos</p>
+                </Link>
+              ))
+            )}
+          </section>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
       <SkipToContentLink targetId="main-content" />
@@ -391,7 +469,7 @@ export const PublicGalleryPage = () => {
         <ThemeSwitch variant="inline" />
       </div>
 
-      <PublicGalleryHero gallery={gallery} />
+      <PublicGalleryHero gallery={folderShare} />
 
       <main id="main-content" tabIndex={-1} className="w-full px-4 py-16 sm:px-6 lg:px-10">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/50 bg-surface-1/70 px-4 py-3 shadow-xs">
@@ -608,7 +686,7 @@ export const PublicGalleryPage = () => {
           totalPhotos={
             isFavoritesView
               ? (selection.session?.selected_count ?? selectedPhotos.length)
-              : (gallery?.total_photos ?? photos.length)
+              : (folderShare?.total_photos ?? photos.length)
           }
           displayedPhotos={displayedPhotos.length}
           sectionTitle={isFavoritesView ? 'Selected Photos' : 'Photos'}

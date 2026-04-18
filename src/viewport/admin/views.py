@@ -3,6 +3,7 @@
 from sqladmin import ModelView
 
 from viewport.models.gallery import Gallery, Photo
+from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
 
@@ -185,5 +186,43 @@ class ShareLinkAdmin(ModelView, model=ShareLink):
     # Permissions
     can_create = False  # Share links created via API only
     can_edit = True  # Allow editing expiration
+    can_delete = True
+    can_view_details = True
+
+
+class ProjectAdmin(ModelView, model=Project):
+    """Admin view for Project model."""
+
+    name = "Project"
+    name_plural = "Projects"
+    icon = "fa-solid fa-folder-tree"
+
+    column_list = [
+        Project.id,
+        Project.name,
+        Project.owner_id,
+        Project.shooting_date,
+        Project.created_at,
+        Project.is_deleted,
+    ]
+    column_searchable_list = [Project.name]
+    column_sortable_list = [Project.created_at, Project.shooting_date, Project.name]
+    column_default_sort = [(Project.created_at, True)]
+
+    column_details_list = [
+        Project.id,
+        Project.name,
+        Project.owner,
+        Project.shooting_date,
+        Project.created_at,
+        Project.is_deleted,
+        Project.galleries,
+        Project.share_links,
+    ]
+
+    form_excluded_columns = [Project.created_at, Project.galleries, Project.share_links, Project.owner]
+
+    can_create = False
+    can_edit = True
     can_delete = True
     can_view_details = True

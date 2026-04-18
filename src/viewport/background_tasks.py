@@ -320,8 +320,9 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
                 failed_ids = [r["photo_id"] for r in failed_results]
                 logger.info("Batch marking %s photos as FAILED in DB", len(failed_ids))
 
-                owner_totals = list(
-                    db.execute(
+                owner_totals = [
+                    (owner_id, int(total_size))
+                    for owner_id, total_size in db.execute(
                         select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0))
                         .select_from(Photo)
                         .join(Gallery, Photo.gallery_id == Gallery.id)
@@ -331,7 +332,7 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
                         )
                         .group_by(Gallery.owner_id)
                     ).all()
-                )
+                ]
 
                 db.execute(
                     update(Photo)

@@ -12,6 +12,7 @@ export type GalleryListSortBy =
   | 'name'
   | 'photo_count'
   | 'total_size_bytes';
+export type ProjectVisibility = 'listed' | 'direct_only';
 
 export interface GalleryPhotoQueryOptions {
   limit?: number;
@@ -25,11 +26,17 @@ export interface GalleryListQueryOptions {
   search?: string;
   sort_by?: GalleryListSortBy;
   order?: SortOrder;
+  standalone_only?: boolean;
+  project_id?: string;
 }
 
 export interface Gallery {
   id: string;
   owner_id: string;
+  project_id?: string | null;
+  project_name?: string | null;
+  project_position?: number;
+  project_visibility?: ProjectVisibility;
   name: string;
   created_at: string;
   shooting_date: string;

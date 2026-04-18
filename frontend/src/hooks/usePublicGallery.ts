@@ -14,10 +14,15 @@ const getErrorStatus = (error: unknown): number | undefined => {
 
 interface UsePublicGalleryProps {
   shareId: string | undefined;
+  folderId?: string;
   photosPerPage?: number;
 }
 
-export const usePublicGallery = ({ shareId, photosPerPage = 100 }: UsePublicGalleryProps) => {
+export const usePublicGallery = ({
+  shareId,
+  folderId,
+  photosPerPage = 100,
+}: UsePublicGalleryProps) => {
   const [gallery, setGallery] = useState<SharedGallery | null>(null);
   const [photos, setPhotos] = useState<PublicPhoto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,11 +47,13 @@ export const usePublicGallery = ({ shareId, photosPerPage = 100 }: UsePublicGall
       const data = await shareLinkService.getSharedGallery(shareId, {
         limit: photosPerPage,
         offset: 0,
+        folderId,
       });
 
       setGallery(data);
-      setPhotos(data.photos || []);
-      setHasMore(data.photos.length === photosPerPage);
+      const loadedPhotos = data.scope_type === 'project' ? [] : data.photos || [];
+      setPhotos(loadedPhotos);
+      setHasMore(loadedPhotos.length === photosPerPage);
     } catch (err) {
       console.error('Failed to fetch shared gallery:', err);
       const status = getErrorStatus(err);
@@ -58,7 +65,7 @@ export const usePublicGallery = ({ shareId, photosPerPage = 100 }: UsePublicGall
     } finally {
       setIsLoading(false);
     }
-  }, [shareId, photosPerPage]);
+  }, [folderId, shareId, photosPerPage]);
 
   const loadMorePhotos = useCallback(async () => {
     if (isLoadingMore || !hasMore || !shareId) return;
@@ -69,9 +76,10 @@ export const usePublicGallery = ({ shareId, photosPerPage = 100 }: UsePublicGall
       const moreData = await shareLinkService.getSharedGallery(shareId, {
         limit: photosPerPage,
         offset: currentOffset,
+        folderId,
       });
 
-      const newPhotos = moreData.photos || [];
+      const newPhotos = moreData.scope_type === 'project' ? [] : moreData.photos || [];
       setPhotos((prev) => [...prev, ...newPhotos]);
       setHasMore(newPhotos.length === photosPerPage);
     } catch (err) {
@@ -85,7 +93,7 @@ export const usePublicGallery = ({ shareId, photosPerPage = 100 }: UsePublicGall
     } finally {
       setIsLoadingMore(false);
     }
-  }, [shareId, photos.length, isLoadingMore, hasMore, photosPerPage]);
+  }, [folderId, shareId, photos.length, isLoadingMore, hasMore, photosPerPage]);
 
   useEffect(() => {
     fetchGalleryData();

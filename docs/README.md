@@ -34,6 +34,7 @@ Backend architecture, models, and implementation details.
 
 - [Project Structure](./backend/structure.md) - Backend code organization
 - [Database Models](./backend/models.md) - SQLAlchemy ORM models
+- [Projects and Folders](./projects-and-folders.md) - Project-level organization and scoped sharing
 - [Authentication & Auth](./backend/auth.md) - JWT implementation
 - [File Storage](./backend/storage.md) - S3 integration
 - [Storage Quotas](./backend/quotas.md) - Quota enforcement and upload accounting
@@ -118,6 +119,9 @@ Development workflows, testing, and best practices.
 
 **Add a database migration**
 → [Migrations Guide](./development/migrations.md)
+
+**Understand projects vs standalone folders**
+→ [Projects and Folders](./projects-and-folders.md)
 
 **Deploy to production**
 → [Production Deployment](./deployment/production.md)
