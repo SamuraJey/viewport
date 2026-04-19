@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -72,6 +73,69 @@ class TestProjectAPI:
         listed_items = {item["id"]: item for item in list_resp.json()["projects"]}
         assert listed_items[project_id]["entry_gallery_id"] == entry_gallery_id
         assert listed_items[standalone_project_id]["entry_gallery_id"] == standalone_id
+
+    def test_project_missing_resource_and_empty_state_branches(self, authenticated_client: TestClient):
+        missing_project_id = uuid4()
+
+        missing_detail_resp = authenticated_client.get(f"/projects/{missing_project_id}")
+        assert missing_detail_resp.status_code == 404
+        assert missing_detail_resp.json()["detail"] == "Project not found"
+
+        missing_update_resp = authenticated_client.patch(
+            f"/projects/{missing_project_id}",
+            json={"name": "Rename"},
+        )
+        assert missing_update_resp.status_code == 404
+        assert missing_update_resp.json()["detail"] == "Project not found"
+
+        missing_delete_resp = authenticated_client.delete(f"/projects/{missing_project_id}")
+        assert missing_delete_resp.status_code == 404
+        assert missing_delete_resp.json()["detail"] == "Project not found"
+
+        missing_folder_resp = authenticated_client.post(
+            f"/projects/{missing_project_id}/galleries",
+            json={"name": "Child"},
+        )
+        assert missing_folder_resp.status_code == 404
+        assert missing_folder_resp.json()["detail"] == "Project not found"
+
+        project_resp = authenticated_client.post("/projects", json={"name": "Empty Later"})
+        assert project_resp.status_code == 201
+        project_payload = project_resp.json()
+        project_id = project_payload["id"]
+        entry_gallery_id = project_payload["entry_gallery_id"]
+
+        non_empty_delete_resp = authenticated_client.delete(f"/projects/{project_id}")
+        assert non_empty_delete_resp.status_code == 409
+        assert non_empty_delete_resp.json()["detail"] == "Project must be empty before deletion"
+
+        delete_gallery_resp = authenticated_client.delete(f"/galleries/{entry_gallery_id}")
+        assert delete_gallery_resp.status_code == 204
+
+        empty_detail_resp = authenticated_client.get(f"/projects/{project_id}")
+        assert empty_detail_resp.status_code == 200
+        empty_payload = empty_detail_resp.json()
+        assert empty_payload["folders"] == []
+        assert empty_payload["entry_gallery_id"] is None
+        assert empty_payload["has_entry_gallery"] is False
+
+        empty_delete_resp = authenticated_client.delete(f"/projects/{project_id}")
+        assert empty_delete_resp.status_code == 204
+
+    def test_update_project_success(self, authenticated_client: TestClient):
+        project_resp = authenticated_client.post("/projects", json={"name": "Before Rename"})
+        assert project_resp.status_code == 201
+        project_id = project_resp.json()["id"]
+
+        update_resp = authenticated_client.patch(
+            f"/projects/{project_id}",
+            json={"name": "After Rename", "shooting_date": "2026-04-20"},
+        )
+
+        assert update_resp.status_code == 200
+        payload = update_resp.json()
+        assert payload["name"] == "After Rename"
+        assert payload["shooting_date"] == "2026-04-20"
 
     def test_project_share_hides_direct_only_folders_but_direct_folder_share_works(self, authenticated_client: TestClient):
         project_resp = authenticated_client.post("/projects", json={"name": "Wedding B"})

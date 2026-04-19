@@ -6,8 +6,9 @@ import pytest
 import pytest_asyncio
 from freezegun.api import FrozenDateTimeFactory
 
-from viewport.models.gallery import Gallery
-from viewport.models.sharelink import ShareLink
+from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
+from viewport.models.project import Project
+from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_analytics import ShareLinkDailyStat
 from viewport.models.sharelink_selection import SelectionSessionStatus, ShareLinkSelectionConfig, ShareLinkSelectionSession
 from viewport.models.user import User
@@ -324,3 +325,78 @@ async def test_get_sharelink_selection_summaries_is_bounded_to_requested_ids(db_
     assert summaries[first_link.id][0] is True
     assert summaries[first_link.id][3] == 1
     assert summaries[first_link.id][5] == 3
+
+
+@pytest.mark.asyncio
+async def test_sharelink_repository_lookup_and_photo_scope_helpers(repo: ShareLinkRepository, db_session):
+    user = User(email=f"lookup-{uuid4()}@example.com", password_hash="hashed", display_name="Lookup user")
+    db_session.add(user)
+    await db_session.commit()
+
+    project = Project(owner_id=user.id, name="Lookup Project")
+    gallery = Gallery(owner_id=user.id, project=project, name="Lookup Gallery")
+    db_session.add_all([project, gallery])
+    await db_session.commit()
+
+    active_sharelink = ShareLink(
+        gallery_id=gallery.id,
+        label="Active",
+        is_active=True,
+        expires_at=datetime.now(UTC).replace(tzinfo=None) + timedelta(days=1),
+    )
+    inactive_sharelink = ShareLink(gallery_id=gallery.id, label="Inactive", is_active=False)
+    expired_sharelink = ShareLink(
+        gallery_id=gallery.id,
+        label="Expired",
+        is_active=True,
+        expires_at=datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1),
+    )
+    project_sharelink = ShareLink(
+        project_id=project.id,
+        scope_type=ShareScopeType.PROJECT.value,
+        label="Project",
+    )
+    db_session.add_all([active_sharelink, inactive_sharelink, expired_sharelink, project_sharelink])
+    await db_session.commit()
+
+    photo = Photo(
+        gallery_id=gallery.id,
+        status=PhotoUploadStatus.SUCCESSFUL,
+        object_key=f"{gallery.id}/lookup.jpg",
+        display_name="lookup.jpg",
+        thumbnail_object_key=f"{gallery.id}/thumb-lookup.jpg",
+        file_size=1024,
+    )
+    db_session.add(photo)
+    await db_session.commit()
+
+    fetched_sharelink = await repo.get_sharelink_by_id(active_sharelink.id)
+    assert fetched_sharelink is not None
+    assert fetched_sharelink.id == active_sharelink.id
+    assert repo._is_expired(expired_sharelink) is True
+    assert repo._is_expired(active_sharelink) is False
+
+    assert await repo.get_valid_sharelink(uuid4()) is None
+    assert await repo.get_valid_sharelink(inactive_sharelink.id) is None
+    assert await repo.get_valid_sharelink(expired_sharelink.id) is None
+    valid_sharelink = await repo.get_valid_sharelink(active_sharelink.id)
+    assert valid_sharelink is not None
+    assert valid_sharelink.id == active_sharelink.id
+
+    owner_row = await repo.get_sharelink_for_owner(project_sharelink.id, user.id)
+    missing_owner_row = await repo.get_sharelink_for_owner(uuid4(), user.id)
+    assert owner_row is not None
+    assert owner_row[0].id == project_sharelink.id
+    assert missing_owner_row is None
+
+    found_photo = await repo.get_photo_by_id_and_gallery(photo.id, gallery.id)
+    missing_photo = await repo.get_photo_by_id_and_gallery(uuid4(), gallery.id)
+    assert found_photo is not None
+    assert found_photo.id == photo.id
+    assert missing_photo is None
+
+    assert await repo.get_photos_by_ids_and_gallery(gallery.id, []) == []
+    photos = await repo.get_photos_by_ids_and_gallery(gallery.id, [photo.id, uuid4()])
+    assert [item.id for item in photos] == [photo.id]
+
+    assert await repo.get_photos_by_ids_and_project(project.id, []) == []

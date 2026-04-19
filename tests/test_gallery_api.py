@@ -3,6 +3,7 @@
 import io
 import zipfile
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -10,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tests.helpers import register_and_login, upload_photo_via_presigned
+from viewport.api.gallery import _get_project_name
 from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH, PHOTO_SEARCH_MAX_LENGTH
 
 pytestmark = pytest.mark.requires_s3
@@ -44,11 +46,54 @@ class TestGalleryAPI:
         response = client.post("/galleries", json={})
         assert response.status_code == 401
 
+    @pytest.mark.asyncio
+    async def test_get_project_name_returns_none_for_gallery_without_project(self):
+        repo = MagicMock()
+        gallery = SimpleNamespace(project_id=None, owner_id=uuid4())
+
+        project_name = await _get_project_name(gallery, repo)
+
+        assert project_name is None
+        repo.get_project_by_id_and_owner.assert_not_called()
+
     def test_create_gallery_invalid_token(self, client: TestClient):
         """Test gallery creation with invalid token."""
         client.headers.update({"Authorization": "Bearer invalid_token"})
         response = client.post("/galleries", json={})
         assert response.status_code == 401
+
+    def test_create_gallery_rejects_invalid_project_id(self, authenticated_client: TestClient):
+        response = authenticated_client.post(
+            "/galleries",
+            json={"name": "Bad Gallery", "project_id": "not-a-uuid"},
+        )
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == "Invalid project_id"
+
+    def test_create_gallery_rejects_unknown_project(self, authenticated_client: TestClient):
+        response = authenticated_client.post(
+            "/galleries",
+            json={"name": "Missing Project", "project_id": str(uuid4())},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Project not found"
+
+    def test_create_gallery_with_existing_project_id(self, authenticated_client: TestClient):
+        project_resp = authenticated_client.post("/projects", json={"name": "Existing Project"})
+        assert project_resp.status_code == 201
+        project_id = project_resp.json()["id"]
+
+        response = authenticated_client.post(
+            "/galleries",
+            json={"name": "Added Gallery", "project_id": project_id},
+        )
+
+        assert response.status_code == 201
+        payload = response.json()
+        assert payload["project_id"] == project_id
+        assert payload["name"] == "Added Gallery"
 
     def test_list_galleries_empty(self, authenticated_client: TestClient):
         """Test listing galleries when user has no galleries."""
@@ -127,6 +172,12 @@ class TestGalleryAPI:
         # Invalid size (less than 1)
         response = authenticated_client.get("/galleries?size=0")
         assert response.status_code == 422
+
+    def test_list_galleries_rejects_invalid_project_filter(self, authenticated_client: TestClient):
+        response = authenticated_client.get("/galleries?project_id=not-a-uuid")
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == "Invalid project_id"
 
     def test_list_galleries_supports_search(self, authenticated_client: TestClient):
         authenticated_client.post("/galleries", json={"name": "Summer Wedding"})
@@ -460,6 +511,33 @@ class TestGalleryAPI:
         response = authenticated_client.patch(f"/galleries/{fake_id}", json={"name": "Name"})
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
+
+    def test_update_gallery_rejects_invalid_project_id(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        response = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}",
+            json={"project_id": "not-a-uuid"},
+        )
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == "Invalid project_id"
+
+    def test_update_gallery_rejects_unknown_project(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        response = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}",
+            json={"project_id": str(uuid4())},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Project not found"
+
+    def test_update_gallery_detach_rejects_missing_gallery(self, authenticated_client: TestClient):
+        response = authenticated_client.patch(
+            f"/galleries/{uuid4()}",
+            json={"project_id": None},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Gallery not found"
 
     def test_update_gallery_unauthorized(self, client: TestClient):
         """Test renaming without authentication."""
