@@ -4,8 +4,10 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import func, select
 
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
+from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink
 from viewport.models.sharelink_analytics import ShareLinkDailyStat, ShareLinkDailyVisitor
 from viewport.models.sharelink_selection import ShareLinkSelectionConfig, ShareLinkSelectionSession
@@ -101,6 +103,41 @@ async def test_create_project_with_initial_gallery_rolls_back_when_flush_fails()
         await repo.create_project_with_initial_gallery(uuid.uuid4(), "Broken Project")
 
     db.rollback.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_create_compatibility_project_for_gallery_rolls_back_when_commit_fails(
+    repo: ProjectRepository,
+    db_session,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    user = await _create_user(db_session, "project-compat")
+    source_project, gallery = await repo.create_project_with_initial_gallery(user.id, "Source Project")
+    owner_id = user.id
+    source_project_id = source_project.id
+    gallery_id = gallery.id
+
+    original_commit = db_session.commit
+    monkeypatch.setattr(db_session, "commit", AsyncMock(side_effect=RuntimeError("commit failed")))
+
+    with pytest.raises(RuntimeError, match="commit failed"):
+        await repo.create_compatibility_project_for_gallery(
+            gallery_id,
+            owner_id,
+            project_name="Detached Project",
+            gallery_name="Detached Gallery",
+        )
+
+    monkeypatch.setattr(db_session, "commit", original_commit)
+    db_session.expire_all()
+
+    project_count = int((await db_session.execute(select(func.count()).select_from(Project).where(Project.owner_id == owner_id, Project.is_deleted.is_(False)))).scalar_one() or 0)
+    reloaded_gallery = await db_session.get(Gallery, gallery_id)
+
+    assert project_count == 1
+    assert reloaded_gallery is not None
+    assert reloaded_gallery.project_id == source_project_id
+    assert reloaded_gallery.name == "Source Project"
 
 
 @pytest.mark.asyncio

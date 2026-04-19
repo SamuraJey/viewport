@@ -9,6 +9,7 @@ from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.repositories.base_repository import BaseRepository
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
+from viewport.schemas.gallery import ProjectVisibility as ProjectVisibilitySchema
 
 DEFAULT_PUBLIC_SORT_BY = GalleryPhotoSortBy(PUBLIC_GALLERY_SORT_BY_DEFAULT)
 DEFAULT_PUBLIC_SORT_ORDER = SortOrder(PUBLIC_GALLERY_SORT_ORDER_DEFAULT)
@@ -31,6 +32,77 @@ class ProjectRepository(BaseRepository):
         await self.db.commit()
         await self.db.refresh(project)
         return project
+
+    async def create_compatibility_project_for_gallery(
+        self,
+        gallery_id: uuid.UUID,
+        owner_id: uuid.UUID,
+        *,
+        project_name: str,
+        shooting_date: date | None = None,
+        gallery_name: str | None = None,
+        project_visibility: ProjectVisibilitySchema | None = None,
+        public_sort_by: GalleryPhotoSortBy | None = None,
+        public_sort_order: SortOrder | None = None,
+    ) -> tuple[Project, Gallery] | None:
+        stmt = (
+            select(Gallery)
+            .where(
+                Gallery.id == gallery_id,
+                Gallery.owner_id == owner_id,
+                Gallery.is_deleted.is_(False),
+            )
+            .with_for_update()
+        )
+        gallery = (await self.db.execute(stmt)).scalar_one_or_none()
+        if gallery is None:
+            return await self._finish_read(None)
+
+        if gallery.project_id is not None:
+            source_stmt = (
+                select(Gallery)
+                .where(
+                    Gallery.project_id == gallery.project_id,
+                    Gallery.owner_id == owner_id,
+                    Gallery.is_deleted.is_(False),
+                )
+                .order_by(Gallery.project_position.asc(), Gallery.created_at.asc(), Gallery.id.asc())
+                .with_for_update()
+            )
+            source_galleries = list((await self.db.execute(source_stmt)).scalars().all())
+            for index, source_gallery in enumerate([entry for entry in source_galleries if entry.id != gallery.id]):
+                source_gallery.project_position = index
+
+        resolved_shooting_date = shooting_date or gallery.shooting_date or datetime.now(UTC).date()
+        project = Project(
+            owner_id=owner_id,
+            name=project_name,
+            shooting_date=resolved_shooting_date,
+        )
+        self.db.add(project)
+
+        try:
+            await self.db.flush()
+            gallery.project_id = project.id
+            gallery.project_position = 0
+            if gallery_name is not None:
+                gallery.name = gallery_name
+            if shooting_date is not None:
+                gallery.shooting_date = shooting_date
+            if project_visibility is not None:
+                gallery.project_visibility = project_visibility.value
+            if public_sort_by is not None:
+                gallery.public_sort_by = public_sort_by.value
+            if public_sort_order is not None:
+                gallery.public_sort_order = public_sort_order.value
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
+
+        await self.db.refresh(project)
+        await self.db.refresh(gallery)
+        return project, gallery
 
     async def create_project_with_initial_gallery(
         self,

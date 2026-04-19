@@ -133,6 +133,29 @@ class TestSharelinkAPI:
         assert len(data["share_links"]) == 1
         assert data["share_links"][0]["label"] == "Needle Label"
 
+    def test_owner_sharelinks_dashboard_search_treats_like_wildcards_literally(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        first_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"label": "Preview 100%"},
+        )
+        second_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"label": "Preview_Frame"},
+        )
+        assert first_resp.status_code == 201
+        assert second_resp.status_code == 201
+
+        percent_resp = authenticated_client.get("/share-links?page=1&size=20&search=%")
+        underscore_resp = authenticated_client.get("/share-links?page=1&size=20&search=_")
+
+        assert percent_resp.status_code == 200
+        assert percent_resp.json()["total"] == 1
+        assert percent_resp.json()["share_links"][0]["label"] == "Preview 100%"
+
+        assert underscore_resp.status_code == 200
+        assert underscore_resp.json()["total"] == 1
+        assert underscore_resp.json()["share_links"][0]["label"] == "Preview_Frame"
+
     def test_owner_sharelinks_dashboard_filters_by_status(self, authenticated_client: TestClient, gallery_id_fixture: str):
         active_resp = authenticated_client.post(
             f"/galleries/{gallery_id_fixture}/share-links",

@@ -22,6 +22,36 @@ def _create_sharelink(authenticated_client: TestClient, gallery_id: str) -> str:
 
 
 class TestSelectionAPI:
+    def test_public_selection_returns_404_after_gallery_soft_delete_until_worker_cleanup(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr("viewport.api.gallery.delete_gallery_data_task.delay", lambda gallery_id: None)
+
+        share_id = _create_sharelink(authenticated_client, gallery_id_fixture)
+        enable_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config",
+            json={"is_enabled": True},
+        )
+        assert enable_resp.status_code == 200
+
+        delete_resp = authenticated_client.delete(f"/galleries/{gallery_id_fixture}")
+        assert delete_resp.status_code == 204
+
+        public_share_resp = authenticated_client.get(f"/s/{share_id}")
+        assert public_share_resp.status_code == 404
+
+        config_resp = authenticated_client.get(f"/s/{share_id}/selection/config")
+        assert config_resp.status_code == 404
+
+        session_resp = authenticated_client.post(
+            f"/s/{share_id}/selection/session",
+            json={"client_name": "Deleted Gallery Client"},
+        )
+        assert session_resp.status_code == 404
+
     def test_public_selection_supports_multiple_independent_sessions(
         self,
         authenticated_client: TestClient,

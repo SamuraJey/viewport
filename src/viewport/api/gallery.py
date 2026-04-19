@@ -491,18 +491,25 @@ async def update_gallery(
 ) -> GalleryResponse:
     parsed_project_id: uuid.UUID | None = None
     detach_to_new_project = "project_id" in request.model_fields_set and request.project_id is None
-    current_gallery = None
     if detach_to_new_project:
         current_gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
         if not current_gallery:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
 
-        compatibility_project = await project_repo.create_project(
+        compatibility_result = await project_repo.create_compatibility_project_for_gallery(
+            gallery_id,
             current_user.id,
-            request.name if request.name is not None else current_gallery.name,
-            request.shooting_date if request.shooting_date is not None else current_gallery.shooting_date,
+            project_name=request.name if request.name is not None else current_gallery.name,
+            shooting_date=request.shooting_date,
+            gallery_name=request.name,
+            project_visibility=request.project_visibility,
+            public_sort_by=request.public_sort_by,
+            public_sort_order=request.public_sort_order,
         )
-        parsed_project_id = compatibility_project.id
+        if not compatibility_result:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
+        _, detached_gallery = compatibility_result
+        return await _build_gallery_response(detached_gallery, repo, project_repo, s3_client)
     if "project_id" in request.model_fields_set and request.project_id is not None:
         try:
             parsed_project_id = uuid.UUID(str(request.project_id))

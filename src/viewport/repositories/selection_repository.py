@@ -14,6 +14,7 @@ from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_selection import SelectionSessionStatus, ShareLinkSelectionConfig, ShareLinkSelectionItem, ShareLinkSelectionSession
 from viewport.repositories.base_repository import BaseRepository
+from viewport.repositories.sharelink_repository import ShareLinkRepository
 
 
 class SelectionRepository(BaseRepository):
@@ -42,16 +43,7 @@ class SelectionRepository(BaseRepository):
         return token, SelectionRepository._hash_resume_token(token)
 
     async def get_public_sharelink(self, share_id: uuid.UUID) -> ShareLink | None:
-        stmt = (
-            select(ShareLink)
-            .where(ShareLink.id == share_id)
-            .options(
-                selectinload(ShareLink.gallery),
-                selectinload(ShareLink.project),
-            )
-        )
-        sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
-        return await self._finish_read(sharelink)
+        return await ShareLinkRepository(self.db).get_sharelink_for_public_access(share_id)
 
     async def get_owner_sharelink(self, sharelink_id: uuid.UUID, owner_id: uuid.UUID) -> ShareLink | None:
         stmt = (

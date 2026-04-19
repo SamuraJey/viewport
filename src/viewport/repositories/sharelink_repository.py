@@ -20,6 +20,12 @@ OwnerShareLinkStatus = Literal["active", "inactive", "expired"]
 
 
 class ShareLinkRepository(BaseRepository):
+    LIKE_ESCAPE_CHAR = "\\"
+
+    @classmethod
+    def _escape_like_term(cls, value: str) -> str:
+        return value.replace(cls.LIKE_ESCAPE_CHAR, cls.LIKE_ESCAPE_CHAR * 2).replace("%", f"{cls.LIKE_ESCAPE_CHAR}%").replace("_", f"{cls.LIKE_ESCAPE_CHAR}_")
+
     @staticmethod
     def _owner_filter(owner_id: uuid.UUID):
         return or_(
@@ -101,13 +107,14 @@ class ShareLinkRepository(BaseRepository):
         now = datetime.now(UTC).replace(tzinfo=None)
         normalized_search = (search or "").strip()
         if normalized_search:
-            pattern = f"%{normalized_search}%"
+            escaped_search = self._escape_like_term(normalized_search)
+            pattern = f"%{escaped_search}%"
             filters.append(
                 or_(
-                    ShareLink.label.ilike(pattern),
-                    Gallery.name.ilike(pattern),
-                    Project.name.ilike(pattern),
-                    cast(ShareLink.id, String).ilike(pattern),
+                    ShareLink.label.ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
+                    Gallery.name.ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
+                    Project.name.ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
+                    cast(ShareLink.id, String).ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
                 )
             )
 
