@@ -7,7 +7,7 @@ from sqlalchemy import String, and_, case, cast, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload
 
-from viewport.models.gallery import Gallery, Photo
+from viewport.models.gallery import Gallery, Photo, ProjectVisibility
 from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_analytics import ShareLinkDailyStat, ShareLinkDailyVisitor
@@ -206,6 +206,33 @@ class ShareLinkRepository(BaseRepository):
 
         photos = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read(photos)
+
+    async def get_photos_by_visible_project(
+        self,
+        project_id: uuid.UUID,
+        sort_by: GalleryPhotoSortBy = GalleryPhotoSortBy.ORIGINAL_FILENAME,
+        order: SortOrder = SortOrder.ASC,
+    ) -> dict[uuid.UUID, list[Photo]]:
+        stmt = (
+            select(Gallery.id, Photo)
+            .join(Photo.gallery)
+            .where(
+                Gallery.project_id == project_id,
+                Gallery.is_deleted.is_(False),
+                Gallery.project_visibility == ProjectVisibility.LISTED.value,
+            )
+            .order_by(
+                Gallery.project_position.asc(),
+                Gallery.created_at.asc(),
+                Gallery.id.asc(),
+                *build_photo_order_clauses(sort_by, order, include_uploaded_at_tiebreaker=False),
+            )
+        )
+
+        photos_by_gallery: dict[uuid.UUID, list[Photo]] = {}
+        for gallery_id_value, photo in (await self.db.execute(stmt)).all():
+            photos_by_gallery.setdefault(gallery_id_value, []).append(photo)
+        return await self._finish_read(photos_by_gallery)
 
     async def get_photo_by_id_and_gallery(self, photo_id: uuid.UUID, gallery_id: uuid.UUID) -> Photo | None:
         stmt = select(Photo).join(Photo.gallery).where(Photo.id == photo_id, Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))

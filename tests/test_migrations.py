@@ -58,6 +58,8 @@ def test_alembic_upgrade_and_downgrade(postgres_container) -> None:
             assert inspector.has_table("alembic_version")
             version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
             assert version == head_revision
+            gallery_columns = {column["name"] for column in inspector.get_columns("galleries")}
+            assert {"private_notes", "public_description"} <= gallery_columns
 
             command.downgrade(config, "base")
 

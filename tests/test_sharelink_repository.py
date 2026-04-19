@@ -6,7 +6,7 @@ import pytest
 import pytest_asyncio
 from freezegun.api import FrozenDateTimeFactory
 
-from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
+from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
 from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_analytics import ShareLinkDailyStat
@@ -424,3 +424,42 @@ async def test_sharelink_repository_lookup_and_photo_scope_helpers(repo: ShareLi
     assert [item.id for item in photos] == [photo.id]
 
     assert await repo.get_photos_by_ids_and_project(project.id, []) == []
+    project_photos = await repo.get_photos_by_ids_and_project(project.id, [photo.id, uuid4()])
+    assert [item.id for item in project_photos] == [photo.id]
+
+
+@pytest.mark.asyncio
+async def test_get_photos_by_visible_project_excludes_hidden_galleries(repo: ShareLinkRepository, db_session):
+    user = User(email=f"visible-project-{uuid4()}@example.com", password_hash="hashed", display_name="Visible project user")
+    db_session.add(user)
+    await db_session.commit()
+
+    project = Project(owner_id=user.id, name="Visible Project")
+    listed_gallery = Gallery(owner_id=user.id, project=project, name="Listed", project_visibility=ProjectVisibility.LISTED.value, project_position=0)
+    hidden_gallery = Gallery(owner_id=user.id, project=project, name="Hidden", project_visibility=ProjectVisibility.DIRECT_ONLY.value, project_position=1)
+    db_session.add_all([project, listed_gallery, hidden_gallery])
+    await db_session.commit()
+
+    listed_photo = Photo(
+        gallery_id=listed_gallery.id,
+        status=PhotoUploadStatus.SUCCESSFUL,
+        object_key=f"{listed_gallery.id}/listed.jpg",
+        display_name="listed.jpg",
+        thumbnail_object_key=f"{listed_gallery.id}/listed-thumb.jpg",
+        file_size=1024,
+    )
+    hidden_photo = Photo(
+        gallery_id=hidden_gallery.id,
+        status=PhotoUploadStatus.SUCCESSFUL,
+        object_key=f"{hidden_gallery.id}/hidden.jpg",
+        display_name="hidden.jpg",
+        thumbnail_object_key=f"{hidden_gallery.id}/hidden-thumb.jpg",
+        file_size=1024,
+    )
+    db_session.add_all([listed_photo, hidden_photo])
+    await db_session.commit()
+
+    photos_by_gallery = await repo.get_photos_by_visible_project(project.id)
+
+    assert list(photos_by_gallery.keys()) == [listed_gallery.id]
+    assert [photo.id for photo in photos_by_gallery[listed_gallery.id]] == [listed_photo.id]

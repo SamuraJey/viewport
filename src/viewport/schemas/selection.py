@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
+from viewport.schemas.sharelink import ShareScopeType
+
 
 class SelectionConfigUpdateRequest(BaseModel):
     is_enabled: bool | None = None
@@ -140,7 +142,7 @@ class OwnerSelectionSessionListItemResponse(BaseModel):
 class OwnerSelectionDetailResponse(BaseModel):
     sharelink_id: str
     sharelink_label: str | None
-    scope_type: str | None = None
+    scope_type: ShareScopeType | None = None
     config: SelectionConfigResponse
     aggregate: OwnerSelectionAggregateResponse
     sessions: list[OwnerSelectionSessionListItemResponse] = Field(default_factory=list)

@@ -16,6 +16,7 @@ from viewport.api.public import (
     _build_public_project_response,
     _date_str,
     _ensure_gallery_share_scope,
+    _load_project_zip_entries,
     _require_gallery_share_id,
     download_all_photos_zip,
     get_photos_by_sharelink,
@@ -178,6 +179,29 @@ class TestPublicAPI:
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Project not found"
+
+    @pytest.mark.asyncio
+    async def test_load_project_zip_entries_batches_visible_project_photo_lookup(self):
+        project_id = uuid4()
+        first_folder = SimpleNamespace(id=uuid4(), name="First")
+        second_folder = SimpleNamespace(id=uuid4(), name="Second")
+        first_photo = SimpleNamespace(id=uuid4(), display_name="a.jpg")
+        second_photo = SimpleNamespace(id=uuid4(), display_name="b.jpg")
+        project_repo = MagicMock()
+        project_repo.get_visible_project_folders = AsyncMock(return_value=[first_folder, second_folder])
+        repo = MagicMock()
+        repo.get_photos_by_visible_project = AsyncMock(
+            return_value={
+                first_folder.id: [first_photo],
+                second_folder.id: [second_photo],
+            }
+        )
+
+        entries = await _load_project_zip_entries(project_id, project_repo=project_repo, repo=repo)
+
+        assert entries == [("First", [first_photo]), ("Second", [second_photo])]
+        project_repo.get_visible_project_folders.assert_awaited_once_with(project_id)
+        repo.get_photos_by_visible_project.assert_awaited_once_with(project_id)
 
     def test_gallery_scope_helpers_reject_wrong_sharelink_shapes(self):
         with pytest.raises(HTTPException) as scope_exc:

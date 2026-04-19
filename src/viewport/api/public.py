@@ -322,6 +322,20 @@ async def _build_public_project_response(
     )
 
 
+async def _load_project_zip_entries(
+    project_id: UUID,
+    *,
+    project_repo: ProjectRepository,
+    repo: ShareLinkRepository,
+) -> list[tuple[str, list[Photo]]]:
+    folders = await project_repo.get_visible_project_folders(project_id)
+    if not folders:
+        return []
+
+    photos_by_gallery = await repo.get_photos_by_visible_project(project_id)
+    return [(folder.name, photos_by_gallery.get(folder.id, [])) for folder in folders]
+
+
 def _ensure_gallery_share_scope(sharelink: ShareLink) -> None:
     if sharelink.scope_type != ShareScopeType.GALLERY.value:
         raise HTTPException(status_code=404, detail="Gallery share not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
@@ -493,28 +507,23 @@ def download_all_photos_zip(
         project_id = sharelink.project_id
         if project_id is None:
             raise HTTPException(status_code=404, detail="Project not found")
-        folders = asyncio_run(project_repo.get_visible_project_folders(project_id))
-        project_photos: list[tuple[str, Photo]] = []
-        for folder in folders:
-            folder_photos = asyncio_run(repo.get_photos_by_gallery_id(folder.id))
-            with contextlib.suppress(Exception):
-                folder_photos = sorted(folder_photos, key=lambda p: p.display_name.lower())
-            project_photos.extend((folder.name, photo) for photo in folder_photos)
-        if not project_photos:
+        project_zip_entries = asyncio_run(_load_project_zip_entries(project_id, project_repo=project_repo, repo=repo))
+        if not any(folder_photos for _, folder_photos in project_zip_entries):
             raise HTTPException(status_code=404, detail="No photos found")
 
-        for folder_name, photo in project_photos:
-            key = photo.object_key
-            fallback = build_zip_fallback_name(photo.display_name, object_key=key, fallback_stem=f"photo-{photo.id}")
-            filename = sanitize_zip_entry_name(f"{folder_name} - {photo.display_name}", fallback=f"{folder_name} - {fallback}")
-            filename = make_unique_zip_entry_name(filename, used_names)
+        for folder_name, folder_photos in project_zip_entries:
+            for photo in folder_photos:
+                key = photo.object_key
+                fallback = build_zip_fallback_name(photo.display_name, object_key=key, fallback_stem=f"photo-{photo.id}")
+                filename = sanitize_zip_entry_name(f"{folder_name} - {photo.display_name}", fallback=f"{folder_name} - {fallback}")
+                filename = make_unique_zip_entry_name(filename, used_names)
 
-            def file_generator(object_key: str = key):
-                client = get_s3_client()
-                obj = client.get_object(Bucket=settings.bucket, Key=object_key)
-                yield from iter(lambda: obj["Body"].read(1024 * 1024), b"")
+                def file_generator(object_key: str = key):
+                    client = get_s3_client()
+                    obj = client.get_object(Bucket=settings.bucket, Key=object_key)
+                    yield from iter(lambda: obj["Body"].read(1024 * 1024), b"")
 
-            z.add(arcname=filename, data=file_generator())
+                z.add(arcname=filename, data=file_generator())
 
         asyncio_run(repo.record_zip_download(share_id))
         headers = {
