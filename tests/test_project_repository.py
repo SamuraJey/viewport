@@ -6,6 +6,9 @@ import pytest
 import pytest_asyncio
 
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
+from viewport.models.sharelink import ShareLink
+from viewport.models.sharelink_analytics import ShareLinkDailyStat, ShareLinkDailyVisitor
+from viewport.models.sharelink_selection import ShareLinkSelectionConfig, ShareLinkSelectionSession
 from viewport.models.user import User
 from viewport.repositories.project_repository import ProjectRepository
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
@@ -344,3 +347,54 @@ async def test_project_repository_batch_enrichment_helpers(repo: ProjectReposito
     assert sharelink.project_id == first_project.id
     assert recent_keys[first_project.id] == ["alpha-thumb", "beta-thumb"]
     assert recent_keys[second_project.id] == ["gamma-thumb"]
+
+
+@pytest.mark.asyncio
+async def test_delete_project_removes_project_sharelinks_and_cascaded_selection_analytics(repo: ProjectRepository, db_session):
+    user = await _create_user(db_session, "project-delete-cascade")
+    project, gallery = await repo.create_project_with_initial_gallery(user.id, "Delete Cascade")
+    sharelink = await repo.create_project_sharelink(
+        project.id,
+        expires_at=datetime.now(UTC) + timedelta(days=1),
+        label="Cascade share",
+    )
+
+    selection_config = ShareLinkSelectionConfig(sharelink_id=sharelink.id, is_enabled=True)
+    db_session.add(selection_config)
+    await db_session.commit()
+    await db_session.refresh(selection_config)
+
+    selection_session = ShareLinkSelectionSession(
+        sharelink_id=sharelink.id,
+        config_id=selection_config.id,
+        client_name="Client",
+        resume_token_hash="resume-token-hash",
+    )
+    analytics_row = ShareLinkDailyStat(
+        sharelink_id=sharelink.id,
+        day=datetime.now(UTC).date(),
+        views_total=3,
+        views_unique=2,
+    )
+    visitor_row = ShareLinkDailyVisitor(
+        sharelink_id=sharelink.id,
+        day=datetime.now(UTC).date(),
+        visitor_hash="visitor-hash",
+    )
+    db_session.add_all([selection_session, analytics_row, visitor_row])
+    await db_session.commit()
+    selection_config_id = selection_config.id
+    selection_session_id = selection_session.id
+    analytics_day = analytics_row.day
+    visitor_day = visitor_row.day
+    visitor_hash = visitor_row.visitor_hash
+
+    deleted_gallery_ids = await repo.delete_project(project.id, user.id)
+
+    assert deleted_gallery_ids == [gallery.id]
+    db_session.expire_all()
+    assert await db_session.get(ShareLink, sharelink.id) is None
+    assert await db_session.get(ShareLinkSelectionConfig, selection_config_id) is None
+    assert await db_session.get(ShareLinkSelectionSession, selection_session_id) is None
+    assert await db_session.get(ShareLinkDailyStat, (sharelink.id, analytics_day)) is None
+    assert await db_session.get(ShareLinkDailyVisitor, (sharelink.id, visitor_day, visitor_hash)) is None

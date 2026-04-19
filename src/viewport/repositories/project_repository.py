@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, date, datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 
 from viewport.gallery_constants import PUBLIC_GALLERY_SORT_BY_DEFAULT, PUBLIC_GALLERY_SORT_ORDER_DEFAULT
 from viewport.models.gallery import Gallery, Photo, ProjectVisibility
@@ -128,6 +128,12 @@ class ProjectRepository(BaseRepository):
 
         galleries = await self.get_project_folders_by_owner(project_id, owner_id)
         gallery_ids = [gallery.id for gallery in galleries]
+        await self.db.execute(
+            delete(ShareLink).where(
+                ShareLink.project_id == project_id,
+                ShareLink.scope_type == ShareScopeType.PROJECT.value,
+            )
+        )
         for gallery in galleries:
             gallery.is_deleted = True
         project.is_deleted = True
