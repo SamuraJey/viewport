@@ -39,6 +39,7 @@ def upgrade() -> None:
                 SELECT id, owner_id, name, created_at, shooting_date
                 FROM galleries
                 WHERE project_id IS NULL
+                  AND is_deleted = false
                 """
             )
         ).mappings()

@@ -1169,10 +1169,24 @@ class DemoServiceStore {
   }
 
   async deleteProject(projectId: string): Promise<void> {
-    if (this.galleries.some((entry) => entry.gallery.project_id === projectId)) {
-      throw this.createConflictError('Project must be empty before deletion');
+    const projectState = this.projects.find((entry) => entry.project.id === projectId);
+    if (!projectState) {
+      throw this.createNotFoundError('Project not found');
     }
+
+    for (const link of projectState.shareLinks) {
+      setStoredActiveSelectionSession(link.id, null);
+    }
+    this.galleries
+      .filter((entry) => entry.gallery.project_id === projectId)
+      .flatMap((entry) => entry.shareLinks)
+      .forEach((link) => {
+        setStoredActiveSelectionSession(link.id, null);
+      });
+
+    this.galleries = this.galleries.filter((entry) => entry.gallery.project_id !== projectId);
     this.projects = this.projects.filter((entry) => entry.project.id !== projectId);
+    this.recalculateStorageUsed();
     this.recalculateProjects();
     this.persistState();
   }
@@ -1799,7 +1813,7 @@ class DemoServiceStore {
     }
 
     const shareLink = projectState.shareLinks.find((link) => link.id === shareId);
-    if (shareLink && !options?.navigationOnly) {
+    if (shareLink && !nestedGalleryId) {
       shareLink.views += 1;
       this.recalculateProjects();
       this.persistState();
@@ -1817,56 +1831,8 @@ class DemoServiceStore {
           ) ?? leftmostFolderState.photos[0])
         : leftmostFolderState.photos[0]
       : null;
-
-    if (nestedGalleryId) {
-      const folderState = listedFolderStates.find((entry) => entry.gallery.id === nestedGalleryId);
-      if (!folderState) {
-        throw this.createNotFoundError('Folder not found');
-      }
-      const sortBy: GalleryPhotoSortBy = folderState.gallery.public_sort_by ?? 'original_filename';
-      const sortOrder: SortOrder = folderState.gallery.public_sort_order ?? 'asc';
-      const sortedPhotos = this.sortSharedPhotos(folderState.photos, sortBy, sortOrder);
-      const safeOffset = Math.max(0, options?.offset || 0);
-      const limit = options?.limit ?? sortedPhotos.length;
-      const photos = sortedPhotos.slice(safeOffset, safeOffset + limit);
-      return {
-        scope_type: 'gallery',
-        gallery_name: folderState.gallery.name,
-        photographer: this.user.display_name || this.user.email,
-        date: folderState.gallery.shooting_date,
-        site_url: window.location.origin,
-        total_photos: sortedPhotos.length,
-        project_id: folderState.gallery.project_id ?? null,
-        project_name: folderState.gallery.project_name ?? null,
-        parent_share_id: shareId,
-        cover: folderState.gallery.cover_photo_id
-          ? {
-              photo_id: folderState.gallery.cover_photo_id,
-              full_url:
-                folderState.photos.find((photo) => photo.id === folderState.gallery.cover_photo_id)
-                  ?.url ||
-                folderState.photos[0]?.url ||
-                '',
-              thumbnail_url:
-                folderState.photos.find((photo) => photo.id === folderState.gallery.cover_photo_id)
-                  ?.thumbnail_url ||
-                folderState.photos[0]?.thumbnail_url ||
-                '',
-            }
-          : null,
-        photos: photos.map((photo) => ({
-          photo_id: photo.id,
-          filename: photo.filename,
-          full_url: photo.url,
-          thumbnail_url: photo.thumbnail_url,
-          width: photo.width,
-          height: photo.height,
-        })),
-      };
-    }
-
-    return {
-      scope_type: 'project',
+    const projectNavigation = {
+      scope_type: 'project' as const,
       project_id: projectState.project.id,
       project_name: projectState.project.name,
       photographer: this.user.display_name || this.user.email,
@@ -1894,6 +1860,56 @@ class DemoServiceStore {
         direct_share_path: null,
       })),
     };
+
+    if (nestedGalleryId) {
+      const folderState = listedFolderStates.find((entry) => entry.gallery.id === nestedGalleryId);
+      if (!folderState) {
+        throw this.createNotFoundError('Folder not found');
+      }
+      const sortBy: GalleryPhotoSortBy = folderState.gallery.public_sort_by ?? 'original_filename';
+      const sortOrder: SortOrder = folderState.gallery.public_sort_order ?? 'asc';
+      const sortedPhotos = this.sortSharedPhotos(folderState.photos, sortBy, sortOrder);
+      const safeOffset = Math.max(0, options?.offset || 0);
+      const limit = options?.limit ?? sortedPhotos.length;
+      const photos = sortedPhotos.slice(safeOffset, safeOffset + limit);
+      return {
+        scope_type: 'gallery',
+        gallery_name: folderState.gallery.name,
+        photographer: this.user.display_name || this.user.email,
+        date: folderState.gallery.shooting_date,
+        site_url: window.location.origin,
+        total_photos: sortedPhotos.length,
+        project_id: folderState.gallery.project_id ?? null,
+        project_name: folderState.gallery.project_name ?? null,
+        parent_share_id: shareId,
+        project_navigation: projectNavigation,
+        cover: folderState.gallery.cover_photo_id
+          ? {
+              photo_id: folderState.gallery.cover_photo_id,
+              full_url:
+                folderState.photos.find((photo) => photo.id === folderState.gallery.cover_photo_id)
+                  ?.url ||
+                folderState.photos[0]?.url ||
+                '',
+              thumbnail_url:
+                folderState.photos.find((photo) => photo.id === folderState.gallery.cover_photo_id)
+                  ?.thumbnail_url ||
+                folderState.photos[0]?.thumbnail_url ||
+                '',
+            }
+          : null,
+        photos: photos.map((photo) => ({
+          photo_id: photo.id,
+          filename: photo.filename,
+          full_url: photo.url,
+          thumbnail_url: photo.thumbnail_url,
+          width: photo.width,
+          height: photo.height,
+        })),
+      };
+    }
+
+    return projectNavigation;
   }
 
   async getPublicSelectionConfig(shareId: string): Promise<SelectionConfig> {

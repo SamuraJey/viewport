@@ -59,8 +59,6 @@ export const PublicGalleryPage = () => {
   const [selectedPhotos, setSelectedPhotos] = useState<PublicPhoto[]>([]);
   const [selectedPhotosError, setSelectedPhotosError] = useState('');
   const [isLoadingSelectedPhotos, setIsLoadingSelectedPhotos] = useState(false);
-  const [projectNavigation, setProjectNavigation] = useState<SharedProjectShare | null>(null);
-  const [projectNavigationShareId, setProjectNavigationShareId] = useState<string | null>(null);
   const startNameInputRef = useRef<HTMLInputElement | null>(null);
 
   const { gallery, photos, isLoading, isLoadingMore, hasMore, error, errorStatus, loadMorePhotos } =
@@ -307,7 +305,12 @@ export const PublicGalleryPage = () => {
   const projectShare = gallery?.scope_type === 'project' ? gallery : null;
   const folderShare = gallery?.scope_type === 'project' ? null : gallery;
   const isProjectShare = projectShare !== null;
-  const projectGalleryTabs = projectNavigation ?? projectShare;
+  const projectGalleryTabs = useMemo<SharedProjectShare | null>(() => {
+    if (projectShare) {
+      return projectShare;
+    }
+    return folderShare?.project_navigation ?? null;
+  }, [folderShare, projectShare]);
   const isProjectFolderView = Boolean(folderShare?.parent_share_id && !isFavoritesView);
   const showStickyProjectSelectionBar = Boolean(
     projectGalleryTabs && selection.config?.is_enabled && !isFavoritesView,
@@ -320,62 +323,6 @@ export const PublicGalleryPage = () => {
     ? projectGalleryTabs?.photographer || folderShare?.photographer
     : folderShare?.photographer;
   const heroCover = isProjectFolderView ? (projectGalleryTabs?.cover ?? null) : folderShare?.cover;
-
-  useEffect(() => {
-    if (!shareId || isFavoritesView) {
-      setProjectNavigation(null);
-      setProjectNavigationShareId(null);
-      return;
-    }
-
-    if (projectShare) {
-      setProjectNavigation(projectShare);
-      setProjectNavigationShareId(shareId);
-      return;
-    }
-
-    if (!activeGalleryId || (projectNavigation && projectNavigationShareId === shareId)) {
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadProjectNavigation = async () => {
-      try {
-        const response = await shareLinkService.getSharedGallery(shareId, {
-          navigationOnly: true,
-        });
-        if (cancelled) {
-          return;
-        }
-        if (response.scope_type === 'project') {
-          setProjectNavigation(response);
-          setProjectNavigationShareId(shareId);
-          return;
-        }
-        setProjectNavigation(null);
-        setProjectNavigationShareId(null);
-      } catch {
-        if (!cancelled) {
-          setProjectNavigation(null);
-          setProjectNavigationShareId(null);
-        }
-      }
-    };
-
-    void loadProjectNavigation();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    activeGalleryId,
-    isFavoritesView,
-    projectNavigation,
-    projectNavigationShareId,
-    projectShare,
-    shareId,
-  ]);
 
   useEffect(() => {
     if (isFavoritesView || activeGalleryId || !projectShare?.folders.length) {

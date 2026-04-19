@@ -110,7 +110,6 @@ export interface SharedGalleryQueryOptions {
   offset?: number;
   galleryId?: string;
   folderId?: string;
-  navigationOnly?: boolean;
 }
 
 export interface SharedFolderShare {
@@ -125,6 +124,7 @@ export interface SharedFolderShare {
   project_id?: string | null;
   project_name?: string | null;
   parent_share_id?: string | null;
+  project_navigation?: SharedProjectShare | null;
 }
 
 export interface SharedProjectShare {

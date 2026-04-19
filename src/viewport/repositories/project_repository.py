@@ -121,18 +121,18 @@ class ProjectRepository(BaseRepository):
             await self.db.refresh(project)
         return project
 
-    async def delete_project(self, project_id: uuid.UUID, owner_id: uuid.UUID) -> tuple[bool, str | None]:
+    async def delete_project(self, project_id: uuid.UUID, owner_id: uuid.UUID) -> list[uuid.UUID] | None:
         project = await self.get_project_by_id_and_owner(project_id, owner_id)
         if not project:
-            return False, None
+            return None
 
-        folder_count = await self.get_project_folder_count(project_id, listed_only=False)
-        if folder_count > 0:
-            return False, "Project must be empty before deletion"
-
-        await self.db.delete(project)
+        galleries = await self.get_project_folders_by_owner(project_id, owner_id)
+        gallery_ids = [gallery.id for gallery in galleries]
+        for gallery in galleries:
+            gallery.is_deleted = True
+        project.is_deleted = True
         await self.db.commit()
-        return True, None
+        return gallery_ids
 
     async def get_project_folders_by_owner(self, project_id: uuid.UUID, owner_id: uuid.UUID) -> list[Gallery]:
         stmt = (
@@ -239,6 +239,79 @@ class ProjectRepository(BaseRepository):
         )
         gallery = (await self.db.execute(stmt)).scalar_one_or_none()
         return await self._finish_read(gallery)
+
+    async def get_project_folders_for_projects(self, project_ids: list[uuid.UUID]) -> list[Gallery]:
+        if not project_ids:
+            return await self._finish_read([])
+
+        stmt = (
+            select(Gallery)
+            .where(
+                Gallery.project_id.in_(project_ids),
+                Gallery.is_deleted.is_(False),
+            )
+            .order_by(Gallery.project_id.asc(), Gallery.project_position.asc(), Gallery.created_at.asc(), Gallery.id.asc())
+        )
+        galleries = list((await self.db.execute(stmt)).scalars().all())
+        return await self._finish_read(galleries)
+
+    async def get_active_share_project_ids(self, project_ids: list[uuid.UUID]) -> set[uuid.UUID]:
+        if not project_ids:
+            return await self._finish_read(set())
+
+        now = datetime.now(UTC).replace(tzinfo=None)
+        stmt = (
+            select(ShareLink.project_id)
+            .where(
+                ShareLink.project_id.in_(project_ids),
+                ShareLink.scope_type == ShareScopeType.PROJECT.value,
+                ShareLink.is_active.is_(True),
+                or_(ShareLink.expires_at.is_(None), ShareLink.expires_at > now),
+            )
+            .group_by(ShareLink.project_id)
+        )
+        project_id_set = {project_id for project_id in (await self.db.execute(stmt)).scalars().all() if project_id is not None}
+        return await self._finish_read(project_id_set)
+
+    async def get_recent_project_thumbnail_keys_by_project_ids(
+        self,
+        project_ids: list[uuid.UUID],
+        *,
+        limit: int = 3,
+    ) -> dict[uuid.UUID, list[str]]:
+        if not project_ids or limit <= 0:
+            return await self._finish_read({})
+
+        ranked_thumbnails = (
+            select(
+                Gallery.project_id.label("project_id"),
+                Photo.thumbnail_object_key.label("thumbnail_object_key"),
+                func.row_number()
+                .over(
+                    partition_by=Gallery.project_id,
+                    order_by=(Gallery.project_position.asc(), Photo.uploaded_at.desc(), Photo.id.desc()),
+                )
+                .label("rank"),
+            )
+            .select_from(Photo)
+            .join(Photo.gallery)
+            .where(
+                Gallery.project_id.in_(project_ids),
+                Gallery.is_deleted.is_(False),
+                Photo.thumbnail_object_key.is_not(None),
+            )
+            .subquery()
+        )
+        stmt = (
+            select(ranked_thumbnails.c.project_id, ranked_thumbnails.c.thumbnail_object_key).where(ranked_thumbnails.c.rank <= limit).order_by(ranked_thumbnails.c.project_id, ranked_thumbnails.c.rank)
+        )
+
+        thumbnail_keys_by_project: dict[uuid.UUID, list[str]] = {}
+        for project_id, thumbnail_key in (await self.db.execute(stmt)).all():
+            if project_id is None or not thumbnail_key:
+                continue
+            thumbnail_keys_by_project.setdefault(project_id, []).append(thumbnail_key)
+        return await self._finish_read(thumbnail_keys_by_project)
 
     async def create_project_sharelink(
         self,

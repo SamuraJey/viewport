@@ -35,6 +35,19 @@ class ShareLinkRepository(BaseRepository):
             ),
         )
 
+    @staticmethod
+    def _public_target_filter():
+        return or_(
+            and_(
+                ShareLink.scope_type == ShareScopeType.GALLERY.value,
+                Gallery.is_deleted.is_(False),
+            ),
+            and_(
+                ShareLink.scope_type == ShareScopeType.PROJECT.value,
+                Project.is_deleted.is_(False),
+            ),
+        )
+
     async def get_sharelink_by_id(self, sharelink_id: uuid.UUID) -> ShareLink | None:
         stmt = select(ShareLink).where(ShareLink.id == sharelink_id)
         sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
@@ -57,7 +70,9 @@ class ShareLinkRepository(BaseRepository):
     async def get_sharelink_for_public_access(self, sharelink_id: uuid.UUID) -> ShareLink | None:
         stmt = (
             select(ShareLink)
-            .where(ShareLink.id == sharelink_id)
+            .outerjoin(ShareLink.gallery)
+            .outerjoin(ShareLink.project)
+            .where(ShareLink.id == sharelink_id, self._public_target_filter())
             .options(
                 selectinload(ShareLink.gallery).selectinload(Gallery.owner),
                 selectinload(ShareLink.project).selectinload(Project.owner),

@@ -148,6 +148,9 @@ describe('demoService', () => {
       throw new Error('Expected nested project routes to resolve to gallery payloads');
     }
 
+    expect(firstGallery.project_navigation?.project_name).toBe('Porto Wedding Delivery');
+    expect(secondGallery.project_navigation?.folders).toHaveLength(2);
+
     await service.togglePublicSelectionItem(
       projectShareLink!.id,
       firstGallery.photos[0].photo_id,
@@ -189,6 +192,29 @@ describe('demoService', () => {
     const shareLink = await service.createProjectShareLink(project.id, {});
 
     await expect(service.getSharedGallery(shareLink.id)).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
+  it('deletes a project together with its galleries and share links in demo mode', async () => {
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    const project = await service.createProject({ name: 'Delete Me' });
+    const detail = await service.getProject(project.id);
+    const galleryId = detail.entry_gallery_id;
+    expect(galleryId).toBeTruthy();
+    const projectShareLink = await service.createProjectShareLink(project.id, {});
+    const galleryShareLink = await service.createShareLink(galleryId!, {});
+
+    await service.deleteProject(project.id);
+
+    await expect(service.getProject(project.id)).rejects.toMatchObject({ statusCode: 404 });
+    await expect(service.getGallery(galleryId!)).rejects.toMatchObject({ statusCode: 404 });
+    await expect(service.getSharedGallery(projectShareLink.id)).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    await expect(service.getSharedGallery(galleryShareLink.id)).rejects.toMatchObject({
       statusCode: 404,
     });
   });

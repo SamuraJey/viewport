@@ -212,6 +212,30 @@ async def test_get_sharelinks_by_owner_counts_active_links_using_naive_utc_now(r
 
 
 @pytest.mark.asyncio
+async def test_get_sharelink_for_public_access_hides_deleted_targets(repo: ShareLinkRepository, db_session):
+    user = User(email=f"sharelink-{uuid4()}@example.com", password_hash="hashed", display_name="sharelink user")
+    db_session.add(user)
+    await db_session.commit()
+
+    gallery = Gallery(owner_id=user.id, name="Deleted Gallery")
+    project = Project(owner_id=user.id, name="Deleted Project")
+    db_session.add_all([gallery, project])
+    await db_session.commit()
+
+    gallery_sharelink = ShareLink(gallery_id=gallery.id, scope_type=ShareScopeType.GALLERY.value)
+    project_sharelink = ShareLink(project_id=project.id, scope_type=ShareScopeType.PROJECT.value)
+    db_session.add_all([gallery_sharelink, project_sharelink])
+    await db_session.commit()
+
+    gallery.is_deleted = True
+    project.is_deleted = True
+    await db_session.commit()
+
+    assert await repo.get_sharelink_for_public_access(gallery_sharelink.id) is None
+    assert await repo.get_sharelink_for_public_access(project_sharelink.id) is None
+
+
+@pytest.mark.asyncio
 async def test_get_sharelinks_by_owner_filters_by_status(repo: ShareLinkRepository, db_session):
     user = User(email=f"sharelink-{uuid4()}@example.com", password_hash="hashed", display_name="sharelink user")
     db_session.add(user)

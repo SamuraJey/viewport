@@ -88,6 +88,7 @@ def test_project_only_backfill_migrates_orphan_galleries_into_projects(postgres_
 
             user_id = uuid.uuid4()
             gallery_id = uuid.uuid4()
+            deleted_gallery_id = uuid.uuid4()
             share_link_id = uuid.uuid4()
 
             connection.execute(
@@ -124,6 +125,26 @@ def test_project_only_backfill_migrates_orphan_galleries_into_projects(postgres_
                     "name": "Legacy Orphan",
                     "created_at": "2026-04-10 12:00:00",
                     "shooting_date": "2026-04-09",
+                },
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO galleries (
+                        id, owner_id, project_id, name, created_at, is_deleted, project_position,
+                        project_visibility, shooting_date, public_sort_by, public_sort_order, cover_photo_id
+                    ) VALUES (
+                        :id, :owner_id, NULL, :name, :created_at, true, 3,
+                        'direct_only', :shooting_date, 'uploaded_at', 'desc', NULL
+                    )
+                    """
+                ),
+                {
+                    "id": deleted_gallery_id,
+                    "owner_id": user_id,
+                    "name": "Deleted Legacy",
+                    "created_at": "2026-04-11 12:00:00",
+                    "shooting_date": "2026-04-10",
                 },
             )
             connection.execute(
@@ -181,7 +202,21 @@ def test_project_only_backfill_migrates_orphan_galleries_into_projects(postgres_
             assert str(migrated_project["shooting_date"]) == "2026-04-09"
 
             orphan_count = connection.execute(text("SELECT COUNT(*) FROM galleries WHERE project_id IS NULL")).scalar_one()
-            assert orphan_count == 0
+            assert orphan_count == 1
+
+            deleted_gallery_row = (
+                connection.execute(
+                    text("SELECT project_id, is_deleted FROM galleries WHERE id = :gallery_id"),
+                    {"gallery_id": deleted_gallery_id},
+                )
+                .mappings()
+                .one()
+            )
+            assert deleted_gallery_row["project_id"] is None
+            assert deleted_gallery_row["is_deleted"] is True
+
+            deleted_project_count = connection.execute(text("SELECT COUNT(*) FROM projects WHERE name = 'Deleted Legacy'")).scalar_one()
+            assert deleted_project_count == 0
 
             surviving_share_link = (
                 connection.execute(

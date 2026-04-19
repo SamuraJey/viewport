@@ -94,6 +94,7 @@ const mockProjectGallery = {
   project_id: 'project-1',
   project_name: 'Wedding Weekend',
   parent_share_id: 'abc123',
+  project_navigation: mockProjectShare,
 };
 
 // Mock shareLinkService
@@ -322,17 +323,24 @@ describe('PublicGalleryPage', () => {
     expect(container.querySelector('img[src="/full/project-cover.jpg"]')).not.toBeNull();
   });
 
-  it('reuses loaded project navigation instead of refetching the root project share on gallery switches', async () => {
+  it('reuses nested gallery project navigation without refetching the root project share', async () => {
     const { shareLinkService } = await import('../../services/shareLinkService');
     mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-1' };
     vi.mocked(shareLinkService.getSharedGallery).mockImplementation(async (_shareId, options) => {
       if (options?.galleryId === 'gallery-2') {
-        return { ...mockProjectGallery, gallery_name: '3eds' } as any;
+        return {
+          ...mockProjectGallery,
+          gallery_name: '3eds',
+          project_navigation: {
+            ...mockProjectShare,
+            folders: mockProjectShare.folders,
+          },
+        } as any;
       }
       if (options?.galleryId) {
         return mockProjectGallery as any;
       }
-      return mockProjectShare as any;
+      throw new Error('root project share should not be refetched');
     });
 
     const { rerender } = render(wrapper());
@@ -346,12 +354,7 @@ describe('PublicGalleryPage', () => {
         .mocked(shareLinkService.getSharedGallery)
         .mock.calls.filter(([, options]) => !options?.galleryId && !options?.folderId).length;
 
-    expect(getRootProjectCalls()).toBe(1);
-    expect(
-      vi
-        .mocked(shareLinkService.getSharedGallery)
-        .mock.calls.find(([, options]) => !options?.galleryId && !options?.folderId)?.[1],
-    ).toEqual({ navigationOnly: true });
+    expect(getRootProjectCalls()).toBe(0);
 
     mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-2' };
     rerender(wrapper());
@@ -360,7 +363,7 @@ describe('PublicGalleryPage', () => {
       expect(screen.getByText('3eds')).toBeInTheDocument();
     });
 
-    expect(getRootProjectCalls()).toBe(1);
+    expect(getRootProjectCalls()).toBe(0);
   });
 
   it('keeps a sticky project selection bar visible while browsing project galleries', async () => {

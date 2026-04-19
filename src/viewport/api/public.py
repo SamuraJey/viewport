@@ -97,6 +97,7 @@ async def _build_public_gallery_response(
     offset: int,
     parent_share_id: UUID | None = None,
     record_view: bool = True,
+    project_navigation: PublicProjectResponse | None = None,
 ) -> PublicGalleryResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
 
@@ -197,6 +198,7 @@ async def _build_public_gallery_response(
         project_id=str(gallery.project_id) if getattr(gallery, "project_id", None) else None,
         project_name=project_name,
         parent_share_id=str(parent_share_id) if parent_share_id else None,
+        project_navigation=project_navigation,
     )
 
 
@@ -257,27 +259,34 @@ async def _build_public_project_response(
     if not folders:
         raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
+    gallery_ids = [folder.id for folder in folders]
+    cover_photo_ids = [folder.cover_photo_id for folder in folders if folder.cover_photo_id]
+    photo_count_by_gallery, _, _, cover_thumbnail_by_photo_id, recent_thumbnail_keys_by_gallery = await gallery_repo.get_gallery_list_enrichment(
+        gallery_ids,
+        cover_photo_ids,
+        recent_limit=1,
+    )
+
+    thumbnail_keys: list[str] = list(cover_thumbnail_by_photo_id.values())
+    thumbnail_keys.extend(recent_keys[0] for recent_keys in recent_thumbnail_keys_by_gallery.values() if recent_keys)
+    thumbnail_url_map = await s3_client.generate_presigned_urls_batch(list(dict.fromkeys(thumbnail_keys)), expires_in=7200) if thumbnail_keys else {}
+
     project_cover = await _build_project_cover(
-        gallery=folders[0] if folders else None,
+        gallery=folders[0],
         gallery_repo=gallery_repo,
         s3_client=s3_client,
     )
     folder_items: list[PublicProjectFolder] = []
     total_listed_photos = 0
     for folder in folders:
-        photo_count = await gallery_repo.get_photo_count_by_gallery(folder.id)
+        photo_count = photo_count_by_gallery.get(folder.id, 0)
         total_listed_photos += photo_count
-        cover_thumbnail_url: str | None = None
-        cover_photo = None
-        if folder.cover_photo_id:
-            cover_photo = await gallery_repo.get_photo_by_id_and_gallery(folder.cover_photo_id, folder.id)
-        if cover_photo and cover_photo.thumbnail_object_key:
-            cover_thumbnail_url = await s3_client.generate_presigned_url(cover_photo.thumbnail_object_key, expires_in=7200)
-        else:
-            recent_keys = await gallery_repo.get_recent_photo_thumbnail_keys_by_gallery(folder.id, limit=1)
+        cover_thumbnail_key = cover_thumbnail_by_photo_id.get(folder.cover_photo_id) if folder.cover_photo_id else None
+        cover_thumbnail_url = thumbnail_url_map.get(cover_thumbnail_key) if cover_thumbnail_key else None
+        if cover_thumbnail_url is None:
+            recent_keys = recent_thumbnail_keys_by_gallery.get(folder.id, [])
             if recent_keys:
-                recent_map = await s3_client.generate_presigned_urls_batch(recent_keys, expires_in=7200)
-                cover_thumbnail_url = recent_map.get(recent_keys[0])
+                cover_thumbnail_url = thumbnail_url_map.get(recent_keys[0])
         folder_items.append(
             PublicProjectFolder(
                 folder_id=str(folder.id),
@@ -329,7 +338,6 @@ async def get_photos_by_sharelink(
     share_id: UUID,
     request: Request,
     response: Response,
-    record_view: bool = Query(True, description="Whether to count this project-share response as a view"),
     limit: int | None = Query(None, ge=1, le=500, description="Limit number of photos to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
@@ -347,7 +355,6 @@ async def get_photos_by_sharelink(
             gallery_repo=gallery_repo,
             s3_client=s3_client,
             sharelink=sharelink,
-            record_view=record_view,
         )
 
     gallery = sharelink.gallery
@@ -377,6 +384,7 @@ async def get_project_folder_by_sharelink(
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     project_repo: ProjectRepository = Depends(get_project_repository),
+    gallery_repo: GalleryRepository = Depends(get_gallery_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
 ) -> PublicGalleryResponse:
@@ -391,6 +399,17 @@ async def get_project_folder_by_sharelink(
         )
         raise HTTPException(status_code=404, detail="Folder not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
+    project_navigation = await _build_public_project_response(
+        share_id=share_id,
+        request=request,
+        response=response,
+        project_repo=project_repo,
+        gallery_repo=gallery_repo,
+        s3_client=s3_client,
+        sharelink=sharelink,
+        record_view=False,
+    )
+
     return await _build_public_gallery_response(
         share_id=share_id,
         request=request,
@@ -403,6 +422,7 @@ async def get_project_folder_by_sharelink(
         offset=offset,
         parent_share_id=share_id,
         record_view=False,
+        project_navigation=project_navigation,
     )
 
 

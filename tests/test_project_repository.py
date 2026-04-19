@@ -141,16 +141,16 @@ async def test_project_repository_search_update_and_delete_branches(repo: Projec
     assert updated.name == "Delivery Final"
     assert updated.shooting_date == date(2026, 4, 20)
 
-    assert await repo.delete_project(uuid.uuid4(), user.id) == (False, None)
+    assert await repo.delete_project(uuid.uuid4(), user.id) is None
 
     non_empty_project, _ = await repo.create_project_with_initial_gallery(user.id, "Non Empty")
-    assert await repo.delete_project(non_empty_project.id, user.id) == (
-        False,
-        "Project must be empty before deletion",
-    )
+    deleted_gallery_ids = await repo.delete_project(non_empty_project.id, user.id)
+    assert deleted_gallery_ids is not None
+    assert len(deleted_gallery_ids) == 1
+    assert await repo.get_project_by_id_and_owner(non_empty_project.id, user.id) is None
 
     empty_project = await repo.create_project(user.id, "Empty")
-    assert await repo.delete_project(empty_project.id, user.id) == (True, None)
+    assert await repo.delete_project(empty_project.id, user.id) == []
     assert await repo.get_project_by_id_and_owner(empty_project.id, user.id) is None
 
 
@@ -264,3 +264,83 @@ async def test_project_repository_project_sharelink_branches(repo: ProjectReposi
     assert await repo.delete_project_sharelink(sharelink.id, uuid.uuid4(), user.id) is False
     assert await repo.delete_project_sharelink(uuid.uuid4(), project.id, user.id) is False
     assert await repo.delete_project_sharelink(sharelink.id, project.id, user.id) is True
+
+
+@pytest.mark.asyncio
+async def test_project_repository_batch_enrichment_helpers(repo: ProjectRepository, db_session):
+    user = await _create_user(db_session, "project-batch")
+    first_project = await repo.create_project(user.id, "Batch One")
+    second_project = await repo.create_project(user.id, "Batch Two")
+
+    first_gallery = await _create_project_gallery(
+        db_session,
+        user.id,
+        first_project.id,
+        name="Alpha",
+        position=0,
+    )
+    second_gallery = await _create_project_gallery(
+        db_session,
+        user.id,
+        first_project.id,
+        name="Beta",
+        position=1,
+    )
+    third_gallery = await _create_project_gallery(
+        db_session,
+        user.id,
+        second_project.id,
+        name="Gamma",
+        position=0,
+    )
+
+    await _create_photo(
+        db_session,
+        first_gallery.id,
+        display_name="alpha.jpg",
+        thumbnail_object_key="alpha-thumb",
+        file_size=100,
+        uploaded_at=datetime(2026, 4, 19, 9, 0, tzinfo=UTC),
+    )
+    await _create_photo(
+        db_session,
+        second_gallery.id,
+        display_name="beta.jpg",
+        thumbnail_object_key="beta-thumb",
+        file_size=120,
+        uploaded_at=datetime(2026, 4, 19, 10, 0, tzinfo=UTC),
+    )
+    await _create_photo(
+        db_session,
+        third_gallery.id,
+        display_name="gamma.jpg",
+        thumbnail_object_key="gamma-thumb",
+        file_size=140,
+        uploaded_at=datetime(2026, 4, 19, 11, 0, tzinfo=UTC),
+    )
+
+    sharelink = await repo.create_project_sharelink(
+        first_project.id,
+        expires_at=datetime.now(UTC) + timedelta(days=1),
+        label="Batch share",
+    )
+
+    project_galleries = await repo.get_project_folders_for_projects([first_project.id, second_project.id])
+    active_share_project_ids = await repo.get_active_share_project_ids([first_project.id, second_project.id])
+    recent_keys = await repo.get_recent_project_thumbnail_keys_by_project_ids(
+        [first_project.id, second_project.id],
+        limit=2,
+    )
+
+    grouped_gallery_ids = {}
+    for gallery in project_galleries:
+        grouped_gallery_ids.setdefault(gallery.project_id, []).append(gallery.id)
+
+    assert grouped_gallery_ids == {
+        first_project.id: [first_gallery.id, second_gallery.id],
+        second_project.id: [third_gallery.id],
+    }
+    assert active_share_project_ids == {first_project.id}
+    assert sharelink.project_id == first_project.id
+    assert recent_keys[first_project.id] == ["alpha-thumb", "beta-thumb"]
+    assert recent_keys[second_project.id] == ["gamma-thumb"]

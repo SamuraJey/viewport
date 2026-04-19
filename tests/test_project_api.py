@@ -74,7 +74,16 @@ class TestProjectAPI:
         assert listed_items[project_id]["entry_gallery_id"] == entry_gallery_id
         assert listed_items[standalone_project_id]["entry_gallery_id"] == standalone_id
 
-    def test_project_missing_resource_and_empty_state_branches(self, authenticated_client: TestClient):
+    def test_project_missing_resource_and_empty_state_branches(
+        self,
+        authenticated_client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        deleted_gallery_ids: list[str] = []
+        monkeypatch.setattr(
+            "viewport.api.project.delete_gallery_data_task.delay",
+            lambda gallery_id: deleted_gallery_ids.append(gallery_id),
+        )
         missing_project_id = uuid4()
 
         missing_detail_resp = authenticated_client.get(f"/projects/{missing_project_id}")
@@ -105,22 +114,22 @@ class TestProjectAPI:
         project_id = project_payload["id"]
         entry_gallery_id = project_payload["entry_gallery_id"]
 
-        non_empty_delete_resp = authenticated_client.delete(f"/projects/{project_id}")
-        assert non_empty_delete_resp.status_code == 409
-        assert non_empty_delete_resp.json()["detail"] == "Project must be empty before deletion"
+        project_share_resp = authenticated_client.post(f"/projects/{project_id}/share-links", json={})
+        assert project_share_resp.status_code == 201
+        project_share_id = project_share_resp.json()["id"]
 
-        delete_gallery_resp = authenticated_client.delete(f"/galleries/{entry_gallery_id}")
-        assert delete_gallery_resp.status_code == 204
+        delete_project_resp = authenticated_client.delete(f"/projects/{project_id}")
+        assert delete_project_resp.status_code == 204
+        assert deleted_gallery_ids == [entry_gallery_id]
 
-        empty_detail_resp = authenticated_client.get(f"/projects/{project_id}")
-        assert empty_detail_resp.status_code == 200
-        empty_payload = empty_detail_resp.json()
-        assert empty_payload["folders"] == []
-        assert empty_payload["entry_gallery_id"] is None
-        assert empty_payload["has_entry_gallery"] is False
+        deleted_project_detail_resp = authenticated_client.get(f"/projects/{project_id}")
+        assert deleted_project_detail_resp.status_code == 404
 
-        empty_delete_resp = authenticated_client.delete(f"/projects/{project_id}")
-        assert empty_delete_resp.status_code == 204
+        deleted_gallery_detail_resp = authenticated_client.get(f"/galleries/{entry_gallery_id}")
+        assert deleted_gallery_detail_resp.status_code == 404
+
+        deleted_project_share_resp = authenticated_client.get(f"/s/{project_share_id}")
+        assert deleted_project_share_resp.status_code == 404
 
     def test_update_project_success(self, authenticated_client: TestClient):
         project_resp = authenticated_client.post("/projects", json={"name": "Before Rename"})
@@ -474,11 +483,10 @@ class TestProjectAPI:
         assert landing_resp.status_code == 200
         assert landing_resp.json()["scope_type"] == "project"
         assert landing_resp.json()["folders"][0]["route_path"] == f"/share/{project_share_id}/galleries/{folder_id}"
-        navigation_resp = authenticated_client.get(f"/s/{project_share_id}?record_view=false")
-        assert navigation_resp.status_code == 200
-        assert navigation_resp.json()["scope_type"] == "project"
         nested_folder_resp = authenticated_client.get(f"/s/{project_share_id}/folders/{folder_id}")
         assert nested_folder_resp.status_code == 200
+        assert nested_folder_resp.json()["project_navigation"]["scope_type"] == "project"
+        assert nested_folder_resp.json()["project_navigation"]["project_name"] == "Analytics Project"
 
         analytics_resp = authenticated_client.get(f"/share-links/{project_share_id}/analytics?days=30")
         assert analytics_resp.status_code == 200

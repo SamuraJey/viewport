@@ -42,6 +42,7 @@ class PublicGalleryResponse(BaseModel):
     project_id: str | None = None
     project_name: str | None = None
     parent_share_id: str | None = None
+    project_navigation: "PublicProjectResponse | None" = None
 
 
 class PublicProjectResponse(BaseModel):
@@ -61,3 +62,6 @@ PublicShareResponse = Annotated[
     PublicGalleryResponse | PublicProjectResponse,
     Field(discriminator="scope_type"),
 ]
+
+
+PublicGalleryResponse.model_rebuild()
