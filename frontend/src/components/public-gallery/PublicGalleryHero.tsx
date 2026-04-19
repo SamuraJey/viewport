@@ -1,15 +1,18 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { SharedGallery } from '../../services/shareLinkService';
+import type { SharedFolderShare, SharedProjectShare } from '../../types/sharelink';
 
 interface PublicGalleryHeroProps {
-  gallery: SharedGallery | null;
+  title: string;
+  date?: string;
+  photographer?: string;
+  cover?: SharedFolderShare['cover'] | SharedProjectShare['cover'];
 }
 
-export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
+export const PublicGalleryHero = ({ title, date, photographer, cover }: PublicGalleryHeroProps) => {
   const [isHeroFullLoaded, setIsHeroFullLoaded] = useState(false);
   const heroImgRef = useRef<HTMLImageElement>(null);
-  const heroUrl = gallery?.cover?.full_url;
-  const galleryTitle = gallery?.gallery_name || 'Shared Gallery';
+  const heroUrl = cover?.full_url;
+  const galleryTitle = title || 'Shared Gallery';
   const titleLength = galleryTitle.length;
   const emptyTitleSizeClass =
     titleLength > 80
@@ -59,7 +62,7 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
     };
   }, [heroUrl]);
 
-  if (!gallery?.cover) {
+  if (!cover) {
     return (
       <div className="text-center py-24 px-6 bg-surface-foreground/5 dark:bg-surface-1/30 rounded-3xl border border-border/50 shadow-xs mb-8">
         <h1
@@ -67,8 +70,8 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
         >
           {galleryTitle}
         </h1>
-        {gallery?.photographer && (
-          <p className="text-lg font-medium text-muted sm:text-xl">By {gallery.photographer}</p>
+        {photographer && (
+          <p className="text-lg font-medium text-muted sm:text-xl">By {photographer}</p>
         )}
       </div>
     );
@@ -77,7 +80,7 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
   return (
     <div className="pg-hero relative w-full text-accent-foreground bg-surface-foreground/15 dark:bg-surface/20 overflow-hidden shadow-md">
       <img
-        src={gallery.cover.thumbnail_url}
+        src={cover.thumbnail_url}
         alt=""
         aria-hidden="true"
         loading="eager"
@@ -87,7 +90,7 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
 
       <img
         ref={heroImgRef}
-        src={gallery.cover.full_url}
+        src={cover.full_url}
         alt=""
         aria-hidden="true"
         loading="eager"
@@ -102,9 +105,9 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
       {/* Animated text content with parallax */}
       <div className="relative z-10 p-8 w-full max-w-5xl mx-auto flex flex-col justify-end h-full pb-24">
         <div className="flex flex-col items-center text-center">
-          {gallery.date && (
+          {date && (
             <p className="text-sm sm:text-base font-medium text-white/80 tracking-wider uppercase mb-3">
-              {gallery.date}
+              {date}
             </p>
           )}
           <h1
@@ -113,7 +116,7 @@ export const PublicGalleryHero = ({ gallery }: PublicGalleryHeroProps) => {
             {galleryTitle}
           </h1>
           <div className="mt-4 sm:mt-6 text-lg sm:text-xl font-medium text-white/90 drop-shadow-md">
-            {gallery.photographer && <span>By {gallery.photographer}</span>}
+            {photographer && <span>By {photographer}</span>}
           </div>
         </div>
       </div>

@@ -22,6 +22,36 @@ def _create_sharelink(authenticated_client: TestClient, gallery_id: str) -> str:
 
 
 class TestSelectionAPI:
+    def test_public_selection_returns_404_after_gallery_soft_delete_until_worker_cleanup(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr("viewport.api.gallery.delete_gallery_data_task.delay", lambda gallery_id: None)
+
+        share_id = _create_sharelink(authenticated_client, gallery_id_fixture)
+        enable_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config",
+            json={"is_enabled": True},
+        )
+        assert enable_resp.status_code == 200
+
+        delete_resp = authenticated_client.delete(f"/galleries/{gallery_id_fixture}")
+        assert delete_resp.status_code == 204
+
+        public_share_resp = authenticated_client.get(f"/s/{share_id}")
+        assert public_share_resp.status_code == 404
+
+        config_resp = authenticated_client.get(f"/s/{share_id}/selection/config")
+        assert config_resp.status_code == 404
+
+        session_resp = authenticated_client.post(
+            f"/s/{share_id}/selection/session",
+            json={"client_name": "Deleted Gallery Client"},
+        )
+        assert session_resp.status_code == 404
+
     def test_public_selection_supports_multiple_independent_sessions(
         self,
         authenticated_client: TestClient,
@@ -763,3 +793,68 @@ class TestSelectionAPI:
         links_export_missing_resp = authenticated_client.get(f"/galleries/{fake_gallery_id}/selections/export/links.csv")
         assert links_export_missing_resp.status_code == 404
         assert links_export_missing_resp.json()["detail"] == "Gallery not found"
+
+    def test_owner_project_and_sharelink_selection_config_aliases_cover_project_routes(
+        self,
+        authenticated_client: TestClient,
+    ):
+        project_resp = authenticated_client.post("/projects", json={"name": "Selection Config Project"})
+        assert project_resp.status_code == 201
+        project_id = project_resp.json()["id"]
+
+        share_resp = authenticated_client.post(
+            f"/projects/{project_id}/share-links",
+            json={"label": "Project selection"},
+        )
+        assert share_resp.status_code == 201
+        share_id = share_resp.json()["id"]
+
+        project_config_resp = authenticated_client.get(
+            f"/projects/{project_id}/share-links/{share_id}/selection-config",
+        )
+        assert project_config_resp.status_code == 200
+        assert project_config_resp.json()["is_enabled"] is False
+
+        sharelink_config_resp = authenticated_client.get(f"/share-links/{share_id}/selection-config")
+        assert sharelink_config_resp.status_code == 200
+        assert sharelink_config_resp.json()["is_enabled"] is False
+
+        project_update_resp = authenticated_client.patch(
+            f"/projects/{project_id}/share-links/{share_id}/selection-config",
+            json={"is_enabled": True, "allow_photo_comments": True},
+        )
+        assert project_update_resp.status_code == 200
+        assert project_update_resp.json()["is_enabled"] is True
+        assert project_update_resp.json()["allow_photo_comments"] is True
+
+        sharelink_update_resp = authenticated_client.patch(
+            f"/share-links/{share_id}/selection-config",
+            json={"list_title": "Proof favorites"},
+        )
+        assert sharelink_update_resp.status_code == 200
+        assert sharelink_update_resp.json()["list_title"] == "Proof favorites"
+
+        fake_share_id = uuid4()
+        missing_project_get_resp = authenticated_client.get(
+            f"/projects/{project_id}/share-links/{fake_share_id}/selection-config",
+        )
+        assert missing_project_get_resp.status_code == 404
+        assert missing_project_get_resp.json()["detail"] == "Share link not found"
+
+        missing_sharelink_get_resp = authenticated_client.get(f"/share-links/{fake_share_id}/selection-config")
+        assert missing_sharelink_get_resp.status_code == 404
+        assert missing_sharelink_get_resp.json()["detail"] == "Share link not found"
+
+        missing_project_update_resp = authenticated_client.patch(
+            f"/projects/{project_id}/share-links/{fake_share_id}/selection-config",
+            json={"is_enabled": True},
+        )
+        assert missing_project_update_resp.status_code == 404
+        assert missing_project_update_resp.json()["detail"] == "Share link not found"
+
+        missing_sharelink_update_resp = authenticated_client.patch(
+            f"/share-links/{fake_share_id}/selection-config",
+            json={"is_enabled": True},
+        )
+        assert missing_sharelink_update_resp.status_code == 404
+        assert missing_sharelink_update_resp.json()["detail"] == "Share link not found"

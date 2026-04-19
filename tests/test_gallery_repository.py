@@ -3,8 +3,10 @@ from datetime import UTC, date, datetime
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import select
 
-from viewport.models.gallery import PhotoUploadStatus
+from viewport.models.gallery import Gallery, PhotoUploadStatus
+from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
 from viewport.repositories.gallery_repository import GalleryRepository
@@ -69,6 +71,122 @@ async def test_update_gallery(repo: GalleryRepository, owner_id):
     unchanged = await repo.update_gallery(gallery.id, owner_id)
     assert unchanged is not None
     assert unchanged.name == "Summer Trip"
+
+
+@pytest.mark.asyncio
+async def test_create_gallery_normalizes_explicit_project_position(repo: GalleryRepository, owner_id):
+    project = Project(owner_id=owner_id, name="Normalized Create")
+    repo.db.add(project)
+    await repo.db.commit()
+
+    first_gallery = await repo.create_gallery(owner_id, "First", project_id=project.id)
+    second_gallery = await repo.create_gallery(owner_id, "Second", project_id=project.id)
+    inserted_gallery = await repo.create_gallery(owner_id, "Inserted", project_id=project.id, project_position=1)
+
+    galleries = list(
+        (await repo.db.execute(select(Gallery).where(Gallery.project_id == project.id).order_by(Gallery.project_position.asc(), Gallery.created_at.asc(), Gallery.id.asc()))).scalars().all()
+    )
+
+    assert [gallery.id for gallery in galleries] == [
+        first_gallery.id,
+        inserted_gallery.id,
+        second_gallery.id,
+    ]
+    assert [gallery.project_position for gallery in galleries] == [0, 1, 2]
+
+
+@pytest.mark.asyncio
+async def test_update_gallery_reindexes_project_positions(repo: GalleryRepository, owner_id):
+    project = Project(owner_id=owner_id, name="Normalized Update")
+    repo.db.add(project)
+    await repo.db.commit()
+
+    first_gallery = await repo.create_gallery(owner_id, "First", project_id=project.id)
+    second_gallery = await repo.create_gallery(owner_id, "Second", project_id=project.id)
+    third_gallery = await repo.create_gallery(owner_id, "Third", project_id=project.id)
+
+    updated = await repo.update_gallery(
+        third_gallery.id,
+        owner_id,
+        project_position=0,
+        fields_set={"project_position"},
+    )
+
+    assert updated is not None
+    galleries = list(
+        (await repo.db.execute(select(Gallery).where(Gallery.project_id == project.id).order_by(Gallery.project_position.asc(), Gallery.created_at.asc(), Gallery.id.asc()))).scalars().all()
+    )
+    assert [gallery.id for gallery in galleries] == [
+        third_gallery.id,
+        first_gallery.id,
+        second_gallery.id,
+    ]
+    assert [gallery.project_position for gallery in galleries] == [0, 1, 2]
+
+
+@pytest.mark.asyncio
+async def test_get_galleries_by_owner_filters_by_project_id(repo: GalleryRepository, owner_id):
+    first_project = Project(owner_id=owner_id, name="Project One")
+    second_project = Project(owner_id=owner_id, name="Project Two")
+    repo.db.add_all([first_project, second_project])
+    await repo.db.commit()
+
+    first_gallery = await repo.create_gallery(owner_id, "First Project", project_id=first_project.id)
+    await repo.create_gallery(owner_id, "Second Project", project_id=second_project.id)
+
+    galleries, total = await repo.get_galleries_by_owner(
+        owner_id,
+        page=1,
+        size=10,
+        project_id=first_project.id,
+    )
+
+    assert total == 1
+    assert [gallery.id for gallery in galleries] == [first_gallery.id]
+
+
+@pytest.mark.asyncio
+async def test_update_gallery_resets_position_when_detached_from_project(repo: GalleryRepository, owner_id):
+    project = Project(owner_id=owner_id, name="Detached Project")
+    repo.db.add(project)
+    await repo.db.commit()
+
+    gallery = await repo.create_gallery(
+        owner_id,
+        "Attached",
+        project_id=project.id,
+        project_position=7,
+    )
+
+    updated = await repo.update_gallery(
+        gallery.id,
+        owner_id,
+        project_id=None,
+        fields_set={"project_id"},
+    )
+
+    assert updated is not None
+    assert updated.project_id is None
+    assert updated.project_position == 0
+
+
+@pytest.mark.asyncio
+async def test_reorder_project_galleries_requires_complete_unique_set(repo: GalleryRepository, owner_id):
+    project = Project(owner_id=owner_id, name="Explicit Reorder")
+    repo.db.add(project)
+    await repo.db.commit()
+
+    first_gallery = await repo.create_gallery(owner_id, "First", project_id=project.id)
+    second_gallery = await repo.create_gallery(owner_id, "Second", project_id=project.id)
+
+    reordered = await repo.reorder_project_galleries(project.id, owner_id, [second_gallery.id, first_gallery.id])
+    assert [gallery.id for gallery in reordered] == [second_gallery.id, first_gallery.id]
+
+    with pytest.raises(ValueError, match="must be unique"):
+        await repo.reorder_project_galleries(project.id, owner_id, [first_gallery.id, first_gallery.id])
+
+    with pytest.raises(ValueError, match="exactly match"):
+        await repo.reorder_project_galleries(project.id, owner_id, [first_gallery.id])
 
 
 @pytest.mark.asyncio
@@ -284,6 +402,34 @@ async def test_cover_photo(repo: GalleryRepository, owner_id):
     assert await repo.clear_cover_photo(gallery.id, owner_id)
     assert await repo.set_cover_photo(gallery.id, uuid.uuid4(), owner_id) is None
     assert await repo.set_cover_photo(gallery.id, photo_id, uuid.uuid4()) is None
+
+
+@pytest.mark.asyncio
+async def test_update_sharelink_returns_none_for_missing_gallery_or_sharelink(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Shares")
+    sharelink = await repo.create_sharelink(gallery.id, expires_at=None)
+
+    assert (
+        await repo.update_sharelink(
+            sharelink.id,
+            gallery.id,
+            uuid.uuid4(),
+            fields_set={"label"},
+            label="new label",
+        )
+        is None
+    )
+
+    assert (
+        await repo.update_sharelink(
+            uuid.uuid4(),
+            gallery.id,
+            owner_id,
+            fields_set={"label"},
+            label="new label",
+        )
+        is None
+    )
 
 
 @pytest.mark.asyncio

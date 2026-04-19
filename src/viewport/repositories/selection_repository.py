@@ -4,18 +4,35 @@ import uuid
 from datetime import UTC, datetime
 from typing import cast
 
-from sqlalchemy import case, func, select, update
+from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from viewport.models.gallery import Gallery, Photo
-from viewport.models.sharelink import ShareLink
+from viewport.models.gallery import Gallery, Photo, ProjectVisibility
+from viewport.models.project import Project
+from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_selection import SelectionSessionStatus, ShareLinkSelectionConfig, ShareLinkSelectionItem, ShareLinkSelectionSession
 from viewport.repositories.base_repository import BaseRepository
+from viewport.repositories.sharelink_repository import ShareLinkRepository
 
 
 class SelectionRepository(BaseRepository):
+    @staticmethod
+    def _owner_filter(owner_id: uuid.UUID):
+        return or_(
+            and_(
+                ShareLink.scope_type == ShareScopeType.GALLERY.value,
+                Gallery.owner_id == owner_id,
+                Gallery.is_deleted.is_(False),
+            ),
+            and_(
+                ShareLink.scope_type == ShareScopeType.PROJECT.value,
+                Project.owner_id == owner_id,
+                Project.is_deleted.is_(False),
+            ),
+        )
+
     @staticmethod
     def _hash_resume_token(token: str) -> str:
         return hashlib.sha256(token.encode("utf-8")).hexdigest()
@@ -26,20 +43,21 @@ class SelectionRepository(BaseRepository):
         return token, SelectionRepository._hash_resume_token(token)
 
     async def get_public_sharelink(self, share_id: uuid.UUID) -> ShareLink | None:
-        stmt = select(ShareLink).where(ShareLink.id == share_id).options(selectinload(ShareLink.gallery))
-        sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
-        return await self._finish_read(sharelink)
+        return await ShareLinkRepository(self.db).get_sharelink_for_public_access(share_id)
 
     async def get_owner_sharelink(self, sharelink_id: uuid.UUID, owner_id: uuid.UUID) -> ShareLink | None:
         stmt = (
             select(ShareLink)
-            .join(ShareLink.gallery)
+            .outerjoin(ShareLink.gallery)
+            .outerjoin(ShareLink.project)
             .where(
                 ShareLink.id == sharelink_id,
-                Gallery.owner_id == owner_id,
-                Gallery.is_deleted.is_(False),
+                self._owner_filter(owner_id),
             )
-            .options(selectinload(ShareLink.gallery))
+            .options(
+                selectinload(ShareLink.gallery),
+                selectinload(ShareLink.project),
+            )
         )
         sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
         return await self._finish_read(sharelink)
@@ -51,10 +69,32 @@ class SelectionRepository(BaseRepository):
             .where(
                 ShareLink.id == sharelink_id,
                 ShareLink.gallery_id == gallery_id,
+                ShareLink.scope_type == ShareScopeType.GALLERY.value,
                 Gallery.owner_id == owner_id,
                 Gallery.is_deleted.is_(False),
             )
             .options(selectinload(ShareLink.gallery))
+        )
+        sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
+        return await self._finish_read(sharelink)
+
+    async def get_sharelink_for_project_owner(
+        self,
+        project_id: uuid.UUID,
+        sharelink_id: uuid.UUID,
+        owner_id: uuid.UUID,
+    ) -> ShareLink | None:
+        stmt = (
+            select(ShareLink)
+            .join(ShareLink.project)
+            .where(
+                ShareLink.id == sharelink_id,
+                ShareLink.project_id == project_id,
+                ShareLink.scope_type == ShareScopeType.PROJECT.value,
+                Project.owner_id == owner_id,
+                Project.is_deleted.is_(False),
+            )
+            .options(selectinload(ShareLink.project))
         )
         sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
         return await self._finish_read(sharelink)
@@ -156,7 +196,7 @@ class SelectionRepository(BaseRepository):
                 ShareLinkSelectionSession.resume_token_hash == token_hash,
             )
             .options(
-                selectinload(ShareLinkSelectionSession.items).selectinload(ShareLinkSelectionItem.photo),
+                selectinload(ShareLinkSelectionSession.items).selectinload(ShareLinkSelectionItem.photo).selectinload(Photo.gallery),
             )
         )
         session = (await self.db.execute(stmt)).scalar_one_or_none()
@@ -174,7 +214,7 @@ class SelectionRepository(BaseRepository):
                 ShareLinkSelectionSession.id == session_id,
             )
             .options(
-                selectinload(ShareLinkSelectionSession.items).selectinload(ShareLinkSelectionItem.photo),
+                selectinload(ShareLinkSelectionSession.items).selectinload(ShareLinkSelectionItem.photo).selectinload(Photo.gallery),
             )
         )
         session = (await self.db.execute(stmt)).scalar_one_or_none()
@@ -189,7 +229,7 @@ class SelectionRepository(BaseRepository):
                 ShareLinkSelectionSession.created_at.desc(),
             )
             .options(
-                selectinload(ShareLinkSelectionSession.items).selectinload(ShareLinkSelectionItem.photo),
+                selectinload(ShareLinkSelectionSession.items).selectinload(ShareLinkSelectionItem.photo).selectinload(Photo.gallery),
             )
         )
         sessions = list((await self.db.execute(stmt)).scalars().unique().all())
@@ -283,7 +323,7 @@ class SelectionRepository(BaseRepository):
         )
         result = await self.db.execute(stmt)
         await self.db.commit()
-        if result.rowcount == 0:
+        if getattr(result, "rowcount", 0) == 0:
             return None
         return await self.get_selection_item(session_id, photo_id)
 
@@ -379,6 +419,7 @@ class SelectionRepository(BaseRepository):
             .outerjoin(ShareLinkSelectionConfig, ShareLinkSelectionConfig.sharelink_id == ShareLink.id)
             .where(
                 ShareLink.id == sharelink_id,
+                ShareLink.scope_type == ShareScopeType.GALLERY.value,
                 Gallery.owner_id == owner_id,
                 Gallery.is_deleted.is_(False),
             )
@@ -710,20 +751,59 @@ class SelectionRepository(BaseRepository):
         ]
         return await self._finish_read(rows)
 
-    async def validate_photo_belongs_to_share_gallery(self, sharelink_id: uuid.UUID, photo_id: uuid.UUID) -> bool:
+    async def validate_photo_belongs_to_share_scope(self, sharelink_id: uuid.UUID, photo_id: uuid.UUID) -> bool:
+        sharelink = await self.get_public_sharelink(sharelink_id)
+        if sharelink is None:
+            return await self._finish_read(False)
+
+        if sharelink.scope_type == ShareScopeType.GALLERY.value:
+            if sharelink.gallery_id is None:
+                return await self._finish_read(False)
+            stmt = (
+                select(func.count())
+                .select_from(Photo)
+                .join(Photo.gallery)
+                .where(
+                    Photo.id == photo_id,
+                    Photo.gallery_id == sharelink.gallery_id,
+                    Gallery.is_deleted.is_(False),
+                )
+            )
+            count = int((await self.db.execute(stmt)).scalar() or 0)
+            return await self._finish_read(count > 0)
+
+        if sharelink.scope_type != ShareScopeType.PROJECT.value or sharelink.project_id is None:
+            return await self._finish_read(False)
+
         stmt = (
             select(func.count())
             .select_from(Photo)
-            .join(ShareLink, ShareLink.gallery_id == Photo.gallery_id)
-            .join(ShareLink.gallery)
+            .join(Photo.gallery)
             .where(
-                ShareLink.id == sharelink_id,
                 Photo.id == photo_id,
+                Gallery.project_id == sharelink.project_id,
+                Gallery.project_visibility == ProjectVisibility.LISTED.value,
                 Gallery.is_deleted.is_(False),
             )
         )
         count = int((await self.db.execute(stmt)).scalar() or 0)
         return await self._finish_read(count > 0)
+
+    async def get_selected_items_for_sharelink_with_context(
+        self,
+        sharelink_id: uuid.UUID,
+    ) -> list[tuple[str, str | None, str | None]]:
+        stmt = (
+            select(Photo.display_name, ShareLinkSelectionItem.comment, Gallery.name)
+            .select_from(ShareLinkSelectionItem)
+            .join(ShareLinkSelectionSession, ShareLinkSelectionSession.id == ShareLinkSelectionItem.session_id)
+            .join(Photo, Photo.id == ShareLinkSelectionItem.photo_id)
+            .join(Photo.gallery)
+            .where(ShareLinkSelectionSession.sharelink_id == sharelink_id)
+            .order_by(func.lower(Gallery.name).asc(), func.lower(Photo.display_name).asc())
+        )
+        rows = [(display_name, comment, gallery_name) for display_name, comment, gallery_name in (await self.db.execute(stmt)).all()]
+        return await self._finish_read(rows)
 
     async def get_sharelink_label_and_gallery_name(self, sharelink_id: uuid.UUID, owner_id: uuid.UUID) -> tuple[str | None, str] | None:
         stmt = (
@@ -731,6 +811,7 @@ class SelectionRepository(BaseRepository):
             .join(ShareLink.gallery)
             .where(
                 ShareLink.id == sharelink_id,
+                ShareLink.scope_type == ShareScopeType.GALLERY.value,
                 Gallery.owner_id == owner_id,
                 Gallery.is_deleted.is_(False),
             )

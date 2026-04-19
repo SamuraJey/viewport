@@ -9,10 +9,12 @@ from viewport.auth_utils import get_current_user
 from viewport.models.db import get_db
 from viewport.models.sharelink_selection import SelectionSessionStatus
 from viewport.repositories.gallery_repository import GalleryRepository
+from viewport.repositories.project_repository import ProjectRepository
 from viewport.repositories.selection_repository import SelectionRepository
 from viewport.repositories.sharelink_repository import ShareLinkRepository
 from viewport.schemas.sharelink import (
     GalleryShareLinkResponse,
+    ScopedShareLinkResponse,
     ShareLinkAnalyticsResponse,
     ShareLinkCreateRequest,
     ShareLinkDailyPointResponse,
@@ -25,12 +27,17 @@ from viewport.schemas.sharelink import (
 )
 
 gallery_router = APIRouter(prefix="/galleries/{gallery_id}/share-links", tags=["sharelinks"])
+project_router = APIRouter(prefix="/projects/{project_id}/share-links", tags=["sharelinks"])
 dashboard_router = APIRouter(prefix="/share-links", tags=["sharelinks"])
 router = APIRouter(tags=["sharelinks"])
 
 
 def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
     return GalleryRepository(db)
+
+
+def get_project_repository(db: AsyncSession = Depends(get_db)) -> ProjectRepository:
+    return ProjectRepository(db)
 
 
 def get_sharelink_repository(db: AsyncSession = Depends(get_db)) -> ShareLinkRepository:
@@ -150,6 +157,115 @@ async def delete_sharelink(gallery_id: UUID, sharelink_id: UUID, repo: GalleryRe
     return
 
 
+@project_router.get("", response_model=list[ScopedShareLinkResponse])
+async def list_project_sharelinks(
+    project_id: UUID,
+    repo: ProjectRepository = Depends(get_project_repository),
+    selection_repo: SelectionRepository = Depends(get_selection_repository),
+    user=Depends(get_current_user),
+) -> list[ScopedShareLinkResponse]:
+    project = await repo.get_project_by_id_and_owner(project_id, user.id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    sharelinks = await repo.get_sharelinks_by_project(project_id, user.id)
+    selection_summaries = await selection_repo.get_sharelink_selection_summaries(
+        [sharelink.id for sharelink in sharelinks],
+    )
+    empty_selection_summary = (False, 0, 0, 0, 0, 0, None)
+    return [
+        ScopedShareLinkResponse.model_validate(sharelink).model_copy(
+            update={
+                "selection_summary": _to_selection_summary_response(*selection_summaries.get(sharelink.id, empty_selection_summary)),
+            }
+        )
+        for sharelink in sharelinks
+    ]
+
+
+@project_router.get("/warnings", response_model=list[ScopedShareLinkResponse])
+async def list_project_warning_sharelinks(
+    project_id: UUID,
+    project_repo: ProjectRepository = Depends(get_project_repository),
+    sharelink_repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    selection_repo: SelectionRepository = Depends(get_selection_repository),
+    user=Depends(get_current_user),
+) -> list[ScopedShareLinkResponse]:
+    project = await project_repo.get_project_by_id_and_owner(project_id, user.id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    sharelinks = await sharelink_repo.get_sharelinks_for_project_warnings(project_id, user.id)
+    selection_summaries = await selection_repo.get_sharelink_selection_summaries(
+        [sharelink.id for sharelink in sharelinks],
+    )
+    empty_selection_summary = (False, 0, 0, 0, 0, 0, None)
+    return [
+        ScopedShareLinkResponse.model_validate(sharelink).model_copy(
+            update={
+                "selection_summary": _to_selection_summary_response(
+                    *selection_summaries.get(sharelink.id, empty_selection_summary),
+                ),
+            }
+        )
+        for sharelink in sharelinks
+    ]
+
+
+@project_router.post("", response_model=ScopedShareLinkResponse, status_code=status.HTTP_201_CREATED)
+async def create_project_sharelink(
+    project_id: UUID,
+    req: ShareLinkCreateRequest,
+    repo: ProjectRepository = Depends(get_project_repository),
+    user=Depends(get_current_user),
+) -> ScopedShareLinkResponse:
+    project = await repo.get_project_by_id_and_owner(project_id, user.id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    sharelink = await repo.create_project_sharelink(project_id, req.expires_at, label=_normalize_label(req.label), is_active=req.is_active)
+    return ScopedShareLinkResponse.model_validate(sharelink)
+
+
+@project_router.patch("/{sharelink_id}", response_model=ScopedShareLinkResponse)
+async def update_project_sharelink(
+    project_id: UUID,
+    sharelink_id: UUID,
+    req: ShareLinkUpdateRequest,
+    repo: ProjectRepository = Depends(get_project_repository),
+    user=Depends(get_current_user),
+) -> ScopedShareLinkResponse:
+    update_data = req.model_dump(exclude_unset=True)
+    if "label" in update_data:
+        update_data["label"] = _normalize_label(update_data["label"])
+
+    try:
+        sharelink = await repo.update_project_sharelink(
+            sharelink_id,
+            project_id,
+            user.id,
+            fields_set=set(update_data.keys()),
+            label=update_data.get("label"),
+            expires_at=update_data.get("expires_at"),
+            is_active=update_data.get("is_active"),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if not sharelink:
+        raise HTTPException(status_code=404, detail="Share link not found")
+    return ScopedShareLinkResponse.model_validate(sharelink)
+
+
+@project_router.delete("/{sharelink_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project_sharelink(
+    project_id: UUID,
+    sharelink_id: UUID,
+    repo: ProjectRepository = Depends(get_project_repository),
+    user=Depends(get_current_user),
+):
+    if not await repo.delete_project_sharelink(sharelink_id, project_id, user.id):
+        raise HTTPException(status_code=404, detail="Share link not found")
+    return
+
+
 @dashboard_router.get("", response_model=ShareLinkDashboardResponse)
 async def list_owner_sharelinks(
     page: int = Query(1, ge=1),
@@ -171,15 +287,18 @@ async def list_owner_sharelinks(
         status=status_filter,
     )
 
-    sharelink_ids = [sharelink.id for sharelink, _ in rows]
+    sharelink_ids = [sharelink.id for sharelink, _, _ in rows]
     selection_summaries = await selection_repo.get_sharelink_selection_summaries(sharelink_ids)
     empty_selection_summary = (False, 0, 0, 0, 0, 0, None)
 
     share_links = [
         ShareLinkDashboardListItemResponse(
             id=sharelink.id,
+            scope_type=sharelink.scope_type,
             gallery_id=sharelink.gallery_id,
+            project_id=sharelink.project_id,
             gallery_name=gallery_name,
+            project_name=project_name,
             label=sharelink.label,
             is_active=sharelink.is_active,
             expires_at=sharelink.expires_at,
@@ -190,7 +309,7 @@ async def list_owner_sharelinks(
             updated_at=sharelink.updated_at,
             selection_summary=_to_selection_summary_response(*selection_summaries.get(sharelink.id, empty_selection_summary)),
         )
-        for sharelink, gallery_name in rows
+        for sharelink, gallery_name, project_name in rows
     ]
 
     return ShareLinkDashboardResponse(
@@ -214,7 +333,7 @@ async def get_sharelink_analytics(
     if not row:
         raise HTTPException(status_code=404, detail="Share link not found")
 
-    sharelink, gallery_name = row
+    sharelink, gallery_name, project_name = row
     stats = await repo.get_sharelink_daily_stats(sharelink_id, days=days)
     points_by_day = {point.day: point for point in stats}
 
@@ -235,8 +354,11 @@ async def get_sharelink_analytics(
 
     share_link = ShareLinkDashboardItemResponse(
         id=sharelink.id,
+        scope_type=sharelink.scope_type,
         gallery_id=sharelink.gallery_id,
+        project_id=sharelink.project_id,
         gallery_name=gallery_name,
+        project_name=project_name,
         label=sharelink.label,
         is_active=sharelink.is_active,
         expires_at=sharelink.expires_at,
@@ -248,7 +370,7 @@ async def get_sharelink_analytics(
     )
 
     sharelink_selection_summaries = await selection_repo.get_sharelink_selection_summaries([sharelink.id])
-    selection_summary = _to_selection_summary_response(*(sharelink_selection_summaries.get(sharelink.id, (False, 0, 0, 0, 0, 0, None))))
+    selection_summary = _to_selection_summary_response(*sharelink_selection_summaries.get(sharelink.id, (False, 0, 0, 0, 0, 0, None)))
 
     return ShareLinkAnalyticsResponse(
         share_link=share_link,
@@ -258,4 +380,5 @@ async def get_sharelink_analytics(
 
 
 router.include_router(gallery_router)
+router.include_router(project_router)
 router.include_router(dashboard_router)

@@ -7,7 +7,7 @@ import {
   useDeferredValue,
   useTransition,
 } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { PhotoRenameModal } from '../components/PhotoRenameModal';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
@@ -27,9 +27,16 @@ import {
 import { type PhotoUploaderHandle } from '../components/PhotoUploader';
 import { usePagination, useSelection, useGalleryActions, useGalleryDragAndDrop } from '../hooks';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { projectService } from '../services/projectService';
 import { shareLinkService } from '../services/shareLinkService';
 import { handleApiError } from '../lib/errorHandling';
-import type { GalleryPhotoSortBy, SelectionSession, ShareLink, SortOrder } from '../types';
+import type {
+  GalleryPhotoSortBy,
+  ProjectDetail,
+  SelectionSession,
+  ShareLink,
+  SortOrder,
+} from '../types';
 
 const DEFAULT_SORT_BY: GalleryPhotoSortBy = 'uploaded_at';
 const DEFAULT_SORT_ORDER: SortOrder = 'desc';
@@ -83,8 +90,16 @@ const isSortOrder = (value: string | null): value is SortOrder =>
 
 export const GalleryPage = () => {
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
-  const galleryId = id!;
+  const {
+    id,
+    projectId: routeProjectId,
+    galleryId: routeGalleryId,
+  } = useParams<{
+    id?: string;
+    projectId?: string;
+    galleryId?: string;
+  }>();
+  const galleryId = routeGalleryId ?? id!;
   const [searchParams, setSearchParams] = useSearchParams();
 
   const urlSearch = searchParams.get('search') ?? '';
@@ -115,6 +130,7 @@ export const GalleryPage = () => {
   const [isLoadingSelectionDetail, setIsLoadingSelectionDetail] = useState(false);
   const [isMutatingSelectionSession, setIsMutatingSelectionSession] = useState(false);
   const [selectionSessionsError, setSelectionSessionsError] = useState('');
+  const [project, setProject] = useState<ProjectDetail | null>(null);
   const [, startTabTransition] = useTransition();
   const gridRef = useRef<HTMLDivElement | null>(null);
   const photoUploaderRef = useRef<PhotoUploaderHandle | null>(null);
@@ -234,6 +250,7 @@ export const GalleryPage = () => {
     handleDeleteMultiplePhotos: handleDeletePhotos, // Renamed to avoid name clash
   } = useGalleryActions({
     galleryId,
+    parentProjectId: routeProjectId,
     filters: {
       search: activeSearch || undefined,
       sort_by: sortBy,
@@ -241,7 +258,106 @@ export const GalleryPage = () => {
     },
     pagination,
   });
-  useDocumentTitle(gallery?.name?.trim() ? `${gallery.name} · Viewport` : 'Gallery · Viewport');
+
+  const activeProjectId = gallery?.project_id ?? routeProjectId ?? null;
+
+  const loadProjectDetail = useCallback(async () => {
+    if (!activeProjectId) {
+      setProject(null);
+      return;
+    }
+
+    try {
+      const loadedProject = await projectService.getProject(activeProjectId);
+      setProject(loadedProject);
+    } catch (err) {
+      console.error('Failed to load project detail for gallery page', err);
+      setProject(null);
+    }
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    void loadProjectDetail();
+  }, [loadProjectDetail]);
+
+  useEffect(() => {
+    if (!gallery?.project_id) {
+      return;
+    }
+
+    const canonicalProjectId = gallery.project_id;
+    const canonicalPath = `/projects/${canonicalProjectId}/galleries/${gallery.id}`;
+    const queryString = searchParams.toString();
+    const canonicalUrl = queryString ? `${canonicalPath}?${queryString}` : canonicalPath;
+
+    if (!routeProjectId) {
+      navigate(canonicalUrl, { replace: true });
+      return;
+    }
+
+    if (routeProjectId !== canonicalProjectId) {
+      navigate(canonicalUrl, { replace: true });
+    }
+  }, [gallery?.id, gallery?.project_id, navigate, routeProjectId, searchParams]);
+
+  const projectGalleries = useMemo(
+    () =>
+      [...(project?.folders ?? [])].sort(
+        (left, right) => (left.project_position ?? 0) - (right.project_position ?? 0),
+      ),
+    [project?.folders],
+  );
+
+  const projectNavigation =
+    project && projectGalleries.length > 1 ? (
+      <div className="mt-4 overflow-x-auto pb-1">
+        <div className="flex min-w-max gap-2">
+          {projectGalleries.map((projectGallery) => {
+            const isActive = projectGallery.id === galleryId;
+            return (
+              <Link
+                key={projectGallery.id}
+                to={`/projects/${project.id}/galleries/${projectGallery.id}`}
+                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
+                  isActive
+                    ? 'border-accent/50 bg-accent/10 text-accent'
+                    : 'border-border/40 bg-surface text-text hover:border-accent/30'
+                }`}
+              >
+                {projectGallery.name}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    ) : null;
+
+  const galleryHeaderSubtitle = project ? (
+    <div className="space-y-2 text-sm text-muted">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span>
+          {projectGalleries.length > 1
+            ? `Active gallery: ${gallery?.name || 'Untitled Gallery'}`
+            : 'Single-gallery project'}
+        </span>
+        <span>{projectGalleries.length} galleries in project</span>
+        <Link
+          to={`/projects/${project.id}`}
+          className="font-semibold text-accent transition-colors hover:underline"
+        >
+          Project settings
+        </Link>
+      </div>
+    </div>
+  ) : null;
+
+  useDocumentTitle(
+    project?.name?.trim()
+      ? `${project.name} · Viewport`
+      : gallery?.name?.trim()
+        ? `${gallery.name} · Viewport`
+        : 'Gallery · Viewport',
+  );
 
   useEffect(() => {
     if (!gallery) {
@@ -995,6 +1111,10 @@ export const GalleryPage = () => {
         {/* Gallery Header */}
         <GalleryHeader
           gallery={gallery}
+          title={project?.name || undefined}
+          subtitle={galleryHeaderSubtitle}
+          backLabel={project ? 'Back to Projects' : undefined}
+          projectNavigation={projectNavigation}
           visiblePhotoCount={photoUrls.length}
           totalPhotoCount={pagination.total}
           isLoadingPhotos={isLoadingPhotos}

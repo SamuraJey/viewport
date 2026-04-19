@@ -13,10 +13,18 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 let PublicGalleryPage: any;
 const mockNavigate = vi.fn();
-let mockRouteParams: { shareId: string; resumeToken?: string } = { shareId: 'abc123' };
+let mockRouteParams: {
+  shareId: string;
+  resumeToken?: string;
+  folderId?: string;
+  galleryId?: string;
+} = {
+  shareId: 'abc123',
+};
 
 // Mock data for public gallery
 const mockPublicGallery = {
+  scope_type: 'gallery' as const,
   photos: [
     {
       photo_id: 'p1',
@@ -40,11 +48,53 @@ const mockPublicGallery = {
 };
 
 const mockEmptyGallery = {
+  scope_type: 'gallery' as const,
   photos: [],
   cover: null,
   photographer: undefined,
   gallery_name: 'Empty Gallery',
   total_photos: 0,
+};
+
+const mockProjectShare = {
+  scope_type: 'project' as const,
+  project_id: 'project-1',
+  project_name: 'Wedding Weekend',
+  photographer: 'Jane Doe',
+  date: '2025-09-21',
+  site_url: 'https://example.com',
+  cover: {
+    photo_id: 'project-cover',
+    thumbnail_url: '/thumbs/project-cover.jpg',
+    full_url: '/full/project-cover.jpg',
+  },
+  total_listed_folders: 2,
+  total_listed_photos: 8,
+  folders: [
+    {
+      folder_id: 'gallery-1',
+      folder_name: 'Photos',
+      photo_count: 5,
+      route_path: '/share/abc123/galleries/gallery-1',
+      direct_share_path: null,
+    },
+    {
+      folder_id: 'gallery-2',
+      folder_name: '3eds',
+      photo_count: 3,
+      route_path: '/share/abc123/galleries/gallery-2',
+      direct_share_path: null,
+    },
+  ],
+};
+
+const mockProjectGallery = {
+  ...mockPublicGallery,
+  gallery_name: 'Photos',
+  project_id: 'project-1',
+  project_name: 'Wedding Weekend',
+  parent_share_id: 'abc123',
+  project_navigation: mockProjectShare,
 };
 
 // Mock shareLinkService
@@ -234,6 +284,137 @@ describe('PublicGalleryPage', () => {
     const expectedUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/s/abc123/download/all`;
     expect(openSpy).toHaveBeenCalledWith(expectedUrl, '_blank');
     openSpy.mockRestore();
+  });
+
+  it('redirects project shares to the first visible gallery by default', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue(mockProjectShare as any);
+
+    render(wrapper());
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/share/abc123/galleries/gallery-1', {
+        replace: true,
+        state: { skipProjectViewCount: true },
+      });
+    });
+  });
+
+  it('renders a horizontal project gallery list without preview cards', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-2' };
+    vi.mocked(shareLinkService.getSharedGallery).mockImplementation(async (_shareId, options) => {
+      if (options?.galleryId) {
+        return { ...mockProjectGallery, gallery_name: '3eds' } as any;
+      }
+      return mockProjectShare as any;
+    });
+
+    const { container } = render(wrapper());
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Photos' })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: '3eds' })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Wedding Weekend' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1, name: '3eds' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /download project/i })).toBeInTheDocument();
+    expect(screen.queryByText('Download visible folders')).not.toBeInTheDocument();
+    expect(container.querySelector('img[src="/full/project-cover.jpg"]')).not.toBeNull();
+  });
+
+  it('reuses nested gallery project navigation without refetching the root project share', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-1' };
+    vi.mocked(shareLinkService.getSharedGallery).mockImplementation(async (_shareId, options) => {
+      if (options?.galleryId === 'gallery-2') {
+        return {
+          ...mockProjectGallery,
+          gallery_name: '3eds',
+          project_navigation: {
+            ...mockProjectShare,
+            folders: mockProjectShare.folders,
+          },
+        } as any;
+      }
+      if (options?.galleryId) {
+        return mockProjectGallery as any;
+      }
+      throw new Error('root project share should not be refetched');
+    });
+
+    const { rerender } = render(wrapper());
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Photos' })).toBeInTheDocument();
+    });
+
+    const getRootProjectCalls = () =>
+      vi
+        .mocked(shareLinkService.getSharedGallery)
+        .mock.calls.filter(([, options]) => !options?.galleryId && !options?.folderId).length;
+
+    expect(getRootProjectCalls()).toBe(0);
+
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-2' };
+    rerender(wrapper());
+
+    await waitFor(() => {
+      expect(screen.getByText('3eds')).toBeInTheDocument();
+    });
+
+    expect(getRootProjectCalls()).toBe(0);
+  });
+
+  it('keeps a sticky project selection bar visible while browsing project galleries', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-1' };
+    vi.mocked(shareLinkService.getSharedGallery).mockImplementation(async (_shareId, options) => {
+      if (options?.galleryId) {
+        return mockProjectGallery as any;
+      }
+      return mockProjectShare as any;
+    });
+    vi.mocked(shareLinkService.getPublicSelectionConfig).mockResolvedValue({
+      is_enabled: true,
+      list_title: 'Selected photos',
+      limit_enabled: true,
+      limit_value: 12,
+      allow_photo_comments: false,
+      require_name: true,
+      require_email: false,
+      require_phone: false,
+      require_client_note: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+    vi.mocked(shareLinkService.getPublicSelectionSession).mockResolvedValue({
+      id: 'session-1',
+      sharelink_id: 'abc123',
+      status: 'in_progress',
+      client_name: 'Jane Client',
+      client_email: null,
+      client_phone: null,
+      client_note: null,
+      selected_count: 4,
+      submitted_at: null,
+      last_activity_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      resume_token: 'resume-token',
+      items: [],
+    } as any);
+    window.localStorage.setItem('viewport-selection-resume-abc123', 'resume-token');
+
+    render(wrapper());
+
+    const stickyBar = await screen.findByTestId('project-selection-sticky-bar');
+    expect(within(stickyBar).getByText('4 selected')).toBeInTheDocument();
+    expect(within(stickyBar).getByRole('button', { name: /open favorites/i })).toBeInTheDocument();
+    expect(
+      within(stickyBar).getByRole('button', { name: /finish selection/i }),
+    ).toBeInTheDocument();
   });
 
   it('renders dedicated favorites view with finish button and back navigation', async () => {

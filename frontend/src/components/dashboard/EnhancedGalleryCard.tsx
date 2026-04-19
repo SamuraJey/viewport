@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Camera, Edit3, HardDrive, Share2, Trash2 } from 'lucide-react';
-import type { RefObject, SyntheticEvent } from 'react';
+import type { ReactNode, RefObject, SyntheticEvent } from 'react';
 import { useEffect } from 'react';
 
 import { GALLERY_NAME_MAX_LENGTH } from '../../constants/gallery';
@@ -20,6 +20,8 @@ interface EnhancedGalleryCardProps {
   onBeginRename: (gallery: Gallery) => void;
   onDelete: (gallery: Gallery) => void;
   onShare?: (gallery: Gallery) => void;
+  extraTopBadges?: ReactNode;
+  extraActions?: ReactNode;
   variants: {
     hidden: { opacity: number; y: number; scale: number };
     visible: {
@@ -35,6 +37,11 @@ interface EnhancedGalleryCardProps {
 const makeGalleryTitle = (gallery: Gallery): string =>
   gallery.name || `Gallery #${gallery.id.slice(0, 8)}`;
 
+const resolveGalleryPath = (gallery: Gallery): string =>
+  gallery.project_id
+    ? `/projects/${gallery.project_id}/galleries/${gallery.id}`
+    : `/galleries/${gallery.id}`;
+
 export const EnhancedGalleryCard = ({
   gallery,
   isRenamingThis,
@@ -47,6 +54,8 @@ export const EnhancedGalleryCard = ({
   onBeginRename,
   onDelete,
   onShare,
+  extraTopBadges,
+  extraActions,
   variants,
 }: EnhancedGalleryCardProps) => {
   const galleryTitle = makeGalleryTitle(gallery);
@@ -124,10 +133,12 @@ export const EnhancedGalleryCard = ({
               <Share2 className="h-3 w-3" />
             </span>
           )}
+          {extraTopBadges}
         </div>
 
         {!isRenamingThis && (
           <div className="absolute right-3 top-3 z-10 flex gap-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 focus-within:opacity-100">
+            {extraActions}
             {onShare ? (
               <button
                 onClick={(event) => {
@@ -204,7 +215,7 @@ export const EnhancedGalleryCard = ({
         </div>
       ) : (
         <Link
-          to={`/galleries/${gallery.id}`}
+          to={resolveGalleryPath(gallery)}
           className="flex flex-1 flex-col p-4 no-underline transition-colors hover:bg-surface-1 dark:hover:bg-surface-dark-1"
         >
           <div className="flex flex-1 flex-col justify-center">

@@ -7,10 +7,11 @@ from sqladmin import Admin
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import RedirectResponse
 
-from viewport.admin import AdminAuth, GalleryAdmin, PhotoAdmin, ShareLinkAdmin, UserAdmin
+from viewport.admin import AdminAuth, GalleryAdmin, PhotoAdmin, ProjectAdmin, ShareLinkAdmin, UserAdmin
 from viewport.api.auth import router as auth_router
 from viewport.api.gallery import router as gallery_router
 from viewport.api.photo import router as photo_router
+from viewport.api.project import router as project_router
 from viewport.api.public import router as public_router
 from viewport.api.selection import router as selection_router
 from viewport.api.sharelink import router as sharelink_router
@@ -125,6 +126,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(gallery_router)
 app.include_router(photo_router)
+app.include_router(project_router)
 app.include_router(sharelink_router)
 app.include_router(public_router)
 app.include_router(selection_router)
@@ -146,6 +148,7 @@ admin = Admin(
 
 # Register model views
 admin.add_view(UserAdmin)
+admin.add_view(ProjectAdmin)
 admin.add_view(GalleryAdmin)
 admin.add_view(PhotoAdmin)
 admin.add_view(ShareLinkAdmin)

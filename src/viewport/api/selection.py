@@ -137,16 +137,24 @@ def _validate_submit_requirements(config: ShareLinkSelectionConfig, session: Sha
 def _to_selection_item_response(item: ShareLinkSelectionItem, thumbnail_url_map: dict[str, str] | None = None) -> SelectionItemResponse:
     photo_display_name: str | None = None
     photo_thumbnail_url: str | None = None
+    gallery_id: str | None = None
+    gallery_name: str | None = None
     if "photo" in item.__dict__ and item.photo is not None:
         photo_display_name = item.photo.display_name
         thumbnail_object_key = item.photo.thumbnail_object_key
         if thumbnail_url_map is not None:
             photo_thumbnail_url = thumbnail_url_map.get(thumbnail_object_key)
+        photo_gallery = item.photo.gallery if "gallery" in item.photo.__dict__ else None
+        if photo_gallery is not None:
+            gallery_id = str(photo_gallery.id)
+            gallery_name = photo_gallery.name
 
     return SelectionItemResponse(
         photo_id=str(item.photo_id),
         photo_display_name=photo_display_name,
         photo_thumbnail_url=photo_thumbnail_url,
+        gallery_id=gallery_id,
+        gallery_name=gallery_name,
         comment=item.comment,
         selected_at=item.selected_at,
         updated_at=item.updated_at,
@@ -387,7 +395,7 @@ async def toggle_public_selection_item(
         _set_selection_cookie(request, response, share_id, resolved_token)
     _validate_session_mutable(session)
 
-    if not await repo.validate_photo_belongs_to_share_gallery(sharelink.id, photo_id):
+    if not await repo.validate_photo_belongs_to_share_scope(sharelink.id, photo_id):
         raise HTTPException(status_code=404, detail="Photo not found for this share link")
 
     existing_item = await repo.get_selection_item(session.id, photo_id)
@@ -430,7 +438,7 @@ async def update_public_selection_item_comment(
         _set_selection_cookie(request, response, share_id, resolved_token)
     _validate_session_mutable(session)
 
-    if not await repo.validate_photo_belongs_to_share_gallery(sharelink.id, photo_id):
+    if not await repo.validate_photo_belongs_to_share_scope(sharelink.id, photo_id):
         raise HTTPException(status_code=404, detail="Photo not found for this share link")
 
     existing_item = await repo.get_selection_item(session.id, photo_id)
@@ -547,18 +555,41 @@ async def get_owner_selection_config(
     return _to_selection_config_response(config)
 
 
-@router.patch("/galleries/{gallery_id}/share-links/{sharelink_id}/selection-config", response_model=SelectionConfigResponse)
-async def update_owner_selection_config(
-    gallery_id: uuid.UUID,
+@router.get("/projects/{project_id}/share-links/{sharelink_id}/selection-config", response_model=SelectionConfigResponse)
+async def get_owner_project_selection_config(
+    project_id: uuid.UUID,
     sharelink_id: uuid.UUID,
-    req: SelectionConfigUpdateRequest,
     repo: SelectionRepository = Depends(get_selection_repository),
     current_user: User = Depends(get_current_user),
 ) -> SelectionConfigResponse:
-    sharelink = await repo.get_sharelink_for_gallery_owner(gallery_id, sharelink_id, current_user.id)
+    sharelink = await repo.get_sharelink_for_project_owner(project_id, sharelink_id, current_user.id)
     if not sharelink:
         raise HTTPException(status_code=404, detail="Share link not found")
 
+    config = await repo.get_or_create_config(sharelink.id)
+    return _to_selection_config_response(config)
+
+
+@router.get("/share-links/{sharelink_id}/selection-config", response_model=SelectionConfigResponse)
+async def get_owner_selection_config_by_sharelink(
+    sharelink_id: uuid.UUID,
+    repo: SelectionRepository = Depends(get_selection_repository),
+    current_user: User = Depends(get_current_user),
+) -> SelectionConfigResponse:
+    sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
+    if not sharelink:
+        raise HTTPException(status_code=404, detail="Share link not found")
+
+    config = await repo.get_or_create_config(sharelink.id)
+    return _to_selection_config_response(config)
+
+
+async def _update_owner_selection_config_for_sharelink(
+    *,
+    sharelink: ShareLink,
+    req: SelectionConfigUpdateRequest,
+    repo: SelectionRepository,
+) -> SelectionConfigResponse:
     payload = req.model_dump(exclude_unset=True)
     existing = await repo.get_or_create_config(sharelink.id)
 
@@ -584,6 +615,50 @@ async def update_owner_selection_config(
         raise HTTPException(status_code=422, detail="Invalid selection configuration") from exc
 
     return _to_selection_config_response(config)
+
+
+@router.patch("/galleries/{gallery_id}/share-links/{sharelink_id}/selection-config", response_model=SelectionConfigResponse)
+async def update_owner_selection_config(
+    gallery_id: uuid.UUID,
+    sharelink_id: uuid.UUID,
+    req: SelectionConfigUpdateRequest,
+    repo: SelectionRepository = Depends(get_selection_repository),
+    current_user: User = Depends(get_current_user),
+) -> SelectionConfigResponse:
+    sharelink = await repo.get_sharelink_for_gallery_owner(gallery_id, sharelink_id, current_user.id)
+    if not sharelink:
+        raise HTTPException(status_code=404, detail="Share link not found")
+
+    return await _update_owner_selection_config_for_sharelink(sharelink=sharelink, req=req, repo=repo)
+
+
+@router.patch("/projects/{project_id}/share-links/{sharelink_id}/selection-config", response_model=SelectionConfigResponse)
+async def update_owner_project_selection_config(
+    project_id: uuid.UUID,
+    sharelink_id: uuid.UUID,
+    req: SelectionConfigUpdateRequest,
+    repo: SelectionRepository = Depends(get_selection_repository),
+    current_user: User = Depends(get_current_user),
+) -> SelectionConfigResponse:
+    sharelink = await repo.get_sharelink_for_project_owner(project_id, sharelink_id, current_user.id)
+    if not sharelink:
+        raise HTTPException(status_code=404, detail="Share link not found")
+
+    return await _update_owner_selection_config_for_sharelink(sharelink=sharelink, req=req, repo=repo)
+
+
+@router.patch("/share-links/{sharelink_id}/selection-config", response_model=SelectionConfigResponse)
+async def update_owner_selection_config_by_sharelink(
+    sharelink_id: uuid.UUID,
+    req: SelectionConfigUpdateRequest,
+    repo: SelectionRepository = Depends(get_selection_repository),
+    current_user: User = Depends(get_current_user),
+) -> SelectionConfigResponse:
+    sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
+    if not sharelink:
+        raise HTTPException(status_code=404, detail="Share link not found")
+
+    return await _update_owner_selection_config_for_sharelink(sharelink=sharelink, req=req, repo=repo)
 
 
 @router.get("/share-links/{sharelink_id}/selection", response_model=OwnerSelectionDetailResponse)
@@ -612,6 +687,7 @@ async def get_owner_selection_detail(
     return OwnerSelectionDetailResponse(
         sharelink_id=str(sharelink.id),
         sharelink_label=sharelink.label,
+        scope_type=sharelink.scope_type,
         config=_to_selection_config_response(config),
         aggregate=_to_owner_selection_aggregate_response(
             total_sessions,
@@ -797,10 +873,12 @@ async def export_sharelink_selection_files_csv(
     if not sharelink:
         raise HTTPException(status_code=404, detail="Share link not found")
 
-    items = await repo.get_selected_items_for_sharelink(sharelink.id)
-    rows = [[filename, comment or ""] for filename, comment in items]
+    items = await repo.get_selected_items_for_sharelink_with_context(sharelink.id)
+    is_project_share = sharelink.scope_type == "project"
+    rows = [[gallery_name or "", filename, comment or ""] for filename, comment, gallery_name in items] if is_project_share else [[filename, comment or ""] for filename, comment, _ in items]
     filename = f"selection_{sharelink.id}_files.csv"
-    return _csv_response(filename, ["filename", "comment"], rows)
+    headers = ["gallery_name", "filename", "comment"] if is_project_share else ["filename", "comment"]
+    return _csv_response(filename, headers, rows)
 
 
 @router.get("/share-links/{sharelink_id}/selection/export/lightroom.txt")
@@ -813,8 +891,12 @@ async def export_sharelink_selection_lightroom(
     if not sharelink:
         raise HTTPException(status_code=404, detail="Share link not found")
 
-    items = await repo.get_selected_items_for_sharelink(sharelink.id)
-    search_expression = LIGHTROOM_SEPARATOR.join(filename for filename, _ in items)
+    if sharelink.scope_type == "project":
+        items_with_context = await repo.get_selected_items_for_sharelink_with_context(sharelink.id)
+        search_expression = "\n".join(f"{gallery_name or 'Unknown gallery'} {LIGHTROOM_SEPARATOR} {filename}" for filename, _, gallery_name in items_with_context)
+    else:
+        items = await repo.get_selected_items_for_sharelink(sharelink.id)
+        search_expression = LIGHTROOM_SEPARATOR.join(filename for filename, _ in items)
     return Response(
         content=search_expression,
         media_type="text/plain; charset=utf-8",

@@ -15,6 +15,7 @@ import type {
 
 interface UseGalleryActionsProps {
   galleryId: string;
+  parentProjectId?: string;
   filters: {
     search?: string;
     sort_by: GalleryPhotoSortBy;
@@ -27,7 +28,12 @@ interface UseGalleryActionsProps {
   };
 }
 
-export const useGalleryActions = ({ galleryId, filters, pagination }: UseGalleryActionsProps) => {
+export const useGalleryActions = ({
+  galleryId,
+  parentProjectId,
+  filters,
+  pagination,
+}: UseGalleryActionsProps) => {
   const navigate = useNavigate();
   const [gallery, setGallery] = useState<GalleryDetail | null>(null);
   const [photoUrls, setPhotoUrls] = useState<GalleryDetail['photos']>([]);
@@ -234,7 +240,9 @@ export const useGalleryActions = ({ galleryId, filters, pagination }: UseGallery
       onConfirm: async () => {
         try {
           await galleryService.deleteGallery(galleryId);
-          navigate('/dashboard', { replace: true });
+          navigate(parentProjectId ? `/projects/${parentProjectId}` : '/dashboard', {
+            replace: true,
+          });
         } catch (err) {
           handleError(err);
           throw err;

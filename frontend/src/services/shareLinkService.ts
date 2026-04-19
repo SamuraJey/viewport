@@ -146,16 +146,80 @@ const getSharedGallery = async (
     params.append('offset', options.offset.toString());
   }
 
+  const nestedGalleryId = options?.galleryId ?? options?.folderId;
+  const basePath = nestedGalleryId ? `/s/${shareId}/galleries/${nestedGalleryId}` : `/s/${shareId}`;
   const queryString = params.toString();
-  const url = queryString ? `/s/${shareId}?${queryString}` : `/s/${shareId}`;
+  const url = queryString ? `${basePath}?${queryString}` : basePath;
+  const headers: Record<string, string> = {
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+  };
+  if (options?.skipProjectViewCount) {
+    headers['X-Viewport-Internal-Navigation'] = '1';
+  }
 
   const response = await api.get(url, {
-    headers: {
-      'Cache-Control': 'no-cache',
-      Pragma: 'no-cache',
-    },
+    headers,
   });
   return response.data;
+};
+
+const getProjectShareLinks = async (projectId: string): Promise<ShareLink[]> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getProjectShareLinks(projectId);
+  }
+
+  const response = await api.get<ShareLink[]>(`/projects/${projectId}/share-links`);
+  return response.data;
+};
+
+const getProjectWarningShareLinks = async (projectId: string): Promise<ShareLink[]> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getProjectWarningShareLinks(projectId);
+  }
+
+  const response = await api.get<ShareLink[]>(`/projects/${projectId}/share-links/warnings`);
+  return response.data;
+};
+
+const createProjectShareLink = async (
+  projectId: string,
+  payload?: ShareLinkCreateRequest,
+): Promise<ShareLink> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().createProjectShareLink(projectId, payload);
+  }
+
+  const response = await api.post<ShareLink>(
+    `/projects/${projectId}/share-links`,
+    payload ?? { expires_at: null },
+  );
+  return response.data;
+};
+
+const updateProjectShareLink = async (
+  projectId: string,
+  shareLinkId: string,
+  payload: ShareLinkUpdateRequest,
+): Promise<ShareLink> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().updateProjectShareLink(projectId, shareLinkId, payload);
+  }
+
+  const response = await api.patch<ShareLink>(
+    `/projects/${projectId}/share-links/${shareLinkId}`,
+    payload,
+  );
+  return response.data;
+};
+
+const deleteProjectShareLink = async (projectId: string, shareLinkId: string): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    await getDemoService().deleteProjectShareLink(projectId, shareLinkId);
+    return;
+  }
+
+  await api.delete(`/projects/${projectId}/share-links/${shareLinkId}`);
 };
 
 const getOwnerShareLinks = async (
@@ -401,6 +465,30 @@ const updateOwnerSelectionConfig = async (
   return response.data;
 };
 
+const getShareLinkSelectionConfig = async (shareLinkId: string): Promise<SelectionConfig> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getShareLinkSelectionConfig(shareLinkId);
+  }
+
+  const response = await api.get<SelectionConfig>(`/share-links/${shareLinkId}/selection-config`);
+  return response.data;
+};
+
+const updateShareLinkSelectionConfig = async (
+  shareLinkId: string,
+  payload: SelectionConfigUpdateRequest,
+): Promise<SelectionConfig> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().updateShareLinkSelectionConfig(shareLinkId, payload);
+  }
+
+  const response = await api.patch<SelectionConfig>(
+    `/share-links/${shareLinkId}/selection-config`,
+    payload,
+  );
+  return response.data;
+};
+
 const getOwnerSelectionDetail = async (shareLinkId: string): Promise<OwnerSelectionDetail> => {
   if (isDemoModeEnabled()) {
     return getDemoService().getOwnerSelectionDetail(shareLinkId);
@@ -552,6 +640,11 @@ const exportGallerySelectionLinksCsv = async (galleryId: string): Promise<void> 
 export const shareLinkService = {
   getShareLinks,
   createShareLink,
+  getProjectShareLinks,
+  getProjectWarningShareLinks,
+  createProjectShareLink,
+  updateProjectShareLink,
+  deleteProjectShareLink,
   updateShareLink,
   deleteShareLink,
   getSharedGallery,
@@ -569,6 +662,8 @@ export const shareLinkService = {
   submitPublicSelectionSession,
   getOwnerSelectionConfig,
   updateOwnerSelectionConfig,
+  getShareLinkSelectionConfig,
+  updateShareLinkSelectionConfig,
   getOwnerSelectionDetail,
   closeOwnerSelection,
   reopenOwnerSelection,

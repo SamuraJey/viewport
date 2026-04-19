@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
-from viewport.models.sharelink import ShareLink
+from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_selection import SelectionSessionStatus, ShareLinkSelectionConfig, ShareLinkSelectionItem, ShareLinkSelectionSession
 from viewport.models.user import User
 from viewport.repositories.selection_repository import SelectionRepository
@@ -416,3 +416,40 @@ async def test_selection_repository_bulk_status_updates_skip_submitted_sessions(
     assert reopened_session is not None
     assert reopened_session.status == SelectionSessionStatus.IN_PROGRESS.value
     assert reopened_session.submitted_at is None
+
+
+@pytest.mark.asyncio
+async def test_update_selection_item_comment_returns_none_when_row_is_missing():
+    db = AsyncMock()
+    db.execute = AsyncMock(return_value=type("Result", (), {"rowcount": 0})())
+    db.commit = AsyncMock()
+    db.in_transaction = Mock(return_value=False)
+    repo = SelectionRepository(db)
+    repo.get_selection_item = AsyncMock()
+
+    item = await repo.update_selection_item_comment(uuid4(), uuid4(), comment="missing")
+
+    assert item is None
+    repo.get_selection_item.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_validate_photo_belongs_to_share_scope_rejects_missing_or_malformed_sharelinks():
+    db = AsyncMock()
+    db.in_transaction = Mock(return_value=False)
+    repo = SelectionRepository(db)
+    repo.get_public_sharelink = AsyncMock(
+        side_effect=[
+            None,
+            type("GalleryShare", (), {"scope_type": ShareScopeType.GALLERY.value, "gallery_id": None})(),
+            type("ProjectShare", (), {"scope_type": ShareScopeType.PROJECT.value, "project_id": None})(),
+            type("UnknownShare", (), {"scope_type": "unknown", "project_id": None})(),
+        ]
+    )
+
+    assert await repo.validate_photo_belongs_to_share_scope(uuid4(), uuid4()) is False
+    assert await repo.validate_photo_belongs_to_share_scope(uuid4(), uuid4()) is False
+    assert await repo.validate_photo_belongs_to_share_scope(uuid4(), uuid4()) is False
+    assert await repo.validate_photo_belongs_to_share_scope(uuid4(), uuid4()) is False
+
+    db.execute.assert_not_called()

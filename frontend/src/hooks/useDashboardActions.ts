@@ -40,6 +40,8 @@ export const useDashboardActions = () => {
             search: effectiveQuery.search,
             sort_by: effectiveQuery.sort_by,
             order: effectiveQuery.order,
+            standalone_only: effectiveQuery.standalone_only,
+            project_id: effectiveQuery.project_id,
           },
         );
 

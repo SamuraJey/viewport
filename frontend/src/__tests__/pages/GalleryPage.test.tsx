@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { GalleryPage } from '../../pages/GalleryPage';
 
 const mockNavigate = vi.fn();
+let mockRouteParams: { id?: string; projectId?: string; galleryId?: string } = { id: '1' };
 
 // Mock usePhotoLightbox hook
 vi.mock('../../hooks/usePhotoLightbox', () => ({
@@ -28,6 +29,8 @@ vi.mock('../../hooks/usePhotoLightbox', () => ({
 // Mock data
 const mockGalleryData = {
   id: '1',
+  project_id: null,
+  project_name: null,
   name: 'Gallery #1',
   created_at: '2024-01-01T10:00:00Z',
   owner_id: 'user1',
@@ -81,6 +84,61 @@ const mockShareLink = {
   single_downloads: 19,
 };
 
+const mockProjectDetail = {
+  id: 'project-1',
+  owner_id: 'user1',
+  name: 'Wedding Weekend',
+  created_at: '2024-01-01T10:00:00Z',
+  shooting_date: '2024-01-01',
+  entry_gallery_id: '1',
+  entry_gallery_name: 'Gallery #1',
+  gallery_count: 2,
+  listed_gallery_count: 2,
+  has_entry_gallery: true,
+  folder_count: 2,
+  listed_folder_count: 2,
+  total_photo_count: 6,
+  total_size_bytes: 74070,
+  has_active_share_links: true,
+  recent_folder_thumbnail_urls: [],
+  folders: [
+    {
+      id: '1',
+      owner_id: 'user1',
+      project_id: 'project-1',
+      project_name: 'Wedding Weekend',
+      project_position: 0,
+      project_visibility: 'listed',
+      name: 'Gallery #1',
+      created_at: '2024-01-01T10:00:00Z',
+      shooting_date: '2024-01-01',
+      cover_photo_id: null,
+      photo_count: 3,
+      total_size_bytes: 37035,
+      has_active_share_links: false,
+      cover_photo_thumbnail_url: null,
+      recent_photo_thumbnail_urls: [],
+    },
+    {
+      id: '2',
+      owner_id: 'user1',
+      project_id: 'project-1',
+      project_name: 'Wedding Weekend',
+      project_position: 1,
+      project_visibility: 'listed',
+      name: '3eds',
+      created_at: '2024-01-01T11:00:00Z',
+      shooting_date: '2024-01-01',
+      cover_photo_id: null,
+      photo_count: 3,
+      total_size_bytes: 37035,
+      has_active_share_links: false,
+      cover_photo_thumbnail_url: null,
+      recent_photo_thumbnail_urls: [],
+    },
+  ],
+};
+
 // Mock services
 vi.mock('../../services/galleryService', () => ({
   galleryService: {
@@ -116,6 +174,17 @@ vi.mock('../../services/shareLinkService', () => ({
   },
 }));
 
+vi.mock('../../services/projectService', () => ({
+  projectService: {
+    getProject: vi.fn(),
+    getProjects: vi.fn(),
+    createProject: vi.fn(),
+    updateProject: vi.fn(),
+    deleteProject: vi.fn(),
+    createProjectFolder: vi.fn(),
+  },
+}));
+
 // Mock Layout to avoid router context issues
 vi.mock('../../components/Layout', () => ({
   Layout: ({ children }: any) => <div data-testid="layout">{children}</div>,
@@ -126,9 +195,13 @@ vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
     ...actual,
-    useParams: () => ({ id: '1' }),
+    useParams: () => mockRouteParams,
     useNavigate: () => mockNavigate,
-    Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
+    Link: ({ children, to, ...props }: any) => (
+      <a href={typeof to === 'string' ? to : '/'} {...props}>
+        {children}
+      </a>
+    ),
   };
 });
 
@@ -154,9 +227,12 @@ describe('GalleryPage', () => {
 
     // Default mock responses
     const { galleryService } = await import('../../services/galleryService');
+    const { projectService } = await import('../../services/projectService');
     const { shareLinkService } = await import('../../services/shareLinkService');
 
+    mockRouteParams = { id: '1' };
     vi.mocked(galleryService.getGallery).mockResolvedValue(mockGalleryData);
+    vi.mocked(projectService.getProject).mockResolvedValue(mockProjectDetail as any);
     vi.mocked(shareLinkService.getShareLinks).mockResolvedValue([]);
     vi.mocked(shareLinkService.getGallerySelections).mockResolvedValue([]);
     vi.mocked(shareLinkService.getOwnerSelectionDetail).mockResolvedValue({
@@ -254,6 +330,44 @@ describe('GalleryPage', () => {
 
     expect(screen.getByText(/Invalid request/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+  });
+
+  it('renders project-scoped gallery navigation when opened inside a project', async () => {
+    const { galleryService } = await import('../../services/galleryService');
+    mockRouteParams = { projectId: 'project-1', galleryId: '1' };
+    vi.mocked(galleryService.getGallery).mockResolvedValue({
+      ...mockGalleryData,
+      project_id: 'project-1',
+      project_name: 'Wedding Weekend',
+    } as any);
+
+    render(<GalleryPageWrapper />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Wedding Weekend')).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('link', { name: 'Gallery #1' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '3eds' })).toBeInTheDocument();
+    expect(screen.getByText('Project settings')).toBeInTheDocument();
+  });
+
+  it('redirects legacy gallery routes into the owning project route when project metadata is present', async () => {
+    const { galleryService } = await import('../../services/galleryService');
+    mockRouteParams = { id: '1' };
+    vi.mocked(galleryService.getGallery).mockResolvedValue({
+      ...mockGalleryData,
+      project_id: 'project-1',
+      project_name: 'Wedding Weekend',
+    } as any);
+
+    render(<GalleryPageWrapper />);
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/projects/project-1/galleries/1', {
+        replace: true,
+      });
+    });
   });
 
   describe('Photo Modal Features', () => {

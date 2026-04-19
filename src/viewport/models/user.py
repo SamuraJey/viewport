@@ -10,6 +10,7 @@ from viewport.models.db import Base
 
 if TYPE_CHECKING:
     from viewport.models.gallery import Gallery
+    from viewport.models.project import Project
 
 
 class User(Base):
@@ -35,3 +36,4 @@ class User(Base):
     storage_reserved: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
 
     galleries: Mapped[list["Gallery"]] = relationship("Gallery", back_populates="owner", passive_deletes=True)
+    projects: Mapped[list["Project"]] = relationship("Project", back_populates="owner", passive_deletes=True)

@@ -2,8 +2,14 @@
  * Share link and public gallery types
  */
 
+export type ShareScopeType = 'gallery' | 'project';
+
 export interface ShareLink {
   id: string;
+  scope_type?: ShareScopeType;
+  gallery_id?: string | null;
+  project_id?: string | null;
+  selection_summary?: ShareLinkSelectionSummary | null;
   label?: string | null;
   is_active?: boolean;
   expires_at: string | null;
@@ -15,14 +21,18 @@ export interface ShareLink {
 }
 
 export interface ShareLinkDashboardItem extends ShareLink {
-  gallery_id: string;
-  gallery_name: string;
-  selection_summary: ShareLinkSelectionSummary;
+  gallery_id?: string | null;
+  gallery_name?: string | null;
+  project_id?: string | null;
+  project_name?: string | null;
+  selection_summary: ShareLinkSelectionSummary | null;
 }
 
 export interface ShareLinkAnalyticsItem extends ShareLink {
-  gallery_id: string;
-  gallery_name: string;
+  gallery_id?: string | null;
+  gallery_name?: string | null;
+  project_id?: string | null;
+  project_name?: string | null;
 }
 
 export interface ShareLinkSelectionSummary {
@@ -61,7 +71,7 @@ export interface ShareLinkDailyPoint {
 
 export interface ShareLinkAnalyticsResponse {
   share_link: ShareLinkAnalyticsItem;
-  selection_summary: ShareLinkSelectionSummary;
+  selection_summary: ShareLinkSelectionSummary | null;
   points: ShareLinkDailyPoint[];
 }
 
@@ -86,12 +96,25 @@ export interface PublicPhoto {
   height?: number | null;
 }
 
+export interface PublicProjectFolder {
+  folder_id: string;
+  folder_name: string;
+  photo_count: number;
+  cover_thumbnail_url?: string | null;
+  route_path: string;
+  direct_share_path?: string | null;
+}
+
 export interface SharedGalleryQueryOptions {
   limit?: number;
   offset?: number;
+  galleryId?: string;
+  folderId?: string;
+  skipProjectViewCount?: boolean;
 }
 
-export interface SharedGallery {
+export interface SharedFolderShare {
+  scope_type?: 'gallery';
   photos: PublicPhoto[];
   cover?: { photo_id: string; full_url: string; thumbnail_url: string } | null;
   photographer?: string;
@@ -99,7 +122,26 @@ export interface SharedGallery {
   date?: string;
   site_url?: string;
   total_photos?: number;
+  project_id?: string | null;
+  project_name?: string | null;
+  parent_share_id?: string | null;
+  project_navigation?: SharedProjectShare | null;
 }
+
+export interface SharedProjectShare {
+  scope_type: 'project';
+  project_id: string;
+  project_name?: string;
+  photographer?: string;
+  date?: string;
+  site_url?: string;
+  cover?: { photo_id: string; full_url: string; thumbnail_url: string } | null;
+  total_listed_folders?: number;
+  total_listed_photos?: number;
+  folders: PublicProjectFolder[];
+}
+
+export type SharedGallery = SharedFolderShare | SharedProjectShare;
 
 export interface SelectionConfig {
   is_enabled: boolean;
@@ -145,6 +187,8 @@ export interface SelectionItem {
   photo_id: string;
   photo_display_name?: string | null;
   photo_thumbnail_url?: string | null;
+  gallery_id?: string | null;
+  gallery_name?: string | null;
   comment: string | null;
   selected_at: string;
   updated_at: string;
@@ -222,6 +266,9 @@ export interface OwnerSelectionSessionListItem {
 export interface OwnerSelectionDetail {
   sharelink_id: string;
   sharelink_label: string | null;
+  scope_type?: ShareScopeType | null;
+  gallery_name?: string | null;
+  project_name?: string | null;
   config: SelectionConfig;
   aggregate: OwnerSelectionAggregate;
   sessions: OwnerSelectionSessionListItem[];

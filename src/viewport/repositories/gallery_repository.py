@@ -7,13 +7,14 @@ from sqlalchemy import asc, desc, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from viewport.filename_utils import sanitize_filename, split_name_and_ext
-from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
-from viewport.models.sharelink import ShareLink
+from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
+from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.repositories.base_repository import BaseRepository
 from viewport.repositories.photo_query_helpers import build_photo_order_clauses
 from viewport.repositories.user_repository import UserRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.schemas.gallery import GalleryListSortBy, GalleryPhotoSortBy, SortOrder
+from viewport.schemas.gallery import ProjectVisibility as ProjectVisibilitySchema
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +78,56 @@ class GalleryRepository(BaseRepository):
 
         return candidate
 
+    @staticmethod
+    def _bound_project_index(target_index: int | None, length: int) -> int:
+        if target_index is None:
+            return length
+        return max(0, min(target_index, length))
+
+    @staticmethod
+    def _reindex_project_galleries(galleries: list[Gallery]) -> None:
+        for index, gallery in enumerate(galleries):
+            gallery.project_position = index
+
+    async def _get_project_galleries_for_update(
+        self,
+        project_id: uuid.UUID,
+        owner_id: uuid.UUID,
+    ) -> list[Gallery]:
+        stmt = (
+            select(Gallery)
+            .where(
+                Gallery.project_id == project_id,
+                Gallery.owner_id == owner_id,
+                Gallery.is_deleted.is_(False),
+            )
+            .order_by(Gallery.project_position.asc(), Gallery.created_at.asc(), Gallery.id.asc())
+            .with_for_update()
+        )
+        return list((await self.db.execute(stmt)).scalars().all())
+
+    async def reorder_project_galleries(
+        self,
+        project_id: uuid.UUID,
+        owner_id: uuid.UUID,
+        ordered_gallery_ids: list[uuid.UUID],
+    ) -> list[Gallery]:
+        galleries = await self._get_project_galleries_for_update(project_id, owner_id)
+        expected_ids = {gallery.id for gallery in galleries}
+        requested_ids = set(ordered_gallery_ids)
+        if len(ordered_gallery_ids) != len(requested_ids):
+            raise ValueError("Gallery ids must be unique")
+        if requested_ids != expected_ids:
+            raise ValueError("Gallery ids must exactly match the project's galleries")
+
+        galleries_by_id = {gallery.id: gallery for gallery in galleries}
+        reordered_galleries = [galleries_by_id[gallery_id] for gallery_id in ordered_gallery_ids]
+        self._reindex_project_galleries(reordered_galleries)
+        await self.db.commit()
+        for gallery in reordered_galleries:
+            await self.db.refresh(gallery)
+        return reordered_galleries
+
     async def create_gallery(
         self,
         owner_id: uuid.UUID,
@@ -84,15 +135,28 @@ class GalleryRepository(BaseRepository):
         shooting_date: date | None = None,
         public_sort_by: GalleryPhotoSortBy = GalleryPhotoSortBy.ORIGINAL_FILENAME,
         public_sort_order: SortOrder = SortOrder.ASC,
+        project_id: uuid.UUID | None = None,
+        project_position: int | None = None,
+        project_visibility: ProjectVisibility | ProjectVisibilitySchema = ProjectVisibility.LISTED,
     ) -> Gallery:
         gallery = Gallery(
             id=uuid.uuid4(),
             owner_id=owner_id,
+            project_id=project_id,
+            project_position=0,
+            project_visibility=project_visibility.value,
             name=name,
             shooting_date=shooting_date or datetime.now(UTC).date(),
             public_sort_by=public_sort_by.value,
             public_sort_order=public_sort_order.value,
         )
+
+        if project_id is not None:
+            project_galleries = await self._get_project_galleries_for_update(project_id, owner_id)
+            insert_index = self._bound_project_index(project_position, len(project_galleries))
+            project_galleries.insert(insert_index, gallery)
+            self._reindex_project_galleries(project_galleries)
+
         self.db.add(gallery)
         await self.db.commit()
         await self.db.refresh(gallery)
@@ -106,8 +170,14 @@ class GalleryRepository(BaseRepository):
         search: str | None = None,
         sort_by: GalleryListSortBy = GalleryListSortBy.CREATED_AT,
         order: SortOrder = SortOrder.DESC,
+        standalone_only: bool = False,
+        project_id: uuid.UUID | None = None,
     ) -> tuple[list[Gallery], int | None]:
         filters = [Gallery.owner_id == owner_id, Gallery.is_deleted.is_(False)]
+        if standalone_only:
+            filters.append(Gallery.project_id.is_(None))
+        if project_id is not None:
+            filters.append(Gallery.project_id == project_id)
         if search:
             escaped_search = self._escape_like_term(search)
             filters.append(Gallery.name.ilike(f"%{escaped_search}%", escape=self.LIKE_ESCAPE_CHAR))
@@ -152,6 +222,7 @@ class GalleryRepository(BaseRepository):
             .join(ShareLink.gallery)
             .where(
                 ShareLink.gallery_id == gallery_id,
+                ShareLink.scope_type == ShareScopeType.GALLERY.value,
                 Gallery.owner_id == owner_id,
                 Gallery.is_deleted.is_(False),
             )
@@ -166,8 +237,12 @@ class GalleryRepository(BaseRepository):
         owner_id: uuid.UUID,
         name: str | None = None,
         shooting_date: date | None = None,
+        project_id: uuid.UUID | None = None,
+        project_position: int | None = None,
+        project_visibility: ProjectVisibilitySchema | None = None,
         public_sort_by: GalleryPhotoSortBy | None = None,
         public_sort_order: SortOrder | None = None,
+        fields_set: set[str] | None = None,
     ) -> Gallery | None:
         gallery = await self.get_gallery_by_id_and_owner(gallery_id, owner_id)
         if not gallery:
@@ -177,8 +252,44 @@ class GalleryRepository(BaseRepository):
         if name is not None:
             gallery.name = name
             updated = True
+        active_fields = fields_set or set()
         if shooting_date is not None:
             gallery.shooting_date = shooting_date
+            updated = True
+        if "project_id" in active_fields:
+            source_project_id = gallery.project_id
+            target_project_id = project_id
+
+            if source_project_id == target_project_id and "project_position" not in active_fields:
+                gallery.project_id = target_project_id
+                updated = True
+            else:
+                if source_project_id and source_project_id != target_project_id:
+                    source_galleries = await self._get_project_galleries_for_update(source_project_id, owner_id)
+                    self._reindex_project_galleries([entry for entry in source_galleries if entry.id != gallery.id])
+
+                gallery.project_id = target_project_id
+                if target_project_id is None:
+                    gallery.project_position = 0
+                else:
+                    target_galleries = await self._get_project_galleries_for_update(target_project_id, owner_id)
+                    target_galleries = [entry for entry in target_galleries if entry.id != gallery.id]
+                    insert_index = self._bound_project_index(
+                        project_position if "project_position" in active_fields else None,
+                        len(target_galleries),
+                    )
+                    target_galleries.insert(insert_index, gallery)
+                    self._reindex_project_galleries(target_galleries)
+                updated = True
+        elif "project_position" in active_fields and project_position is not None and gallery.project_id is not None:
+            target_galleries = await self._get_project_galleries_for_update(gallery.project_id, owner_id)
+            target_galleries = [entry for entry in target_galleries if entry.id != gallery.id]
+            insert_index = self._bound_project_index(project_position, len(target_galleries))
+            target_galleries.insert(insert_index, gallery)
+            self._reindex_project_galleries(target_galleries)
+            updated = True
+        if project_visibility is not None:
+            gallery.project_visibility = project_visibility.value
             updated = True
         if public_sort_by is not None:
             gallery.public_sort_by = public_sort_by.value
@@ -346,6 +457,7 @@ class GalleryRepository(BaseRepository):
             .select_from(ShareLink)
             .where(
                 ShareLink.gallery_id == gallery_id,
+                ShareLink.scope_type == ShareScopeType.GALLERY.value,
                 ShareLink.is_active.is_(True),
                 (ShareLink.expires_at.is_(None) | (ShareLink.expires_at > now)),
             )
@@ -409,12 +521,13 @@ class GalleryRepository(BaseRepository):
             select(ShareLink.gallery_id)
             .where(
                 ShareLink.gallery_id.in_(gallery_ids),
+                ShareLink.scope_type == ShareScopeType.GALLERY.value,
                 ShareLink.is_active.is_(True),
                 or_(ShareLink.expires_at.is_(None), ShareLink.expires_at > now),
             )
             .group_by(ShareLink.gallery_id)
         )
-        active_share_gallery_ids = set((await self.db.execute(active_share_stmt)).scalars().all())
+        active_share_gallery_ids = {gallery_id for gallery_id in (await self.db.execute(active_share_stmt)).scalars().all() if gallery_id is not None}
 
         cover_thumbnail_by_photo_id: dict[uuid.UUID, str] = {}
         if cover_photo_ids:
@@ -674,6 +787,7 @@ class GalleryRepository(BaseRepository):
     ) -> ShareLink:
         sharelink = ShareLink(
             gallery_id=gallery_id,
+            scope_type=ShareScopeType.GALLERY.value,
             label=label,
             is_active=is_active,
             expires_at=expires_at,
@@ -700,7 +814,7 @@ class GalleryRepository(BaseRepository):
         if not gallery:
             return None
 
-        stmt = select(ShareLink).where(ShareLink.id == sharelink_id, ShareLink.gallery_id == gallery_id)
+        stmt = select(ShareLink).where(ShareLink.id == sharelink_id, ShareLink.gallery_id == gallery_id, ShareLink.scope_type == ShareScopeType.GALLERY.value)
         sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
         if not sharelink:
             return None
@@ -732,7 +846,7 @@ class GalleryRepository(BaseRepository):
             return False
 
         # Then find and delete the sharelink
-        stmt = select(ShareLink).where(ShareLink.id == sharelink_id, ShareLink.gallery_id == gallery_id)
+        stmt = select(ShareLink).where(ShareLink.id == sharelink_id, ShareLink.gallery_id == gallery_id, ShareLink.scope_type == ShareScopeType.GALLERY.value)
         sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
         if not sharelink:
             return False

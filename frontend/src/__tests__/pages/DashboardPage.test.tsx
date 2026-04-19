@@ -4,48 +4,62 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
 import { DashboardPage } from '../../pages/DashboardPage';
-import type { Gallery } from '../../types';
+import type { Project } from '../../types';
 
-const makeGallery = (overrides: Partial<Gallery>): Gallery => ({
-  id: 'gallery-1',
+const mockNavigate = vi.fn();
+
+const makeProject = (overrides: Partial<Project>): Project => ({
+  id: 'project-1',
   owner_id: 'user-1',
-  name: 'Gallery 1',
+  name: 'Project 1',
   created_at: '2024-01-01T00:00:00Z',
   shooting_date: '2024-01-01',
-  public_sort_by: 'original_filename',
-  public_sort_order: 'asc',
-  cover_photo_id: null,
-  photo_count: 0,
+  entry_gallery_id: 'gallery-1',
+  entry_gallery_name: 'Main Gallery',
+  gallery_count: 1,
+  listed_gallery_count: 1,
+  has_entry_gallery: true,
+  folder_count: 1,
+  listed_folder_count: 1,
+  total_photo_count: 12,
   total_size_bytes: 0,
   has_active_share_links: false,
-  cover_photo_thumbnail_url: null,
-  recent_photo_thumbnail_urls: [],
+  recent_folder_thumbnail_urls: [],
   ...overrides,
 });
 
-const mockGalleries: Gallery[] = [
-  makeGallery({
-    id: '1',
-    name: 'Alpha Gallery',
-    created_at: '2024-01-02T00:00:00Z',
-    photo_count: 12,
-  }),
-  makeGallery({
-    id: '2',
-    name: 'Beta Gallery',
-    created_at: '2024-01-01T00:00:00Z',
-    photo_count: 5,
+const mockProjects: Project[] = [
+  makeProject({
+    id: 'project-1',
+    name: 'Wedding Weekend',
+    entry_gallery_id: 'gallery-1',
+    entry_gallery_name: 'Photos',
+    gallery_count: 2,
+    listed_gallery_count: 2,
+    folder_count: 2,
+    listed_folder_count: 2,
+    total_photo_count: 20,
   }),
 ];
 
-vi.mock('../../services/galleryService', () => ({
-  galleryService: {
-    getGalleries: vi.fn(),
-    createGallery: vi.fn(),
-    deleteGallery: vi.fn(),
-    updateGallery: vi.fn(),
+vi.mock('../../services/projectService', () => ({
+  projectService: {
+    getProjects: vi.fn(),
+    createProject: vi.fn(),
+    getProject: vi.fn(),
+    updateProject: vi.fn(),
+    deleteProject: vi.fn(),
+    createProjectFolder: vi.fn(),
   },
 }));
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
 
 const DashboardPageWrapper = ({ initialPath = '/dashboard' }: { initialPath?: string }) => (
   <MemoryRouter initialEntries={[initialPath]}>
@@ -56,127 +70,96 @@ const DashboardPageWrapper = ({ initialPath = '/dashboard' }: { initialPath?: st
 describe('DashboardPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { galleryService } = await import('../../services/galleryService');
-    vi.mocked(galleryService.getGalleries).mockResolvedValue({
-      galleries: mockGalleries,
-      total: mockGalleries.length,
+    mockNavigate.mockReset();
+    const { projectService } = await import('../../services/projectService');
+    vi.mocked(projectService.getProjects).mockResolvedValue({
+      projects: mockProjects,
+      total: mockProjects.length,
       page: 1,
-      size: 10,
+      size: 18,
     });
   });
 
-  it('renders title, controls, and add gallery card', async () => {
+  it('renders a project-only dashboard with one create flow', async () => {
     render(<DashboardPageWrapper />);
 
-    expect(screen.getByText('My Galleries')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Create new gallery' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Search galleries')).toBeInTheDocument();
-    expect(screen.getByLabelText('Sort galleries by')).toBeInTheDocument();
-    expect(screen.getByLabelText('Sort order')).toBeInTheDocument();
+    await screen.findByText('Wedding Weekend');
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Create new gallery card' })).toBeInTheDocument();
-    });
+    expect(screen.getByText('Projects')).toBeInTheDocument();
+    expect(screen.queryByText('Standalone galleries')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create new project' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create new gallery' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Search projects')).toBeInTheDocument();
+    expect(screen.getByText(/opens in Photos/i)).toBeInTheDocument();
   });
 
-  it('fetches galleries using server-side pagination defaults', async () => {
-    const { galleryService } = await import('../../services/galleryService');
+  it('fetches projects using the project-only pagination defaults', async () => {
+    const { projectService } = await import('../../services/projectService');
 
     render(<DashboardPageWrapper />);
 
     await waitFor(() => {
-      expect(galleryService.getGalleries).toHaveBeenCalledWith(1, 10, {
-        search: undefined,
-        sort_by: 'created_at',
-        order: 'desc',
-      });
+      expect(projectService.getProjects).toHaveBeenCalledWith(1, 18, undefined);
     });
   });
 
-  it('requests debounced search from the server', async () => {
+  it('requests project search from query params', async () => {
+    const { projectService } = await import('../../services/projectService');
+
+    render(<DashboardPageWrapper initialPath="/dashboard?search=weekend" />);
+
+    await waitFor(() => {
+      expect(projectService.getProjects).toHaveBeenCalledWith(1, 18, 'weekend');
+    });
+  });
+
+  it('creates a project and navigates directly to its entry gallery', async () => {
     const user = userEvent.setup();
-    const { galleryService } = await import('../../services/galleryService');
-    render(<DashboardPageWrapper />);
+    const { projectService } = await import('../../services/projectService');
 
-    await screen.findByText('Alpha Gallery');
-
-    const search = screen.getByLabelText('Search galleries');
-    await user.type(search, 'beta');
-
-    await waitFor(() => {
-      expect(galleryService.getGalleries).toHaveBeenCalledWith(1, 10, {
-        search: 'beta',
-        sort_by: 'created_at',
-        order: 'desc',
-      });
-    });
-  });
-
-  it('requests sort options from query params', async () => {
-    const { galleryService } = await import('../../services/galleryService');
-    render(<DashboardPageWrapper initialPath="/dashboard?sort_by=name&order=asc" />);
-
-    await waitFor(() => {
-      expect(galleryService.getGalleries).toHaveBeenCalledWith(1, 10, {
-        search: undefined,
-        sort_by: 'name',
-        order: 'asc',
-      });
-    });
-  });
-
-  it('opens create modal and submits gallery creation', async () => {
-    const user = userEvent.setup();
-    const { galleryService } = await import('../../services/galleryService');
-
-    vi.mocked(galleryService.createGallery).mockResolvedValue(
-      makeGallery({
-        id: '3',
-        name: 'Test Gallery',
+    vi.mocked(projectService.createProject).mockResolvedValue(
+      makeProject({
+        id: 'project-2',
+        name: 'Client Delivery',
+        entry_gallery_id: 'gallery-2',
+        entry_gallery_name: 'Client Delivery',
       }),
     );
 
     render(<DashboardPageWrapper />);
 
-    const openButton = screen.getByRole('button', { name: 'Create new gallery' });
-    await user.click(openButton);
+    await screen.findByText('Wedding Weekend');
+    await user.click(screen.getByRole('button', { name: 'Create new project' }));
+    await user.type(screen.getByPlaceholderText('Project name'), 'Client Delivery');
+    await user.click(screen.getByRole('button', { name: 'Create Project' }));
 
-    const input = screen.getByPlaceholderText('Gallery name');
-    await user.type(input, 'Test Gallery');
-    await user.click(screen.getByRole('button', { name: 'Create Gallery' }));
+    await waitFor(() => {
+      expect(projectService.createProject).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Client Delivery' }),
+      );
+    });
 
-    expect(galleryService.createGallery).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Test Gallery' }),
-    );
+    expect(mockNavigate).toHaveBeenCalledWith('/projects/project-2/galleries/gallery-2');
   });
 
-  it('does not update a gallery when the title is unchanged', async () => {
-    const user = userEvent.setup();
-    const { galleryService } = await import('../../services/galleryService');
-
-    render(<DashboardPageWrapper />);
-
-    await screen.findByText('Alpha Gallery');
-
-    await user.click(screen.getByRole('button', { name: 'Rename Alpha Gallery' }));
-    await user.keyboard('{Enter}');
-
-    expect(galleryService.updateGallery).not.toHaveBeenCalled();
-  });
-
-  it('shows empty state when no galleries exist', async () => {
-    const { galleryService } = await import('../../services/galleryService');
-    vi.mocked(galleryService.getGalleries).mockResolvedValue({
-      galleries: [],
+  it('shows a project-first empty state when there are no projects', async () => {
+    const { projectService } = await import('../../services/projectService');
+    vi.mocked(projectService.getProjects).mockResolvedValue({
+      projects: [],
       total: 0,
       page: 1,
-      size: 10,
+      size: 18,
     });
 
     render(<DashboardPageWrapper />);
 
     await waitFor(() => {
-      expect(screen.getByText('No galleries yet')).toBeInTheDocument();
+      expect(screen.getByText('No projects yet')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'Create a project to start uploading photos into its first gallery right away.',
+        ),
+      ).toBeInTheDocument();
     });
   });
 });

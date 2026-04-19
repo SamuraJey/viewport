@@ -273,10 +273,17 @@ export const ShareLinkDetailPage = () => {
       isDangerous: true,
       confirmText: 'Delete',
       onConfirm: async () => {
-        await shareLinkService.deleteShareLink(
-          analytics.share_link.gallery_id,
-          analytics.share_link.id,
-        );
+        if (analytics.share_link.scope_type === 'project') {
+          await shareLinkService.deleteProjectShareLink(
+            analytics.share_link.project_id!,
+            analytics.share_link.id,
+          );
+        } else {
+          await shareLinkService.deleteShareLink(
+            analytics.share_link.gallery_id!,
+            analytics.share_link.id,
+          );
+        }
         navigate('/share-links');
       },
     });
@@ -288,16 +295,24 @@ export const ShareLinkDetailPage = () => {
     expires_at?: string | null;
   }) => {
     if (!analytics) return;
-    await shareLinkService.updateShareLink(
-      analytics.share_link.gallery_id,
-      analytics.share_link.id,
-      payload,
-    );
+    if (analytics.share_link.scope_type === 'project') {
+      await shareLinkService.updateProjectShareLink(
+        analytics.share_link.project_id!,
+        analytics.share_link.id,
+        payload,
+      );
+    } else {
+      await shareLinkService.updateShareLink(
+        analytics.share_link.gallery_id!,
+        analytics.share_link.id,
+        payload,
+      );
+    }
     await fetchAnalytics();
   };
 
   const handleSaveSelectionConfig = async () => {
-    if (!shareLinkId || !analytics?.share_link.gallery_id || !selectionConfigDraft) return;
+    if (!shareLinkId || !selectionConfigDraft) return;
 
     const payload: SelectionConfigUpdateRequest = {
       is_enabled: selectionConfigDraft.is_enabled,
@@ -320,11 +335,7 @@ export const ShareLinkDetailPage = () => {
     setSelectionError('');
     setIsSavingSelectionConfig(true);
     try {
-      const updated = await shareLinkService.updateOwnerSelectionConfig(
-        analytics.share_link.gallery_id,
-        shareLinkId,
-        payload,
-      );
+      const updated = await shareLinkService.updateShareLinkSelectionConfig(shareLinkId, payload);
       setSelectionConfigDraft({
         is_enabled: updated.is_enabled,
         list_title: updated.list_title,
@@ -425,6 +436,17 @@ export const ShareLinkDetailPage = () => {
   }
 
   const status = getShareLinkStatus(analytics.share_link);
+  const isProjectLink = analytics.share_link.scope_type === 'project';
+  const selectionSummary = analytics.selection_summary ?? {
+    is_enabled: false,
+    status: 'not_started',
+    total_sessions: 0,
+    submitted_sessions: 0,
+    in_progress_sessions: 0,
+    closed_sessions: 0,
+    selected_count: 0,
+    latest_activity_at: null,
+  };
   const publicUrl = `${window.location.origin}/share/${analytics.share_link.id}`;
   const tabClassName = ({ selected }: { selected: boolean }) =>
     `inline-flex h-11 items-center justify-center whitespace-nowrap rounded-2xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
@@ -435,9 +457,29 @@ export const ShareLinkDetailPage = () => {
 
   const selectionTabLabel = selectionDetail?.aggregate
     ? `Photo selection (${selectionDetail.aggregate.total_sessions})`
-    : analytics.selection_summary.total_sessions > 0
-      ? `Photo selection (${analytics.selection_summary.total_sessions})`
+    : selectionSummary.total_sessions > 0
+      ? `Photo selection (${selectionSummary.total_sessions})`
       : 'Photo selection';
+
+  const selectedSessionItemGroups = (() => {
+    const items = selectedSessionDetail?.items ?? [];
+    const groups = new Map<string, typeof items>();
+
+    for (const item of items) {
+      const groupKey = item.gallery_name?.trim() || 'Selected photos';
+      const existingGroup = groups.get(groupKey);
+      if (existingGroup) {
+        existingGroup.push(item);
+      } else {
+        groups.set(groupKey, [item]);
+      }
+    }
+
+    return Array.from(groups.entries()).map(([galleryName, items]) => ({
+      galleryName,
+      items,
+    }));
+  })();
 
   const detailTabItems = [
     {
@@ -550,7 +592,9 @@ export const ShareLinkDetailPage = () => {
                 <div>
                   <h2 className="text-lg font-semibold text-text">Selection admin</h2>
                   <p className="text-sm text-muted">
-                    Keep advanced photo-selection settings separate from the main link overview.
+                    {isProjectLink
+                      ? 'Manage one shared selection flow across every listed gallery in this project link.'
+                      : 'Keep advanced photo-selection settings separate from the main link overview.'}
                   </p>
                 </div>
                 <button
@@ -567,25 +611,25 @@ export const ShareLinkDetailPage = () => {
                 <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
                   <p className="text-xs uppercase tracking-wide text-muted">Selection enabled</p>
                   <p className="mt-2 text-lg font-semibold text-text">
-                    {analytics.selection_summary.is_enabled ? 'Enabled' : 'Disabled'}
+                    {selectionSummary.is_enabled ? 'Enabled' : 'Disabled'}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
                   <p className="text-xs uppercase tracking-wide text-muted">Total sessions</p>
                   <p className="mt-2 text-lg font-semibold text-text">
-                    {numberFormatter.format(analytics.selection_summary.total_sessions)}
+                    {numberFormatter.format(selectionSummary.total_sessions)}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
                   <p className="text-xs uppercase tracking-wide text-muted">In progress</p>
                   <p className="mt-2 text-lg font-semibold text-text">
-                    {numberFormatter.format(analytics.selection_summary.in_progress_sessions)}
+                    {numberFormatter.format(selectionSummary.in_progress_sessions)}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3">
                   <p className="text-xs uppercase tracking-wide text-muted">Selected photos</p>
                   <p className="mt-2 text-lg font-semibold text-text">
-                    {numberFormatter.format(analytics.selection_summary.selected_count)}
+                    {numberFormatter.format(selectionSummary.selected_count)}
                   </p>
                 </div>
               </div>
@@ -918,17 +962,38 @@ export const ShareLinkDetailPage = () => {
                     ) : null}
                   </div>
 
-                  <div className="max-h-80 space-y-2 overflow-auto">
+                  <div className="max-h-80 space-y-3 overflow-auto">
                     {selectedSessionDetail.items.length > 0 ? (
-                      selectedSessionDetail.items.map((item) => (
+                      (isProjectLink
+                        ? selectedSessionItemGroups
+                        : [{ galleryName: '', items: selectedSessionDetail.items }]
+                      ).map((group) => (
                         <div
-                          key={item.photo_id}
-                          className="rounded-lg border border-border/40 bg-surface p-2 text-xs"
+                          key={group.galleryName || 'selected-photos'}
+                          className="space-y-2 rounded-xl border border-border/40 bg-surface-1/60 p-3"
                         >
-                          <p className="font-semibold text-text">
-                            {item.photo_display_name || item.photo_id}
-                          </p>
-                          {item.comment ? <p className="mt-1 text-muted">{item.comment}</p> : null}
+                          {isProjectLink ? (
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-text">{group.galleryName}</p>
+                              <span className="text-xs text-muted">
+                                {group.items.length} photo{group.items.length === 1 ? '' : 's'}
+                              </span>
+                            </div>
+                          ) : null}
+
+                          {group.items.map((item) => (
+                            <div
+                              key={item.photo_id}
+                              className="rounded-lg border border-border/40 bg-surface p-2 text-xs"
+                            >
+                              <p className="font-semibold text-text">
+                                {item.photo_display_name || item.photo_id}
+                              </p>
+                              {item.comment ? (
+                                <p className="mt-1 text-muted">{item.comment}</p>
+                              ) : null}
+                            </div>
+                          ))}
                         </div>
                       ))
                     ) : (
@@ -1025,15 +1090,29 @@ export const ShareLinkDetailPage = () => {
             <ShareLinkStatusBadge status={status} />
           </div>
           <p className="text-sm text-muted">Link id: {analytics.share_link.id}</p>
-          <Link
-            to={`/galleries/${analytics.share_link.gallery_id}`}
-            className="inline-flex items-center gap-2 text-sm font-semibold text-accent hover:underline"
-          >
-            Open source gallery: {analytics.share_link.gallery_name}
-          </Link>
+          {isProjectLink ? (
+            <Link
+              to={`/projects/${analytics.share_link.project_id}`}
+              className="inline-flex items-center gap-2 text-sm font-semibold text-accent hover:underline"
+            >
+              Open source project: {analytics.share_link.project_name}
+            </Link>
+          ) : (
+            <Link
+              to={
+                analytics.share_link.project_id
+                  ? `/projects/${analytics.share_link.project_id}/galleries/${analytics.share_link.gallery_id}`
+                  : `/galleries/${analytics.share_link.gallery_id}`
+              }
+              className="inline-flex items-center gap-2 text-sm font-semibold text-accent hover:underline"
+            >
+              Open source gallery: {analytics.share_link.gallery_name}
+            </Link>
+          )}
           <p className="text-sm text-muted">
-            The overview focuses on link health and engagement. Advanced photo-selection controls
-            are moved into their own tab.
+            {isProjectLink
+              ? 'This project link can collect one shared photo-selection flow across all listed galleries in the project.'
+              : 'The overview focuses on link health and engagement. Advanced photo-selection controls are moved into their own tab.'}
           </p>
         </div>
 
@@ -1083,9 +1162,9 @@ export const ShareLinkDetailPage = () => {
           </p>
         </div>
         <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Source gallery</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Source scope</p>
           <p className="mt-2 text-lg font-semibold text-text">
-            {analytics.share_link.gallery_name}
+            {isProjectLink ? analytics.share_link.project_name : analytics.share_link.gallery_name}
           </p>
         </div>
         <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">

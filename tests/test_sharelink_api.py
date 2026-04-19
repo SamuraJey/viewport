@@ -3,9 +3,11 @@
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from tests.helpers import register_and_login
+from viewport.repositories.project_repository import ProjectRepository
 from viewport.schemas.sharelink import GalleryShareLinkResponse
 
 
@@ -130,6 +132,29 @@ class TestSharelinkAPI:
         assert data["total"] == 1
         assert len(data["share_links"]) == 1
         assert data["share_links"][0]["label"] == "Needle Label"
+
+    def test_owner_sharelinks_dashboard_search_treats_like_wildcards_literally(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        first_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"label": "Preview 100%"},
+        )
+        second_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"label": "Preview_Frame"},
+        )
+        assert first_resp.status_code == 201
+        assert second_resp.status_code == 201
+
+        percent_resp = authenticated_client.get("/share-links?page=1&size=20&search=%")
+        underscore_resp = authenticated_client.get("/share-links?page=1&size=20&search=_")
+
+        assert percent_resp.status_code == 200
+        assert percent_resp.json()["total"] == 1
+        assert percent_resp.json()["share_links"][0]["label"] == "Preview 100%"
+
+        assert underscore_resp.status_code == 200
+        assert underscore_resp.json()["total"] == 1
+        assert underscore_resp.json()["share_links"][0]["label"] == "Preview_Frame"
 
     def test_owner_sharelinks_dashboard_filters_by_status(self, authenticated_client: TestClient, gallery_id_fixture: str):
         active_resp = authenticated_client.post(
@@ -305,3 +330,99 @@ class TestSharelinkAPI:
         for sharelink_id in sharelink_ids[1:]:
             response = authenticated_client.delete(f"/galleries/{gallery_id_fixture}/share-links/{sharelink_id}")
             assert response.status_code == 204
+
+    def test_project_sharelink_endpoints_cover_missing_resource_and_validation_branches(
+        self,
+        authenticated_client: TestClient,
+    ):
+        fake_project_id = str(uuid4())
+        fake_sharelink_id = str(uuid4())
+
+        missing_list_resp = authenticated_client.get(f"/projects/{fake_project_id}/share-links")
+        assert missing_list_resp.status_code == 404
+        assert missing_list_resp.json()["detail"] == "Project not found"
+
+        missing_create_resp = authenticated_client.post(
+            f"/projects/{fake_project_id}/share-links",
+            json={"label": "Missing project"},
+        )
+        assert missing_create_resp.status_code == 404
+        assert missing_create_resp.json()["detail"] == "Project not found"
+
+        project_resp = authenticated_client.post("/projects", json={"name": "Project Sharelinks"})
+        assert project_resp.status_code == 201
+        project_id = project_resp.json()["id"]
+
+        create_resp = authenticated_client.post(
+            f"/projects/{project_id}/share-links",
+            json={"label": "  Delivery Preview  "},
+        )
+        assert create_resp.status_code == 201
+        sharelink_id = create_resp.json()["id"]
+        assert create_resp.json()["label"] == "Delivery Preview"
+
+        list_resp = authenticated_client.get(f"/projects/{project_id}/share-links")
+        assert list_resp.status_code == 200
+        assert list_resp.json()[0]["selection_summary"]["status"] == "not_started"
+
+        invalid_update_resp = authenticated_client.patch(
+            f"/projects/{project_id}/share-links/{sharelink_id}",
+            json={"is_active": None},
+        )
+        assert invalid_update_resp.status_code == 422
+
+        trimmed_update_resp = authenticated_client.patch(
+            f"/projects/{project_id}/share-links/{sharelink_id}",
+            json={"label": "  Client Delivery  "},
+        )
+        assert trimmed_update_resp.status_code == 200
+        assert trimmed_update_resp.json()["label"] == "Client Delivery"
+
+        missing_update_resp = authenticated_client.patch(
+            f"/projects/{project_id}/share-links/{fake_sharelink_id}",
+            json={"label": "missing"},
+        )
+        assert missing_update_resp.status_code == 404
+        assert missing_update_resp.json()["detail"] == "Share link not found"
+
+        missing_delete_resp = authenticated_client.delete(
+            f"/projects/{project_id}/share-links/{fake_sharelink_id}",
+        )
+        assert missing_delete_resp.status_code == 404
+        assert missing_delete_resp.json()["detail"] == "Share link not found"
+
+        analytics_missing_resp = authenticated_client.get(f"/share-links/{fake_sharelink_id}/analytics?days=7")
+        assert analytics_missing_resp.status_code == 404
+        assert analytics_missing_resp.json()["detail"] == "Share link not found"
+
+        delete_resp = authenticated_client.delete(f"/projects/{project_id}/share-links/{sharelink_id}")
+        assert delete_resp.status_code == 204
+
+    def test_project_sharelink_update_surfaces_repository_value_errors(
+        self,
+        authenticated_client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        project_resp = authenticated_client.post("/projects", json={"name": "Project Errors"})
+        assert project_resp.status_code == 201
+        project_id = project_resp.json()["id"]
+
+        share_resp = authenticated_client.post(
+            f"/projects/{project_id}/share-links",
+            json={"label": "Project link"},
+        )
+        assert share_resp.status_code == 201
+        sharelink_id = share_resp.json()["id"]
+
+        async def _raise_value_error(*args, **kwargs):
+            raise ValueError("invalid project share link update")
+
+        monkeypatch.setattr(ProjectRepository, "update_project_sharelink", _raise_value_error)
+
+        response = authenticated_client.patch(
+            f"/projects/{project_id}/share-links/{sharelink_id}",
+            json={"label": "Updated"},
+        )
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == "invalid project share link update"

@@ -1,7 +1,13 @@
 from datetime import date, datetime
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class ShareScopeType(StrEnum):
+    GALLERY = "gallery"
+    PROJECT = "project"
 
 
 class ShareLinkBase(BaseModel):
@@ -30,6 +36,7 @@ class ShareLinkUpdateRequest(BaseModel):
 
 class GalleryShareLinkResponse(ShareLinkBase):
     id: UUID
+    scope_type: ShareScopeType = ShareScopeType.GALLERY
     views: int
     zip_downloads: int
     single_downloads: int
@@ -39,12 +46,19 @@ class GalleryShareLinkResponse(ShareLinkBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ShareLinkResponse(GalleryShareLinkResponse):
-    gallery_id: UUID
+class ScopedShareLinkResponse(GalleryShareLinkResponse):
+    gallery_id: UUID | None = None
+    project_id: UUID | None = None
+    selection_summary: "ShareLinkSelectionSummaryResponse | None" = None
+
+
+class ShareLinkResponse(ScopedShareLinkResponse):
+    pass
 
 
 class ShareLinkDashboardItemResponse(ShareLinkResponse):
-    gallery_name: str
+    gallery_name: str | None = None
+    project_name: str | None = None
 
 
 class ShareLinkSelectionSummaryResponse(BaseModel):
@@ -59,7 +73,7 @@ class ShareLinkSelectionSummaryResponse(BaseModel):
 
 
 class ShareLinkDashboardListItemResponse(ShareLinkDashboardItemResponse):
-    selection_summary: ShareLinkSelectionSummaryResponse
+    selection_summary: ShareLinkSelectionSummaryResponse | None = None
 
 
 class ShareLinkDashboardSummaryResponse(BaseModel):
@@ -87,5 +101,5 @@ class ShareLinkDailyPointResponse(BaseModel):
 
 class ShareLinkAnalyticsResponse(BaseModel):
     share_link: ShareLinkDashboardItemResponse
-    selection_summary: ShareLinkSelectionSummaryResponse
+    selection_summary: ShareLinkSelectionSummaryResponse | None
     points: list[ShareLinkDailyPointResponse]

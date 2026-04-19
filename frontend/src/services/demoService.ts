@@ -10,6 +10,10 @@ import type {
   GalleryPhotoSortBy,
   GalleryPhoto,
   GalleryListResponse,
+  Project,
+  ProjectDetail,
+  ProjectFolderSummary,
+  ProjectListResponse,
   OwnerSelectionDetail,
   OwnerSelectionRow,
   ShareLinkCreateRequest,
@@ -42,16 +46,29 @@ import type {
 import { ApiError } from '../lib/errorHandling';
 import { isDemoModeEnabled } from '../lib/demoMode';
 
-interface DemoGalleryState {
-  gallery: Gallery;
-  photos: GalleryPhoto[];
-  shareLinks: ShareLink[];
+interface DemoSelectionState {
   selectionConfigs?: Record<string, SelectionConfig>;
   selectionSessions?: Record<string, SelectionSession[]>;
 }
 
+interface DemoGalleryState extends DemoSelectionState {
+  gallery: Gallery;
+  photos: GalleryPhoto[];
+  shareLinks: ShareLink[];
+}
+
+interface DemoProjectState extends DemoSelectionState {
+  project: Project;
+  shareLinks: ShareLink[];
+}
+
+type DemoSelectionOwnerLookup =
+  | { kind: 'gallery'; state: DemoGalleryState }
+  | { kind: 'project'; state: DemoProjectState };
+
 interface DemoPersistedState {
   galleries: DemoGalleryState[];
+  projects?: DemoProjectState[];
   user: User;
 }
 
@@ -94,7 +111,7 @@ const setStoredActiveSelectionSession = (shareId: string, resumeToken?: string |
 };
 
 const normalizeSelectionSessionMap = (
-  sessionMap: DemoGalleryState['selectionSessions'],
+  sessionMap: DemoSelectionState['selectionSessions'],
 ): Record<string, SelectionSession[]> => {
   return Object.fromEntries(
     Object.entries(sessionMap ?? {}).map(([shareId, value]) => {
@@ -152,6 +169,46 @@ const toGalleryWithComputedFields = (state: DemoGalleryState): Gallery => {
   };
 };
 
+const buildSeedGalleryState = (
+  gallery: Gallery,
+  photoCount: number,
+  shareLinks: ShareLink[],
+  selectionConfigFactory?: (link: ShareLink, index: number) => Partial<SelectionConfig>,
+): DemoGalleryState => {
+  const photos = Array.from({ length: photoCount }, (_, index) => buildPhoto(gallery.id, index));
+  const coverPhoto = photos[0]?.id ?? null;
+
+  const selectionConfigs: Record<string, SelectionConfig> = Object.fromEntries(
+    shareLinks.map((link, index) => [
+      link.id,
+      {
+        ...defaultSelectionConfig(),
+        ...(selectionConfigFactory?.(link, index) ?? {}),
+      },
+    ]),
+  );
+
+  return {
+    gallery: {
+      ...gallery,
+      cover_photo_id: coverPhoto,
+      photo_count: photos.length,
+      total_size_bytes: photos.reduce((sum, photo) => sum + (photo.file_size || 0), 0),
+      has_active_share_links: shareLinks.some((link) => link.is_active !== false),
+      cover_photo_thumbnail_url:
+        photos.find((photo) => photo.id === coverPhoto)?.thumbnail_url ?? null,
+      recent_photo_thumbnail_urls: photos
+        .slice(0, 3)
+        .map((photo) => photo.thumbnail_url)
+        .filter(Boolean),
+    },
+    photos,
+    shareLinks,
+    selectionConfigs,
+    selectionSessions: {},
+  };
+};
+
 const buildPhoto = (galleryId: string, index: number): GalleryPhoto => {
   const seed = `${galleryId}-${index}`;
   const width = 2200 + (index % 5) * 120;
@@ -166,6 +223,147 @@ const buildPhoto = (galleryId: string, index: number): GalleryPhoto => {
     height,
     file_size: 2_100_000 + index * 110_000,
     uploaded_at: nowIso(),
+  };
+};
+
+const buildSeedProjectContent = (): {
+  galleries: DemoGalleryState[];
+  projects: DemoProjectState[];
+} => {
+  const projectId = 'demo-project-porto-delivery';
+  const createdAt = '2026-04-04T09:30:00Z';
+
+  const photosShareLink: ShareLink = {
+    id: 'sg-demo-project-porto-photos',
+    scope_type: 'gallery',
+    gallery_id: 'demo-project-porto-photos',
+    project_id: null,
+    label: 'Photos delivery',
+    is_active: true,
+    expires_at: null,
+    views: 11,
+    zip_downloads: 2,
+    single_downloads: 6,
+    created_at: createdAt,
+    updated_at: createdAt,
+  };
+
+  const editsShareLink: ShareLink = {
+    id: 'sg-demo-project-porto-3eds',
+    scope_type: 'gallery',
+    gallery_id: 'demo-project-porto-3eds',
+    project_id: null,
+    label: '3eds delivery',
+    is_active: true,
+    expires_at: null,
+    views: 7,
+    zip_downloads: 1,
+    single_downloads: 3,
+    created_at: createdAt,
+    updated_at: createdAt,
+  };
+
+  const projectShareLink: ShareLink = {
+    id: 'sp-demo-project-porto',
+    scope_type: 'project',
+    project_id: projectId,
+    gallery_id: null,
+    label: 'Full project delivery',
+    is_active: true,
+    expires_at: null,
+    views: 14,
+    zip_downloads: 3,
+    single_downloads: 0,
+    created_at: createdAt,
+    updated_at: createdAt,
+  };
+
+  return {
+    galleries: [
+      buildSeedGalleryState(
+        {
+          id: 'demo-project-porto-photos',
+          owner_id: DEMO_OWNER_ID,
+          project_id: projectId,
+          project_name: 'Porto Wedding Delivery',
+          project_position: 0,
+          project_visibility: 'listed',
+          name: 'Photos',
+          created_at: createdAt,
+          shooting_date: '2026-04-03T11:00:00Z',
+          public_sort_by: 'original_filename',
+          public_sort_order: 'asc',
+          cover_photo_id: null,
+          photo_count: 0,
+          total_size_bytes: 0,
+          has_active_share_links: false,
+          cover_photo_thumbnail_url: null,
+          recent_photo_thumbnail_urls: [],
+        },
+        12,
+        [photosShareLink],
+        (_link, index) =>
+          index === 0
+            ? {
+                is_enabled: true,
+                allow_photo_comments: true,
+                limit_enabled: true,
+                limit_value: 15,
+              }
+            : {},
+      ),
+      buildSeedGalleryState(
+        {
+          id: 'demo-project-porto-3eds',
+          owner_id: DEMO_OWNER_ID,
+          project_id: projectId,
+          project_name: 'Porto Wedding Delivery',
+          project_position: 1,
+          project_visibility: 'listed',
+          name: '3eds',
+          created_at: createdAt,
+          shooting_date: '2026-04-03T11:00:00Z',
+          public_sort_by: 'original_filename',
+          public_sort_order: 'asc',
+          cover_photo_id: null,
+          photo_count: 0,
+          total_size_bytes: 0,
+          has_active_share_links: false,
+          cover_photo_thumbnail_url: null,
+          recent_photo_thumbnail_urls: [],
+        },
+        8,
+        [editsShareLink],
+      ),
+    ],
+    projects: [
+      {
+        project: {
+          id: projectId,
+          owner_id: DEMO_OWNER_ID,
+          name: 'Porto Wedding Delivery',
+          created_at: createdAt,
+          shooting_date: '2026-04-03T11:00:00Z',
+          folder_count: 0,
+          listed_folder_count: 0,
+          total_photo_count: 0,
+          total_size_bytes: 0,
+          has_active_share_links: false,
+          recent_folder_thumbnail_urls: [],
+        },
+        shareLinks: [projectShareLink],
+        selectionConfigs: {
+          [projectShareLink.id]: {
+            ...defaultSelectionConfig(),
+            is_enabled: true,
+            allow_photo_comments: true,
+            limit_enabled: true,
+            limit_value: 20,
+          },
+        },
+        selectionSessions: {},
+      },
+    ],
   };
 };
 
@@ -218,14 +416,13 @@ const seedState = (): DemoGalleryState[] => {
     },
   ];
 
-  return galleries.map((gallery, galleryIndex) => {
-    const photoCount = galleryIndex === 0 ? 14 : galleryIndex === 1 ? 10 : 8;
-    const photos = Array.from({ length: photoCount }, (_, index) => buildPhoto(gallery.id, index));
-    const coverPhoto = photos[0]?.id ?? null;
-
+  const standaloneGalleries = galleries.map((gallery, galleryIndex) => {
     const shareLinks: ShareLink[] = [
       {
         id: `${gallery.id}-share-${makeDemoId().slice(0, 8)}`,
+        scope_type: 'gallery',
+        gallery_id: gallery.id,
+        project_id: null,
         label: galleryIndex === 0 ? 'Preview for Ivan' : null,
         is_active: true,
         expires_at: null,
@@ -236,39 +433,98 @@ const seedState = (): DemoGalleryState[] => {
         updated_at: nowIso(),
       },
     ];
-    const selectionConfigs: Record<string, SelectionConfig> = Object.fromEntries(
-      shareLinks.map((link) => [
-        link.id,
-        {
-          ...defaultSelectionConfig(),
-          is_enabled: galleryIndex === 0,
-          allow_photo_comments: galleryIndex === 0,
-          limit_enabled: galleryIndex === 0,
-          limit_value: galleryIndex === 0 ? 10 : null,
-        },
-      ]),
-    );
 
-    return {
-      gallery: {
-        ...gallery,
-        cover_photo_id: coverPhoto,
-        photo_count: photos.length,
-        total_size_bytes: photos.reduce((sum, photo) => sum + (photo.file_size || 0), 0),
-        has_active_share_links: shareLinks.some((link) => link.is_active !== false),
-        cover_photo_thumbnail_url:
-          photos.find((photo) => photo.id === coverPhoto)?.thumbnail_url ?? null,
-        recent_photo_thumbnail_urls: photos
-          .slice(0, 3)
-          .map((photo) => photo.thumbnail_url)
-          .filter(Boolean),
-      },
-      photos,
+    return buildSeedGalleryState(
+      gallery,
+      galleryIndex === 0 ? 14 : galleryIndex === 1 ? 10 : 8,
       shareLinks,
-      selectionConfigs,
-      selectionSessions: {},
-    };
+      () => ({
+        is_enabled: galleryIndex === 0,
+        allow_photo_comments: galleryIndex === 0,
+        limit_enabled: galleryIndex === 0,
+        limit_value: galleryIndex === 0 ? 10 : null,
+      }),
+    );
   });
+
+  return [...buildSeedProjectContent().galleries, ...standaloneGalleries];
+};
+
+const buildInitialProjectState = (): DemoProjectState[] => buildSeedProjectContent().projects;
+
+const buildProjectsFromGalleryState = (galleries: DemoGalleryState[]): DemoProjectState[] => {
+  const groupedProjects = new Map<string, DemoProjectState>();
+
+  for (const entry of galleries) {
+    const projectId = entry.gallery.project_id;
+    if (!projectId) {
+      continue;
+    }
+
+    if (!groupedProjects.has(projectId)) {
+      groupedProjects.set(projectId, {
+        project: {
+          id: projectId,
+          owner_id: entry.gallery.owner_id,
+          name: entry.gallery.project_name?.trim() || 'Untitled Project',
+          created_at: entry.gallery.created_at,
+          shooting_date: entry.gallery.shooting_date,
+          folder_count: 0,
+          listed_folder_count: 0,
+          total_photo_count: 0,
+          total_size_bytes: 0,
+          has_active_share_links: false,
+          recent_folder_thumbnail_urls: [],
+        },
+        shareLinks: [],
+      });
+    }
+  }
+
+  return Array.from(groupedProjects.values()).sort(
+    (left, right) => Date.parse(right.project.created_at) - Date.parse(left.project.created_at),
+  );
+};
+
+const ensureProjectRecords = (state: DemoPersistedState | null): DemoPersistedState | null => {
+  if (!state) {
+    return null;
+  }
+
+  if ((state.projects?.length ?? 0) > 0) {
+    return state;
+  }
+
+  const reconstructedProjects = buildProjectsFromGalleryState(state.galleries);
+  if (reconstructedProjects.length === 0) {
+    return state;
+  }
+
+  return {
+    ...state,
+    projects: reconstructedProjects,
+  };
+};
+
+const ensureProjectDemoContent = (state: DemoPersistedState | null): DemoPersistedState | null => {
+  if (!state) {
+    return null;
+  }
+
+  const hasProjectContent =
+    (state.projects?.length ?? 0) > 0 ||
+    state.galleries.some((entry) => Boolean(entry.gallery.project_id));
+
+  if (hasProjectContent) {
+    return state;
+  }
+
+  const seedProjectContent = buildSeedProjectContent();
+  return {
+    ...state,
+    galleries: [...seedProjectContent.galleries, ...state.galleries],
+    projects: seedProjectContent.projects,
+  };
 };
 
 const demoUser: User = {
@@ -310,16 +566,24 @@ const triggerDownload = (filename: string, content: string): void => {
 
 class DemoServiceStore {
   private galleries: DemoGalleryState[];
+  private projects: DemoProjectState[];
   private user: User;
 
   constructor() {
-    const restored = this.restoreState();
+    const restored = ensureProjectRecords(ensureProjectDemoContent(this.restoreState()));
     this.galleries = (restored?.galleries || seedState()).map((galleryState) => ({
       ...galleryState,
       selectionSessions: normalizeSelectionSessionMap(galleryState.selectionSessions),
     }));
+    this.projects = (restored ? (restored.projects ?? []) : buildInitialProjectState()).map(
+      (projectState) => ({
+        ...projectState,
+        selectionSessions: normalizeSelectionSessionMap(projectState.selectionSessions),
+      }),
+    );
     this.user = restored?.user || { ...demoUser };
     this.recalculateStorageUsed();
+    this.recalculateProjects();
     if (isDemoModeEnabled()) {
       this.persistState();
     }
@@ -351,6 +615,7 @@ class DemoServiceStore {
     try {
       const state: DemoPersistedState = {
         galleries: this.galleries,
+        projects: this.projects,
         user: this.user,
       };
       window.localStorage.setItem(DEMO_STATE_STORAGE_KEY, JSON.stringify(state));
@@ -372,7 +637,7 @@ class DemoServiceStore {
   }
 
   private buildSelectionSummary(
-    state: DemoGalleryState,
+    state: DemoSelectionState,
     shareLinkId: string,
   ): ShareLinkSelectionSummary {
     state.selectionConfigs = state.selectionConfigs ?? {};
@@ -412,14 +677,16 @@ class DemoServiceStore {
   }
 
   private getSelectionConfigForShareId(shareId: string): {
-    state: DemoGalleryState;
+    owner: DemoSelectionOwnerLookup;
+    state: DemoSelectionState;
     link: ShareLink;
     config: SelectionConfig;
   } {
-    const state = this.findByShareId(shareId);
-    if (!state) {
+    const owner = this.findSelectionOwnerByShareId(shareId);
+    if (!owner) {
       throw this.createNotFoundError('ShareLink not found');
     }
+    const { state } = owner;
     const link = state.shareLinks.find((item) => item.id === shareId);
     if (!link) {
       throw this.createNotFoundError('ShareLink not found');
@@ -438,7 +705,7 @@ class DemoServiceStore {
       state.selectionConfigs[shareId] = config;
       this.persistState();
     }
-    return { state, link, config };
+    return { owner, state, link, config };
   }
 
   private getSelectionSessionForShareId(
@@ -450,13 +717,14 @@ class DemoServiceStore {
       useStoredToken?: boolean;
     },
   ): {
-    state: DemoGalleryState;
+    owner: DemoSelectionOwnerLookup;
+    state: DemoSelectionState;
     link: ShareLink;
     config: SelectionConfig;
     sessions: SelectionSession[];
     session: SelectionSession | null;
   } {
-    const { state, link, config } = this.getSelectionConfigForShareId(shareId);
+    const { owner, state, link, config } = this.getSelectionConfigForShareId(shareId);
     state.selectionSessions = state.selectionSessions ?? {};
     const sessions = [...(state.selectionSessions[shareId] ?? [])].sort(
       (left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at),
@@ -485,7 +753,7 @@ class DemoServiceStore {
     if (mustExist && !session) {
       throw this.createNotFoundError('Selection session not found');
     }
-    return { state, link, config, sessions, session };
+    return { owner, state, link, config, sessions, session };
   }
 
   private getSelectionRollupStatus(sessions: SelectionSession[]): string {
@@ -505,6 +773,41 @@ class DemoServiceStore {
     }
   }
 
+  private getSelectionPhotoContextById(
+    shareId: string,
+  ): Map<string, { photo: GalleryPhoto; gallery: Gallery }> {
+    return new Map(
+      this.getSelectablePhotosForShareLink(shareId).map(({ photo, gallery }) => [
+        photo.id,
+        { photo, gallery },
+      ]),
+    );
+  }
+
+  private withSelectionItemContext(
+    shareId: string,
+    item: SelectionSession['items'][number],
+  ): SelectionSession['items'][number] {
+    const photoContext = this.getSelectionPhotoContextById(shareId).get(item.photo_id);
+    return {
+      ...item,
+      photo_display_name: photoContext?.photo.filename ?? null,
+      photo_thumbnail_url: photoContext?.photo.thumbnail_url ?? null,
+      gallery_id: photoContext?.gallery.id ?? null,
+      gallery_name: photoContext?.gallery.name ?? null,
+    };
+  }
+
+  private withSelectionSessionContext(
+    shareId: string,
+    session: SelectionSession,
+  ): SelectionSession {
+    return {
+      ...session,
+      items: session.items.map((item) => this.withSelectionItemContext(shareId, item)),
+    };
+  }
+
   private recalculateStorageUsed() {
     const used = this.galleries
       .flatMap((entry) => entry.photos)
@@ -513,6 +816,48 @@ class DemoServiceStore {
       ...this.user,
       storage_used: used,
     };
+  }
+
+  private recalculateProjects(): void {
+    this.projects = this.projects.map((entry) => {
+      const folders = this.galleries
+        .filter((galleryState) => galleryState.gallery.project_id === entry.project.id)
+        .map((galleryState) => toGalleryWithComputedFields(galleryState));
+      const folderCount = folders.length;
+      const listedFolders = folders.filter(
+        (folder) => (folder.project_visibility ?? 'listed') === 'listed',
+      );
+      const sortedFolders = [...folders].sort(
+        (left, right) => (left.project_position ?? 0) - (right.project_position ?? 0),
+      );
+      const entryGallery = sortedFolders[0] ?? null;
+      const totalPhotoCount = folders.reduce((sum, folder) => sum + (folder.photo_count || 0), 0);
+      const totalSizeBytes = folders.reduce(
+        (sum, folder) => sum + (folder.total_size_bytes || 0),
+        0,
+      );
+      const recentFolderThumbnailUrls = folders
+        .flatMap((folder) => folder.recent_photo_thumbnail_urls || [])
+        .slice(0, 3);
+      const hasActiveShareLinks = entry.shareLinks.some((link) => link.is_active !== false);
+      return {
+        ...entry,
+        project: {
+          ...entry.project,
+          entry_gallery_id: entryGallery?.id ?? null,
+          entry_gallery_name: entryGallery?.name ?? null,
+          gallery_count: folderCount,
+          listed_gallery_count: listedFolders.length,
+          has_entry_gallery: Boolean(entryGallery),
+          folder_count: folderCount,
+          listed_folder_count: listedFolders.length,
+          total_photo_count: totalPhotoCount,
+          total_size_bytes: totalSizeBytes,
+          has_active_share_links: hasActiveShareLinks,
+          recent_folder_thumbnail_urls: recentFolderThumbnailUrls,
+        },
+      };
+    });
   }
 
   private getGalleryState(galleryId: string): DemoGalleryState {
@@ -647,6 +992,12 @@ class DemoServiceStore {
     const filtered = this.galleries
       .map((entry) => toGalleryWithComputedFields(entry))
       .filter((gallery) => {
+        if (options?.standalone_only && gallery.project_id) {
+          return false;
+        }
+        if (options?.project_id && gallery.project_id !== options.project_id) {
+          return false;
+        }
         if (!normalizedSearch) {
           return true;
         }
@@ -699,11 +1050,231 @@ class DemoServiceStore {
     return this.toGalleryDetail(state, options);
   }
 
-  async createGallery(payload: { name?: string; shooting_date?: string | null }): Promise<Gallery> {
+  async getProjects(page = 1, size = 10, search?: string): Promise<ProjectListResponse> {
+    const normalizedSearch = search?.trim().toLowerCase() ?? '';
+    const start = (page - 1) * size;
+    const filtered = this.projects
+      .map((entry) => ({ ...entry.project }))
+      .filter(
+        (project) => !normalizedSearch || project.name.toLowerCase().includes(normalizedSearch),
+      );
+
+    const sorted = filtered.sort(
+      (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
+    );
+
+    return {
+      projects: sorted.slice(start, start + size),
+      total: sorted.length,
+      page,
+      size,
+    };
+  }
+
+  async getProject(projectId: string): Promise<ProjectDetail> {
+    const state = this.projects.find((entry) => entry.project.id === projectId);
+    if (!state) {
+      throw this.createNotFoundError('Project not found');
+    }
+    const folders: ProjectFolderSummary[] = this.galleries
+      .filter((entry) => entry.gallery.project_id === projectId)
+      .map((entry) => {
+        const gallery = toGalleryWithComputedFields(entry);
+        return {
+          id: gallery.id,
+          owner_id: gallery.owner_id,
+          project_id: gallery.project_id ?? null,
+          project_name: gallery.project_name ?? null,
+          project_position: gallery.project_position ?? 0,
+          project_visibility: gallery.project_visibility ?? 'listed',
+          name: gallery.name,
+          created_at: gallery.created_at,
+          shooting_date: gallery.shooting_date,
+          cover_photo_id: gallery.cover_photo_id ?? null,
+          photo_count: gallery.photo_count,
+          total_size_bytes: gallery.total_size_bytes,
+          has_active_share_links: gallery.has_active_share_links,
+          cover_photo_thumbnail_url: gallery.cover_photo_thumbnail_url ?? null,
+          recent_photo_thumbnail_urls: gallery.recent_photo_thumbnail_urls,
+        };
+      })
+      .sort((left, right) => (left.project_position ?? 0) - (right.project_position ?? 0));
+    return {
+      ...state.project,
+      folders,
+    };
+  }
+
+  async createProject(payload: {
+    name?: string;
+    shooting_date?: string | null;
+    initial_gallery_name?: string | null;
+  }): Promise<Project> {
     const createdAt = nowIso();
+    const projectName = payload.name?.trim() || 'Untitled Project';
+    const project: Project = {
+      id: makeDemoId(),
+      owner_id: DEMO_OWNER_ID,
+      name: projectName,
+      created_at: createdAt,
+      shooting_date: payload.shooting_date || createdAt,
+      entry_gallery_id: null,
+      entry_gallery_name: null,
+      gallery_count: 0,
+      listed_gallery_count: 0,
+      has_entry_gallery: false,
+      folder_count: 0,
+      listed_folder_count: 0,
+      total_photo_count: 0,
+      total_size_bytes: 0,
+      has_active_share_links: false,
+      recent_folder_thumbnail_urls: [],
+    };
+    this.projects.unshift({ project, shareLinks: [] });
+    await this.createGallery({
+      name: payload.initial_gallery_name?.trim() || projectName,
+      shooting_date: payload.shooting_date,
+      project_id: project.id,
+      project_position: 0,
+      project_visibility: 'listed',
+    });
+    this.recalculateProjects();
+    this.persistState();
+    return {
+      ...(this.projects.find((entry) => entry.project.id === project.id)?.project ?? project),
+    };
+  }
+
+  async updateProject(
+    projectId: string,
+    payload: { name?: string; shooting_date?: string | null },
+  ): Promise<Project> {
+    const state = this.projects.find((entry) => entry.project.id === projectId);
+    if (!state) {
+      throw this.createNotFoundError('Project not found');
+    }
+    state.project = {
+      ...state.project,
+      name: payload.name?.trim() || state.project.name,
+      shooting_date: payload.shooting_date ?? state.project.shooting_date,
+    };
+    this.galleries.forEach((entry) => {
+      if (entry.gallery.project_id === projectId) {
+        entry.gallery.project_name = state.project.name;
+      }
+    });
+    this.recalculateProjects();
+    this.persistState();
+    return { ...state.project };
+  }
+
+  async deleteProject(projectId: string): Promise<void> {
+    const projectState = this.projects.find((entry) => entry.project.id === projectId);
+    if (!projectState) {
+      throw this.createNotFoundError('Project not found');
+    }
+
+    for (const link of projectState.shareLinks) {
+      setStoredActiveSelectionSession(link.id, null);
+    }
+    this.galleries
+      .filter((entry) => entry.gallery.project_id === projectId)
+      .flatMap((entry) => entry.shareLinks)
+      .forEach((link) => {
+        setStoredActiveSelectionSession(link.id, null);
+      });
+
+    this.galleries = this.galleries.filter((entry) => entry.gallery.project_id !== projectId);
+    this.projects = this.projects.filter((entry) => entry.project.id !== projectId);
+    this.recalculateStorageUsed();
+    this.recalculateProjects();
+    this.persistState();
+  }
+
+  async createProjectFolder(
+    projectId: string,
+    payload: {
+      name?: string;
+      shooting_date?: string | null;
+      project_visibility?: 'listed' | 'direct_only';
+      project_position?: number;
+      public_sort_by?: GalleryPhotoSortBy;
+      public_sort_order?: SortOrder;
+    },
+  ): Promise<Gallery> {
+    return this.createGallery({
+      name: payload.name,
+      shooting_date: payload.shooting_date,
+      project_id: projectId,
+      project_position: payload.project_position,
+      project_visibility: payload.project_visibility,
+    });
+  }
+
+  async reorderProjectGalleries(projectId: string, galleryIds: string[]): Promise<void> {
+    const project = this.projects.find((entry) => entry.project.id === projectId)?.project;
+    if (!project) {
+      throw this.createNotFoundError('Project not found');
+    }
+
+    const projectGalleries = this.galleries
+      .filter((entry) => entry.gallery.project_id === projectId)
+      .map((entry) => entry.gallery.id);
+    if (
+      galleryIds.length !== projectGalleries.length ||
+      new Set(galleryIds).size !== galleryIds.length ||
+      galleryIds.some((galleryId) => !projectGalleries.includes(galleryId))
+    ) {
+      throw this.createValidationError('Gallery ids must exactly match the project galleries');
+    }
+
+    const orderById = new Map(galleryIds.map((galleryId, index) => [galleryId, index]));
+    this.galleries.forEach((entry) => {
+      if (entry.gallery.project_id === projectId) {
+        entry.gallery.project_position =
+          orderById.get(entry.gallery.id) ?? entry.gallery.project_position;
+      }
+    });
+    this.recalculateProjects();
+    this.persistState();
+  }
+
+  async createGallery(payload: {
+    name?: string;
+    shooting_date?: string | null;
+    project_id?: string | null;
+    project_position?: number;
+    project_visibility?: 'listed' | 'direct_only';
+  }): Promise<Gallery> {
+    const createdAt = nowIso();
+    const project = payload.project_id
+      ? (this.projects.find((entry) => entry.project.id === payload.project_id)?.project ?? null)
+      : null;
+
+    if (!project) {
+      const createdProject = await this.createProject({
+        name: payload.name?.trim() || 'Untitled Project',
+        shooting_date: payload.shooting_date,
+        initial_gallery_name: payload.name,
+      });
+      const entryGalleryId = createdProject.entry_gallery_id;
+      if (!entryGalleryId) {
+        throw this.createConflictError('Failed to create initial project gallery');
+      }
+      return toGalleryWithComputedFields(this.getGalleryState(entryGalleryId));
+    }
+
+    const projectPosition =
+      typeof payload.project_position === 'number'
+        ? payload.project_position
+        : this.galleries.filter((entry) => entry.gallery.project_id === project.id).length;
     const gallery: Gallery = {
       id: makeDemoId(),
       owner_id: DEMO_OWNER_ID,
+      project_id: project.id,
+      project_name: project?.name ?? null,
+      project_position: projectPosition,
+      project_visibility: payload.project_visibility ?? 'listed',
       name: payload.name?.trim() || 'Untitled Gallery',
       created_at: createdAt,
       shooting_date: payload.shooting_date || createdAt,
@@ -722,6 +1293,7 @@ class DemoServiceStore {
       photos: [],
       shareLinks: [],
     });
+    this.recalculateProjects();
     this.persistState();
 
     return toGalleryWithComputedFields(this.galleries[0]);
@@ -730,6 +1302,7 @@ class DemoServiceStore {
   async deleteGallery(galleryId: string): Promise<void> {
     this.galleries = this.galleries.filter((entry) => entry.gallery.id !== galleryId);
     this.recalculateStorageUsed();
+    this.recalculateProjects();
     this.persistState();
   }
 
@@ -740,9 +1313,20 @@ class DemoServiceStore {
       shooting_date?: string | null;
       public_sort_by?: GalleryPhotoSortBy;
       public_sort_order?: SortOrder;
+      project_id?: string | null;
+      project_position?: number;
+      project_visibility?: 'listed' | 'direct_only';
     },
   ): Promise<Gallery> {
     const state = this.getGalleryState(galleryId);
+
+    const project =
+      Object.prototype.hasOwnProperty.call(payload, 'project_id') && payload.project_id
+        ? (this.projects.find((entry) => entry.project.id === payload.project_id)?.project ?? null)
+        : state.gallery.project_id
+          ? (this.projects.find((entry) => entry.project.id === state.gallery.project_id)
+              ?.project ?? null)
+          : null;
 
     state.gallery = {
       ...state.gallery,
@@ -750,7 +1334,17 @@ class DemoServiceStore {
       shooting_date: payload.shooting_date ?? state.gallery.shooting_date,
       public_sort_by: payload.public_sort_by ?? state.gallery.public_sort_by,
       public_sort_order: payload.public_sort_order ?? state.gallery.public_sort_order,
+      project_id: Object.prototype.hasOwnProperty.call(payload, 'project_id')
+        ? (payload.project_id ?? null)
+        : (state.gallery.project_id ?? null),
+      project_name: Object.prototype.hasOwnProperty.call(payload, 'project_id')
+        ? (project?.name ?? null)
+        : (state.gallery.project_name ?? null),
+      project_position: payload.project_position ?? state.gallery.project_position ?? 0,
+      project_visibility:
+        payload.project_visibility ?? state.gallery.project_visibility ?? 'listed',
     };
+    this.recalculateProjects();
     this.persistState();
 
     return toGalleryWithComputedFields(state);
@@ -854,25 +1448,211 @@ class DemoServiceStore {
     );
   }
 
+  private findProjectByShareId(shareId: string): DemoProjectState | null {
+    return (
+      this.projects.find((entry) => entry.shareLinks.some((link) => link.id === shareId)) || null
+    );
+  }
+
+  private findSelectionOwnerByShareId(shareId: string): DemoSelectionOwnerLookup | null {
+    const galleryState = this.findByShareId(shareId);
+    if (galleryState) {
+      return { kind: 'gallery', state: galleryState };
+    }
+
+    const projectState = this.findProjectByShareId(shareId);
+    if (projectState) {
+      return { kind: 'project', state: projectState };
+    }
+
+    return null;
+  }
+
+  private getListedProjectGalleryStates(projectId: string): DemoGalleryState[] {
+    return this.galleries
+      .filter((entry) => entry.gallery.project_id === projectId)
+      .filter((entry) => (entry.gallery.project_visibility ?? 'listed') === 'listed')
+      .sort(
+        (left, right) =>
+          (left.gallery.project_position ?? 0) - (right.gallery.project_position ?? 0),
+      );
+  }
+
+  private getSelectablePhotosForShareLink(shareId: string): Array<{
+    photo: GalleryPhoto;
+    gallery: Gallery;
+  }> {
+    const owner = this.findSelectionOwnerByShareId(shareId);
+    if (!owner) {
+      throw this.createNotFoundError('ShareLink not found');
+    }
+
+    if (owner.kind === 'gallery') {
+      return owner.state.photos.map((photo) => ({
+        photo,
+        gallery: owner.state.gallery,
+      }));
+    }
+
+    return this.getListedProjectGalleryStates(owner.state.project.id).flatMap((entry) =>
+      entry.photos.map((photo) => ({
+        photo,
+        gallery: entry.gallery,
+      })),
+    );
+  }
+
+  async getProjectShareLinks(projectId: string): Promise<ShareLink[]> {
+    const state = this.projects.find((entry) => entry.project.id === projectId);
+    if (!state) {
+      throw this.createNotFoundError('Project not found');
+    }
+    return state.shareLinks.map((link) => ({
+      ...link,
+      selection_summary: this.buildSelectionSummary(state, link.id),
+    }));
+  }
+
+  async getProjectWarningShareLinks(projectId: string): Promise<ShareLink[]> {
+    const projectState = this.projects.find((entry) => entry.project.id === projectId);
+    if (!projectState) {
+      throw this.createNotFoundError('Project not found');
+    }
+
+    const projectLinks = projectState.shareLinks.map((link) => ({
+      ...link,
+      selection_summary: this.buildSelectionSummary(projectState, link.id),
+    }));
+    const galleryLinks = this.galleries
+      .filter((entry) => entry.gallery.project_id === projectId)
+      .flatMap((entry) =>
+        entry.shareLinks.map((link) => ({
+          ...link,
+          scope_type: link.scope_type ?? 'gallery',
+          gallery_id: entry.gallery.id,
+          selection_summary: this.buildSelectionSummary(entry, link.id),
+        })),
+      );
+
+    return [...projectLinks, ...galleryLinks];
+  }
+
+  async createProjectShareLink(
+    projectId: string,
+    payload?: ShareLinkCreateRequest,
+  ): Promise<ShareLink> {
+    const state = this.projects.find((entry) => entry.project.id === projectId);
+    if (!state) {
+      throw this.createNotFoundError('Project not found');
+    }
+    const normalizedLabel = payload?.label?.trim();
+    const link: ShareLink = {
+      id: `sp-${makeDemoId().slice(0, 12)}`,
+      scope_type: 'project',
+      project_id: projectId,
+      gallery_id: null,
+      label: normalizedLabel ? normalizedLabel : null,
+      is_active: payload?.is_active ?? true,
+      expires_at: payload?.expires_at ?? null,
+      views: 0,
+      zip_downloads: 0,
+      single_downloads: 0,
+      created_at: nowIso(),
+      updated_at: nowIso(),
+    };
+    state.shareLinks.push(link);
+    state.selectionConfigs = state.selectionConfigs ?? {};
+    state.selectionConfigs[link.id] = defaultSelectionConfig();
+    state.selectionSessions = state.selectionSessions ?? {};
+    state.selectionSessions[link.id] = state.selectionSessions[link.id] ?? [];
+    this.recalculateProjects();
+    this.persistState();
+    return { ...link };
+  }
+
+  async updateProjectShareLink(
+    projectId: string,
+    shareLinkId: string,
+    payload: ShareLinkUpdateRequest,
+  ): Promise<ShareLink> {
+    const state = this.projects.find((entry) => entry.project.id === projectId);
+    if (!state) {
+      throw this.createNotFoundError('Project not found');
+    }
+    const link = state.shareLinks.find((item) => item.id === shareLinkId);
+    if (!link) {
+      throw this.createNotFoundError('Share link not found');
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, 'label')) {
+      const normalized = payload.label?.trim();
+      link.label = normalized ? normalized : null;
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(payload, 'is_active') &&
+      typeof payload.is_active === 'boolean'
+    ) {
+      link.is_active = payload.is_active;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, 'expires_at')) {
+      link.expires_at = payload.expires_at ?? null;
+    }
+    link.updated_at = nowIso();
+    this.recalculateProjects();
+    this.persistState();
+    return { ...link };
+  }
+
+  async deleteProjectShareLink(projectId: string, shareLinkId: string): Promise<void> {
+    const state = this.projects.find((entry) => entry.project.id === projectId);
+    if (!state) {
+      throw this.createNotFoundError('Project not found');
+    }
+    state.shareLinks = state.shareLinks.filter((link) => link.id !== shareLinkId);
+    if (state.selectionConfigs) {
+      delete state.selectionConfigs[shareLinkId];
+    }
+    if (state.selectionSessions) {
+      delete state.selectionSessions[shareLinkId];
+    }
+    setStoredActiveSelectionSession(shareLinkId, null);
+    this.recalculateProjects();
+    this.persistState();
+  }
+
   async getOwnerShareLinks(
     page = 1,
     size = 20,
     search?: string,
     status?: 'active' | 'inactive' | 'expired',
   ): Promise<ShareLinksDashboardResponse> {
-    const allLinks = this.galleries.flatMap((entry) =>
+    const galleryLinks = this.galleries.flatMap((entry) =>
       entry.shareLinks.map((link) => ({
         ...link,
+        scope_type: link.scope_type ?? 'gallery',
         gallery_id: entry.gallery.id,
         gallery_name: entry.gallery.name,
+        project_id: entry.gallery.project_id ?? null,
+        project_name: entry.gallery.project_name ?? null,
         selection_summary: this.buildSelectionSummary(entry, link.id),
       })),
     );
+    const projectLinks = this.projects.flatMap((entry) =>
+      entry.shareLinks.map((link) => ({
+        ...link,
+        scope_type: 'project' as const,
+        gallery_id: null,
+        gallery_name: null,
+        project_id: entry.project.id,
+        project_name: entry.project.name,
+        selection_summary: this.buildSelectionSummary(entry, link.id),
+      })),
+    );
+    const allLinks = [...galleryLinks, ...projectLinks];
 
     const normalizedSearch = search?.trim().toLowerCase() || '';
     const searched = normalizedSearch
       ? allLinks.filter((link) =>
-          `${link.label ?? ''} ${link.gallery_name} ${link.id}`
+          `${link.label ?? ''} ${link.gallery_name ?? ''} ${link.project_name ?? ''} ${link.id}`
             .toLowerCase()
             .includes(normalizedSearch),
         )
@@ -932,12 +1712,15 @@ class DemoServiceStore {
   }
 
   async getShareLinkAnalytics(shareLinkId: string, days = 30): Promise<ShareLinkAnalyticsResponse> {
-    const state = this.findByShareId(shareLinkId);
-    if (!state) {
+    const galleryState = this.findByShareId(shareLinkId);
+    const projectState = this.findProjectByShareId(shareLinkId);
+    if (!galleryState && !projectState) {
       throw this.createNotFoundError('Share link not found');
     }
 
-    const link = state.shareLinks.find((item) => item.id === shareLinkId);
+    const link = galleryState
+      ? galleryState.shareLinks.find((item) => item.id === shareLinkId)
+      : projectState?.shareLinks.find((item) => item.id === shareLinkId);
     if (!link) {
       throw this.createNotFoundError('Share link not found');
     }
@@ -956,12 +1739,26 @@ class DemoServiceStore {
     }
 
     return {
-      share_link: {
-        ...link,
-        gallery_id: state.gallery.id,
-        gallery_name: state.gallery.name,
-      },
-      selection_summary: this.buildSelectionSummary(state, link.id),
+      share_link: galleryState
+        ? {
+            ...link,
+            scope_type: link.scope_type ?? 'gallery',
+            gallery_id: galleryState.gallery.id,
+            gallery_name: galleryState.gallery.name,
+            project_id: galleryState.gallery.project_id ?? null,
+            project_name: galleryState.gallery.project_name ?? null,
+          }
+        : {
+            ...link,
+            scope_type: 'project',
+            gallery_id: null,
+            gallery_name: null,
+            project_id: projectState!.project.id,
+            project_name: projectState!.project.name,
+          },
+      selection_summary: galleryState
+        ? this.buildSelectionSummary(galleryState, link.id)
+        : this.buildSelectionSummary(projectState!, link.id),
       points,
     };
   }
@@ -1002,54 +1799,170 @@ class DemoServiceStore {
     shareId: string,
     options?: SharedGalleryQueryOptions,
   ): Promise<SharedGallery> {
-    const state = this.findByShareId(shareId);
-    if (!state) {
+    const galleryState = this.findByShareId(shareId);
+    if (galleryState) {
+      const shareLink = galleryState.shareLinks.find((link) => link.id === shareId);
+      if (shareLink) {
+        shareLink.views += 1;
+        this.persistState();
+      }
+
+      const sortBy: GalleryPhotoSortBy = galleryState.gallery.public_sort_by ?? 'original_filename';
+      const sortOrder: SortOrder = galleryState.gallery.public_sort_order ?? 'asc';
+      const sortedPhotos = this.sortSharedPhotos(galleryState.photos, sortBy, sortOrder);
+
+      const safeOffset = Math.max(0, options?.offset || 0);
+      const limit = options?.limit ?? sortedPhotos.length;
+      const photos = sortedPhotos.slice(safeOffset, safeOffset + limit);
+
+      return {
+        scope_type: 'gallery',
+        gallery_name: galleryState.gallery.name,
+        photographer: this.user.display_name || this.user.email,
+        date: galleryState.gallery.shooting_date,
+        site_url: window.location.origin,
+        total_photos: sortedPhotos.length,
+        project_id: galleryState.gallery.project_id ?? null,
+        project_name: galleryState.gallery.project_name ?? null,
+        parent_share_id: null,
+        cover: galleryState.gallery.cover_photo_id
+          ? {
+              photo_id: galleryState.gallery.cover_photo_id,
+              full_url:
+                galleryState.photos.find(
+                  (photo) => photo.id === galleryState.gallery.cover_photo_id,
+                )?.url ||
+                galleryState.photos[0]?.url ||
+                '',
+              thumbnail_url:
+                galleryState.photos.find(
+                  (photo) => photo.id === galleryState.gallery.cover_photo_id,
+                )?.thumbnail_url ||
+                galleryState.photos[0]?.thumbnail_url ||
+                '',
+            }
+          : null,
+        photos: photos.map((photo) => ({
+          photo_id: photo.id,
+          filename: photo.filename,
+          full_url: photo.url,
+          thumbnail_url: photo.thumbnail_url,
+          width: photo.width,
+          height: photo.height,
+        })),
+      };
+    }
+
+    const projectState = this.findProjectByShareId(shareId);
+    if (!projectState) {
+      throw this.createNotFoundError('Gallery not found or link expired');
+    }
+    const nestedGalleryId = options?.galleryId ?? options?.folderId;
+    const listedFolderStates = this.galleries
+      .filter((entry) => entry.gallery.project_id === projectState.project.id)
+      .filter((entry) => (entry.gallery.project_visibility ?? 'listed') === 'listed');
+    if (!nestedGalleryId && listedFolderStates.length === 0) {
       throw this.createNotFoundError('Gallery not found or link expired');
     }
 
-    const shareLink = state.shareLinks.find((link) => link.id === shareId);
-    if (shareLink) {
+    const shareLink = projectState.shareLinks.find((link) => link.id === shareId);
+    if (shareLink && (!nestedGalleryId || !options?.skipProjectViewCount)) {
       shareLink.views += 1;
+      this.recalculateProjects();
       this.persistState();
     }
-
-    const sortBy: GalleryPhotoSortBy = state.gallery.public_sort_by ?? 'original_filename';
-    const sortOrder: SortOrder = state.gallery.public_sort_order ?? 'asc';
-    const sortedPhotos = this.sortSharedPhotos(state.photos, sortBy, sortOrder);
-
-    const safeOffset = Math.max(0, options?.offset || 0);
-    const limit = options?.limit ?? sortedPhotos.length;
-    const photos = sortedPhotos.slice(safeOffset, safeOffset + limit);
-
-    return {
-      gallery_name: state.gallery.name,
+    const listedFolders = listedFolderStates
+      .map((entry) => toGalleryWithComputedFields(entry))
+      .sort((left, right) => (left.project_position ?? 0) - (right.project_position ?? 0));
+    const leftmostFolderState = [...listedFolderStates].sort(
+      (left, right) => (left.gallery.project_position ?? 0) - (right.gallery.project_position ?? 0),
+    )[0];
+    const leftmostCoverPhoto = leftmostFolderState
+      ? leftmostFolderState.gallery.cover_photo_id
+        ? (leftmostFolderState.photos.find(
+            (photo) => photo.id === leftmostFolderState.gallery.cover_photo_id,
+          ) ?? leftmostFolderState.photos[0])
+        : leftmostFolderState.photos[0]
+      : null;
+    const projectNavigation = {
+      scope_type: 'project' as const,
+      project_id: projectState.project.id,
+      project_name: projectState.project.name,
       photographer: this.user.display_name || this.user.email,
-      date: state.gallery.shooting_date,
+      date: projectState.project.shooting_date,
       site_url: window.location.origin,
-      total_photos: sortedPhotos.length,
-      cover: state.gallery.cover_photo_id
+      cover: leftmostCoverPhoto
         ? {
-            photo_id: state.gallery.cover_photo_id,
-            full_url:
-              state.photos.find((photo) => photo.id === state.gallery.cover_photo_id)?.url ||
-              state.photos[0]?.url ||
-              '',
-            thumbnail_url:
-              state.photos.find((photo) => photo.id === state.gallery.cover_photo_id)
-                ?.thumbnail_url ||
-              state.photos[0]?.thumbnail_url ||
-              '',
+            photo_id: leftmostCoverPhoto.id,
+            full_url: leftmostCoverPhoto.url,
+            thumbnail_url: leftmostCoverPhoto.thumbnail_url,
           }
         : null,
-      photos: photos.map((photo) => ({
-        photo_id: photo.id,
-        filename: photo.filename,
-        full_url: photo.url,
-        thumbnail_url: photo.thumbnail_url,
-        width: photo.width,
-        height: photo.height,
+      total_listed_folders: listedFolders.length,
+      total_listed_photos: listedFolders.reduce(
+        (sum, folder) => sum + (folder.photo_count || 0),
+        0,
+      ),
+      folders: listedFolders.map((folder) => ({
+        folder_id: folder.id,
+        folder_name: folder.name,
+        photo_count: folder.photo_count,
+        cover_thumbnail_url:
+          folder.cover_photo_thumbnail_url ?? folder.recent_photo_thumbnail_urls[0] ?? null,
+        route_path: `/share/${shareId}/galleries/${folder.id}`,
+        direct_share_path: null,
       })),
     };
+
+    if (nestedGalleryId) {
+      const folderState = listedFolderStates.find((entry) => entry.gallery.id === nestedGalleryId);
+      if (!folderState) {
+        throw this.createNotFoundError('Folder not found');
+      }
+      const sortBy: GalleryPhotoSortBy = folderState.gallery.public_sort_by ?? 'original_filename';
+      const sortOrder: SortOrder = folderState.gallery.public_sort_order ?? 'asc';
+      const sortedPhotos = this.sortSharedPhotos(folderState.photos, sortBy, sortOrder);
+      const safeOffset = Math.max(0, options?.offset || 0);
+      const limit = options?.limit ?? sortedPhotos.length;
+      const photos = sortedPhotos.slice(safeOffset, safeOffset + limit);
+      return {
+        scope_type: 'gallery',
+        gallery_name: folderState.gallery.name,
+        photographer: this.user.display_name || this.user.email,
+        date: folderState.gallery.shooting_date,
+        site_url: window.location.origin,
+        total_photos: sortedPhotos.length,
+        project_id: folderState.gallery.project_id ?? null,
+        project_name: folderState.gallery.project_name ?? null,
+        parent_share_id: shareId,
+        project_navigation: projectNavigation,
+        cover: folderState.gallery.cover_photo_id
+          ? {
+              photo_id: folderState.gallery.cover_photo_id,
+              full_url:
+                folderState.photos.find((photo) => photo.id === folderState.gallery.cover_photo_id)
+                  ?.url ||
+                folderState.photos[0]?.url ||
+                '',
+              thumbnail_url:
+                folderState.photos.find((photo) => photo.id === folderState.gallery.cover_photo_id)
+                  ?.thumbnail_url ||
+                folderState.photos[0]?.thumbnail_url ||
+                '',
+            }
+          : null,
+        photos: photos.map((photo) => ({
+          photo_id: photo.id,
+          filename: photo.filename,
+          full_url: photo.url,
+          thumbnail_url: photo.thumbnail_url,
+          width: photo.width,
+          height: photo.height,
+        })),
+      };
+    }
+
+    return projectNavigation;
   }
 
   async getPublicSelectionConfig(shareId: string): Promise<SelectionConfig> {
@@ -1075,7 +1988,7 @@ class DemoServiceStore {
     if (existingToken && existingToken.trim().length > 0) {
       const existing = sessions.find((entry) => entry.resume_token === existingToken.trim());
       if (existing) {
-        return { ...existing, items: [...existing.items] };
+        return this.withSelectionSessionContext(shareId, existing);
       }
     }
 
@@ -1119,7 +2032,7 @@ class DemoServiceStore {
     state.selectionSessions[shareId] = sessions;
     setStoredActiveSelectionSession(shareId, session.resume_token);
     this.persistState();
-    return { ...session, items: [...session.items] };
+    return this.withSelectionSessionContext(shareId, session);
   }
 
   async getPublicSelectionSession(
@@ -1139,7 +2052,7 @@ class DemoServiceStore {
       throw this.createNotFoundError('Selection session not found');
     }
     setStoredActiveSelectionSession(shareId, session.resume_token);
-    return { ...session, items: [...session.items] };
+    return this.withSelectionSessionContext(shareId, session);
   }
 
   async togglePublicSelectionItem(
@@ -1147,7 +2060,7 @@ class DemoServiceStore {
     photoId: string,
     resumeToken?: string,
   ): Promise<SelectionToggleResponse> {
-    const { state, config, session } = this.getSelectionSessionForShareId(shareId, {
+    const { config, session } = this.getSelectionSessionForShareId(shareId, {
       mustExist: true,
       resumeToken,
     });
@@ -1158,8 +2071,10 @@ class DemoServiceStore {
       throw this.createNotFoundError('Selection session not found');
     }
     this.ensureSelectionMutable(session);
-    const photoExists = state.photos.some((photo) => photo.id === photoId);
-    if (!photoExists) {
+    const selectablePhotoIds = new Set(
+      this.getSelectablePhotosForShareLink(shareId).map(({ photo }) => photo.id),
+    );
+    if (!selectablePhotoIds.has(photoId)) {
       throw this.createNotFoundError('Photo not found for this share link');
     }
 
@@ -1228,7 +2143,7 @@ class DemoServiceStore {
     session.last_activity_at = item.updated_at;
     session.updated_at = item.updated_at;
     this.persistState();
-    return { ...item };
+    return this.withSelectionItemContext(shareId, item);
   }
 
   async updatePublicSelectionSession(
@@ -1256,7 +2171,7 @@ class DemoServiceStore {
     session.last_activity_at = now;
     session.updated_at = now;
     this.persistState();
-    return { ...session, items: [...session.items] };
+    return this.withSelectionSessionContext(shareId, session);
   }
 
   async submitPublicSelectionSession(
@@ -1334,12 +2249,17 @@ class DemoServiceStore {
     return { ...state.selectionConfigs[shareLinkId] };
   }
 
-  async updateOwnerSelectionConfig(
-    galleryId: string,
+  async getShareLinkSelectionConfig(shareLinkId: string): Promise<SelectionConfig> {
+    const { config } = this.getSelectionConfigForShareId(shareLinkId);
+    return { ...config };
+  }
+
+  private applySelectionConfigUpdate(
+    state: DemoSelectionState,
     shareLinkId: string,
+    current: SelectionConfig,
     payload: SelectionConfigUpdateRequest,
-  ): Promise<SelectionConfig> {
-    const current = await this.getOwnerSelectionConfig(galleryId, shareLinkId);
+  ): SelectionConfig {
     const next: SelectionConfig = {
       ...current,
       ...payload,
@@ -1354,15 +2274,33 @@ class DemoServiceStore {
       next.limit_value = null;
     }
 
-    const state = this.getGalleryState(galleryId);
     state.selectionConfigs = state.selectionConfigs ?? {};
     state.selectionConfigs[shareLinkId] = next;
     this.persistState();
     return { ...next };
   }
 
+  async updateOwnerSelectionConfig(
+    galleryId: string,
+    shareLinkId: string,
+    payload: SelectionConfigUpdateRequest,
+  ): Promise<SelectionConfig> {
+    const current = await this.getOwnerSelectionConfig(galleryId, shareLinkId);
+    const state = this.getGalleryState(galleryId);
+    return this.applySelectionConfigUpdate(state, shareLinkId, current, payload);
+  }
+
+  async updateShareLinkSelectionConfig(
+    shareLinkId: string,
+    payload: SelectionConfigUpdateRequest,
+  ): Promise<SelectionConfig> {
+    const current = await this.getShareLinkSelectionConfig(shareLinkId);
+    const { state } = this.getSelectionConfigForShareId(shareLinkId);
+    return this.applySelectionConfigUpdate(state, shareLinkId, current, payload);
+  }
+
   async getOwnerSelectionDetail(shareLinkId: string): Promise<OwnerSelectionDetail> {
-    const { state, link, config } = this.getSelectionConfigForShareId(shareLinkId);
+    const { owner, state, link, config } = this.getSelectionConfigForShareId(shareLinkId);
     const sessions = [...((state.selectionSessions ?? {})[shareLinkId] ?? [])].sort(
       (left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at),
     );
@@ -1379,20 +2317,12 @@ class DemoServiceStore {
             .sort((left, right) => right - left)[0]
         : null;
 
-    const withPhotoDisplayName = (entry: SelectionSession): SelectionSession => ({
-      ...entry,
-      items: entry.items.map((item) => ({
-        ...item,
-        photo_display_name:
-          state.photos.find((photo) => photo.id === item.photo_id)?.filename ?? null,
-        photo_thumbnail_url:
-          state.photos.find((photo) => photo.id === item.photo_id)?.thumbnail_url ?? null,
-      })),
-    });
-
     return {
       sharelink_id: link.id,
       sharelink_label: link.label ?? null,
+      scope_type: owner.kind === 'project' ? 'project' : 'gallery',
+      gallery_name: owner.kind === 'gallery' ? owner.state.gallery.name : null,
+      project_name: owner.kind === 'project' ? owner.state.project.name : null,
       config: { ...config },
       aggregate: {
         total_sessions: sessions.length,
@@ -1415,7 +2345,7 @@ class DemoServiceStore {
         created_at: entry.created_at,
         updated_at: entry.updated_at,
       })),
-      session: session ? withPhotoDisplayName(session) : null,
+      session: session ? this.withSelectionSessionContext(shareLinkId, session) : null,
     };
   }
 
@@ -1437,7 +2367,7 @@ class DemoServiceStore {
       (entry) => (entry.id === session.id ? session : entry),
     );
     this.persistState();
-    return { ...session, items: [...session.items] };
+    return this.withSelectionSessionContext(shareLinkId, session);
   }
 
   async reopenOwnerSelection(shareLinkId: string): Promise<SelectionSession> {
@@ -1459,14 +2389,14 @@ class DemoServiceStore {
       (entry) => (entry.id === session.id ? session : entry),
     );
     this.persistState();
-    return { ...session, items: [...session.items] };
+    return this.withSelectionSessionContext(shareLinkId, session);
   }
 
   async getOwnerSelectionSessionDetail(
     shareLinkId: string,
     sessionId: string,
   ): Promise<SelectionSession> {
-    const { state, session } = this.getSelectionSessionForShareId(shareLinkId, {
+    const { session } = this.getSelectionSessionForShareId(shareLinkId, {
       mustExist: true,
       sessionId,
       useStoredToken: false,
@@ -1474,16 +2404,7 @@ class DemoServiceStore {
     if (!session) {
       throw this.createNotFoundError('Selection session not found');
     }
-    return {
-      ...session,
-      items: session.items.map((item) => ({
-        ...item,
-        photo_display_name:
-          state.photos.find((photo) => photo.id === item.photo_id)?.filename ?? null,
-        photo_thumbnail_url:
-          state.photos.find((photo) => photo.id === item.photo_id)?.thumbnail_url ?? null,
-      })),
-    };
+    return this.withSelectionSessionContext(shareLinkId, session);
   }
 
   async closeOwnerSelectionSession(
@@ -1507,7 +2428,7 @@ class DemoServiceStore {
       (entry) => (entry.id === session.id ? session : entry),
     );
     this.persistState();
-    return { ...session, items: [...session.items] };
+    return this.withSelectionSessionContext(shareLinkId, session);
   }
 
   async reopenOwnerSelectionSession(
@@ -1532,7 +2453,7 @@ class DemoServiceStore {
       (entry) => (entry.id === session.id ? session : entry),
     );
     this.persistState();
-    return { ...session, items: [...session.items] };
+    return this.withSelectionSessionContext(shareLinkId, session);
   }
 
   async getGallerySelections(galleryId: string): Promise<OwnerSelectionRow[]> {
@@ -1619,36 +2540,55 @@ class DemoServiceStore {
   }
 
   async exportShareLinkSelectionFilesCsv(shareLinkId: string): Promise<void> {
-    const { state, sessions } = this.getSelectionSessionForShareId(shareLinkId, {
+    const { owner, sessions } = this.getSelectionSessionForShareId(shareLinkId, {
       mustExist: false,
     });
     if (sessions.length === 0) {
       throw this.createNotFoundError('Selection session not found');
     }
-    const lines = ['filename,comment'];
+    const lines =
+      owner.kind === 'project' ? ['gallery_name,filename,comment'] : ['filename,comment'];
     for (const session of sessions) {
       for (const item of session.items) {
-        const photo = state.photos.find((entry) => entry.id === item.photo_id);
-        if (!photo) continue;
+        const itemWithContext = this.withSelectionItemContext(shareLinkId, item);
+        if (!itemWithContext.photo_display_name) continue;
         const escapedComment = (item.comment || '').replaceAll('"', '""');
-        lines.push(`${photo.filename},"${escapedComment}"`);
+        if (owner.kind === 'project') {
+          const escapedGallery = (itemWithContext.gallery_name || '').replaceAll('"', '""');
+          lines.push(
+            `"${escapedGallery}",${itemWithContext.photo_display_name},"${escapedComment}"`,
+          );
+        } else {
+          lines.push(`${itemWithContext.photo_display_name},"${escapedComment}"`);
+        }
       }
     }
     triggerDownload(`selection_${shareLinkId}_files.csv`, lines.join('\n'));
   }
 
   async exportShareLinkSelectionLightroom(shareLinkId: string): Promise<void> {
-    const { state, sessions } = this.getSelectionSessionForShareId(shareLinkId, {
+    const { owner, sessions } = this.getSelectionSessionForShareId(shareLinkId, {
       mustExist: false,
     });
     if (sessions.length === 0) {
       throw this.createNotFoundError('Selection session not found');
     }
-    const content = sessions
-      .flatMap((session) => session.items)
-      .map((item) => state.photos.find((entry) => entry.id === item.photo_id)?.filename)
-      .filter((value): value is string => Boolean(value))
-      .join('|');
+    const content =
+      owner.kind === 'project'
+        ? sessions
+            .flatMap((session) => session.items)
+            .map((item) => this.withSelectionItemContext(shareLinkId, item))
+            .filter((item) => Boolean(item.photo_display_name))
+            .map(
+              (item) =>
+                `${item.gallery_name || 'Unknown gallery'} | ${item.photo_display_name as string}`,
+            )
+            .join('\n')
+        : sessions
+            .flatMap((session) => session.items)
+            .map((item) => this.withSelectionItemContext(shareLinkId, item).photo_display_name)
+            .filter((value): value is string => Boolean(value))
+            .join('|');
     triggerDownload(`selection_${shareLinkId}_lightroom.txt`, content);
   }
 
@@ -1730,12 +2670,9 @@ class DemoServiceStore {
   }
 
   async getPublicPhotosByIds(shareId: string, photoIds: string[]) {
-    const state = this.findByShareId(shareId);
-    if (!state) {
-      throw this.createNotFoundError('Share link not found');
-    }
-
-    const photoMap = new Map(state.photos.map((photo) => [photo.id, photo]));
+    const photoMap = new Map(
+      this.getSelectablePhotosForShareLink(shareId).map(({ photo }) => [photo.id, photo]),
+    );
     return photoIds
       .map((photoId) => photoMap.get(photoId))
       .filter((photo): photo is NonNullable<typeof photo> => Boolean(photo))

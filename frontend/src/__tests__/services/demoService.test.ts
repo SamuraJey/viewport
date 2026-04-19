@@ -49,7 +49,7 @@ const buildDemoState = (expiresAt: string) => ({
   },
 });
 
-describe('demoService.getOwnerShareLinks', () => {
+describe('demoService', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
@@ -69,8 +69,153 @@ describe('demoService.getOwnerShareLinks', () => {
     const active = await service.getOwnerShareLinks(1, 20, undefined, 'active');
     const expired = await service.getOwnerShareLinks(1, 20, undefined, 'expired');
 
-    expect(active.total).toBe(0);
-    expect(expired.total).toBe(1);
-    expect(expired.share_links[0]?.id).toBe('link-1');
+    expect(active.share_links.some((link) => link.id === 'link-1')).toBe(false);
+    expect(expired.share_links.some((link) => link.id === 'link-1')).toBe(true);
+  });
+
+  it('backfills a seeded multi-gallery project for legacy demo state', async () => {
+    localStorage.setItem(
+      DEMO_STATE_STORAGE_KEY,
+      JSON.stringify({
+        galleries: buildDemoState('2026-04-17T12:00:00.000Z').galleries,
+        user: buildDemoState('2026-04-17T12:00:00.000Z').user,
+      }),
+    );
+
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    const projects = await service.getProjects(1, 20);
+    const seededProject = projects.projects.find(
+      (project) => project.name === 'Porto Wedding Delivery',
+    );
+
+    expect(seededProject).toBeTruthy();
+    expect(seededProject?.folder_count).toBe(2);
+
+    const detail = await service.getProject(seededProject!.id);
+    expect(detail.folders.map((folder) => folder.name)).toEqual(['Photos', '3eds']);
+  });
+
+  it('creates multiple galleries inside a project in demo mode', async () => {
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    const project = await service.createProject({ name: 'Client Delivery' });
+
+    await service.createProjectFolder(project.id, { name: 'Photos' });
+    await service.createProjectFolder(project.id, { name: '3eds' });
+
+    const detail = await service.getProject(project.id);
+
+    expect(detail.folder_count).toBe(3);
+    expect(detail.entry_gallery_name).toBe('Client Delivery');
+    expect(detail.folders.map((folder) => folder.name)).toEqual([
+      'Client Delivery',
+      'Photos',
+      '3eds',
+    ]);
+  });
+
+  it('supports one project selection session across multiple listed galleries in demo mode', async () => {
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    const shareLinks = await service.getProjectShareLinks('demo-project-porto-delivery');
+    const projectShareLink = shareLinks.find((link) => link.id === 'sp-demo-project-porto');
+    expect(projectShareLink).toBeTruthy();
+
+    const config = await service.getPublicSelectionConfig(projectShareLink!.id);
+    expect(config.is_enabled).toBe(true);
+
+    const session = await service.startPublicSelectionSession(projectShareLink!.id, {
+      client_name: 'Client Demo',
+    });
+    const resumeToken = session.resume_token ?? undefined;
+
+    const project = await service.getProject('demo-project-porto-delivery');
+    const firstFolderId = project.folders[0].id;
+    const secondFolderId = project.folders[1].id;
+
+    const firstGallery = await service.getSharedGallery(projectShareLink!.id, {
+      folderId: firstFolderId,
+    });
+    const secondGallery = await service.getSharedGallery(projectShareLink!.id, {
+      folderId: secondFolderId,
+    });
+
+    if (firstGallery.scope_type !== 'gallery' || secondGallery.scope_type !== 'gallery') {
+      throw new Error('Expected nested project routes to resolve to gallery payloads');
+    }
+
+    expect(firstGallery.project_navigation?.project_name).toBe('Porto Wedding Delivery');
+    expect(secondGallery.project_navigation?.folders).toHaveLength(2);
+
+    await service.togglePublicSelectionItem(
+      projectShareLink!.id,
+      firstGallery.photos[0].photo_id,
+      resumeToken,
+    );
+    await service.togglePublicSelectionItem(
+      projectShareLink!.id,
+      secondGallery.photos[0].photo_id,
+      resumeToken,
+    );
+
+    const restoredSession = await service.getPublicSelectionSession(
+      projectShareLink!.id,
+      resumeToken,
+    );
+    expect(restoredSession.selected_count).toBe(2);
+    expect(new Set(restoredSession.items.map((item) => item.gallery_name))).toEqual(
+      new Set(['Photos', '3eds']),
+    );
+
+    const selectedPhotos = await service.getPublicPhotosByIds(
+      projectShareLink!.id,
+      restoredSession.items.map((item) => item.photo_id),
+    );
+    expect(selectedPhotos).toHaveLength(2);
+  });
+
+  it('matches production 404 semantics when a project share has no listed galleries', async () => {
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    const project = await service.createProject({ name: 'Hidden Project' });
+    const detail = await service.getProject(project.id);
+
+    for (const folder of detail.folders) {
+      await service.updateGallery(folder.id, { project_visibility: 'direct_only' });
+    }
+
+    const shareLink = await service.createProjectShareLink(project.id, {});
+
+    await expect(service.getSharedGallery(shareLink.id)).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
+  it('deletes a project together with its galleries and share links in demo mode', async () => {
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    const project = await service.createProject({ name: 'Delete Me' });
+    const detail = await service.getProject(project.id);
+    const galleryId = detail.entry_gallery_id;
+    expect(galleryId).toBeTruthy();
+    const projectShareLink = await service.createProjectShareLink(project.id, {});
+    const galleryShareLink = await service.createShareLink(galleryId!, {});
+
+    await service.deleteProject(project.id);
+
+    await expect(service.getProject(project.id)).rejects.toMatchObject({ statusCode: 404 });
+    await expect(service.getGallery(galleryId!)).rejects.toMatchObject({ statusCode: 404 });
+    await expect(service.getSharedGallery(projectShareLink.id)).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    await expect(service.getSharedGallery(galleryShareLink.id)).rejects.toMatchObject({
+      statusCode: 404,
+    });
   });
 });

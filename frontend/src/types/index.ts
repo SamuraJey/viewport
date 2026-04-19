@@ -15,7 +15,17 @@ export type {
   GalleryPhotoQueryOptions,
   GalleryListSortBy,
   GalleryListQueryOptions,
+  ProjectVisibility,
 } from './gallery';
+
+export type {
+  Project,
+  ProjectDetail,
+  ProjectFolderSummary,
+  ProjectListResponse,
+  CreateProjectRequest,
+  UpdateProjectRequest,
+} from './project';
 
 // Photo types
 export type {
@@ -39,6 +49,7 @@ export type {
 
 // Share link types
 export type {
+  ShareScopeType,
   ShareLink,
   ShareLinkDashboardItem,
   ShareLinkAnalyticsItem,
@@ -50,7 +61,9 @@ export type {
   ShareLinkCreateRequest,
   ShareLinkUpdateRequest,
   PublicPhoto,
+  PublicProjectFolder,
   SharedGallery,
+  SharedProjectShare,
   SharedGalleryQueryOptions,
   SelectionConfig,
   SelectionConfigUpdateRequest,

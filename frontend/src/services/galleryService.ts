@@ -29,6 +29,8 @@ const getGalleries = async (
   if (options?.search) params.set('search', options.search);
   if (options?.sort_by) params.set('sort_by', options.sort_by);
   if (options?.order) params.set('order', options.order);
+  if (options?.standalone_only) params.set('standalone_only', 'true');
+  if (options?.project_id) params.set('project_id', options.project_id);
 
   const response = await api.get(`/galleries?${params.toString()}`);
   return response.data;
@@ -54,7 +56,15 @@ const getGallery = async (
   return response.data;
 };
 
-type CreateGalleryPayload = string | { name?: string; shooting_date?: string | null };
+type CreateGalleryPayload =
+  | string
+  | {
+      name?: string;
+      shooting_date?: string | null;
+      project_id?: string | null;
+      project_position?: number;
+      project_visibility?: 'listed' | 'direct_only';
+    };
 
 const createGallery = async (payload: CreateGalleryPayload): Promise<Gallery> => {
   const body = typeof payload === 'string' ? { name: payload } : payload;
@@ -83,6 +93,9 @@ type UpdateGalleryPayload =
       shooting_date?: string | null;
       public_sort_by?: GalleryPhotoSortBy;
       public_sort_order?: SortOrder;
+      project_id?: string | null;
+      project_position?: number;
+      project_visibility?: 'listed' | 'direct_only';
     };
 
 const updateGallery = async (id: string, payload: UpdateGalleryPayload): Promise<Gallery> => {
