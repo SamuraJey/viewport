@@ -483,7 +483,10 @@ class TestProjectAPI:
         assert landing_resp.status_code == 200
         assert landing_resp.json()["scope_type"] == "project"
         assert landing_resp.json()["folders"][0]["route_path"] == f"/share/{project_share_id}/galleries/{folder_id}"
-        nested_folder_resp = authenticated_client.get(f"/s/{project_share_id}/folders/{folder_id}")
+        nested_folder_resp = authenticated_client.get(
+            f"/s/{project_share_id}/folders/{folder_id}",
+            headers={"X-Viewport-Internal-Navigation": "1"},
+        )
         assert nested_folder_resp.status_code == 200
         assert nested_folder_resp.json()["project_navigation"]["scope_type"] == "project"
         assert nested_folder_resp.json()["project_navigation"]["project_name"] == "Analytics Project"
@@ -494,6 +497,83 @@ class TestProjectAPI:
         assert analytics_payload["share_link"]["scope_type"] == "project"
         assert analytics_payload["share_link"]["views"] == 1
         assert analytics_payload["points"][-1]["views_total"] == 1
+
+    def test_project_folder_deep_link_counts_project_share_view(self, authenticated_client: TestClient):
+        project_resp = authenticated_client.post("/projects", json={"name": "Deep Link Project"})
+        assert project_resp.status_code == 201
+        project_payload = project_resp.json()
+        project_id = project_payload["id"]
+        entry_gallery_id = project_payload["entry_gallery_id"]
+
+        hide_entry_resp = authenticated_client.patch(
+            f"/galleries/{entry_gallery_id}",
+            json={"project_visibility": "direct_only"},
+        )
+        assert hide_entry_resp.status_code == 200
+
+        folder_resp = authenticated_client.post(
+            f"/projects/{project_id}/folders",
+            json={"name": "Delivery", "project_visibility": "listed"},
+        )
+        assert folder_resp.status_code == 201
+        folder_id = folder_resp.json()["id"]
+
+        upload_photo_via_presigned(authenticated_client, folder_id, b"folder", "folder.jpg")
+
+        project_share_resp = authenticated_client.post(f"/projects/{project_id}/share-links", json={})
+        assert project_share_resp.status_code == 201
+        project_share_id = project_share_resp.json()["id"]
+
+        deep_link_resp = authenticated_client.get(f"/s/{project_share_id}/galleries/{folder_id}")
+        assert deep_link_resp.status_code == 200
+
+        analytics_resp = authenticated_client.get(f"/share-links/{project_share_id}/analytics?days=30")
+        assert analytics_resp.status_code == 200
+        analytics_payload = analytics_resp.json()
+        assert analytics_payload["share_link"]["views"] == 1
+        assert analytics_payload["points"][-1]["views_total"] == 1
+
+    def test_reorder_project_galleries_endpoint_updates_positions_atomically(self, authenticated_client: TestClient):
+        project_resp = authenticated_client.post("/projects", json={"name": "Atomic Reorder"})
+        assert project_resp.status_code == 201
+        project_payload = project_resp.json()
+        project_id = project_payload["id"]
+        entry_gallery_id = project_payload["entry_gallery_id"]
+
+        first_folder_resp = authenticated_client.post(
+            f"/projects/{project_id}/galleries",
+            json={"name": "First extra", "project_visibility": "listed"},
+        )
+        second_folder_resp = authenticated_client.post(
+            f"/projects/{project_id}/galleries",
+            json={"name": "Second extra", "project_visibility": "listed"},
+        )
+        assert first_folder_resp.status_code == 201
+        assert second_folder_resp.status_code == 201
+        first_folder_id = first_folder_resp.json()["id"]
+        second_folder_id = second_folder_resp.json()["id"]
+
+        reorder_resp = authenticated_client.put(
+            f"/projects/{project_id}/galleries/reorder",
+            json={"gallery_ids": [second_folder_id, entry_gallery_id, first_folder_id]},
+        )
+        assert reorder_resp.status_code == 204
+
+        detail_resp = authenticated_client.get(f"/projects/{project_id}")
+        assert detail_resp.status_code == 200
+        reordered_folders = detail_resp.json()["folders"]
+        assert [folder["id"] for folder in reordered_folders] == [
+            second_folder_id,
+            entry_gallery_id,
+            first_folder_id,
+        ]
+        assert [folder["project_position"] for folder in reordered_folders] == [0, 1, 2]
+
+        invalid_reorder_resp = authenticated_client.put(
+            f"/projects/{project_id}/galleries/reorder",
+            json={"gallery_ids": [second_folder_id, entry_gallery_id]},
+        )
+        assert invalid_reorder_resp.status_code == 400
 
     def test_project_share_cover_and_folder_order_follow_project_positions(self, authenticated_client: TestClient):
         project_resp = authenticated_client.post("/projects", json={"name": "Ordered Project"})

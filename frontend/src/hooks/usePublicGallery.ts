@@ -16,12 +16,14 @@ interface UsePublicGalleryProps {
   shareId: string | undefined;
   galleryId?: string;
   photosPerPage?: number;
+  skipProjectViewCount?: boolean;
 }
 
 export const usePublicGallery = ({
   shareId,
   galleryId,
   photosPerPage = 100,
+  skipProjectViewCount = false,
 }: UsePublicGalleryProps) => {
   const [gallery, setGallery] = useState<SharedGallery | null>(null);
   const [photos, setPhotos] = useState<PublicPhoto[]>([]);
@@ -48,6 +50,7 @@ export const usePublicGallery = ({
         limit: photosPerPage,
         offset: 0,
         galleryId,
+        skipProjectViewCount,
       });
 
       setGallery(data);
@@ -65,7 +68,7 @@ export const usePublicGallery = ({
     } finally {
       setIsLoading(false);
     }
-  }, [galleryId, shareId, photosPerPage]);
+  }, [galleryId, shareId, photosPerPage, skipProjectViewCount]);
 
   const loadMorePhotos = useCallback(async () => {
     if (isLoadingMore || !hasMore || !shareId) return;
@@ -77,6 +80,7 @@ export const usePublicGallery = ({
         limit: photosPerPage,
         offset: currentOffset,
         galleryId,
+        skipProjectViewCount,
       });
 
       const newPhotos = moreData.scope_type === 'project' ? [] : moreData.photos || [];
@@ -93,7 +97,15 @@ export const usePublicGallery = ({
     } finally {
       setIsLoadingMore(false);
     }
-  }, [galleryId, shareId, photos.length, isLoadingMore, hasMore, photosPerPage]);
+  }, [
+    galleryId,
+    shareId,
+    photos.length,
+    isLoadingMore,
+    hasMore,
+    photosPerPage,
+    skipProjectViewCount,
+  ]);
 
   useEffect(() => {
     fetchGalleryData();

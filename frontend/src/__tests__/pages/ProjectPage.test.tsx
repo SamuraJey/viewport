@@ -13,6 +13,7 @@ vi.mock('../../services/projectService', () => ({
     updateProject: vi.fn(),
     deleteProject: vi.fn(),
     createProjectFolder: vi.fn(),
+    reorderProjectGalleries: vi.fn(),
   },
 }));
 
@@ -20,6 +21,7 @@ vi.mock('../../services/shareLinkService', () => ({
   shareLinkService: {
     getProjectShareLinks: vi.fn(),
     createProjectShareLink: vi.fn(),
+    createShareLink: vi.fn(),
     updateProjectShareLink: vi.fn(),
     deleteProjectShareLink: vi.fn(),
     updateShareLinkSelectionConfig: vi.fn(),
@@ -244,6 +246,52 @@ describe('ProjectPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: /move earlier/i }));
 
     expect(await screen.findByText('Reorder project galleries?')).toBeInTheDocument();
+  });
+
+  it('reorders galleries through the atomic project endpoint', async () => {
+    const { projectService } = await import('../../services/projectService');
+
+    renderProjectPage();
+
+    expect(await screen.findByRole('heading', { name: 'Photos' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Change project visibility for 3eds'));
+    fireEvent.click(await screen.findByRole('button', { name: /move earlier/i }));
+
+    expect(projectService.reorderProjectGalleries).toHaveBeenCalledWith('project-1', [
+      'gallery-2',
+      'gallery-1',
+    ]);
+  });
+
+  it('refreshes project state after creating a gallery share link', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+    const { shareLinkService } = await import('../../services/shareLinkService');
+
+    vi.mocked(shareLinkService.createShareLink).mockResolvedValueOnce({
+      id: 'gallery-link-1',
+      gallery_id: 'gallery-1',
+      scope_type: 'gallery',
+      expires_at: null,
+      views: 0,
+      zip_downloads: 0,
+      single_downloads: 0,
+      created_at: '2026-04-18T00:00:00Z',
+    } as any);
+
+    renderProjectPage();
+
+    expect(await screen.findByRole('heading', { name: 'Photos' })).toBeInTheDocument();
+    await user.click(screen.getByLabelText('Share Photos'));
+    await user.click(await screen.findByRole('button', { name: /^Create link$/i }));
+
+    expect(shareLinkService.createShareLink).toHaveBeenCalledWith('gallery-1', {
+      label: null,
+      is_active: true,
+      expires_at: null,
+    });
+    expect(projectService.getProject).toHaveBeenCalledTimes(2);
   });
 
   it('warns before deleting the whole project when project proofing sessions already exist', async () => {

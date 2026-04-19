@@ -36,6 +36,20 @@ class ProjectUpdateRequest(BaseModel):
         return self
 
 
+class ProjectGalleryReorderRequest(BaseModel):
+    gallery_ids: list[str] = Field(..., min_length=1, description="Ordered gallery ids for the project")
+
+    @field_validator("gallery_ids")
+    @classmethod
+    def validate_gallery_ids(cls, value: list[str]) -> list[str]:
+        normalized = [gallery_id.strip() for gallery_id in value if gallery_id.strip()]
+        if len(normalized) != len(value):
+            raise ValueError("Gallery ids cannot be empty")
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("Gallery ids must be unique")
+        return normalized
+
+
 class ProjectFolderSummaryResponse(BaseModel):
     id: str
     owner_id: str

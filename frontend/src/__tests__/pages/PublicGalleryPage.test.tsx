@@ -295,6 +295,7 @@ describe('PublicGalleryPage', () => {
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/share/abc123/galleries/gallery-1', {
         replace: true,
+        state: { skipProjectViewCount: true },
       });
     });
   });

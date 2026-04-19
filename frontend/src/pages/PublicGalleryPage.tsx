@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useNavigationType, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -39,6 +39,10 @@ const createInitialStartForm = (): SelectionSessionStartRequest => ({
   client_note: '',
 });
 
+const INTERNAL_PROJECT_NAVIGATION_STATE = {
+  skipProjectViewCount: true,
+} as const;
+
 export const PublicGalleryPage = () => {
   const { shareId, resumeToken, folderId, galleryId } = useParams<{
     shareId: string;
@@ -46,9 +50,16 @@ export const PublicGalleryPage = () => {
     folderId?: string;
     galleryId?: string;
   }>();
+  const location = useLocation();
   const navigate = useNavigate();
+  const navigationType = useNavigationType();
   const isFavoritesView = Boolean(resumeToken);
   const activeGalleryId = galleryId ?? folderId;
+  const shouldSkipProjectViewCount =
+    Boolean(
+      activeGalleryId &&
+      (location.state as { skipProjectViewCount?: boolean } | null)?.skipProjectViewCount,
+    ) && navigationType !== 'POP';
 
   const [startForm, setStartForm] = useState<SelectionSessionStartRequest>(createInitialStartForm);
   const [startFormError, setStartFormError] = useState('');
@@ -62,7 +73,11 @@ export const PublicGalleryPage = () => {
   const startNameInputRef = useRef<HTMLInputElement | null>(null);
 
   const { gallery, photos, isLoading, isLoadingMore, hasMore, error, errorStatus, loadMorePhotos } =
-    usePublicGallery({ shareId, galleryId: activeGalleryId });
+    usePublicGallery({
+      shareId,
+      galleryId: activeGalleryId,
+      skipProjectViewCount: shouldSkipProjectViewCount,
+    });
 
   const selection = usePublicSelection({
     shareId,
@@ -329,7 +344,10 @@ export const PublicGalleryPage = () => {
       return;
     }
 
-    navigate(projectShare.folders[0].route_path, { replace: true });
+    navigate(projectShare.folders[0].route_path, {
+      replace: true,
+      state: INTERNAL_PROJECT_NAVIGATION_STATE,
+    });
   }, [activeGalleryId, isFavoritesView, navigate, projectShare]);
 
   const handleLogoutSelection = useCallback(() => {
@@ -542,6 +560,7 @@ export const PublicGalleryPage = () => {
                     <Link
                       key={projectGallery.folder_id}
                       to={projectGallery.route_path}
+                      state={INTERNAL_PROJECT_NAVIGATION_STATE}
                       className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
                         isActive
                           ? 'border-accent/50 bg-accent/10 text-accent'

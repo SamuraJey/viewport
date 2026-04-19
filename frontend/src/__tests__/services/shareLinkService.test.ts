@@ -80,6 +80,23 @@ describe('shareLinkService', () => {
     expect(result).toEqual({ photos: [], total_photos: 0 });
   });
 
+  it('sends the internal navigation header when project gallery views should not increment analytics', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { photos: [], total_photos: 0 } } as any);
+
+    await shareLinkService.getSharedGallery('share123', {
+      galleryId: 'gallery-1',
+      skipProjectViewCount: true,
+    });
+
+    expect(api.get).toHaveBeenCalledWith('/s/share123/galleries/gallery-1', {
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+        'X-Viewport-Internal-Navigation': '1',
+      },
+    });
+  });
+
   it('fetches owner share links with a backend status filter', async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { share_links: [], total: 0 } } as any);
 

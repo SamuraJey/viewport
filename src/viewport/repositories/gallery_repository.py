@@ -78,6 +78,56 @@ class GalleryRepository(BaseRepository):
 
         return candidate
 
+    @staticmethod
+    def _bound_project_index(target_index: int | None, length: int) -> int:
+        if target_index is None:
+            return length
+        return max(0, min(target_index, length))
+
+    @staticmethod
+    def _reindex_project_galleries(galleries: list[Gallery]) -> None:
+        for index, gallery in enumerate(galleries):
+            gallery.project_position = index
+
+    async def _get_project_galleries_for_update(
+        self,
+        project_id: uuid.UUID,
+        owner_id: uuid.UUID,
+    ) -> list[Gallery]:
+        stmt = (
+            select(Gallery)
+            .where(
+                Gallery.project_id == project_id,
+                Gallery.owner_id == owner_id,
+                Gallery.is_deleted.is_(False),
+            )
+            .order_by(Gallery.project_position.asc(), Gallery.created_at.asc(), Gallery.id.asc())
+            .with_for_update()
+        )
+        return list((await self.db.execute(stmt)).scalars().all())
+
+    async def reorder_project_galleries(
+        self,
+        project_id: uuid.UUID,
+        owner_id: uuid.UUID,
+        ordered_gallery_ids: list[uuid.UUID],
+    ) -> list[Gallery]:
+        galleries = await self._get_project_galleries_for_update(project_id, owner_id)
+        expected_ids = {gallery.id for gallery in galleries}
+        requested_ids = set(ordered_gallery_ids)
+        if len(ordered_gallery_ids) != len(requested_ids):
+            raise ValueError("Gallery ids must be unique")
+        if requested_ids != expected_ids:
+            raise ValueError("Gallery ids must exactly match the project's galleries")
+
+        galleries_by_id = {gallery.id: gallery for gallery in galleries}
+        reordered_galleries = [galleries_by_id[gallery_id] for gallery_id in ordered_gallery_ids]
+        self._reindex_project_galleries(reordered_galleries)
+        await self.db.commit()
+        for gallery in reordered_galleries:
+            await self.db.refresh(gallery)
+        return reordered_galleries
+
     async def create_gallery(
         self,
         owner_id: uuid.UUID,
@@ -89,26 +139,24 @@ class GalleryRepository(BaseRepository):
         project_position: int | None = None,
         project_visibility: ProjectVisibility | ProjectVisibilitySchema = ProjectVisibility.LISTED,
     ) -> Gallery:
-        resolved_project_position = project_position
-        if project_id is not None and resolved_project_position is None:
-            max_position_stmt = select(func.coalesce(func.max(Gallery.project_position), -1)).where(
-                Gallery.project_id == project_id,
-                Gallery.is_deleted.is_(False),
-            )
-            current_max = int((await self.db.execute(max_position_stmt)).scalar_one() or -1)
-            resolved_project_position = current_max + 1
-
         gallery = Gallery(
             id=uuid.uuid4(),
             owner_id=owner_id,
             project_id=project_id,
-            project_position=resolved_project_position or 0,
+            project_position=0,
             project_visibility=project_visibility.value,
             name=name,
             shooting_date=shooting_date or datetime.now(UTC).date(),
             public_sort_by=public_sort_by.value,
             public_sort_order=public_sort_order.value,
         )
+
+        if project_id is not None:
+            project_galleries = await self._get_project_galleries_for_update(project_id, owner_id)
+            insert_index = self._bound_project_index(project_position, len(project_galleries))
+            project_galleries.insert(insert_index, gallery)
+            self._reindex_project_galleries(project_galleries)
+
         self.db.add(gallery)
         await self.db.commit()
         await self.db.refresh(gallery)
@@ -209,20 +257,36 @@ class GalleryRepository(BaseRepository):
             gallery.shooting_date = shooting_date
             updated = True
         if "project_id" in active_fields:
-            gallery.project_id = project_id
-            if project_id is None:
-                gallery.project_position = 0
-            elif "project_position" not in active_fields:
-                max_position_stmt = select(func.coalesce(func.max(Gallery.project_position), -1)).where(
-                    Gallery.project_id == project_id,
-                    Gallery.id != gallery.id,
-                    Gallery.is_deleted.is_(False),
-                )
-                current_max = int((await self.db.execute(max_position_stmt)).scalar_one() or -1)
-                gallery.project_position = current_max + 1
-            updated = True
-        if "project_position" in active_fields and project_position is not None:
-            gallery.project_position = project_position
+            source_project_id = gallery.project_id
+            target_project_id = project_id
+
+            if source_project_id == target_project_id and "project_position" not in active_fields:
+                gallery.project_id = target_project_id
+                updated = True
+            else:
+                if source_project_id and source_project_id != target_project_id:
+                    source_galleries = await self._get_project_galleries_for_update(source_project_id, owner_id)
+                    self._reindex_project_galleries([entry for entry in source_galleries if entry.id != gallery.id])
+
+                gallery.project_id = target_project_id
+                if target_project_id is None:
+                    gallery.project_position = 0
+                else:
+                    target_galleries = await self._get_project_galleries_for_update(target_project_id, owner_id)
+                    target_galleries = [entry for entry in target_galleries if entry.id != gallery.id]
+                    insert_index = self._bound_project_index(
+                        project_position if "project_position" in active_fields else None,
+                        len(target_galleries),
+                    )
+                    target_galleries.insert(insert_index, gallery)
+                    self._reindex_project_galleries(target_galleries)
+                updated = True
+        elif "project_position" in active_fields and project_position is not None and gallery.project_id is not None:
+            target_galleries = await self._get_project_galleries_for_update(gallery.project_id, owner_id)
+            target_galleries = [entry for entry in target_galleries if entry.id != gallery.id]
+            insert_index = self._bound_project_index(project_position, len(target_galleries))
+            target_galleries.insert(insert_index, gallery)
+            self._reindex_project_galleries(target_galleries)
             updated = True
         if project_visibility is not None:
             gallery.project_visibility = project_visibility.value

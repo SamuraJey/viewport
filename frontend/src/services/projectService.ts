@@ -79,6 +79,17 @@ const createProjectFolder = async (
   return response.data;
 };
 
+const reorderProjectGalleries = async (projectId: string, galleryIds: string[]): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    await getDemoService().reorderProjectGalleries(projectId, galleryIds);
+    return;
+  }
+
+  await api.put(`/projects/${projectId}/galleries/reorder`, {
+    gallery_ids: galleryIds,
+  });
+};
+
 export const projectService = {
   getProjects,
   getProject,
@@ -86,4 +97,5 @@ export const projectService = {
   updateProject,
   deleteProject,
   createProjectFolder,
+  reorderProjectGalleries,
 };

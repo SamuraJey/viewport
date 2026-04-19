@@ -150,12 +150,16 @@ const getSharedGallery = async (
   const basePath = nestedGalleryId ? `/s/${shareId}/galleries/${nestedGalleryId}` : `/s/${shareId}`;
   const queryString = params.toString();
   const url = queryString ? `${basePath}?${queryString}` : basePath;
+  const headers: Record<string, string> = {
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+  };
+  if (options?.skipProjectViewCount) {
+    headers['X-Viewport-Internal-Navigation'] = '1';
+  }
 
   const response = await api.get(url, {
-    headers: {
-      'Cache-Control': 'no-cache',
-      Pragma: 'no-cache',
-    },
+    headers,
   });
   return response.data;
 };

@@ -1210,6 +1210,35 @@ class DemoServiceStore {
       project_visibility: payload.project_visibility,
     });
   }
+
+  async reorderProjectGalleries(projectId: string, galleryIds: string[]): Promise<void> {
+    const project = this.projects.find((entry) => entry.project.id === projectId)?.project;
+    if (!project) {
+      throw this.createNotFoundError('Project not found');
+    }
+
+    const projectGalleries = this.galleries
+      .filter((entry) => entry.gallery.project_id === projectId)
+      .map((entry) => entry.gallery.id);
+    if (
+      galleryIds.length !== projectGalleries.length ||
+      new Set(galleryIds).size !== galleryIds.length ||
+      galleryIds.some((galleryId) => !projectGalleries.includes(galleryId))
+    ) {
+      throw this.createValidationError('Gallery ids must exactly match the project galleries');
+    }
+
+    const orderById = new Map(galleryIds.map((galleryId, index) => [galleryId, index]));
+    this.galleries.forEach((entry) => {
+      if (entry.gallery.project_id === projectId) {
+        entry.gallery.project_position =
+          orderById.get(entry.gallery.id) ?? entry.gallery.project_position;
+      }
+    });
+    this.recalculateProjects();
+    this.persistState();
+  }
+
   async createGallery(payload: {
     name?: string;
     shooting_date?: string | null;
@@ -1813,7 +1842,7 @@ class DemoServiceStore {
     }
 
     const shareLink = projectState.shareLinks.find((link) => link.id === shareId);
-    if (shareLink && !nestedGalleryId) {
+    if (shareLink && (!nestedGalleryId || !options?.skipProjectViewCount)) {
       shareLink.views += 1;
       this.recalculateProjects();
       this.persistState();

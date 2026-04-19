@@ -15,7 +15,7 @@ from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.project_repository import ProjectRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.schemas.gallery import GalleryCreateRequest
-from viewport.schemas.project import ProjectCreateRequest, ProjectDetailResponse, ProjectFolderSummaryResponse, ProjectListResponse, ProjectResponse, ProjectUpdateRequest
+from viewport.schemas.project import ProjectCreateRequest, ProjectDetailResponse, ProjectFolderSummaryResponse, ProjectGalleryReorderRequest, ProjectListResponse, ProjectResponse, ProjectUpdateRequest
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -275,6 +275,30 @@ async def delete_project(
         raise HTTPException(status_code=404, detail="Project not found")
     for gallery_id in deleted_gallery_ids:
         await run_in_threadpool(delete_gallery_data_task.delay, str(gallery_id))
+
+
+@router.put("/{project_id}/folders/reorder", status_code=status.HTTP_204_NO_CONTENT)
+@router.put("/{project_id}/galleries/reorder", status_code=status.HTTP_204_NO_CONTENT)
+async def reorder_project_galleries(
+    project_id: uuid.UUID,
+    request: ProjectGalleryReorderRequest,
+    project_repo: ProjectRepository = Depends(get_project_repository),
+    gallery_repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    project = await project_repo.get_project_by_id_and_owner(project_id, current_user.id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        ordered_gallery_ids = [uuid.UUID(gallery_id) for gallery_id in request.gallery_ids]
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="Invalid gallery id") from exc
+
+    try:
+        await gallery_repo.reorder_project_galleries(project_id, current_user.id, ordered_gallery_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/{project_id}/folders", response_model=ProjectFolderSummaryResponse, status_code=status.HTTP_201_CREATED)

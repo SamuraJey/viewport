@@ -30,6 +30,7 @@ PUBLIC_CACHE_CONTROL_HEADERS = {
     "Pragma": "no-cache",
     "Expires": "0",
 }
+INTERNAL_PROJECT_NAVIGATION_HEADER = "x-viewport-internal-navigation"
 
 
 def _build_content_disposition(filename: str, disposition_type: str = "inline") -> str:
@@ -399,6 +400,7 @@ async def get_project_folder_by_sharelink(
         )
         raise HTTPException(status_code=404, detail="Folder not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
+    record_project_view = request.headers.get(INTERNAL_PROJECT_NAVIGATION_HEADER) != "1"
     project_navigation = await _build_public_project_response(
         share_id=share_id,
         request=request,
@@ -421,7 +423,7 @@ async def get_project_folder_by_sharelink(
         limit=limit,
         offset=offset,
         parent_share_id=share_id,
-        record_view=False,
+        record_view=record_project_view,
         project_navigation=project_navigation,
     )
 

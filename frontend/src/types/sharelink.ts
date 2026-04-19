@@ -110,6 +110,7 @@ export interface SharedGalleryQueryOptions {
   offset?: number;
   galleryId?: string;
   folderId?: string;
+  skipProjectViewCount?: boolean;
 }
 
 export interface SharedFolderShare {

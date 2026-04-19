@@ -300,10 +300,9 @@ export const ProjectPage = () => {
 
     setIsReorderingFolder(folderId);
     try {
-      await Promise.all(
-        updates.map(({ folder, index }) =>
-          galleryService.updateGallery(folder.id, { project_position: index }),
-        ),
+      await projectService.reorderProjectGalleries(
+        projectId,
+        reorderedFolders.map((folder) => folder.id),
       );
       await loadProject();
     } catch (err) {
@@ -405,7 +404,9 @@ export const ProjectPage = () => {
       throw new Error('Gallery not selected');
     }
 
-    return shareLinkService.createShareLink(sharingGallery.id, payload);
+    const created = await shareLinkService.createShareLink(sharingGallery.id, payload);
+    await loadProject();
+    return created;
   };
 
   if (isLoading) {
