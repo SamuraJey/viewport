@@ -173,6 +173,15 @@ const getProjectShareLinks = async (projectId: string): Promise<ShareLink[]> => 
   return response.data;
 };
 
+const getProjectWarningShareLinks = async (projectId: string): Promise<ShareLink[]> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getProjectWarningShareLinks(projectId);
+  }
+
+  const response = await api.get<ShareLink[]>(`/projects/${projectId}/share-links/warnings`);
+  return response.data;
+};
+
 const createProjectShareLink = async (
   projectId: string,
   payload?: ShareLinkCreateRequest,
@@ -632,6 +641,7 @@ export const shareLinkService = {
   getShareLinks,
   createShareLink,
   getProjectShareLinks,
+  getProjectWarningShareLinks,
   createProjectShareLink,
   updateProjectShareLink,
   deleteProjectShareLink,

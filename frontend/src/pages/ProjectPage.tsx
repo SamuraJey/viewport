@@ -75,6 +75,7 @@ export const ProjectPage = () => {
   const { openConfirm, ConfirmModal } = useConfirmation();
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
+  const [warningShareLinks, setWarningShareLinks] = useState<ShareLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isFolderDialogOpen, setIsFolderDialogOpen] = useState(false);
@@ -97,12 +98,14 @@ export const ProjectPage = () => {
     setIsLoading(true);
     try {
       setError('');
-      const [projectResponse, links] = await Promise.all([
+      const [projectResponse, links, warningLinks] = await Promise.all([
         projectService.getProject(projectId),
         shareLinkService.getProjectShareLinks(projectId),
+        shareLinkService.getProjectWarningShareLinks(projectId),
       ]);
       setProject(projectResponse);
       setShareLinks(links);
+      setWarningShareLinks(warningLinks);
     } catch (err) {
       setError(handleApiError(err).message || 'Failed to load project');
     } finally {
@@ -123,8 +126,8 @@ export const ProjectPage = () => {
     [project?.folders],
   );
 
-  const projectSelectionWarningSummary = useMemo(() => {
-    const affectedLinks = shareLinks.filter((link) => {
+  const buildSelectionWarningSummary = useCallback((links: ShareLink[]) => {
+    const affectedLinks = links.filter((link) => {
       const summary = link.selection_summary;
       return Boolean(
         summary && (summary.in_progress_sessions > 0 || summary.submitted_sessions > 0),
@@ -147,18 +150,50 @@ export const ProjectPage = () => {
       totalSensitiveSessions: inProgressSessions + submittedSessions,
       hasSensitiveSessions: affectedLinks.length > 0,
     };
-  }, [shareLinks]);
+  }, []);
+
+  const projectSelectionWarningSummary = useMemo(
+    () => buildSelectionWarningSummary(shareLinks),
+    [buildSelectionWarningSummary, shareLinks],
+  );
+
+  const deleteProjectSelectionWarningSummary = useMemo(
+    () => buildSelectionWarningSummary(warningShareLinks),
+    [buildSelectionWarningSummary, warningShareLinks],
+  );
+
+  const buildSelectionWarningLabel = useCallback(
+    (
+      summary: {
+        affectedLinks: ShareLink[];
+        totalSensitiveSessions: number;
+        hasSensitiveSessions: boolean;
+      },
+      linkDescriptor: string,
+    ) => {
+      if (!summary.hasSensitiveSessions) {
+        return '';
+      }
+
+      const sessionLabel = summary.totalSensitiveSessions === 1 ? 'session' : 'sessions';
+      const linkLabel = summary.affectedLinks.length === 1 ? 'link' : 'links';
+      return `${summary.totalSensitiveSessions} active/submitted selection ${sessionLabel} across ${summary.affectedLinks.length} ${linkDescriptor} ${linkLabel}`;
+    },
+    [],
+  );
 
   const projectSelectionWarningLabel = useMemo(() => {
     if (!projectSelectionWarningSummary.hasSensitiveSessions) {
       return '';
     }
 
-    const sessionLabel =
-      projectSelectionWarningSummary.totalSensitiveSessions === 1 ? 'session' : 'sessions';
-    const linkLabel = projectSelectionWarningSummary.affectedLinks.length === 1 ? 'link' : 'links';
-    return `${projectSelectionWarningSummary.totalSensitiveSessions} active/submitted selection ${sessionLabel} across ${projectSelectionWarningSummary.affectedLinks.length} project ${linkLabel}`;
-  }, [projectSelectionWarningSummary]);
+    return buildSelectionWarningLabel(projectSelectionWarningSummary, 'project');
+  }, [buildSelectionWarningLabel, projectSelectionWarningSummary]);
+
+  const deleteProjectSelectionWarningLabel = useMemo(
+    () => buildSelectionWarningLabel(deleteProjectSelectionWarningSummary, 'share'),
+    [buildSelectionWarningLabel, deleteProjectSelectionWarningSummary],
+  );
 
   const handleCreateFolder = async () => {
     if (!folderDraft.name.trim()) {
@@ -250,8 +285,17 @@ export const ProjectPage = () => {
   };
 
   const handleDeleteGallery = (gallery: Gallery) => {
-    const warningMessage = projectSelectionWarningSummary.hasSensitiveSessions
-      ? ` This project currently has ${projectSelectionWarningLabel}. Deleting "${gallery.name || `Gallery #${gallery.id}`}" can remove photos that clients already selected from live project proofing.`
+    const deleteGallerySelectionWarningSummary = buildSelectionWarningSummary(
+      warningShareLinks.filter(
+        (link) => link.scope_type === 'project' || link.gallery_id === gallery.id,
+      ),
+    );
+    const deleteGallerySelectionWarningLabel = buildSelectionWarningLabel(
+      deleteGallerySelectionWarningSummary,
+      'share',
+    );
+    const warningMessage = deleteGallerySelectionWarningSummary.hasSensitiveSessions
+      ? ` This project currently has ${deleteGallerySelectionWarningLabel}. Deleting "${gallery.name || `Gallery #${gallery.id}`}" can remove photos that clients already selected from live project proofing.`
       : '';
 
     openConfirm({
@@ -349,8 +393,8 @@ export const ProjectPage = () => {
   };
 
   const requestDeleteProject = () => {
-    const warningMessage = projectSelectionWarningSummary.hasSensitiveSessions
-      ? ` This project currently has ${projectSelectionWarningLabel}. Deleting the whole project can invalidate active proofing sessions and remove photos clients already selected.`
+    const warningMessage = deleteProjectSelectionWarningSummary.hasSensitiveSessions
+      ? ` This project currently has ${deleteProjectSelectionWarningLabel}. Deleting the whole project can invalidate active proofing sessions and remove photos clients already selected.`
       : '';
 
     openConfirm({

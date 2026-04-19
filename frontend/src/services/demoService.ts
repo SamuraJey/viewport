@@ -1513,6 +1513,30 @@ class DemoServiceStore {
     }));
   }
 
+  async getProjectWarningShareLinks(projectId: string): Promise<ShareLink[]> {
+    const projectState = this.projects.find((entry) => entry.project.id === projectId);
+    if (!projectState) {
+      throw this.createNotFoundError('Project not found');
+    }
+
+    const projectLinks = projectState.shareLinks.map((link) => ({
+      ...link,
+      selection_summary: this.buildSelectionSummary(projectState, link.id),
+    }));
+    const galleryLinks = this.galleries
+      .filter((entry) => entry.gallery.project_id === projectId)
+      .flatMap((entry) =>
+        entry.shareLinks.map((link) => ({
+          ...link,
+          scope_type: link.scope_type ?? 'gallery',
+          gallery_id: entry.gallery.id,
+          selection_summary: this.buildSelectionSummary(entry, link.id),
+        })),
+      );
+
+    return [...projectLinks, ...galleryLinks];
+  }
+
   async createProjectShareLink(
     projectId: string,
     payload?: ShareLinkCreateRequest,

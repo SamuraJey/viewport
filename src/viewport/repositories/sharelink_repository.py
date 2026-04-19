@@ -181,6 +181,36 @@ class ShareLinkRepository(BaseRepository):
         rows = [(row[0], row[1], row[2]) for row in (await self.db.execute(stmt)).all()]
         return await self._finish_read((rows, total, summary))
 
+    async def get_sharelinks_for_project_warnings(
+        self,
+        project_id: uuid.UUID,
+        owner_id: uuid.UUID,
+    ) -> list[ShareLink]:
+        stmt = (
+            select(ShareLink)
+            .outerjoin(ShareLink.gallery)
+            .outerjoin(ShareLink.project)
+            .where(
+                or_(
+                    and_(
+                        ShareLink.scope_type == ShareScopeType.PROJECT.value,
+                        ShareLink.project_id == project_id,
+                        Project.owner_id == owner_id,
+                        Project.is_deleted.is_(False),
+                    ),
+                    and_(
+                        ShareLink.scope_type == ShareScopeType.GALLERY.value,
+                        Gallery.project_id == project_id,
+                        Gallery.owner_id == owner_id,
+                        Gallery.is_deleted.is_(False),
+                    ),
+                )
+            )
+            .order_by(ShareLink.updated_at.desc(), ShareLink.created_at.desc())
+        )
+        sharelinks = list((await self.db.execute(stmt)).scalars().all())
+        return await self._finish_read(sharelinks)
+
     async def get_photo_count_by_gallery(self, gallery_id: uuid.UUID) -> int:
         stmt = select(func.count()).select_from(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
         count = int((await self.db.execute(stmt)).scalar() or 0)

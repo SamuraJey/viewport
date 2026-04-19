@@ -296,6 +296,49 @@ class TestProjectAPI:
         assert len(search_items) == 1
         assert search_items[0]["scope_type"] == "project"
 
+    def test_project_warning_sharelinks_include_gallery_scoped_selection_summaries(
+        self,
+        authenticated_client: TestClient,
+    ):
+        project_resp = authenticated_client.post("/projects", json={"name": "Warnings Project"})
+        assert project_resp.status_code == 201
+        project_id = project_resp.json()["id"]
+        gallery_id = project_resp.json()["entry_gallery_id"]
+
+        project_link_resp = authenticated_client.post(
+            f"/projects/{project_id}/share-links",
+            json={"label": "Project proof"},
+        )
+        gallery_link_resp = authenticated_client.post(
+            f"/galleries/{gallery_id}/share-links",
+            json={"label": "Direct proof"},
+        )
+        assert project_link_resp.status_code == 201
+        assert gallery_link_resp.status_code == 201
+        gallery_share_id = gallery_link_resp.json()["id"]
+
+        config_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id}/share-links/{gallery_share_id}/selection-config",
+            json={"is_enabled": True},
+        )
+        assert config_resp.status_code == 200
+
+        session_resp = authenticated_client.post(
+            f"/s/{gallery_share_id}/selection/session",
+            json={"client_name": "Direct Proof Client"},
+        )
+        assert session_resp.status_code == 200
+
+        warning_links_resp = authenticated_client.get(f"/projects/{project_id}/share-links/warnings")
+        assert warning_links_resp.status_code == 200
+        warning_links = warning_links_resp.json()
+
+        assert {item["scope_type"] for item in warning_links} == {"project", "gallery"}
+        gallery_warning_link = next(item for item in warning_links if item["scope_type"] == "gallery")
+        assert gallery_warning_link["gallery_id"] == gallery_id
+        assert gallery_warning_link["selection_summary"]["is_enabled"] is True
+        assert gallery_warning_link["selection_summary"]["in_progress_sessions"] == 1
+
     def test_project_share_selection_supports_multi_gallery_picks(
         self,
         authenticated_client: TestClient,

@@ -20,6 +20,7 @@ vi.mock('../../services/projectService', () => ({
 vi.mock('../../services/shareLinkService', () => ({
   shareLinkService: {
     getProjectShareLinks: vi.fn(),
+    getProjectWarningShareLinks: vi.fn(),
     createProjectShareLink: vi.fn(),
     createShareLink: vi.fn(),
     updateProjectShareLink: vi.fn(),
@@ -143,6 +144,21 @@ describe('ProjectPage', () => {
         updated_at: '2026-04-18T00:00:00Z',
       },
     ] as any);
+    vi.mocked(shareLinkService.getProjectWarningShareLinks).mockResolvedValue([
+      {
+        id: 'link-1',
+        scope_type: 'project',
+        project_id: 'project-1',
+        label: 'Client proofing',
+        is_active: true,
+        expires_at: null,
+        views: 0,
+        zip_downloads: 0,
+        single_downloads: 0,
+        created_at: '2026-04-18T00:00:00Z',
+        updated_at: '2026-04-18T00:00:00Z',
+      },
+    ] as any);
   });
 
   it('reuses the gallery share-links section UI for project links', async () => {
@@ -196,6 +212,9 @@ describe('ProjectPage', () => {
     vi.mocked(shareLinkService.getProjectShareLinks).mockResolvedValueOnce([
       projectProofingShareLink(),
     ] as any);
+    vi.mocked(shareLinkService.getProjectWarningShareLinks).mockResolvedValueOnce([
+      projectProofingShareLink(),
+    ] as any);
 
     renderProjectPage();
 
@@ -216,6 +235,9 @@ describe('ProjectPage', () => {
     vi.mocked(shareLinkService.getProjectShareLinks).mockResolvedValueOnce([
       projectProofingShareLink(),
     ] as any);
+    vi.mocked(shareLinkService.getProjectWarningShareLinks).mockResolvedValueOnce([
+      projectProofingShareLink(),
+    ] as any);
 
     renderProjectPage();
 
@@ -233,6 +255,9 @@ describe('ProjectPage', () => {
     const { shareLinkService } = await import('../../services/shareLinkService');
 
     vi.mocked(shareLinkService.getProjectShareLinks).mockResolvedValueOnce([
+      projectProofingShareLink(),
+    ] as any);
+    vi.mocked(shareLinkService.getProjectWarningShareLinks).mockResolvedValueOnce([
       projectProofingShareLink(),
     ] as any);
 
@@ -301,6 +326,9 @@ describe('ProjectPage', () => {
     vi.mocked(shareLinkService.getProjectShareLinks).mockResolvedValueOnce([
       projectProofingShareLink(),
     ] as any);
+    vi.mocked(shareLinkService.getProjectWarningShareLinks).mockResolvedValueOnce([
+      projectProofingShareLink(),
+    ] as any);
 
     renderProjectPage();
 
@@ -315,6 +343,70 @@ describe('ProjectPage', () => {
       screen.getByText(
         /can invalidate active proofing sessions and remove photos clients already selected/i,
       ),
+    ).toBeInTheDocument();
+  });
+
+  it('warns before deleting a gallery when only a direct gallery share has active selection sessions', async () => {
+    const user = userEvent.setup();
+    const { shareLinkService } = await import('../../services/shareLinkService');
+
+    vi.mocked(shareLinkService.getProjectShareLinks).mockResolvedValueOnce([] as any);
+    vi.mocked(shareLinkService.getProjectWarningShareLinks).mockResolvedValueOnce([
+      {
+        id: 'gallery-link-1',
+        scope_type: 'gallery',
+        gallery_id: 'gallery-2',
+        label: 'Direct 3eds proof',
+        is_active: true,
+        expires_at: null,
+        views: 0,
+        zip_downloads: 0,
+        single_downloads: 0,
+        created_at: '2026-04-18T00:00:00Z',
+        updated_at: '2026-04-18T00:00:00Z',
+        selection_summary: projectSelectionSummary,
+      },
+    ] as any);
+
+    renderProjectPage();
+
+    await screen.findByRole('heading', { name: 'Photos' });
+    await user.click(screen.getByLabelText('Delete 3eds'));
+
+    expect(
+      await screen.findByText(/active\/submitted selection sessions across 1 share link/i),
+    ).toBeInTheDocument();
+  });
+
+  it('warns before deleting the whole project when only a direct gallery share has active selection sessions', async () => {
+    const user = userEvent.setup();
+    const { shareLinkService } = await import('../../services/shareLinkService');
+
+    vi.mocked(shareLinkService.getProjectShareLinks).mockResolvedValueOnce([] as any);
+    vi.mocked(shareLinkService.getProjectWarningShareLinks).mockResolvedValueOnce([
+      {
+        id: 'gallery-link-1',
+        scope_type: 'gallery',
+        gallery_id: 'gallery-1',
+        label: 'Direct Photos proof',
+        is_active: true,
+        expires_at: null,
+        views: 0,
+        zip_downloads: 0,
+        single_downloads: 0,
+        created_at: '2026-04-18T00:00:00Z',
+        updated_at: '2026-04-18T00:00:00Z',
+        selection_summary: projectSelectionSummary,
+      },
+    ] as any);
+
+    renderProjectPage();
+
+    await screen.findByRole('heading', { name: 'Photos' });
+    await user.click(screen.getByRole('button', { name: /delete project/i }));
+
+    expect(
+      await screen.findByText(/active\/submitted selection sessions across 1 share link/i),
     ).toBeInTheDocument();
   });
 });

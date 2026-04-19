@@ -182,6 +182,35 @@ async def list_project_sharelinks(
     ]
 
 
+@project_router.get("/warnings", response_model=list[ScopedShareLinkResponse])
+async def list_project_warning_sharelinks(
+    project_id: UUID,
+    project_repo: ProjectRepository = Depends(get_project_repository),
+    sharelink_repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    selection_repo: SelectionRepository = Depends(get_selection_repository),
+    user=Depends(get_current_user),
+) -> list[ScopedShareLinkResponse]:
+    project = await project_repo.get_project_by_id_and_owner(project_id, user.id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    sharelinks = await sharelink_repo.get_sharelinks_for_project_warnings(project_id, user.id)
+    selection_summaries = await selection_repo.get_sharelink_selection_summaries(
+        [sharelink.id for sharelink in sharelinks],
+    )
+    empty_selection_summary = (False, 0, 0, 0, 0, 0, None)
+    return [
+        ScopedShareLinkResponse.model_validate(sharelink).model_copy(
+            update={
+                "selection_summary": _to_selection_summary_response(
+                    *selection_summaries.get(sharelink.id, empty_selection_summary),
+                ),
+            }
+        )
+        for sharelink in sharelinks
+    ]
+
+
 @project_router.post("", response_model=ScopedShareLinkResponse, status_code=status.HTTP_201_CREATED)
 async def create_project_sharelink(
     project_id: UUID,
