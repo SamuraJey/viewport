@@ -80,12 +80,14 @@ function App() {
 
           {/* Public gallery sharing route */}
           <Route path="/share/:shareId" element={<PublicGalleryPage />} />
+          <Route path="/share/:shareId/galleries/:galleryId" element={<PublicGalleryPage />} />
           <Route path="/share/:shareId/folders/:folderId" element={<PublicGalleryPage />} />
           <Route path="/share/:shareId/favorites/:resumeToken" element={<PublicGalleryPage />} />
 
           {/* Protected routes */}
           <Route element={<ProtectedLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/projects/:projectId/galleries/:galleryId" element={<GalleryPage />} />
             <Route path="/galleries/:id" element={<GalleryPage />} />
             <Route path="/projects/:id" element={<ProjectPage />} />
             <Route path="/share-links" element={<ShareLinksDashboardPage />} />

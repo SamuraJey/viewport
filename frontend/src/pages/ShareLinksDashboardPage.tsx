@@ -566,7 +566,11 @@ export const ShareLinksDashboardPage = () => {
                             </Link>
                           ) : (
                             <Link
-                              to={`/galleries/${link.gallery_id}`}
+                              to={
+                                link.project_id
+                                  ? `/projects/${link.project_id}/galleries/${link.gallery_id}`
+                                  : `/galleries/${link.gallery_id}`
+                              }
                               className="inline-flex min-w-0 items-center gap-2 font-medium text-text transition-colors hover:text-accent"
                             >
                               <GalleryVerticalEnd className="h-4 w-4 shrink-0" />

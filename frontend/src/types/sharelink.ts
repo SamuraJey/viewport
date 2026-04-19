@@ -108,7 +108,9 @@ export interface PublicProjectFolder {
 export interface SharedGalleryQueryOptions {
   limit?: number;
   offset?: number;
+  galleryId?: string;
   folderId?: string;
+  navigationOnly?: boolean;
 }
 
 export interface SharedFolderShare {

@@ -75,7 +75,7 @@ const createProjectFolder = async (
   if (isDemoModeEnabled()) {
     return getDemoService().createProjectFolder(projectId, payload);
   }
-  const response = await api.post(`/projects/${projectId}/folders`, payload ?? {});
+  const response = await api.post(`/projects/${projectId}/galleries`, payload ?? {});
   return response.data;
 };
 

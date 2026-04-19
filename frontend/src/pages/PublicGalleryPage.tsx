@@ -40,13 +40,15 @@ const createInitialStartForm = (): SelectionSessionStartRequest => ({
 });
 
 export const PublicGalleryPage = () => {
-  const { shareId, resumeToken, folderId } = useParams<{
+  const { shareId, resumeToken, folderId, galleryId } = useParams<{
     shareId: string;
     resumeToken?: string;
     folderId?: string;
+    galleryId?: string;
   }>();
   const navigate = useNavigate();
   const isFavoritesView = Boolean(resumeToken);
+  const activeGalleryId = galleryId ?? folderId;
 
   const [startForm, setStartForm] = useState<SelectionSessionStartRequest>(createInitialStartForm);
   const [startFormError, setStartFormError] = useState('');
@@ -58,10 +60,11 @@ export const PublicGalleryPage = () => {
   const [selectedPhotosError, setSelectedPhotosError] = useState('');
   const [isLoadingSelectedPhotos, setIsLoadingSelectedPhotos] = useState(false);
   const [projectNavigation, setProjectNavigation] = useState<SharedProjectShare | null>(null);
+  const [projectNavigationShareId, setProjectNavigationShareId] = useState<string | null>(null);
   const startNameInputRef = useRef<HTMLInputElement | null>(null);
 
   const { gallery, photos, isLoading, isLoadingMore, hasMore, error, errorStatus, loadMorePhotos } =
-    usePublicGallery({ shareId, folderId });
+    usePublicGallery({ shareId, galleryId: activeGalleryId });
 
   const selection = usePublicSelection({
     shareId,
@@ -321,11 +324,17 @@ export const PublicGalleryPage = () => {
   useEffect(() => {
     if (!shareId || isFavoritesView) {
       setProjectNavigation(null);
+      setProjectNavigationShareId(null);
       return;
     }
 
-    if (!folderId) {
+    if (projectShare) {
       setProjectNavigation(projectShare);
+      setProjectNavigationShareId(shareId);
+      return;
+    }
+
+    if (!activeGalleryId || (projectNavigation && projectNavigationShareId === shareId)) {
       return;
     }
 
@@ -333,14 +342,23 @@ export const PublicGalleryPage = () => {
 
     const loadProjectNavigation = async () => {
       try {
-        const response = await shareLinkService.getSharedGallery(shareId);
+        const response = await shareLinkService.getSharedGallery(shareId, {
+          navigationOnly: true,
+        });
         if (cancelled) {
           return;
         }
-        setProjectNavigation(response.scope_type === 'project' ? response : null);
+        if (response.scope_type === 'project') {
+          setProjectNavigation(response);
+          setProjectNavigationShareId(shareId);
+          return;
+        }
+        setProjectNavigation(null);
+        setProjectNavigationShareId(null);
       } catch {
         if (!cancelled) {
           setProjectNavigation(null);
+          setProjectNavigationShareId(null);
         }
       }
     };
@@ -350,15 +368,22 @@ export const PublicGalleryPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [folderId, isFavoritesView, projectShare, shareId]);
+  }, [
+    activeGalleryId,
+    isFavoritesView,
+    projectNavigation,
+    projectNavigationShareId,
+    projectShare,
+    shareId,
+  ]);
 
   useEffect(() => {
-    if (isFavoritesView || folderId || !projectShare?.folders.length) {
+    if (isFavoritesView || activeGalleryId || !projectShare?.folders.length) {
       return;
     }
 
     navigate(projectShare.folders[0].route_path, { replace: true });
-  }, [folderId, isFavoritesView, navigate, projectShare]);
+  }, [activeGalleryId, isFavoritesView, navigate, projectShare]);
 
   const handleLogoutSelection = useCallback(() => {
     if (!shareId) {
@@ -466,7 +491,7 @@ export const PublicGalleryPage = () => {
     return <PublicGalleryError error={error} />;
   }
 
-  if (isProjectShare && !folderId && !isFavoritesView) {
+  if (isProjectShare && !activeGalleryId && !isFavoritesView) {
     if (projectShare.folders.length === 0) {
       return (
         <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
@@ -564,7 +589,8 @@ export const PublicGalleryPage = () => {
               <div className="flex min-w-max gap-2">
                 {projectGalleryTabs.folders.map((projectGallery, index) => {
                   const isActive =
-                    projectGallery.folder_id === folderId || (!folderId && index === 0);
+                    projectGallery.folder_id === activeGalleryId ||
+                    (!activeGalleryId && index === 0);
                   return (
                     <Link
                       key={projectGallery.folder_id}

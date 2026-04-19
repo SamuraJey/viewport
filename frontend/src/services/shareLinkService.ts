@@ -145,10 +145,12 @@ const getSharedGallery = async (
   if (options?.offset !== undefined) {
     params.append('offset', options.offset.toString());
   }
+  if (options?.navigationOnly) {
+    params.append('record_view', 'false');
+  }
 
-  const basePath = options?.folderId
-    ? `/s/${shareId}/folders/${options.folderId}`
-    : `/s/${shareId}`;
+  const nestedGalleryId = options?.galleryId ?? options?.folderId;
+  const basePath = nestedGalleryId ? `/s/${shareId}/galleries/${nestedGalleryId}` : `/s/${shareId}`;
   const queryString = params.toString();
   const url = queryString ? `${basePath}?${queryString}` : basePath;
 

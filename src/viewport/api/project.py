@@ -33,6 +33,7 @@ async def _build_project_response(
 ) -> ProjectResponse:
     folder_count = await repo.get_project_folder_count(project.id, listed_only=False)
     listed_folder_count = await repo.get_project_folder_count(project.id, listed_only=True)
+    entry_gallery = await repo.get_project_entry_gallery(project.id, owner_id=project.owner_id, listed_only=False)
     total_photo_count = await repo.get_project_total_photo_count(project.id, listed_only=False)
     total_size_bytes = await repo.get_project_total_size(project.id, listed_only=False)
     has_active_share_links = await repo.has_active_share_links(project.id)
@@ -47,6 +48,11 @@ async def _build_project_response(
         shooting_date=project.shooting_date,
         folder_count=folder_count,
         listed_folder_count=listed_folder_count,
+        gallery_count=folder_count,
+        visible_gallery_count=listed_folder_count,
+        entry_gallery_id=str(entry_gallery.id) if entry_gallery else None,
+        entry_gallery_name=entry_gallery.name if entry_gallery else None,
+        has_entry_gallery=entry_gallery is not None,
         total_photo_count=total_photo_count,
         total_size_bytes=total_size_bytes,
         has_active_share_links=has_active_share_links,
@@ -114,7 +120,12 @@ async def create_project(
     current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
 ) -> ProjectResponse:
-    project = await repo.create_project(current_user.id, request.name, request.shooting_date)
+    project, _ = await repo.create_project_with_initial_gallery(
+        current_user.id,
+        request.name,
+        request.shooting_date,
+        initial_gallery_name=request.initial_gallery_name,
+    )
     return await _build_project_response(project, repo, s3_client)
 
 
@@ -178,6 +189,7 @@ async def delete_project(
 
 
 @router.post("/{project_id}/folders", response_model=ProjectFolderSummaryResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{project_id}/galleries", response_model=ProjectFolderSummaryResponse, status_code=status.HTTP_201_CREATED)
 async def create_project_folder(
     project_id: uuid.UUID,
     request: GalleryCreateRequest,

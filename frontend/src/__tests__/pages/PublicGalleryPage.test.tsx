@@ -13,7 +13,12 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 let PublicGalleryPage: any;
 const mockNavigate = vi.fn();
-let mockRouteParams: { shareId: string; resumeToken?: string; folderId?: string } = {
+let mockRouteParams: {
+  shareId: string;
+  resumeToken?: string;
+  folderId?: string;
+  galleryId?: string;
+} = {
   shareId: 'abc123',
 };
 
@@ -70,14 +75,14 @@ const mockProjectShare = {
       folder_id: 'gallery-1',
       folder_name: 'Photos',
       photo_count: 5,
-      route_path: '/share/abc123/folders/gallery-1',
+      route_path: '/share/abc123/galleries/gallery-1',
       direct_share_path: null,
     },
     {
       folder_id: 'gallery-2',
       folder_name: '3eds',
       photo_count: 3,
-      route_path: '/share/abc123/folders/gallery-2',
+      route_path: '/share/abc123/galleries/gallery-2',
       direct_share_path: null,
     },
   ],
@@ -287,7 +292,7 @@ describe('PublicGalleryPage', () => {
     render(wrapper());
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/share/abc123/folders/gallery-1', {
+      expect(mockNavigate).toHaveBeenCalledWith('/share/abc123/galleries/gallery-1', {
         replace: true,
       });
     });
@@ -295,9 +300,9 @@ describe('PublicGalleryPage', () => {
 
   it('renders a horizontal project gallery list without preview cards', async () => {
     const { shareLinkService } = await import('../../services/shareLinkService');
-    mockRouteParams = { shareId: 'abc123', folderId: 'gallery-2' };
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-2' };
     vi.mocked(shareLinkService.getSharedGallery).mockImplementation(async (_shareId, options) => {
-      if (options?.folderId) {
+      if (options?.galleryId) {
         return { ...mockProjectGallery, gallery_name: '3eds' } as any;
       }
       return mockProjectShare as any;
@@ -317,11 +322,52 @@ describe('PublicGalleryPage', () => {
     expect(container.querySelector('img[src="/full/project-cover.jpg"]')).not.toBeNull();
   });
 
+  it('reuses loaded project navigation instead of refetching the root project share on gallery switches', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-1' };
+    vi.mocked(shareLinkService.getSharedGallery).mockImplementation(async (_shareId, options) => {
+      if (options?.galleryId === 'gallery-2') {
+        return { ...mockProjectGallery, gallery_name: '3eds' } as any;
+      }
+      if (options?.galleryId) {
+        return mockProjectGallery as any;
+      }
+      return mockProjectShare as any;
+    });
+
+    const { rerender } = render(wrapper());
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Photos' })).toBeInTheDocument();
+    });
+
+    const getRootProjectCalls = () =>
+      vi
+        .mocked(shareLinkService.getSharedGallery)
+        .mock.calls.filter(([, options]) => !options?.galleryId && !options?.folderId).length;
+
+    expect(getRootProjectCalls()).toBe(1);
+    expect(
+      vi
+        .mocked(shareLinkService.getSharedGallery)
+        .mock.calls.find(([, options]) => !options?.galleryId && !options?.folderId)?.[1],
+    ).toEqual({ navigationOnly: true });
+
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-2' };
+    rerender(wrapper());
+
+    await waitFor(() => {
+      expect(screen.getByText('3eds')).toBeInTheDocument();
+    });
+
+    expect(getRootProjectCalls()).toBe(1);
+  });
+
   it('keeps a sticky project selection bar visible while browsing project galleries', async () => {
     const { shareLinkService } = await import('../../services/shareLinkService');
-    mockRouteParams = { shareId: 'abc123', folderId: 'gallery-1' };
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-1' };
     vi.mocked(shareLinkService.getSharedGallery).mockImplementation(async (_shareId, options) => {
-      if (options?.folderId) {
+      if (options?.galleryId) {
         return mockProjectGallery as any;
       }
       return mockProjectShare as any;

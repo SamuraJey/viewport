@@ -245,6 +245,7 @@ async def _build_public_project_response(
     gallery_repo: GalleryRepository,
     s3_client: AsyncS3Client,
     sharelink: ShareLink,
+    record_view: bool = True,
 ) -> PublicProjectResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
 
@@ -253,6 +254,9 @@ async def _build_public_project_response(
         raise HTTPException(status_code=404, detail="Project not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
     folders = await project_repo.get_visible_project_folders(project.id)
+    if not folders:
+        raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+
     project_cover = await _build_project_cover(
         gallery=folders[0] if folders else None,
         gallery_repo=gallery_repo,
@@ -280,17 +284,18 @@ async def _build_public_project_response(
                 folder_name=folder.name,
                 photo_count=photo_count,
                 cover_thumbnail_url=cover_thumbnail_url,
-                route_path=f"/share/{share_id}/folders/{folder.id}",
+                route_path=f"/share/{share_id}/galleries/{folder.id}",
                 direct_share_path=None,
             )
         )
 
-    client_ip = request.client.host if request.client else None
-    await ShareLinkRepository(project_repo.db).record_view(
-        share_id,
-        ip_address=client_ip,
-        user_agent=request.headers.get("user-agent"),
-    )
+    if record_view:
+        client_ip = request.client.host if request.client else None
+        await ShareLinkRepository(project_repo.db).record_view(
+            share_id,
+            ip_address=client_ip,
+            user_agent=request.headers.get("user-agent"),
+        )
 
     owner = getattr(project, "owner", None)
     photographer = getattr(owner, "display_name", None) or ""
@@ -324,6 +329,7 @@ async def get_photos_by_sharelink(
     share_id: UUID,
     request: Request,
     response: Response,
+    record_view: bool = Query(True, description="Whether to count this project-share response as a view"),
     limit: int | None = Query(None, ge=1, le=500, description="Limit number of photos to return"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
@@ -341,6 +347,7 @@ async def get_photos_by_sharelink(
             gallery_repo=gallery_repo,
             s3_client=s3_client,
             sharelink=sharelink,
+            record_view=record_view,
         )
 
     gallery = sharelink.gallery
@@ -360,6 +367,7 @@ async def get_photos_by_sharelink(
 
 
 @router.get("/{share_id}/folders/{folder_id}", response_model=PublicGalleryResponse)
+@router.get("/{share_id}/galleries/{folder_id}", response_model=PublicGalleryResponse)
 async def get_project_folder_by_sharelink(
     share_id: UUID,
     folder_id: UUID,

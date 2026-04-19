@@ -827,6 +827,10 @@ class DemoServiceStore {
       const listedFolders = folders.filter(
         (folder) => (folder.project_visibility ?? 'listed') === 'listed',
       );
+      const sortedFolders = [...folders].sort(
+        (left, right) => (left.project_position ?? 0) - (right.project_position ?? 0),
+      );
+      const entryGallery = sortedFolders[0] ?? null;
       const totalPhotoCount = folders.reduce((sum, folder) => sum + (folder.photo_count || 0), 0);
       const totalSizeBytes = folders.reduce(
         (sum, folder) => sum + (folder.total_size_bytes || 0),
@@ -840,6 +844,11 @@ class DemoServiceStore {
         ...entry,
         project: {
           ...entry.project,
+          entry_gallery_id: entryGallery?.id ?? null,
+          entry_gallery_name: entryGallery?.name ?? null,
+          gallery_count: folderCount,
+          listed_gallery_count: listedFolders.length,
+          has_entry_gallery: Boolean(entryGallery),
           folder_count: folderCount,
           listed_folder_count: listedFolders.length,
           total_photo_count: totalPhotoCount,
@@ -1096,14 +1105,24 @@ class DemoServiceStore {
     };
   }
 
-  async createProject(payload: { name?: string; shooting_date?: string | null }): Promise<Project> {
+  async createProject(payload: {
+    name?: string;
+    shooting_date?: string | null;
+    initial_gallery_name?: string | null;
+  }): Promise<Project> {
     const createdAt = nowIso();
+    const projectName = payload.name?.trim() || 'Untitled Project';
     const project: Project = {
       id: makeDemoId(),
       owner_id: DEMO_OWNER_ID,
-      name: payload.name?.trim() || 'Untitled Project',
+      name: projectName,
       created_at: createdAt,
       shooting_date: payload.shooting_date || createdAt,
+      entry_gallery_id: null,
+      entry_gallery_name: null,
+      gallery_count: 0,
+      listed_gallery_count: 0,
+      has_entry_gallery: false,
       folder_count: 0,
       listed_folder_count: 0,
       total_photo_count: 0,
@@ -1112,9 +1131,18 @@ class DemoServiceStore {
       recent_folder_thumbnail_urls: [],
     };
     this.projects.unshift({ project, shareLinks: [] });
+    await this.createGallery({
+      name: payload.initial_gallery_name?.trim() || projectName,
+      shooting_date: payload.shooting_date,
+      project_id: project.id,
+      project_position: 0,
+      project_visibility: 'listed',
+    });
     this.recalculateProjects();
     this.persistState();
-    return { ...project };
+    return {
+      ...(this.projects.find((entry) => entry.project.id === project.id)?.project ?? project),
+    };
   }
 
   async updateProject(
@@ -1179,16 +1207,30 @@ class DemoServiceStore {
     const project = payload.project_id
       ? (this.projects.find((entry) => entry.project.id === payload.project_id)?.project ?? null)
       : null;
+
+    if (!project) {
+      const createdProject = await this.createProject({
+        name: payload.name?.trim() || 'Untitled Project',
+        shooting_date: payload.shooting_date,
+        initial_gallery_name: payload.name,
+      });
+      const entryGalleryId = createdProject.entry_gallery_id;
+      if (!entryGalleryId) {
+        throw this.createConflictError('Failed to create initial project gallery');
+      }
+      return toGalleryWithComputedFields(this.getGalleryState(entryGalleryId));
+    }
+
     const projectPosition =
       typeof payload.project_position === 'number'
         ? payload.project_position
-        : this.galleries.filter((entry) => entry.gallery.project_id === payload.project_id).length;
+        : this.galleries.filter((entry) => entry.gallery.project_id === project.id).length;
     const gallery: Gallery = {
       id: makeDemoId(),
       owner_id: DEMO_OWNER_ID,
-      project_id: project?.id ?? payload.project_id ?? null,
+      project_id: project.id,
       project_name: project?.name ?? null,
-      project_position: project?.id ? projectPosition : 0,
+      project_position: projectPosition,
       project_visibility: payload.project_visibility ?? 'listed',
       name: payload.name?.trim() || 'Untitled Gallery',
       created_at: createdAt,
@@ -1748,15 +1790,20 @@ class DemoServiceStore {
     if (!projectState) {
       throw this.createNotFoundError('Gallery not found or link expired');
     }
+    const nestedGalleryId = options?.galleryId ?? options?.folderId;
+    const listedFolderStates = this.galleries
+      .filter((entry) => entry.gallery.project_id === projectState.project.id)
+      .filter((entry) => (entry.gallery.project_visibility ?? 'listed') === 'listed');
+    if (!nestedGalleryId && listedFolderStates.length === 0) {
+      throw this.createNotFoundError('Gallery not found or link expired');
+    }
+
     const shareLink = projectState.shareLinks.find((link) => link.id === shareId);
-    if (shareLink) {
+    if (shareLink && !options?.navigationOnly) {
       shareLink.views += 1;
       this.recalculateProjects();
       this.persistState();
     }
-    const listedFolderStates = this.galleries
-      .filter((entry) => entry.gallery.project_id === projectState.project.id)
-      .filter((entry) => (entry.gallery.project_visibility ?? 'listed') === 'listed');
     const listedFolders = listedFolderStates
       .map((entry) => toGalleryWithComputedFields(entry))
       .sort((left, right) => (left.project_position ?? 0) - (right.project_position ?? 0));
@@ -1771,8 +1818,8 @@ class DemoServiceStore {
         : leftmostFolderState.photos[0]
       : null;
 
-    if (options?.folderId) {
-      const folderState = listedFolderStates.find((entry) => entry.gallery.id === options.folderId);
+    if (nestedGalleryId) {
+      const folderState = listedFolderStates.find((entry) => entry.gallery.id === nestedGalleryId);
       if (!folderState) {
         throw this.createNotFoundError('Folder not found');
       }
@@ -1843,7 +1890,7 @@ class DemoServiceStore {
         photo_count: folder.photo_count,
         cover_thumbnail_url:
           folder.cover_photo_thumbnail_url ?? folder.recent_photo_thumbnail_urls[0] ?? null,
-        route_path: `/share/${shareId}/folders/${folder.id}`,
+        route_path: `/share/${shareId}/galleries/${folder.id}`,
         direct_share_path: null,
       })),
     };

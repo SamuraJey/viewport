@@ -6,6 +6,11 @@ export interface Project {
   name: string;
   created_at: string;
   shooting_date: string;
+  entry_gallery_id?: string | null;
+  entry_gallery_name?: string | null;
+  gallery_count?: number;
+  listed_gallery_count?: number;
+  has_entry_gallery?: boolean;
   folder_count: number;
   listed_folder_count: number;
   total_photo_count: number;
@@ -46,6 +51,7 @@ export interface ProjectListResponse {
 export interface CreateProjectRequest {
   name?: string;
   shooting_date?: string | null;
+  initial_gallery_name?: string | null;
 }
 
 export interface UpdateProjectRequest {

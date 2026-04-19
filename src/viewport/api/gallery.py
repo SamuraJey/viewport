@@ -185,17 +185,26 @@ async def create_gallery(
         project = await project_repo.get_project_by_id_and_owner(parsed_project_id, current_user.id)
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
-
-    gallery = await repo.create_gallery(
-        current_user.id,
-        request.name,
-        request.shooting_date,
-        public_sort_by=request.public_sort_by,
-        public_sort_order=request.public_sort_order,
-        project_id=parsed_project_id,
-        project_position=request.project_position,
-        project_visibility=GalleryProjectVisibility(request.project_visibility.value),
-    )
+        gallery = await repo.create_gallery(
+            current_user.id,
+            request.name,
+            request.shooting_date,
+            public_sort_by=request.public_sort_by,
+            public_sort_order=request.public_sort_order,
+            project_id=parsed_project_id,
+            project_position=request.project_position,
+            project_visibility=GalleryProjectVisibility(request.project_visibility.value),
+        )
+    else:
+        _, gallery = await project_repo.create_project_with_initial_gallery(
+            current_user.id,
+            request.name,
+            request.shooting_date,
+            initial_gallery_name=request.name,
+            public_sort_by=request.public_sort_by,
+            public_sort_order=request.public_sort_order,
+            project_visibility=GalleryProjectVisibility(request.project_visibility.value),
+        )
 
     return await _build_gallery_response(gallery, repo, project_repo, s3_client)
 
@@ -326,10 +335,15 @@ async def get_gallery_detail(
 
     total_time = time.monotonic() - start_time
     logger.info("Gallery %s: URL generation took %.3fs (%s URLs, %.0f URLs/s), total time: %.3fs", gallery_id, url_time, urls_generated, urls_per_second, total_time)
+    project_name = await _get_project_name(gallery, project_repo)
 
     return GalleryDetailResponse(
         id=str(gallery.id),
         owner_id=str(gallery.owner_id),
+        project_id=str(gallery.project_id) if gallery.project_id else None,
+        project_name=project_name,
+        project_position=int(getattr(gallery, "project_position", 0) or 0),
+        project_visibility=getattr(gallery, "project_visibility", "listed"),
         name=gallery.name,
         created_at=gallery.created_at,
         shooting_date=gallery.shooting_date,
@@ -476,6 +490,19 @@ async def update_gallery(
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
 ) -> GalleryResponse:
     parsed_project_id: uuid.UUID | None = None
+    detach_to_new_project = "project_id" in request.model_fields_set and request.project_id is None
+    current_gallery = None
+    if detach_to_new_project:
+        current_gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+        if not current_gallery:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
+
+        compatibility_project = await project_repo.create_project(
+            current_user.id,
+            request.name if request.name is not None else current_gallery.name,
+            request.shooting_date if request.shooting_date is not None else current_gallery.shooting_date,
+        )
+        parsed_project_id = compatibility_project.id
     if "project_id" in request.model_fields_set and request.project_id is not None:
         try:
             parsed_project_id = uuid.UUID(str(request.project_id))

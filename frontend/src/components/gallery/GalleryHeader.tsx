@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -56,6 +56,11 @@ const parseSortValue = (
 
 interface GalleryHeaderProps {
   gallery: GalleryDetail;
+  title?: string;
+  subtitle?: ReactNode;
+  backTo?: string;
+  backLabel?: string;
+  projectNavigation?: ReactNode;
   visiblePhotoCount: number;
   totalPhotoCount: number;
   isLoadingPhotos: boolean;
@@ -79,6 +84,11 @@ interface GalleryHeaderProps {
 
 export const GalleryHeader = ({
   gallery,
+  title,
+  subtitle,
+  backTo = '/dashboard',
+  backLabel = 'Back to Galleries',
+  projectNavigation,
   visiblePhotoCount,
   totalPhotoCount,
   isLoadingPhotos,
@@ -110,6 +120,8 @@ export const GalleryHeader = ({
     SORT_OPTIONS.find((option) => option.value === DEFAULT_PRIVATE_SORT)!.label;
   const hasCustomPublicSort = activePublicSortValue !== DEFAULT_PUBLIC_SORT;
   const isDefaultPrivateSort = activeSortValue === DEFAULT_PRIVATE_SORT;
+
+  const resolvedTitle = title || gallery.name || `Gallery #${gallery.id}`;
 
   useLayoutEffect(() => {
     const heading = titleRef.current;
@@ -149,7 +161,7 @@ export const GalleryHeader = ({
       resizeObserver?.disconnect();
       window.removeEventListener('resize', recalc);
     };
-  }, [gallery.name]);
+  }, [resolvedTitle]);
 
   useEffect(() => {
     const handleOpenPublicSort = () => {
@@ -172,19 +184,21 @@ export const GalleryHeader = ({
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 max-w-full space-y-5">
             <Link
-              to="/dashboard"
+              to={backTo}
               className="inline-flex h-10 w-fit items-center gap-2.5 rounded-xl border border-border/60 bg-surface-1 px-4 text-sm font-semibold text-muted transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:bg-accent/5 hover:text-accent hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to Galleries
+              {backLabel}
             </Link>
             <h1
               ref={titleRef}
               style={{ fontSize: `${titleFontSizePx}px` }}
               className="max-w-full whitespace-normal wrap-break-word font-oswald font-bold uppercase leading-tight tracking-wide text-text drop-shadow-xs"
             >
-              {gallery.name || `Gallery #${gallery.id}`}
+              {resolvedTitle}
             </h1>
+            {subtitle ? <div className="max-w-full">{subtitle}</div> : null}
+            {projectNavigation ? <div className="max-w-full">{projectNavigation}</div> : null}
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">

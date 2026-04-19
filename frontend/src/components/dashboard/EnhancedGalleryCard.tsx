@@ -37,6 +37,11 @@ interface EnhancedGalleryCardProps {
 const makeGalleryTitle = (gallery: Gallery): string =>
   gallery.name || `Gallery #${gallery.id.slice(0, 8)}`;
 
+const resolveGalleryPath = (gallery: Gallery): string =>
+  gallery.project_id
+    ? `/projects/${gallery.project_id}/galleries/${gallery.id}`
+    : `/galleries/${gallery.id}`;
+
 export const EnhancedGalleryCard = ({
   gallery,
   isRenamingThis,
@@ -210,7 +215,7 @@ export const EnhancedGalleryCard = ({
         </div>
       ) : (
         <Link
-          to={`/galleries/${gallery.id}`}
+          to={resolveGalleryPath(gallery)}
           className="flex flex-1 flex-col p-4 no-underline transition-colors hover:bg-surface-1 dark:hover:bg-surface-dark-1"
         >
           <div className="flex flex-1 flex-col justify-center">

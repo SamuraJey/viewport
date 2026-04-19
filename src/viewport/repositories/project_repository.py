@@ -3,10 +3,15 @@ from datetime import UTC, date, datetime
 
 from sqlalchemy import func, or_, select
 
+from viewport.gallery_constants import PUBLIC_GALLERY_SORT_BY_DEFAULT, PUBLIC_GALLERY_SORT_ORDER_DEFAULT
 from viewport.models.gallery import Gallery, Photo, ProjectVisibility
 from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.repositories.base_repository import BaseRepository
+from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
+
+DEFAULT_PUBLIC_SORT_BY = GalleryPhotoSortBy(PUBLIC_GALLERY_SORT_BY_DEFAULT)
+DEFAULT_PUBLIC_SORT_ORDER = SortOrder(PUBLIC_GALLERY_SORT_ORDER_DEFAULT)
 
 
 class ProjectRepository(BaseRepository):
@@ -26,6 +31,47 @@ class ProjectRepository(BaseRepository):
         await self.db.commit()
         await self.db.refresh(project)
         return project
+
+    async def create_project_with_initial_gallery(
+        self,
+        owner_id: uuid.UUID,
+        name: str,
+        shooting_date: date | None = None,
+        *,
+        initial_gallery_name: str | None = None,
+        public_sort_by: GalleryPhotoSortBy = DEFAULT_PUBLIC_SORT_BY,
+        public_sort_order: SortOrder = DEFAULT_PUBLIC_SORT_ORDER,
+        project_visibility: ProjectVisibility = ProjectVisibility.LISTED,
+    ) -> tuple[Project, Gallery]:
+        resolved_shooting_date = shooting_date or datetime.now(UTC).date()
+        project = Project(
+            owner_id=owner_id,
+            name=name,
+            shooting_date=resolved_shooting_date,
+        )
+        gallery = Gallery(
+            owner_id=owner_id,
+            project=project,
+            project_position=0,
+            project_visibility=project_visibility.value,
+            name=initial_gallery_name if initial_gallery_name is not None else name,
+            shooting_date=resolved_shooting_date,
+            public_sort_by=public_sort_by.value,
+            public_sort_order=public_sort_order.value,
+        )
+
+        self.db.add(project)
+        self.db.add(gallery)
+        try:
+            await self.db.flush()
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
+
+        await self.db.refresh(project)
+        await self.db.refresh(gallery)
+        return project, gallery
 
     async def get_projects_by_owner(
         self,
@@ -100,6 +146,26 @@ class ProjectRepository(BaseRepository):
         )
         galleries = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read(galleries)
+
+    async def get_project_entry_gallery(
+        self,
+        project_id: uuid.UUID,
+        *,
+        owner_id: uuid.UUID | None = None,
+        listed_only: bool = False,
+    ) -> Gallery | None:
+        filters = [
+            Gallery.project_id == project_id,
+            Gallery.is_deleted.is_(False),
+        ]
+        if owner_id is not None:
+            filters.append(Gallery.owner_id == owner_id)
+        if listed_only:
+            filters.append(Gallery.project_visibility == ProjectVisibility.LISTED.value)
+
+        stmt = select(Gallery).where(*filters).order_by(Gallery.project_position.asc(), Gallery.created_at.asc(), Gallery.id.asc()).limit(1)
+        gallery = (await self.db.execute(stmt)).scalar_one_or_none()
+        return await self._finish_read(gallery)
 
     async def get_project_folder_count(self, project_id: uuid.UUID, *, listed_only: bool) -> int:
         filters = [Gallery.project_id == project_id, Gallery.is_deleted.is_(False)]

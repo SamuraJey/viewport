@@ -1,11 +1,11 @@
 # Projects and Galleries
 
-Viewport now supports a two-level organization model:
+Viewport now runs in a project-first mode:
 
 - **Project** = photographer-facing parent container
-- **Gallery** = gallery inside a project, or a standalone gallery when `project_id` is `null`
+- **Gallery** = the internal upload/photo unit that always lives inside a project
 
-This keeps the existing upload/photo pipeline gallery-based while adding project-level grouping and sharing.
+This keeps the existing upload/photo pipeline gallery-based while making **projects** the only top-level concept in the product.
 
 ## Core model
 
@@ -55,7 +55,15 @@ Only one target is allowed per share link:
 
 `GET /s/{share_id}` returns a project response with listed galleries only.
 
-`GET /s/{share_id}/folders/{folder_id}` opens a gallery from the project share only when that gallery is `listed`.
+The canonical nested public route is:
+
+- `GET /s/{share_id}/galleries/{gallery_id}`
+
+The legacy alias:
+
+- `GET /s/{share_id}/folders/{folder_id}`
+
+still works for compatibility and opens a gallery from the project share only when that gallery is `listed`.
 
 Shared project UX is gallery-tab based:
 
@@ -69,7 +77,7 @@ Shared project UX is gallery-tab based:
 For `project_visibility = "direct_only"`:
 
 - the gallery is **not shown** in project share responses
-- the gallery is **not reachable** through `/s/{project_share_id}/folders/{folder_id}`
+- the gallery is **not reachable** through `/s/{project_share_id}/galleries/{gallery_id}`
 - the gallery **is reachable** through its own direct gallery share link
 
 ### Link lifecycle semantics
@@ -88,6 +96,7 @@ Project management:
 - `GET /projects/{project_id}`
 - `PATCH /projects/{project_id}`
 - `DELETE /projects/{project_id}`
+- `POST /projects/{project_id}/galleries`
 - `POST /projects/{project_id}/folders`
 
 Project share management:
@@ -97,15 +106,23 @@ Project share management:
 - `PATCH /projects/{project_id}/share-links/{sharelink_id}`
 - `DELETE /projects/{project_id}/share-links/{sharelink_id}`
 
+Creation semantics are project-first:
+
+- `POST /projects` creates the project **and its initial gallery**
+- the initial gallery defaults to the project name unless `initial_gallery_name` is provided
+- `POST /galleries` remains a compatibility entrypoint and now auto-wraps the created gallery into a new one-gallery project
+
 Gallery endpoints still work and now accept project placement fields where relevant.
 
 ## Frontend surfaces
 
-- `DashboardPage.tsx` shows **Projects** and **Standalone galleries**
-- `ProjectPage.tsx` manages project galleries and project share links using the same gallery cards as standalone galleries
+- `DashboardPage.tsx` shows **Projects** only
+- creating a project immediately gives the user a first gallery and the dashboard navigates directly to that entry gallery
+- `ProjectPage.tsx` remains the owner surface for project metadata, gallery visibility/order, and project-scoped share links
 - project gallery visibility and ordering are managed from in-card actions; order is persisted via `project_position`
 - when project share links already have active or submitted selection sessions, risky changes (hide as `direct_only`, delete gallery, reorder gallery) warn the owner before proceeding
-- `GalleryPage.tsx` remains photo-first for gallery-level work
+- `GalleryPage.tsx` remains photo-first for gallery-level work, but its canonical owner route is `/projects/{project_id}/galleries/{gallery_id}`
+- the legacy owner route `/galleries/{gallery_id}` still works and redirects into the owning project when possible
 - `PublicGalleryPage.tsx` now renders either:
   - a gallery share page with photos, or
   - a project share page that opens the first listed gallery, keeps a project-scoped hero, renders a horizontal list of gallery names, and keeps a sticky selection bar visible during proofing
@@ -120,6 +137,7 @@ Gallery endpoints still work and now accept project placement fields where relev
 
 ## Backward compatibility
 
+- Existing standalone galleries are backfilled into projects with one gallery each
 - Existing gallery share links are preserved as `scope_type = "gallery"`
 - Gallery-scoped selection/favorites remains unchanged
 - Project shares can now expose selection flows without creating per-gallery proofing links

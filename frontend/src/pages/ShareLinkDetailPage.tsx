@@ -1099,7 +1099,11 @@ export const ShareLinkDetailPage = () => {
             </Link>
           ) : (
             <Link
-              to={`/galleries/${analytics.share_link.gallery_id}`}
+              to={
+                analytics.share_link.project_id
+                  ? `/projects/${analytics.share_link.project_id}/galleries/${analytics.share_link.gallery_id}`
+                  : `/galleries/${analytics.share_link.gallery_id}`
+              }
               className="inline-flex items-center gap-2 text-sm font-semibold text-accent hover:underline"
             >
               Open source gallery: {analytics.share_link.gallery_name}

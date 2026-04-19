@@ -108,8 +108,13 @@ describe('demoService', () => {
 
     const detail = await service.getProject(project.id);
 
-    expect(detail.folder_count).toBe(2);
-    expect(detail.folders.map((folder) => folder.name)).toEqual(['Photos', '3eds']);
+    expect(detail.folder_count).toBe(3);
+    expect(detail.entry_gallery_name).toBe('Client Delivery');
+    expect(detail.folders.map((folder) => folder.name)).toEqual([
+      'Client Delivery',
+      'Photos',
+      '3eds',
+    ]);
   });
 
   it('supports one project selection session across multiple listed galleries in demo mode', async () => {
@@ -168,5 +173,23 @@ describe('demoService', () => {
       restoredSession.items.map((item) => item.photo_id),
     );
     expect(selectedPhotos).toHaveLength(2);
+  });
+
+  it('matches production 404 semantics when a project share has no listed galleries', async () => {
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    const project = await service.createProject({ name: 'Hidden Project' });
+    const detail = await service.getProject(project.id);
+
+    for (const folder of detail.folders) {
+      await service.updateGallery(folder.id, { project_visibility: 'direct_only' });
+    }
+
+    const shareLink = await service.createProjectShareLink(project.id, {});
+
+    await expect(service.getSharedGallery(shareLink.id)).rejects.toMatchObject({
+      statusCode: 404,
+    });
   });
 });
