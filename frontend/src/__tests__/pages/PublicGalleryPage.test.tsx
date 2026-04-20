@@ -202,6 +202,45 @@ describe('PublicGalleryPage', () => {
     expect(document.getElementById('gallery-content')).toBeInTheDocument();
   });
 
+  it('starts favorites from the corner heart without the redundant helper panel', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.getPublicSelectionConfig).mockResolvedValue({
+      is_enabled: true,
+      list_title: 'Selected photos',
+      limit_enabled: false,
+      limit_value: null,
+      allow_photo_comments: false,
+      require_name: true,
+      require_email: false,
+      require_phone: false,
+      require_client_note: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+
+    render(wrapper());
+
+    await waitFor(() => {
+      expect(screen.getByText('Photos')).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByText(
+        'Use the heart button on a photo to start building a shortlist for the photographer.',
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /open selection panel/i })).not.toBeInTheDocument();
+
+    const firstCard = screen.getAllByTestId('public-batch')[0];
+    const favoriteButton = within(firstCard).getByRole('button', {
+      name: /add 1.jpg to favorites/i,
+    });
+
+    await userEvent.click(favoriteButton);
+
+    expect(await screen.findByRole('heading', { name: /start selection/i })).toBeInTheDocument();
+  });
+
   it('opens photo lightbox when clicking a photo', async () => {
     render(wrapper());
 

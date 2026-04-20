@@ -64,7 +64,6 @@ export const PublicGalleryPage = () => {
   const [startForm, setStartForm] = useState<SelectionSessionStartRequest>(createInitialStartForm);
   const [startFormError, setStartFormError] = useState('');
   const [sessionNoteDraft, setSessionNoteDraft] = useState('');
-  const [showSelectionSection, setShowSelectionSection] = useState(false);
   const [openFavoritesAfterStart, setOpenFavoritesAfterStart] = useState(false);
   const [entryLinkCopied, setEntryLinkCopied] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<PublicPhoto[]>([]);
@@ -112,24 +111,6 @@ export const PublicGalleryPage = () => {
   useEffect(() => {
     setSessionNoteDraft(selection.session?.client_note ?? '');
   }, [selection.session?.client_note]);
-
-  useEffect(() => {
-    if (selection.showStartModal || selection.session) {
-      setShowSelectionSection(true);
-      return;
-    }
-
-    if (selection.config?.is_enabled) {
-      const timeoutId = window.setTimeout(() => {
-        setShowSelectionSection(false);
-      }, 0);
-      return () => {
-        window.clearTimeout(timeoutId);
-      };
-    }
-
-    setShowSelectionSection(false);
-  }, [selection.config?.is_enabled, selection.session, selection.showStartModal]);
 
   useEffect(() => {
     if (!shareId || !isFavoritesView) {
@@ -523,10 +504,10 @@ export const PublicGalleryPage = () => {
       <main
         id="main-content"
         tabIndex={-1}
-        className={`w-full px-4 py-16 sm:px-6 lg:px-10 ${showStickyProjectSelectionBar ? 'pb-36 sm:pb-40' : ''}`}
+        className={`w-full px-4 pt-8 pb-16 sm:px-6 sm:pt-10 lg:px-10 ${showStickyProjectSelectionBar ? 'pb-36 sm:pb-40' : ''}`}
       >
         {projectGalleryTabs ? (
-          <section className="mb-6 rounded-2xl border border-border/50 bg-surface-1/70 p-4 shadow-xs">
+          <section className="mb-6 space-y-4 border-b border-border/40 pb-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
@@ -578,7 +559,7 @@ export const PublicGalleryPage = () => {
           </section>
         ) : null}
 
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/50 bg-surface-1/70 px-4 py-3 shadow-xs">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-border/40 pb-4">
           <div className="flex flex-wrap items-center gap-2">
             {isFavoritesView ? (
               <button
@@ -589,12 +570,17 @@ export const PublicGalleryPage = () => {
                 <ArrowLeft className="h-4 w-4" />
                 Back to gallery
               </button>
+            ) : selection.config?.is_enabled ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                <span className="font-medium text-text">
+                  {selection.config.list_title || 'Favorites'}
+                </span>
+                {selection.config.limit_enabled && selection.config.limit_value ? (
+                  <span className="text-muted">Limit {selection.config.limit_value}</span>
+                ) : null}
+              </div>
             ) : (
-              <p className="text-sm text-muted">
-                {selection.config?.is_enabled
-                  ? `${selection.config.list_title || 'Favorites'} enabled`
-                  : 'Browse and download the gallery'}
-              </p>
+              <p className="text-sm text-muted">Browse and download the gallery</p>
             )}
           </div>
 
@@ -613,6 +599,12 @@ export const PublicGalleryPage = () => {
               <button
                 type="button"
                 onClick={handleOpenFavorites}
+                aria-label={
+                  selection.session
+                    ? `Open favorites (${selection.session.selected_count} selected)`
+                    : 'Start favorites'
+                }
+                title={selection.session ? 'Open favorites' : 'Start favorites'}
                 className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
                   isFavoritesView
                     ? 'bg-accent text-accent-foreground'
@@ -637,6 +629,16 @@ export const PublicGalleryPage = () => {
               </button>
             ) : null}
 
+            {selection.session && !isFavoritesView ? (
+              <button
+                type="button"
+                onClick={selection.startNewSession}
+                className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
+              >
+                New session
+              </button>
+            ) : null}
+
             {selection.session ? (
               <button
                 type="button"
@@ -649,69 +651,6 @@ export const PublicGalleryPage = () => {
             ) : null}
           </div>
         </div>
-
-        {selection.config?.is_enabled && !isFavoritesView ? (
-          <div className="mb-8 rounded-3xl border border-border/50 bg-surface-1/70 p-6 shadow-xs">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
-                  Favorites
-                </p>
-                <h2 className="text-2xl font-semibold text-text">
-                  {selection.config.list_title || 'Selected photos'}
-                </h2>
-                <p className="max-w-2xl text-sm text-muted">
-                  {selection.session
-                    ? `You already have a saved selection with ${selection.session.selected_count} chosen photo${selection.session.selected_count === 1 ? '' : 's'}.`
-                    : 'Use the heart button on a photo to start building a shortlist for the photographer.'}
-                </p>
-                {selection.config.limit_enabled && selection.config.limit_value ? (
-                  <p className="text-sm text-muted">
-                    Limit: {selection.config.limit_value} photo
-                    {selection.config.limit_value === 1 ? '' : 's'}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {selection.session ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleOpenFavorites}
-                      className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground"
-                    >
-                      Open favorites
-                    </button>
-                    <button
-                      type="button"
-                      onClick={selection.startNewSession}
-                      className="rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
-                    >
-                      Start new session
-                    </button>
-                  </>
-                ) : showSelectionSection ? (
-                  <button
-                    type="button"
-                    onClick={() => handleOpenSelectionStart(false)}
-                    className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground"
-                  >
-                    Start selection
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowSelectionSection(true)}
-                    className="rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
-                  >
-                    Open selection panel
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        ) : null}
 
         {isFavoritesView ? (
           <div className="mb-8 rounded-3xl border border-border/50 bg-surface-1/70 p-6 text-center shadow-xs">
@@ -795,7 +734,7 @@ export const PublicGalleryPage = () => {
           emptyTitle={isFavoritesView ? 'No photos selected yet' : 'No photos in this gallery'}
           emptyDescription={
             isFavoritesView
-              ? 'Use the heart button on gallery photos to add them to this shortlist.'
+              ? 'Use the corner heart on any gallery photo to add it to this shortlist.'
               : 'This gallery appears to be empty. Check back later for updates.'
           }
           gridClassNames={gridClassNames}
@@ -1026,7 +965,7 @@ export const PublicGalleryPage = () => {
                   <span className="text-muted">Status: {selection.session.status}</span>
                 ) : (
                   <span className="text-muted">
-                    Start selecting in any gallery to keep one shared shortlist.
+                    Use the corner heart in any gallery to keep one shared shortlist.
                   </span>
                 )}
               </div>

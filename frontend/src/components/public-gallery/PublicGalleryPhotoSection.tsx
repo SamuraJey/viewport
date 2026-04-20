@@ -1,5 +1,5 @@
 import type { MutableRefObject, TouchEventHandler } from 'react';
-import { ImageOff, Loader2 } from 'lucide-react';
+import { Heart, ImageOff, Loader2 } from 'lucide-react';
 import { LazyImage } from '../LazyImage';
 import { PublicGalleryGridControls } from './PublicGalleryGridControls';
 import type { PublicGridDensity, PublicGridLayout } from '../../hooks/usePublicGalleryGrid';
@@ -65,15 +65,15 @@ export const PublicGalleryPhotoSection = ({
   selection,
 }: PublicGalleryPhotoSectionProps) => {
   return (
-    <div
+    <section
       id="gallery-content"
       tabIndex={-1}
-      className="bg-surface-foreground/5 rounded-3xl border border-border/50 p-6 shadow-xs sm:p-8"
+      className="space-y-6 pt-1 sm:space-y-8"
       {...touchHandlers}
       style={{ touchAction: 'pan-y' }}
     >
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="flex items-center gap-2 text-2xl font-bold text-text">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="flex items-center gap-2 text-2xl font-bold text-text sm:text-3xl">
           {sectionTitle}{' '}
           <span className="text-lg font-medium text-muted">
             ({displayedPhotos}
@@ -97,11 +97,18 @@ export const PublicGalleryPhotoSection = ({
                 displayName: photo.filename,
                 filename: photo.filename,
               });
+              const isSelected = selection?.selectedIds.has(photo.photo_id) ?? false;
+              const selectionButtonLabel = isSelected
+                ? `Remove ${accessiblePhotoName} from favorites`
+                : `Add ${accessiblePhotoName} to favorites`;
+              const isSelectionLocked = Boolean(selection?.session && !selection.canMutate);
 
               return (
                 <div
                   key={photo.photo_id}
-                  className={`pg-card relative group overflow-hidden rounded-xl transition-all duration-200 hover:shadow-md ${gridLayout === 'uniform' ? 'pg-card--uniform' : ''}`}
+                  className={`pg-card group relative overflow-hidden rounded-xl transition-all duration-300 ${
+                    gridLayout === 'uniform' ? 'pg-card--uniform' : ''
+                  } ${isSelected ? 'ring-2 ring-accent/45 ring-offset-2 ring-offset-surface' : 'hover:shadow-lg'}`}
                   data-testid="public-batch"
                   data-photo-id={photo.photo_id}
                 >
@@ -113,15 +120,17 @@ export const PublicGalleryPhotoSection = ({
                         event.stopPropagation();
                         selection.onTogglePhoto(photo.photo_id);
                       }}
-                      disabled={Boolean(selection.session && !selection.canMutate)}
-                      className={`absolute top-3 right-3 z-20 rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors ${
-                        selection.selectedIds.has(photo.photo_id)
-                          ? 'bg-accent text-accent-foreground'
-                          : 'bg-black/45 text-white hover:bg-black/60'
-                      } ${selection.session && !selection.canMutate ? 'cursor-not-allowed opacity-70' : ''}`}
-                      aria-pressed={selection.selectedIds.has(photo.photo_id)}
+                      disabled={isSelectionLocked}
+                      className={`absolute top-3 right-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-sm transition-all duration-200 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+                        isSelected
+                          ? 'border-accent/50 bg-accent text-accent-foreground opacity-100 shadow-lg'
+                          : 'border-white/45 bg-black/20 text-white opacity-70 hover:bg-black/35 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100'
+                      } ${isSelectionLocked ? 'cursor-not-allowed opacity-70' : ''}`}
+                      aria-label={selectionButtonLabel}
+                      aria-pressed={isSelected}
+                      title={isSelected ? 'Remove from favorites' : 'Add to favorites'}
                     >
-                      {selection.selectedIds.has(photo.photo_id) ? 'Selected' : 'Select'}
+                      <Heart className={`h-4 w-4 ${isSelected ? 'fill-current' : ''}`} />
                     </button>
                   ) : null}
 
@@ -134,7 +143,9 @@ export const PublicGalleryPhotoSection = ({
                     <LazyImage
                       src={photo.thumbnail_url}
                       alt={accessiblePhotoName}
-                      className={`pg-card__media ${gridLayout === 'uniform' ? 'pg-card__media--uniform' : ''}`}
+                      className={`pg-card__media transition-transform duration-300 group-hover:scale-[1.01] ${
+                        gridLayout === 'uniform' ? 'pg-card__media--uniform' : ''
+                      }`}
                       imgClassName="pg-card__img"
                       aspectRatioHint={
                         gridLayout === 'masonry' ? getAspectRatioHint(photo.photo_id) : undefined
@@ -142,10 +153,7 @@ export const PublicGalleryPhotoSection = ({
                       objectFit={gridLayout === 'uniform' ? 'contain' : 'cover'}
                     />
                   </button>
-
-                  {selection?.enabled &&
-                  selection.allowPhotoComments &&
-                  selection.selectedIds.has(photo.photo_id) ? (
+                  {selection?.enabled && selection.allowPhotoComments && isSelected ? (
                     <div className="absolute inset-x-2 bottom-2 z-20">
                       <label htmlFor={`selection-comment-${photo.photo_id}`} className="sr-only">
                         Comment for {accessiblePhotoName}
@@ -160,7 +168,7 @@ export const PublicGalleryPhotoSection = ({
                         onBlur={(event) =>
                           selection.onUpdatePhotoComment(photo.photo_id, event.currentTarget.value)
                         }
-                        className="min-h-14 w-full resize-none rounded-lg border border-border/40 bg-surface/90 px-2 py-1.5 text-xs text-text outline-none focus:border-accent/50 disabled:cursor-not-allowed disabled:opacity-70"
+                        className="min-h-14 w-full resize-none rounded-xl border border-border/40 bg-surface/92 px-3 py-2 text-xs text-text outline-none focus:border-accent/50 disabled:cursor-not-allowed disabled:opacity-70"
                       />
                     </div>
                   ) : null}
@@ -185,7 +193,7 @@ export const PublicGalleryPhotoSection = ({
           )}
         </>
       ) : (
-        <div className="rounded-2xl border-2 border-dashed border-border/50 bg-surface-1/30 py-20 text-center dark:border-border/10">
+        <div className="rounded-3xl border border-dashed border-border/50 bg-surface-1/20 py-20 text-center dark:border-border/10">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-surface-foreground/10">
             <ImageOff className="h-8 w-8 text-muted" />
           </div>
@@ -193,6 +201,6 @@ export const PublicGalleryPhotoSection = ({
           <p className="mx-auto mt-2 max-w-sm text-muted">{emptyDescription}</p>
         </div>
       )}
-    </div>
+    </section>
   );
 };
