@@ -7,8 +7,6 @@ export interface PhotoResponse {
   url: string;
   thumbnail_url: string;
   filename: string;
-  width?: number | null;
-  height?: number | null;
   file_size: number;
   uploaded_at: string;
 }

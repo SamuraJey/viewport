@@ -94,82 +94,88 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
   }, [lightboxIndex, gridRef, photoCardSelector]);
 
   // Render the Lightbox component
-  const renderLightbox = (slides: PhotoSlide[], totalPhotos?: number) => (
-    <Lightbox
-      className="backdrop-blur-md bg-black/95"
-      open={lightboxOpen}
-      close={closeLightbox}
-      index={lightboxIndex}
-      slides={slides.map((slide) => ({
-        ...slide,
-        imageProps: {
-          ...slide.imageProps,
-          crossOrigin: 'anonymous',
-        },
-      }))}
-      plugins={[Thumbnails, Fullscreen, LightboxDownload, Zoom]}
-      render={{ slideContainer: ProgressiveSlide }}
-      controller={{
-        closeOnPullDown: true,
-        closeOnPullUp: true,
-        closeOnBackdropClick: true,
-      }}
-      thumbnails={{
-        ref: thumbnailsRef,
-        position: 'bottom',
-        width: 120,
-        height: 80,
-        border: 0,
-        borderRadius: 4,
-        padding: 4,
-        gap: 8,
-      }}
-      carousel={{
-        finite: !hasMore,
-        padding: '0px',
-        spacing: 0,
-        imageFit: 'contain',
-      }}
-      zoom={{
-        maxZoomPixelRatio: 3,
-        scrollToZoom: true,
-      }}
-      styles={{
-        container: { backgroundColor: 'rgba(0, 0, 0, 0.85)' },
-      }}
-      download={{
-        download: async ({ slide, saveAs }) => {
-          const response = await fetch(slide.src);
-          const blob = await response.blob();
-          const filename =
-            typeof slide.download === 'object' ? slide.download.filename : slide.alt || 'photo.jpg';
-          saveAs(blob, filename);
-        },
-      }}
-      on={{
-        entered: () => {
-          handleThumbnailsVisibility();
-        },
-        view: ({ index }) => {
-          setLightboxIndex(index);
+  const renderLightbox = (slides: PhotoSlide[], totalPhotos?: number) => {
+    const areAllPhotosLoaded = totalPhotos !== undefined ? slides.length >= totalPhotos : !hasMore;
 
-          // Load more photos when viewing near the end
-          if (
-            onLoadMore &&
-            hasMore &&
-            !isLoadingMore &&
-            totalPhotos &&
-            index >= totalPhotos - loadMoreThreshold
-          ) {
-            onLoadMore(index);
-          }
-        },
-        exited: () => {
-          handleLightboxExited();
-        },
-      }}
-    />
-  );
+    return (
+      <Lightbox
+        className="backdrop-blur-md bg-black/95"
+        open={lightboxOpen}
+        close={closeLightbox}
+        index={lightboxIndex}
+        slides={slides.map((slide) => ({
+          ...slide,
+          imageProps: {
+            ...slide.imageProps,
+            crossOrigin: 'anonymous',
+          },
+        }))}
+        plugins={[Thumbnails, Fullscreen, LightboxDownload, Zoom]}
+        render={{ slideContainer: ProgressiveSlide }}
+        controller={{
+          closeOnPullDown: true,
+          closeOnPullUp: true,
+          closeOnBackdropClick: true,
+        }}
+        thumbnails={{
+          ref: thumbnailsRef,
+          position: 'bottom',
+          width: 120,
+          height: 80,
+          border: 0,
+          borderRadius: 4,
+          padding: 4,
+          gap: 8,
+        }}
+        carousel={{
+          finite: !areAllPhotosLoaded,
+          padding: '0px',
+          spacing: 0,
+          imageFit: 'contain',
+        }}
+        zoom={{
+          maxZoomPixelRatio: 3,
+          scrollToZoom: true,
+        }}
+        styles={{
+          container: { backgroundColor: 'rgba(0, 0, 0, 0.85)' },
+        }}
+        download={{
+          download: async ({ slide, saveAs }) => {
+            const response = await fetch(slide.src);
+            const blob = await response.blob();
+            const filename =
+              typeof slide.download === 'object'
+                ? slide.download.filename
+                : slide.alt || 'photo.jpg';
+            saveAs(blob, filename);
+          },
+        }}
+        on={{
+          entered: () => {
+            handleThumbnailsVisibility();
+          },
+          view: ({ index }) => {
+            setLightboxIndex(index);
+
+            // Load more photos when viewing near the end of the currently loaded batch
+            if (
+              onLoadMore &&
+              hasMore &&
+              !isLoadingMore &&
+              slides.length > 0 &&
+              index >= slides.length - loadMoreThreshold
+            ) {
+              onLoadMore(index);
+            }
+          },
+          exited: () => {
+            handleLightboxExited();
+          },
+        }}
+      />
+    );
+  };
 
   return {
     lightboxOpen,

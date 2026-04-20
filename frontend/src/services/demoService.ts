@@ -211,16 +211,12 @@ const buildSeedGalleryState = (
 
 const buildPhoto = (galleryId: string, index: number): GalleryPhoto => {
   const seed = `${galleryId}-${index}`;
-  const width = 2200 + (index % 5) * 120;
-  const height = 1400 + (index % 4) * 90;
 
   return {
     id: `${galleryId}-photo-${index + 1}`,
     filename: `shot_${String(index + 1).padStart(3, '0')}.jpg`,
     url: `https://picsum.photos/seed/${seed}/1600/1100`,
     thumbnail_url: `https://picsum.photos/seed/${seed}/700/500`,
-    width,
-    height,
     file_size: 2_100_000 + index * 110_000,
     uploaded_at: nowIso(),
   };
@@ -1847,8 +1843,6 @@ class DemoServiceStore {
           filename: photo.filename,
           full_url: photo.url,
           thumbnail_url: photo.thumbnail_url,
-          width: photo.width,
-          height: photo.height,
         })),
       };
     }
@@ -1956,8 +1950,6 @@ class DemoServiceStore {
           filename: photo.filename,
           full_url: photo.url,
           thumbnail_url: photo.thumbnail_url,
-          width: photo.width,
-          height: photo.height,
         })),
       };
     }
@@ -2664,8 +2656,6 @@ class DemoServiceStore {
       thumbnail_url: photo.thumbnail_url,
       full_url: photo.url,
       filename: photo.filename,
-      width: photo.width,
-      height: photo.height,
     }));
   }
 
@@ -2681,8 +2671,6 @@ class DemoServiceStore {
         thumbnail_url: photo.thumbnail_url,
         full_url: photo.url,
         filename: photo.filename,
-        width: photo.width,
-        height: photo.height,
       }));
   }
 
@@ -2743,8 +2731,6 @@ class DemoServiceStore {
       filename: existing.filename,
       url: existing.url,
       thumbnail_url: existing.thumbnail_url,
-      width: existing.width,
-      height: existing.height,
       file_size: existing.file_size,
       uploaded_at: existing.uploaded_at,
     };
@@ -2778,8 +2764,6 @@ class DemoServiceStore {
         filename: item.filename,
         url: `https://picsum.photos/seed/${encodeURIComponent(`${item.filename}-${makeDemoId()}`)}/1600/1100`,
         thumbnail_url: `https://picsum.photos/seed/${encodeURIComponent(`${item.filename}-${makeDemoId()}`)}/700/500`,
-        width: null,
-        height: null,
         file_size: item.file.size,
         uploaded_at: nowIso(),
       };

@@ -11,8 +11,6 @@ const createPhoto = (overrides: Partial<GalleryPhoto> = {}): GalleryPhoto => ({
   filename: 'photo.jpg',
   file_size: 1024,
   uploaded_at: '2026-01-01T00:00:00Z',
-  width: 1200,
-  height: 800,
   ...overrides,
 });
 

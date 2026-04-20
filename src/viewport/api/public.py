@@ -141,8 +141,6 @@ async def _build_public_gallery_response(
                     thumbnail_url=presigned_url_thumb,
                     full_url=presigned_url,
                     filename=photo.display_name,
-                    width=getattr(photo, "width", None),
-                    height=getattr(photo, "height", None),
                 )
             )
 
@@ -234,8 +232,6 @@ async def _build_project_cover(
         full_url=full_url,
         thumbnail_url=thumbnail_url,
         filename=cover_photo.display_name,
-        width=getattr(cover_photo, "width", None),
-        height=getattr(cover_photo, "height", None),
     )
 
 
@@ -482,8 +478,6 @@ async def get_public_photos_by_ids(
             thumbnail_url=thumb_url_map.get(photo.thumbnail_object_key, ""),
             full_url=full_url_map.get(photo.object_key, ""),
             filename=photo.display_name,
-            width=getattr(photo, "width", None),
-            height=getattr(photo, "height", None),
         )
         for photo in ordered_photos
         if thumb_url_map.get(photo.thumbnail_object_key) and full_url_map.get(photo.object_key)

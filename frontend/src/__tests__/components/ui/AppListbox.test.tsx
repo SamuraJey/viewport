@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
@@ -38,7 +38,9 @@ describe('AppListbox', () => {
     render(<AppListboxHarness onChange={handleChange} />);
 
     await user.click(screen.getByLabelText(/sort galleries by/i));
-    await user.click(screen.getAllByText('Name').at(-1)!);
+
+    const listbox = await screen.findByRole('listbox');
+    fireEvent.click(within(listbox).getByRole('option', { name: 'Name' }));
 
     await waitFor(() => {
       expect(handleChange).toHaveBeenCalledWith('name');
@@ -57,7 +59,7 @@ describe('AppListbox', () => {
     );
 
     await user.click(screen.getByLabelText(/sort galleries by/i));
-    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    expect(await screen.findByRole('listbox')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /outside/i }));
 
@@ -73,7 +75,7 @@ describe('AppListbox', () => {
 
     await user.click(screen.getByLabelText(/sort galleries by/i));
 
-    const listbox = screen.getByRole('listbox');
+    const listbox = await screen.findByRole('listbox');
     const style = listbox.getAttribute('style') ?? '';
     expect(style).toContain('min-width: var(--button-width);');
     expect(style).toContain('width: max-content;');

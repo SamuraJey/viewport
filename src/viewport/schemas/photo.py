@@ -58,8 +58,6 @@ def _build_photo_response_payload(
         "url": full_url_map.get(photo.object_key, ""),
         "thumbnail_url": thumbnail_url_map.get(photo.thumbnail_object_key, ""),
         "filename": _resolve_filename(photo),
-        "width": photo.width,
-        "height": photo.height,
         "file_size": photo.file_size,
         "uploaded_at": photo.uploaded_at,
     }
@@ -74,8 +72,6 @@ class PhotoResponse(BaseModel):
     url: str
     thumbnail_url: str
     filename: str
-    width: int | None = None
-    height: int | None = None
     file_size: int
     uploaded_at: datetime
 
@@ -110,8 +106,6 @@ class PhotoResponse(BaseModel):
             url=presigned_url,
             thumbnail_url=thumbnail_url,
             filename=filename,
-            width=photo.width,
-            height=photo.height,
             file_size=photo.file_size,
             uploaded_at=photo.uploaded_at,
         )
@@ -144,8 +138,6 @@ class GalleryPhotoResponse(BaseModel):
     url: str
     thumbnail_url: str
     filename: str
-    width: int | None = None
-    height: int | None = None
     file_size: int
     uploaded_at: datetime
 

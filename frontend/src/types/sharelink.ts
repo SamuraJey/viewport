@@ -92,8 +92,6 @@ export interface PublicPhoto {
   thumbnail_url: string;
   full_url: string;
   filename?: string | null;
-  width?: number | null;
-  height?: number | null;
 }
 
 export interface PublicProjectFolder {

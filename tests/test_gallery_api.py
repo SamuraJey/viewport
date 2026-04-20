@@ -231,6 +231,7 @@ class TestGalleryAPI:
         assert "total_photos" in data
         assert "total_size_bytes" in data
         assert isinstance(data["photos"], list)
+        assert all("width" not in photo and "height" not in photo for photo in data["photos"])
 
     def test_get_gallery_supports_photo_search_and_sort(self, authenticated_client: TestClient, gallery_id_fixture: str):
         upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"zeta-payload", "zeta.jpg")
@@ -249,6 +250,7 @@ class TestGalleryAPI:
         assert sorted_response.status_code == 200
         sorted_payload = sorted_response.json()
         assert [photo["filename"] for photo in sorted_payload["photos"]] == ["alpha.jpg", "beta.jpg", "zeta.jpg"]
+        assert all("width" not in photo and "height" not in photo for photo in sorted_payload["photos"])
 
         filtered_response = authenticated_client.get(
             f"/galleries/{gallery_id_fixture}",
@@ -264,6 +266,7 @@ class TestGalleryAPI:
         filtered_payload = filtered_response.json()
         assert filtered_payload["total_photos"] == 2
         assert [photo["filename"] for photo in filtered_payload["photos"]] == ["beta.jpg", "zeta.jpg"]
+        assert all("width" not in photo and "height" not in photo for photo in filtered_payload["photos"])
 
     def test_get_gallery_defaults_to_legacy_filename_order_when_sort_omitted(self, authenticated_client: TestClient, gallery_id_fixture: str):
         upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"legacy-zeta", "legacy-default-zeta.jpg")

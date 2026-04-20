@@ -313,6 +313,8 @@ class TestPhotoAPI:
         data = response.json()
         assert data["id"] == photo_id
         assert data["filename"] == "new-name.jpg"
+        assert "width" not in data
+        assert "height" not in data
 
     def test_rename_photo_succeeds_when_cache_invalidation_fails(self, authenticated_client: TestClient, gallery_id_fixture: str, monkeypatch):
         photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"rename", "rename.jpg")
@@ -330,6 +332,8 @@ class TestPhotoAPI:
         data = response.json()
         assert data["id"] == photo_id
         assert data["filename"] == "new-name.jpg"
+        assert "width" not in data
+        assert "height" not in data
 
     @pytest.mark.asyncio
     async def test_rename_photo_updates_display_name_without_changing_object_key(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession):
@@ -366,6 +370,7 @@ class TestPhotoAPI:
         filenames = {item["id"]: item["filename"] for item in list_response.json()["photos"]}
         assert filenames[first_photo_id] == "1.JPG"
         assert filenames[second_photo_id] == "1 (1).JPG"
+        assert all("width" not in item and "height" not in item for item in list_response.json()["photos"])
 
     def test_filename_utilities(self):
         """sanitize_filename and content-type helper behave predictably."""

@@ -238,6 +238,7 @@ export const PublicGalleryPage = () => {
     gridLayout,
     gridRef,
     gridClassNames,
+    getAspectRatioHint,
     setGridMode,
     setLayoutMode,
     touchHandlers,
@@ -273,7 +274,7 @@ export const PublicGalleryPage = () => {
       },
       {
         threshold: 0.1,
-        rootMargin: '400px',
+        rootMargin: '800px',
       },
     );
 
@@ -338,6 +339,9 @@ export const PublicGalleryPage = () => {
     ? projectGalleryTabs?.photographer || folderShare?.photographer
     : folderShare?.photographer;
   const heroCover = isProjectFolderView ? (projectGalleryTabs?.cover ?? null) : folderShare?.cover;
+  const displayedPhotoTotal = isFavoritesView
+    ? (selection.session?.selected_count ?? selectedPhotos.length)
+    : (folderShare?.total_photos ?? photos.length);
 
   useEffect(() => {
     if (isFavoritesView || activeGalleryId || !projectShare?.folders.length) {
@@ -406,8 +410,6 @@ export const PublicGalleryPage = () => {
       displayedPhotos.map((photo) => ({
         src: photo.full_url,
         thumbnailSrc: photo.thumbnail_url,
-        width: photo.width || undefined,
-        height: photo.height || undefined,
         alt: getAccessiblePhotoName({
           displayName: photo.filename,
           filename: photo.filename,
@@ -787,11 +789,7 @@ export const PublicGalleryPage = () => {
 
         <PublicGalleryPhotoSection
           photos={displayedPhotos}
-          totalPhotos={
-            isFavoritesView
-              ? (selection.session?.selected_count ?? selectedPhotos.length)
-              : (folderShare?.total_photos ?? photos.length)
-          }
+          totalPhotos={displayedPhotoTotal}
           displayedPhotos={displayedPhotos.length}
           sectionTitle={isFavoritesView ? 'Selected Photos' : 'Photos'}
           emptyTitle={isFavoritesView ? 'No photos selected yet' : 'No photos in this gallery'}
@@ -804,6 +802,7 @@ export const PublicGalleryPage = () => {
           gridLayout={gridLayout}
           gridDensity={gridDensity}
           gridRef={gridRef}
+          getAspectRatioHint={getAspectRatioHint}
           observerTargetRef={observerTargetRef}
           isLoadingMore={!isFavoritesView && isLoadingMore}
           hasMore={!isFavoritesView && hasMore}
@@ -1058,7 +1057,7 @@ export const PublicGalleryPage = () => {
         </div>
       ) : null}
 
-      {renderLightbox(lightboxSlides, displayedPhotos.length)}
+      {renderLightbox(lightboxSlides, displayedPhotoTotal)}
     </div>
   );
 };

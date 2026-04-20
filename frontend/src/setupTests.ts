@@ -34,6 +34,14 @@ Object.defineProperty(window, 'ResizeObserver', {
   },
 });
 
+if (!Element.prototype.getAnimations) {
+  Object.defineProperty(Element.prototype, 'getAnimations', {
+    writable: true,
+    configurable: true,
+    value: () => [],
+  });
+}
+
 // Mock URL methods
 Object.defineProperty(URL, 'createObjectURL', {
   writable: true,

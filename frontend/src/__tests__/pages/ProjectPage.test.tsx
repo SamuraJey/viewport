@@ -1,7 +1,46 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+vi.mock('../../components/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../components/ui')>();
+
+  return {
+    ...actual,
+    AppPopover: ({
+      buttonAriaLabel,
+      buttonClassName,
+      buttonContent,
+      panelClassName,
+      panel,
+    }: {
+      buttonAriaLabel?: string;
+      buttonClassName?: string;
+      buttonContent: ReactNode;
+      panelClassName?: string;
+      panel: ReactNode;
+    }) => {
+      const [open, setOpen] = useState(false);
+
+      return (
+        <div className="relative">
+          <button
+            type="button"
+            aria-label={buttonAriaLabel}
+            className={buttonClassName}
+            onClick={() => setOpen((prev) => !prev)}
+          >
+            {buttonContent}
+          </button>
+          {open ? <div className={panelClassName}>{panel}</div> : null}
+        </div>
+      );
+    },
+  };
+});
 
 import { ProjectPage } from '../../pages/ProjectPage';
 
@@ -246,7 +285,9 @@ describe('ProjectPage', () => {
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText('Change project visibility for Photos'));
-    fireEvent.click(await screen.findByRole('button', { name: /direct link only/i }));
+    const visibilityPanel = (await screen.findByText('Project visibility')).parentElement;
+    expect(visibilityPanel).not.toBeNull();
+    fireEvent.click(within(visibilityPanel!).getByRole('button', { name: /direct link only/i }));
 
     expect(await screen.findByText('Hide gallery from project share?')).toBeInTheDocument();
   });
@@ -268,7 +309,9 @@ describe('ProjectPage', () => {
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText('Change project visibility for 3eds'));
-    fireEvent.click(await screen.findByRole('button', { name: /move earlier/i }));
+    const visibilityPanel = (await screen.findByText('Project visibility')).parentElement;
+    expect(visibilityPanel).not.toBeNull();
+    fireEvent.click(within(visibilityPanel!).getByRole('button', { name: /move earlier/i }));
 
     expect(await screen.findByText('Reorder project galleries?')).toBeInTheDocument();
   });
@@ -281,7 +324,9 @@ describe('ProjectPage', () => {
     expect(await screen.findByRole('heading', { name: 'Photos' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText('Change project visibility for 3eds'));
-    fireEvent.click(await screen.findByRole('button', { name: /move earlier/i }));
+    const visibilityPanel = (await screen.findByText('Project visibility')).parentElement;
+    expect(visibilityPanel).not.toBeNull();
+    fireEvent.click(within(visibilityPanel!).getByRole('button', { name: /move earlier/i }));
 
     expect(projectService.reorderProjectGalleries).toHaveBeenCalledWith('project-1', [
       'gallery-2',

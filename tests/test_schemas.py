@@ -322,6 +322,8 @@ class TestPhotoSchemas:
         assert response.uploaded_at == mock_photo.uploaded_at
         assert response.url == expected_url
         assert response.thumbnail_url == expected_thumbnail_url
+        assert "width" not in response.model_dump()
+        assert "height" not in response.model_dump()
 
     def test_photo_list_response_valid(self):
         """Test valid photo list response."""
