@@ -149,10 +149,10 @@ describe('usePhotoLightbox', () => {
       { src: '/photo5.jpg' },
     ];
 
-    const lightbox = result.current.renderLightbox(slides, 5);
+    const lightbox = result.current.renderLightbox(slides, 20);
     const viewCallback = lightbox.props.on.view;
 
-    // Viewing photo at index 3 (5 - 2 = 3, within threshold)
+    // Viewing photo at index 3 (loaded batch size 5 - threshold 2 = 3)
     act(() => {
       viewCallback({ index: 3 });
     });
@@ -373,16 +373,25 @@ describe('usePhotoLightbox', () => {
     expect(lightbox.props.render.slideContainer).toBe('ProgressiveSlide');
   });
 
-  it('sets carousel finite based on hasMore option', () => {
+  it('keeps carousel finite until all gallery photos are loaded', () => {
     const { result: resultWithMore } = renderHook(() => usePhotoLightbox({ hasMore: true }));
-    const { result: resultWithoutMore } = renderHook(() => usePhotoLightbox({ hasMore: false }));
+    const { result: resultFullyLoaded } = renderHook(() => usePhotoLightbox({ hasMore: false }));
 
-    const slides = [{ src: '/photo1.jpg' }];
+    const partiallyLoadedSlides = [{ src: '/photo1.jpg' }, { src: '/photo2.jpg' }];
 
-    const lightboxWithMore = resultWithMore.current.renderLightbox(slides);
-    const lightboxWithoutMore = resultWithoutMore.current.renderLightbox(slides);
+    const lightboxWithMore = resultWithMore.current.renderLightbox(partiallyLoadedSlides, 5);
+    const fullyLoadedLightbox = resultFullyLoaded.current.renderLightbox(partiallyLoadedSlides, 2);
 
-    expect(lightboxWithMore.props.carousel.finite).toBe(false);
-    expect(lightboxWithoutMore.props.carousel.finite).toBe(true);
+    expect(lightboxWithMore.props.carousel.finite).toBe(true);
+    expect(fullyLoadedLightbox.props.carousel.finite).toBe(false);
+  });
+
+  it('keeps carousel finite for paginated owner galleries without lazy loading', () => {
+    const { result } = renderHook(() => usePhotoLightbox({ hasMore: false }));
+
+    const slides = [{ src: '/photo1.jpg' }, { src: '/photo2.jpg' }];
+    const lightbox = result.current.renderLightbox(slides, 10);
+
+    expect(lightbox.props.carousel.finite).toBe(true);
   });
 });

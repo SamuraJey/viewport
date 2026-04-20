@@ -339,6 +339,9 @@ export const PublicGalleryPage = () => {
     ? projectGalleryTabs?.photographer || folderShare?.photographer
     : folderShare?.photographer;
   const heroCover = isProjectFolderView ? (projectGalleryTabs?.cover ?? null) : folderShare?.cover;
+  const displayedPhotoTotal = isFavoritesView
+    ? (selection.session?.selected_count ?? selectedPhotos.length)
+    : (folderShare?.total_photos ?? photos.length);
 
   useEffect(() => {
     if (isFavoritesView || activeGalleryId || !projectShare?.folders.length) {
@@ -786,11 +789,7 @@ export const PublicGalleryPage = () => {
 
         <PublicGalleryPhotoSection
           photos={displayedPhotos}
-          totalPhotos={
-            isFavoritesView
-              ? (selection.session?.selected_count ?? selectedPhotos.length)
-              : (folderShare?.total_photos ?? photos.length)
-          }
+          totalPhotos={displayedPhotoTotal}
           displayedPhotos={displayedPhotos.length}
           sectionTitle={isFavoritesView ? 'Selected Photos' : 'Photos'}
           emptyTitle={isFavoritesView ? 'No photos selected yet' : 'No photos in this gallery'}
@@ -1058,7 +1057,7 @@ export const PublicGalleryPage = () => {
         </div>
       ) : null}
 
-      {renderLightbox(lightboxSlides, displayedPhotos.length)}
+      {renderLightbox(lightboxSlides, displayedPhotoTotal)}
     </div>
   );
 };
