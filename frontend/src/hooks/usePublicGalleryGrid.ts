@@ -10,6 +10,11 @@ import {
   type TouchList as ReactTouchList,
 } from 'react';
 import type { PublicPhoto } from '../services/shareLinkService';
+import {
+  DEFAULT_FALLBACK_RATIO,
+  getCachedPhotoAspectRatio,
+  setCachedPhotoAspectRatio,
+} from '../lib/photoAspectRatioCache';
 
 export type PublicGridDensity = 'large' | 'compact';
 export type PublicGridLayout = 'masonry' | 'uniform';
@@ -18,11 +23,14 @@ interface UsePublicGalleryGridProps {
   photos: PublicPhoto[];
 }
 
-const DEFAULT_FALLBACK_RATIO = 4 / 3;
-
 const toValidRatio = (value: number | null | undefined): number | null => {
   if (!value || !Number.isFinite(value) || value <= 0) return null;
   return value;
+};
+
+const getGridColumnCount = (value: string): number => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 };
 
 const calculateTouchDistance = (touches: ReactTouchList) => {
@@ -39,40 +47,13 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
   const gridRef = useRef<HTMLDivElement | null>(null);
   const computeSpansRafRef = useRef<number | null>(null);
   const hasScheduledComputeRef = useRef(false);
-  const ratioCacheRef = useRef<Map<string, number>>(new Map());
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchHandledRef = useRef(false);
 
-  const getRatioFromPhotoOrImage = useCallback((photo: PublicPhoto, item: HTMLElement): number => {
-    const cachedRatio = ratioCacheRef.current.get(photo.photo_id);
-    const apiRatio =
-      toValidRatio(photo.width) && toValidRatio(photo.height)
-        ? (photo.width as number) / (photo.height as number)
-        : null;
-
-    if (cachedRatio) {
-      return cachedRatio;
-    }
-
-    if (apiRatio) {
-      ratioCacheRef.current.set(photo.photo_id, apiRatio);
-      return apiRatio;
-    }
-
-    const image = item.querySelector('img');
-    if (image instanceof HTMLImageElement) {
-      const naturalRatio =
-        toValidRatio(image.naturalWidth) && toValidRatio(image.naturalHeight)
-          ? image.naturalWidth / image.naturalHeight
-          : null;
-      if (naturalRatio) {
-        ratioCacheRef.current.set(photo.photo_id, naturalRatio);
-        return naturalRatio;
-      }
-    }
-
-    return DEFAULT_FALLBACK_RATIO;
-  }, []);
+  const getAspectRatioHint = useCallback(
+    (photoId: string) => getCachedPhotoAspectRatio(photoId) ?? DEFAULT_FALLBACK_RATIO,
+    [],
+  );
 
   const computeSpans = useCallback(() => {
     if (gridLayout !== 'masonry') return;
@@ -80,25 +61,28 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
     if (!grid) return;
 
     const cs = getComputedStyle(grid);
+    const containerWidth = grid.clientWidth || grid.getBoundingClientRect().width || 0;
     const rowHeight = parseFloat(cs.getPropertyValue('grid-auto-rows')) || 8;
     const rowGap =
       parseFloat(cs.getPropertyValue('row-gap')) || parseFloat(cs.getPropertyValue('gap')) || 20;
+    const columns = getGridColumnCount(cs.getPropertyValue('--pg-columns'));
+    const totalGap = rowGap * Math.max(columns - 1, 0);
+    const columnWidth = (containerWidth - totalGap) / columns;
+
+    if (columnWidth <= 0) return;
 
     const items = Array.from(grid.children) as HTMLElement[];
     items.forEach((item, index) => {
       const photo = photos[index];
       if (!photo) return;
 
-      const ratio = getRatioFromPhotoOrImage(photo, item);
-      const itemWidth = item.getBoundingClientRect().width || item.offsetWidth || 0;
-      if (itemWidth <= 0) return;
-
-      const targetHeight = itemWidth / ratio;
+      const ratio = getAspectRatioHint(photo.photo_id);
+      const targetHeight = columnWidth / ratio;
       const span = Math.max(1, Math.ceil((targetHeight + rowGap) / (rowHeight + rowGap)));
       const next = `span ${span}`;
       if (item.style.gridRowEnd !== next) item.style.gridRowEnd = next;
     });
-  }, [getRatioFromPhotoOrImage, gridLayout, photos]);
+  }, [getAspectRatioHint, gridLayout, photos]);
 
   const scheduleComputeSpans = useCallback(() => {
     if (gridLayout !== 'masonry') return;
@@ -138,7 +122,7 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
             : null;
 
         if (naturalRatio) {
-          ratioCacheRef.current.set(photoId, naturalRatio);
+          setCachedPhotoAspectRatio(photoId, naturalRatio);
         }
       }
 
@@ -157,17 +141,7 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
       resizeObserver.disconnect();
       cancelScheduledCompute();
     };
-  }, [gridLayout, photos, scheduleComputeSpans, cancelScheduledCompute]);
-
-  useEffect(() => {
-    const activePhotoIds = new Set(photos.map((photo) => photo.photo_id));
-    const cache = ratioCacheRef.current;
-    Array.from(cache.keys()).forEach((photoId) => {
-      if (!activePhotoIds.has(photoId)) {
-        cache.delete(photoId);
-      }
-    });
-  }, [photos]);
+  }, [gridLayout, scheduleComputeSpans, cancelScheduledCompute]);
 
   useEffect(() => {
     if (gridLayout !== 'masonry') return;
@@ -274,6 +248,7 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
     gridLayout,
     gridRef,
     gridClassNames,
+    getAspectRatioHint,
     setGridMode,
     setLayoutMode,
     touchHandlers,

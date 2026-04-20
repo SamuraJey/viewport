@@ -981,30 +981,35 @@ html.dark .pg-card:hover {
 }
 
 .pg-grid {
+  --pg-columns: 1;
   display: grid;
   align-items: start;
 }
 
 .pg-grid--large {
-  grid-template-columns: repeat(1, minmax(0, 1fr));
+  --pg-columns: 1;
+  grid-template-columns: repeat(var(--pg-columns), minmax(0, 1fr));
   gap: 0.5rem;
   /* Make grid rows small so we can span them to create masonry effect */
   grid-auto-rows: 8px;
 }
 
 .pg-grid--compact {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  --pg-columns: 2;
+  grid-template-columns: repeat(var(--pg-columns), minmax(0, 1fr));
   gap: 0.5rem;
   grid-auto-rows: 6px;
 }
 
 .pg-grid-uniform--large {
-  grid-template-columns: repeat(1, minmax(0, 1fr));
+  --pg-columns: 1;
+  grid-template-columns: repeat(var(--pg-columns), minmax(0, 1fr));
   gap: 1.25rem;
 }
 
 .pg-grid-uniform--compact {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  --pg-columns: 2;
+  grid-template-columns: repeat(var(--pg-columns), minmax(0, 1fr));
   gap: 0.85rem;
 }
 
@@ -1029,37 +1034,37 @@ html.dark .pg-card:hover {
 
 @media (min-width: 640px) {
   .pg-grid--large {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    --pg-columns: 2;
   }
 
   .pg-grid--compact {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    --pg-columns: 3;
   }
 
   .pg-grid-uniform--large {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    --pg-columns: 2;
   }
 
   .pg-grid-uniform--compact {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    --pg-columns: 3;
   }
 }
 
 @media (min-width: 1024px) {
   .pg-grid--large {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    --pg-columns: 3;
   }
 
   .pg-grid--compact {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    --pg-columns: 4;
   }
 
   .pg-grid-uniform--large {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    --pg-columns: 3;
   }
 
   .pg-grid-uniform--compact {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    --pg-columns: 4;
   }
 }
 

@@ -17,6 +17,7 @@ interface PublicGalleryPhotoSectionProps {
   gridLayout: PublicGridLayout;
   gridDensity: PublicGridDensity;
   gridRef: MutableRefObject<HTMLDivElement | null>;
+  getAspectRatioHint: (photoId: string) => number;
   observerTargetRef: MutableRefObject<HTMLDivElement | null>;
   isLoadingMore: boolean;
   hasMore: boolean;
@@ -53,6 +54,7 @@ export const PublicGalleryPhotoSection = ({
   gridLayout,
   gridDensity,
   gridRef,
+  getAspectRatioHint,
   observerTargetRef,
   isLoadingMore,
   hasMore,
@@ -134,9 +136,12 @@ export const PublicGalleryPhotoSection = ({
                       alt={accessiblePhotoName}
                       className={`pg-card__media ${gridLayout === 'uniform' ? 'pg-card__media--uniform' : ''}`}
                       imgClassName="pg-card__img"
+                      aspectRatioHint={
+                        gridLayout === 'masonry' ? getAspectRatioHint(photo.photo_id) : undefined
+                      }
                       objectFit={gridLayout === 'uniform' ? 'contain' : 'cover'}
-                      width={photo.width}
-                      height={photo.height}
+                      width={gridLayout === 'uniform' ? photo.width : undefined}
+                      height={gridLayout === 'uniform' ? photo.height : undefined}
                     />
                   </button>
 

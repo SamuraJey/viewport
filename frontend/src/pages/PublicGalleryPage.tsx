@@ -238,6 +238,7 @@ export const PublicGalleryPage = () => {
     gridLayout,
     gridRef,
     gridClassNames,
+    getAspectRatioHint,
     setGridMode,
     setLayoutMode,
     touchHandlers,
@@ -804,6 +805,7 @@ export const PublicGalleryPage = () => {
           gridLayout={gridLayout}
           gridDensity={gridDensity}
           gridRef={gridRef}
+          getAspectRatioHint={getAspectRatioHint}
           observerTargetRef={observerTargetRef}
           isLoadingMore={!isFavoritesView && isLoadingMore}
           hasMore={!isFavoritesView && hasMore}

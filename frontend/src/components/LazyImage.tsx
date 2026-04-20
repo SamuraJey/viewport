@@ -6,10 +6,21 @@ interface LazyImageProps {
   className?: string;
   imgClassName?: string;
   style?: React.CSSProperties;
+  aspectRatioHint?: number;
   width?: number | null;
   height?: number | null;
   objectFit?: 'cover' | 'contain';
   layout?: boolean | 'position' | 'size';
+}
+
+const DEFAULT_ASPECT_RATIO = '4/3';
+
+function getValidAspectRatioHint(value: number | null | undefined): string | null {
+  if (!value || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return String(value);
 }
 
 export const LazyImage = ({
@@ -18,6 +29,7 @@ export const LazyImage = ({
   className,
   imgClassName,
   style,
+  aspectRatioHint,
   width,
   height,
   objectFit = 'cover',
@@ -28,8 +40,9 @@ export const LazyImage = ({
   const [error, setError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
-  // Calculate aspect ratio from provided dimensions
-  const aspectRatio = width && height ? `${width}/${height}` : '4/3';
+  const aspectRatio =
+    getValidAspectRatioHint(aspectRatioHint) ??
+    (width && height ? `${width}/${height}` : DEFAULT_ASPECT_RATIO);
   const layoutTransitionClass = layout ? 'transition-all duration-300 ease-in-out' : '';
 
   useEffect(() => {
@@ -57,9 +70,7 @@ export const LazyImage = ({
     }
 
     return () => {
-      if (currentImg) {
-        observer.unobserve(currentImg);
-      }
+      observer.disconnect();
     };
   }, [src, imageSrc]);
 
@@ -93,6 +104,8 @@ export const LazyImage = ({
           ref={imgRef}
           src={imageSrc}
           alt={alt}
+          loading="lazy"
+          decoding="async"
           className={`w-full h-full ${layoutTransitionClass} ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${imgClassName ?? ''} ${isLoading ? 'opacity-0 scale-105' : 'opacity-100 scale-100'} transition-all duration-500`}
           onLoad={handleLoad}
           onError={handleError}
