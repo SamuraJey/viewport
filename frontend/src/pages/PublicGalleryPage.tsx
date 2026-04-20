@@ -274,7 +274,7 @@ export const PublicGalleryPage = () => {
       },
       {
         threshold: 0.1,
-        rootMargin: '400px',
+        rootMargin: '800px',
       },
     );
 
@@ -562,11 +562,10 @@ export const PublicGalleryPage = () => {
                       key={projectGallery.folder_id}
                       to={projectGallery.route_path}
                       state={INTERNAL_PROJECT_NAVIGATION_STATE}
-                      className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
-                        isActive
+                      className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${isActive
                           ? 'border-accent/50 bg-accent/10 text-accent'
                           : 'border-border/40 bg-surface text-text hover:border-accent/30'
-                      }`}
+                        }`}
                     >
                       {projectGallery.folder_name}
                     </Link>
@@ -612,11 +611,10 @@ export const PublicGalleryPage = () => {
               <button
                 type="button"
                 onClick={handleOpenFavorites}
-                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
-                  isFavoritesView
+                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${isFavoritesView
                     ? 'bg-accent text-accent-foreground'
                     : 'border border-accent/30 bg-accent/10 text-accent hover:bg-accent/15'
-                }`}
+                  }`}
               >
                 <Heart className="h-4 w-4" />
                 {selection.session?.selected_count ?? 0}
@@ -816,20 +814,20 @@ export const PublicGalleryPage = () => {
           selection={
             selection.config?.is_enabled
               ? {
-                  enabled: true,
-                  selectedIds: selection.selectedIds,
-                  selectedCount: selection.session?.selected_count ?? 0,
-                  canMutate: selection.canMutateSession,
-                  allowPhotoComments: selection.config.allow_photo_comments,
-                  session: selection.session,
-                  commentsByPhotoId: selection.commentsByPhotoId,
-                  onTogglePhoto: (photoId: string) => {
-                    void selection.togglePhoto(photoId);
-                  },
-                  onUpdatePhotoComment: (photoId: string, comment: string) => {
-                    void selection.updatePhotoComment(photoId, comment);
-                  },
-                }
+                enabled: true,
+                selectedIds: selection.selectedIds,
+                selectedCount: selection.session?.selected_count ?? 0,
+                canMutate: selection.canMutateSession,
+                allowPhotoComments: selection.config.allow_photo_comments,
+                session: selection.session,
+                commentsByPhotoId: selection.commentsByPhotoId,
+                onTogglePhoto: (photoId: string) => {
+                  void selection.togglePhoto(photoId);
+                },
+                onUpdatePhotoComment: (photoId: string, comment: string) => {
+                  void selection.updatePhotoComment(photoId, comment);
+                },
+              }
               : undefined
           }
         />
