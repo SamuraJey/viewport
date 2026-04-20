@@ -754,7 +754,6 @@ export const PublicGalleryPage = () => {
               ? {
                   enabled: true,
                   selectedIds: selection.selectedIds,
-                  selectedCount: selection.session?.selected_count ?? 0,
                   canMutate: selection.canMutateSession,
                   allowPhotoComments: selection.config.allow_photo_comments,
                   session: selection.session,

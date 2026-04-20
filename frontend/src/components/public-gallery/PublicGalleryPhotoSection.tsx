@@ -1,11 +1,11 @@
 import type { MutableRefObject, TouchEventHandler } from 'react';
 import { Heart, ImageOff, Loader2, MessageSquare } from 'lucide-react';
-import { LazyImage } from '../LazyImage';
-import { AppPopover } from '../ui';
-import { PublicGalleryGridControls } from './PublicGalleryGridControls';
 import type { PublicGridDensity, PublicGridLayout } from '../../hooks/usePublicGalleryGrid';
 import { getAccessiblePhotoName } from '../../lib/accessibility';
 import type { PublicPhoto, SelectionSession } from '../../types';
+import { LazyImage } from '../LazyImage';
+import { AppPopover } from '../ui';
+import { PublicGalleryGridControls } from './PublicGalleryGridControls';
 
 interface PublicGalleryPhotoSectionProps {
   photos: PublicPhoto[];
@@ -34,7 +34,6 @@ interface PublicGalleryPhotoSectionProps {
   selection?: {
     enabled: boolean;
     selectedIds: Set<string>;
-    selectedCount: number;
     canMutate: boolean;
     allowPhotoComments: boolean;
     session: SelectionSession | null;
@@ -65,6 +64,12 @@ export const PublicGalleryPhotoSection = ({
   touchHandlers,
   selection,
 }: PublicGalleryPhotoSectionProps) => {
+  const hasSelectionEnabled = selection?.enabled ?? false;
+  const photoCountLabel =
+    displayedPhotos === totalPhotos
+      ? `(${displayedPhotos})`
+      : `(${displayedPhotos} / ${totalPhotos})`;
+
   return (
     <section
       id="gallery-content"
@@ -75,11 +80,7 @@ export const PublicGalleryPhotoSection = ({
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="flex items-center gap-2 text-2xl font-bold text-text sm:text-3xl">
-          {sectionTitle}{' '}
-          <span className="text-lg font-medium text-muted">
-            ({displayedPhotos}
-            {displayedPhotos !== totalPhotos ? ` / ${totalPhotos}` : ''})
-          </span>
+          {sectionTitle} <span className="text-lg font-medium text-muted">{photoCountLabel}</span>
         </h2>
 
         <PublicGalleryGridControls
@@ -98,37 +99,38 @@ export const PublicGalleryPhotoSection = ({
                 displayName: photo.filename,
                 filename: photo.filename,
               });
+              const isUniformLayout = gridLayout === 'uniform';
+              const photoComment = selection?.commentsByPhotoId[photo.photo_id] ?? '';
               const isSelected = selection?.selectedIds.has(photo.photo_id) ?? false;
-              const hasComment = Boolean(selection?.commentsByPhotoId[photo.photo_id]?.trim());
+              const hasComment = Boolean(photoComment.trim());
+              const canMutateSelection = selection?.canMutate ?? false;
+              const allowPhotoComments = selection?.allowPhotoComments ?? false;
               const selectionButtonLabel = isSelected
                 ? `Remove ${accessiblePhotoName} from favorites`
                 : `Add ${accessiblePhotoName} to favorites`;
               const isSelectionLocked = Boolean(selection?.session && !selection.canMutate);
+              const cardClassName = isSelected
+                ? 'ring-2 ring-accent/45 ring-offset-2 ring-offset-surface'
+                : 'hover:shadow-lg';
+              const imageWrapperClassName = isUniformLayout ? 'pg-card--uniform' : '';
+              const imageClassName = isUniformLayout ? 'pg-card__media--uniform' : '';
 
               return (
                 <div
                   key={photo.photo_id}
-                  className={`pg-card group relative overflow-visible transition-all duration-300 ${
-                    isSelected
-                      ? 'ring-2 ring-accent/45 ring-offset-2 ring-offset-surface'
-                      : 'hover:shadow-lg'
-                  }`}
+                  className={`pg-card group relative overflow-visible transition-all duration-300 ${cardClassName}`}
                   data-testid="public-batch"
                   data-photo-id={photo.photo_id}
                 >
-                  <div
-                    className={`relative overflow-hidden rounded-xl ${
-                      gridLayout === 'uniform' ? 'pg-card--uniform' : ''
-                    }`}
-                  >
-                    {selection?.enabled ? (
-                      <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-2">
+                  <div className={`relative overflow-hidden rounded-xl ${imageWrapperClassName}`}>
+                    {hasSelectionEnabled ? (
+                      <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-2">
                         <button
                           type="button"
                           onClick={(event) => {
                             event.preventDefault();
                             event.stopPropagation();
-                            selection.onTogglePhoto(photo.photo_id);
+                            selection?.onTogglePhoto(photo.photo_id);
                           }}
                           disabled={isSelectionLocked}
                           className={`inline-flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-sm transition-all duration-200 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
@@ -143,10 +145,10 @@ export const PublicGalleryPhotoSection = ({
                           <Heart className={`h-4 w-4 ${isSelected ? 'fill-current' : ''}`} />
                         </button>
 
-                        {selection.allowPhotoComments && isSelected ? (
+                        {allowPhotoComments && isSelected ? (
                           <AppPopover
                             className="relative"
-                            buttonAriaLabel={`Add a note for ${accessiblePhotoName}`}
+                            buttonAriaLabel={`${hasComment ? 'Edit' : 'Add'} a note for ${accessiblePhotoName}`}
                             buttonClassName={(open) =>
                               `inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/45 bg-black/25 text-white backdrop-blur-sm transition-all duration-200 hover:bg-black/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
                                 open || hasComment
@@ -158,7 +160,7 @@ export const PublicGalleryPhotoSection = ({
                               <span className="relative inline-flex">
                                 <MessageSquare className="h-4 w-4" />
                                 {hasComment && !open ? (
-                                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-accent" />
+                                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-accent" />
                                 ) : null}
                               </span>
                             )}
@@ -171,7 +173,9 @@ export const PublicGalleryPhotoSection = ({
                                     Photo note
                                   </p>
                                   <p className="mt-1 text-xs text-muted">
-                                    Add context for the photographer.
+                                    {hasComment
+                                      ? 'Refine the note for the photographer.'
+                                      : 'Add context for the photographer.'}
                                   </p>
                                 </div>
                                 <label
@@ -182,13 +186,13 @@ export const PublicGalleryPhotoSection = ({
                                 </label>
                                 <textarea
                                   id={`selection-comment-${photo.photo_id}`}
-                                  key={`${photo.photo_id}-${selection.commentsByPhotoId[photo.photo_id] ?? ''}`}
-                                  defaultValue={selection.commentsByPhotoId[photo.photo_id] ?? ''}
+                                  key={`${photo.photo_id}-${photoComment}`}
+                                  defaultValue={photoComment}
                                   placeholder="Comment for this photo"
-                                  disabled={!selection.canMutate}
+                                  disabled={!canMutateSelection}
                                   onClick={(event) => event.stopPropagation()}
                                   onBlur={(event) =>
-                                    selection.onUpdatePhotoComment(
+                                    selection?.onUpdatePhotoComment(
                                       photo.photo_id,
                                       event.currentTarget.value,
                                     )
@@ -211,14 +215,12 @@ export const PublicGalleryPhotoSection = ({
                       <LazyImage
                         src={photo.thumbnail_url}
                         alt={accessiblePhotoName}
-                        className={`pg-card__media transition-transform duration-300 group-hover:scale-[1.01] ${
-                          gridLayout === 'uniform' ? 'pg-card__media--uniform' : ''
-                        }`}
+                        className={`pg-card__media transition-transform duration-300 group-hover:scale-[1.01] ${imageClassName}`}
                         imgClassName="pg-card__img"
                         aspectRatioHint={
-                          gridLayout === 'masonry' ? getAspectRatioHint(photo.photo_id) : undefined
+                          isUniformLayout ? undefined : getAspectRatioHint(photo.photo_id)
                         }
-                        objectFit={gridLayout === 'uniform' ? 'contain' : 'cover'}
+                        objectFit={isUniformLayout ? 'contain' : 'cover'}
                       />
                     </button>
                   </div>
