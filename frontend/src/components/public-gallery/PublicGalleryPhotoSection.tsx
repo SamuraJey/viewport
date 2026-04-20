@@ -1,6 +1,7 @@
 import type { MutableRefObject, TouchEventHandler } from 'react';
-import { Heart, ImageOff, Loader2 } from 'lucide-react';
+import { Heart, ImageOff, Loader2, MessageSquare } from 'lucide-react';
 import { LazyImage } from '../LazyImage';
+import { AppPopover } from '../ui';
 import { PublicGalleryGridControls } from './PublicGalleryGridControls';
 import type { PublicGridDensity, PublicGridLayout } from '../../hooks/usePublicGalleryGrid';
 import { getAccessiblePhotoName } from '../../lib/accessibility';
@@ -98,6 +99,7 @@ export const PublicGalleryPhotoSection = ({
                 filename: photo.filename,
               });
               const isSelected = selection?.selectedIds.has(photo.photo_id) ?? false;
+              const hasComment = Boolean(selection?.commentsByPhotoId[photo.photo_id]?.trim());
               const selectionButtonLabel = isSelected
                 ? `Remove ${accessiblePhotoName} from favorites`
                 : `Add ${accessiblePhotoName} to favorites`;
@@ -106,72 +108,120 @@ export const PublicGalleryPhotoSection = ({
               return (
                 <div
                   key={photo.photo_id}
-                  className={`pg-card group relative overflow-hidden rounded-xl transition-all duration-300 ${
-                    gridLayout === 'uniform' ? 'pg-card--uniform' : ''
-                  } ${isSelected ? 'ring-2 ring-accent/45 ring-offset-2 ring-offset-surface' : 'hover:shadow-lg'}`}
+                  className={`pg-card group relative overflow-visible transition-all duration-300 ${
+                    isSelected
+                      ? 'ring-2 ring-accent/45 ring-offset-2 ring-offset-surface'
+                      : 'hover:shadow-lg'
+                  }`}
                   data-testid="public-batch"
                   data-photo-id={photo.photo_id}
                 >
-                  {selection?.enabled ? (
+                  <div
+                    className={`relative overflow-hidden rounded-xl ${
+                      gridLayout === 'uniform' ? 'pg-card--uniform' : ''
+                    }`}
+                  >
+                    {selection?.enabled ? (
+                      <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-2">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            selection.onTogglePhoto(photo.photo_id);
+                          }}
+                          disabled={isSelectionLocked}
+                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-sm transition-all duration-200 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+                            isSelected
+                              ? 'border-accent/50 bg-accent text-accent-foreground opacity-100 shadow-lg'
+                              : 'border-white/45 bg-black/20 text-white opacity-70 hover:bg-black/35 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100'
+                          } ${isSelectionLocked ? 'cursor-not-allowed opacity-70' : ''}`}
+                          aria-label={selectionButtonLabel}
+                          aria-pressed={isSelected}
+                          title={isSelected ? 'Remove from favorites' : 'Add to favorites'}
+                        >
+                          <Heart className={`h-4 w-4 ${isSelected ? 'fill-current' : ''}`} />
+                        </button>
+
+                        {selection.allowPhotoComments && isSelected ? (
+                          <AppPopover
+                            className="relative"
+                            buttonAriaLabel={`Add a note for ${accessiblePhotoName}`}
+                            buttonClassName={(open) =>
+                              `inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/45 bg-black/25 text-white backdrop-blur-sm transition-all duration-200 hover:bg-black/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+                                open || hasComment
+                                  ? 'opacity-100 shadow-lg'
+                                  : 'opacity-85 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100'
+                              }`
+                            }
+                            buttonContent={(open) => (
+                              <span className="relative inline-flex">
+                                <MessageSquare className="h-4 w-4" />
+                                {hasComment && !open ? (
+                                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-accent" />
+                                ) : null}
+                              </span>
+                            )}
+                            anchor={{ to: 'bottom end', gap: '10px' }}
+                            panelClassName="w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-border/40 bg-surface/98 p-3 shadow-2xl backdrop-blur dark:bg-surface-dark"
+                            panel={
+                              <div className="space-y-2">
+                                <div>
+                                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+                                    Photo note
+                                  </p>
+                                  <p className="mt-1 text-xs text-muted">
+                                    Add context for the photographer.
+                                  </p>
+                                </div>
+                                <label
+                                  htmlFor={`selection-comment-${photo.photo_id}`}
+                                  className="sr-only"
+                                >
+                                  Comment for {accessiblePhotoName}
+                                </label>
+                                <textarea
+                                  id={`selection-comment-${photo.photo_id}`}
+                                  key={`${photo.photo_id}-${selection.commentsByPhotoId[photo.photo_id] ?? ''}`}
+                                  defaultValue={selection.commentsByPhotoId[photo.photo_id] ?? ''}
+                                  placeholder="Comment for this photo"
+                                  disabled={!selection.canMutate}
+                                  onClick={(event) => event.stopPropagation()}
+                                  onBlur={(event) =>
+                                    selection.onUpdatePhotoComment(
+                                      photo.photo_id,
+                                      event.currentTarget.value,
+                                    )
+                                  }
+                                  className="min-h-28 w-full resize-none rounded-xl border border-border/40 bg-surface px-3 py-2 text-sm text-text outline-none focus:border-accent/50 disabled:cursor-not-allowed disabled:opacity-70"
+                                />
+                              </div>
+                            }
+                          />
+                        ) : null}
+                      </div>
+                    ) : null}
+
                     <button
                       type="button"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        selection.onTogglePhoto(photo.photo_id);
-                      }}
-                      disabled={isSelectionLocked}
-                      className={`absolute top-3 right-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-sm transition-all duration-200 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
-                        isSelected
-                          ? 'border-accent/50 bg-accent text-accent-foreground opacity-100 shadow-lg'
-                          : 'border-white/45 bg-black/20 text-white opacity-70 hover:bg-black/35 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100'
-                      } ${isSelectionLocked ? 'cursor-not-allowed opacity-70' : ''}`}
-                      aria-label={selectionButtonLabel}
-                      aria-pressed={isSelected}
-                      title={isSelected ? 'Remove from favorites' : 'Add to favorites'}
+                      onClick={() => onOpenPhoto(index)}
+                      className="block h-full w-full cursor-pointer border-0 bg-transparent p-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                      aria-label={accessiblePhotoName}
                     >
-                      <Heart className={`h-4 w-4 ${isSelected ? 'fill-current' : ''}`} />
-                    </button>
-                  ) : null}
-
-                  <button
-                    type="button"
-                    onClick={() => onOpenPhoto(index)}
-                    className="block h-full w-full cursor-pointer border-0 bg-transparent p-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                    aria-label={accessiblePhotoName}
-                  >
-                    <LazyImage
-                      src={photo.thumbnail_url}
-                      alt={accessiblePhotoName}
-                      className={`pg-card__media transition-transform duration-300 group-hover:scale-[1.01] ${
-                        gridLayout === 'uniform' ? 'pg-card__media--uniform' : ''
-                      }`}
-                      imgClassName="pg-card__img"
-                      aspectRatioHint={
-                        gridLayout === 'masonry' ? getAspectRatioHint(photo.photo_id) : undefined
-                      }
-                      objectFit={gridLayout === 'uniform' ? 'contain' : 'cover'}
-                    />
-                  </button>
-                  {selection?.enabled && selection.allowPhotoComments && isSelected ? (
-                    <div className="absolute inset-x-2 bottom-2 z-20">
-                      <label htmlFor={`selection-comment-${photo.photo_id}`} className="sr-only">
-                        Comment for {accessiblePhotoName}
-                      </label>
-                      <textarea
-                        id={`selection-comment-${photo.photo_id}`}
-                        key={`${photo.photo_id}-${selection.commentsByPhotoId[photo.photo_id] ?? ''}`}
-                        defaultValue={selection.commentsByPhotoId[photo.photo_id] ?? ''}
-                        placeholder="Comment for this photo"
-                        disabled={!selection.canMutate}
-                        onClick={(event) => event.stopPropagation()}
-                        onBlur={(event) =>
-                          selection.onUpdatePhotoComment(photo.photo_id, event.currentTarget.value)
+                      <LazyImage
+                        src={photo.thumbnail_url}
+                        alt={accessiblePhotoName}
+                        className={`pg-card__media transition-transform duration-300 group-hover:scale-[1.01] ${
+                          gridLayout === 'uniform' ? 'pg-card__media--uniform' : ''
+                        }`}
+                        imgClassName="pg-card__img"
+                        aspectRatioHint={
+                          gridLayout === 'masonry' ? getAspectRatioHint(photo.photo_id) : undefined
                         }
-                        className="min-h-14 w-full resize-none rounded-xl border border-border/40 bg-surface/92 px-3 py-2 text-xs text-text outline-none focus:border-accent/50 disabled:cursor-not-allowed disabled:opacity-70"
+                        objectFit={gridLayout === 'uniform' ? 'contain' : 'cover'}
                       />
-                    </div>
-                  ) : null}
+                    </button>
+                  </div>
                 </div>
               );
             })}
