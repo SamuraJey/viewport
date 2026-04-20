@@ -140,8 +140,6 @@ export const PublicGalleryPhotoSection = ({
                         gridLayout === 'masonry' ? getAspectRatioHint(photo.photo_id) : undefined
                       }
                       objectFit={gridLayout === 'uniform' ? 'contain' : 'cover'}
-                      width={gridLayout === 'uniform' ? photo.width : undefined}
-                      height={gridLayout === 'uniform' ? photo.height : undefined}
                     />
                   </button>
 

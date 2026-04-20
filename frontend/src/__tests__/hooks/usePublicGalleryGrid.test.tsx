@@ -19,8 +19,6 @@ const createPhoto = (
   thumbnail_url: `/thumbs/${photoId}.jpg`,
   full_url: `/full/${photoId}.jpg`,
   filename: `${photoId}.jpg`,
-  width: null,
-  height: null,
   naturalWidth,
   naturalHeight,
 });

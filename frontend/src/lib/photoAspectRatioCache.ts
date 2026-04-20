@@ -2,10 +2,14 @@ const STORAGE_KEY = 'viewport:public-photo-ratios:v1';
 const DEFAULT_FALLBACK_RATIO = 4 / 3;
 const MIN_RATIO = 0.05;
 const MAX_RATIO = 20;
+const MAX_CACHE_ENTRIES = 3000;
+const PERSIST_DEBOUNCE_MS = 200;
 
 const ratioCache = new Map<string, number>();
 
 let isHydrated = false;
+let persistTimeoutId: number | null = null;
+let idlePersistId: number | null = null;
 
 const normalizePhotoAspectRatio = (ratio: number | null | undefined): number | null => {
   if (!ratio || !Number.isFinite(ratio) || ratio < MIN_RATIO || ratio > MAX_RATIO) {
@@ -15,14 +19,87 @@ const normalizePhotoAspectRatio = (ratio: number | null | undefined): number | n
   return ratio;
 };
 
-const persistRatioCache = () => {
+const touchCachedPhotoAspectRatio = (photoId: string, ratio: number) => {
+  ratioCache.delete(photoId);
+  ratioCache.set(photoId, ratio);
+};
+
+const trimCacheToLimit = (maxEntries = MAX_CACHE_ENTRIES): boolean => {
+  let trimmed = false;
+
+  while (ratioCache.size > maxEntries) {
+    const oldestEntry = ratioCache.keys().next();
+    if (oldestEntry.done) {
+      break;
+    }
+
+    ratioCache.delete(oldestEntry.value);
+    trimmed = true;
+  }
+
+  return trimmed;
+};
+
+const clearScheduledPersistence = () => {
   if (typeof window === 'undefined') return;
 
+  if (persistTimeoutId !== null) {
+    window.clearTimeout(persistTimeoutId);
+    persistTimeoutId = null;
+  }
+
+  if (idlePersistId !== null && typeof window.cancelIdleCallback === 'function') {
+    window.cancelIdleCallback(idlePersistId);
+    idlePersistId = null;
+  }
+};
+
+const persistRatioCacheNow = () => {
+  if (typeof window === 'undefined') return;
+
+  clearScheduledPersistence();
+  trimCacheToLimit();
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(ratioCache)));
+      return;
+    } catch {
+      if (ratioCache.size === 0) {
+        break;
+      }
+
+      trimCacheToLimit(Math.max(0, Math.floor(ratioCache.size * 0.8)));
+    }
+  }
+
   try {
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(ratioCache)));
+    window.sessionStorage.removeItem(STORAGE_KEY);
   } catch {
     // Storage access can fail in private mode or restrictive environments.
   }
+};
+
+const schedulePersistRatioCache = () => {
+  if (typeof window === 'undefined') return;
+
+  if (persistTimeoutId !== null || idlePersistId !== null) {
+    return;
+  }
+
+  persistTimeoutId = window.setTimeout(() => {
+    persistTimeoutId = null;
+
+    if (typeof window.requestIdleCallback === 'function') {
+      idlePersistId = window.requestIdleCallback(() => {
+        idlePersistId = null;
+        persistRatioCacheNow();
+      });
+      return;
+    }
+
+    persistRatioCacheNow();
+  }, PERSIST_DEBOUNCE_MS);
 };
 
 export const hydratePhotoAspectRatioCache = () => {
@@ -41,7 +118,7 @@ export const hydratePhotoAspectRatioCache = () => {
       return;
     }
 
-    let shouldRewriteStorage = false;
+    let shouldPersist = false;
 
     Object.entries(parsed).forEach(([photoId, rawRatio]) => {
       const ratio = normalizePhotoAspectRatio(
@@ -49,15 +126,19 @@ export const hydratePhotoAspectRatioCache = () => {
       );
 
       if (!ratio) {
-        shouldRewriteStorage = true;
+        shouldPersist = true;
         return;
       }
 
-      ratioCache.set(photoId, ratio);
+      touchCachedPhotoAspectRatio(photoId, ratio);
     });
 
-    if (shouldRewriteStorage) {
-      persistRatioCache();
+    if (trimCacheToLimit()) {
+      shouldPersist = true;
+    }
+
+    if (shouldPersist) {
+      schedulePersistRatioCache();
     }
   } catch {
     try {
@@ -75,7 +156,14 @@ export const getCachedPhotoAspectRatio = (photoId: string): number | undefined =
     return undefined;
   }
 
-  return ratioCache.get(photoId);
+  const cachedRatio = ratioCache.get(photoId);
+  if (cachedRatio === undefined) {
+    return undefined;
+  }
+
+  touchCachedPhotoAspectRatio(photoId, cachedRatio);
+
+  return cachedRatio;
 };
 
 export const setCachedPhotoAspectRatio = (photoId: string, ratio: number): boolean => {
@@ -87,11 +175,13 @@ export const setCachedPhotoAspectRatio = (photoId: string, ratio: number): boole
   }
 
   if (ratioCache.get(photoId) === normalizedRatio) {
+    touchCachedPhotoAspectRatio(photoId, normalizedRatio);
     return false;
   }
 
-  ratioCache.set(photoId, normalizedRatio);
-  persistRatioCache();
+  touchCachedPhotoAspectRatio(photoId, normalizedRatio);
+  trimCacheToLimit();
+  schedulePersistRatioCache();
 
   return true;
 };

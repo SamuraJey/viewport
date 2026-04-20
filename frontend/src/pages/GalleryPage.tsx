@@ -1172,8 +1172,6 @@ export const GalleryPage = () => {
           src: photo.url,
           thumbnailSrc: photo.thumbnail_url,
           alt: photo.filename,
-          width: photo.width ?? undefined,
-          height: photo.height ?? undefined,
           download: photo.url,
           downloadFilename: photo.filename,
         })),
