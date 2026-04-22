@@ -251,6 +251,44 @@ describe('DashboardPage', () => {
     }
   });
 
+  it('debounces project search before resetting pagination and requesting filtered results', async () => {
+    const { projectService } = await import('../../services/projectService');
+
+    render(<DashboardPageWrapper initialPath="/dashboard?page=3" />);
+
+    await waitFor(() => {
+      expect(projectService.getProjects).toHaveBeenCalledWith(3, 18, undefined);
+    });
+
+    vi.useFakeTimers();
+
+    try {
+      const searchInput = screen.getByLabelText('Search projects');
+
+      await act(async () => {
+        fireEvent.change(searchInput, { target: { value: '' } });
+        fireEvent.change(searchInput, { target: { value: 'client' } });
+      });
+
+      expect(projectService.getProjects).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(299);
+      });
+
+      expect(projectService.getProjects).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+
+      expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, 'client');
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
+  });
+
   it('creates a project and navigates to the project gallery list', async () => {
     const user = userEvent.setup();
     const { projectService } = await import('../../services/projectService');
