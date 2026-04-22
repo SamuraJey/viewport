@@ -120,8 +120,8 @@ describe('DashboardPage', () => {
     expect(screen.queryByText(/starts with/i)).not.toBeInTheDocument();
     expect(screen.queryByText('No share link')).not.toBeInTheDocument();
     expect(screen.queryByText('Single-gallery project')).not.toBeInTheDocument();
-    expect(screen.getByText(/2 visible in project share/i)).toBeInTheDocument();
-    expect(screen.getByText('No share link')).toBeInTheDocument();
+    expect(screen.getByText(/2 galleries/i)).toBeInTheDocument();
+    expect(screen.getByText(/20 photos/i)).toBeInTheDocument();
   });
 
   it('fetches projects using the project-only pagination defaults', async () => {
