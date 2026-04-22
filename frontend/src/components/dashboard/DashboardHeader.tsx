@@ -44,7 +44,7 @@ export const DashboardHeader = ({
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder="Search by project name"
               className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
-              aria-label="Search projects by name"
+              aria-label="Search projects"
             />
           </label>
 
