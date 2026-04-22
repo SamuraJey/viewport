@@ -23,20 +23,22 @@ export const ProjectDashboardCard = ({ onOpen, project, variants }: ProjectDashb
       type="button"
       onClick={onOpen}
       aria-label={`Open project ${project.name}`}
-      className="group flex h-full flex-col overflow-hidden rounded-[28px] border border-border/55 bg-surface-1/80 text-left shadow-sm shadow-black/5 transition-all duration-300 hover:-translate-y-1 hover:border-accent/20 hover:shadow-xl focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1/80 dark:shadow-black/20"
+      className="group flex h-full flex-col overflow-hidden rounded-[28px] border border-border/55 bg-surface-1/85 text-left shadow-lg shadow-black/5 ring-1 ring-black/5 transition-all duration-300 hover:-translate-y-1.5 hover:border-accent/20 hover:shadow-2xl focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1/85 dark:shadow-black/25 dark:ring-white/5"
     >
       <div className="relative h-56 overflow-hidden bg-surface-2 dark:bg-surface-dark-2">
+        <div className="absolute inset-x-0 top-0 z-10 h-px bg-white/35 dark:bg-white/10" />
         {coverUrl ? (
           <img
             src={coverUrl}
             alt=""
             aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className="absolute inset-0 h-full w-full object-cover saturate-[0.92] transition-transform duration-500 group-hover:scale-105 group-hover:saturate-100"
           />
         ) : (
           <div className="absolute inset-0 bg-linear-to-br from-surface-2 via-surface to-surface-1 dark:from-surface-dark-2 dark:via-surface-dark dark:to-surface-dark-1" />
         )}
-        <div className="absolute inset-0 bg-linear-to-t from-black/16 via-black/0 to-white/10 dark:from-black/28 dark:to-white/5" />
+        <div className="absolute inset-0 bg-linear-to-t from-black/18 via-black/0 to-white/15 dark:from-black/35 dark:to-white/5" />
+        <div className="absolute inset-x-6 bottom-0 h-px bg-white/35 dark:bg-white/10" />
       </div>
 
       <div className="flex flex-1 flex-col gap-4 p-5">
@@ -50,12 +52,12 @@ export const ProjectDashboardCard = ({ onOpen, project, variants }: ProjectDashb
           </span>
         </div>
 
-        <p className="text-sm text-muted">
+        <p className="rounded-2xl border border-border/45 bg-surface px-3 py-2 text-sm text-muted dark:border-border/35 dark:bg-surface-dark">
           {galleryCount} galleries • {project.total_photo_count} photos
         </p>
 
         {project.has_active_share_links ? (
-          <span className="inline-flex w-fit items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">
+          <span className="inline-flex w-fit items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700 shadow-xs dark:text-emerald-300">
             <Link2 className="h-3.5 w-3.5" />
             Share links active
           </span>

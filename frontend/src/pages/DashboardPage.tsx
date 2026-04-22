@@ -149,8 +149,8 @@ export const DashboardPage = () => {
   );
 
   const renderEmptyState = () => (
-    <div className="rounded-3xl border border-dashed border-border bg-surface-1/50 px-4 py-24 text-center dark:border-border/40 dark:bg-surface-dark-1/50">
-      <div className="mb-6 inline-flex rounded-full bg-accent/10 p-4">
+    <div className="rounded-[32px] border border-dashed border-border/60 bg-surface-1/65 px-4 py-24 text-center shadow-sm dark:border-border/40 dark:bg-surface-dark-1/60">
+      <div className="mb-6 inline-flex rounded-full border border-accent/15 bg-accent/10 p-4 shadow-xs">
         <Plus className="h-8 w-8 text-accent" />
       </div>
       <h2 className="mb-2 text-2xl font-semibold text-text">No projects yet</h2>
