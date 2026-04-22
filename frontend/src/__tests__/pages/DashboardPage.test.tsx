@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -133,6 +133,44 @@ describe('DashboardPage', () => {
       },
       { timeout: 1500 },
     );
+  });
+
+  it('debounces project search before resetting pagination and requesting filtered results', async () => {
+    vi.useFakeTimers();
+
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const { projectService } = await import('../../services/projectService');
+
+      render(<DashboardPageWrapper initialPath="/dashboard?page=3" />);
+
+      await waitFor(() => {
+        expect(projectService.getProjects).toHaveBeenCalledWith(3, 18, undefined);
+      });
+
+      const searchInput = screen.getByLabelText('Search projects');
+      await user.clear(searchInput);
+      await user.type(searchInput, 'client');
+
+      expect(projectService.getProjects).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        vi.advanceTimersByTime(299);
+      });
+
+      expect(projectService.getProjects).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+
+      await waitFor(() => {
+        expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, 'client');
+      });
+    } finally {
+      vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+    }
   });
 
   it('creates a project and navigates to the project gallery list', async () => {
