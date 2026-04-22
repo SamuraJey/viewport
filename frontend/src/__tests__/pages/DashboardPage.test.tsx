@@ -90,7 +90,8 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('button', { name: 'Create new project' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create new gallery' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Search projects')).toBeInTheDocument();
-    expect(screen.getByText(/opens in Photos/i)).toBeInTheDocument();
+    expect(screen.queryByText('Single-gallery project')).not.toBeInTheDocument();
+    expect(screen.getByText(/starts with Photos/i)).toBeInTheDocument();
   });
 
   it('fetches projects using the project-only pagination defaults', async () => {
@@ -113,7 +114,28 @@ describe('DashboardPage', () => {
     });
   });
 
-  it('creates a project and navigates directly to its entry gallery', async () => {
+  it('updates project search and resets pagination without dropping the search query', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+
+    render(<DashboardPageWrapper initialPath="/dashboard?page=3" />);
+
+    await waitFor(() => {
+      expect(projectService.getProjects).toHaveBeenCalledWith(3, 18, undefined);
+    });
+
+    await user.clear(screen.getByLabelText('Search projects'));
+    await user.type(screen.getByLabelText('Search projects'), 'client');
+
+    await waitFor(
+      () => {
+        expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, 'client');
+      },
+      { timeout: 1500 },
+    );
+  });
+
+  it('creates a project and navigates to the project gallery list', async () => {
     const user = userEvent.setup();
     const { projectService } = await import('../../services/projectService');
 
@@ -139,7 +161,7 @@ describe('DashboardPage', () => {
       );
     });
 
-    expect(mockNavigate).toHaveBeenCalledWith('/projects/project-2/galleries/gallery-2');
+    expect(mockNavigate).toHaveBeenCalledWith('/projects/project-2');
   });
 
   it('shows a project-first empty state when there are no projects', async () => {

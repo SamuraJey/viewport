@@ -33,10 +33,7 @@ const cardVariants = {
 const SEARCH_DEBOUNCE_MS = 300;
 const PROJECT_PAGE_SIZE = 18;
 
-const resolveProjectEntryPath = (project: Project) =>
-  project.entry_gallery_id
-    ? `/projects/${project.id}/galleries/${project.entry_gallery_id}`
-    : `/projects/${project.id}`;
+const resolveProjectPath = (project: Project) => `/projects/${project.id}`;
 
 const getProjectGalleryCount = (project: Project) =>
   project.gallery_count ?? project.folder_count ?? 0;
@@ -48,7 +45,7 @@ export const DashboardPage = () => {
 
   const navigate = useNavigate();
   const pagination = usePagination({ pageSize: PROJECT_PAGE_SIZE, syncWithUrl: true });
-  const { page, pageSize, setTotal, firstPage } = pagination;
+  const { page, pageSize, setTotal } = pagination;
   const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -99,13 +96,12 @@ export const DashboardPage = () => {
       }
       nextParams.delete('page');
       setSearchParams(nextParams);
-      firstPage();
     }, SEARCH_DEBOUNCE_MS);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [activeSearch, firstPage, searchInput, searchParams, setSearchParams]);
+  }, [activeSearch, searchInput, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (isProjectModalOpen) {
@@ -130,7 +126,7 @@ export const DashboardPage = () => {
       });
       setIsProjectModalOpen(false);
       await fetchProjects();
-      navigate(resolveProjectEntryPath(project));
+      navigate(resolveProjectPath(project));
     } catch (err: unknown) {
       setError((err as Error)?.message || 'Failed to create project');
     } finally {
@@ -188,7 +184,7 @@ export const DashboardPage = () => {
             Projects
           </h1>
           <p className="font-cuprum text-lg text-muted">
-            Every delivery starts as a project and opens directly in its active gallery.
+            Every delivery starts as a project and opens to its gallery list.
           </p>
         </div>
         <button
@@ -235,8 +231,7 @@ export const DashboardPage = () => {
         <div>
           <h2 className="text-2xl font-semibold text-text">Project library</h2>
           <p className="text-sm text-muted">
-            Open any project and land straight in its first gallery, with quick switching when more
-            galleries are added.
+            Open any project to browse its galleries and manage project-level settings in one place.
           </p>
         </div>
 
@@ -263,7 +258,7 @@ export const DashboardPage = () => {
                       layout
                       variants={cardVariants}
                       type="button"
-                      onClick={() => navigate(resolveProjectEntryPath(project))}
+                      onClick={() => navigate(resolveProjectPath(project))}
                       className="overflow-hidden rounded-2xl border border-card-border bg-card-bg text-left shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
                     >
                       <div className="relative h-48 overflow-hidden bg-surface-2 dark:bg-surface-dark-2">
@@ -300,16 +295,11 @@ export const DashboardPage = () => {
                           <p className="mt-2 text-sm text-muted">
                             {listedGalleryCount} visible in project share ·{' '}
                             {project.entry_gallery_name
-                              ? `opens in ${project.entry_gallery_name}`
+                              ? `starts with ${project.entry_gallery_name}`
                               : 'empty project'}
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2 text-sm text-muted">
-                          <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
-                            {galleryCount === 1
-                              ? 'Single-gallery project'
-                              : 'Multi-gallery project'}
-                          </span>
                           <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
                             {project.has_active_share_links ? 'Share active' : 'No share link'}
                           </span>
