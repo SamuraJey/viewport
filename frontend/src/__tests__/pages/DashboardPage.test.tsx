@@ -120,7 +120,8 @@ describe('DashboardPage', () => {
     expect(screen.queryByText(/starts with/i)).not.toBeInTheDocument();
     expect(screen.queryByText('No share link')).not.toBeInTheDocument();
     expect(screen.queryByText('Single-gallery project')).not.toBeInTheDocument();
-    expect(screen.queryByText('Multi-gallery project')).not.toBeInTheDocument();
+    expect(screen.getByText(/2 visible in project share/i)).toBeInTheDocument();
+    expect(screen.getByText('No share link')).toBeInTheDocument();
   });
 
   it('fetches projects using the project-only pagination defaults', async () => {
@@ -170,6 +171,44 @@ describe('DashboardPage', () => {
 
     expect(screen.getByTestId('location')).toHaveTextContent('/dashboard?search=client');
     vi.useRealTimers();
+  });
+
+  it('debounces project search before resetting pagination and requesting filtered results', async () => {
+    const { projectService } = await import('../../services/projectService');
+
+    render(<DashboardPageWrapper initialPath="/dashboard?page=3" />);
+
+    await waitFor(() => {
+      expect(projectService.getProjects).toHaveBeenCalledWith(3, 18, undefined);
+    });
+
+    vi.useFakeTimers();
+
+    try {
+      const searchInput = screen.getByLabelText('Search projects');
+
+      await act(async () => {
+        fireEvent.change(searchInput, { target: { value: '' } });
+        fireEvent.change(searchInput, { target: { value: 'client' } });
+      });
+
+      expect(projectService.getProjects).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(299);
+      });
+
+      expect(projectService.getProjects).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+
+      expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, 'client');
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
   });
 
   it('debounces project search before resetting pagination and requesting filtered results', async () => {
