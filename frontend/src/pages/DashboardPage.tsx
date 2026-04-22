@@ -39,8 +39,10 @@ const resolveProjectPath = (project: Project) => `/projects/${project.id}`;
 
 const getProjectGalleryCount = (project: Project) =>
   project.gallery_count ?? project.folder_count ?? 0;
-const formatCountLabel = (count: number, singular: string) =>
-  `${count} ${count === 1 ? singular : `${singular}s`}`;
+const formatCountLabel = (count: number, singular: string) => {
+  const plural = singular.endsWith('y') ? `${singular.slice(0, -1)}ies` : `${singular}s`;
+  return `${count} ${count === 1 ? singular : plural}`;
+};
 
 export const DashboardPage = () => {
   useDocumentTitle('Projects · Viewport');
@@ -168,14 +170,14 @@ export const DashboardPage = () => {
         onClick={handleOpenProjectModal}
         disabled={isCreatingProject}
         className="inline-flex items-center gap-2 rounded-xl bg-accent px-8 py-3 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-        aria-label="Create new project"
+        aria-label="Create your first project"
       >
         {isCreatingProject ? (
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent-foreground/20 border-t-accent-foreground" />
         ) : (
           <Plus className="h-5 w-5" />
         )}
-        Create new project
+        Create your first project
       </button>
     </div>
   );

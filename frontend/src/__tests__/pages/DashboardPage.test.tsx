@@ -111,7 +111,9 @@ describe('DashboardPage', () => {
     expect(screen.queryByRole('button', { name: 'Create new gallery' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Search projects by project name')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search by project name')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { level: 2, name: 'Project library' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { level: 2, name: 'Project library' }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText('2 galleries • 20 photos')).toBeInTheDocument();
     expect(screen.getByText('1 gallery • 8 photos')).toBeInTheDocument();
     expect(screen.getAllByText('Open project')).toHaveLength(2);
@@ -165,10 +167,10 @@ describe('DashboardPage', () => {
     expect(projectService.getProjects).toHaveBeenLastCalledWith(3, 18, undefined);
 
     await vi.advanceTimersByTimeAsync(1);
-    await waitFor(() => {
-      expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, 'client');
-    });
+    await Promise.resolve();
+    await Promise.resolve();
 
+    expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, 'client');
     expect(screen.getByTestId('location')).toHaveTextContent('/dashboard?search=client');
     vi.useRealTimers();
   });
@@ -296,7 +298,7 @@ describe('DashboardPage', () => {
           'Create a project to begin organizing galleries, uploads, and delivery in one place.',
         ),
       ).toBeInTheDocument();
-      expect(screen.getAllByRole('button', { name: 'Create new project' })).toHaveLength(1);
+      expect(screen.getByRole('button', { name: 'Create your first project' })).toBeInTheDocument();
     });
   });
 });
