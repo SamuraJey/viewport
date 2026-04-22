@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -147,19 +147,24 @@ describe('DashboardPage', () => {
     vi.useFakeTimers();
 
     try {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const searchInput = screen.getByLabelText('Search projects');
 
-      await user.clear(searchInput);
-      await user.type(searchInput, 'client');
+      await act(async () => {
+        fireEvent.change(searchInput, { target: { value: '' } });
+        fireEvent.change(searchInput, { target: { value: 'client' } });
+      });
 
       expect(projectService.getProjects).toHaveBeenCalledTimes(1);
 
-      await vi.advanceTimersByTimeAsync(299);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(299);
+      });
 
       expect(projectService.getProjects).toHaveBeenCalledTimes(1);
 
-      await vi.advanceTimersByTimeAsync(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
 
       expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, 'client');
     } finally {
