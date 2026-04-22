@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { PaginationControls } from '../components/PaginationControls';
 import { CreateProjectModal } from '../components/dashboard/CreateProjectModal';
+import { DashboardHeader } from '../components/dashboard/DashboardHeader';
+import { ProjectDashboardCard } from '../components/dashboard/ProjectDashboardCard';
 import { usePagination } from '../hooks';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { projectService } from '../services/projectService';
@@ -34,11 +36,6 @@ const SEARCH_DEBOUNCE_MS = 300;
 const PROJECT_PAGE_SIZE = 18;
 
 const resolveProjectPath = (project: Project) => `/projects/${project.id}`;
-
-const getProjectGalleryCount = (project: Project) =>
-  project.gallery_count ?? project.folder_count ?? 0;
-const getListedProjectGalleryCount = (project: Project) =>
-  project.listed_gallery_count ?? project.listed_folder_count ?? 0;
 
 export const DashboardPage = () => {
   useDocumentTitle('Projects · Viewport');
@@ -139,12 +136,12 @@ export const DashboardPage = () => {
       {Array.from({ length: 8 }).map((_, index) => (
         <div
           key={index}
-          className="overflow-hidden rounded-2xl border border-border bg-surface dark:bg-surface-foreground/95 animate-pulse"
+          className="overflow-hidden rounded-[28px] border border-border/50 bg-surface-1/70 animate-pulse dark:border-border/40 dark:bg-surface-dark-1/60"
         >
-          <div className="h-48 bg-muted/20 dark:bg-muted-dark/20" />
-          <div className="space-y-3 p-4">
-            <div className="h-4 w-3/4 rounded bg-muted/20 dark:bg-muted-dark/20" />
-            <div className="h-3 w-1/2 rounded bg-muted/20 dark:bg-muted-dark/20" />
+          <div className="h-56 bg-surface-2/70 dark:bg-surface-dark-2/70" />
+          <div className="space-y-3 p-5">
+            <div className="h-6 w-3/4 rounded bg-muted/20 dark:bg-muted-dark/20" />
+            <div className="h-4 w-1/2 rounded bg-muted/20 dark:bg-muted-dark/20" />
           </div>
         </div>
       ))}
@@ -152,18 +149,19 @@ export const DashboardPage = () => {
   );
 
   const renderEmptyState = () => (
-    <div className="rounded-3xl border border-dashed border-border bg-surface-1/50 px-4 py-24 text-center dark:bg-surface-dark-1/50 dark:border-border/40">
+    <div className="rounded-3xl border border-dashed border-border bg-surface-1/50 px-4 py-24 text-center dark:border-border/40 dark:bg-surface-dark-1/50">
       <div className="mb-6 inline-flex rounded-full bg-accent/10 p-4">
         <Plus className="h-8 w-8 text-accent" />
       </div>
-      <h3 className="mb-2 text-2xl font-semibold text-text">No projects yet</h3>
+      <h2 className="mb-2 text-2xl font-semibold text-text">No projects yet</h2>
       <p className="mx-auto mb-8 max-w-md text-lg text-muted">
         Create a project to start uploading photos into its first gallery right away.
       </p>
       <button
+        type="button"
         onClick={handleOpenProjectModal}
         disabled={isCreatingProject}
-        className="inline-flex items-center gap-2 rounded-xl bg-accent px-8 py-3 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+        className="inline-flex items-center gap-2 rounded-xl bg-accent px-8 py-3 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
         aria-label="Create your first project"
       >
         {isCreatingProject ? (
@@ -178,45 +176,12 @@ export const DashboardPage = () => {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">
-            Projects
-          </h1>
-          <p className="font-cuprum text-lg text-muted">
-            Every delivery starts as a project and opens to its gallery list.
-          </p>
-        </div>
-        <button
-          onClick={handleOpenProjectModal}
-          disabled={isCreatingProject}
-          className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-          aria-label="Create new project"
-        >
-          {isCreatingProject ? (
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent-foreground/20 border-t-accent-foreground" />
-          ) : (
-            <Plus className="h-5 w-5" />
-          )}
-          New Project
-        </button>
-      </div>
-
-      <label
-        htmlFor="dashboard-project-search"
-        className="relative flex items-center rounded-xl border border-border bg-surface px-3 py-2 dark:bg-surface-dark"
-      >
-        <Search className="mr-2 h-4 w-4 text-muted" />
-        <input
-          id="dashboard-project-search"
-          type="search"
-          value={searchInput}
-          onChange={(event) => setSearchInput(event.target.value)}
-          placeholder="Search projects..."
-          className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
-          aria-label="Search projects"
-        />
-      </label>
+      <DashboardHeader
+        isCreatingProject={isCreatingProject}
+        onCreateProject={handleOpenProjectModal}
+        onSearchChange={setSearchInput}
+        searchValue={searchInput}
+      />
 
       {error ? (
         <ErrorDisplay
@@ -227,14 +192,7 @@ export const DashboardPage = () => {
         />
       ) : null}
 
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-2xl font-semibold text-text">Project library</h2>
-          <p className="text-sm text-muted">
-            Open any project to browse its galleries and manage project-level settings in one place.
-          </p>
-        </div>
-
+      <section className="space-y-4" aria-label="Project dashboard content">
         {isLoading ? (
           renderLoading()
         ) : projects.length === 0 ? (
@@ -242,72 +200,20 @@ export const DashboardPage = () => {
         ) : (
           <>
             <motion.div
-              className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+              className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
               variants={containerVariants}
               initial="hidden"
               animate="visible"
             >
               <AnimatePresence mode="popLayout">
-                {projects.map((project) => {
-                  const galleryCount = getProjectGalleryCount(project);
-                  const listedGalleryCount = getListedProjectGalleryCount(project);
-                  const coverUrl = project.recent_folder_thumbnail_urls[0] ?? null;
-                  return (
-                    <motion.button
-                      key={project.id}
-                      layout
-                      variants={cardVariants}
-                      type="button"
-                      onClick={() => navigate(resolveProjectPath(project))}
-                      className="overflow-hidden rounded-2xl border border-card-border bg-card-bg text-left shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
-                    >
-                      <div className="relative h-48 overflow-hidden bg-surface-2 dark:bg-surface-dark-2">
-                        {coverUrl ? (
-                          <>
-                            <img
-                              src={coverUrl}
-                              alt=""
-                              aria-hidden="true"
-                              className="absolute inset-0 h-full w-full object-cover opacity-35 blur-[2px] transition-transform duration-500 group-hover:scale-105"
-                            />
-                            <div className="absolute inset-0 bg-linear-to-b from-black/20 via-black/5 to-black/40" />
-                          </>
-                        ) : (
-                          <div className="absolute inset-0 bg-linear-to-br from-surface-2 to-surface dark:from-surface-dark-2 dark:to-surface-dark" />
-                        )}
-                        <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-2">
-                          <span className="inline-flex items-center gap-1 rounded-md bg-black/55 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                            {galleryCount} galleries
-                          </span>
-                          <span className="inline-flex items-center gap-1 rounded-md bg-black/55 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                            {project.total_photo_count} photos
-                          </span>
-                        </div>
-                      </div>
-                      <div className="space-y-4 p-5">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
-                            Project
-                          </p>
-                          <h3 className="mt-2 font-oswald text-2xl font-bold uppercase tracking-wide text-text">
-                            {project.name}
-                          </h3>
-                          <p className="mt-2 text-sm text-muted">
-                            {listedGalleryCount} visible in project share ·{' '}
-                            {project.entry_gallery_name
-                              ? `starts with ${project.entry_gallery_name}`
-                              : 'empty project'}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap gap-2 text-sm text-muted">
-                          <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
-                            {project.has_active_share_links ? 'Share active' : 'No share link'}
-                          </span>
-                        </div>
-                      </div>
-                    </motion.button>
-                  );
-                })}
+                {projects.map((project) => (
+                  <ProjectDashboardCard
+                    key={project.id}
+                    project={project}
+                    variants={cardVariants}
+                    onOpen={() => navigate(resolveProjectPath(project))}
+                  />
+                ))}
               </AnimatePresence>
             </motion.div>
             <PaginationControls pagination={pagination} isLoading={isLoading} />
