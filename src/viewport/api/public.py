@@ -484,6 +484,59 @@ async def get_public_photos_by_ids(
     ]
 
 
+# intentionally not async
+@router.get("/{share_id}/galleries/{folder_id}/download/all")
+def download_project_gallery_photos_zip(
+    share_id: UUID,
+    folder_id: UUID,
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    project_repo: ProjectRepository = Depends(get_project_repository),
+    sharelink: ShareLink = Depends(get_valid_sharelink),
+) -> StreamingResponse:
+    """Download one visible gallery from a project share as zip."""
+    if sharelink.scope_type != ShareScopeType.PROJECT.value or sharelink.project_id is None:
+        raise HTTPException(status_code=404, detail="Project share not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+
+    gallery = asyncio_run(project_repo.get_visible_project_folder_by_id(sharelink.project_id, folder_id))
+    if gallery is None:
+        raise HTTPException(status_code=404, detail="Folder not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+
+    settings = get_s3_settings()
+    z = zipstream.ZipStream()
+    used_names: set[str] = set()
+    gallery_photos = asyncio_run(repo.get_photos_by_gallery_id(gallery.id))
+
+    if not gallery_photos:
+        raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+
+    for photo in gallery_photos:
+        key = photo.object_key
+        fallback = build_zip_fallback_name(photo.display_name, object_key=key, fallback_stem=f"photo-{photo.id}")
+        filename = sanitize_zip_entry_name(photo.display_name, fallback=fallback)
+        filename = make_unique_zip_entry_name(filename, used_names)
+
+        def file_generator(object_key: str = key):
+            client = get_s3_client()
+            obj = client.get_object(Bucket=settings.bucket, Key=object_key)
+            yield from iter(lambda: obj["Body"].read(1024 * 1024), b"")
+
+        z.add(arcname=filename, data=file_generator())
+
+    asyncio_run(repo.record_zip_download(share_id))
+    logger.log_event(
+        "download_project_gallery_zip",
+        share_id=str(sharelink.id),
+        extra={"gallery_id": str(gallery.id), "photo_count": len(gallery_photos)},
+    )
+
+    safe_gallery_name = sanitize_zip_entry_name(gallery.name or f"gallery_{folder_id}", fallback=f"gallery_{folder_id}")
+    headers = {
+        "Content-Disposition": f'attachment; filename="{safe_gallery_name}.zip"',
+        **PUBLIC_CACHE_CONTROL_HEADERS,
+    }
+    return StreamingResponse(z, media_type="application/zip", headers=headers)
+
+
 # intetionally not async
 @router.get("/{share_id}/download/all")
 def download_all_photos_zip(

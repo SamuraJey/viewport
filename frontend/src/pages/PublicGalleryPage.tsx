@@ -280,6 +280,16 @@ export const PublicGalleryPage = () => {
     window.open(`${API_BASE_URL}/s/${shareId}/download/all`, '_blank');
   }, [shareId]);
 
+  const handleDownloadCurrentGallery = useCallback(() => {
+    if (!shareId || !activeGalleryId) return;
+    if (isDemoModeEnabled()) {
+      getDemoService().downloadSharedGalleryZip(shareId);
+      return;
+    }
+
+    window.open(`${API_BASE_URL}/s/${shareId}/galleries/${activeGalleryId}/download/all`, '_blank');
+  }, [activeGalleryId, shareId]);
+
   const handleOpenFavorites = useCallback(() => {
     if (!shareId || !isSelectionEnabled) {
       return;
@@ -530,13 +540,24 @@ export const PublicGalleryPage = () => {
                 </p>
               </div>
               {!isFavoritesView ? (
-                <button
-                  onClick={handleDownloadAll}
-                  className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
-                >
-                  <DownloadIcon className="h-4 w-4" />
-                  Download Project
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {activeGalleryId ? (
+                    <button
+                      onClick={handleDownloadCurrentGallery}
+                      className="inline-flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-4 py-2.5 text-sm font-semibold text-accent hover:bg-accent/15"
+                    >
+                      <DownloadIcon className="h-4 w-4" />
+                      Download gallery
+                    </button>
+                  ) : null}
+                  <button
+                    onClick={handleDownloadAll}
+                    className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
+                  >
+                    <DownloadIcon className="h-4 w-4" />
+                    Download project
+                  </button>
+                </div>
               ) : null}
             </div>
 

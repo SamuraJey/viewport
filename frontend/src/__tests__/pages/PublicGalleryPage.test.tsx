@@ -358,15 +358,35 @@ describe('PublicGalleryPage', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Wedding Weekend' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 1, name: '3eds' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /download gallery/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /download project/i })).toBeInTheDocument();
     expect(screen.queryByText('Download visible folders')).not.toBeInTheDocument();
     expect(container.querySelector('img[src="/full/project-cover.jpg"]')).not.toBeNull();
   });
 
+  it('downloads only the active gallery from project share navigation', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-2' };
+    vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue({
+      ...mockProjectGallery,
+      gallery_name: '3eds',
+    } as any);
+
+    render(wrapper());
+
+    const button = await screen.findByRole('button', { name: /download gallery/i });
+    await userEvent.click(button);
+
+    const expectedUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/s/abc123/galleries/gallery-2/download/all`;
+    expect(openSpy).toHaveBeenCalledWith(expectedUrl, '_blank');
+    openSpy.mockRestore();
+  });
+
   it('reuses nested gallery project navigation without refetching the root project share', async () => {
     const { shareLinkService } = await import('../../services/shareLinkService');
     mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-1' };
-    let resolveGallerySwitch: ((value: any) => void) | null = null;
+    let resolveGallerySwitch: (value: any) => void = () => {};
     const gallerySwitchPromise = new Promise<any>((resolve) => {
       resolveGallerySwitch = resolve;
     });
@@ -402,7 +422,7 @@ describe('PublicGalleryPage', () => {
     });
     expect(screen.queryByRole('status', { name: /loading gallery/i })).not.toBeInTheDocument();
 
-    resolveGallerySwitch?.({
+    resolveGallerySwitch({
       ...mockProjectGallery,
       gallery_name: '3eds',
       project_navigation: {
