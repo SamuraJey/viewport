@@ -559,7 +559,7 @@ export const PublicGalleryPage = () => {
           </section>
         ) : null}
 
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-border/40 pb-4">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
             {isFavoritesView ? (
               <button
@@ -579,9 +579,7 @@ export const PublicGalleryPage = () => {
                   <span className="text-muted">Limit {selection.config.limit_value}</span>
                 ) : null}
               </div>
-            ) : (
-              <p className="text-sm text-muted">Browse and download the gallery</p>
-            )}
+            ) : null}
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
