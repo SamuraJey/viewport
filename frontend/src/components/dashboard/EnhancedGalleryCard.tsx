@@ -3,7 +3,7 @@ import { Edit3, Share2, Trash2 } from 'lucide-react';
 import type { ReactNode, RefObject, SyntheticEvent } from 'react';
 import { useEffect } from 'react';
 
-import { CollectionCard, CollectionPhotoBadge, CollectionShareBadge } from './CollectionCard';
+import { CollectionCard, CollectionShareBadge } from './CollectionCard';
 import { getCollectionTitleTextSizeClass } from './collectionCardUtils';
 import { GALLERY_NAME_MAX_LENGTH } from '../../constants/gallery';
 import { formatDateOnly, formatFileSize } from '../../lib/utils';
@@ -117,7 +117,6 @@ export const EnhancedGalleryCard = ({
       }
       topOverlay={
         <>
-          <CollectionPhotoBadge count={gallery.photo_count} />
           {gallery.has_active_share_links ? <CollectionShareBadge /> : null}
           {extraTopBadges}
         </>

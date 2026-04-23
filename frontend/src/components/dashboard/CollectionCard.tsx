@@ -1,5 +1,5 @@
 import { motion, type Variants } from 'framer-motion';
-import { Camera, Link2 } from 'lucide-react';
+import { Link2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 interface CollectionCardProps {
@@ -16,13 +16,6 @@ interface CollectionCardProps {
 
 const DEFAULT_SHELL_CLASSNAME =
   'group relative flex h-full w-full flex-col overflow-hidden rounded-3xl border border-card-border bg-surface text-left shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:scale-[1.01] hover:shadow-xl dark:bg-surface-dark';
-
-export const CollectionPhotoBadge = ({ count }: { count: number }) => (
-  <span className="inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1 text-xs font-semibold tracking-wide text-white backdrop-blur-sm">
-    <Camera className="h-3.5 w-3.5" />
-    {count} photos
-  </span>
-);
 
 export const CollectionShareBadge = ({ label = 'Public' }: { label?: string }) => (
   <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/12 px-2.5 py-1 text-[10px] font-semibold tracking-[0.14em] text-emerald-700 backdrop-blur-sm dark:text-emerald-300">

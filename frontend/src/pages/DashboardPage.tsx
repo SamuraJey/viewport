@@ -5,11 +5,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { PaginationControls } from '../components/PaginationControls';
-import {
-  CollectionCard,
-  CollectionPhotoBadge,
-  CollectionShareBadge,
-} from '../components/dashboard/CollectionCard';
+import { CollectionCard, CollectionShareBadge } from '../components/dashboard/CollectionCard';
 import { getCollectionTitleTextSizeClass } from '../components/dashboard/collectionCardUtils';
 import { CreateProjectModal } from '../components/dashboard/CreateProjectModal';
 import { useConfirmation, usePagination } from '../hooks';
@@ -301,10 +297,7 @@ export const DashboardPage = () => {
                         )
                       }
                       topOverlay={
-                        <>
-                          <CollectionPhotoBadge count={project.total_photo_count} />
-                          {project.has_active_share_links ? <CollectionShareBadge /> : null}
-                        </>
+                        <>{project.has_active_share_links ? <CollectionShareBadge /> : null}</>
                       }
                       topRightOverlay={
                         <button
