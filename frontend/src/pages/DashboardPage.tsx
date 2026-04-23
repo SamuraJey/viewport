@@ -8,6 +8,7 @@ import { PaginationControls } from '../components/PaginationControls';
 import { CollectionCard, CollectionShareBadge } from '../components/dashboard/CollectionCard';
 import { getCollectionTitleTextSizeClass } from '../components/dashboard/collectionCardUtils';
 import { CreateProjectModal } from '../components/dashboard/CreateProjectModal';
+import { AppListbox } from '../components/ui';
 import { useConfirmation, usePagination } from '../hooks';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { handleApiError } from '../lib/errorHandling';
@@ -40,17 +41,32 @@ const PROJECT_PAGE_SIZE = 18;
 const DEFAULT_PROJECT_SORT_BY: ProjectListSortBy = 'created_at';
 const DEFAULT_PROJECT_SORT_ORDER: SortOrder = 'desc';
 
-const PROJECT_SORT_OPTIONS: Array<{ value: ProjectListSortBy; label: string }> = [
-  { value: 'created_at', label: 'Date created' },
-  { value: 'shooting_date', label: 'Shooting date' },
-  { value: 'name', label: 'Name' },
-  { value: 'photo_count', label: 'Photo count' },
-  { value: 'total_size_bytes', label: 'Size' },
-];
+interface ProjectSortOption {
+  value: `${ProjectListSortBy}:${SortOrder}`;
+  label: string;
+}
 
-const PROJECT_ORDER_OPTIONS: Array<{ value: SortOrder; label: string }> = [
-  { value: 'desc', label: 'Descending' },
-  { value: 'asc', label: 'Ascending' },
+const DEFAULT_PROJECT_SORT_STATE = {
+  sortBy: DEFAULT_PROJECT_SORT_BY,
+  order: DEFAULT_PROJECT_SORT_ORDER,
+} as const;
+
+const toProjectSortValue = ({ sortBy, order }: { sortBy: ProjectListSortBy; order: SortOrder }) =>
+  `${sortBy}:${order}` as ProjectSortOption['value'];
+
+const DEFAULT_PROJECT_SORT = toProjectSortValue(DEFAULT_PROJECT_SORT_STATE);
+
+const PROJECT_SORT_OPTIONS: ProjectSortOption[] = [
+  { value: 'created_at:desc', label: 'Date created (new to old)' },
+  { value: 'created_at:asc', label: 'Date created (old to new)' },
+  { value: 'shooting_date:desc', label: 'Shooting date (new to old)' },
+  { value: 'shooting_date:asc', label: 'Shooting date (old to new)' },
+  { value: 'name:asc', label: 'Name (A to Z)' },
+  { value: 'name:desc', label: 'Name (Z to A)' },
+  { value: 'photo_count:desc', label: 'Photo count (high to low)' },
+  { value: 'photo_count:asc', label: 'Photo count (low to high)' },
+  { value: 'total_size_bytes:desc', label: 'Size (large to small)' },
+  { value: 'total_size_bytes:asc', label: 'Size (small to large)' },
 ];
 
 const resolveProjectPath = (project: Project) => `/projects/${project.id}`;
@@ -67,6 +83,15 @@ const isProjectListSortBy = (value: string | null): value is ProjectListSortBy =
 
 const isSortOrder = (value: string | null): value is SortOrder =>
   value === 'asc' || value === 'desc';
+
+const parseProjectSortValue = (value: string) => {
+  const [sortBy, order] = value.split(':');
+  if (!isProjectListSortBy(sortBy) || !isSortOrder(order)) {
+    return DEFAULT_PROJECT_SORT_STATE;
+  }
+
+  return { sortBy, order };
+};
 
 export const DashboardPage = () => {
   useDocumentTitle('Projects · Viewport');
@@ -95,6 +120,10 @@ export const DashboardPage = () => {
   const activeSortOrder: SortOrder = isSortOrder(orderParam)
     ? orderParam
     : DEFAULT_PROJECT_SORT_ORDER;
+  const activeSortValue = toProjectSortValue({
+    sortBy: activeSortBy,
+    order: activeSortOrder,
+  });
 
   const fetchProjects = useCallback(async () => {
     setIsLoading(true);
@@ -123,27 +152,25 @@ export const DashboardPage = () => {
   }, [activeSearch]);
 
   const updateSortQueryParams = useCallback(
-    (updates: { sortBy?: ProjectListSortBy; order?: SortOrder }) => {
+    ({ sortBy, order }: { sortBy: ProjectListSortBy; order: SortOrder }) => {
       const nextParams = new URLSearchParams(searchParams);
-      const nextSortBy = updates.sortBy ?? activeSortBy;
-      const nextOrder = updates.order ?? activeSortOrder;
 
-      if (nextSortBy === DEFAULT_PROJECT_SORT_BY) {
+      if (sortBy === DEFAULT_PROJECT_SORT_BY) {
         nextParams.delete('sort_by');
       } else {
-        nextParams.set('sort_by', nextSortBy);
+        nextParams.set('sort_by', sortBy);
       }
 
-      if (nextOrder === DEFAULT_PROJECT_SORT_ORDER) {
+      if (order === DEFAULT_PROJECT_SORT_ORDER) {
         nextParams.delete('order');
       } else {
-        nextParams.set('order', nextOrder);
+        nextParams.set('order', order);
       }
 
       nextParams.delete('page');
       setSearchParams(nextParams);
     },
-    [activeSortBy, activeSortOrder, searchParams, setSearchParams],
+    [searchParams, setSearchParams],
   );
 
   useEffect(() => {
@@ -294,41 +321,22 @@ export const DashboardPage = () => {
                 aria-label="Search projects"
               />
             </label>
-            <label className="flex h-11 items-center gap-2 rounded-2xl border border-border bg-surface-1 px-3 text-sm font-semibold text-text shadow-sm dark:border-border/60 dark:bg-surface-dark-1">
-              <ArrowUpDown className="h-4 w-4 text-muted" />
-              <span className="sr-only">Sort projects by</span>
-              <select
-                value={activeSortBy}
-                onChange={(event) =>
-                  updateSortQueryParams({ sortBy: event.target.value as ProjectListSortBy })
-                }
-                className="min-w-32 bg-transparent text-sm font-semibold text-text outline-none"
-                aria-label="Sort projects by"
-              >
-                {PROJECT_SORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex h-11 items-center rounded-2xl border border-border bg-surface-1 px-3 text-sm font-semibold text-text shadow-sm dark:border-border/60 dark:bg-surface-dark-1">
-              <span className="sr-only">Project sort order</span>
-              <select
-                value={activeSortOrder}
-                onChange={(event) =>
-                  updateSortQueryParams({ order: event.target.value as SortOrder })
-                }
-                className="min-w-28 bg-transparent text-sm font-semibold text-text outline-none"
-                aria-label="Project sort order"
-              >
-                {PROJECT_ORDER_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <AppListbox
+              value={activeSortValue}
+              onChange={(value) => updateSortQueryParams(parseProjectSortValue(value))}
+              options={PROJECT_SORT_OPTIONS}
+              className="min-w-0 flex-1 sm:w-64 sm:flex-none"
+              aria-label="Sort projects"
+              startContent={<ArrowUpDown className="h-4 w-4 text-muted" />}
+              buttonClassName={(open) =>
+                `h-11 border px-3 text-sm font-semibold shadow-sm transition-all duration-200 dark:bg-surface-dark-1 ${
+                  open || activeSortValue !== DEFAULT_PROJECT_SORT
+                    ? 'border-accent/45 bg-accent/5 text-accent dark:border-accent/55'
+                    : 'border-border bg-surface-1 text-text hover:border-accent/40 dark:border-border/60'
+                }`
+              }
+              optionsClassName="bg-surface p-1 dark:bg-surface-dark-1"
+            />
             <button
               type="button"
               onClick={handleOpenProjectModal}

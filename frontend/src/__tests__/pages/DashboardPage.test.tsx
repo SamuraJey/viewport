@@ -105,8 +105,7 @@ describe('DashboardPage', () => {
     expect(screen.getAllByRole('button', { name: 'Create new project' })).toHaveLength(1);
     expect(screen.getByLabelText('Search projects')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search projects...')).toBeInTheDocument();
-    expect(screen.getByLabelText('Sort projects by')).toBeInTheDocument();
-    expect(screen.getByLabelText('Project sort order')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sort projects')).toHaveTextContent('Date created (new to old)');
     expect(
       screen.queryByRole('heading', { level: 2, name: 'Project library' }),
     ).not.toBeInTheDocument();
@@ -173,8 +172,7 @@ describe('DashboardPage', () => {
         order: 'asc',
       });
     });
-    expect(screen.getByLabelText('Sort projects by')).toHaveValue('photo_count');
-    expect(screen.getByLabelText('Project sort order')).toHaveValue('asc');
+    expect(screen.getByLabelText('Sort projects')).toHaveTextContent('Photo count (low to high)');
   });
 
   it('updates project sorting in the URL and resets pagination', async () => {
@@ -191,7 +189,12 @@ describe('DashboardPage', () => {
       });
     });
 
-    await user.selectOptions(screen.getByLabelText('Sort projects by'), 'photo_count');
+    await user.click(screen.getByLabelText('Sort projects'));
+    fireEvent.click(
+      within(await screen.findByRole('listbox')).getByRole('option', {
+        name: 'Photo count (high to low)',
+      }),
+    );
 
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, {
@@ -202,7 +205,12 @@ describe('DashboardPage', () => {
     });
     expect(screen.getByTestId('location')).toHaveTextContent('/dashboard?sort_by=photo_count');
 
-    await user.selectOptions(screen.getByLabelText('Project sort order'), 'asc');
+    await user.click(screen.getByLabelText('Sort projects'));
+    fireEvent.click(
+      within(await screen.findByRole('listbox')).getByRole('option', {
+        name: 'Photo count (low to high)',
+      }),
+    );
 
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, {
