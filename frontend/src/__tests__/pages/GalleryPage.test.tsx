@@ -278,7 +278,7 @@ describe('GalleryPage', () => {
 
     expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
     expect(screen.getByText('Share Links')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /delete gallery/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /more gallery actions/i })).toBeInTheDocument();
     expect(screen.getAllByRole('img')).toHaveLength(3);
   });
 
@@ -288,10 +288,11 @@ describe('GalleryPage', () => {
     render(<GalleryPageWrapper />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /delete gallery/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /more gallery actions/i })).toBeInTheDocument();
     });
 
-    await userEvent.click(screen.getByRole('button', { name: /delete gallery/i }));
+    await userEvent.click(screen.getByRole('button', { name: /more gallery actions/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /delete gallery/i }));
     const deleteDialog = await screen.findByRole('dialog', { name: /delete gallery/i });
     await userEvent.click(within(deleteDialog).getByRole('button', { name: 'Delete' }));
 
@@ -342,13 +343,13 @@ describe('GalleryPage', () => {
       expect(screen.getByText('Wedding Weekend')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('link', { name: 'Gallery #1' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '3eds' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /back to project/i })).toHaveAttribute(
       'href',
       '/projects/project-1',
     );
-    expect(screen.getByText('Project settings')).toBeInTheDocument();
+
+    expect(screen.getByRole('button', { name: /more gallery actions/i })).toBeInTheDocument();
+    expect(screen.getByText('2 galleries')).toBeInTheDocument();
   });
 
   it('redirects legacy gallery routes into the owning project route when project metadata is present', async () => {

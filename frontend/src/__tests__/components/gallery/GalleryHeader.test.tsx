@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { GalleryHeader } from '../../../components/gallery/GalleryHeader';
 
@@ -62,6 +62,34 @@ describe('GalleryHeader', () => {
     window.dispatchEvent(new Event('gallery:open-public-sort'));
 
     expect(screen.getByLabelText(/public gallery sort/i)).toBeInTheDocument();
+  });
+
+  it('keeps project settings and gallery navigation in the overflow menu', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <GalleryHeader
+          {...createProps()}
+          settingsHref="/projects/project-1"
+          projectNavigation={
+            <div>
+              <Link to="/projects/project-1/galleries/gallery-1">Portfolio Session</Link>
+              <Link to="/projects/project-1/galleries/gallery-2">Second Gallery</Link>
+            </div>
+          }
+        />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: /more gallery actions/i }));
+
+    expect(screen.getByRole('link', { name: /project settings/i })).toHaveAttribute(
+      'href',
+      '/projects/project-1',
+    );
+    expect(screen.getByRole('link', { name: 'Portfolio Session' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Second Gallery' })).toBeInTheDocument();
   });
 
   it('renders a share-gallery quick action when provided', async () => {
