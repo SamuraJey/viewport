@@ -340,9 +340,10 @@ describe('GalleryPage', () => {
     render(<GalleryPageWrapper />);
 
     await waitFor(() => {
-      expect(screen.getByText('Wedding Weekend')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1, name: 'Gallery #1' })).toBeInTheDocument();
     });
 
+    expect(screen.getByText(/2 galleries/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /back to project/i })).toHaveAttribute(
       'href',
       '/projects/project-1',

@@ -356,7 +356,7 @@ export const GalleryHeader = ({
             <AppPopover
               className="relative shrink-0"
               buttonRef={filtersButtonRef}
-              buttonAriaLabel="Filters and public sort"
+              buttonAriaLabel="Public sort"
               buttonClassName={(open) =>
                 `inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0 dark:focus-visible:ring-offset-surface-dark ${
                   open || hasCustomPublicSort
@@ -367,7 +367,7 @@ export const GalleryHeader = ({
               buttonContent={(open) => (
                 <>
                   <SlidersHorizontal className="h-4 w-4" />
-                  <span>Filters</span>
+                  <span>Public sort</span>
                   <ChevronDown
                     className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
                   />

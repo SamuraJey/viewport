@@ -1099,7 +1099,7 @@ export const GalleryPage = () => {
         {/* Gallery Header */}
         <GalleryHeader
           gallery={gallery}
-          title={project?.name || undefined}
+          title={gallery.name || undefined}
           subtitle={galleryHeaderSubtitle}
           backTo={project ? `/projects/${project.id}` : undefined}
           backLabel={project ? 'Back to Project' : undefined}
