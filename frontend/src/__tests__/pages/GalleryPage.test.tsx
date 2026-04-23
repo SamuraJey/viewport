@@ -93,15 +93,13 @@ const mockProjectDetail = {
   entry_gallery_id: '1',
   entry_gallery_name: 'Gallery #1',
   gallery_count: 2,
-  listed_gallery_count: 2,
+  visible_gallery_count: 2,
   has_entry_gallery: true,
-  folder_count: 2,
-  listed_folder_count: 2,
   total_photo_count: 6,
   total_size_bytes: 74070,
   has_active_share_links: true,
-  recent_folder_thumbnail_urls: [],
-  folders: [
+  cover_photo_thumbnail_url: null,
+  galleries: [
     {
       id: '1',
       owner_id: 'user1',
@@ -349,6 +347,10 @@ describe('GalleryPage', () => {
 
     expect(screen.getByRole('link', { name: 'Gallery #1' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '3eds' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /back to project/i })).toHaveAttribute(
+      'href',
+      '/projects/project-1',
+    );
     expect(screen.getByText('Project settings')).toBeInTheDocument();
   });
 

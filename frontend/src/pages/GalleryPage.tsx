@@ -302,10 +302,10 @@ export const GalleryPage = () => {
 
   const projectGalleries = useMemo(
     () =>
-      [...(project?.folders ?? [])].sort(
+      [...(project?.galleries ?? [])].sort(
         (left, right) => (left.project_position ?? 0) - (right.project_position ?? 0),
       ),
-    [project?.folders],
+    [project?.galleries],
   );
 
   const projectNavigation =
@@ -1113,7 +1113,8 @@ export const GalleryPage = () => {
           gallery={gallery}
           title={project?.name || undefined}
           subtitle={galleryHeaderSubtitle}
-          backLabel={project ? 'Back to Projects' : undefined}
+          backTo={project ? `/projects/${project.id}` : undefined}
+          backLabel={project ? 'Back to Project' : undefined}
           projectNavigation={projectNavigation}
           visiblePhotoCount={photoUrls.length}
           totalPhotoCount={pagination.total}

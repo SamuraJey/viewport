@@ -12,7 +12,7 @@ import type {
   GalleryListResponse,
   Project,
   ProjectDetail,
-  ProjectFolderSummary,
+  ProjectGallerySummary,
   ProjectListResponse,
   OwnerSelectionDetail,
   OwnerSelectionRow,
@@ -340,12 +340,12 @@ const buildSeedProjectContent = (): {
           name: 'Porto Wedding Delivery',
           created_at: createdAt,
           shooting_date: '2026-04-03T11:00:00Z',
-          folder_count: 0,
-          listed_folder_count: 0,
+          gallery_count: 0,
+          visible_gallery_count: 0,
           total_photo_count: 0,
           total_size_bytes: 0,
           has_active_share_links: false,
-          recent_folder_thumbnail_urls: [],
+          cover_photo_thumbnail_url: null,
         },
         shareLinks: [projectShareLink],
         selectionConfigs: {
@@ -465,12 +465,12 @@ const buildProjectsFromGalleryState = (galleries: DemoGalleryState[]): DemoProje
           name: entry.gallery.project_name?.trim() || 'Untitled Project',
           created_at: entry.gallery.created_at,
           shooting_date: entry.gallery.shooting_date,
-          folder_count: 0,
-          listed_folder_count: 0,
+          gallery_count: 0,
+          visible_gallery_count: 0,
           total_photo_count: 0,
           total_size_bytes: 0,
           has_active_share_links: false,
-          recent_folder_thumbnail_urls: [],
+          cover_photo_thumbnail_url: null,
         },
         shareLinks: [],
       });
@@ -816,41 +816,48 @@ class DemoServiceStore {
 
   private recalculateProjects(): void {
     this.projects = this.projects.map((entry) => {
-      const folders = this.galleries
+      const galleries = this.galleries
         .filter((galleryState) => galleryState.gallery.project_id === entry.project.id)
         .map((galleryState) => toGalleryWithComputedFields(galleryState));
-      const folderCount = folders.length;
-      const listedFolders = folders.filter(
-        (folder) => (folder.project_visibility ?? 'listed') === 'listed',
+      const galleryCount = galleries.length;
+      const visibleGalleries = galleries.filter(
+        (gallery) => (gallery.project_visibility ?? 'listed') === 'listed',
       );
-      const sortedFolders = [...folders].sort(
+      const sortedGalleries = [...galleries].sort(
         (left, right) => (left.project_position ?? 0) - (right.project_position ?? 0),
       );
-      const entryGallery = sortedFolders[0] ?? null;
-      const totalPhotoCount = folders.reduce((sum, folder) => sum + (folder.photo_count || 0), 0);
-      const totalSizeBytes = folders.reduce(
-        (sum, folder) => sum + (folder.total_size_bytes || 0),
+      const entryGallery = sortedGalleries[0] ?? null;
+      const totalPhotoCount = galleries.reduce(
+        (sum, gallery) => sum + (gallery.photo_count || 0),
         0,
       );
-      const recentFolderThumbnailUrls = folders
-        .flatMap((folder) => folder.recent_photo_thumbnail_urls || [])
-        .slice(0, 3);
+      const totalSizeBytes = galleries.reduce(
+        (sum, gallery) => sum + (gallery.total_size_bytes || 0),
+        0,
+      );
+      const coverPhotoThumbnailUrl =
+        galleries.find((gallery) => gallery.cover_photo_thumbnail_url)?.cover_photo_thumbnail_url ??
+        galleries.flatMap((gallery) => gallery.recent_photo_thumbnail_urls || []).at(0) ??
+        null;
       const hasActiveShareLinks = entry.shareLinks.some((link) => link.is_active !== false);
+      const { id, owner_id, name, created_at, shooting_date } = entry.project;
       return {
         ...entry,
         project: {
-          ...entry.project,
+          id,
+          owner_id,
+          name,
+          created_at,
+          shooting_date,
           entry_gallery_id: entryGallery?.id ?? null,
           entry_gallery_name: entryGallery?.name ?? null,
-          gallery_count: folderCount,
-          listed_gallery_count: listedFolders.length,
+          gallery_count: galleryCount,
+          visible_gallery_count: visibleGalleries.length,
           has_entry_gallery: Boolean(entryGallery),
-          folder_count: folderCount,
-          listed_folder_count: listedFolders.length,
           total_photo_count: totalPhotoCount,
           total_size_bytes: totalSizeBytes,
           has_active_share_links: hasActiveShareLinks,
-          recent_folder_thumbnail_urls: recentFolderThumbnailUrls,
+          cover_photo_thumbnail_url: coverPhotoThumbnailUrl,
         },
       };
     });
@@ -1072,7 +1079,7 @@ class DemoServiceStore {
     if (!state) {
       throw this.createNotFoundError('Project not found');
     }
-    const folders: ProjectFolderSummary[] = this.galleries
+    const galleries: ProjectGallerySummary[] = this.galleries
       .filter((entry) => entry.gallery.project_id === projectId)
       .map((entry) => {
         const gallery = toGalleryWithComputedFields(entry);
@@ -1097,15 +1104,11 @@ class DemoServiceStore {
       .sort((left, right) => (left.project_position ?? 0) - (right.project_position ?? 0));
     return {
       ...state.project,
-      folders,
+      galleries,
     };
   }
 
-  async createProject(payload: {
-    name?: string;
-    shooting_date?: string | null;
-    initial_gallery_name?: string | null;
-  }): Promise<Project> {
+  async createProject(payload: { name?: string; shooting_date?: string | null }): Promise<Project> {
     const createdAt = nowIso();
     const projectName = payload.name?.trim() || 'Untitled Project';
     const project: Project = {
@@ -1117,23 +1120,14 @@ class DemoServiceStore {
       entry_gallery_id: null,
       entry_gallery_name: null,
       gallery_count: 0,
-      listed_gallery_count: 0,
+      visible_gallery_count: 0,
       has_entry_gallery: false,
-      folder_count: 0,
-      listed_folder_count: 0,
       total_photo_count: 0,
       total_size_bytes: 0,
       has_active_share_links: false,
-      recent_folder_thumbnail_urls: [],
+      cover_photo_thumbnail_url: null,
     };
     this.projects.unshift({ project, shareLinks: [] });
-    await this.createGallery({
-      name: payload.initial_gallery_name?.trim() || projectName,
-      shooting_date: payload.shooting_date,
-      project_id: project.id,
-      project_position: 0,
-      project_visibility: 'listed',
-    });
     this.recalculateProjects();
     this.persistState();
     return {
@@ -1243,7 +1237,7 @@ class DemoServiceStore {
     project_visibility?: 'listed' | 'direct_only';
   }): Promise<Gallery> {
     const createdAt = nowIso();
-    const project = payload.project_id
+    let project = payload.project_id
       ? (this.projects.find((entry) => entry.project.id === payload.project_id)?.project ?? null)
       : null;
 
@@ -1251,13 +1245,12 @@ class DemoServiceStore {
       const createdProject = await this.createProject({
         name: payload.name?.trim() || 'Untitled Project',
         shooting_date: payload.shooting_date,
-        initial_gallery_name: payload.name,
       });
-      const entryGalleryId = createdProject.entry_gallery_id;
-      if (!entryGalleryId) {
-        throw this.createConflictError('Failed to create initial project gallery');
+      project =
+        this.projects.find((entry) => entry.project.id === createdProject.id)?.project ?? null;
+      if (!project) {
+        throw this.createConflictError('Failed to create compatibility project');
       }
-      return toGalleryWithComputedFields(this.getGalleryState(entryGalleryId));
     }
 
     const projectPosition =

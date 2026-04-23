@@ -8,18 +8,16 @@ export interface Project {
   shooting_date: string;
   entry_gallery_id?: string | null;
   entry_gallery_name?: string | null;
-  gallery_count?: number;
-  listed_gallery_count?: number;
+  gallery_count: number;
+  visible_gallery_count: number;
   has_entry_gallery?: boolean;
-  folder_count: number;
-  listed_folder_count: number;
   total_photo_count: number;
   total_size_bytes: number;
   has_active_share_links: boolean;
-  recent_folder_thumbnail_urls: string[];
+  cover_photo_thumbnail_url: string | null;
 }
 
-export interface ProjectFolderSummary {
+export interface ProjectGallerySummary {
   id: string;
   owner_id: string;
   project_id: string | null;
@@ -38,7 +36,7 @@ export interface ProjectFolderSummary {
 }
 
 export interface ProjectDetail extends Project {
-  folders: ProjectFolderSummary[];
+  galleries: ProjectGallerySummary[];
 }
 
 export interface ProjectListResponse {
@@ -51,7 +49,6 @@ export interface ProjectListResponse {
 export interface CreateProjectRequest {
   name?: string;
   shooting_date?: string | null;
-  initial_gallery_name?: string | null;
 }
 
 export interface UpdateProjectRequest {

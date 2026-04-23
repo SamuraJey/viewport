@@ -124,13 +124,13 @@ describe('ProjectPage', () => {
       name: 'Wedding Weekend',
       created_at: '2026-04-18T00:00:00Z',
       shooting_date: '2026-04-18',
-      folder_count: 2,
-      listed_folder_count: 1,
+      gallery_count: 2,
+      visible_gallery_count: 1,
       total_photo_count: 12,
       total_size_bytes: 1024,
       has_active_share_links: true,
-      recent_folder_thumbnail_urls: [],
-      folders: [
+      cover_photo_thumbnail_url: null,
+      galleries: [
         {
           id: 'gallery-1',
           owner_id: 'user-1',
@@ -203,6 +203,10 @@ describe('ProjectPage', () => {
   it('reuses the gallery share-links section UI for project links', async () => {
     renderProjectPage();
 
+    expect(await screen.findByRole('heading', { level: 1, name: 'Wedding Weekend' })).toHaveClass(
+      'wrap-break-word',
+      'whitespace-normal',
+    );
     expect(await screen.findByRole('heading', { name: /share links/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create new share link/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /all links/i })).toBeInTheDocument();
@@ -234,6 +238,8 @@ describe('ProjectPage', () => {
     expect(screen.getByText('Direct link only')).toBeInTheDocument();
     expect(screen.getByLabelText('Change project visibility for Photos')).toBeInTheDocument();
     expect(screen.getByLabelText('Change project visibility for 3eds')).toBeInTheDocument();
+    expect(screen.getByText('8 photos • 512 Bytes • Apr 18, 2026')).toBeInTheDocument();
+    expect(screen.getByText('4 photos • 512 Bytes • Apr 18, 2026')).toBeInTheDocument();
   });
 
   it('shows persisted project gallery order on the cards', async () => {

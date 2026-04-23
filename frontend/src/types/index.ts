@@ -21,7 +21,7 @@ export type {
 export type {
   Project,
   ProjectDetail,
-  ProjectFolderSummary,
+  ProjectGallerySummary,
   ProjectListResponse,
   CreateProjectRequest,
   UpdateProjectRequest,

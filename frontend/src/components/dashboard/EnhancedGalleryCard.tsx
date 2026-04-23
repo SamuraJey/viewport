@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Camera, Edit3, HardDrive, Share2, Trash2 } from 'lucide-react';
+import { Edit3, Share2, Trash2 } from 'lucide-react';
 import type { ReactNode, RefObject, SyntheticEvent } from 'react';
 import { useEffect } from 'react';
 
+import { CollectionCard, CollectionPhotoBadge, CollectionShareBadge } from './CollectionCard';
+import { getCollectionTitleTextSizeClass } from './collectionCardUtils';
 import { GALLERY_NAME_MAX_LENGTH } from '../../constants/gallery';
 import { formatDateOnly, formatFileSize } from '../../lib/utils';
 import type { Gallery } from '../../types/gallery';
@@ -61,13 +62,13 @@ export const EnhancedGalleryCard = ({
   const galleryTitle = makeGalleryTitle(gallery);
   const coverUrl =
     gallery.cover_photo_thumbnail_url ?? gallery.recent_photo_thumbnail_urls[0] ?? null;
+  const metadataParts = [
+    `${gallery.photo_count} ${gallery.photo_count === 1 ? 'photo' : 'photos'}`,
+    gallery.total_size_bytes > 0 ? formatFileSize(gallery.total_size_bytes) : null,
+    formatDateOnly(gallery.shooting_date || gallery.created_at),
+  ].filter(Boolean);
   const maxEditorHeight = 180;
-  const titleTextSizeClass =
-    galleryTitle.length > 80
-      ? 'text-sm leading-snug tracking-normal'
-      : galleryTitle.length > 34
-        ? 'text-base leading-snug tracking-tight'
-        : 'text-lg leading-tight tracking-wide';
+  const titleTextSizeClass = getCollectionTitleTextSizeClass(galleryTitle);
 
   const beginRenameFromEvent = (event: SyntheticEvent) => {
     event.preventDefault();
@@ -95,49 +96,35 @@ export const EnhancedGalleryCard = ({
   }, [isRenamingThis, renameInput, renameInputRef]);
 
   return (
-    <motion.div
-      key={gallery.id}
+    <CollectionCard
       variants={variants}
-      layout
-      exit="exit"
-      className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-card-border bg-card-bg shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
-    >
-      <div className="relative h-48 overflow-hidden bg-surface-2 dark:bg-surface-dark-2">
-        {coverUrl ? (
+      shellClassName="group relative flex h-full w-full flex-col overflow-hidden rounded-3xl border border-card-border bg-surface text-left shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:scale-[1.01] hover:shadow-xl dark:bg-surface-dark"
+      coverClassName="relative h-52 overflow-hidden bg-surface-2 dark:bg-surface-dark-2"
+      cover={
+        coverUrl ? (
           <>
             <img
               src={coverUrl}
               alt={`${galleryTitle} cover`}
               loading="lazy"
-              className="absolute inset-0 h-full w-full object-cover opacity-35 blur-[2px] transition-transform duration-500 group-hover:scale-105"
+              className="absolute inset-0 h-full w-full object-cover opacity-80 transition-transform duration-500 group-hover:scale-110"
             />
-            <div className="absolute inset-0 bg-linear-to-b from-black/20 via-black/5 to-black/40" />
+            <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/10 to-black/40 transition-colors duration-300 group-hover:from-black/0 group-hover:via-black/15 group-hover:to-black/50" />
           </>
         ) : (
           <div className="absolute inset-0 bg-linear-to-br from-surface-2 to-surface dark:from-surface-dark-2 dark:to-surface-dark" />
-        )}
-
-        <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-md bg-black/55 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
-            <Camera className="h-3 w-3" />
-            {gallery.photo_count}
-          </span>
-          {gallery.total_size_bytes > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-black/55 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
-              <HardDrive className="h-3 w-3" />
-              {formatFileSize(gallery.total_size_bytes)}
-            </span>
-          )}
-          {gallery.has_active_share_links && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-accent/90 px-2 py-1 text-xs font-medium text-accent-foreground backdrop-blur-sm">
-              <Share2 className="h-3 w-3" />
-            </span>
-          )}
+        )
+      }
+      topOverlay={
+        <>
+          <CollectionPhotoBadge count={gallery.photo_count} />
+          {gallery.has_active_share_links ? <CollectionShareBadge /> : null}
           {extraTopBadges}
-        </div>
-
-        {!isRenamingThis && (
-          <div className="absolute right-3 top-3 z-10 flex gap-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 focus-within:opacity-100">
+        </>
+      }
+      topRightOverlay={
+        !isRenamingThis ? (
+          <>
             {extraActions}
             {onShare ? (
               <button
@@ -165,12 +152,12 @@ export const EnhancedGalleryCard = ({
             >
               <Trash2 className="h-4 w-4" />
             </button>
-          </div>
-        )}
-      </div>
-
-      {isRenamingThis ? (
-        <div className="flex flex-1 flex-col p-4">
+          </>
+        ) : null
+      }
+      bodyClassName={isRenamingThis ? 'flex flex-1 flex-col p-4' : 'flex flex-1 flex-col p-4'}
+      body={
+        isRenamingThis ? (
           <div className="w-full min-w-0">
             <div className="relative w-full">
               <div className="min-w-0">
@@ -212,13 +199,11 @@ export const EnhancedGalleryCard = ({
               </span>
             </div>
           </div>
-        </div>
-      ) : (
-        <Link
-          to={resolveGalleryPath(gallery)}
-          className="flex flex-1 flex-col p-4 no-underline transition-colors hover:bg-surface-1 dark:hover:bg-surface-dark-1"
-        >
-          <div className="flex flex-1 flex-col justify-center">
+        ) : (
+          <Link
+            to={resolveGalleryPath(gallery)}
+            className="flex flex-1 flex-col justify-center gap-4 no-underline transition-colors"
+          >
             <div className="group/title relative w-full pr-5 text-left">
               <div className="min-w-0 flex-1">
                 <h3
@@ -237,12 +222,12 @@ export const EnhancedGalleryCard = ({
                 <Edit3 className="h-3.5 w-3.5" />
               </button>
             </div>
-            <p className="mt-2 font-cuprum text-sm text-muted">
-              {formatDateOnly(gallery.shooting_date || gallery.created_at)}
+            <p className="rounded-full border border-border/55 bg-surface-1 px-3 py-2 text-sm text-muted dark:border-border/45 dark:bg-surface-dark-1">
+              {metadataParts.join(' • ')}
             </p>
-          </div>
-        </Link>
-      )}
-    </motion.div>
+          </Link>
+        )
+      }
+    />
   );
 };

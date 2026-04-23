@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, EyeOff, FolderPlus, Settings2, Share2 } from 'lucide-react';
@@ -13,10 +13,10 @@ import { formatDateOnly, formatFileSize } from '../lib/utils';
 import { galleryService } from '../services/galleryService';
 import { projectService } from '../services/projectService';
 import { shareLinkService } from '../services/shareLinkService';
-import type { Gallery, ProjectDetail, ProjectFolderSummary, ShareLink } from '../types';
+import type { Gallery, ProjectDetail, ProjectGallerySummary, ShareLink } from '../types';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
-const emptyFolderDraft: {
+const emptyGalleryDraft: {
   name: string;
   shooting_date: string;
   project_visibility: 'listed' | 'direct_only';
@@ -45,7 +45,7 @@ const cardVariants = {
   exit: { opacity: 0, scale: 0.95, y: -6, transition: { duration: 0.14 } },
 };
 
-const toProjectGalleryCard = (folder: ProjectFolderSummary): Gallery => ({
+const toProjectGalleryCard = (folder: ProjectGallerySummary): Gallery => ({
   id: folder.id,
   owner_id: folder.owner_id,
   project_id: folder.project_id,
@@ -78,20 +78,22 @@ export const ProjectPage = () => {
   const [warningShareLinks, setWarningShareLinks] = useState<ShareLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [isFolderDialogOpen, setIsFolderDialogOpen] = useState(false);
-  const [folderDraft, setFolderDraft] = useState(emptyFolderDraft);
-  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [isGalleryDialogOpen, setIsGalleryDialogOpen] = useState(false);
+  const [galleryDraft, setGalleryDraft] = useState(emptyGalleryDraft);
+  const [isCreatingGallery, setIsCreatingGallery] = useState(false);
   const [isCreatingShareLink, setIsCreatingShareLink] = useState(false);
   const [isShareLinkCreateOpen, setIsShareLinkCreateOpen] = useState(false);
   const [editingShareLink, setEditingShareLink] = useState<ShareLink | null>(null);
-  const [isUpdatingFolder, setIsUpdatingFolder] = useState<string | null>(null);
-  const [isReorderingFolder, setIsReorderingFolder] = useState<string | null>(null);
+  const [isUpdatingGallery, setIsUpdatingGallery] = useState<string | null>(null);
+  const [isReorderingGallery, setIsReorderingGallery] = useState<string | null>(null);
   const [sharingGallery, setSharingGallery] = useState<Gallery | null>(null);
   const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState('');
   const [isRenamingGallery, setIsRenamingGallery] = useState(false);
-  const folderInputRef = useRef<HTMLInputElement | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
+  const projectTitleRef = useRef<HTMLHeadingElement | null>(null);
   const renameInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [projectTitleFontSizePx, setProjectTitleFontSizePx] = useState(48);
 
   const loadProject = useCallback(async () => {
     if (!projectId) return;
@@ -119,11 +121,51 @@ export const ProjectPage = () => {
 
   useDocumentTitle(project?.name ? `${project.name} · Project · Viewport` : 'Project · Viewport');
 
-  const listedFolderCount = useMemo(
+  useLayoutEffect(() => {
+    const heading = projectTitleRef.current;
+    if (!heading || !project?.name) {
+      return;
+    }
+
+    const minSize = 16;
+    const maxLines = 3;
+
+    const recalc = () => {
+      let nextSize = window.innerWidth >= 640 ? 48 : 36;
+      heading.style.fontSize = `${nextSize}px`;
+
+      while (nextSize > minSize) {
+        const computed = window.getComputedStyle(heading);
+        const lineHeight = parseFloat(computed.lineHeight);
+        const lines = lineHeight > 0 ? Math.round(heading.scrollHeight / lineHeight) : 1;
+        if (lines <= maxLines) {
+          break;
+        }
+        nextSize -= 1;
+        heading.style.fontSize = `${nextSize}px`;
+      }
+
+      setProjectTitleFontSizePx(nextSize);
+    };
+
+    recalc();
+
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(recalc) : null;
+    resizeObserver?.observe(heading);
+    window.addEventListener('resize', recalc);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', recalc);
+    };
+  }, [project?.name]);
+
+  const visibleGalleryCount = useMemo(
     () =>
-      project?.folders.filter((folder) => (folder.project_visibility ?? 'listed') === 'listed')
+      project?.galleries.filter((folder) => (folder.project_visibility ?? 'listed') === 'listed')
         .length ?? 0,
-    [project?.folders],
+    [project?.galleries],
   );
 
   const buildSelectionWarningSummary = useCallback((links: ShareLink[]) => {
@@ -195,24 +237,24 @@ export const ProjectPage = () => {
     [buildSelectionWarningLabel, deleteProjectSelectionWarningSummary],
   );
 
-  const handleCreateFolder = async () => {
-    if (!folderDraft.name.trim()) {
+  const handleCreateGallery = async () => {
+    if (!galleryDraft.name.trim()) {
       return;
     }
-    setIsCreatingFolder(true);
+    setIsCreatingGallery(true);
     try {
       await projectService.createProjectFolder(projectId, {
-        name: folderDraft.name.trim(),
-        shooting_date: folderDraft.shooting_date,
-        project_visibility: folderDraft.project_visibility,
+        name: galleryDraft.name.trim(),
+        shooting_date: galleryDraft.shooting_date,
+        project_visibility: galleryDraft.project_visibility,
       });
-      setFolderDraft(emptyFolderDraft);
-      setIsFolderDialogOpen(false);
+      setGalleryDraft(emptyGalleryDraft);
+      setIsGalleryDialogOpen(false);
       await loadProject();
     } catch (err) {
-      setError(handleApiError(err).message || 'Failed to create folder');
+      setError(handleApiError(err).message || 'Failed to create gallery');
     } finally {
-      setIsCreatingFolder(false);
+      setIsCreatingGallery(false);
     }
   };
 
@@ -230,7 +272,7 @@ export const ProjectPage = () => {
   const handleConfirmRename = async () => {
     if (!renameGalleryId) return;
     const normalizedName = renameInput.trim();
-    const currentGallery = project?.folders.find((folder) => folder.id === renameGalleryId);
+    const currentGallery = project?.galleries.find((gallery) => gallery.id === renameGalleryId);
     const currentName = currentGallery?.name?.trim() ?? '';
 
     if (!normalizedName || normalizedName === currentName) {
@@ -250,27 +292,27 @@ export const ProjectPage = () => {
     }
   };
 
-  const handleVisibilityChange = async (
-    folder: ProjectFolderSummary,
+  const handleGalleryVisibilityChange = async (
+    folder: ProjectGallerySummary,
     visibility: 'listed' | 'direct_only',
   ) => {
-    setIsUpdatingFolder(folder.id);
+    setIsUpdatingGallery(folder.id);
     try {
       await galleryService.updateGallery(folder.id, { project_visibility: visibility });
       await loadProject();
     } catch (err) {
-      setError(handleApiError(err).message || 'Failed to update folder visibility');
+      setError(handleApiError(err).message || 'Failed to update gallery visibility');
     } finally {
-      setIsUpdatingFolder(null);
+      setIsUpdatingGallery(null);
     }
   };
 
-  const requestVisibilityChange = (
-    folder: ProjectFolderSummary,
+  const requestGalleryVisibilityChange = (
+    folder: ProjectGallerySummary,
     visibility: 'listed' | 'direct_only',
   ) => {
     if (visibility !== 'direct_only' || !projectSelectionWarningSummary.hasSensitiveSessions) {
-      void handleVisibilityChange(folder, visibility);
+      void handleGalleryVisibilityChange(folder, visibility);
       return;
     }
 
@@ -279,7 +321,7 @@ export const ProjectPage = () => {
       message: `This project currently has ${projectSelectionWarningLabel}. Making "${folder.name}" direct-link-only can hide its photos from active client favorites and project proofing views.`,
       confirmText: 'Hide anyway',
       onConfirm: async () => {
-        await handleVisibilityChange(folder, visibility);
+        await handleGalleryVisibilityChange(folder, visibility);
       },
     });
   };
@@ -315,26 +357,26 @@ export const ProjectPage = () => {
     });
   };
 
-  const handleReorderFolder = async (folderId: string, targetIndex: number) => {
+  const handleReorderGallery = async (folderId: string, targetIndex: number) => {
     if (!project) {
       return;
     }
 
-    const currentIndex = project.folders.findIndex((folder) => folder.id === folderId);
+    const currentIndex = project.galleries.findIndex((folder) => folder.id === folderId);
     if (currentIndex === -1) {
       return;
     }
 
-    const boundedTargetIndex = Math.max(0, Math.min(targetIndex, project.folders.length - 1));
+    const boundedTargetIndex = Math.max(0, Math.min(targetIndex, project.galleries.length - 1));
     if (boundedTargetIndex === currentIndex) {
       return;
     }
 
-    const reorderedFolders = [...project.folders];
-    const [movedFolder] = reorderedFolders.splice(currentIndex, 1);
-    reorderedFolders.splice(boundedTargetIndex, 0, movedFolder);
+    const reorderedGalleries = [...project.galleries];
+    const [movedFolder] = reorderedGalleries.splice(currentIndex, 1);
+    reorderedGalleries.splice(boundedTargetIndex, 0, movedFolder);
 
-    const updates = reorderedFolders
+    const updates = reorderedGalleries
       .map((folder, index) => ({ folder, index }))
       .filter(({ folder, index }) => (folder.project_position ?? 0) !== index);
 
@@ -342,26 +384,26 @@ export const ProjectPage = () => {
       return;
     }
 
-    setIsReorderingFolder(folderId);
+    setIsReorderingGallery(folderId);
     try {
       await projectService.reorderProjectGalleries(
         projectId,
-        reorderedFolders.map((folder) => folder.id),
+        reorderedGalleries.map((folder) => folder.id),
       );
       await loadProject();
     } catch (err) {
       setError(handleApiError(err).message || 'Failed to reorder galleries');
     } finally {
-      setIsReorderingFolder(null);
+      setIsReorderingGallery(null);
     }
   };
 
-  const requestReorderFolder = (folder: ProjectFolderSummary, targetIndex: number) => {
+  const requestReorderGallery = (folder: ProjectGallerySummary, targetIndex: number) => {
     if (!project) {
       return;
     }
 
-    const currentIndex = project.folders.findIndex(
+    const currentIndex = project.galleries.findIndex(
       (projectFolder) => projectFolder.id === folder.id,
     );
     if (currentIndex === -1 || currentIndex === targetIndex) {
@@ -369,7 +411,7 @@ export const ProjectPage = () => {
     }
 
     if (!projectSelectionWarningSummary.hasSensitiveSessions) {
-      void handleReorderFolder(folder.id, targetIndex);
+      void handleReorderGallery(folder.id, targetIndex);
       return;
     }
 
@@ -378,7 +420,7 @@ export const ProjectPage = () => {
       message: `This project currently has ${projectSelectionWarningLabel}. Reordering "${folder.name}" can change the default gallery order, client navigation flow, and shared hero source while those proofing sessions are still in use.`,
       confirmText: 'Reorder anyway',
       onConfirm: async () => {
-        await handleReorderFolder(folder.id, targetIndex);
+        await handleReorderGallery(folder.id, targetIndex);
       },
     });
   };
@@ -401,7 +443,7 @@ export const ProjectPage = () => {
       title: 'Delete project?',
       message: `Are you sure you want to delete "${project?.name || 'this project'}" and all of its galleries? This action cannot be undone.${warningMessage}`,
       isDangerous: true,
-      confirmText: 'Delete project',
+      confirmText: 'Delete',
       onConfirm: async () => {
         await handleDeleteProject();
       },
@@ -473,7 +515,7 @@ export const ProjectPage = () => {
     <div className="space-y-6">
       <section className="rounded-3xl border border-border/50 bg-surface p-6 shadow-xs dark:border-border/30 dark:bg-surface-dark">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-3">
+          <div className="min-w-0 max-w-full space-y-3">
             <Link
               to="/dashboard"
               className="inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-accent"
@@ -485,12 +527,16 @@ export const ProjectPage = () => {
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
                 Project
               </p>
-              <h1 className="font-oswald text-4xl font-bold uppercase tracking-wide text-text">
+              <h1
+                ref={projectTitleRef}
+                style={{ fontSize: `${projectTitleFontSizePx}px` }}
+                className="max-w-full whitespace-normal wrap-break-word font-oswald font-bold uppercase leading-tight tracking-wide text-text"
+              >
                 {project.name}
               </h1>
               <p className="mt-2 text-sm text-muted">
-                {formatDateOnly(project.shooting_date)} · {project.folder_count} galleries ·{' '}
-                {listedFolderCount} visible in project share
+                {formatDateOnly(project.shooting_date)} · {project.gallery_count} galleries ·{' '}
+                {visibleGalleryCount} visible in project share
               </p>
             </div>
             <div className="flex flex-wrap gap-2 text-sm text-muted">
@@ -509,7 +555,7 @@ export const ProjectPage = () => {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => setIsFolderDialogOpen(true)}
+              onClick={() => setIsGalleryDialogOpen(true)}
               className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
             >
               <FolderPlus className="h-4 w-4" />
@@ -557,7 +603,7 @@ export const ProjectPage = () => {
           </div>
         </div>
         <div className="space-y-4">
-          {project.folders.length === 0 ? (
+          {project.galleries.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border/40 bg-surface-1/50 px-4 py-10 text-center text-sm text-muted">
               No galleries yet. Add the first gallery to start uploading photos.
             </div>
@@ -570,13 +616,13 @@ export const ProjectPage = () => {
                 animate="visible"
               >
                 <AnimatePresence mode="popLayout">
-                  {project.folders.map((folder) => {
+                  {project.galleries.map((folder) => {
                     const galleryCard = toProjectGalleryCard(folder);
-                    const currentIndex = project.folders.findIndex(
+                    const currentIndex = project.galleries.findIndex(
                       (projectFolder) => projectFolder.id === folder.id,
                     );
                     const isFirstGallery = currentIndex === 0;
-                    const isLastGallery = currentIndex === project.folders.length - 1;
+                    const isLastGallery = currentIndex === project.galleries.length - 1;
 
                     return (
                       <div key={folder.id}>
@@ -625,8 +671,10 @@ export const ProjectPage = () => {
                                   </p>
                                   <button
                                     type="button"
-                                    onClick={() => void handleVisibilityChange(folder, 'listed')}
-                                    disabled={isUpdatingFolder === folder.id}
+                                    onClick={() =>
+                                      void handleGalleryVisibilityChange(folder, 'listed')
+                                    }
+                                    disabled={isUpdatingGallery === folder.id}
                                     className={`flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
                                       (folder.project_visibility ?? 'listed') === 'listed'
                                         ? 'bg-accent/10 text-accent'
@@ -645,8 +693,10 @@ export const ProjectPage = () => {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => requestVisibilityChange(folder, 'direct_only')}
-                                    disabled={isUpdatingFolder === folder.id}
+                                    onClick={() =>
+                                      requestGalleryVisibilityChange(folder, 'direct_only')
+                                    }
+                                    disabled={isUpdatingGallery === folder.id}
                                     className={`flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
                                       (folder.project_visibility ?? 'listed') === 'direct_only'
                                         ? 'bg-amber-500/10 text-amber-600'
@@ -668,8 +718,8 @@ export const ProjectPage = () => {
                                   </p>
                                   <button
                                     type="button"
-                                    onClick={() => requestReorderFolder(folder, currentIndex - 1)}
-                                    disabled={isFirstGallery || isReorderingFolder === folder.id}
+                                    onClick={() => requestReorderGallery(folder, currentIndex - 1)}
+                                    disabled={isFirstGallery || isReorderingGallery === folder.id}
                                     className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
                                     <span>
@@ -684,8 +734,8 @@ export const ProjectPage = () => {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => requestReorderFolder(folder, currentIndex + 1)}
-                                    disabled={isLastGallery || isReorderingFolder === folder.id}
+                                    onClick={() => requestReorderGallery(folder, currentIndex + 1)}
+                                    disabled={isLastGallery || isReorderingGallery === folder.id}
                                     className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
                                     <span>
@@ -700,8 +750,8 @@ export const ProjectPage = () => {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => requestReorderFolder(folder, 0)}
-                                    disabled={isFirstGallery || isReorderingFolder === folder.id}
+                                    onClick={() => requestReorderGallery(folder, 0)}
+                                    disabled={isFirstGallery || isReorderingGallery === folder.id}
                                     className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50"
                                   >
                                     <span>
@@ -718,7 +768,7 @@ export const ProjectPage = () => {
                           variants={cardVariants}
                         />
                         <div className="mt-2 px-1 text-xs text-muted">
-                          Position {currentIndex + 1} of {project.folders.length}
+                          Position {currentIndex + 1} of {project.galleries.length}
                         </div>
                       </div>
                     );
@@ -745,13 +795,13 @@ export const ProjectPage = () => {
       />
 
       <AppDialog
-        open={isFolderDialogOpen}
+        open={isGalleryDialogOpen}
         onClose={() => {
-          setIsFolderDialogOpen(false);
-          setFolderDraft(emptyFolderDraft);
+          setIsGalleryDialogOpen(false);
+          setGalleryDraft(emptyGalleryDraft);
         }}
         size="sm"
-        initialFocusRef={folderInputRef as React.RefObject<HTMLElement | null>}
+        initialFocusRef={galleryInputRef as React.RefObject<HTMLElement | null>}
         panelClassName="rounded-3xl border border-border/50 bg-surface p-6 shadow-2xl dark:border-border/20 dark:bg-surface-dark"
       >
         <AppDialogTitle className="text-lg font-semibold text-text">
@@ -770,10 +820,10 @@ export const ProjectPage = () => {
             </label>
             <input
               id="project-folder-name"
-              ref={folderInputRef}
-              value={folderDraft.name}
+              ref={galleryInputRef}
+              value={galleryDraft.name}
               onChange={(event) =>
-                setFolderDraft((prev) => ({ ...prev, name: event.target.value }))
+                setGalleryDraft((prev) => ({ ...prev, name: event.target.value }))
               }
               className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
               placeholder="Gallery name"
@@ -789,9 +839,9 @@ export const ProjectPage = () => {
             <input
               id="project-folder-date"
               type="date"
-              value={folderDraft.shooting_date}
+              value={galleryDraft.shooting_date}
               onChange={(event) =>
-                setFolderDraft((prev) => ({ ...prev, shooting_date: event.target.value }))
+                setGalleryDraft((prev) => ({ ...prev, shooting_date: event.target.value }))
               }
               className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
             />
@@ -805,9 +855,9 @@ export const ProjectPage = () => {
             </label>
             <select
               id="project-folder-visibility"
-              value={folderDraft.project_visibility}
+              value={galleryDraft.project_visibility}
               onChange={(event) =>
-                setFolderDraft((prev) => ({
+                setGalleryDraft((prev) => ({
                   ...prev,
                   project_visibility: event.target.value as 'listed' | 'direct_only',
                 }))
@@ -822,18 +872,18 @@ export const ProjectPage = () => {
         <div className="mt-6 flex justify-end gap-3">
           <button
             type="button"
-            onClick={() => setIsFolderDialogOpen(false)}
+            onClick={() => setIsGalleryDialogOpen(false)}
             className="rounded-xl border border-border/40 bg-surface px-4 py-2.5 text-sm font-semibold text-text"
           >
             Cancel
           </button>
           <button
             type="button"
-            disabled={isCreatingFolder}
-            onClick={() => void handleCreateFolder()}
+            disabled={isCreatingGallery}
+            onClick={() => void handleCreateGallery()}
             className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground"
           >
-            {isCreatingFolder ? 'Creating…' : 'Create gallery'}
+            {isCreatingGallery ? 'Creating…' : 'Create gallery'}
           </button>
         </div>
       </AppDialog>

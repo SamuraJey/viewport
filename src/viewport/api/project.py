@@ -15,7 +15,15 @@ from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.project_repository import ProjectRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.schemas.gallery import GalleryCreateRequest
-from viewport.schemas.project import ProjectCreateRequest, ProjectDetailResponse, ProjectFolderSummaryResponse, ProjectGalleryReorderRequest, ProjectListResponse, ProjectResponse, ProjectUpdateRequest
+from viewport.schemas.project import (
+    ProjectCreateRequest,
+    ProjectDetailResponse,
+    ProjectGalleryReorderRequest,
+    ProjectGallerySummaryResponse,
+    ProjectListResponse,
+    ProjectResponse,
+    ProjectUpdateRequest,
+)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -31,14 +39,14 @@ def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryReposit
 def _serialize_project_response(
     project: Project,
     *,
-    folder_count: int,
-    listed_folder_count: int,
+    gallery_count: int,
+    visible_gallery_count: int,
     entry_gallery_id: uuid.UUID | None,
     entry_gallery_name: str | None,
     total_photo_count: int,
     total_size_bytes: int,
     has_active_share_links: bool,
-    recent_folder_thumbnail_urls: list[str],
+    cover_photo_thumbnail_url: str | None,
 ) -> ProjectResponse:
     return ProjectResponse(
         id=str(project.id),
@@ -46,17 +54,15 @@ def _serialize_project_response(
         name=project.name,
         created_at=project.created_at,
         shooting_date=project.shooting_date,
-        folder_count=folder_count,
-        listed_folder_count=listed_folder_count,
-        gallery_count=folder_count,
-        visible_gallery_count=listed_folder_count,
+        gallery_count=gallery_count,
+        visible_gallery_count=visible_gallery_count,
         entry_gallery_id=str(entry_gallery_id) if entry_gallery_id else None,
         entry_gallery_name=entry_gallery_name,
         has_entry_gallery=entry_gallery_id is not None,
         total_photo_count=total_photo_count,
         total_size_bytes=total_size_bytes,
         has_active_share_links=has_active_share_links,
-        recent_folder_thumbnail_urls=recent_folder_thumbnail_urls,
+        cover_photo_thumbnail_url=cover_photo_thumbnail_url,
     )
 
 
@@ -65,25 +71,25 @@ async def _build_project_response(
     repo: ProjectRepository,
     s3_client: AsyncS3Client,
 ) -> ProjectResponse:
-    folder_count = await repo.get_project_folder_count(project.id, listed_only=False)
-    listed_folder_count = await repo.get_project_folder_count(project.id, listed_only=True)
+    gallery_count = await repo.get_project_folder_count(project.id, listed_only=False)
+    visible_gallery_count = await repo.get_project_folder_count(project.id, listed_only=True)
     entry_gallery = await repo.get_project_entry_gallery(project.id, owner_id=project.owner_id, listed_only=False)
     total_photo_count = await repo.get_project_total_photo_count(project.id, listed_only=False)
     total_size_bytes = await repo.get_project_total_size(project.id, listed_only=False)
     has_active_share_links = await repo.has_active_share_links(project.id)
-    recent_keys = await repo.get_recent_project_thumbnail_keys(project.id, listed_only=False, limit=3)
+    recent_keys = await repo.get_recent_project_thumbnail_keys(project.id, listed_only=False, limit=1)
     recent_url_map = await s3_client.generate_presigned_urls_batch(recent_keys, expires_in=7200) if recent_keys else {}
 
     return _serialize_project_response(
         project,
-        folder_count=folder_count,
-        listed_folder_count=listed_folder_count,
+        gallery_count=gallery_count,
+        visible_gallery_count=visible_gallery_count,
         entry_gallery_id=entry_gallery.id if entry_gallery else None,
         entry_gallery_name=entry_gallery.name if entry_gallery else None,
         total_photo_count=total_photo_count,
         total_size_bytes=total_size_bytes,
         has_active_share_links=has_active_share_links,
-        recent_folder_thumbnail_urls=[recent_url_map[key] for key in recent_keys if key in recent_url_map],
+        cover_photo_thumbnail_url=recent_url_map.get(recent_keys[0]) if recent_keys else None,
     )
 
 
@@ -99,7 +105,7 @@ async def _build_project_responses(
     project_ids = [project.id for project in projects]
     project_galleries = await repo.get_project_folders_for_projects(project_ids)
     active_share_project_ids = await repo.get_active_share_project_ids(project_ids)
-    recent_thumbnail_keys_by_project = await repo.get_recent_project_thumbnail_keys_by_project_ids(project_ids, limit=3)
+    recent_thumbnail_keys_by_project = await repo.get_recent_project_thumbnail_keys_by_project_ids(project_ids, limit=1)
 
     galleries_by_project: dict[uuid.UUID, list] = {}
     gallery_ids: list[uuid.UUID] = []
@@ -124,7 +130,7 @@ async def _build_project_responses(
     responses: list[ProjectResponse] = []
     for project in projects:
         galleries = galleries_by_project.get(project.id, [])
-        folder_count = len(galleries)
+        gallery_count = len(galleries)
         listed_galleries = [gallery for gallery in galleries if getattr(gallery, "project_visibility", "listed") == "listed"]
         total_photo_count = sum(photo_count_by_gallery.get(gallery.id, 0) for gallery in galleries)
         total_size_bytes = sum(total_size_by_gallery.get(gallery.id, 0) for gallery in galleries)
@@ -134,14 +140,14 @@ async def _build_project_responses(
         responses.append(
             _serialize_project_response(
                 project,
-                folder_count=folder_count,
-                listed_folder_count=len(listed_galleries),
+                gallery_count=gallery_count,
+                visible_gallery_count=len(listed_galleries),
                 entry_gallery_id=entry_gallery.id if entry_gallery else None,
                 entry_gallery_name=entry_gallery.name if entry_gallery else None,
                 total_photo_count=total_photo_count,
                 total_size_bytes=total_size_bytes,
                 has_active_share_links=project.id in active_share_project_ids,
-                recent_folder_thumbnail_urls=[recent_url_map[key] for key in recent_keys if key in recent_url_map],
+                cover_photo_thumbnail_url=recent_url_map.get(recent_keys[0]) if recent_keys else None,
             )
         )
 
@@ -154,7 +160,7 @@ async def _build_project_folder_responses(
     s3_client: AsyncS3Client,
     *,
     project_name: str,
-) -> list[ProjectFolderSummaryResponse]:
+) -> list[ProjectGallerySummaryResponse]:
     if not galleries:
         return []
 
@@ -175,12 +181,12 @@ async def _build_project_folder_responses(
 
     presigned_by_key = await s3_client.generate_presigned_urls_batch(list(dict.fromkeys(all_thumbnail_keys)), expires_in=7200) if all_thumbnail_keys else {}
 
-    responses: list[ProjectFolderSummaryResponse] = []
+    responses: list[ProjectGallerySummaryResponse] = []
     for gallery in galleries:
         cover_key = cover_thumbnail_by_photo_id.get(gallery.cover_photo_id) if gallery.cover_photo_id else None
         recent_keys = recent_thumbnail_keys_by_gallery.get(gallery.id, [])
         responses.append(
-            ProjectFolderSummaryResponse(
+            ProjectGallerySummaryResponse(
                 id=str(gallery.id),
                 owner_id=str(gallery.owner_id),
                 project_id=str(gallery.project_id) if gallery.project_id else None,
@@ -208,11 +214,10 @@ async def create_project(
     current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
 ) -> ProjectResponse:
-    project, _ = await repo.create_project_with_initial_gallery(
+    project = await repo.create_project(
         current_user.id,
         request.name,
         request.shooting_date,
-        initial_gallery_name=request.initial_gallery_name,
     )
     return await _build_project_response(project, repo, s3_client)
 
@@ -247,7 +252,7 @@ async def get_project_detail(
     base_response = await _build_project_response(project, repo, s3_client)
     folders = await repo.get_project_folders_by_owner(project_id, current_user.id)
     folder_responses = await _build_project_folder_responses(folders, gallery_repo, s3_client, project_name=project.name)
-    return ProjectDetailResponse(**base_response.model_dump(), folders=folder_responses)
+    return ProjectDetailResponse(**base_response.model_dump(), galleries=folder_responses)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
@@ -301,8 +306,8 @@ async def reorder_project_galleries(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/{project_id}/folders", response_model=ProjectFolderSummaryResponse, status_code=status.HTTP_201_CREATED)
-@router.post("/{project_id}/galleries", response_model=ProjectFolderSummaryResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{project_id}/folders", response_model=ProjectGallerySummaryResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{project_id}/galleries", response_model=ProjectGallerySummaryResponse, status_code=status.HTTP_201_CREATED)
 async def create_project_folder(
     project_id: uuid.UUID,
     request: GalleryCreateRequest,
@@ -310,7 +315,7 @@ async def create_project_folder(
     gallery_repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
-) -> ProjectFolderSummaryResponse:
+) -> ProjectGallerySummaryResponse:
     project = await project_repo.get_project_by_id_and_owner(project_id, current_user.id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")

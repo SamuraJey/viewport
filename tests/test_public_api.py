@@ -612,7 +612,12 @@ class TestPublicAPI:
         project_resp = authenticated_client.post("/projects", json={"name": "Public Project"})
         assert project_resp.status_code == 201
         project_id = project_resp.json()["id"]
-        folder_id = project_resp.json()["entry_gallery_id"]
+        folder_resp = authenticated_client.post(
+            f"/projects/{project_id}/galleries",
+            json={"name": "Delivery", "project_visibility": "listed"},
+        )
+        assert folder_resp.status_code == 201
+        folder_id = folder_resp.json()["id"]
 
         photo_id = _upload_photo(authenticated_client, folder_id, b"delivery", "delivery.jpg")
         cover_resp = authenticated_client.post(f"/galleries/{folder_id}/cover/{photo_id}")
@@ -666,7 +671,12 @@ class TestPublicAPI:
         project_resp = authenticated_client.post("/projects", json={"name": "Zip Project"})
         assert project_resp.status_code == 201
         project_id = project_resp.json()["id"]
-        listed_gallery_id = project_resp.json()["entry_gallery_id"]
+        listed_gallery_resp = authenticated_client.post(
+            f"/projects/{project_id}/galleries",
+            json={"name": "Delivery", "project_visibility": "listed"},
+        )
+        assert listed_gallery_resp.status_code == 201
+        listed_gallery_id = listed_gallery_resp.json()["id"]
 
         second_gallery_resp = authenticated_client.post(
             f"/projects/{project_id}/galleries",
@@ -706,7 +716,7 @@ class TestPublicAPI:
         with zipfile.ZipFile(io.BytesIO(project_zip_resp.content)) as archive:
             names = archive.namelist()
 
-        assert any(name.startswith("Zip Project - ") for name in names)
+        assert any(name.startswith("Delivery - ") for name in names)
         assert any(name.startswith("Sneak Peeks - ") for name in names)
 
     def test_project_download_all_returns_404_when_visible_project_has_no_photos(

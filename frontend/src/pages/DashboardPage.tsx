@@ -1,15 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowRight, Plus, Search } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Plus, Search, Trash2 } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { PaginationControls } from '../components/PaginationControls';
+import {
+  CollectionCard,
+  CollectionPhotoBadge,
+  CollectionShareBadge,
+} from '../components/dashboard/CollectionCard';
+import { getCollectionTitleTextSizeClass } from '../components/dashboard/collectionCardUtils';
 import { CreateProjectModal } from '../components/dashboard/CreateProjectModal';
-import { DashboardHeader } from '../components/dashboard/DashboardHeader';
-import { ProjectDashboardCard } from '../components/dashboard/ProjectDashboardCard';
-import { usePagination } from '../hooks';
+import { useConfirmation, usePagination } from '../hooks';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { handleApiError } from '../lib/errorHandling';
+import { formatFileSize } from '../lib/utils';
 import { projectService } from '../services/projectService';
 import type { Project } from '../types';
 
@@ -37,17 +43,14 @@ const PROJECT_PAGE_SIZE = 18;
 
 const resolveProjectPath = (project: Project) => `/projects/${project.id}`;
 
-const getProjectGalleryCount = (project: Project) =>
-  project.gallery_count ?? project.folder_count ?? 0;
-const formatCountLabel = (count: number, singular: string) => {
-  const plural = singular.endsWith('y') ? `${singular.slice(0, -1)}ies` : `${singular}s`;
-  return `${count} ${count === 1 ? singular : plural}`;
-};
+const formatCountLabel = (count: number, singular: string, plural = `${singular}s`) =>
+  `${count} ${count === 1 ? singular : plural}`;
 
 export const DashboardPage = () => {
   useDocumentTitle('Projects · Viewport');
 
   const navigate = useNavigate();
+  const { openConfirm, ConfirmModal } = useConfirmation();
   const pagination = usePagination({ pageSize: PROJECT_PAGE_SIZE, syncWithUrl: true });
   const { page, pageSize, setTotal } = pagination;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -138,18 +141,36 @@ export const DashboardPage = () => {
     }
   };
 
+  const handleDeleteProject = (project: Project) => {
+    openConfirm({
+      title: 'Delete project?',
+      message: `Are you sure you want to delete "${project.name}" and all of its galleries? This action cannot be undone.`,
+      isDangerous: true,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        try {
+          await projectService.deleteProject(project.id);
+          await fetchProjects();
+        } catch (err) {
+          setError(handleApiError(err).message || 'Failed to delete project');
+          throw err;
+        }
+      },
+    });
+  };
+
   const renderLoading = () => (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+    <div className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(20rem,1fr))]">
       {Array.from({ length: 8 }).map((_, index) => (
         <div
           key={index}
-          className="animate-pulse overflow-hidden rounded-3xl border border-border/70 bg-surface-1 shadow-sm dark:border-border/50 dark:bg-surface-dark-1"
+          className="w-full animate-pulse overflow-hidden rounded-3xl border border-border/80 bg-surface shadow-sm dark:border-border/60 dark:bg-surface-dark"
         >
-          <div className="h-48 bg-muted/20 dark:bg-muted-dark/20" />
+          <div className="h-52 bg-muted/20 dark:bg-muted-dark/20" />
           <div className="space-y-3 p-5">
-            <div className="h-4 w-3/4 rounded bg-muted/20 dark:bg-muted-dark/20" />
-            <div className="h-3 w-2/3 rounded bg-muted/20 dark:bg-muted-dark/20" />
-            <div className="h-3 w-24 rounded bg-muted/20 dark:bg-muted-dark/20" />
+            <div className="h-6 w-3/4 rounded bg-muted/20 dark:bg-muted-dark/20" />
+            <div className="h-4 w-2/3 rounded bg-muted/20 dark:bg-muted-dark/20" />
+            <div className="h-8 w-28 rounded-full bg-muted/20 dark:bg-muted-dark/20" />
           </div>
         </div>
       ))}
@@ -161,9 +182,10 @@ export const DashboardPage = () => {
       <div className="mb-6 inline-flex rounded-full bg-accent/10 p-4">
         <Plus className="h-8 w-8 text-accent" />
       </div>
-      <h2 className="mb-2 text-2xl font-semibold text-text">Start your first project</h2>
+      <h2 className="mb-2 text-2xl font-semibold text-text">No projects yet</h2>
       <p className="mx-auto mb-8 max-w-md text-lg text-muted">
-        Create a project to begin organizing galleries, uploads, and delivery in one place.
+        Create your first project to upload photos, organize galleries, and share polished
+        deliveries with clients.
       </p>
       <button
         type="button"
@@ -183,26 +205,25 @@ export const DashboardPage = () => {
   );
 
   return (
-    <div className="flex flex-col gap-8">
-      <header className="rounded-3xl border border-border/70 bg-surface-1/70 p-6 shadow-sm dark:border-border/50 dark:bg-surface-dark-1/70">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
+    <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-8">
+      <header className="rounded-3xl border border-border/75 bg-surface p-5 shadow-sm dark:border-border/55 dark:bg-surface-dark">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(23rem,30rem)] xl:items-center">
+          <div className="max-w-xl">
             <p className="mb-3 text-sm font-semibold uppercase tracking-[0.22em] text-accent/80">
               Portfolio workspace
             </p>
             <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">
               Projects
             </h1>
-            <p className="mt-3 max-w-xl font-cuprum text-lg text-muted">
-              Browse every client delivery, reopen the right gallery set fast, and start the next
-              project from the same workspace.
+            <p className="mt-3 max-w-lg font-cuprum text-lg text-muted">
+              Manage your client projects and galleries.
             </p>
           </div>
 
-          <div className="flex w-full max-w-2xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
             <label
               htmlFor="dashboard-project-search"
-              className="relative flex flex-1 items-center rounded-2xl border border-border bg-surface px-3 py-3 shadow-sm dark:bg-surface-dark"
+              className="relative flex h-11 flex-1 items-center rounded-2xl border border-border bg-surface-1 px-3 shadow-sm dark:border-border/60 dark:bg-surface-dark-1"
             >
               <Search className="mr-2 h-4 w-4 text-muted" />
               <input
@@ -210,15 +231,16 @@ export const DashboardPage = () => {
                 type="search"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Search by project name"
+                placeholder="Search projects..."
                 className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
-                aria-label="Search projects by project name"
+                aria-label="Search projects"
               />
             </label>
             <button
+              type="button"
               onClick={handleOpenProjectModal}
               disabled={isCreatingProject}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-accent px-5 py-3 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-accent px-4 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
               aria-label="Create new project"
             >
               {isCreatingProject ? (
@@ -226,7 +248,7 @@ export const DashboardPage = () => {
               ) : (
                 <Plus className="h-5 w-5" />
               )}
-              Create new project
+              Create
             </button>
           </div>
         </div>
@@ -249,62 +271,79 @@ export const DashboardPage = () => {
         ) : (
           <>
             <motion.div
-              className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+              className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(20rem,1fr))]"
               variants={containerVariants}
               initial="hidden"
               animate="visible"
             >
               <AnimatePresence mode="popLayout">
                 {projects.map((project) => {
-                  const galleryCount = getProjectGalleryCount(project);
-                  const coverUrl = project.recent_folder_thumbnail_urls[0] ?? null;
+                  const coverUrl = project.cover_photo_thumbnail_url ?? null;
+                  const titleTextSizeClass = getCollectionTitleTextSizeClass(project.name);
                   return (
-                    <motion.button
+                    <CollectionCard
                       key={project.id}
-                      layout
                       variants={cardVariants}
-                      type="button"
-                      onClick={() => navigate(resolveProjectPath(project))}
-                      className="group flex h-full flex-col overflow-hidden rounded-3xl border border-card-border/80 bg-card-bg text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
-                    >
-                      <div className="relative h-48 overflow-hidden bg-surface-2 dark:bg-surface-dark-2">
-                        {coverUrl ? (
+                      cover={
+                        coverUrl ? (
                           <>
                             <img
                               src={coverUrl}
                               alt=""
                               aria-hidden="true"
-                              className="absolute inset-0 h-full w-full object-cover opacity-70 transition-transform duration-500 group-hover:scale-105"
+                              loading="lazy"
+                              className="absolute inset-0 h-full w-full object-cover opacity-80 transition-transform duration-500 group-hover:scale-110"
                             />
-                            <div className="absolute inset-0 bg-linear-to-b from-black/10 via-black/5 to-black/30" />
+                            <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/10 to-black/40 transition-colors duration-300 group-hover:from-black/0 group-hover:via-black/15 group-hover:to-black/50" />
                           </>
                         ) : (
-                          <div className="absolute inset-0 bg-linear-to-br from-surface-2 via-surface-1 to-surface dark:from-surface-dark-2 dark:via-surface-dark-1 dark:to-surface-dark" />
-                        )}
-                      </div>
-                      <div className="flex flex-1 flex-col justify-between gap-4 p-5">
-                        <div className="space-y-3">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <h2 className="line-clamp-2 font-oswald text-2xl font-bold uppercase tracking-wide text-text">
-                              {project.name}
-                            </h2>
-                            {project.has_active_share_links ? (
-                              <span className="inline-flex items-center rounded-full bg-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-accent">
-                                Share active
-                              </span>
-                            ) : null}
+                          <div className="absolute inset-0 bg-linear-to-br from-surface-2 to-surface dark:from-surface-dark-2 dark:to-surface-dark" />
+                        )
+                      }
+                      topOverlay={
+                        <>
+                          <CollectionPhotoBadge count={project.total_photo_count} />
+                          {project.has_active_share_links ? <CollectionShareBadge /> : null}
+                        </>
+                      }
+                      topRightOverlay={
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            handleDeleteProject(project);
+                          }}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-danger hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-danger"
+                          title="Delete Project"
+                          aria-label={`Delete project ${project.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      }
+                      bodyClassName="flex flex-1 flex-col p-4"
+                      body={
+                        <Link
+                          to={resolveProjectPath(project)}
+                          className="flex flex-1 flex-col justify-center gap-4 no-underline transition-colors"
+                        >
+                          <div className="group/title relative w-full text-left">
+                            <div className="min-w-0 flex-1">
+                              <h2
+                                className={`wrap-anywhere whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors`}
+                              >
+                                {project.name}
+                              </h2>
+                            </div>
                           </div>
-                          <p className="text-sm text-muted">
-                            {formatCountLabel(galleryCount, 'gallery')} •{' '}
-                            {formatCountLabel(project.total_photo_count, 'photo')}
+                          <p className="rounded-full border border-border/55 bg-surface-1 px-3 py-2 text-sm text-muted dark:border-border/45 dark:bg-surface-dark-1">
+                            {formatCountLabel(project.gallery_count, 'gallery', 'galleries')} •{' '}
+                            {formatCountLabel(project.total_photo_count, 'photo')} •{' '}
+                            {formatFileSize(project.total_size_bytes)}
                           </p>
-                        </div>
-                        <span className="inline-flex items-center gap-2 text-sm font-semibold text-accent">
-                          Open project
-                          <ArrowRight className="h-4 w-4" />
-                        </span>
-                      </div>
-                    </motion.button>
+                        </Link>
+                      }
+                    />
                   );
                 })}
               </AnimatePresence>
@@ -327,6 +366,7 @@ export const DashboardPage = () => {
           onShootingDateChange={setNewProjectShootingDate}
         />
       </AnimatePresence>
+      {ConfirmModal}
     </div>
   );
 };
