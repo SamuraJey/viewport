@@ -146,7 +146,6 @@ describe('ProjectPage', () => {
           total_size_bytes: 512,
           has_active_share_links: true,
           cover_photo_thumbnail_url: null,
-          recent_photo_thumbnail_urls: [],
         },
         {
           id: 'gallery-2',
@@ -163,7 +162,6 @@ describe('ProjectPage', () => {
           total_size_bytes: 512,
           has_active_share_links: false,
           cover_photo_thumbnail_url: null,
-          recent_photo_thumbnail_urls: [],
         },
       ],
     } as any);

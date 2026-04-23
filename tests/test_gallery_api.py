@@ -35,7 +35,7 @@ class TestGalleryAPI:
         assert data["total_size_bytes"] == 0
         assert data["has_active_share_links"] is False
         assert data["cover_photo_thumbnail_url"] is None
-        assert data["recent_photo_thumbnail_urls"] == []
+        assert "recent_photo_thumbnail_urls" not in data
         # Verify the ID is a valid UUID format
         import uuid
 
@@ -720,9 +720,8 @@ class TestGalleryAPI:
         assert test_gallery["photo_count"] == 1
         assert test_gallery["total_size_bytes"] > 0
         assert test_gallery["has_active_share_links"] is False
-        assert test_gallery["cover_photo_thumbnail_url"] is None  # No cover photo set yet
-        assert len(test_gallery["recent_photo_thumbnail_urls"]) == 1
-        assert test_gallery["recent_photo_thumbnail_urls"][0].startswith("http")
+        assert test_gallery["cover_photo_thumbnail_url"].startswith("http")
+        assert "recent_photo_thumbnail_urls" not in test_gallery
 
         # Set cover photo
         authenticated_client.post(f"/galleries/{gallery_id}/cover/{photo_id}")
@@ -742,4 +741,4 @@ class TestGalleryAPI:
         assert test_gallery2["has_active_share_links"] is True
         assert test_gallery2["cover_photo_thumbnail_url"] is not None  # Cover photo URL should be present
         assert test_gallery2["cover_photo_thumbnail_url"].startswith("http")
-        assert len(test_gallery2["recent_photo_thumbnail_urls"]) == 1
+        assert "recent_photo_thumbnail_urls" not in test_gallery2

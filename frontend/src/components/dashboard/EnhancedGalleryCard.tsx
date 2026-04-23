@@ -60,8 +60,7 @@ export const EnhancedGalleryCard = ({
   variants,
 }: EnhancedGalleryCardProps) => {
   const galleryTitle = makeGalleryTitle(gallery);
-  const coverUrl =
-    gallery.cover_photo_thumbnail_url ?? gallery.recent_photo_thumbnail_urls[0] ?? null;
+  const coverUrl = gallery.cover_photo_thumbnail_url ?? null;
   const metadataParts = [
     `${gallery.photo_count} ${gallery.photo_count === 1 ? 'photo' : 'photos'}`,
     gallery.total_size_bytes > 0 ? formatFileSize(gallery.total_size_bytes) : null,

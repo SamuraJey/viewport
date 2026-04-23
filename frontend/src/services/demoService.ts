@@ -161,11 +161,8 @@ const toGalleryWithComputedFields = (state: DemoGalleryState): Gallery => {
     photo_count: state.photos.length,
     total_size_bytes: totalSize,
     has_active_share_links: hasActiveShareLinks,
-    cover_photo_thumbnail_url: coverPhoto?.thumbnail_url ?? null,
-    recent_photo_thumbnail_urls: sortedRecentPhotos
-      .slice(0, 3)
-      .map((photo) => photo.thumbnail_url)
-      .filter(Boolean),
+    cover_photo_thumbnail_url:
+      coverPhoto?.thumbnail_url ?? sortedRecentPhotos[0]?.thumbnail_url ?? null,
   };
 };
 
@@ -196,11 +193,9 @@ const buildSeedGalleryState = (
       total_size_bytes: photos.reduce((sum, photo) => sum + (photo.file_size || 0), 0),
       has_active_share_links: shareLinks.some((link) => link.is_active !== false),
       cover_photo_thumbnail_url:
-        photos.find((photo) => photo.id === coverPhoto)?.thumbnail_url ?? null,
-      recent_photo_thumbnail_urls: photos
-        .slice(0, 3)
-        .map((photo) => photo.thumbnail_url)
-        .filter(Boolean),
+        photos.find((photo) => photo.id === coverPhoto)?.thumbnail_url ??
+        photos[0]?.thumbnail_url ??
+        null,
     },
     photos,
     shareLinks,
@@ -294,7 +289,6 @@ const buildSeedProjectContent = (): {
           total_size_bytes: 0,
           has_active_share_links: false,
           cover_photo_thumbnail_url: null,
-          recent_photo_thumbnail_urls: [],
         },
         12,
         [photosShareLink],
@@ -326,7 +320,6 @@ const buildSeedProjectContent = (): {
           total_size_bytes: 0,
           has_active_share_links: false,
           cover_photo_thumbnail_url: null,
-          recent_photo_thumbnail_urls: [],
         },
         8,
         [editsShareLink],
@@ -378,7 +371,6 @@ const seedState = (): DemoGalleryState[] => {
       total_size_bytes: 0,
       has_active_share_links: false,
       cover_photo_thumbnail_url: null,
-      recent_photo_thumbnail_urls: [],
     },
     {
       id: 'demo-gallery-wedding',
@@ -393,7 +385,6 @@ const seedState = (): DemoGalleryState[] => {
       total_size_bytes: 0,
       has_active_share_links: false,
       cover_photo_thumbnail_url: null,
-      recent_photo_thumbnail_urls: [],
     },
     {
       id: 'demo-gallery-product',
@@ -408,7 +399,6 @@ const seedState = (): DemoGalleryState[] => {
       total_size_bytes: 0,
       has_active_share_links: false,
       cover_photo_thumbnail_url: null,
-      recent_photo_thumbnail_urls: [],
     },
   ];
 
@@ -837,7 +827,6 @@ class DemoServiceStore {
       );
       const coverPhotoThumbnailUrl =
         galleries.find((gallery) => gallery.cover_photo_thumbnail_url)?.cover_photo_thumbnail_url ??
-        galleries.flatMap((gallery) => gallery.recent_photo_thumbnail_urls || []).at(0) ??
         null;
       const hasActiveShareLinks = entry.shareLinks.some((link) => link.is_active !== false);
       const { id, owner_id, name, created_at, shooting_date } = entry.project;
@@ -1098,7 +1087,6 @@ class DemoServiceStore {
           total_size_bytes: gallery.total_size_bytes,
           has_active_share_links: gallery.has_active_share_links,
           cover_photo_thumbnail_url: gallery.cover_photo_thumbnail_url ?? null,
-          recent_photo_thumbnail_urls: gallery.recent_photo_thumbnail_urls,
         };
       })
       .sort((left, right) => (left.project_position ?? 0) - (right.project_position ?? 0));
@@ -1274,7 +1262,6 @@ class DemoServiceStore {
       total_size_bytes: 0,
       has_active_share_links: false,
       cover_photo_thumbnail_url: null,
-      recent_photo_thumbnail_urls: [],
     };
 
     this.galleries.unshift({
@@ -1894,8 +1881,7 @@ class DemoServiceStore {
         folder_id: folder.id,
         folder_name: folder.name,
         photo_count: folder.photo_count,
-        cover_thumbnail_url:
-          folder.cover_photo_thumbnail_url ?? folder.recent_photo_thumbnail_urls[0] ?? null,
+        cover_thumbnail_url: folder.cover_photo_thumbnail_url ?? null,
         route_path: `/share/${shareId}/galleries/${folder.id}`,
         direct_share_path: null,
       })),

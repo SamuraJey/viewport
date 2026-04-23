@@ -52,7 +52,6 @@ class ProjectGallerySummaryResponse(BaseModel):
     total_size_bytes: int = 0
     has_active_share_links: bool = False
     cover_photo_thumbnail_url: str | None = None
-    recent_photo_thumbnail_urls: list[str] = Field(default_factory=list)
 
 
 class ProjectResponse(BaseModel):

@@ -32,7 +32,6 @@ export interface ProjectGallerySummary {
   total_size_bytes: number;
   has_active_share_links: boolean;
   cover_photo_thumbnail_url: string | null;
-  recent_photo_thumbnail_urls: string[];
 }
 
 export interface ProjectDetail extends Project {

@@ -172,12 +172,12 @@ async def _build_project_folder_responses(
         active_share_gallery_ids,
         cover_thumbnail_by_photo_id,
         recent_thumbnail_keys_by_gallery,
-    ) = await gallery_repo.get_gallery_list_enrichment(gallery_ids, cover_photo_ids, recent_limit=3)
+    ) = await gallery_repo.get_gallery_list_enrichment(gallery_ids, cover_photo_ids, recent_limit=1)
 
     all_thumbnail_keys: list[str] = []
     all_thumbnail_keys.extend(cover_thumbnail_by_photo_id.values())
     for keys in recent_thumbnail_keys_by_gallery.values():
-        all_thumbnail_keys.extend(keys)
+        all_thumbnail_keys.extend(keys[:1])
 
     presigned_by_key = await s3_client.generate_presigned_urls_batch(list(dict.fromkeys(all_thumbnail_keys)), expires_in=7200) if all_thumbnail_keys else {}
 
@@ -185,6 +185,8 @@ async def _build_project_folder_responses(
     for gallery in galleries:
         cover_key = cover_thumbnail_by_photo_id.get(gallery.cover_photo_id) if gallery.cover_photo_id else None
         recent_keys = recent_thumbnail_keys_by_gallery.get(gallery.id, [])
+        fallback_cover_key = recent_keys[0] if recent_keys else None
+        cover_thumbnail_url = presigned_by_key.get(cover_key) if cover_key else presigned_by_key.get(fallback_cover_key) if fallback_cover_key else None
         responses.append(
             ProjectGallerySummaryResponse(
                 id=str(gallery.id),
@@ -200,8 +202,7 @@ async def _build_project_folder_responses(
                 photo_count=photo_count_by_gallery.get(gallery.id, 0),
                 total_size_bytes=total_size_by_gallery.get(gallery.id, 0),
                 has_active_share_links=gallery.id in active_share_gallery_ids,
-                cover_photo_thumbnail_url=presigned_by_key.get(cover_key) if cover_key else None,
-                recent_photo_thumbnail_urls=[presigned_by_key[key] for key in recent_keys if key in presigned_by_key],
+                cover_photo_thumbnail_url=cover_thumbnail_url,
             )
         )
     return responses

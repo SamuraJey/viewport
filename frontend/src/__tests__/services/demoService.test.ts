@@ -20,7 +20,6 @@ const buildDemoState = (expiresAt: string) => ({
         total_size_bytes: 0,
         has_active_share_links: true,
         cover_photo_thumbnail_url: null,
-        recent_photo_thumbnail_urls: [],
       },
       photos: [],
       shareLinks: [

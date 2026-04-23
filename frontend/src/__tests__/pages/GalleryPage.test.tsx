@@ -42,7 +42,6 @@ const mockGalleryData = {
   total_size_bytes: 37035,
   has_active_share_links: false,
   cover_photo_thumbnail_url: null,
-  recent_photo_thumbnail_urls: [],
   photos: [
     {
       id: 'photo1',
@@ -115,7 +114,6 @@ const mockProjectDetail = {
       total_size_bytes: 37035,
       has_active_share_links: false,
       cover_photo_thumbnail_url: null,
-      recent_photo_thumbnail_urls: [],
     },
     {
       id: '2',
@@ -132,7 +130,6 @@ const mockProjectDetail = {
       total_size_bytes: 37035,
       has_active_share_links: false,
       cover_photo_thumbnail_url: null,
-      recent_photo_thumbnail_urls: [],
     },
   ],
 };

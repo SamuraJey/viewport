@@ -97,7 +97,6 @@ const previewGallery: Gallery = {
   total_size_bytes: 1_200_000_000,
   has_active_share_links: true,
   cover_photo_thumbnail_url: reactLogo,
-  recent_photo_thumbnail_urls: [reactLogo, reactLogo, reactLogo],
 };
 
 const previewCardVariants = {

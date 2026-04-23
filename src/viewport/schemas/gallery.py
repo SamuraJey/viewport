@@ -111,7 +111,6 @@ class GalleryResponse(BaseModel):
     total_size_bytes: int = Field(0, ge=0, description="Total size of photos in bytes")
     has_active_share_links: bool = Field(False, description="Whether gallery has any active share links")
     cover_photo_thumbnail_url: str | None = Field(None, description="Presigned URL for cover photo thumbnail")
-    recent_photo_thumbnail_urls: list[str] = Field(default_factory=list, description="Recent photo thumbnail URLs")
 
 
 class GalleryDetailResponse(BaseModel):
@@ -130,7 +129,6 @@ class GalleryDetailResponse(BaseModel):
     photo_count: int = Field(0, ge=0, description="Number of photos in the gallery")
     has_active_share_links: bool = Field(False, description="Whether gallery has any active share links")
     cover_photo_thumbnail_url: str | None = Field(None, description="Presigned URL for cover photo thumbnail")
-    recent_photo_thumbnail_urls: list[str] = Field(default_factory=list, description="Recent photo thumbnail URLs")
     photos: list[GalleryPhotoResponse]
     total_photos: int = Field(..., description="Total number of photos in the gallery")
     total_size_bytes: int = Field(..., description="Total size of photos in bytes")
