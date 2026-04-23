@@ -14,6 +14,7 @@ from viewport.models.sharelink_selection import ShareLinkSelectionConfig, ShareL
 from viewport.models.user import User
 from viewport.repositories.project_repository import ProjectRepository
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
+from viewport.schemas.project import ProjectListSortBy
 
 
 @pytest_asyncio.fixture
@@ -65,10 +66,11 @@ async def _create_photo(
     thumbnail_object_key: str,
     file_size: int,
     uploaded_at: datetime,
+    status: PhotoUploadStatus = PhotoUploadStatus.SUCCESSFUL,
 ) -> Photo:
     photo = Photo(
         gallery_id=gallery_id,
-        status=PhotoUploadStatus.SUCCESSFUL,
+        status=status,
         object_key=f"{gallery_id}/{display_name}",
         display_name=display_name,
         thumbnail_object_key=thumbnail_object_key,
@@ -192,6 +194,131 @@ async def test_project_repository_search_update_and_delete_branches(repo: Projec
     empty_project = await repo.create_project(user.id, "Empty")
     assert await repo.delete_project(empty_project.id, user.id) == []
     assert await repo.get_project_by_id_and_owner(empty_project.id, user.id) is None
+
+
+@pytest.mark.asyncio
+async def test_get_projects_by_owner_sorts_before_pagination_and_counts_direct_only_galleries(
+    repo: ProjectRepository,
+    db_session,
+):
+    user = await _create_user(db_session, "project-sort")
+    other_user = await _create_user(db_session, "project-sort-other")
+
+    alpha = await repo.create_project(user.id, "Alpha", shooting_date=date(2026, 4, 20))
+    beta = await repo.create_project(user.id, "Beta", shooting_date=date(2026, 4, 18))
+    gamma = await repo.create_project(user.id, "Gamma", shooting_date=date(2026, 4, 22))
+    other_project = await repo.create_project(other_user.id, "Other Owner", shooting_date=date(2026, 4, 10))
+
+    alpha.created_at = datetime(2026, 4, 2, 12, 0, tzinfo=UTC)
+    beta.created_at = datetime(2026, 4, 1, 12, 0, tzinfo=UTC)
+    gamma.created_at = datetime(2026, 4, 3, 12, 0, tzinfo=UTC)
+    other_project.created_at = datetime(2026, 4, 4, 12, 0, tzinfo=UTC)
+    await db_session.commit()
+
+    alpha_gallery = await _create_project_gallery(
+        db_session,
+        user.id,
+        alpha.id,
+        name="Alpha Listed",
+        position=0,
+    )
+    beta_hidden_gallery = await _create_project_gallery(
+        db_session,
+        user.id,
+        beta.id,
+        name="Beta Hidden",
+        position=0,
+        visibility=ProjectVisibility.DIRECT_ONLY,
+    )
+    other_gallery = await _create_project_gallery(
+        db_session,
+        other_user.id,
+        other_project.id,
+        name="Other",
+        position=0,
+    )
+
+    await _create_photo(
+        db_session,
+        alpha_gallery.id,
+        display_name="alpha.jpg",
+        thumbnail_object_key="alpha-thumb",
+        file_size=100,
+        uploaded_at=datetime(2026, 4, 20, 10, 0, tzinfo=UTC),
+    )
+    for index, file_size in enumerate([200, 300, 400], start=1):
+        await _create_photo(
+            db_session,
+            beta_hidden_gallery.id,
+            display_name=f"beta-{index}.jpg",
+            thumbnail_object_key=f"beta-{index}-thumb",
+            file_size=file_size,
+            uploaded_at=datetime(2026, 4, 18, 10 + index, 0, tzinfo=UTC),
+            status=PhotoUploadStatus.PENDING,
+        )
+    for index in range(5):
+        await _create_photo(
+            db_session,
+            other_gallery.id,
+            display_name=f"other-{index}.jpg",
+            thumbnail_object_key=f"other-{index}-thumb",
+            file_size=1_000,
+            uploaded_at=datetime(2026, 4, 10, 10, index, tzinfo=UTC),
+        )
+
+    default_results, default_total = await repo.get_projects_by_owner(user.id, page=1, size=10)
+    name_results, _ = await repo.get_projects_by_owner(
+        user.id,
+        page=1,
+        size=10,
+        sort_by=ProjectListSortBy.NAME,
+        order=SortOrder.ASC,
+    )
+    name_desc_results, _ = await repo.get_projects_by_owner(
+        user.id,
+        page=1,
+        size=10,
+        sort_by=ProjectListSortBy.NAME,
+        order=SortOrder.DESC,
+    )
+    shooting_asc_results, _ = await repo.get_projects_by_owner(
+        user.id,
+        page=1,
+        size=10,
+        sort_by=ProjectListSortBy.SHOOTING_DATE,
+        order=SortOrder.ASC,
+    )
+    shooting_results, _ = await repo.get_projects_by_owner(
+        user.id,
+        page=1,
+        size=10,
+        sort_by=ProjectListSortBy.SHOOTING_DATE,
+        order=SortOrder.DESC,
+    )
+    photo_count_page, photo_count_total = await repo.get_projects_by_owner(
+        user.id,
+        page=1,
+        size=1,
+        sort_by=ProjectListSortBy.PHOTO_COUNT,
+        order=SortOrder.DESC,
+    )
+    size_results, _ = await repo.get_projects_by_owner(
+        user.id,
+        page=1,
+        size=10,
+        sort_by=ProjectListSortBy.TOTAL_SIZE_BYTES,
+        order=SortOrder.ASC,
+    )
+
+    assert default_total == 3
+    assert [project.id for project in default_results] == [gamma.id, alpha.id, beta.id]
+    assert [project.id for project in name_results] == [alpha.id, beta.id, gamma.id]
+    assert [project.id for project in name_desc_results] == [gamma.id, beta.id, alpha.id]
+    assert [project.id for project in shooting_asc_results] == [beta.id, alpha.id, gamma.id]
+    assert [project.id for project in shooting_results] == [gamma.id, alpha.id, beta.id]
+    assert photo_count_total == 3
+    assert [project.id for project in photo_count_page] == [beta.id]
+    assert [project.id for project in size_results] == [gamma.id, alpha.id, beta.id]
 
 
 @pytest.mark.asyncio

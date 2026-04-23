@@ -5,7 +5,7 @@ import type {
   ReactNode,
   RefObject,
 } from 'react';
-import { useLayoutEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { Description, Dialog, DialogPanel, DialogTitle } from '@headlessui/react';
 import { motion } from 'framer-motion';
 import { cn } from '../../lib/utils';
@@ -86,7 +86,7 @@ export const AppDialog = ({
     };
   }, [open]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (!canClose) {
       return;
     }
@@ -96,7 +96,25 @@ export const AppDialog = ({
     }
 
     onClose();
-  };
+  }, [canClose, onClose]);
+
+  useEffect(() => {
+    if (!open || !canClose) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [canClose, handleClose, open]);
 
   if (!open) {
     return null;

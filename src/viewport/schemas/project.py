@@ -1,10 +1,33 @@
 from datetime import date, datetime
+from enum import StrEnum
 from typing import Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH
-from viewport.schemas.gallery import ProjectVisibility
+from viewport.schemas.gallery import ProjectVisibility, SortOrder
+
+
+class ProjectListSortBy(StrEnum):
+    CREATED_AT = "created_at"
+    SHOOTING_DATE = "shooting_date"
+    NAME = "name"
+    PHOTO_COUNT = "photo_count"
+    TOTAL_SIZE_BYTES = "total_size_bytes"
+
+
+class ProjectListQueryParams(BaseModel):
+    search: str | None = Field(None, max_length=GALLERY_NAME_MAX_LENGTH, description="Case-insensitive partial project name search")
+    sort_by: ProjectListSortBy = Field(ProjectListSortBy.CREATED_AT, description="Project sorting field")
+    order: SortOrder = Field(SortOrder.DESC, description="Sort direction")
+
+    @field_validator("search")
+    @classmethod
+    def normalize_search(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
 
 class ProjectCreateRequest(BaseModel):

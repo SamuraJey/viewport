@@ -22,7 +22,9 @@ export type {
   Project,
   ProjectDetail,
   ProjectGallerySummary,
+  ProjectListQueryOptions,
   ProjectListResponse,
+  ProjectListSortBy,
   CreateProjectRequest,
   UpdateProjectRequest,
 } from './project';

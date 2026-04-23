@@ -5,21 +5,43 @@ import type {
   CreateProjectRequest,
   Project,
   ProjectDetail,
+  ProjectListQueryOptions,
   ProjectListResponse,
   UpdateProjectRequest,
 } from '../types';
 
-const getProjects = async (page = 1, size = 10, search?: string): Promise<ProjectListResponse> => {
+const normalizeProjectListOptions = (
+  options?: ProjectListQueryOptions | string,
+): ProjectListQueryOptions => {
+  if (typeof options === 'string') {
+    return { search: options };
+  }
+  return options ?? {};
+};
+
+const getProjects = async (
+  page = 1,
+  size = 10,
+  options?: ProjectListQueryOptions | string,
+): Promise<ProjectListResponse> => {
+  const normalizedOptions = normalizeProjectListOptions(options);
+
   if (isDemoModeEnabled()) {
-    return getDemoService().getProjects(page, size, search);
+    return getDemoService().getProjects(page, size, normalizedOptions);
   }
 
   const params = new URLSearchParams({
     page: page.toString(),
     size: size.toString(),
   });
-  if (search?.trim()) {
-    params.set('search', search.trim());
+  if (normalizedOptions.search?.trim()) {
+    params.set('search', normalizedOptions.search.trim());
+  }
+  if (normalizedOptions.sort_by) {
+    params.set('sort_by', normalizedOptions.sort_by);
+  }
+  if (normalizedOptions.order) {
+    params.set('order', normalizedOptions.order);
   }
 
   const response = await api.get<ProjectListResponse>(`/projects?${params.toString()}`);

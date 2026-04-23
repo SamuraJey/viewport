@@ -10,6 +10,59 @@ pytestmark = pytest.mark.requires_s3
 
 
 class TestProjectAPI:
+    def test_list_projects_supports_sorting_fields_and_order(self, authenticated_client: TestClient):
+        empty_project_resp = authenticated_client.post(
+            "/projects",
+            json={"name": "Alpha Empty", "shooting_date": "2026-04-20"},
+        )
+        assert empty_project_resp.status_code == 201
+        empty_project_id = empty_project_resp.json()["id"]
+
+        hidden_project_resp = authenticated_client.post(
+            "/projects",
+            json={"name": "Beta Hidden", "shooting_date": "2026-04-18"},
+        )
+        assert hidden_project_resp.status_code == 201
+        hidden_project_id = hidden_project_resp.json()["id"]
+
+        hidden_folder_resp = authenticated_client.post(
+            f"/projects/{hidden_project_id}/galleries",
+            json={"name": "Direct Only", "project_visibility": "direct_only"},
+        )
+        assert hidden_folder_resp.status_code == 201
+        hidden_folder_id = hidden_folder_resp.json()["id"]
+
+        upload_photo_via_presigned(authenticated_client, hidden_folder_id, b"first hidden", "first.jpg")
+        upload_photo_via_presigned(authenticated_client, hidden_folder_id, b"second hidden", "second.jpg")
+
+        name_resp = authenticated_client.get("/projects?page=1&size=20&sort_by=name&order=asc")
+        assert name_resp.status_code == 200
+        assert [project["id"] for project in name_resp.json()["projects"][:2]] == [
+            empty_project_id,
+            hidden_project_id,
+        ]
+
+        shooting_resp = authenticated_client.get("/projects?page=1&size=20&sort_by=shooting_date&order=asc")
+        assert shooting_resp.status_code == 200
+        assert [project["id"] for project in shooting_resp.json()["projects"][:2]] == [
+            hidden_project_id,
+            empty_project_id,
+        ]
+
+        photo_count_resp = authenticated_client.get("/projects?page=1&size=1&sort_by=photo_count&order=desc")
+        assert photo_count_resp.status_code == 200
+        photo_count_project = photo_count_resp.json()["projects"][0]
+        assert photo_count_project["id"] == hidden_project_id
+        assert photo_count_project["visible_gallery_count"] == 0
+        assert photo_count_project["total_photo_count"] == 2
+
+        size_resp = authenticated_client.get("/projects?page=1&size=1&sort_by=total_size_bytes&order=desc")
+        assert size_resp.status_code == 200
+        assert size_resp.json()["projects"][0]["id"] == hidden_project_id
+
+        invalid_resp = authenticated_client.get("/projects?sort_by=not_a_field&order=desc")
+        assert invalid_resp.status_code == 422
+
     def test_create_project_starts_empty_and_legacy_gallery_create_auto_wraps(self, authenticated_client: TestClient):
         project_resp = authenticated_client.post(
             "/projects",

@@ -96,6 +96,45 @@ describe('demoService', () => {
     expect(detail.galleries.map((folder) => folder.name)).toEqual(['Photos', '3eds']);
   });
 
+  it('sorts demo projects by supported fields and directions', async () => {
+    vi.setSystemTime(new Date('2026-04-17T12:00:00.000Z'));
+
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    await service.createProject({ name: 'Zulu Empty', shooting_date: '2026-04-17' });
+    await service.createProject({ name: 'Alpha Empty', shooting_date: '2026-04-17' });
+
+    const nameAsc = await service.getProjects(1, 20, { sort_by: 'name', order: 'asc' });
+    const nameDesc = await service.getProjects(1, 20, { sort_by: 'name', order: 'desc' });
+    const shootingAsc = await service.getProjects(1, 20, {
+      sort_by: 'shooting_date',
+      order: 'asc',
+    });
+    const photoCountDesc = await service.getProjects(1, 1, {
+      sort_by: 'photo_count',
+      order: 'desc',
+    });
+    const photoCountAsc = await service.getProjects(1, 1, {
+      sort_by: 'photo_count',
+      order: 'asc',
+    });
+    const sizeDesc = await service.getProjects(1, 1, {
+      sort_by: 'total_size_bytes',
+      order: 'desc',
+    });
+    const createdAsc = await service.getProjects(1, 20, { sort_by: 'created_at', order: 'asc' });
+
+    expect(nameAsc.projects[0].name).toBe('Alpha Empty');
+    expect(nameDesc.projects[0].name).toBe('Zulu Empty');
+    expect(shootingAsc.projects[0].name).toBe('Porto Wedding Delivery');
+    expect(photoCountDesc.projects[0].name).toBe('Porto Wedding Delivery');
+    expect(photoCountDesc.projects[0].total_photo_count).toBeGreaterThan(0);
+    expect(photoCountAsc.projects[0].total_photo_count).toBe(0);
+    expect(sizeDesc.projects[0].name).toBe('Porto Wedding Delivery');
+    expect(createdAsc.projects[0].name).toBe('Porto Wedding Delivery');
+  });
+
   it('creates multiple galleries inside a project in demo mode', async () => {
     const { getDemoService } = await import('../../services/demoService');
     const service = getDemoService();

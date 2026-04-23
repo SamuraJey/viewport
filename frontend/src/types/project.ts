@@ -1,4 +1,17 @@
-import type { ProjectVisibility } from './gallery';
+import type { ProjectVisibility, SortOrder } from './gallery';
+
+export type ProjectListSortBy =
+  | 'created_at'
+  | 'shooting_date'
+  | 'name'
+  | 'photo_count'
+  | 'total_size_bytes';
+
+export interface ProjectListQueryOptions {
+  search?: string;
+  sort_by?: ProjectListSortBy;
+  order?: SortOrder;
+}
 
 export interface Project {
   id: string;

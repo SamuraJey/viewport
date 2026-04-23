@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowUpDown, Plus, Search, Trash2 } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ErrorDisplay } from '../components/ErrorDisplay';
@@ -14,6 +14,7 @@ import { handleApiError } from '../lib/errorHandling';
 import { formatFileSize } from '../lib/utils';
 import { projectService } from '../services/projectService';
 import type { Project } from '../types';
+import type { ProjectListSortBy, SortOrder } from '../types';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -36,11 +37,36 @@ const cardVariants = {
 
 const SEARCH_DEBOUNCE_MS = 300;
 const PROJECT_PAGE_SIZE = 18;
+const DEFAULT_PROJECT_SORT_BY: ProjectListSortBy = 'created_at';
+const DEFAULT_PROJECT_SORT_ORDER: SortOrder = 'desc';
+
+const PROJECT_SORT_OPTIONS: Array<{ value: ProjectListSortBy; label: string }> = [
+  { value: 'created_at', label: 'Date created' },
+  { value: 'shooting_date', label: 'Shooting date' },
+  { value: 'name', label: 'Name' },
+  { value: 'photo_count', label: 'Photo count' },
+  { value: 'total_size_bytes', label: 'Size' },
+];
+
+const PROJECT_ORDER_OPTIONS: Array<{ value: SortOrder; label: string }> = [
+  { value: 'desc', label: 'Descending' },
+  { value: 'asc', label: 'Ascending' },
+];
 
 const resolveProjectPath = (project: Project) => `/projects/${project.id}`;
 
 const formatCountLabel = (count: number, singular: string, plural = `${singular}s`) =>
   `${count} ${count === 1 ? singular : plural}`;
+
+const isProjectListSortBy = (value: string | null): value is ProjectListSortBy =>
+  value === 'created_at' ||
+  value === 'shooting_date' ||
+  value === 'name' ||
+  value === 'photo_count' ||
+  value === 'total_size_bytes';
+
+const isSortOrder = (value: string | null): value is SortOrder =>
+  value === 'asc' || value === 'desc';
 
 export const DashboardPage = () => {
   useDocumentTitle('Projects · Viewport');
@@ -61,12 +87,24 @@ export const DashboardPage = () => {
   const newProjectInputRef = useRef<HTMLInputElement>(null);
 
   const activeSearch = useMemo(() => searchParams.get('search')?.trim() ?? '', [searchParams]);
+  const sortByParam = searchParams.get('sort_by');
+  const orderParam = searchParams.get('order');
+  const activeSortBy: ProjectListSortBy = isProjectListSortBy(sortByParam)
+    ? sortByParam
+    : DEFAULT_PROJECT_SORT_BY;
+  const activeSortOrder: SortOrder = isSortOrder(orderParam)
+    ? orderParam
+    : DEFAULT_PROJECT_SORT_ORDER;
 
   const fetchProjects = useCallback(async () => {
     setIsLoading(true);
     setError('');
     try {
-      const response = await projectService.getProjects(page, pageSize, activeSearch || undefined);
+      const response = await projectService.getProjects(page, pageSize, {
+        search: activeSearch || undefined,
+        sort_by: activeSortBy,
+        order: activeSortOrder,
+      });
       setProjects(response.projects);
       setTotal(response.total);
     } catch (err: unknown) {
@@ -74,7 +112,7 @@ export const DashboardPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [activeSearch, page, pageSize, setTotal]);
+  }, [activeSearch, activeSortBy, activeSortOrder, page, pageSize, setTotal]);
 
   useEffect(() => {
     void fetchProjects();
@@ -83,6 +121,30 @@ export const DashboardPage = () => {
   useEffect(() => {
     setSearchInput(activeSearch);
   }, [activeSearch]);
+
+  const updateSortQueryParams = useCallback(
+    (updates: { sortBy?: ProjectListSortBy; order?: SortOrder }) => {
+      const nextParams = new URLSearchParams(searchParams);
+      const nextSortBy = updates.sortBy ?? activeSortBy;
+      const nextOrder = updates.order ?? activeSortOrder;
+
+      if (nextSortBy === DEFAULT_PROJECT_SORT_BY) {
+        nextParams.delete('sort_by');
+      } else {
+        nextParams.set('sort_by', nextSortBy);
+      }
+
+      if (nextOrder === DEFAULT_PROJECT_SORT_ORDER) {
+        nextParams.delete('order');
+      } else {
+        nextParams.set('order', nextOrder);
+      }
+
+      nextParams.delete('page');
+      setSearchParams(nextParams);
+    },
+    [activeSortBy, activeSortOrder, searchParams, setSearchParams],
+  );
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -216,7 +278,7 @@ export const DashboardPage = () => {
             </p>
           </div>
 
-          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
             <label
               htmlFor="dashboard-project-search"
               className="relative flex h-11 flex-1 items-center rounded-2xl border border-border bg-surface-1 px-3 shadow-sm dark:border-border/60 dark:bg-surface-dark-1"
@@ -231,6 +293,41 @@ export const DashboardPage = () => {
                 className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
                 aria-label="Search projects"
               />
+            </label>
+            <label className="flex h-11 items-center gap-2 rounded-2xl border border-border bg-surface-1 px-3 text-sm font-semibold text-text shadow-sm dark:border-border/60 dark:bg-surface-dark-1">
+              <ArrowUpDown className="h-4 w-4 text-muted" />
+              <span className="sr-only">Sort projects by</span>
+              <select
+                value={activeSortBy}
+                onChange={(event) =>
+                  updateSortQueryParams({ sortBy: event.target.value as ProjectListSortBy })
+                }
+                className="min-w-32 bg-transparent text-sm font-semibold text-text outline-none"
+                aria-label="Sort projects by"
+              >
+                {PROJECT_SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex h-11 items-center rounded-2xl border border-border bg-surface-1 px-3 text-sm font-semibold text-text shadow-sm dark:border-border/60 dark:bg-surface-dark-1">
+              <span className="sr-only">Project sort order</span>
+              <select
+                value={activeSortOrder}
+                onChange={(event) =>
+                  updateSortQueryParams({ order: event.target.value as SortOrder })
+                }
+                className="min-w-28 bg-transparent text-sm font-semibold text-text outline-none"
+                aria-label="Project sort order"
+              >
+                {PROJECT_ORDER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </label>
             <button
               type="button"

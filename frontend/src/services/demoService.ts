@@ -13,6 +13,7 @@ import type {
   Project,
   ProjectDetail,
   ProjectGallerySummary,
+  ProjectListQueryOptions,
   ProjectListResponse,
   OwnerSelectionDetail,
   OwnerSelectionRow,
@@ -1042,8 +1043,16 @@ class DemoServiceStore {
     return this.toGalleryDetail(state, options);
   }
 
-  async getProjects(page = 1, size = 10, search?: string): Promise<ProjectListResponse> {
-    const normalizedSearch = search?.trim().toLowerCase() ?? '';
+  async getProjects(
+    page = 1,
+    size = 10,
+    options?: ProjectListQueryOptions | string,
+  ): Promise<ProjectListResponse> {
+    const normalizedOptions = typeof options === 'string' ? { search: options } : (options ?? {});
+    const normalizedSearch = normalizedOptions.search?.trim().toLowerCase() ?? '';
+    const sortBy = normalizedOptions.sort_by ?? 'created_at';
+    const order = normalizedOptions.order ?? 'desc';
+    const direction = order === 'asc' ? 1 : -1;
     const start = (page - 1) * size;
     const filtered = this.projects
       .map((entry) => ({ ...entry.project }))
@@ -1051,9 +1060,38 @@ class DemoServiceStore {
         (project) => !normalizedSearch || project.name.toLowerCase().includes(normalizedSearch),
       );
 
-    const sorted = filtered.sort(
-      (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
-    );
+    const compareDate = (leftValue: string, rightValue: string) =>
+      (Date.parse(leftValue) - Date.parse(rightValue)) * direction;
+    const compareText = (leftValue: string, rightValue: string) =>
+      leftValue.toLowerCase().localeCompare(rightValue.toLowerCase()) * direction;
+    const compareNumber = (leftValue: number, rightValue: number) =>
+      (leftValue - rightValue) * direction;
+    const compareTieBreakers = (left: Project, right: Project) =>
+      compareDate(left.created_at, right.created_at) || left.id.localeCompare(right.id) * direction;
+
+    const sorted = filtered.sort((left, right) => {
+      if (sortBy === 'name') {
+        return compareText(left.name, right.name) || compareTieBreakers(left, right);
+      }
+      if (sortBy === 'shooting_date') {
+        return (
+          compareDate(left.shooting_date, right.shooting_date) || compareTieBreakers(left, right)
+        );
+      }
+      if (sortBy === 'photo_count') {
+        return (
+          compareNumber(left.total_photo_count, right.total_photo_count) ||
+          compareTieBreakers(left, right)
+        );
+      }
+      if (sortBy === 'total_size_bytes') {
+        return (
+          compareNumber(left.total_size_bytes, right.total_size_bytes) ||
+          compareTieBreakers(left, right)
+        );
+      }
+      return compareTieBreakers(left, right);
+    });
 
     return {
       projects: sorted.slice(start, start + size),

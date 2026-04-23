@@ -105,6 +105,8 @@ describe('DashboardPage', () => {
     expect(screen.getAllByRole('button', { name: 'Create new project' })).toHaveLength(1);
     expect(screen.getByLabelText('Search projects')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search projects...')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sort projects by')).toBeInTheDocument();
+    expect(screen.getByLabelText('Project sort order')).toBeInTheDocument();
     expect(
       screen.queryByRole('heading', { level: 2, name: 'Project library' }),
     ).not.toBeInTheDocument();
@@ -137,7 +139,11 @@ describe('DashboardPage', () => {
     render(<DashboardPageWrapper />);
 
     await waitFor(() => {
-      expect(projectService.getProjects).toHaveBeenCalledWith(1, 18, undefined);
+      expect(projectService.getProjects).toHaveBeenCalledWith(1, 18, {
+        search: undefined,
+        sort_by: 'created_at',
+        order: 'desc',
+      });
     });
   });
 
@@ -147,8 +153,67 @@ describe('DashboardPage', () => {
     render(<DashboardPageWrapper initialPath="/dashboard?search=weekend" />);
 
     await waitFor(() => {
-      expect(projectService.getProjects).toHaveBeenCalledWith(1, 18, 'weekend');
+      expect(projectService.getProjects).toHaveBeenCalledWith(1, 18, {
+        search: 'weekend',
+        sort_by: 'created_at',
+        order: 'desc',
+      });
     });
+  });
+
+  it('initializes project sorting from query params', async () => {
+    const { projectService } = await import('../../services/projectService');
+
+    render(<DashboardPageWrapper initialPath="/dashboard?sort_by=photo_count&order=asc" />);
+
+    await waitFor(() => {
+      expect(projectService.getProjects).toHaveBeenCalledWith(1, 18, {
+        search: undefined,
+        sort_by: 'photo_count',
+        order: 'asc',
+      });
+    });
+    expect(screen.getByLabelText('Sort projects by')).toHaveValue('photo_count');
+    expect(screen.getByLabelText('Project sort order')).toHaveValue('asc');
+  });
+
+  it('updates project sorting in the URL and resets pagination', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+
+    render(<DashboardPageWrapper initialPath="/dashboard?page=3" />);
+
+    await waitFor(() => {
+      expect(projectService.getProjects).toHaveBeenCalledWith(3, 18, {
+        search: undefined,
+        sort_by: 'created_at',
+        order: 'desc',
+      });
+    });
+
+    await user.selectOptions(screen.getByLabelText('Sort projects by'), 'photo_count');
+
+    await waitFor(() => {
+      expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, {
+        search: undefined,
+        sort_by: 'photo_count',
+        order: 'desc',
+      });
+    });
+    expect(screen.getByTestId('location')).toHaveTextContent('/dashboard?sort_by=photo_count');
+
+    await user.selectOptions(screen.getByLabelText('Project sort order'), 'asc');
+
+    await waitFor(() => {
+      expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, {
+        search: undefined,
+        sort_by: 'photo_count',
+        order: 'asc',
+      });
+    });
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/dashboard?sort_by=photo_count&order=asc',
+    );
   });
 
   it('updates project search and resets pagination without dropping the search query', async () => {
@@ -158,7 +223,11 @@ describe('DashboardPage', () => {
     render(<DashboardPageWrapper initialPath="/dashboard?page=3" />);
 
     await waitFor(() => {
-      expect(projectService.getProjects).toHaveBeenCalledWith(3, 18, undefined);
+      expect(projectService.getProjects).toHaveBeenCalledWith(3, 18, {
+        search: undefined,
+        sort_by: 'created_at',
+        order: 'desc',
+      });
     });
 
     await user.clear(screen.getByLabelText('Search projects'));
@@ -166,7 +235,11 @@ describe('DashboardPage', () => {
 
     await waitFor(
       () => {
-        expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, 'client');
+        expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, {
+          search: 'client',
+          sort_by: 'created_at',
+          order: 'desc',
+        });
       },
       { timeout: 1500 },
     );
@@ -180,7 +253,11 @@ describe('DashboardPage', () => {
     render(<DashboardPageWrapper initialPath="/dashboard?page=3" />);
 
     await waitFor(() => {
-      expect(projectService.getProjects).toHaveBeenCalledWith(3, 18, undefined);
+      expect(projectService.getProjects).toHaveBeenCalledWith(3, 18, {
+        search: undefined,
+        sort_by: 'created_at',
+        order: 'desc',
+      });
     });
 
     vi.useFakeTimers();
@@ -205,7 +282,11 @@ describe('DashboardPage', () => {
         await vi.advanceTimersByTimeAsync(1);
       });
 
-      expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, 'client');
+      expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, {
+        search: 'client',
+        sort_by: 'created_at',
+        order: 'desc',
+      });
     } finally {
       await vi.runOnlyPendingTimersAsync();
       vi.useRealTimers();

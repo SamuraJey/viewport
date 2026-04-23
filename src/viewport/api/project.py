@@ -20,6 +20,7 @@ from viewport.schemas.project import (
     ProjectDetailResponse,
     ProjectGalleryReorderRequest,
     ProjectGallerySummaryResponse,
+    ProjectListQueryParams,
     ProjectListResponse,
     ProjectResponse,
     ProjectUpdateRequest,
@@ -229,11 +230,18 @@ async def list_projects(
     gallery_repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
-    search: str | None = Query(None, max_length=128),
+    list_query: ProjectListQueryParams = Depends(),
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
 ) -> ProjectListResponse:
-    projects, total = await repo.get_projects_by_owner(current_user.id, page=page, size=size, search=search)
+    projects, total = await repo.get_projects_by_owner(
+        current_user.id,
+        page=page,
+        size=size,
+        search=list_query.search,
+        sort_by=list_query.sort_by,
+        order=list_query.order,
+    )
     responses = await _build_project_responses(projects, repo, gallery_repo, s3_client)
     return ProjectListResponse(projects=responses, total=total, page=page, size=size)
 
