@@ -46,6 +46,8 @@ export const usePublicGallery = ({
       setIsLoading(true);
       setError('');
       setErrorStatus(null);
+      setPhotos([]);
+      setHasMore(false);
       const data = await shareLinkService.getSharedGallery(shareId, {
         limit: photosPerPage,
         offset: 0,

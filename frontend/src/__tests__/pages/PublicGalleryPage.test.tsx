@@ -366,16 +366,14 @@ describe('PublicGalleryPage', () => {
   it('reuses nested gallery project navigation without refetching the root project share', async () => {
     const { shareLinkService } = await import('../../services/shareLinkService');
     mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-1' };
+    let resolveGallerySwitch: ((value: any) => void) | null = null;
+    const gallerySwitchPromise = new Promise<any>((resolve) => {
+      resolveGallerySwitch = resolve;
+    });
+
     vi.mocked(shareLinkService.getSharedGallery).mockImplementation(async (_shareId, options) => {
       if (options?.galleryId === 'gallery-2') {
-        return {
-          ...mockProjectGallery,
-          gallery_name: '3eds',
-          project_navigation: {
-            ...mockProjectShare,
-            folders: mockProjectShare.folders,
-          },
-        } as any;
+        return gallerySwitchPromise;
       }
       if (options?.galleryId) {
         return mockProjectGallery as any;
@@ -400,7 +398,21 @@ describe('PublicGalleryPage', () => {
     rerender(wrapper());
 
     await waitFor(() => {
-      expect(screen.getByText('3eds')).toBeInTheDocument();
+      expect(screen.getByText('Loading gallery photos...')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('status', { name: /loading gallery/i })).not.toBeInTheDocument();
+
+    resolveGallerySwitch?.({
+      ...mockProjectGallery,
+      gallery_name: '3eds',
+      project_navigation: {
+        ...mockProjectShare,
+        folders: mockProjectShare.folders,
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading gallery photos...')).not.toBeInTheDocument();
     });
 
     expect(getRootProjectCalls()).toBe(0);

@@ -20,6 +20,7 @@ interface PublicGalleryPhotoSectionProps {
   gridRef: MutableRefObject<HTMLDivElement | null>;
   getAspectRatioHint: (photoId: string) => number;
   observerTargetRef: MutableRefObject<HTMLDivElement | null>;
+  isLoading?: boolean;
   isLoadingMore: boolean;
   hasMore: boolean;
   onLayoutChange: (layout: PublicGridLayout) => void;
@@ -56,6 +57,7 @@ export const PublicGalleryPhotoSection = ({
   gridRef,
   getAspectRatioHint,
   observerTargetRef,
+  isLoading = false,
   isLoadingMore,
   hasMore,
   onLayoutChange,
@@ -91,7 +93,12 @@ export const PublicGalleryPhotoSection = ({
         />
       </div>
 
-      {photos.length > 0 ? (
+      {isLoading ? (
+        <div className="flex min-h-80 items-center justify-center rounded-3xl border border-border/40 bg-surface-1/25 text-sm font-medium text-muted dark:border-border/20">
+          <Loader2 className="mr-3 h-6 w-6 animate-spin text-accent" />
+          Loading gallery photos...
+        </div>
+      ) : photos.length > 0 ? (
         <>
           <div className={gridClassNames} ref={gridRef}>
             {photos.map((photo, index) => {

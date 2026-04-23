@@ -77,6 +77,8 @@ export const PublicGalleryPage = () => {
       galleryId: activeGalleryId,
       skipProjectViewCount: shouldSkipProjectViewCount,
     });
+  const isInitialGalleryLoading = isLoading && !gallery;
+  const isGalleryPhotoSwitching = isLoading && Boolean(gallery);
 
   const selection = usePublicSelection({
     shareId,
@@ -320,9 +322,14 @@ export const PublicGalleryPage = () => {
     ? projectGalleryTabs?.photographer || folderShare?.photographer
     : folderShare?.photographer;
   const heroCover = isProjectFolderView ? (projectGalleryTabs?.cover ?? null) : folderShare?.cover;
+  const activeProjectGallery = projectGalleryTabs?.folders.find(
+    (projectGallery) => projectGallery.folder_id === activeGalleryId,
+  );
   const displayedPhotoTotal = isFavoritesView
     ? (selection.session?.selected_count ?? selectedPhotos.length)
-    : (folderShare?.total_photos ?? photos.length);
+    : isGalleryPhotoSwitching && activeProjectGallery
+      ? activeProjectGallery.photo_count
+      : (folderShare?.total_photos ?? activeProjectGallery?.photo_count ?? photos.length);
 
   useEffect(() => {
     if (isFavoritesView || activeGalleryId || !projectShare?.folders.length) {
@@ -410,7 +417,7 @@ export const PublicGalleryPage = () => {
         : `${folderShare?.gallery_name || 'Public Gallery'} · Viewport`,
   );
 
-  if (isLoading) {
+  if (isInitialGalleryLoading) {
     return (
       <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
         <SkipToContentLink targetId="main-content" />
@@ -544,6 +551,7 @@ export const PublicGalleryPage = () => {
                       key={projectGallery.folder_id}
                       to={projectGallery.route_path}
                       state={INTERNAL_PROJECT_NAVIGATION_STATE}
+                      preventScrollReset
                       className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
                         isActive
                           ? 'border-accent/50 bg-accent/10 text-accent'
@@ -741,6 +749,7 @@ export const PublicGalleryPage = () => {
           gridRef={gridRef}
           getAspectRatioHint={getAspectRatioHint}
           observerTargetRef={observerTargetRef}
+          isLoading={!isFavoritesView && isGalleryPhotoSwitching}
           isLoadingMore={!isFavoritesView && isLoadingMore}
           hasMore={!isFavoritesView && hasMore}
           onLayoutChange={setLayoutMode}
