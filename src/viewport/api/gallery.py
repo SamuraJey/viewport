@@ -75,14 +75,14 @@ async def _build_gallery_response(
                 expires_in=7200,
             )
 
-    recent_thumbnail_keys = await repo.get_recent_photo_thumbnail_keys_by_gallery(gallery.id, limit=3)
-    recent_photo_thumbnail_urls: list[str] = []
-    if recent_thumbnail_keys:
-        recent_url_map = await s3_client.generate_presigned_urls_batch(
-            recent_thumbnail_keys,
-            expires_in=7200,
-        )
-        recent_photo_thumbnail_urls = [recent_url_map[key] for key in recent_thumbnail_keys if key in recent_url_map]
+    if cover_photo_thumbnail_url is None:
+        recent_thumbnail_keys = await repo.get_recent_photo_thumbnail_keys_by_gallery(gallery.id, limit=1)
+        if recent_thumbnail_keys:
+            recent_url_map = await s3_client.generate_presigned_urls_batch(
+                recent_thumbnail_keys,
+                expires_in=7200,
+            )
+            cover_photo_thumbnail_url = recent_url_map.get(recent_thumbnail_keys[0])
 
     return GalleryResponse(
         id=str(gallery.id),
@@ -101,7 +101,6 @@ async def _build_gallery_response(
         total_size_bytes=total_size_bytes,
         has_active_share_links=has_active_share_links,
         cover_photo_thumbnail_url=cover_photo_thumbnail_url,
-        recent_photo_thumbnail_urls=recent_photo_thumbnail_urls,
     )
 
 
@@ -124,7 +123,7 @@ async def _build_gallery_list_responses(
         active_share_gallery_ids,
         cover_thumbnail_by_photo_id,
         recent_thumbnail_keys_by_gallery,
-    ) = await repo.get_gallery_list_enrichment(gallery_ids, cover_photo_ids, recent_limit=3)
+    ) = await repo.get_gallery_list_enrichment(gallery_ids, cover_photo_ids, recent_limit=1)
 
     project_names: dict[uuid.UUID, str] = {}
     if project_ids:
@@ -134,7 +133,7 @@ async def _build_gallery_list_responses(
     all_thumbnail_keys: list[str] = []
     all_thumbnail_keys.extend(cover_thumbnail_by_photo_id.values())
     for keys in recent_thumbnail_keys_by_gallery.values():
-        all_thumbnail_keys.extend(keys)
+        all_thumbnail_keys.extend(keys[:1])
 
     presigned_by_key = await s3_client.generate_presigned_urls_batch(list(dict.fromkeys(all_thumbnail_keys)), expires_in=7200) if all_thumbnail_keys else {}
 
@@ -142,6 +141,8 @@ async def _build_gallery_list_responses(
     for gallery in galleries:
         cover_key = cover_thumbnail_by_photo_id.get(gallery.cover_photo_id) if gallery.cover_photo_id else None
         recent_keys = recent_thumbnail_keys_by_gallery.get(gallery.id, [])
+        fallback_cover_key = recent_keys[0] if recent_keys else None
+        cover_thumbnail_url = presigned_by_key.get(cover_key) if cover_key else presigned_by_key.get(fallback_cover_key) if fallback_cover_key else None
 
         responses.append(
             GalleryResponse(
@@ -160,8 +161,7 @@ async def _build_gallery_list_responses(
                 photo_count=photo_count_by_gallery.get(gallery.id, 0),
                 total_size_bytes=total_size_by_gallery.get(gallery.id, 0),
                 has_active_share_links=gallery.id in active_share_gallery_ids,
-                cover_photo_thumbnail_url=presigned_by_key.get(cover_key) if cover_key else None,
-                recent_photo_thumbnail_urls=[presigned_by_key[key] for key in recent_keys if key in presigned_by_key],
+                cover_photo_thumbnail_url=cover_thumbnail_url,
             )
         )
 
@@ -282,7 +282,7 @@ async def get_gallery_detail(
     ) = await repo.get_gallery_list_enrichment(
         [gallery_id],
         [gallery.cover_photo_id] if gallery.cover_photo_id else [],
-        recent_limit=3,
+        recent_limit=1,
     )
     photo_count = photo_count_by_gallery.get(gallery_id, 0)
     total_size_bytes = total_size_by_gallery.get(gallery_id, 0)
@@ -290,10 +290,10 @@ async def get_gallery_detail(
 
     cover_key = cover_thumbnail_by_photo_id.get(gallery.cover_photo_id) if gallery.cover_photo_id else None
     recent_keys = recent_thumbnail_keys_by_gallery.get(gallery_id, [])
-    thumbnail_keys = [key for key in [cover_key, *recent_keys] if key]
+    fallback_cover_key = recent_keys[0] if recent_keys else None
+    thumbnail_keys = [key for key in [cover_key, fallback_cover_key] if key]
     presigned_by_key = await s3_client.generate_presigned_urls_batch(list(dict.fromkeys(thumbnail_keys)), expires_in=7200) if thumbnail_keys else {}
-    cover_photo_thumbnail_url = presigned_by_key.get(cover_key) if cover_key else None
-    recent_photo_thumbnail_urls = [presigned_by_key[key] for key in recent_keys if key in presigned_by_key]
+    cover_photo_thumbnail_url = presigned_by_key.get(cover_key) if cover_key else presigned_by_key.get(fallback_cover_key) if fallback_cover_key else None
 
     # Preserve historical default ordering when clients omit both sort params.
     if photo_query.sort_by is None and photo_query.order is None:
@@ -353,7 +353,6 @@ async def get_gallery_detail(
         photo_count=photo_count,
         has_active_share_links=has_active_share_links,
         cover_photo_thumbnail_url=cover_photo_thumbnail_url,
-        recent_photo_thumbnail_urls=recent_photo_thumbnail_urls,
         photos=photo_responses,
         total_photos=filtered_photo_count,
         total_size_bytes=total_size_bytes,

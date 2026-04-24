@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { useState } from 'react';
@@ -26,6 +26,12 @@ const DialogHarness = ({ canClose = true }: DialogHarnessProps) => {
       </AppDialog>
     </>
   );
+};
+
+const waitForCloseGuardFrame = async () => {
+  await act(async () => {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  });
 };
 
 describe('AppDialog', () => {
@@ -56,8 +62,9 @@ describe('AppDialog', () => {
 
     await user.click(screen.getByRole('button', { name: /open dialog/i }));
     expect(await screen.findByRole('dialog', { name: /test dialog/i })).toBeInTheDocument();
+    await waitForCloseGuardFrame();
 
-    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.keyDown(window, { key: 'Escape' });
 
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: /test dialog/i })).not.toBeInTheDocument();
@@ -71,8 +78,9 @@ describe('AppDialog', () => {
 
     await user.click(screen.getByRole('button', { name: /open dialog/i }));
     expect(await screen.findByRole('dialog', { name: /test dialog/i })).toBeInTheDocument();
+    await waitForCloseGuardFrame();
 
-    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.keyDown(window, { key: 'Escape' });
 
     expect(screen.getByRole('dialog', { name: /test dialog/i })).toBeInTheDocument();
   });

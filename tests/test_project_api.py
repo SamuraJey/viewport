@@ -10,19 +10,72 @@ pytestmark = pytest.mark.requires_s3
 
 
 class TestProjectAPI:
-    def test_create_project_returns_entry_gallery_metadata_and_legacy_gallery_create_auto_wraps(self, authenticated_client: TestClient):
+    def test_list_projects_supports_sorting_fields_and_order(self, authenticated_client: TestClient):
+        empty_project_resp = authenticated_client.post(
+            "/projects",
+            json={"name": "Alpha Empty", "shooting_date": "2026-04-20"},
+        )
+        assert empty_project_resp.status_code == 201
+        empty_project_id = empty_project_resp.json()["id"]
+
+        hidden_project_resp = authenticated_client.post(
+            "/projects",
+            json={"name": "Beta Hidden", "shooting_date": "2026-04-18"},
+        )
+        assert hidden_project_resp.status_code == 201
+        hidden_project_id = hidden_project_resp.json()["id"]
+
+        hidden_folder_resp = authenticated_client.post(
+            f"/projects/{hidden_project_id}/galleries",
+            json={"name": "Direct Only", "project_visibility": "direct_only"},
+        )
+        assert hidden_folder_resp.status_code == 201
+        hidden_folder_id = hidden_folder_resp.json()["id"]
+
+        upload_photo_via_presigned(authenticated_client, hidden_folder_id, b"first hidden", "first.jpg")
+        upload_photo_via_presigned(authenticated_client, hidden_folder_id, b"second hidden", "second.jpg")
+
+        name_resp = authenticated_client.get("/projects?page=1&size=20&sort_by=name&order=asc")
+        assert name_resp.status_code == 200
+        assert [project["id"] for project in name_resp.json()["projects"][:2]] == [
+            empty_project_id,
+            hidden_project_id,
+        ]
+
+        shooting_resp = authenticated_client.get("/projects?page=1&size=20&sort_by=shooting_date&order=asc")
+        assert shooting_resp.status_code == 200
+        assert [project["id"] for project in shooting_resp.json()["projects"][:2]] == [
+            hidden_project_id,
+            empty_project_id,
+        ]
+
+        photo_count_resp = authenticated_client.get("/projects?page=1&size=1&sort_by=photo_count&order=desc")
+        assert photo_count_resp.status_code == 200
+        photo_count_project = photo_count_resp.json()["projects"][0]
+        assert photo_count_project["id"] == hidden_project_id
+        assert photo_count_project["visible_gallery_count"] == 0
+        assert photo_count_project["total_photo_count"] == 2
+
+        size_resp = authenticated_client.get("/projects?page=1&size=1&sort_by=total_size_bytes&order=desc")
+        assert size_resp.status_code == 200
+        assert size_resp.json()["projects"][0]["id"] == hidden_project_id
+
+        invalid_resp = authenticated_client.get("/projects?sort_by=not_a_field&order=desc")
+        assert invalid_resp.status_code == 422
+
+    def test_create_project_starts_empty_and_legacy_gallery_create_auto_wraps(self, authenticated_client: TestClient):
         project_resp = authenticated_client.post(
             "/projects",
-            json={"name": "Wedding A", "shooting_date": "2026-04-18", "initial_gallery_name": None},
+            json={"name": "Wedding A", "shooting_date": "2026-04-18"},
         )
         assert project_resp.status_code == 201
         project_payload = project_resp.json()
         project_id = project_payload["id"]
-        entry_gallery_id = project_payload["entry_gallery_id"]
-        assert project_payload["entry_gallery_name"] == "Wedding A"
-        assert project_payload["gallery_count"] == 1
-        assert project_payload["visible_gallery_count"] == 1
-        assert project_payload["has_entry_gallery"] is True
+        assert project_payload["entry_gallery_id"] is None
+        assert project_payload["entry_gallery_name"] is None
+        assert project_payload["gallery_count"] == 0
+        assert project_payload["visible_gallery_count"] == 0
+        assert project_payload["has_entry_gallery"] is False
 
         folder_resp = authenticated_client.post(
             f"/projects/{project_id}/galleries",
@@ -50,10 +103,12 @@ class TestProjectAPI:
         assert detail_resp.status_code == 200
         payload = detail_resp.json()
         assert payload["name"] == "Wedding A"
-        assert payload["entry_gallery_id"] == entry_gallery_id
-        assert payload["folder_count"] == 2
-        assert payload["gallery_count"] == 2
-        assert [folder["id"] for folder in payload["folders"]] == [entry_gallery_id, folder_id]
+        assert payload["entry_gallery_id"] == folder_id
+        assert payload["gallery_count"] == 1
+        assert "folder_count" not in payload
+        assert "recent_folder_thumbnail_urls" not in payload
+        assert payload["cover_photo_thumbnail_url"] is None
+        assert [gallery["id"] for gallery in payload["galleries"]] == [folder_id]
 
         gallery_detail_resp = authenticated_client.get(f"/galleries/{folder_id}")
         assert gallery_detail_resp.status_code == 200
@@ -68,10 +123,14 @@ class TestProjectAPI:
         assert wrapped_payload["entry_gallery_id"] == standalone_id
         assert wrapped_payload["gallery_count"] == 1
 
+        upload_photo_via_presigned(authenticated_client, folder_id, b"project-cover", "cover.jpg")
+
         list_resp = authenticated_client.get("/projects?page=1&size=20")
         assert list_resp.status_code == 200
         listed_items = {item["id"]: item for item in list_resp.json()["projects"]}
-        assert listed_items[project_id]["entry_gallery_id"] == entry_gallery_id
+        assert listed_items[project_id]["entry_gallery_id"] == folder_id
+        assert listed_items[project_id]["cover_photo_thumbnail_url"].startswith("http")
+        assert "recent_folder_thumbnail_urls" not in listed_items[project_id]
         assert listed_items[standalone_project_id]["entry_gallery_id"] == standalone_id
 
     def test_project_missing_resource_and_empty_state_branches(
@@ -112,7 +171,7 @@ class TestProjectAPI:
         assert project_resp.status_code == 201
         project_payload = project_resp.json()
         project_id = project_payload["id"]
-        entry_gallery_id = project_payload["entry_gallery_id"]
+        assert project_payload["entry_gallery_id"] is None
 
         project_share_resp = authenticated_client.post(f"/projects/{project_id}/share-links", json={})
         assert project_share_resp.status_code == 201
@@ -120,13 +179,10 @@ class TestProjectAPI:
 
         delete_project_resp = authenticated_client.delete(f"/projects/{project_id}")
         assert delete_project_resp.status_code == 204
-        assert deleted_gallery_ids == [entry_gallery_id]
+        assert deleted_gallery_ids == []
 
         deleted_project_detail_resp = authenticated_client.get(f"/projects/{project_id}")
         assert deleted_project_detail_resp.status_code == 404
-
-        deleted_gallery_detail_resp = authenticated_client.get(f"/galleries/{entry_gallery_id}")
-        assert deleted_gallery_detail_resp.status_code == 404
 
         deleted_project_share_resp = authenticated_client.get(f"/s/{project_share_id}")
         assert deleted_project_share_resp.status_code == 404
@@ -151,14 +207,6 @@ class TestProjectAPI:
         assert project_resp.status_code == 201
         project_payload = project_resp.json()
         project_id = project_payload["id"]
-        entry_gallery_id = project_payload["entry_gallery_id"]
-
-        hide_entry_resp = authenticated_client.patch(
-            f"/galleries/{entry_gallery_id}",
-            json={"project_visibility": "direct_only"},
-        )
-        assert hide_entry_resp.status_code == 200
-
         listed_folder_resp = authenticated_client.post(
             f"/projects/{project_id}/folders",
             json={"name": "Portraits", "project_visibility": "listed"},
@@ -216,13 +264,11 @@ class TestProjectAPI:
         assert project_resp.status_code == 201
         project_payload = project_resp.json()
         project_id = project_payload["id"]
-        entry_gallery_id = project_payload["entry_gallery_id"]
-
-        hide_entry_resp = authenticated_client.patch(
-            f"/galleries/{entry_gallery_id}",
-            json={"project_visibility": "direct_only"},
+        hidden_folder_resp = authenticated_client.post(
+            f"/projects/{project_id}/folders",
+            json={"name": "Hidden", "project_visibility": "direct_only"},
         )
-        assert hide_entry_resp.status_code == 200
+        assert hidden_folder_resp.status_code == 201
 
         project_share_resp = authenticated_client.post(f"/projects/{project_id}/share-links", json={})
         assert project_share_resp.status_code == 201
@@ -256,7 +302,7 @@ class TestProjectAPI:
 
         source_detail_resp = authenticated_client.get(f"/projects/{source_project_id}")
         assert source_detail_resp.status_code == 200
-        assert folder_id not in [folder["id"] for folder in source_detail_resp.json()["folders"]]
+        assert folder_id not in [folder["id"] for folder in source_detail_resp.json()["galleries"]]
 
         detached_detail_resp = authenticated_client.get(f"/projects/{detached_project_id}")
         assert detached_detail_resp.status_code == 200
@@ -303,7 +349,12 @@ class TestProjectAPI:
         project_resp = authenticated_client.post("/projects", json={"name": "Warnings Project"})
         assert project_resp.status_code == 201
         project_id = project_resp.json()["id"]
-        gallery_id = project_resp.json()["entry_gallery_id"]
+        gallery_resp = authenticated_client.post(
+            f"/projects/{project_id}/galleries",
+            json={"name": "Direct proof", "project_visibility": "listed"},
+        )
+        assert gallery_resp.status_code == 201
+        gallery_id = gallery_resp.json()["id"]
 
         project_link_resp = authenticated_client.post(
             f"/projects/{project_id}/share-links",
@@ -501,13 +552,6 @@ class TestProjectAPI:
         assert project_resp.status_code == 201
         project_payload = project_resp.json()
         project_id = project_payload["id"]
-        entry_gallery_id = project_payload["entry_gallery_id"]
-
-        hide_entry_resp = authenticated_client.patch(
-            f"/galleries/{entry_gallery_id}",
-            json={"project_visibility": "direct_only"},
-        )
-        assert hide_entry_resp.status_code == 200
 
         folder_resp = authenticated_client.post(
             f"/projects/{project_id}/folders",
@@ -546,13 +590,6 @@ class TestProjectAPI:
         assert project_resp.status_code == 201
         project_payload = project_resp.json()
         project_id = project_payload["id"]
-        entry_gallery_id = project_payload["entry_gallery_id"]
-
-        hide_entry_resp = authenticated_client.patch(
-            f"/galleries/{entry_gallery_id}",
-            json={"project_visibility": "direct_only"},
-        )
-        assert hide_entry_resp.status_code == 200
 
         folder_resp = authenticated_client.post(
             f"/projects/{project_id}/folders",
@@ -581,8 +618,11 @@ class TestProjectAPI:
         assert project_resp.status_code == 201
         project_payload = project_resp.json()
         project_id = project_payload["id"]
-        entry_gallery_id = project_payload["entry_gallery_id"]
 
+        entry_folder_resp = authenticated_client.post(
+            f"/projects/{project_id}/galleries",
+            json={"name": "Entry", "project_visibility": "listed"},
+        )
         first_folder_resp = authenticated_client.post(
             f"/projects/{project_id}/galleries",
             json={"name": "First extra", "project_visibility": "listed"},
@@ -591,8 +631,10 @@ class TestProjectAPI:
             f"/projects/{project_id}/galleries",
             json={"name": "Second extra", "project_visibility": "listed"},
         )
+        assert entry_folder_resp.status_code == 201
         assert first_folder_resp.status_code == 201
         assert second_folder_resp.status_code == 201
+        entry_gallery_id = entry_folder_resp.json()["id"]
         first_folder_id = first_folder_resp.json()["id"]
         second_folder_id = second_folder_resp.json()["id"]
 
@@ -604,13 +646,13 @@ class TestProjectAPI:
 
         detail_resp = authenticated_client.get(f"/projects/{project_id}")
         assert detail_resp.status_code == 200
-        reordered_folders = detail_resp.json()["folders"]
-        assert [folder["id"] for folder in reordered_folders] == [
+        reordered_galleries = detail_resp.json()["galleries"]
+        assert [gallery["id"] for gallery in reordered_galleries] == [
             second_folder_id,
             entry_gallery_id,
             first_folder_id,
         ]
-        assert [folder["project_position"] for folder in reordered_folders] == [0, 1, 2]
+        assert [gallery["project_position"] for gallery in reordered_galleries] == [0, 1, 2]
 
         invalid_reorder_resp = authenticated_client.put(
             f"/projects/{project_id}/galleries/reorder",
@@ -623,13 +665,6 @@ class TestProjectAPI:
         assert project_resp.status_code == 201
         project_payload = project_resp.json()
         project_id = project_payload["id"]
-        entry_gallery_id = project_payload["entry_gallery_id"]
-
-        hide_entry_resp = authenticated_client.patch(
-            f"/galleries/{entry_gallery_id}",
-            json={"project_visibility": "direct_only", "project_position": 2},
-        )
-        assert hide_entry_resp.status_code == 200
 
         first_folder_resp = authenticated_client.post(
             f"/projects/{project_id}/folders",
@@ -686,10 +721,9 @@ class TestProjectAPI:
 
         detail_resp = authenticated_client.get(f"/projects/{project_id}")
         assert detail_resp.status_code == 200
-        assert [folder["id"] for folder in detail_resp.json()["folders"]] == [
+        assert [gallery["id"] for gallery in detail_resp.json()["galleries"]] == [
             second_folder_id,
             first_folder_id,
-            entry_gallery_id,
         ]
 
         reordered_public_resp = authenticated_client.get(f"/s/{project_share_id}")

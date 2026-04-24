@@ -42,7 +42,6 @@ const mockGalleryData = {
   total_size_bytes: 37035,
   has_active_share_links: false,
   cover_photo_thumbnail_url: null,
-  recent_photo_thumbnail_urls: [],
   photos: [
     {
       id: 'photo1',
@@ -93,15 +92,13 @@ const mockProjectDetail = {
   entry_gallery_id: '1',
   entry_gallery_name: 'Gallery #1',
   gallery_count: 2,
-  listed_gallery_count: 2,
+  visible_gallery_count: 2,
   has_entry_gallery: true,
-  folder_count: 2,
-  listed_folder_count: 2,
   total_photo_count: 6,
   total_size_bytes: 74070,
   has_active_share_links: true,
-  recent_folder_thumbnail_urls: [],
-  folders: [
+  cover_photo_thumbnail_url: null,
+  galleries: [
     {
       id: '1',
       owner_id: 'user1',
@@ -117,7 +114,6 @@ const mockProjectDetail = {
       total_size_bytes: 37035,
       has_active_share_links: false,
       cover_photo_thumbnail_url: null,
-      recent_photo_thumbnail_urls: [],
     },
     {
       id: '2',
@@ -134,7 +130,6 @@ const mockProjectDetail = {
       total_size_bytes: 37035,
       has_active_share_links: false,
       cover_photo_thumbnail_url: null,
-      recent_photo_thumbnail_urls: [],
     },
   ],
 };
@@ -283,7 +278,7 @@ describe('GalleryPage', () => {
 
     expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
     expect(screen.getByText('Share Links')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /delete gallery/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /more gallery actions/i })).toBeInTheDocument();
     expect(screen.getAllByRole('img')).toHaveLength(3);
   });
 
@@ -293,10 +288,11 @@ describe('GalleryPage', () => {
     render(<GalleryPageWrapper />);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /delete gallery/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /more gallery actions/i })).toBeInTheDocument();
     });
 
-    await userEvent.click(screen.getByRole('button', { name: /delete gallery/i }));
+    await userEvent.click(screen.getByRole('button', { name: /more gallery actions/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /delete gallery/i }));
     const deleteDialog = await screen.findByRole('dialog', { name: /delete gallery/i });
     await userEvent.click(within(deleteDialog).getByRole('button', { name: 'Delete' }));
 
@@ -344,12 +340,17 @@ describe('GalleryPage', () => {
     render(<GalleryPageWrapper />);
 
     await waitFor(() => {
-      expect(screen.getByText('Wedding Weekend')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 1, name: 'Gallery #1' })).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('link', { name: 'Gallery #1' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '3eds' })).toBeInTheDocument();
-    expect(screen.getByText('Project settings')).toBeInTheDocument();
+    expect(screen.getByText(/2 galleries/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /back to project/i })).toHaveAttribute(
+      'href',
+      '/projects/project-1',
+    );
+
+    expect(screen.getByRole('button', { name: /more gallery actions/i })).toBeInTheDocument();
+    expect(screen.getByText('2 galleries')).toBeInTheDocument();
   });
 
   it('redirects legacy gallery routes into the owning project route when project metadata is present', async () => {

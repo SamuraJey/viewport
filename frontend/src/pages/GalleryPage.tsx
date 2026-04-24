@@ -302,23 +302,23 @@ export const GalleryPage = () => {
 
   const projectGalleries = useMemo(
     () =>
-      [...(project?.folders ?? [])].sort(
+      [...(project?.galleries ?? [])].sort(
         (left, right) => (left.project_position ?? 0) - (right.project_position ?? 0),
       ),
-    [project?.folders],
+    [project?.galleries],
   );
 
   const projectNavigation =
     project && projectGalleries.length > 1 ? (
-      <div className="mt-4 overflow-x-auto pb-1">
-        <div className="flex min-w-max gap-2">
+      <div className="overflow-x-auto">
+        <div className="flex min-w-max gap-1.5">
           {projectGalleries.map((projectGallery) => {
             const isActive = projectGallery.id === galleryId;
             return (
               <Link
                 key={projectGallery.id}
                 to={`/projects/${project.id}/galleries/${projectGallery.id}`}
-                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${
+                className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors ${
                   isActive
                     ? 'border-accent/50 bg-accent/10 text-accent'
                     : 'border-border/40 bg-surface text-text hover:border-accent/30'
@@ -333,21 +333,10 @@ export const GalleryPage = () => {
     ) : null;
 
   const galleryHeaderSubtitle = project ? (
-    <div className="space-y-2 text-sm text-muted">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span>
-          {projectGalleries.length > 1
-            ? `Active gallery: ${gallery?.name || 'Untitled Gallery'}`
-            : 'Single-gallery project'}
-        </span>
-        <span>{projectGalleries.length} galleries in project</span>
-        <Link
-          to={`/projects/${project.id}`}
-          className="font-semibold text-accent transition-colors hover:underline"
-        >
-          Project settings
-        </Link>
-      </div>
+    <div className="flex min-w-0 items-center gap-2 text-sm text-muted">
+      <span className="truncate">{gallery?.name || 'Untitled Gallery'}</span>
+      <span aria-hidden>•</span>
+      <span>{projectGalleries.length} galleries</span>
     </div>
   ) : null;
 
@@ -944,6 +933,15 @@ export const GalleryPage = () => {
     void handleDownloadSelectedPhotos(selection.selectedIds);
   };
 
+  const handleToggleSelectionMode = () => {
+    if (isSelectionMode) {
+      selection.clear();
+      setIsSelectionMode(false);
+    } else {
+      setIsSelectionMode(true);
+    }
+  };
+
   // Photo modal handlers
   const openPhoto = (index: number) => {
     if (!isSelectionMode) {
@@ -1000,7 +998,6 @@ export const GalleryPage = () => {
             onModalStateChange={setIsModalOpen}
             state={{
               photoUrls,
-              gallerySizeBytes: gallery.total_size_bytes ?? 0,
               isLoadingPhotos,
               activeSearchTerm: activeSearch || undefined,
               uploadError,
@@ -1023,21 +1020,12 @@ export const GalleryPage = () => {
               onDismissUploadError: () => setUploadError(''),
               onDismissActionInfo: () => setActionInfo(''),
               onDismissError: clearError,
-              onToggleSelectionMode: () => {
-                if (isSelectionMode) {
-                  selection.clear();
-                  setIsSelectionMode(false);
-                } else {
-                  setIsSelectionMode(true);
-                }
-              },
               onTogglePhotoSelection: handleTogglePhotoSelection,
               onOpenPhoto: openPhoto,
               onSetCover: handleSetCover,
               onClearCover: handleClearCover,
               onRenamePhoto: handleRenamePhoto,
               onDeletePhoto: handleDeletePhoto,
-              onDownloadGallery: handleDownloadGallery,
               onDownloadSelectedPhotos: handleDownloadSelectedPhotosWrapper,
               onClearSearch: () => {
                 setSearchInput('');
@@ -1107,14 +1095,16 @@ export const GalleryPage = () => {
     >
       <GalleryDragOverlay isActive={isPageDragActive} />
 
-      <div className="space-y-8">
+      <div className="space-y-4">
         {/* Gallery Header */}
         <GalleryHeader
           gallery={gallery}
-          title={project?.name || undefined}
+          title={gallery.name || undefined}
           subtitle={galleryHeaderSubtitle}
-          backLabel={project ? 'Back to Projects' : undefined}
+          backTo={project ? `/projects/${project.id}` : undefined}
+          backLabel={project ? 'Back to Project' : undefined}
           projectNavigation={projectNavigation}
+          settingsHref={project ? `/projects/${project.id}` : undefined}
           visiblePhotoCount={photoUrls.length}
           totalPhotoCount={pagination.total}
           isLoadingPhotos={isLoadingPhotos}
@@ -1138,6 +1128,11 @@ export const GalleryPage = () => {
           sortBy={sortBy}
           sortOrder={sortOrder}
           onDeleteGallery={handleDeleteGallery}
+          onAddPhotos={() => photoUploaderRef.current?.openFilePicker()}
+          onDownloadGallery={photoUrls.length > 0 ? handleDownloadGallery : undefined}
+          onToggleSelectionMode={photoUrls.length > 0 ? handleToggleSelectionMode : undefined}
+          isSelectionMode={isSelectionMode}
+          isDownloadingZip={isDownloadingZip}
           onCreateShareLink={() => setIsShareLinkCreateOpen(true)}
           isCreatingShareLink={isCreatingLink}
           shareLinkCount={shareLinks.length}
@@ -1161,8 +1156,8 @@ export const GalleryPage = () => {
           items={contentTabItems}
           selectedKey={activeContentTab}
           onChange={handleSelectContentTab}
-          listClassName="flex items-center gap-3 overflow-x-auto pl-8"
-          panelsClassName="mt-8"
+          listClassName="flex items-center gap-2 overflow-x-auto px-1 pt-1"
+          panelsClassName="mt-3"
         />
       </div>
 

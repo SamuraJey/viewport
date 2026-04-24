@@ -1,15 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Plus, Search } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowUpDown, Plus, Search, Trash2 } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { PaginationControls } from '../components/PaginationControls';
+import { CollectionCard, CollectionShareBadge } from '../components/dashboard/CollectionCard';
+import { getCollectionTitleTextSizeClass } from '../components/dashboard/collectionCardUtils';
 import { CreateProjectModal } from '../components/dashboard/CreateProjectModal';
-import { usePagination } from '../hooks';
+import { AppListbox } from '../components/ui';
+import { useConfirmation, usePagination } from '../hooks';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { handleApiError } from '../lib/errorHandling';
+import { formatFileSize } from '../lib/utils';
 import { projectService } from '../services/projectService';
 import type { Project } from '../types';
+import type { ProjectListSortBy, SortOrder } from '../types';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -32,23 +38,71 @@ const cardVariants = {
 
 const SEARCH_DEBOUNCE_MS = 300;
 const PROJECT_PAGE_SIZE = 18;
+const DEFAULT_PROJECT_SORT_BY: ProjectListSortBy = 'created_at';
+const DEFAULT_PROJECT_SORT_ORDER: SortOrder = 'desc';
 
-const resolveProjectEntryPath = (project: Project) =>
-  project.entry_gallery_id
-    ? `/projects/${project.id}/galleries/${project.entry_gallery_id}`
-    : `/projects/${project.id}`;
+interface ProjectSortOption {
+  value: `${ProjectListSortBy}:${SortOrder}`;
+  label: string;
+}
 
-const getProjectGalleryCount = (project: Project) =>
-  project.gallery_count ?? project.folder_count ?? 0;
-const getListedProjectGalleryCount = (project: Project) =>
-  project.listed_gallery_count ?? project.listed_folder_count ?? 0;
+const DEFAULT_PROJECT_SORT_STATE = {
+  sortBy: DEFAULT_PROJECT_SORT_BY,
+  order: DEFAULT_PROJECT_SORT_ORDER,
+} as const;
+
+const toProjectSortValue = ({ sortBy, order }: { sortBy: ProjectListSortBy; order: SortOrder }) =>
+  `${sortBy}:${order}` as ProjectSortOption['value'];
+
+const DEFAULT_PROJECT_SORT = toProjectSortValue(DEFAULT_PROJECT_SORT_STATE);
+
+const PROJECT_SORT_OPTIONS: ProjectSortOption[] = [
+  { value: 'created_at:desc', label: 'Date created (new to old)' },
+  { value: 'created_at:asc', label: 'Date created (old to new)' },
+  { value: 'shooting_date:desc', label: 'Shooting date (new to old)' },
+  { value: 'shooting_date:asc', label: 'Shooting date (old to new)' },
+  { value: 'name:asc', label: 'Name (A to Z)' },
+  { value: 'name:desc', label: 'Name (Z to A)' },
+  { value: 'photo_count:desc', label: 'Photo count (high to low)' },
+  { value: 'photo_count:asc', label: 'Photo count (low to high)' },
+  { value: 'total_size_bytes:desc', label: 'Size (large to small)' },
+  { value: 'total_size_bytes:asc', label: 'Size (small to large)' },
+];
+
+const resolveProjectPath = (project: Project) => `/projects/${project.id}`;
+
+const formatCountLabel = (count: number, singular: string, plural = `${singular}s`) =>
+  `${count} ${count === 1 ? singular : plural}`;
+
+const getLastValidProjectPage = (total: number, pageSize: number) =>
+  Math.max(1, Math.ceil(total / pageSize));
+
+const isProjectListSortBy = (value: string | null): value is ProjectListSortBy =>
+  value === 'created_at' ||
+  value === 'shooting_date' ||
+  value === 'name' ||
+  value === 'photo_count' ||
+  value === 'total_size_bytes';
+
+const isSortOrder = (value: string | null): value is SortOrder =>
+  value === 'asc' || value === 'desc';
+
+const parseProjectSortValue = (value: string) => {
+  const [sortBy, order] = value.split(':');
+  if (!isProjectListSortBy(sortBy) || !isSortOrder(order)) {
+    return DEFAULT_PROJECT_SORT_STATE;
+  }
+
+  return { sortBy, order };
+};
 
 export const DashboardPage = () => {
   useDocumentTitle('Projects · Viewport');
 
   const navigate = useNavigate();
+  const { openConfirm, ConfirmModal } = useConfirmation();
   const pagination = usePagination({ pageSize: PROJECT_PAGE_SIZE, syncWithUrl: true });
-  const { page, pageSize, setTotal, firstPage } = pagination;
+  const { page, pageSize, setTotal, total, goToPage } = pagination;
   const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -61,12 +115,28 @@ export const DashboardPage = () => {
   const newProjectInputRef = useRef<HTMLInputElement>(null);
 
   const activeSearch = useMemo(() => searchParams.get('search')?.trim() ?? '', [searchParams]);
+  const sortByParam = searchParams.get('sort_by');
+  const orderParam = searchParams.get('order');
+  const activeSortBy: ProjectListSortBy = isProjectListSortBy(sortByParam)
+    ? sortByParam
+    : DEFAULT_PROJECT_SORT_BY;
+  const activeSortOrder: SortOrder = isSortOrder(orderParam)
+    ? orderParam
+    : DEFAULT_PROJECT_SORT_ORDER;
+  const activeSortValue = toProjectSortValue({
+    sortBy: activeSortBy,
+    order: activeSortOrder,
+  });
 
   const fetchProjects = useCallback(async () => {
     setIsLoading(true);
     setError('');
     try {
-      const response = await projectService.getProjects(page, pageSize, activeSearch || undefined);
+      const response = await projectService.getProjects(page, pageSize, {
+        search: activeSearch || undefined,
+        sort_by: activeSortBy,
+        order: activeSortOrder,
+      });
       setProjects(response.projects);
       setTotal(response.total);
     } catch (err: unknown) {
@@ -74,7 +144,7 @@ export const DashboardPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [activeSearch, page, pageSize, setTotal]);
+  }, [activeSearch, activeSortBy, activeSortOrder, page, pageSize, setTotal]);
 
   useEffect(() => {
     void fetchProjects();
@@ -83,6 +153,28 @@ export const DashboardPage = () => {
   useEffect(() => {
     setSearchInput(activeSearch);
   }, [activeSearch]);
+
+  const updateSortQueryParams = useCallback(
+    ({ sortBy, order }: { sortBy: ProjectListSortBy; order: SortOrder }) => {
+      const nextParams = new URLSearchParams(searchParams);
+
+      if (sortBy === DEFAULT_PROJECT_SORT_BY) {
+        nextParams.delete('sort_by');
+      } else {
+        nextParams.set('sort_by', sortBy);
+      }
+
+      if (order === DEFAULT_PROJECT_SORT_ORDER) {
+        nextParams.delete('order');
+      } else {
+        nextParams.set('order', order);
+      }
+
+      nextParams.delete('page');
+      setSearchParams(nextParams);
+    },
+    [searchParams, setSearchParams],
+  );
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -99,13 +191,12 @@ export const DashboardPage = () => {
       }
       nextParams.delete('page');
       setSearchParams(nextParams);
-      firstPage();
     }, SEARCH_DEBOUNCE_MS);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [activeSearch, firstPage, searchInput, searchParams, setSearchParams]);
+  }, [activeSearch, searchInput, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (isProjectModalOpen) {
@@ -129,8 +220,8 @@ export const DashboardPage = () => {
         shooting_date: newProjectShootingDate || undefined,
       });
       setIsProjectModalOpen(false);
-      await fetchProjects();
-      navigate(resolveProjectEntryPath(project));
+      navigate(resolveProjectPath(project));
+      void fetchProjects();
     } catch (err: unknown) {
       setError((err as Error)?.message || 'Failed to create project');
     } finally {
@@ -138,17 +229,43 @@ export const DashboardPage = () => {
     }
   };
 
+  const handleDeleteProject = (project: Project) => {
+    openConfirm({
+      title: 'Delete project?',
+      message: `Are you sure you want to delete "${project.name}" and all of its galleries? This action cannot be undone.`,
+      isDangerous: true,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        try {
+          await projectService.deleteProject(project.id);
+          const nextTotal = Math.max(0, total - 1);
+          const lastValidPage = getLastValidProjectPage(nextTotal, pageSize);
+          if (page > lastValidPage) {
+            goToPage(lastValidPage);
+            return;
+          }
+
+          await fetchProjects();
+        } catch (err) {
+          setError(handleApiError(err).message || 'Failed to delete project');
+          throw err;
+        }
+      },
+    });
+  };
+
   const renderLoading = () => (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+    <div className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(20rem,1fr))]">
       {Array.from({ length: 8 }).map((_, index) => (
         <div
           key={index}
-          className="overflow-hidden rounded-2xl border border-border bg-surface dark:bg-surface-foreground/95 animate-pulse"
+          className="w-full animate-pulse overflow-hidden rounded-3xl border border-border/80 bg-surface shadow-sm dark:border-border/60 dark:bg-surface-dark"
         >
-          <div className="h-48 bg-muted/20 dark:bg-muted-dark/20" />
-          <div className="space-y-3 p-4">
-            <div className="h-4 w-3/4 rounded bg-muted/20 dark:bg-muted-dark/20" />
-            <div className="h-3 w-1/2 rounded bg-muted/20 dark:bg-muted-dark/20" />
+          <div className="h-52 bg-muted/20 dark:bg-muted-dark/20" />
+          <div className="space-y-3 p-5">
+            <div className="h-6 w-3/4 rounded bg-muted/20 dark:bg-muted-dark/20" />
+            <div className="h-4 w-2/3 rounded bg-muted/20 dark:bg-muted-dark/20" />
+            <div className="h-8 w-28 rounded-full bg-muted/20 dark:bg-muted-dark/20" />
           </div>
         </div>
       ))}
@@ -156,15 +273,17 @@ export const DashboardPage = () => {
   );
 
   const renderEmptyState = () => (
-    <div className="rounded-3xl border border-dashed border-border bg-surface-1/50 px-4 py-24 text-center dark:bg-surface-dark-1/50 dark:border-border/40">
+    <div className="rounded-3xl border border-dashed border-border bg-surface-1/50 px-4 py-24 text-center dark:border-border/40 dark:bg-surface-dark-1/50">
       <div className="mb-6 inline-flex rounded-full bg-accent/10 p-4">
         <Plus className="h-8 w-8 text-accent" />
       </div>
-      <h3 className="mb-2 text-2xl font-semibold text-text">No projects yet</h3>
+      <h2 className="mb-2 text-2xl font-semibold text-text">No projects yet</h2>
       <p className="mx-auto mb-8 max-w-md text-lg text-muted">
-        Create a project to start uploading photos into its first gallery right away.
+        Create your first project to upload photos, organize galleries, and share polished
+        deliveries with clients.
       </p>
       <button
+        type="button"
         onClick={handleOpenProjectModal}
         disabled={isCreatingProject}
         className="inline-flex items-center gap-2 rounded-xl bg-accent px-8 py-3 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
@@ -175,52 +294,76 @@ export const DashboardPage = () => {
         ) : (
           <Plus className="h-5 w-5" />
         )}
-        Create First Project
+        Create your first project
       </button>
     </div>
   );
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">
-            Projects
-          </h1>
-          <p className="font-cuprum text-lg text-muted">
-            Every delivery starts as a project and opens directly in its active gallery.
-          </p>
-        </div>
-        <button
-          onClick={handleOpenProjectModal}
-          disabled={isCreatingProject}
-          className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-          aria-label="Create new project"
-        >
-          {isCreatingProject ? (
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent-foreground/20 border-t-accent-foreground" />
-          ) : (
-            <Plus className="h-5 w-5" />
-          )}
-          New Project
-        </button>
-      </div>
+    <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-8">
+      <header className="rounded-3xl border border-border/75 bg-surface p-5 shadow-sm dark:border-border/55 dark:bg-surface-dark">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(23rem,30rem)] xl:items-center">
+          <div className="max-w-xl">
+            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.22em] text-accent/80">
+              Portfolio workspace
+            </p>
+            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">
+              Projects
+            </h1>
+            <p className="mt-3 max-w-lg font-cuprum text-lg text-muted">
+              Manage your client projects and galleries.
+            </p>
+          </div>
 
-      <label
-        htmlFor="dashboard-project-search"
-        className="relative flex items-center rounded-xl border border-border bg-surface px-3 py-2 dark:bg-surface-dark"
-      >
-        <Search className="mr-2 h-4 w-4 text-muted" />
-        <input
-          id="dashboard-project-search"
-          type="search"
-          value={searchInput}
-          onChange={(event) => setSearchInput(event.target.value)}
-          placeholder="Search projects..."
-          className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
-          aria-label="Search projects"
-        />
-      </label>
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+            <label
+              htmlFor="dashboard-project-search"
+              className="relative flex h-11 flex-1 items-center rounded-2xl border border-border bg-surface-1 px-3 shadow-sm dark:border-border/60 dark:bg-surface-dark-1"
+            >
+              <Search className="mr-2 h-4 w-4 text-muted" />
+              <input
+                id="dashboard-project-search"
+                type="search"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Search projects..."
+                className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
+                aria-label="Search projects"
+              />
+            </label>
+            <AppListbox
+              value={activeSortValue}
+              onChange={(value) => updateSortQueryParams(parseProjectSortValue(value))}
+              options={PROJECT_SORT_OPTIONS}
+              className="min-w-0 flex-1 sm:w-64 sm:flex-none"
+              aria-label="Sort projects"
+              startContent={<ArrowUpDown className="h-4 w-4 text-muted" />}
+              buttonClassName={(open) =>
+                `h-11 border px-3 text-sm font-semibold shadow-sm transition-all duration-200 dark:bg-surface-dark-1 ${
+                  open || activeSortValue !== DEFAULT_PROJECT_SORT
+                    ? 'border-accent/45 bg-accent/5 text-accent dark:border-accent/55'
+                    : 'border-border bg-surface-1 text-text hover:border-accent/40 dark:border-border/60'
+                }`
+              }
+              optionsClassName="bg-surface p-1 dark:bg-surface-dark-1"
+            />
+            <button
+              type="button"
+              onClick={handleOpenProjectModal}
+              disabled={isCreatingProject}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-accent px-4 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+              aria-label="Create new project"
+            >
+              {isCreatingProject ? (
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent-foreground/20 border-t-accent-foreground" />
+              ) : (
+                <Plus className="h-5 w-5" />
+              )}
+              Create
+            </button>
+          </div>
+        </div>
+      </header>
 
       {error ? (
         <ErrorDisplay
@@ -231,15 +374,7 @@ export const DashboardPage = () => {
         />
       ) : null}
 
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-2xl font-semibold text-text">Project library</h2>
-          <p className="text-sm text-muted">
-            Open any project and land straight in its first gallery, with quick switching when more
-            galleries are added.
-          </p>
-        </div>
-
+      <section aria-label="Projects grid">
         {isLoading ? (
           renderLoading()
         ) : projects.length === 0 ? (
@@ -247,75 +382,76 @@ export const DashboardPage = () => {
         ) : (
           <>
             <motion.div
-              className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+              className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(20rem,1fr))]"
               variants={containerVariants}
               initial="hidden"
               animate="visible"
             >
               <AnimatePresence mode="popLayout">
                 {projects.map((project) => {
-                  const galleryCount = getProjectGalleryCount(project);
-                  const listedGalleryCount = getListedProjectGalleryCount(project);
-                  const coverUrl = project.recent_folder_thumbnail_urls[0] ?? null;
+                  const coverUrl = project.cover_photo_thumbnail_url ?? null;
+                  const titleTextSizeClass = getCollectionTitleTextSizeClass(project.name);
                   return (
-                    <motion.button
+                    <CollectionCard
                       key={project.id}
-                      layout
                       variants={cardVariants}
-                      type="button"
-                      onClick={() => navigate(resolveProjectEntryPath(project))}
-                      className="overflow-hidden rounded-2xl border border-card-border bg-card-bg text-left shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
-                    >
-                      <div className="relative h-48 overflow-hidden bg-surface-2 dark:bg-surface-dark-2">
-                        {coverUrl ? (
+                      cover={
+                        coverUrl ? (
                           <>
                             <img
                               src={coverUrl}
                               alt=""
                               aria-hidden="true"
-                              className="absolute inset-0 h-full w-full object-cover opacity-35 blur-[2px] transition-transform duration-500 group-hover:scale-105"
+                              loading="lazy"
+                              className="absolute inset-0 h-full w-full object-cover opacity-80 transition-transform duration-500 group-hover:scale-110"
                             />
-                            <div className="absolute inset-0 bg-linear-to-b from-black/20 via-black/5 to-black/40" />
+                            <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/10 to-black/40 transition-colors duration-300 group-hover:from-black/0 group-hover:via-black/15 group-hover:to-black/50" />
                           </>
                         ) : (
                           <div className="absolute inset-0 bg-linear-to-br from-surface-2 to-surface dark:from-surface-dark-2 dark:to-surface-dark" />
-                        )}
-                        <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-2">
-                          <span className="inline-flex items-center gap-1 rounded-md bg-black/55 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                            {galleryCount} galleries
-                          </span>
-                          <span className="inline-flex items-center gap-1 rounded-md bg-black/55 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
-                            {project.total_photo_count} photos
-                          </span>
-                        </div>
-                      </div>
-                      <div className="space-y-4 p-5">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
-                            Project
+                        )
+                      }
+                      topOverlay={
+                        <>{project.has_active_share_links ? <CollectionShareBadge /> : null}</>
+                      }
+                      topRightOverlay={
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            handleDeleteProject(project);
+                          }}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-danger hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-danger"
+                          title="Delete Project"
+                          aria-label={`Delete project ${project.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      }
+                      bodyClassName="flex flex-1 flex-col p-4"
+                      body={
+                        <Link
+                          to={resolveProjectPath(project)}
+                          className="flex flex-1 flex-col justify-center gap-4 no-underline transition-colors"
+                        >
+                          <div className="group/title relative w-full text-left">
+                            <div className="min-w-0 flex-1">
+                              <h2
+                                className={`wrap-anywhere whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors`}
+                              >
+                                {project.name}
+                              </h2>
+                            </div>
+                          </div>
+                          <p className="rounded-full border border-border/55 bg-surface-1 px-3 py-2 text-sm text-muted dark:border-border/45 dark:bg-surface-dark-1">
+                            {formatCountLabel(project.gallery_count, 'gallery', 'galleries')} •{' '}
+                            {formatCountLabel(project.total_photo_count, 'photo')} •{' '}
+                            {formatFileSize(project.total_size_bytes)}
                           </p>
-                          <h3 className="mt-2 font-oswald text-2xl font-bold uppercase tracking-wide text-text">
-                            {project.name}
-                          </h3>
-                          <p className="mt-2 text-sm text-muted">
-                            {listedGalleryCount} visible in project share ·{' '}
-                            {project.entry_gallery_name
-                              ? `opens in ${project.entry_gallery_name}`
-                              : 'empty project'}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap gap-2 text-sm text-muted">
-                          <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
-                            {galleryCount === 1
-                              ? 'Single-gallery project'
-                              : 'Multi-gallery project'}
-                          </span>
-                          <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
-                            {project.has_active_share_links ? 'Share active' : 'No share link'}
-                          </span>
-                        </div>
-                      </div>
-                    </motion.button>
+                        </Link>
+                      }
+                    />
                   );
                 })}
               </AnimatePresence>
@@ -338,6 +474,7 @@ export const DashboardPage = () => {
           onShootingDateChange={setNewProjectShootingDate}
         />
       </AnimatePresence>
+      {ConfirmModal}
     </div>
   );
 };

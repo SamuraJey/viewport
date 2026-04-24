@@ -5,7 +5,7 @@ import type {
   ReactNode,
   RefObject,
 } from 'react';
-import { useLayoutEffect, useRef } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 import { Description, Dialog, DialogPanel, DialogTitle } from '@headlessui/react';
 import { motion } from 'framer-motion';
 import { cn } from '../../lib/utils';
@@ -86,7 +86,7 @@ export const AppDialog = ({
     };
   }, [open]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (!canClose) {
       return;
     }
@@ -96,7 +96,7 @@ export const AppDialog = ({
     }
 
     onClose();
-  };
+  }, [canClose, onClose]);
 
   if (!open) {
     return null;

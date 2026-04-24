@@ -1,9 +1,13 @@
-import type { ComponentProps, RefObject, ReactNode } from 'react';
+import type { ComponentProps, MutableRefObject, RefObject, ReactNode } from 'react';
 import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '../../lib/utils';
 
 type PopoverAnchor = ComponentProps<typeof PopoverPanel>['anchor'];
+type AppPopoverClose = (
+  focusableElement?: HTMLElement | MutableRefObject<HTMLElement | null>,
+) => void;
+type AppPopoverPanel = ReactNode | ((close: AppPopoverClose) => ReactNode);
 
 const panelVariants = {
   closed: {
@@ -27,7 +31,8 @@ interface AppPopoverProps {
   buttonContent: ReactNode | ((open: boolean) => ReactNode);
   buttonRef?: RefObject<HTMLButtonElement | null>;
   panelClassName?: string;
-  panel: ReactNode;
+  panel: AppPopoverPanel;
+  panelFocus?: boolean;
   anchor?: PopoverAnchor;
 }
 
@@ -39,6 +44,7 @@ export const AppPopover = ({
   buttonRef,
   panelClassName,
   panel,
+  panelFocus = false,
   anchor = 'bottom end',
 }: AppPopoverProps) => (
   <Popover className={className}>
@@ -60,13 +66,14 @@ export const AppPopover = ({
               static
               as={motion.div}
               anchor={anchor}
+              focus={panelFocus}
               className={cn('z-20 origin-top-right', panelClassName)}
               variants={panelVariants}
               initial="closed"
               animate="open"
               exit="closed"
             >
-              {panel}
+              {({ close }) => <>{typeof panel === 'function' ? panel(close) : panel}</>}
             </PopoverPanel>
           ) : null}
         </AnimatePresence>

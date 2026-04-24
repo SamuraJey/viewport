@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, date, datetime
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import asc, delete, desc, func, or_, select
 
 from viewport.gallery_constants import PUBLIC_GALLERY_SORT_BY_DEFAULT, PUBLIC_GALLERY_SORT_ORDER_DEFAULT
 from viewport.models.gallery import Gallery, Photo, ProjectVisibility
@@ -10,6 +10,7 @@ from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.repositories.base_repository import BaseRepository
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 from viewport.schemas.gallery import ProjectVisibility as ProjectVisibilitySchema
+from viewport.schemas.project import ProjectListSortBy
 
 DEFAULT_PUBLIC_SORT_BY = GalleryPhotoSortBy(PUBLIC_GALLERY_SORT_BY_DEFAULT)
 DEFAULT_PUBLIC_SORT_ORDER = SortOrder(PUBLIC_GALLERY_SORT_ORDER_DEFAULT)
@@ -21,6 +22,30 @@ class ProjectRepository(BaseRepository):
     @classmethod
     def _escape_like_term(cls, value: str) -> str:
         return value.replace(cls.LIKE_ESCAPE_CHAR, cls.LIKE_ESCAPE_CHAR * 2).replace("%", f"{cls.LIKE_ESCAPE_CHAR}%").replace("_", f"{cls.LIKE_ESCAPE_CHAR}_")
+
+    @staticmethod
+    def _build_project_order_clauses(
+        sort_by: ProjectListSortBy,
+        order: SortOrder,
+        *,
+        photo_count_column=None,
+        total_size_column=None,
+    ):
+        order_fn = asc if order == SortOrder.ASC else desc
+
+        if sort_by == ProjectListSortBy.NAME:
+            return [order_fn(func.lower(Project.name)), order_fn(Project.created_at), order_fn(Project.id)]
+
+        if sort_by == ProjectListSortBy.SHOOTING_DATE:
+            return [order_fn(Project.shooting_date), order_fn(Project.created_at), order_fn(Project.id)]
+
+        if sort_by == ProjectListSortBy.PHOTO_COUNT and photo_count_column is not None:
+            return [order_fn(func.coalesce(photo_count_column, 0)), order_fn(Project.created_at), order_fn(Project.id)]
+
+        if sort_by == ProjectListSortBy.TOTAL_SIZE_BYTES and total_size_column is not None:
+            return [order_fn(func.coalesce(total_size_column, 0)), order_fn(Project.created_at), order_fn(Project.id)]
+
+        return [order_fn(Project.created_at), order_fn(Project.id)]
 
     async def create_project(self, owner_id: uuid.UUID, name: str, shooting_date: date | None = None) -> Project:
         project = Project(
@@ -151,6 +176,8 @@ class ProjectRepository(BaseRepository):
         page: int,
         size: int,
         search: str | None = None,
+        sort_by: ProjectListSortBy = ProjectListSortBy.CREATED_AT,
+        order: SortOrder = SortOrder.DESC,
     ) -> tuple[list[Project], int]:
         filters = [Project.owner_id == owner_id, Project.is_deleted.is_(False)]
         if search:
@@ -160,7 +187,34 @@ class ProjectRepository(BaseRepository):
         total_stmt = select(func.count()).select_from(Project).where(*filters)
         total = int((await self.db.execute(total_stmt)).scalar() or 0)
 
-        stmt = select(Project).where(*filters).order_by(Project.created_at.desc(), Project.id.desc()).offset((page - 1) * size).limit(size)
+        stmt = select(Project).where(*filters)
+        if sort_by in (ProjectListSortBy.PHOTO_COUNT, ProjectListSortBy.TOTAL_SIZE_BYTES):
+            project_stats = (
+                select(
+                    Gallery.project_id.label("project_id"),
+                    func.count(Photo.id).label("photo_count"),
+                    func.coalesce(func.sum(Photo.file_size), 0).label("total_size_bytes"),
+                )
+                .outerjoin(Photo, Photo.gallery_id == Gallery.id)
+                .where(
+                    Gallery.owner_id == owner_id,
+                    Gallery.is_deleted.is_(False),
+                    Gallery.project_id.is_not(None),
+                )
+                .group_by(Gallery.project_id)
+                .subquery()
+            )
+            stmt = stmt.outerjoin(project_stats, project_stats.c.project_id == Project.id)
+            order_by_clauses = self._build_project_order_clauses(
+                sort_by,
+                order,
+                photo_count_column=project_stats.c.photo_count,
+                total_size_column=project_stats.c.total_size_bytes,
+            )
+        else:
+            order_by_clauses = self._build_project_order_clauses(sort_by, order)
+
+        stmt = stmt.order_by(*order_by_clauses).offset((page - 1) * size).limit(size)
         projects = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read((projects, total))
 

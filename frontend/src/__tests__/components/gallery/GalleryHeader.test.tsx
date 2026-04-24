@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { GalleryHeader } from '../../../components/gallery/GalleryHeader';
 
@@ -62,6 +62,57 @@ describe('GalleryHeader', () => {
     window.dispatchEvent(new Event('gallery:open-public-sort'));
 
     expect(screen.getByLabelText(/public gallery sort/i)).toBeInTheDocument();
+  });
+
+  it('keeps project settings and gallery navigation in the overflow menu', async () => {
+    render(
+      <MemoryRouter>
+        <GalleryHeader
+          {...createProps()}
+          settingsHref="/projects/project-1"
+          projectNavigation={
+            <div>
+              <Link to="/projects/project-1/galleries/gallery-1">Portfolio Session</Link>
+              <Link to="/projects/project-1/galleries/gallery-2">Second Gallery</Link>
+            </div>
+          }
+        />
+      </MemoryRouter>,
+    );
+
+    const trigger = screen.getByRole('button', { name: /more gallery actions/i });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+
+    expect(await screen.findByRole('link', { name: /project settings/i })).toHaveAttribute(
+      'href',
+      '/projects/project-1',
+    );
+    expect(screen.getByRole('link', { name: 'Portfolio Session' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Second Gallery' })).toBeInTheDocument();
+  });
+
+  it('closes the overflow menu with Escape and returns focus to the trigger', async () => {
+    render(
+      <MemoryRouter>
+        <GalleryHeader {...createProps()} />
+      </MemoryRouter>,
+    );
+
+    const trigger = screen.getByRole('button', { name: /more gallery actions/i });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+
+    const deleteButton = await screen.findByRole('button', { name: /delete gallery/i });
+    expect(deleteButton).toBeInTheDocument();
+
+    deleteButton.focus();
+    fireEvent.keyDown(deleteButton, { key: 'Escape' });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /delete gallery/i })).not.toBeInTheDocument();
+    });
+    expect(trigger).toHaveFocus();
   });
 
   it('renders a share-gallery quick action when provided', async () => {

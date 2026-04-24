@@ -1,15 +1,19 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
   ArrowUpDown,
+  CheckSquare,
   ChevronDown,
-  HardDrive,
+  Download,
   Loader2,
+  MoreHorizontal,
   Search,
   Share2,
+  Settings,
   SlidersHorizontal,
   Trash2,
+  Upload,
 } from 'lucide-react';
 import { formatDateOnly, formatFileSize } from '../../lib/utils';
 import type { GalleryDetail, GalleryPhotoSortBy, SortOrder } from '../../types';
@@ -61,6 +65,7 @@ interface GalleryHeaderProps {
   backTo?: string;
   backLabel?: string;
   projectNavigation?: ReactNode;
+  settingsHref?: string;
   visiblePhotoCount: number;
   totalPhotoCount: number;
   isLoadingPhotos: boolean;
@@ -75,12 +80,27 @@ interface GalleryHeaderProps {
   sortBy: GalleryPhotoSortBy;
   sortOrder: SortOrder;
   onDeleteGallery: () => void;
+  onAddPhotos?: () => void;
+  onDownloadGallery?: () => void;
+  onToggleSelectionMode?: () => void;
+  isSelectionMode?: boolean;
+  isDownloadingZip?: boolean;
   onCreateShareLink?: () => void;
   isCreatingShareLink?: boolean;
   shareLinkCount?: number;
   onSearchChange: (value: string) => void;
   onSortChange: (value: { sortBy: GalleryPhotoSortBy; sortOrder: SortOrder }) => void;
 }
+
+const compactButtonClass =
+  'inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark';
+
+const overflowActionClass = (tone: 'default' | 'danger' = 'default') =>
+  `flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+    tone === 'danger'
+      ? 'text-danger hover:bg-danger/10 focus-visible:bg-danger/10'
+      : 'text-text hover:bg-accent/10 hover:text-accent focus-visible:bg-accent/10 focus-visible:text-accent'
+  }`;
 
 export const GalleryHeader = ({
   gallery,
@@ -89,6 +109,7 @@ export const GalleryHeader = ({
   backTo = '/dashboard',
   backLabel = 'Back to Galleries',
   projectNavigation,
+  settingsHref,
   visiblePhotoCount,
   totalPhotoCount,
   isLoadingPhotos,
@@ -103,15 +124,71 @@ export const GalleryHeader = ({
   sortBy,
   sortOrder,
   onDeleteGallery,
+  onAddPhotos,
+  onDownloadGallery,
+  onToggleSelectionMode,
+  isSelectionMode = false,
+  isDownloadingZip = false,
   onCreateShareLink,
   isCreatingShareLink = false,
   shareLinkCount = 0,
   onSearchChange,
   onSortChange,
 }: GalleryHeaderProps) => {
-  const titleRef = useRef<HTMLHeadingElement | null>(null);
   const filtersButtonRef = useRef<HTMLButtonElement | null>(null);
-  const [titleFontSizePx, setTitleFontSizePx] = useState(48);
+  const moreActionsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const closeMoreActions = (close: (focusableElement?: HTMLElement) => void) => {
+    close(moreActionsButtonRef.current ?? undefined);
+    moreActionsButtonRef.current?.focus();
+  };
+  const runMoreActionsAction = (
+    close: (focusableElement?: HTMLElement) => void,
+    action: () => void,
+    options: { closeFirst?: boolean } = {},
+  ) => {
+    if (options.closeFirst) {
+      closeMoreActions(close);
+      action();
+      return;
+    }
+    action();
+    closeMoreActions(close);
+  };
+  const handleMoreActionsMouseDown =
+    (
+      close: (focusableElement?: HTMLElement) => void,
+      action: () => void,
+      options?: { closeFirst?: boolean },
+    ) =>
+    (event: MouseEvent<HTMLElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      runMoreActionsAction(close, action, options);
+    };
+  const handleMoreActionsClick =
+    (
+      close: (focusableElement?: HTMLElement) => void,
+      action: () => void,
+      options?: { closeFirst?: boolean },
+    ) =>
+    (event: MouseEvent<HTMLElement>) => {
+      if (event.detail !== 0) {
+        return;
+      }
+      runMoreActionsAction(close, action, options);
+    };
+  const handleMoreActionsEscape =
+    (close: (focusableElement?: HTMLElement) => void) => (event: KeyboardEvent<HTMLElement>) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      closeMoreActions(close);
+    };
 
   const activeSortValue = `${sortBy}:${sortOrder}` as SortOption['value'];
   const activePublicSortValue = `${publicSortBy}:${publicSortOrder}` as SortOption['value'];
@@ -122,46 +199,12 @@ export const GalleryHeader = ({
   const isDefaultPrivateSort = activeSortValue === DEFAULT_PRIVATE_SORT;
 
   const resolvedTitle = title || gallery.name || `Gallery #${gallery.id}`;
-
-  useLayoutEffect(() => {
-    const heading = titleRef.current;
-    if (!heading) {
-      return;
-    }
-
-    const minSize = 16;
-    const maxLines = 3;
-
-    const recalc = () => {
-      let nextSize = window.innerWidth >= 640 ? 48 : 36;
-      heading.style.fontSize = `${nextSize}px`;
-
-      while (nextSize > minSize) {
-        const computed = window.getComputedStyle(heading);
-        const lineHeight = parseFloat(computed.lineHeight);
-        const lines = lineHeight > 0 ? Math.round(heading.scrollHeight / lineHeight) : 1;
-        if (lines <= maxLines) {
-          break;
-        }
-        nextSize -= 1;
-        heading.style.fontSize = `${nextSize}px`;
-      }
-
-      setTitleFontSizePx(nextSize);
-    };
-
-    recalc();
-
-    const resizeObserver =
-      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(recalc) : null;
-    resizeObserver?.observe(heading);
-    window.addEventListener('resize', recalc);
-
-    return () => {
-      resizeObserver?.disconnect();
-      window.removeEventListener('resize', recalc);
-    };
-  }, [resolvedTitle]);
+  const shownPhotoCount = isLoadingPhotos
+    ? visiblePhotoCount
+    : totalPhotoCount || visiblePhotoCount;
+  const metaLine = `${shownPhotoCount} photo${shownPhotoCount === 1 ? '' : 's'} • ${formatFileSize(
+    gallery.total_size_bytes ?? 0,
+  )} • Created ${formatDateOnly(gallery.created_at)}`;
 
   useEffect(() => {
     const handleOpenPublicSort = () => {
@@ -179,35 +222,52 @@ export const GalleryHeader = ({
   }, []);
 
   return (
-    <div className="rounded-3xl border border-border/50 bg-surface/95 p-6 shadow-xs backdrop-blur-xs dark:border-border/30 dark:bg-surface-foreground/15 sm:p-8">
-      <div className="space-y-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 max-w-full space-y-5">
-            <Link
-              to={backTo}
-              className="inline-flex h-10 w-fit items-center gap-2.5 rounded-xl border border-border/60 bg-surface-1 px-4 text-sm font-semibold text-muted transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:bg-accent/5 hover:text-accent hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              {backLabel}
-            </Link>
-            <h1
-              ref={titleRef}
-              style={{ fontSize: `${titleFontSizePx}px` }}
-              className="max-w-full whitespace-normal wrap-break-word font-oswald font-bold uppercase leading-tight tracking-wide text-text drop-shadow-xs"
-            >
-              {resolvedTitle}
-            </h1>
-            {subtitle ? <div className="max-w-full">{subtitle}</div> : null}
-            {projectNavigation ? <div className="max-w-full">{projectNavigation}</div> : null}
+    <div className="relative z-20 -mx-1 sm:-mx-2" data-gallery-header>
+      <section className="sticky top-[4.25rem] z-20 rounded-2xl border border-border/45 bg-surface/96 px-4 py-3 shadow-xs backdrop-blur-md dark:border-border/35 dark:bg-surface-dark/94 sm:top-[4.75rem] sm:px-5">
+        <div className="flex min-h-14 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-3">
+              <Link
+                to={backTo}
+                className="inline-flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 text-sm font-semibold text-muted transition-colors hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span className="hidden sm:inline">{backLabel}</span>
+                <span className="sm:hidden">Back</span>
+              </Link>
+              <h1 className="min-w-0 truncate font-oswald text-3xl font-bold uppercase leading-none tracking-wide text-text sm:text-4xl">
+                {resolvedTitle}
+              </h1>
+            </div>
+
+            <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pl-1 text-sm font-medium text-muted">
+              <span>{metaLine}</span>
+              <label
+                htmlFor="gallery-shooting-date"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border/35 bg-surface-1/65 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted transition-colors focus-within:border-accent/50 dark:border-border/30 dark:bg-surface-dark-1/70"
+              >
+                <span>Shooting</span>
+                <input
+                  id="gallery-shooting-date"
+                  type="date"
+                  value={shootingDateInput}
+                  onChange={(event) => onShootingDateChange(event.target.value)}
+                  className="gallery-date-input h-5 min-w-0 border-none bg-transparent px-0 text-xs font-bold normal-case tracking-normal text-text focus:outline-hidden"
+                  aria-label="Shooting date"
+                />
+                {isSavingShootingDate && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              </label>
+              {subtitle ? <div className="min-w-0 truncate">{subtitle}</div> : null}
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
             {onCreateShareLink ? (
               <button
                 type="button"
                 onClick={onCreateShareLink}
                 disabled={isCreatingShareLink}
-                className="inline-flex h-10 w-fit items-center gap-2 rounded-lg border border-accent/20 bg-accent px-4 text-sm font-bold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60 disabled:transform-none"
+                className={`${compactButtonClass} border-border/55 bg-surface-1 text-text hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:transform-none dark:border-border/45 dark:bg-surface-dark-1`}
                 aria-label="Share gallery"
               >
                 {isCreatingShareLink ? (
@@ -215,163 +275,219 @@ export const GalleryHeader = ({
                 ) : (
                   <Share2 className="h-4 w-4" />
                 )}
-                <span>Share gallery</span>
-                <span className="rounded-full bg-accent-foreground/12 px-2 py-0.5 text-[11px] font-semibold text-accent-foreground/90">
+                <span>Share</span>
+                <span className="rounded-full bg-surface-foreground/10 px-2 py-0.5 text-[11px] font-bold text-muted dark:bg-surface/15">
                   {shareLinkCount}
                 </span>
               </button>
             ) : null}
 
-            <button
-              onClick={onDeleteGallery}
-              className="inline-flex h-10 w-fit items-center gap-2 rounded-lg border border-danger/25 bg-danger/10 px-4 text-sm font-bold text-danger transition-all duration-200 hover:-translate-y-0.5 hover:border-danger/40 hover:bg-danger/15 hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0"
-              title="Delete Gallery"
-              aria-label="Delete gallery"
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete
-            </button>
-          </div>
-        </div>
+            {onAddPhotos ? (
+              <button
+                type="button"
+                onClick={onAddPhotos}
+                className={`${compactButtonClass} border-transparent bg-accent text-accent-foreground hover:brightness-110`}
+                aria-label="Add photos"
+              >
+                <Upload className="h-4 w-4" />
+                <span>Add photos</span>
+              </button>
+            ) : null}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-accent/30 bg-accent/10 px-3 text-xs font-semibold text-accent"
-            title={`Total gallery size: ${formatFileSize(gallery.total_size_bytes ?? 0)}`}
-          >
-            <HardDrive className="h-3.5 w-3.5" />
-            {formatFileSize(gallery.total_size_bytes ?? 0)}
-          </span>
-          <span className="inline-flex h-9 items-center rounded-lg border border-border/40 bg-surface px-3 text-xs font-medium text-muted dark:border-border/30 dark:bg-surface-dark-1">
-            Created {formatDateOnly(gallery.created_at)}
-          </span>
-          <label
-            htmlFor="gallery-shooting-date"
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border/40 bg-surface px-2.5 text-xs font-medium text-muted transition-colors focus-within:border-accent/50 dark:border-border/30 dark:bg-surface-dark-1"
-          >
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">
-              Shooting
-            </span>
-            <input
-              id="gallery-shooting-date"
-              type="date"
-              value={shootingDateInput}
-              onChange={(event) => onShootingDateChange(event.target.value)}
-              className="gallery-date-input h-7 min-w-0 rounded-md border-none bg-transparent px-1 text-xs font-semibold text-text focus:outline-hidden"
-              aria-label="Shooting date"
-            />
-            {isSavingShootingDate && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" />}
-          </label>
-        </div>
-
-        <div className="rounded-2xl border border-border/35 bg-surface-1/35 p-3 shadow-inner backdrop-blur-xs dark:border-border/25 dark:bg-surface-dark-1/35 sm:p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <label
-              htmlFor="gallery-photo-search"
-              className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-border/35 bg-surface px-3 text-sm text-text transition-all duration-200 focus-within:border-accent/60 focus-within:shadow-xs dark:border-border/25 dark:bg-surface-dark-2 lg:max-w-184"
-            >
-              <Search className="h-4 w-4 text-muted" />
-              <input
-                id="gallery-photo-search"
-                type="search"
-                value={searchValue}
-                onChange={(event) => onSearchChange(event.target.value)}
-                placeholder="Search by filename"
-                className="h-full w-full bg-transparent text-sm font-medium text-text placeholder:text-muted focus:outline-hidden"
-              />
-            </label>
-
-            <div className="flex items-center gap-3 lg:ml-auto">
-              <AppListbox
-                value={activeSortValue}
-                onChange={(value) =>
-                  onSortChange(parseSortValue(value, DEFAULT_PRIVATE_SORT_STATE))
-                }
-                options={SORT_OPTIONS}
-                className="w-full lg:w-64"
-                aria-label="Sort photos"
-                startContent={<ArrowUpDown className="h-4 w-4 text-muted" />}
-                buttonClassName={(open) =>
-                  `h-11 border px-3 text-sm font-semibold transition-all duration-200 dark:bg-surface-dark-2 ${
-                    open || !isDefaultPrivateSort
-                      ? 'border-accent/45 bg-accent/5 text-accent dark:border-accent/55'
-                      : 'border-border/40 bg-surface text-text hover:border-accent/40 dark:border-border/30'
-                  }`
-                }
-                optionsClassName="bg-surface p-1 dark:bg-surface-dark-1"
-              />
-
-              <AppPopover
-                className="relative"
-                buttonRef={filtersButtonRef}
-                buttonClassName={(open) =>
-                  `inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0 ${
-                    open || hasCustomPublicSort
-                      ? 'border-accent/45 bg-accent/10 text-accent'
-                      : 'border-border/40 bg-surface text-text hover:border-accent/40 hover:text-accent dark:border-border/30 dark:bg-surface-dark-2'
-                  }`
-                }
-                buttonContent={(open) => (
-                  <>
-                    <SlidersHorizontal className="h-4 w-4" />
-                    Public sort
-                    <ChevronDown
-                      className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-                    />
-                  </>
-                )}
-                panelClassName="w-80 rounded-2xl border border-border/50 bg-surface p-4 shadow-lg dark:border-border/40 dark:bg-surface-dark-1"
-                panel={
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label
-                        htmlFor="gallery-public-sort"
-                        className="text-xs font-bold uppercase tracking-wider text-muted"
-                      >
-                        Public gallery sort
-                      </label>
-                      <AppListbox
-                        value={activePublicSortValue}
-                        onChange={(value) =>
-                          onPublicSortChange(parseSortValue(value, DEFAULT_PUBLIC_SORT_STATE))
-                        }
-                        options={SORT_OPTIONS.map((option) => ({
-                          ...option,
-                          value: option.value,
-                        }))}
-                        aria-label="Public gallery sort"
-                        startContent={<ArrowUpDown className="h-4 w-4 text-muted" />}
-                        buttonClassName="h-10 border border-border/40 bg-surface-1 px-2.5 text-sm font-semibold text-text dark:border-border/30 dark:bg-surface-dark-2"
-                      />
-                      {isSavingPublicSortSettings && (
-                        <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          Saving public sorting...
-                        </p>
+            <AppPopover
+              className="relative"
+              buttonRef={moreActionsButtonRef}
+              buttonAriaLabel="More gallery actions"
+              buttonClassName={(open) =>
+                `${compactButtonClass} border-border/55 bg-surface-1 px-3 text-text hover:border-accent/40 hover:text-accent dark:border-border/45 dark:bg-surface-dark-1 ${
+                  open ? 'border-accent/45 text-accent' : ''
+                }`
+              }
+              buttonContent={(open) => (
+                <>
+                  <MoreHorizontal className="h-5 w-5" />
+                  <span className="sr-only">
+                    {open ? 'Close more actions' : 'Open more actions'}
+                  </span>
+                </>
+              )}
+              panelFocus
+              panelClassName="w-64 rounded-2xl border border-border/50 bg-surface p-2 shadow-lg dark:border-border/40 dark:bg-surface-dark-1"
+              panel={(close) => (
+                <div className="space-y-1" role="group" aria-label="More gallery actions">
+                  {onDownloadGallery ? (
+                    <button
+                      type="button"
+                      onMouseDown={handleMoreActionsMouseDown(close, onDownloadGallery)}
+                      onClick={handleMoreActionsClick(close, onDownloadGallery)}
+                      onKeyDown={handleMoreActionsEscape(close)}
+                      disabled={isDownloadingZip}
+                      className={overflowActionClass()}
+                    >
+                      {isDownloadingZip ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4" />
                       )}
+                      Download ZIP
+                    </button>
+                  ) : null}
+                  {onToggleSelectionMode ? (
+                    <button
+                      type="button"
+                      onMouseDown={handleMoreActionsMouseDown(close, onToggleSelectionMode)}
+                      onClick={handleMoreActionsClick(close, onToggleSelectionMode)}
+                      onKeyDown={handleMoreActionsEscape(close)}
+                      className={overflowActionClass()}
+                    >
+                      <CheckSquare className="h-4 w-4" />
+                      {isSelectionMode ? 'Cancel selection' : 'Select photos'}
+                    </button>
+                  ) : null}
+                  {settingsHref ? (
+                    <Link
+                      to={settingsHref}
+                      onClick={() => closeMoreActions(close)}
+                      onKeyDown={handleMoreActionsEscape(close)}
+                      className={overflowActionClass()}
+                    >
+                      <Settings className="h-4 w-4" />
+                      Project settings
+                    </Link>
+                  ) : null}
+                  {projectNavigation ? (
+                    <div className="border-y border-border/35 py-2 dark:border-border/25">
+                      <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-muted">
+                        Galleries
+                      </p>
+                      {projectNavigation}
                     </div>
-
-                    <p className="text-xs text-muted">Changes are applied automatically.</p>
-                  </div>
-                }
-              />
-            </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    onMouseDown={handleMoreActionsMouseDown(close, onDeleteGallery, {
+                      closeFirst: true,
+                    })}
+                    onClick={handleMoreActionsClick(close, onDeleteGallery, { closeFirst: true })}
+                    onKeyDown={handleMoreActionsEscape(close)}
+                    className={overflowActionClass('danger')}
+                    aria-label="Delete gallery"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete gallery
+                  </button>
+                </div>
+              )}
+            />
           </div>
-
-          <div className="mt-3 border-t border-border/35 pt-3 dark:border-border/25">
-            <p className="text-xs font-semibold text-muted">
-              Showing {visiblePhotoCount} of {totalPhotoCount} <span aria-hidden>•</span> Sorted by{' '}
-              {activeSortLabel}
-            </p>
-          </div>
-
-          {isLoadingPhotos && (
-            <div className="mt-3 rounded-full bg-accent/15 p-0.5" aria-live="polite">
-              <div className="h-1.5 w-1/2 animate-pulse rounded-full bg-accent/60" />
-            </div>
-          )}
         </div>
-      </div>
+      </section>
+
+      <section
+        className="sticky top-[8.85rem] z-10 mt-3 rounded-2xl border border-border/40 bg-surface/95 p-3 shadow-xs backdrop-blur-md dark:border-border/30 dark:bg-surface-dark/92 sm:top-[9.3rem]"
+        aria-label="Gallery photo controls"
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <label
+            htmlFor="gallery-photo-search"
+            className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-border/35 bg-surface-1 px-3 text-sm text-text transition-all duration-200 focus-within:border-accent/60 focus-within:shadow-xs dark:border-border/25 dark:bg-surface-dark-1 lg:max-w-184"
+          >
+            <Search className="h-4 w-4 text-muted" />
+            <input
+              id="gallery-photo-search"
+              type="search"
+              value={searchValue}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Search by filename"
+              className="h-full w-full bg-transparent text-sm font-medium text-text placeholder:text-muted focus:outline-hidden"
+            />
+          </label>
+
+          <div className="flex items-center gap-3 lg:ml-auto">
+            <AppListbox
+              value={activeSortValue}
+              onChange={(value) => onSortChange(parseSortValue(value, DEFAULT_PRIVATE_SORT_STATE))}
+              options={SORT_OPTIONS}
+              className="min-w-0 flex-1 lg:w-64 lg:flex-none"
+              aria-label="Sort photos"
+              startContent={<ArrowUpDown className="h-4 w-4 text-muted" />}
+              buttonClassName={(open) =>
+                `h-11 border px-3 text-sm font-semibold transition-all duration-200 dark:bg-surface-dark-1 ${
+                  open || !isDefaultPrivateSort
+                    ? 'border-accent/45 bg-accent/5 text-accent dark:border-accent/55'
+                    : 'border-border/40 bg-surface-1 text-text hover:border-accent/40 dark:border-border/30'
+                }`
+              }
+              optionsClassName="bg-surface p-1 dark:bg-surface-dark-1"
+            />
+
+            <AppPopover
+              className="relative shrink-0"
+              buttonRef={filtersButtonRef}
+              buttonAriaLabel="Public sort"
+              buttonClassName={(open) =>
+                `inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0 dark:focus-visible:ring-offset-surface-dark ${
+                  open || hasCustomPublicSort
+                    ? 'border-accent/45 bg-accent/10 text-accent'
+                    : 'border-border/40 bg-surface-1 text-text hover:border-accent/40 hover:text-accent dark:border-border/30 dark:bg-surface-dark-1'
+                }`
+              }
+              buttonContent={(open) => (
+                <>
+                  <SlidersHorizontal className="h-4 w-4" />
+                  <span>Public sort</span>
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+                  />
+                </>
+              )}
+              panelClassName="w-80 rounded-2xl border border-border/50 bg-surface p-4 shadow-lg dark:border-border/40 dark:bg-surface-dark-1"
+              panel={
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="gallery-public-sort"
+                      className="text-xs font-bold uppercase tracking-wider text-muted"
+                    >
+                      Public gallery sort
+                    </label>
+                    <AppListbox
+                      value={activePublicSortValue}
+                      onChange={(value) =>
+                        onPublicSortChange(parseSortValue(value, DEFAULT_PUBLIC_SORT_STATE))
+                      }
+                      options={SORT_OPTIONS.map((option) => ({ ...option, value: option.value }))}
+                      aria-label="Public gallery sort"
+                      startContent={<ArrowUpDown className="h-4 w-4 text-muted" />}
+                      buttonClassName="h-10 border border-border/40 bg-surface-1 px-2.5 text-sm font-semibold text-text dark:border-border/30 dark:bg-surface-dark-2"
+                    />
+                    {isSavingPublicSortSettings && (
+                      <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Saving public sorting...
+                      </p>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-muted">Changes are applied automatically.</p>
+                </div>
+              }
+            />
+          </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-border/30 pt-2 text-xs font-semibold text-muted dark:border-border/25">
+          <p>
+            Showing {visiblePhotoCount} of {totalPhotoCount} photos <span aria-hidden>•</span>{' '}
+            {activeSortLabel}
+          </p>
+          {isLoadingPhotos ? (
+            <span className="inline-flex items-center gap-1.5 text-accent" aria-live="polite">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading
+            </span>
+          ) : null}
+        </div>
+      </section>
     </div>
   );
 };

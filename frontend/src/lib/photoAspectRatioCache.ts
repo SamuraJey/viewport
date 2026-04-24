@@ -90,6 +90,10 @@ const schedulePersistRatioCache = () => {
   persistTimeoutId = window.setTimeout(() => {
     persistTimeoutId = null;
 
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     if (typeof window.requestIdleCallback === 'function') {
       idlePersistId = window.requestIdleCallback(() => {
         idlePersistId = null;

@@ -20,7 +20,6 @@ const buildDemoState = (expiresAt: string) => ({
         total_size_bytes: 0,
         has_active_share_links: true,
         cover_photo_thumbnail_url: null,
-        recent_photo_thumbnail_urls: [],
       },
       photos: [],
       shareLinks: [
@@ -91,10 +90,49 @@ describe('demoService', () => {
     );
 
     expect(seededProject).toBeTruthy();
-    expect(seededProject?.folder_count).toBe(2);
+    expect(seededProject?.gallery_count).toBe(2);
 
     const detail = await service.getProject(seededProject!.id);
-    expect(detail.folders.map((folder) => folder.name)).toEqual(['Photos', '3eds']);
+    expect(detail.galleries.map((folder) => folder.name)).toEqual(['Photos', '3eds']);
+  });
+
+  it('sorts demo projects by supported fields and directions', async () => {
+    vi.setSystemTime(new Date('2026-04-17T12:00:00.000Z'));
+
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    await service.createProject({ name: 'Zulu Empty', shooting_date: '2026-04-17' });
+    await service.createProject({ name: 'Alpha Empty', shooting_date: '2026-04-17' });
+
+    const nameAsc = await service.getProjects(1, 20, { sort_by: 'name', order: 'asc' });
+    const nameDesc = await service.getProjects(1, 20, { sort_by: 'name', order: 'desc' });
+    const shootingAsc = await service.getProjects(1, 20, {
+      sort_by: 'shooting_date',
+      order: 'asc',
+    });
+    const photoCountDesc = await service.getProjects(1, 1, {
+      sort_by: 'photo_count',
+      order: 'desc',
+    });
+    const photoCountAsc = await service.getProjects(1, 1, {
+      sort_by: 'photo_count',
+      order: 'asc',
+    });
+    const sizeDesc = await service.getProjects(1, 1, {
+      sort_by: 'total_size_bytes',
+      order: 'desc',
+    });
+    const createdAsc = await service.getProjects(1, 20, { sort_by: 'created_at', order: 'asc' });
+
+    expect(nameAsc.projects[0].name).toBe('Alpha Empty');
+    expect(nameDesc.projects[0].name).toBe('Zulu Empty');
+    expect(shootingAsc.projects[0].name).toBe('Porto Wedding Delivery');
+    expect(photoCountDesc.projects[0].name).toBe('Porto Wedding Delivery');
+    expect(photoCountDesc.projects[0].total_photo_count).toBeGreaterThan(0);
+    expect(photoCountAsc.projects[0].total_photo_count).toBe(0);
+    expect(sizeDesc.projects[0].name).toBe('Porto Wedding Delivery');
+    expect(createdAsc.projects[0].name).toBe('Porto Wedding Delivery');
   });
 
   it('creates multiple galleries inside a project in demo mode', async () => {
@@ -108,13 +146,9 @@ describe('demoService', () => {
 
     const detail = await service.getProject(project.id);
 
-    expect(detail.folder_count).toBe(3);
-    expect(detail.entry_gallery_name).toBe('Client Delivery');
-    expect(detail.folders.map((folder) => folder.name)).toEqual([
-      'Client Delivery',
-      'Photos',
-      '3eds',
-    ]);
+    expect(detail.gallery_count).toBe(2);
+    expect(detail.entry_gallery_name).toBe('Photos');
+    expect(detail.galleries.map((folder) => folder.name)).toEqual(['Photos', '3eds']);
   });
 
   it('supports one project selection session across multiple listed galleries in demo mode', async () => {
@@ -134,8 +168,8 @@ describe('demoService', () => {
     const resumeToken = session.resume_token ?? undefined;
 
     const project = await service.getProject('demo-project-porto-delivery');
-    const firstFolderId = project.folders[0].id;
-    const secondFolderId = project.folders[1].id;
+    const firstFolderId = project.galleries[0].id;
+    const secondFolderId = project.galleries[1].id;
 
     const firstGallery = await service.getSharedGallery(projectShareLink!.id, {
       folderId: firstFolderId,
@@ -185,7 +219,7 @@ describe('demoService', () => {
     const project = await service.createProject({ name: 'Hidden Project' });
     const detail = await service.getProject(project.id);
 
-    for (const folder of detail.folders) {
+    for (const folder of detail.galleries) {
       await service.updateGallery(folder.id, { project_visibility: 'direct_only' });
     }
 
@@ -201,16 +235,15 @@ describe('demoService', () => {
     const service = getDemoService();
 
     const project = await service.createProject({ name: 'Delete Me' });
-    const detail = await service.getProject(project.id);
-    const galleryId = detail.entry_gallery_id;
-    expect(galleryId).toBeTruthy();
+    const gallery = await service.createProjectFolder(project.id, { name: 'Proofs' });
+    const galleryId = gallery.id;
     const projectShareLink = await service.createProjectShareLink(project.id, {});
-    const galleryShareLink = await service.createShareLink(galleryId!, {});
+    const galleryShareLink = await service.createShareLink(galleryId, {});
 
     await service.deleteProject(project.id);
 
     await expect(service.getProject(project.id)).rejects.toMatchObject({ statusCode: 404 });
-    await expect(service.getGallery(galleryId!)).rejects.toMatchObject({ statusCode: 404 });
+    await expect(service.getGallery(galleryId)).rejects.toMatchObject({ statusCode: 404 });
     await expect(service.getSharedGallery(projectShareLink.id)).rejects.toMatchObject({
       statusCode: 404,
     });

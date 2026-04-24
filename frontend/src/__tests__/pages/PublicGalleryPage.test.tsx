@@ -202,6 +202,45 @@ describe('PublicGalleryPage', () => {
     expect(document.getElementById('gallery-content')).toBeInTheDocument();
   });
 
+  it('starts favorites from the corner heart without the redundant helper panel', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.getPublicSelectionConfig).mockResolvedValue({
+      is_enabled: true,
+      list_title: 'Selected photos',
+      limit_enabled: false,
+      limit_value: null,
+      allow_photo_comments: false,
+      require_name: true,
+      require_email: false,
+      require_phone: false,
+      require_client_note: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+
+    render(wrapper());
+
+    await waitFor(() => {
+      expect(screen.getByText('Photos')).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByText(
+        'Use the heart button on a photo to start building a shortlist for the photographer.',
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /open selection panel/i })).not.toBeInTheDocument();
+
+    const firstCard = screen.getAllByTestId('public-batch')[0];
+    const favoriteButton = within(firstCard).getByRole('button', {
+      name: /add 1.jpg to favorites/i,
+    });
+
+    await userEvent.click(favoriteButton);
+
+    expect(await screen.findByRole('heading', { name: /start selection/i })).toBeInTheDocument();
+  });
+
   it('opens photo lightbox when clicking a photo', async () => {
     render(wrapper());
 
@@ -319,24 +358,42 @@ describe('PublicGalleryPage', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Wedding Weekend' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 1, name: '3eds' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /download gallery/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /download project/i })).toBeInTheDocument();
     expect(screen.queryByText('Download visible folders')).not.toBeInTheDocument();
     expect(container.querySelector('img[src="/full/project-cover.jpg"]')).not.toBeNull();
   });
 
+  it('downloads only the active gallery from project share navigation', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-2' };
+    vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue({
+      ...mockProjectGallery,
+      gallery_name: '3eds',
+    } as any);
+
+    render(wrapper());
+
+    const button = await screen.findByRole('button', { name: /download gallery/i });
+    await userEvent.click(button);
+
+    const expectedUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/s/abc123/galleries/gallery-2/download/all`;
+    expect(openSpy).toHaveBeenCalledWith(expectedUrl, '_blank');
+    openSpy.mockRestore();
+  });
+
   it('reuses nested gallery project navigation without refetching the root project share', async () => {
     const { shareLinkService } = await import('../../services/shareLinkService');
     mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-1' };
+    let resolveGallerySwitch: (value: any) => void = () => {};
+    const gallerySwitchPromise = new Promise<any>((resolve) => {
+      resolveGallerySwitch = resolve;
+    });
+
     vi.mocked(shareLinkService.getSharedGallery).mockImplementation(async (_shareId, options) => {
       if (options?.galleryId === 'gallery-2') {
-        return {
-          ...mockProjectGallery,
-          gallery_name: '3eds',
-          project_navigation: {
-            ...mockProjectShare,
-            folders: mockProjectShare.folders,
-          },
-        } as any;
+        return gallerySwitchPromise;
       }
       if (options?.galleryId) {
         return mockProjectGallery as any;
@@ -361,7 +418,21 @@ describe('PublicGalleryPage', () => {
     rerender(wrapper());
 
     await waitFor(() => {
-      expect(screen.getByText('3eds')).toBeInTheDocument();
+      expect(screen.getByText('Loading gallery photos...')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('status', { name: /loading gallery/i })).not.toBeInTheDocument();
+
+    resolveGallerySwitch({
+      ...mockProjectGallery,
+      gallery_name: '3eds',
+      project_navigation: {
+        ...mockProjectShare,
+        folders: mockProjectShare.folders,
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading gallery photos...')).not.toBeInTheDocument();
     });
 
     expect(getRootProjectCalls()).toBe(0);
@@ -415,6 +486,56 @@ describe('PublicGalleryPage', () => {
     expect(
       within(stickyBar).getByRole('button', { name: /finish selection/i }),
     ).toBeInTheDocument();
+  });
+
+  it('shows a compact note trigger for selected photos instead of placing comments in the grid', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.getPublicSelectionConfig).mockResolvedValue({
+      is_enabled: true,
+      list_title: 'Selected photos',
+      limit_enabled: false,
+      limit_value: null,
+      allow_photo_comments: true,
+      require_name: true,
+      require_email: false,
+      require_phone: false,
+      require_client_note: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+    vi.mocked(shareLinkService.getPublicSelectionSession).mockResolvedValue({
+      id: 'session-1',
+      sharelink_id: 'abc123',
+      status: 'in_progress',
+      client_name: 'Jane Client',
+      client_email: null,
+      client_phone: null,
+      client_note: null,
+      selected_count: 1,
+      submitted_at: null,
+      last_activity_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      resume_token: 'resume-token',
+      items: [
+        {
+          photo_id: 'p1',
+          comment: null,
+          selected_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+    } as any);
+    window.localStorage.setItem('viewport-selection-resume-abc123', 'resume-token');
+
+    render(wrapper());
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/remove 1.jpg from favorites/i)).toBeInTheDocument();
+    });
+
+    expect(screen.getByLabelText(/add a note for 1.jpg/i)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Comment for this photo')).not.toBeInTheDocument();
   });
 
   it('renders dedicated favorites view with finish button and back navigation', async () => {

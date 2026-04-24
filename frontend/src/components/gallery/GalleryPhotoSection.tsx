@@ -1,12 +1,11 @@
 import React from 'react';
-import { CheckSquare, Download, Loader2, SearchX, Upload } from 'lucide-react';
+import { Loader2, SearchX } from 'lucide-react';
 import type { MutableRefObject, RefObject } from 'react';
 import { PaginationControls } from '../PaginationControls';
 import { EmptyGalleryState } from './EmptyGalleryState';
 import { PhotoCard } from './PhotoCard';
 import { PhotoSelectionBar } from './PhotoSelectionBar';
 import { PhotoUploader, type PhotoUploaderHandle } from '../PhotoUploader';
-import { MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 import { formatFileSize } from '../../lib/utils';
 import type { PhotoUploadResponse, GalleryPhoto } from '../../types';
 
@@ -30,7 +29,6 @@ interface GalleryPhotoSectionProps {
   onModalStateChange?: (isOpen: boolean) => void;
   state: {
     photoUrls: GalleryPhoto[];
-    gallerySizeBytes: number;
     isLoadingPhotos: boolean;
     isDownloadingZip?: boolean;
     activeSearchTerm?: string;
@@ -52,14 +50,12 @@ interface GalleryPhotoSectionProps {
     onDismissUploadError: () => void;
     onDismissActionInfo: () => void;
     onDismissError: () => void;
-    onToggleSelectionMode: () => void;
     onTogglePhotoSelection: (photoId: string, isShiftKey: boolean) => void;
     onOpenPhoto: (index: number) => void;
     onSetCover: (photoId: string) => void;
     onClearCover: () => void;
     onRenamePhoto: (photoId: string, filename: string) => void;
     onDeletePhoto: (photoId: string) => void;
-    onDownloadGallery: () => void;
     onDownloadSelectedPhotos: () => void;
     onClearSearch: () => void;
     onSelectAllPhotos: () => void;
@@ -71,17 +67,17 @@ interface GalleryPhotoSectionProps {
 const PHOTO_GRID_SKELETON_CARDS = 10;
 
 const GalleryPhotoGridSkeleton = ({ page, renderNonce }: { page: number; renderNonce: number }) => (
-  <div className="pt-6" data-testid="private-gallery-skeleton-grid">
-    <div className="mb-5 flex items-center gap-3 text-muted">
+  <div className="pt-4" data-testid="private-gallery-skeleton-grid">
+    <div className="mb-4 flex items-center gap-3 text-muted">
       <Loader2 className="h-5 w-5 animate-spin text-accent" />
       <span className="text-sm font-bold uppercase tracking-wide">Loading photos</span>
       <span className="text-xs font-semibold text-muted/70">Page {page}</span>
     </div>
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 lg:gap-6">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 sm:gap-4">
       {Array.from({ length: PHOTO_GRID_SKELETON_CARDS }).map((_, index) => (
         <div
           key={`photo-skeleton-${renderNonce}-${index}`}
-          className="overflow-hidden rounded-2xl border border-border/50 bg-surface shadow-xs dark:border-border/40 dark:bg-surface-dark-1"
+          className="overflow-hidden rounded-2xl border border-border/45 bg-surface shadow-xs dark:border-border/35 dark:bg-surface-dark-1"
         >
           <div className="h-64 p-4 sm:h-72 md:h-80">
             <div className="h-full w-full animate-pulse rounded-xl bg-linear-to-br from-surface-foreground/15 via-surface-foreground/10 to-surface-foreground/15 dark:from-surface/30 dark:via-surface/20 dark:to-surface/30" />
@@ -124,61 +120,15 @@ const GalleryPhotoSectionComponent = ({
   }, [pagination.page, state.activeSearchTerm, shouldShowGridSkeleton]);
 
   return (
-    <div
-      className="bg-surface dark:bg-surface-dark-1/80 rounded-3xl p-6 lg:p-8 border border-border/50 dark:border-border/40 shadow-xs"
+    <section
+      className="px-0 py-0"
       data-photos-section
+      aria-labelledby="private-gallery-photos-heading"
     >
-      <div className="mb-8">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-2xl font-bold text-text flex items-center gap-3">
-            Photos
-            {state.photoUrls.length > 0 && (
-              <span className="text-sm text-muted font-bold bg-surface-1 dark:bg-surface-dark-1 px-3 py-1 rounded-xl border border-border/50 shadow-inner">
-                {state.photoUrls.length}
-              </span>
-            )}
-          </h2>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => photoUploaderRef.current?.openFilePicker()}
-              className="inline-flex h-11 items-center gap-2 rounded-xl border border-transparent bg-accent px-5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-              title={`Add photos (JPG/PNG up to ${MAX_UPLOAD_FILE_SIZE_MB} MB)`}
-            >
-              <Upload className="h-4 w-4" />
-              Add Photos
-            </button>
-            {state.photoUrls.length > 0 && (
-              <button
-                onClick={actions.onDownloadGallery}
-                disabled={state.isDownloadingZip}
-                className="inline-flex h-11 items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-5 text-sm font-bold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent hover:shadow-sm active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border/50 disabled:hover:text-text disabled:hover:translate-y-0 disabled:hover:shadow-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1"
-                title={`Download entire gallery as ZIP (${formatFileSize(state.gallerySizeBytes)})`}
-              >
-                <Download className="h-4 w-4" />
-                Download ZIP
-              </button>
-            )}
-            {state.photoUrls.length > 0 && (
-              <button
-                onClick={actions.onToggleSelectionMode}
-                className={`inline-flex h-11 items-center gap-2 rounded-xl border px-5 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
-                  state.isSelectionMode
-                    ? 'border-accent bg-accent text-accent-foreground shadow-sm hover:brightness-110'
-                    : 'border-border/35 bg-transparent text-muted hover:border-border/60 hover:bg-surface-1 hover:text-text dark:border-border/30 dark:hover:bg-surface-dark-1'
-                }`}
-                title={state.isSelectionMode ? 'Exit selection mode' : 'Enter selection mode'}
-              >
-                <CheckSquare className="h-4 w-4" />
-                <span>{state.isSelectionMode ? 'Cancel Selection' : 'Select'}</span>
-              </button>
-            )}
-            {pagination.totalPages > 1 && (
-              <span className="inline-flex h-11 items-center rounded-xl border border-border/60 bg-surface-1 px-4 text-sm font-bold text-muted dark:border-border/40 dark:bg-surface-dark-1 shadow-inner">
-                Page {pagination.page} of {pagination.totalPages}
-              </span>
-            )}
-          </div>
-        </div>
+      <h2 id="private-gallery-photos-heading" className="sr-only">
+        Photos {state.photoUrls.length}
+      </h2>
+      <div className="mb-4">
         <PhotoUploader
           ref={photoUploaderRef}
           galleryId={galleryId}
@@ -223,7 +173,7 @@ const GalleryPhotoSectionComponent = ({
       </div>
 
       {pagination.totalPages > 1 && (
-        <div className="mb-8 border-b border-border/50 dark:border-border/30 pb-6">
+        <div className="mb-4 border-b border-border/35 pb-4 dark:border-border/25">
           <PaginationControls pagination={pagination} isLoading={state.isLoadingPhotos} />
         </div>
       )}
@@ -245,7 +195,7 @@ const GalleryPhotoSectionComponent = ({
         <GalleryPhotoGridSkeleton page={pagination.page} renderNonce={skeletonRenderNonce} />
       ) : state.photoUrls.length > 0 ? (
         <div
-          className="grid grid-cols-1 gap-5 pt-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 lg:gap-6"
+          className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 pt-4 sm:gap-4"
           ref={gridRef}
         >
           {state.photoUrls.map((photo, index) => (
@@ -283,15 +233,17 @@ const GalleryPhotoSectionComponent = ({
           </button>
         </div>
       ) : (
-        <EmptyGalleryState onUploadClick={() => photoUploaderRef.current?.openFilePicker()} />
+        <div className="pt-4">
+          <EmptyGalleryState onUploadClick={() => photoUploaderRef.current?.openFilePicker()} />
+        </div>
       )}
 
       {pagination.totalPages > 1 && (
-        <div className="mt-8 border-t border-border/50 dark:border-border/30 pt-6">
+        <div className="mt-6 border-t border-border/35 pt-4 dark:border-border/25">
           <PaginationControls pagination={pagination} isLoading={state.isLoadingPhotos} />
         </div>
       )}
-    </div>
+    </section>
   );
 };
 

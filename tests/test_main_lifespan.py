@@ -17,6 +17,10 @@ def main_module():
 
         yield importlib.reload(imported_main)
 
+    import viewport.main as restored_main
+
+    importlib.reload(restored_main)
+
 
 @pytest.mark.asyncio
 async def test_lifespan_reraises_startup_error(main_module):

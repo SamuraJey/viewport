@@ -21,8 +21,10 @@ export type {
 export type {
   Project,
   ProjectDetail,
-  ProjectFolderSummary,
+  ProjectGallerySummary,
+  ProjectListQueryOptions,
   ProjectListResponse,
+  ProjectListSortBy,
   CreateProjectRequest,
   UpdateProjectRequest,
 } from './project';

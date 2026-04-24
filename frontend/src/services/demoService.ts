@@ -12,7 +12,8 @@ import type {
   GalleryListResponse,
   Project,
   ProjectDetail,
-  ProjectFolderSummary,
+  ProjectGallerySummary,
+  ProjectListQueryOptions,
   ProjectListResponse,
   OwnerSelectionDetail,
   OwnerSelectionRow,
@@ -161,11 +162,8 @@ const toGalleryWithComputedFields = (state: DemoGalleryState): Gallery => {
     photo_count: state.photos.length,
     total_size_bytes: totalSize,
     has_active_share_links: hasActiveShareLinks,
-    cover_photo_thumbnail_url: coverPhoto?.thumbnail_url ?? null,
-    recent_photo_thumbnail_urls: sortedRecentPhotos
-      .slice(0, 3)
-      .map((photo) => photo.thumbnail_url)
-      .filter(Boolean),
+    cover_photo_thumbnail_url:
+      coverPhoto?.thumbnail_url ?? sortedRecentPhotos[0]?.thumbnail_url ?? null,
   };
 };
 
@@ -196,11 +194,9 @@ const buildSeedGalleryState = (
       total_size_bytes: photos.reduce((sum, photo) => sum + (photo.file_size || 0), 0),
       has_active_share_links: shareLinks.some((link) => link.is_active !== false),
       cover_photo_thumbnail_url:
-        photos.find((photo) => photo.id === coverPhoto)?.thumbnail_url ?? null,
-      recent_photo_thumbnail_urls: photos
-        .slice(0, 3)
-        .map((photo) => photo.thumbnail_url)
-        .filter(Boolean),
+        photos.find((photo) => photo.id === coverPhoto)?.thumbnail_url ??
+        photos[0]?.thumbnail_url ??
+        null,
     },
     photos,
     shareLinks,
@@ -294,7 +290,6 @@ const buildSeedProjectContent = (): {
           total_size_bytes: 0,
           has_active_share_links: false,
           cover_photo_thumbnail_url: null,
-          recent_photo_thumbnail_urls: [],
         },
         12,
         [photosShareLink],
@@ -326,7 +321,6 @@ const buildSeedProjectContent = (): {
           total_size_bytes: 0,
           has_active_share_links: false,
           cover_photo_thumbnail_url: null,
-          recent_photo_thumbnail_urls: [],
         },
         8,
         [editsShareLink],
@@ -340,12 +334,12 @@ const buildSeedProjectContent = (): {
           name: 'Porto Wedding Delivery',
           created_at: createdAt,
           shooting_date: '2026-04-03T11:00:00Z',
-          folder_count: 0,
-          listed_folder_count: 0,
+          gallery_count: 0,
+          visible_gallery_count: 0,
           total_photo_count: 0,
           total_size_bytes: 0,
           has_active_share_links: false,
-          recent_folder_thumbnail_urls: [],
+          cover_photo_thumbnail_url: null,
         },
         shareLinks: [projectShareLink],
         selectionConfigs: {
@@ -378,7 +372,6 @@ const seedState = (): DemoGalleryState[] => {
       total_size_bytes: 0,
       has_active_share_links: false,
       cover_photo_thumbnail_url: null,
-      recent_photo_thumbnail_urls: [],
     },
     {
       id: 'demo-gallery-wedding',
@@ -393,7 +386,6 @@ const seedState = (): DemoGalleryState[] => {
       total_size_bytes: 0,
       has_active_share_links: false,
       cover_photo_thumbnail_url: null,
-      recent_photo_thumbnail_urls: [],
     },
     {
       id: 'demo-gallery-product',
@@ -408,7 +400,6 @@ const seedState = (): DemoGalleryState[] => {
       total_size_bytes: 0,
       has_active_share_links: false,
       cover_photo_thumbnail_url: null,
-      recent_photo_thumbnail_urls: [],
     },
   ];
 
@@ -465,12 +456,12 @@ const buildProjectsFromGalleryState = (galleries: DemoGalleryState[]): DemoProje
           name: entry.gallery.project_name?.trim() || 'Untitled Project',
           created_at: entry.gallery.created_at,
           shooting_date: entry.gallery.shooting_date,
-          folder_count: 0,
-          listed_folder_count: 0,
+          gallery_count: 0,
+          visible_gallery_count: 0,
           total_photo_count: 0,
           total_size_bytes: 0,
           has_active_share_links: false,
-          recent_folder_thumbnail_urls: [],
+          cover_photo_thumbnail_url: null,
         },
         shareLinks: [],
       });
@@ -816,41 +807,47 @@ class DemoServiceStore {
 
   private recalculateProjects(): void {
     this.projects = this.projects.map((entry) => {
-      const folders = this.galleries
+      const galleries = this.galleries
         .filter((galleryState) => galleryState.gallery.project_id === entry.project.id)
         .map((galleryState) => toGalleryWithComputedFields(galleryState));
-      const folderCount = folders.length;
-      const listedFolders = folders.filter(
-        (folder) => (folder.project_visibility ?? 'listed') === 'listed',
+      const galleryCount = galleries.length;
+      const visibleGalleries = galleries.filter(
+        (gallery) => (gallery.project_visibility ?? 'listed') === 'listed',
       );
-      const sortedFolders = [...folders].sort(
+      const sortedGalleries = [...galleries].sort(
         (left, right) => (left.project_position ?? 0) - (right.project_position ?? 0),
       );
-      const entryGallery = sortedFolders[0] ?? null;
-      const totalPhotoCount = folders.reduce((sum, folder) => sum + (folder.photo_count || 0), 0);
-      const totalSizeBytes = folders.reduce(
-        (sum, folder) => sum + (folder.total_size_bytes || 0),
+      const entryGallery = sortedGalleries[0] ?? null;
+      const totalPhotoCount = galleries.reduce(
+        (sum, gallery) => sum + (gallery.photo_count || 0),
         0,
       );
-      const recentFolderThumbnailUrls = folders
-        .flatMap((folder) => folder.recent_photo_thumbnail_urls || [])
-        .slice(0, 3);
+      const totalSizeBytes = galleries.reduce(
+        (sum, gallery) => sum + (gallery.total_size_bytes || 0),
+        0,
+      );
+      const coverPhotoThumbnailUrl =
+        galleries.find((gallery) => gallery.cover_photo_thumbnail_url)?.cover_photo_thumbnail_url ??
+        null;
       const hasActiveShareLinks = entry.shareLinks.some((link) => link.is_active !== false);
+      const { id, owner_id, name, created_at, shooting_date } = entry.project;
       return {
         ...entry,
         project: {
-          ...entry.project,
+          id,
+          owner_id,
+          name,
+          created_at,
+          shooting_date,
           entry_gallery_id: entryGallery?.id ?? null,
           entry_gallery_name: entryGallery?.name ?? null,
-          gallery_count: folderCount,
-          listed_gallery_count: listedFolders.length,
+          gallery_count: galleryCount,
+          visible_gallery_count: visibleGalleries.length,
           has_entry_gallery: Boolean(entryGallery),
-          folder_count: folderCount,
-          listed_folder_count: listedFolders.length,
           total_photo_count: totalPhotoCount,
           total_size_bytes: totalSizeBytes,
           has_active_share_links: hasActiveShareLinks,
-          recent_folder_thumbnail_urls: recentFolderThumbnailUrls,
+          cover_photo_thumbnail_url: coverPhotoThumbnailUrl,
         },
       };
     });
@@ -1046,8 +1043,16 @@ class DemoServiceStore {
     return this.toGalleryDetail(state, options);
   }
 
-  async getProjects(page = 1, size = 10, search?: string): Promise<ProjectListResponse> {
-    const normalizedSearch = search?.trim().toLowerCase() ?? '';
+  async getProjects(
+    page = 1,
+    size = 10,
+    options?: ProjectListQueryOptions | string,
+  ): Promise<ProjectListResponse> {
+    const normalizedOptions = typeof options === 'string' ? { search: options } : (options ?? {});
+    const normalizedSearch = normalizedOptions.search?.trim().toLowerCase() ?? '';
+    const sortBy = normalizedOptions.sort_by ?? 'created_at';
+    const order = normalizedOptions.order ?? 'desc';
+    const direction = order === 'asc' ? 1 : -1;
     const start = (page - 1) * size;
     const filtered = this.projects
       .map((entry) => ({ ...entry.project }))
@@ -1055,9 +1060,38 @@ class DemoServiceStore {
         (project) => !normalizedSearch || project.name.toLowerCase().includes(normalizedSearch),
       );
 
-    const sorted = filtered.sort(
-      (left, right) => Date.parse(right.created_at) - Date.parse(left.created_at),
-    );
+    const compareDate = (leftValue: string, rightValue: string) =>
+      (Date.parse(leftValue) - Date.parse(rightValue)) * direction;
+    const compareText = (leftValue: string, rightValue: string) =>
+      leftValue.toLowerCase().localeCompare(rightValue.toLowerCase()) * direction;
+    const compareNumber = (leftValue: number, rightValue: number) =>
+      (leftValue - rightValue) * direction;
+    const compareTieBreakers = (left: Project, right: Project) =>
+      compareDate(left.created_at, right.created_at) || left.id.localeCompare(right.id) * direction;
+
+    const sorted = filtered.sort((left, right) => {
+      if (sortBy === 'name') {
+        return compareText(left.name, right.name) || compareTieBreakers(left, right);
+      }
+      if (sortBy === 'shooting_date') {
+        return (
+          compareDate(left.shooting_date, right.shooting_date) || compareTieBreakers(left, right)
+        );
+      }
+      if (sortBy === 'photo_count') {
+        return (
+          compareNumber(left.total_photo_count, right.total_photo_count) ||
+          compareTieBreakers(left, right)
+        );
+      }
+      if (sortBy === 'total_size_bytes') {
+        return (
+          compareNumber(left.total_size_bytes, right.total_size_bytes) ||
+          compareTieBreakers(left, right)
+        );
+      }
+      return compareTieBreakers(left, right);
+    });
 
     return {
       projects: sorted.slice(start, start + size),
@@ -1072,7 +1106,7 @@ class DemoServiceStore {
     if (!state) {
       throw this.createNotFoundError('Project not found');
     }
-    const folders: ProjectFolderSummary[] = this.galleries
+    const galleries: ProjectGallerySummary[] = this.galleries
       .filter((entry) => entry.gallery.project_id === projectId)
       .map((entry) => {
         const gallery = toGalleryWithComputedFields(entry);
@@ -1091,21 +1125,16 @@ class DemoServiceStore {
           total_size_bytes: gallery.total_size_bytes,
           has_active_share_links: gallery.has_active_share_links,
           cover_photo_thumbnail_url: gallery.cover_photo_thumbnail_url ?? null,
-          recent_photo_thumbnail_urls: gallery.recent_photo_thumbnail_urls,
         };
       })
       .sort((left, right) => (left.project_position ?? 0) - (right.project_position ?? 0));
     return {
       ...state.project,
-      folders,
+      galleries,
     };
   }
 
-  async createProject(payload: {
-    name?: string;
-    shooting_date?: string | null;
-    initial_gallery_name?: string | null;
-  }): Promise<Project> {
+  async createProject(payload: { name?: string; shooting_date?: string | null }): Promise<Project> {
     const createdAt = nowIso();
     const projectName = payload.name?.trim() || 'Untitled Project';
     const project: Project = {
@@ -1117,23 +1146,14 @@ class DemoServiceStore {
       entry_gallery_id: null,
       entry_gallery_name: null,
       gallery_count: 0,
-      listed_gallery_count: 0,
+      visible_gallery_count: 0,
       has_entry_gallery: false,
-      folder_count: 0,
-      listed_folder_count: 0,
       total_photo_count: 0,
       total_size_bytes: 0,
       has_active_share_links: false,
-      recent_folder_thumbnail_urls: [],
+      cover_photo_thumbnail_url: null,
     };
     this.projects.unshift({ project, shareLinks: [] });
-    await this.createGallery({
-      name: payload.initial_gallery_name?.trim() || projectName,
-      shooting_date: payload.shooting_date,
-      project_id: project.id,
-      project_position: 0,
-      project_visibility: 'listed',
-    });
     this.recalculateProjects();
     this.persistState();
     return {
@@ -1243,7 +1263,7 @@ class DemoServiceStore {
     project_visibility?: 'listed' | 'direct_only';
   }): Promise<Gallery> {
     const createdAt = nowIso();
-    const project = payload.project_id
+    let project = payload.project_id
       ? (this.projects.find((entry) => entry.project.id === payload.project_id)?.project ?? null)
       : null;
 
@@ -1251,13 +1271,12 @@ class DemoServiceStore {
       const createdProject = await this.createProject({
         name: payload.name?.trim() || 'Untitled Project',
         shooting_date: payload.shooting_date,
-        initial_gallery_name: payload.name,
       });
-      const entryGalleryId = createdProject.entry_gallery_id;
-      if (!entryGalleryId) {
-        throw this.createConflictError('Failed to create initial project gallery');
+      project =
+        this.projects.find((entry) => entry.project.id === createdProject.id)?.project ?? null;
+      if (!project) {
+        throw this.createConflictError('Failed to create compatibility project');
       }
-      return toGalleryWithComputedFields(this.getGalleryState(entryGalleryId));
     }
 
     const projectPosition =
@@ -1281,7 +1300,6 @@ class DemoServiceStore {
       total_size_bytes: 0,
       has_active_share_links: false,
       cover_photo_thumbnail_url: null,
-      recent_photo_thumbnail_urls: [],
     };
 
     this.galleries.unshift({
@@ -1901,8 +1919,7 @@ class DemoServiceStore {
         folder_id: folder.id,
         folder_name: folder.name,
         photo_count: folder.photo_count,
-        cover_thumbnail_url:
-          folder.cover_photo_thumbnail_url ?? folder.recent_photo_thumbnail_urls[0] ?? null,
+        cover_thumbnail_url: folder.cover_photo_thumbnail_url ?? null,
         route_path: `/share/${shareId}/galleries/${folder.id}`,
         direct_share_path: null,
       })),
