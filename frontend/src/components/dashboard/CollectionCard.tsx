@@ -44,7 +44,7 @@ export const CollectionCard = ({
           <div className="absolute left-4 top-4 z-10 flex items-center gap-2">{topOverlay}</div>
         ) : null}
         {topRightOverlay ? (
-          <div className="absolute right-3 top-3 z-30 flex gap-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100 focus-within:opacity-100">
+          <div className="absolute right-3 top-3 z-30 flex gap-2 pointer-events-none opacity-0 transition-opacity duration-300 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
             {topRightOverlay}
           </div>
         ) : null}
