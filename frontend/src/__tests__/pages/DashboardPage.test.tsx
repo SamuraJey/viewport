@@ -333,6 +333,48 @@ describe('DashboardPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/projects/project-3');
   });
 
+  it('navigates to a created project without waiting for dashboard refresh', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+    const pendingRefresh = new Promise<never>(() => {});
+
+    vi.mocked(projectService.getProjects)
+      .mockResolvedValueOnce({
+        projects: mockProjects,
+        total: mockProjects.length,
+        page: 1,
+        size: 18,
+      })
+      .mockReturnValueOnce(pendingRefresh);
+    vi.mocked(projectService.createProject).mockResolvedValue(
+      makeProject({
+        id: 'project-3',
+        name: 'Client Delivery',
+        entry_gallery_id: null,
+        entry_gallery_name: null,
+        has_entry_gallery: false,
+        gallery_count: 0,
+        visible_gallery_count: 0,
+      }),
+    );
+
+    render(<DashboardPageWrapper />);
+
+    await screen.findByText('Wedding Weekend');
+    await user.click(screen.getByRole('button', { name: 'Create new project' }));
+    await user.type(screen.getByPlaceholderText('Project name'), 'Client Delivery');
+    await user.click(screen.getByRole('button', { name: 'Create Project' }));
+
+    await waitFor(() => {
+      expect(projectService.createProject).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Client Delivery' }),
+      );
+    });
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/projects/project-3');
+    });
+  });
+
   it('deletes a project from the dashboard using the shared confirmation flow', async () => {
     const user = userEvent.setup();
     const { projectService } = await import('../../services/projectService');
@@ -355,6 +397,58 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it('moves to the previous valid page after deleting the only project on the last page', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+    const lastPageProject = makeProject({
+      id: 'project-37',
+      name: 'Last Project',
+      entry_gallery_id: null,
+      entry_gallery_name: null,
+    });
+
+    vi.mocked(projectService.getProjects)
+      .mockResolvedValueOnce({
+        projects: [lastPageProject],
+        total: 37,
+        page: 3,
+        size: 18,
+      })
+      .mockResolvedValueOnce({
+        projects: mockProjects,
+        total: 36,
+        page: 2,
+        size: 18,
+      });
+
+    render(<DashboardPageWrapper initialPath="/dashboard?page=3" />);
+
+    await screen.findByText('Last Project');
+    await user.click(screen.getByLabelText('Delete project Last Project'));
+    await user.click(
+      within(await screen.findByRole('dialog', { name: /delete project/i })).getByRole('button', {
+        name: 'Delete',
+      }),
+    );
+
+    await waitFor(() => {
+      expect(projectService.deleteProject).toHaveBeenCalledWith('project-37');
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/dashboard?page=2');
+    });
+    await waitFor(() => {
+      expect(projectService.getProjects).toHaveBeenLastCalledWith(2, 18, {
+        search: undefined,
+        sort_by: 'created_at',
+        order: 'desc',
+      });
+    });
+    expect(
+      screen.queryByRole('heading', { level: 2, name: 'No projects yet' }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows the approved empty state copy and dedicated CTA', async () => {

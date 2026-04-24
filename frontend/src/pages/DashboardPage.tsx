@@ -74,6 +74,9 @@ const resolveProjectPath = (project: Project) => `/projects/${project.id}`;
 const formatCountLabel = (count: number, singular: string, plural = `${singular}s`) =>
   `${count} ${count === 1 ? singular : plural}`;
 
+const getLastValidProjectPage = (total: number, pageSize: number) =>
+  Math.max(1, Math.ceil(total / pageSize));
+
 const isProjectListSortBy = (value: string | null): value is ProjectListSortBy =>
   value === 'created_at' ||
   value === 'shooting_date' ||
@@ -99,7 +102,7 @@ export const DashboardPage = () => {
   const navigate = useNavigate();
   const { openConfirm, ConfirmModal } = useConfirmation();
   const pagination = usePagination({ pageSize: PROJECT_PAGE_SIZE, syncWithUrl: true });
-  const { page, pageSize, setTotal } = pagination;
+  const { page, pageSize, setTotal, total, goToPage } = pagination;
   const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -217,8 +220,8 @@ export const DashboardPage = () => {
         shooting_date: newProjectShootingDate || undefined,
       });
       setIsProjectModalOpen(false);
-      await fetchProjects();
       navigate(resolveProjectPath(project));
+      void fetchProjects();
     } catch (err: unknown) {
       setError((err as Error)?.message || 'Failed to create project');
     } finally {
@@ -235,6 +238,13 @@ export const DashboardPage = () => {
       onConfirm: async () => {
         try {
           await projectService.deleteProject(project.id);
+          const nextTotal = Math.max(0, total - 1);
+          const lastValidPage = getLastValidProjectPage(nextTotal, pageSize);
+          if (page > lastValidPage) {
+            goToPage(lastValidPage);
+            return;
+          }
+
           await fetchProjects();
         } catch (err) {
           setError(handleApiError(err).message || 'Failed to delete project');
