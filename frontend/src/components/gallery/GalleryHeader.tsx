@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -95,6 +95,13 @@ interface GalleryHeaderProps {
 const compactButtonClass =
   'inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark';
 
+const overflowActionClass = (tone: 'default' | 'danger' = 'default') =>
+  `flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+    tone === 'danger'
+      ? 'text-danger hover:bg-danger/10 focus-visible:bg-danger/10'
+      : 'text-text hover:bg-accent/10 hover:text-accent focus-visible:bg-accent/10 focus-visible:text-accent'
+  }`;
+
 export const GalleryHeader = ({
   gallery,
   title,
@@ -129,7 +136,59 @@ export const GalleryHeader = ({
   onSortChange,
 }: GalleryHeaderProps) => {
   const filtersButtonRef = useRef<HTMLButtonElement | null>(null);
-  const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const moreActionsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const closeMoreActions = (close: (focusableElement?: HTMLElement) => void) => {
+    close(moreActionsButtonRef.current ?? undefined);
+    moreActionsButtonRef.current?.focus();
+  };
+  const runMoreActionsAction = (
+    close: (focusableElement?: HTMLElement) => void,
+    action: () => void,
+    options: { closeFirst?: boolean } = {},
+  ) => {
+    if (options.closeFirst) {
+      closeMoreActions(close);
+      action();
+      return;
+    }
+    action();
+    closeMoreActions(close);
+  };
+  const handleMoreActionsMouseDown =
+    (
+      close: (focusableElement?: HTMLElement) => void,
+      action: () => void,
+      options?: { closeFirst?: boolean },
+    ) =>
+    (event: MouseEvent<HTMLElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      runMoreActionsAction(close, action, options);
+    };
+  const handleMoreActionsClick =
+    (
+      close: (focusableElement?: HTMLElement) => void,
+      action: () => void,
+      options?: { closeFirst?: boolean },
+    ) =>
+    (event: MouseEvent<HTMLElement>) => {
+      if (event.detail !== 0) {
+        return;
+      }
+      runMoreActionsAction(close, action, options);
+    };
+  const handleMoreActionsEscape =
+    (close: (focusableElement?: HTMLElement) => void) => (event: KeyboardEvent<HTMLElement>) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      closeMoreActions(close);
+    };
 
   const activeSortValue = `${sortBy}:${sortOrder}` as SortOption['value'];
   const activePublicSortValue = `${publicSortBy}:${publicSortOrder}` as SortOption['value'];
@@ -235,82 +294,91 @@ export const GalleryHeader = ({
               </button>
             ) : null}
 
-            <div className="relative">
-              <button
-                type="button"
-                aria-label="More gallery actions"
-                aria-expanded={isMoreOpen}
-                aria-controls="gallery-more-actions"
-                onClick={() => setIsMoreOpen((open) => !open)}
-                className={`${compactButtonClass} border-border/55 bg-surface-1 px-3 text-text hover:border-accent/40 hover:text-accent dark:border-border/45 dark:bg-surface-dark-1 ${
-                  isMoreOpen ? 'border-accent/45 text-accent' : ''
-                }`}
-              >
-                <MoreHorizontal className="h-5 w-5" />
-                <span className="sr-only">More</span>
-              </button>
-
-              {isMoreOpen ? (
-                <div
-                  id="gallery-more-actions"
-                  className="absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl border border-border/50 bg-surface p-2 shadow-lg dark:border-border/40 dark:bg-surface-dark-1"
-                >
-                  <div className="space-y-1">
-                    {onDownloadGallery ? (
-                      <button
-                        type="button"
-                        onClick={onDownloadGallery}
-                        disabled={isDownloadingZip}
-                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-accent/10 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {isDownloadingZip ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Download className="h-4 w-4" />
-                        )}
-                        Download ZIP
-                      </button>
-                    ) : null}
-                    {onToggleSelectionMode ? (
-                      <button
-                        type="button"
-                        onClick={onToggleSelectionMode}
-                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-accent/10 hover:text-accent"
-                      >
-                        <CheckSquare className="h-4 w-4" />
-                        {isSelectionMode ? 'Cancel selection' : 'Select photos'}
-                      </button>
-                    ) : null}
-                    {settingsHref ? (
-                      <Link
-                        to={settingsHref}
-                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-accent/10 hover:text-accent"
-                      >
-                        <Settings className="h-4 w-4" />
-                        Project settings
-                      </Link>
-                    ) : null}
-                    {projectNavigation ? (
-                      <div className="border-y border-border/35 py-2 dark:border-border/25">
-                        <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-muted">
-                          Galleries
-                        </p>
-                        {projectNavigation}
-                      </div>
-                    ) : null}
+            <AppPopover
+              className="relative"
+              buttonRef={moreActionsButtonRef}
+              buttonAriaLabel="More gallery actions"
+              buttonClassName={(open) =>
+                `${compactButtonClass} border-border/55 bg-surface-1 px-3 text-text hover:border-accent/40 hover:text-accent dark:border-border/45 dark:bg-surface-dark-1 ${
+                  open ? 'border-accent/45 text-accent' : ''
+                }`
+              }
+              buttonContent={(open) => (
+                <>
+                  <MoreHorizontal className="h-5 w-5" />
+                  <span className="sr-only">
+                    {open ? 'Close more actions' : 'Open more actions'}
+                  </span>
+                </>
+              )}
+              panelFocus
+              panelClassName="w-64 rounded-2xl border border-border/50 bg-surface p-2 shadow-lg dark:border-border/40 dark:bg-surface-dark-1"
+              panel={(close) => (
+                <div className="space-y-1" role="group" aria-label="More gallery actions">
+                  {onDownloadGallery ? (
                     <button
                       type="button"
-                      onClick={onDeleteGallery}
-                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-danger transition-colors hover:bg-danger/10"
-                      aria-label="Delete gallery"
+                      onMouseDown={handleMoreActionsMouseDown(close, onDownloadGallery)}
+                      onClick={handleMoreActionsClick(close, onDownloadGallery)}
+                      onKeyDown={handleMoreActionsEscape(close)}
+                      disabled={isDownloadingZip}
+                      className={overflowActionClass()}
                     >
-                      <Trash2 className="h-4 w-4" />
-                      Delete gallery
+                      {isDownloadingZip ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
+                      Download ZIP
                     </button>
-                  </div>
+                  ) : null}
+                  {onToggleSelectionMode ? (
+                    <button
+                      type="button"
+                      onMouseDown={handleMoreActionsMouseDown(close, onToggleSelectionMode)}
+                      onClick={handleMoreActionsClick(close, onToggleSelectionMode)}
+                      onKeyDown={handleMoreActionsEscape(close)}
+                      className={overflowActionClass()}
+                    >
+                      <CheckSquare className="h-4 w-4" />
+                      {isSelectionMode ? 'Cancel selection' : 'Select photos'}
+                    </button>
+                  ) : null}
+                  {settingsHref ? (
+                    <Link
+                      to={settingsHref}
+                      onClick={() => closeMoreActions(close)}
+                      onKeyDown={handleMoreActionsEscape(close)}
+                      className={overflowActionClass()}
+                    >
+                      <Settings className="h-4 w-4" />
+                      Project settings
+                    </Link>
+                  ) : null}
+                  {projectNavigation ? (
+                    <div className="border-y border-border/35 py-2 dark:border-border/25">
+                      <p className="px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-muted">
+                        Galleries
+                      </p>
+                      {projectNavigation}
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    onMouseDown={handleMoreActionsMouseDown(close, onDeleteGallery, {
+                      closeFirst: true,
+                    })}
+                    onClick={handleMoreActionsClick(close, onDeleteGallery, { closeFirst: true })}
+                    onKeyDown={handleMoreActionsEscape(close)}
+                    className={overflowActionClass('danger')}
+                    aria-label="Delete gallery"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete gallery
+                  </button>
                 </div>
-              ) : null}
-            </div>
+              )}
+            />
           </div>
         </div>
       </section>

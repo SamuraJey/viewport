@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -65,8 +65,6 @@ describe('GalleryHeader', () => {
   });
 
   it('keeps project settings and gallery navigation in the overflow menu', async () => {
-    const user = userEvent.setup();
-
     render(
       <MemoryRouter>
         <GalleryHeader
@@ -82,14 +80,39 @@ describe('GalleryHeader', () => {
       </MemoryRouter>,
     );
 
-    await user.click(screen.getByRole('button', { name: /more gallery actions/i }));
+    const trigger = screen.getByRole('button', { name: /more gallery actions/i });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: 'Enter' });
 
-    expect(screen.getByRole('link', { name: /project settings/i })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: /project settings/i })).toHaveAttribute(
       'href',
       '/projects/project-1',
     );
     expect(screen.getByRole('link', { name: 'Portfolio Session' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Second Gallery' })).toBeInTheDocument();
+  });
+
+  it('closes the overflow menu with Escape and returns focus to the trigger', async () => {
+    render(
+      <MemoryRouter>
+        <GalleryHeader {...createProps()} />
+      </MemoryRouter>,
+    );
+
+    const trigger = screen.getByRole('button', { name: /more gallery actions/i });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+
+    const deleteButton = await screen.findByRole('button', { name: /delete gallery/i });
+    expect(deleteButton).toBeInTheDocument();
+
+    deleteButton.focus();
+    fireEvent.keyDown(deleteButton, { key: 'Escape' });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /delete gallery/i })).not.toBeInTheDocument();
+    });
+    expect(trigger).toHaveFocus();
   });
 
   it('renders a share-gallery quick action when provided', async () => {
