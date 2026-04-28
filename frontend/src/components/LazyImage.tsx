@@ -59,7 +59,7 @@ export const LazyImage = ({
       },
       {
         root: null,
-        rootMargin: '200px', // Start loading 200px before entering viewport
+        rootMargin: '800px', // Start loading well before entering viewport during fast scrolls
         threshold: 0,
       },
     );
@@ -104,7 +104,7 @@ export const LazyImage = ({
           ref={imgRef}
           src={imageSrc}
           alt={alt}
-          loading="lazy"
+          loading="eager"
           decoding="async"
           className={`w-full h-full ${layoutTransitionClass} ${objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${imgClassName ?? ''} ${isLoading ? 'opacity-0 scale-105' : 'opacity-100 scale-100'} transition-all duration-500`}
           onLoad={handleLoad}

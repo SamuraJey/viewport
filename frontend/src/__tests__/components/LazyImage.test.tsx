@@ -71,7 +71,7 @@ describe('LazyImage', () => {
     expect(screen.getByText('Loading...').parentElement).toHaveStyle({ aspectRatio: '300/150' });
   });
 
-  it('lazy-loads the image and applies loading attributes after intersection', async () => {
+  it('lazy-loads via IntersectionObserver and eagerly fetches after intersection', async () => {
     render(<LazyImage src="/image.jpg" alt="Loaded" objectFit="contain" />);
 
     expect(screen.queryByRole('img', { name: 'Loaded' })).not.toBeInTheDocument();
@@ -79,7 +79,7 @@ describe('LazyImage', () => {
     MockIntersectionObserver.instances.forEach((observer) => observer.triggerAll());
 
     const image = await screen.findByRole('img', { name: 'Loaded' });
-    expect(image).toHaveAttribute('loading', 'lazy');
+    expect(image).toHaveAttribute('loading', 'eager');
     expect(image).toHaveAttribute('decoding', 'async');
     expect(image).toHaveClass('object-contain');
 

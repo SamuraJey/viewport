@@ -18,7 +18,7 @@ interface PublicGalleryPhotoSectionProps {
   gridLayout: PublicGridLayout;
   gridDensity: PublicGridDensity;
   gridRef: MutableRefObject<HTMLDivElement | null>;
-  getAspectRatioHint: (photoId: string) => number;
+  getAspectRatioHint: (photo: PublicPhoto) => number;
   observerTargetRef: MutableRefObject<HTMLDivElement | null>;
   isLoading?: boolean;
   isLoadingMore: boolean;
@@ -224,9 +224,7 @@ export const PublicGalleryPhotoSection = ({
                         alt={accessiblePhotoName}
                         className={`pg-card__media transition-transform duration-300 group-hover:scale-[1.01] ${imageClassName}`}
                         imgClassName="pg-card__img"
-                        aspectRatioHint={
-                          isUniformLayout ? undefined : getAspectRatioHint(photo.photo_id)
-                        }
+                        aspectRatioHint={isUniformLayout ? undefined : getAspectRatioHint(photo)}
                         objectFit={isUniformLayout ? 'contain' : 'cover'}
                       />
                     </button>

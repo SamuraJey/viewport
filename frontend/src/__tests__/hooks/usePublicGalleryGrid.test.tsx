@@ -103,7 +103,7 @@ describe('usePublicGalleryGrid', () => {
             {photos.map((photo) => (
               <div key={photo.photo_id} data-testid="card" data-photo-id={photo.photo_id}>
                 <span data-testid={`hint-${photo.photo_id}`}>
-                  {getAspectRatioHint(photo.photo_id).toFixed(3)}
+                  {getAspectRatioHint(photo).toFixed(3)}
                 </span>
                 <img
                   alt={photo.filename ?? photo.photo_id}
@@ -188,6 +188,22 @@ describe('usePublicGalleryGrid', () => {
     await waitFor(() => {
       expect(screen.getByTestId('card')).toHaveStyle({ gridRowEnd: 'span 6' });
       expect(screen.getByTestId('hint-cached')).toHaveTextContent('2.000');
+    });
+  });
+
+  it('uses API dimensions to stabilize masonry before lazy images load', async () => {
+    await renderHookHarness([
+      {
+        ...createPhoto('api-sized', 100, 100),
+        width: 320,
+        height: 160,
+      },
+    ]);
+    await flushAnimationFrames();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('card')).toHaveStyle({ gridRowEnd: 'span 6' });
+      expect(screen.getByTestId('hint-api-sized')).toHaveTextContent('2.000');
     });
   });
 });
