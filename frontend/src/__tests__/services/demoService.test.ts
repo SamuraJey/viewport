@@ -168,8 +168,17 @@ describe('demoService', () => {
     const resumeToken = session.resume_token ?? undefined;
 
     const project = await service.getProject('demo-project-porto-delivery');
+    const projectShare = await service.getSharedGallery(projectShareLink!.id);
     const firstFolderId = project.galleries[0].id;
     const secondFolderId = project.galleries[1].id;
+
+    if (projectShare.scope_type !== 'project') {
+      throw new Error('Expected project root route to resolve to a project payload');
+    }
+
+    expect(projectShare.total_size_bytes).toBe(
+      project.galleries.reduce((sum, gallery) => sum + (gallery.total_size_bytes || 0), 0),
+    );
 
     const firstGallery = await service.getSharedGallery(projectShareLink!.id, {
       folderId: firstFolderId,
@@ -182,7 +191,9 @@ describe('demoService', () => {
       throw new Error('Expected nested project routes to resolve to gallery payloads');
     }
 
+    expect(firstGallery.total_size_bytes).toBe(project.galleries[0].total_size_bytes);
     expect(firstGallery.project_navigation?.project_name).toBe('Porto Wedding Delivery');
+    expect(firstGallery.project_navigation?.total_size_bytes).toBe(projectShare.total_size_bytes);
     expect(secondGallery.project_navigation?.folders).toHaveLength(2);
 
     await service.togglePublicSelectionItem(

@@ -120,6 +120,7 @@ export interface SharedFolderShare {
   date?: string;
   site_url?: string;
   total_photos?: number;
+  total_size_bytes?: number;
   project_id?: string | null;
   project_name?: string | null;
   parent_share_id?: string | null;
@@ -136,6 +137,7 @@ export interface SharedProjectShare {
   cover?: { photo_id: string; full_url: string; thumbnail_url: string } | null;
   total_listed_folders?: number;
   total_listed_photos?: number;
+  total_size_bytes?: number;
   folders: PublicProjectFolder[];
 }
 

@@ -104,6 +104,7 @@ async def _build_public_gallery_response(
 
     sort_by, order = _resolve_public_sorting(gallery)
     total_photos = await repo.get_photo_count_by_gallery(gallery.id)
+    total_size_bytes = await repo.get_photo_total_size_by_gallery(gallery.id)
     photos_to_process = await repo.get_photos_by_gallery_id(
         gallery_id=gallery.id,
         limit=limit,
@@ -194,6 +195,7 @@ async def _build_public_gallery_response(
         date=date_str,
         site_url=_site_url(request),
         total_photos=total_photos,
+        total_size_bytes=total_size_bytes,
         project_id=str(gallery.project_id) if getattr(gallery, "project_id", None) else None,
         project_name=project_name,
         parent_share_id=str(parent_share_id) if parent_share_id else None,
@@ -258,7 +260,7 @@ async def _build_public_project_response(
 
     gallery_ids = [folder.id for folder in folders]
     cover_photo_ids = [folder.cover_photo_id for folder in folders if folder.cover_photo_id]
-    photo_count_by_gallery, _, _, cover_thumbnail_by_photo_id, recent_thumbnail_keys_by_gallery = await gallery_repo.get_gallery_list_enrichment(
+    photo_count_by_gallery, total_size_by_gallery, _, cover_thumbnail_by_photo_id, recent_thumbnail_keys_by_gallery = await gallery_repo.get_gallery_list_enrichment(
         gallery_ids,
         cover_photo_ids,
         recent_limit=1,
@@ -275,9 +277,11 @@ async def _build_public_project_response(
     )
     folder_items: list[PublicProjectFolder] = []
     total_listed_photos = 0
+    total_size_bytes = 0
     for folder in folders:
         photo_count = photo_count_by_gallery.get(folder.id, 0)
         total_listed_photos += photo_count
+        total_size_bytes += total_size_by_gallery.get(folder.id, 0)
         cover_thumbnail_key = cover_thumbnail_by_photo_id.get(folder.cover_photo_id) if folder.cover_photo_id else None
         cover_thumbnail_url = thumbnail_url_map.get(cover_thumbnail_key) if cover_thumbnail_key else None
         if cover_thumbnail_url is None:
@@ -314,6 +318,7 @@ async def _build_public_project_response(
         cover=project_cover,
         total_listed_folders=len(folder_items),
         total_listed_photos=total_listed_photos,
+        total_size_bytes=total_size_bytes,
         folders=folder_items,
     )
 

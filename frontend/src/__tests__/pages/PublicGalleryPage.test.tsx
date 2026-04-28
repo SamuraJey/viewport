@@ -45,6 +45,7 @@ const mockPublicGallery = {
   date: '2025-09-21',
   site_url: 'https://example.com',
   total_photos: 2,
+  total_size_bytes: 1536,
 };
 
 const mockEmptyGallery = {
@@ -54,6 +55,7 @@ const mockEmptyGallery = {
   photographer: undefined,
   gallery_name: 'Empty Gallery',
   total_photos: 0,
+  total_size_bytes: 0,
 };
 
 const mockProjectShare = {
@@ -70,6 +72,7 @@ const mockProjectShare = {
   },
   total_listed_folders: 2,
   total_listed_photos: 8,
+  total_size_bytes: 4096,
   folders: [
     {
       folder_id: 'gallery-1',
@@ -93,6 +96,7 @@ const mockProjectGallery = {
   gallery_name: 'Photos',
   project_id: 'project-1',
   project_name: 'Wedding Weekend',
+  total_size_bytes: 1024,
   parent_share_id: 'abc123',
   project_navigation: mockProjectShare,
 };
@@ -195,6 +199,7 @@ describe('PublicGalleryPage', () => {
     expect(screen.getByText('By Jane Doe')).toBeInTheDocument();
     // Download All button present
     expect(screen.getByRole('button', { name: /download all photos/i })).toBeInTheDocument();
+    expect(screen.getByText('Estimated ZIP size: 1.5 KB')).toBeInTheDocument();
     // Photos rendered
     const thumbs = screen.getAllByTestId('public-batch');
     expect(thumbs).toHaveLength(2);
@@ -360,6 +365,8 @@ describe('PublicGalleryPage', () => {
     expect(screen.queryByRole('heading', { level: 1, name: '3eds' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /download gallery/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /download project/i })).toBeInTheDocument();
+    expect(screen.getByText('Estimated ZIP size: 1 KB')).toBeInTheDocument();
+    expect(screen.getByText('Estimated ZIP size: 4 KB')).toBeInTheDocument();
     expect(screen.queryByText('Download visible folders')).not.toBeInTheDocument();
     expect(container.querySelector('img[src="/full/project-cover.jpg"]')).not.toBeNull();
   });

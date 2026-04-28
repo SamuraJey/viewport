@@ -429,6 +429,51 @@ async def test_sharelink_repository_lookup_and_photo_scope_helpers(repo: ShareLi
 
 
 @pytest.mark.asyncio
+async def test_get_photo_total_size_by_gallery_excludes_deleted_galleries(repo: ShareLinkRepository, db_session):
+    user = User(email=f"gallery-size-{uuid4()}@example.com", password_hash="hashed", display_name="Size user")
+    db_session.add(user)
+    await db_session.commit()
+
+    active_gallery = Gallery(owner_id=user.id, name="Active Size Gallery")
+    deleted_gallery = Gallery(owner_id=user.id, name="Deleted Size Gallery", is_deleted=True)
+    db_session.add_all([active_gallery, deleted_gallery])
+    await db_session.commit()
+
+    db_session.add_all(
+        [
+            Photo(
+                gallery_id=active_gallery.id,
+                status=PhotoUploadStatus.SUCCESSFUL,
+                object_key=f"{active_gallery.id}/first.jpg",
+                display_name="first.jpg",
+                thumbnail_object_key=f"{active_gallery.id}/thumb-first.jpg",
+                file_size=1234,
+            ),
+            Photo(
+                gallery_id=active_gallery.id,
+                status=PhotoUploadStatus.SUCCESSFUL,
+                object_key=f"{active_gallery.id}/second.jpg",
+                display_name="second.jpg",
+                thumbnail_object_key=f"{active_gallery.id}/thumb-second.jpg",
+                file_size=4321,
+            ),
+            Photo(
+                gallery_id=deleted_gallery.id,
+                status=PhotoUploadStatus.SUCCESSFUL,
+                object_key=f"{deleted_gallery.id}/hidden.jpg",
+                display_name="hidden.jpg",
+                thumbnail_object_key=f"{deleted_gallery.id}/thumb-hidden.jpg",
+                file_size=9999,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    assert await repo.get_photo_total_size_by_gallery(active_gallery.id) == 5555
+    assert await repo.get_photo_total_size_by_gallery(deleted_gallery.id) == 0
+
+
+@pytest.mark.asyncio
 async def test_get_photos_by_visible_project_excludes_hidden_galleries(repo: ShareLinkRepository, db_session):
     user = User(email=f"visible-project-{uuid4()}@example.com", password_hash="hashed", display_name="Visible project user")
     db_session.add(user)

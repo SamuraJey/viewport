@@ -1824,6 +1824,10 @@ class DemoServiceStore {
       const sortBy: GalleryPhotoSortBy = galleryState.gallery.public_sort_by ?? 'original_filename';
       const sortOrder: SortOrder = galleryState.gallery.public_sort_order ?? 'asc';
       const sortedPhotos = this.sortSharedPhotos(galleryState.photos, sortBy, sortOrder);
+      const totalSizeBytes = galleryState.photos.reduce(
+        (sum, photo) => sum + (photo.file_size || 0),
+        0,
+      );
 
       const safeOffset = Math.max(0, options?.offset || 0);
       const limit = options?.limit ?? sortedPhotos.length;
@@ -1836,6 +1840,7 @@ class DemoServiceStore {
         date: galleryState.gallery.shooting_date,
         site_url: window.location.origin,
         total_photos: sortedPhotos.length,
+        total_size_bytes: totalSizeBytes,
         project_id: galleryState.gallery.project_id ?? null,
         project_name: galleryState.gallery.project_name ?? null,
         parent_share_id: null,
@@ -1886,6 +1891,11 @@ class DemoServiceStore {
     const listedFolders = listedFolderStates
       .map((entry) => toGalleryWithComputedFields(entry))
       .sort((left, right) => (left.project_position ?? 0) - (right.project_position ?? 0));
+    const projectTotalSizeBytes = listedFolderStates.reduce(
+      (sum, entry) =>
+        sum + entry.photos.reduce((photoSum, photo) => photoSum + (photo.file_size || 0), 0),
+      0,
+    );
     const leftmostFolderState = [...listedFolderStates].sort(
       (left, right) => (left.gallery.project_position ?? 0) - (right.gallery.project_position ?? 0),
     )[0];
@@ -1915,6 +1925,7 @@ class DemoServiceStore {
         (sum, folder) => sum + (folder.photo_count || 0),
         0,
       ),
+      total_size_bytes: projectTotalSizeBytes,
       folders: listedFolders.map((folder) => ({
         folder_id: folder.id,
         folder_name: folder.name,
@@ -1933,6 +1944,10 @@ class DemoServiceStore {
       const sortBy: GalleryPhotoSortBy = folderState.gallery.public_sort_by ?? 'original_filename';
       const sortOrder: SortOrder = folderState.gallery.public_sort_order ?? 'asc';
       const sortedPhotos = this.sortSharedPhotos(folderState.photos, sortBy, sortOrder);
+      const folderTotalSizeBytes = folderState.photos.reduce(
+        (sum, photo) => sum + (photo.file_size || 0),
+        0,
+      );
       const safeOffset = Math.max(0, options?.offset || 0);
       const limit = options?.limit ?? sortedPhotos.length;
       const photos = sortedPhotos.slice(safeOffset, safeOffset + limit);
@@ -1943,6 +1958,7 @@ class DemoServiceStore {
         date: folderState.gallery.shooting_date,
         site_url: window.location.origin,
         total_photos: sortedPhotos.length,
+        total_size_bytes: folderTotalSizeBytes,
         project_id: folderState.gallery.project_id ?? null,
         project_name: folderState.gallery.project_name ?? null,
         parent_share_id: shareId,

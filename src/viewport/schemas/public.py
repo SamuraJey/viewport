@@ -35,6 +35,7 @@ class PublicGalleryResponse(BaseModel):
     date: str = ""
     site_url: str = ""
     total_photos: int = 0
+    total_size_bytes: int = 0
     project_id: str | None = None
     project_name: str | None = None
     parent_share_id: str | None = None
@@ -51,6 +52,7 @@ class PublicProjectResponse(BaseModel):
     cover: PublicCover | None = None
     total_listed_folders: int = 0
     total_listed_photos: int = 0
+    total_size_bytes: int = 0
     folders: list[PublicProjectFolder] = Field(default_factory=list)
 
 
