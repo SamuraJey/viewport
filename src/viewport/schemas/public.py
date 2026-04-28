@@ -8,6 +8,8 @@ class PublicPhoto(BaseModel):
     thumbnail_url: str
     full_url: str
     filename: str | None = None
+    width: int | None = None
+    height: int | None = None
 
 
 class PublicCover(BaseModel):

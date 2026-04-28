@@ -28,6 +28,12 @@ const toValidRatio = (value: number | null | undefined): number | null => {
   return value;
 };
 
+const getPhotoAspectRatio = (photo: PublicPhoto): number | null => {
+  const width = toValidRatio(photo.width);
+  const height = toValidRatio(photo.height);
+  return width && height ? width / height : null;
+};
+
 const getGridColumnCount = (value: string): number => {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
@@ -50,10 +56,12 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
   const pinchStartDistanceRef = useRef<number | null>(null);
   const pinchHandledRef = useRef(false);
 
-  const getAspectRatioHint = useCallback(
-    (photoId: string) => getCachedPhotoAspectRatio(photoId) ?? DEFAULT_FALLBACK_RATIO,
-    [],
-  );
+  const getAspectRatioHint = useCallback((photo: PublicPhoto) => {
+    const apiRatio = getPhotoAspectRatio(photo);
+    if (apiRatio) return apiRatio;
+
+    return getCachedPhotoAspectRatio(photo.photo_id) ?? DEFAULT_FALLBACK_RATIO;
+  }, []);
 
   const computeSpans = useCallback(() => {
     if (gridLayout !== 'masonry') return;
@@ -76,7 +84,7 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
       const photo = photos[index];
       if (!photo) return;
 
-      const ratio = getAspectRatioHint(photo.photo_id);
+      const ratio = getAspectRatioHint(photo);
       const targetHeight = columnWidth / ratio;
       const span = Math.max(1, Math.ceil((targetHeight + rowGap) / (rowHeight + rowGap)));
       const next = `span ${span}`;
