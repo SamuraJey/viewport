@@ -221,7 +221,13 @@ class TestProjectAPI:
         hidden_folder_id = hidden_folder_resp.json()["id"]
 
         upload_photo_via_presigned(authenticated_client, listed_folder_id, b"listed", "listed.jpg")
-        upload_photo_via_presigned(authenticated_client, hidden_folder_id, b"hidden", "hidden.jpg")
+        upload_photo_via_presigned(authenticated_client, hidden_folder_id, b"hidden-hidden", "hidden.jpg")
+        listed_detail_resp = authenticated_client.get(f"/galleries/{listed_folder_id}")
+        hidden_detail_resp = authenticated_client.get(f"/galleries/{hidden_folder_id}")
+        assert listed_detail_resp.status_code == 200
+        assert hidden_detail_resp.status_code == 200
+        listed_total_size = listed_detail_resp.json()["total_size_bytes"]
+        hidden_total_size = hidden_detail_resp.json()["total_size_bytes"]
 
         project_share_resp = authenticated_client.post(
             f"/projects/{project_id}/share-links",
@@ -236,13 +242,18 @@ class TestProjectAPI:
         assert public_project_payload["scope_type"] == "project"
         assert public_project_payload["project_name"] == "Wedding B"
         assert public_project_payload["total_listed_folders"] == 1
+        assert public_project_payload["total_size_bytes"] == listed_total_size
+        assert public_project_payload["total_size_bytes"] != listed_total_size + hidden_total_size
         assert [folder["folder_id"] for folder in public_project_payload["folders"]] == [listed_folder_id]
         assert public_project_payload["folders"][0]["route_path"] == f"/share/{project_share_id}/galleries/{listed_folder_id}"
 
         visible_folder_resp = authenticated_client.get(f"/s/{project_share_id}/folders/{listed_folder_id}")
         assert visible_folder_resp.status_code == 200
-        assert visible_folder_resp.json()["scope_type"] == "gallery"
-        assert visible_folder_resp.json()["gallery_name"] == "Portraits"
+        visible_folder_payload = visible_folder_resp.json()
+        assert visible_folder_payload["scope_type"] == "gallery"
+        assert visible_folder_payload["gallery_name"] == "Portraits"
+        assert visible_folder_payload["total_size_bytes"] == listed_total_size
+        assert visible_folder_payload["project_navigation"]["total_size_bytes"] == listed_total_size
 
         hidden_folder_public_resp = authenticated_client.get(f"/s/{project_share_id}/folders/{hidden_folder_id}")
         assert hidden_folder_public_resp.status_code == 404

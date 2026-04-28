@@ -24,6 +24,7 @@ from viewport.api.public import (
     get_valid_sharelink,
 )
 from viewport.models.sharelink import ShareScopeType
+from viewport.repositories.gallery_stats import GalleryPhotoStats
 from viewport.zip_utils import build_zip_fallback_name, make_unique_zip_entry_name, sanitize_zip_entry_name
 
 pytestmark = pytest.mark.requires_s3
@@ -88,7 +89,7 @@ class TestPublicAPI:
         )
         sharelink = SimpleNamespace(created_at=datetime(2026, 4, 19, 12, 30, 0), project=None)
         repo = MagicMock()
-        repo.get_photo_count_by_gallery = AsyncMock(return_value=1)
+        repo.get_photo_stats_by_gallery = AsyncMock(return_value=GalleryPhotoStats(photo_count=1, total_size_bytes=2048))
         repo.get_photos_by_gallery_id = AsyncMock(return_value=[photo])
         repo.record_view = AsyncMock()
         repo.db.execute = AsyncMock(return_value=SimpleNamespace(scalar_one_or_none=lambda: photo))
@@ -115,6 +116,7 @@ class TestPublicAPI:
         assert payload.cover.photo_id == str(photo_id)
         assert payload.cover.filename == "hero.jpg"
         assert payload.site_url == "https://example.com"
+        assert payload.total_size_bytes == 2048
         assert "width" not in payload.cover.model_dump()
         assert "height" not in payload.cover.model_dump()
         repo.record_view.assert_awaited_once()
@@ -143,7 +145,7 @@ class TestPublicAPI:
             height=800,
         )
         repo = MagicMock()
-        repo.get_photo_count_by_gallery = AsyncMock(return_value=1)
+        repo.get_photo_stats_by_gallery = AsyncMock(return_value=GalleryPhotoStats(photo_count=1, total_size_bytes=1024))
         repo.get_photos_by_gallery_id = AsyncMock(return_value=[photo])
         repo.record_view = AsyncMock()
         repo.db.execute = AsyncMock(return_value=SimpleNamespace(scalar_one_or_none=lambda: None))
@@ -327,19 +329,24 @@ class TestPublicAPI:
         _p1 = _upload_photo(authenticated_client, gallery_id_fixture, b"one", "a.jpg")
         _p2 = _upload_photo(authenticated_client, gallery_id_fixture, b"two", "b.jpg")
 
+        gallery_detail_resp = authenticated_client.get(f"/galleries/{gallery_id_fixture}")
+        assert gallery_detail_resp.status_code == 200
+        expected_total_size = gallery_detail_resp.json()["total_size_bytes"]
+
         # Create sharelink for gallery
         resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/share-links", json={"gallery_id": gallery_id_fixture, "expires_at": "2099-01-01T00:00:00Z"})
         assert resp.status_code == 201
         share_id = resp.json()["id"]
 
         # Public gallery listing - now includes presigned URLs directly
-        public_resp = authenticated_client.get(f"/s/{share_id}")
+        public_resp = authenticated_client.get(f"/s/{share_id}?limit=1")
         assert public_resp.status_code == 200
         assert public_resp.headers.get("Cache-Control") == "no-store, max-age=0, must-revalidate"
         data = public_resp.json()
         assert "photos" in data
+        assert data["total_size_bytes"] == expected_total_size
         assert isinstance(data["photos"], list)
-        assert len(data["photos"]) == 2
+        assert len(data["photos"]) == 1
 
         # Check filenames are present
         names = [p["filename"] for p in data["photos"]]

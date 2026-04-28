@@ -45,6 +45,7 @@ const mockPublicGallery = {
   date: '2025-09-21',
   site_url: 'https://example.com',
   total_photos: 2,
+  total_size_bytes: 1536,
 };
 
 const mockEmptyGallery = {
@@ -54,6 +55,7 @@ const mockEmptyGallery = {
   photographer: undefined,
   gallery_name: 'Empty Gallery',
   total_photos: 0,
+  total_size_bytes: 0,
 };
 
 const mockProjectShare = {
@@ -70,6 +72,7 @@ const mockProjectShare = {
   },
   total_listed_folders: 2,
   total_listed_photos: 8,
+  total_size_bytes: 4096,
   folders: [
     {
       folder_id: 'gallery-1',
@@ -93,6 +96,7 @@ const mockProjectGallery = {
   gallery_name: 'Photos',
   project_id: 'project-1',
   project_name: 'Wedding Weekend',
+  total_size_bytes: 1024,
   parent_share_id: 'abc123',
   project_navigation: mockProjectShare,
 };
@@ -194,12 +198,36 @@ describe('PublicGalleryPage', () => {
     expect(screen.getByText('Public Gallery')).toBeInTheDocument();
     expect(screen.getByText('By Jane Doe')).toBeInTheDocument();
     // Download All button present
-    expect(screen.getByRole('button', { name: /download all photos/i })).toBeInTheDocument();
+    const downloadButton = screen.getByRole('button', { name: /download all photos/i });
+    const sizeLabel = screen.getByText('Estimated ZIP size: 1.5 KB');
+    expect(downloadButton).toBeInTheDocument();
+    expect(sizeLabel).toBeInTheDocument();
+    expect(downloadButton).toHaveAttribute('aria-describedby', sizeLabel.id);
     // Photos rendered
     const thumbs = screen.getAllByTestId('public-batch');
     expect(thumbs).toHaveLength(2);
     expect(screen.queryByRole('button', { name: /finish selection/i })).not.toBeInTheDocument();
     expect(document.getElementById('gallery-content')).toBeInTheDocument();
+  });
+
+  it('does not render a ZIP size estimate when the payload omits the total', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue({
+      ...mockPublicGallery,
+      total_size_bytes: undefined,
+    } as any);
+
+    render(wrapper());
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /download all photos/i })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Estimated ZIP size: 0 B')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Estimated ZIP size:/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /download all photos/i })).not.toHaveAttribute(
+      'aria-describedby',
+    );
   });
 
   it('starts favorites from the corner heart without the redundant helper panel', async () => {
@@ -358,8 +386,16 @@ describe('PublicGalleryPage', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Wedding Weekend' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 1, name: '3eds' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /download gallery/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /download project/i })).toBeInTheDocument();
+    const galleryDownloadButton = screen.getByRole('button', { name: /download gallery/i });
+    const projectDownloadButton = screen.getByRole('button', { name: /download project/i });
+    const gallerySizeLabel = screen.getByText('Estimated ZIP size: 1 KB');
+    const projectSizeLabel = screen.getByText('Estimated ZIP size: 4 KB');
+    expect(galleryDownloadButton).toBeInTheDocument();
+    expect(projectDownloadButton).toBeInTheDocument();
+    expect(gallerySizeLabel).toBeInTheDocument();
+    expect(projectSizeLabel).toBeInTheDocument();
+    expect(galleryDownloadButton).toHaveAttribute('aria-describedby', gallerySizeLabel.id);
+    expect(projectDownloadButton).toHaveAttribute('aria-describedby', projectSizeLabel.id);
     expect(screen.queryByText('Download visible folders')).not.toBeInTheDocument();
     expect(container.querySelector('img[src="/full/project-cover.jpg"]')).not.toBeNull();
   });

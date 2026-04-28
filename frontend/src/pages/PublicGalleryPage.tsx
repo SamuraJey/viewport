@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useNavigationType, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -23,6 +23,7 @@ import { usePublicGallery, usePublicSelection } from '../hooks';
 import { usePublicGalleryGrid } from '../hooks/usePublicGalleryGrid';
 import { copyTextToClipboard } from '../lib/clipboard';
 import { isDemoModeEnabled } from '../lib/demoMode';
+import { formatFileSize } from '../lib/utils';
 import { handleApiError } from '../lib/errorHandling';
 import { getAccessiblePhotoName } from '../lib/accessibility';
 import { getDemoService } from '../services/demoService';
@@ -320,6 +321,16 @@ export const PublicGalleryPage = () => {
     }
     return folderShare?.project_navigation ?? null;
   }, [folderShare, projectShare]);
+  const projectZipSizeId = useId();
+  const galleryZipSizeId = useId();
+  const projectZipSizeLabel =
+    typeof projectGalleryTabs?.total_size_bytes === 'number'
+      ? `Estimated ZIP size: ${formatFileSize(projectGalleryTabs.total_size_bytes)}`
+      : undefined;
+  const galleryZipSizeLabel =
+    typeof folderShare?.total_size_bytes === 'number'
+      ? `Estimated ZIP size: ${formatFileSize(folderShare.total_size_bytes)}`
+      : undefined;
   const isProjectFolderView = Boolean(folderShare?.parent_share_id && !isFavoritesView);
   const showStickyProjectSelectionBar = Boolean(
     projectGalleryTabs && selection.config?.is_enabled && !isFavoritesView,
@@ -542,21 +553,37 @@ export const PublicGalleryPage = () => {
               {!isFavoritesView ? (
                 <div className="flex flex-wrap items-center gap-2">
                   {activeGalleryId ? (
+                    <div className="flex flex-col items-start gap-1">
+                      <button
+                        onClick={handleDownloadCurrentGallery}
+                        aria-describedby={galleryZipSizeLabel ? galleryZipSizeId : undefined}
+                        className="inline-flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-4 py-2.5 text-sm font-semibold text-accent hover:bg-accent/15"
+                      >
+                        <DownloadIcon className="h-4 w-4" />
+                        Download gallery
+                      </button>
+                      {galleryZipSizeLabel ? (
+                        <span id={galleryZipSizeId} className="text-xs font-medium text-muted">
+                          {galleryZipSizeLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <div className="flex flex-col items-start gap-1">
                     <button
-                      onClick={handleDownloadCurrentGallery}
-                      className="inline-flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-4 py-2.5 text-sm font-semibold text-accent hover:bg-accent/15"
+                      onClick={handleDownloadAll}
+                      aria-describedby={projectZipSizeLabel ? projectZipSizeId : undefined}
+                      className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
                     >
                       <DownloadIcon className="h-4 w-4" />
-                      Download gallery
+                      Download project
                     </button>
-                  ) : null}
-                  <button
-                    onClick={handleDownloadAll}
-                    className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
-                  >
-                    <DownloadIcon className="h-4 w-4" />
-                    Download project
-                  </button>
+                    {projectZipSizeLabel ? (
+                      <span id={projectZipSizeId} className="text-xs font-medium text-muted">
+                        {projectZipSizeLabel}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -613,13 +640,21 @@ export const PublicGalleryPage = () => {
 
           <div className="flex flex-wrap items-center justify-end gap-2">
             {!isFavoritesView && photos.length > 0 && !projectGalleryTabs ? (
-              <button
-                onClick={handleDownloadAll}
-                className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
-              >
-                <DownloadIcon className="h-4 w-4" />
-                Download All Photos
-              </button>
+              <div className="flex flex-col items-end gap-1">
+                <button
+                  onClick={handleDownloadAll}
+                  aria-describedby={galleryZipSizeLabel ? galleryZipSizeId : undefined}
+                  className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
+                >
+                  <DownloadIcon className="h-4 w-4" />
+                  Download All Photos
+                </button>
+                {galleryZipSizeLabel ? (
+                  <span id={galleryZipSizeId} className="text-xs font-medium text-muted">
+                    {galleryZipSizeLabel}
+                  </span>
+                ) : null}
+              </div>
             ) : null}
 
             {selection.config?.is_enabled ? (
