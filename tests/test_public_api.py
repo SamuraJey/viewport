@@ -24,6 +24,7 @@ from viewport.api.public import (
     get_valid_sharelink,
 )
 from viewport.models.sharelink import ShareScopeType
+from viewport.repositories.gallery_stats import GalleryPhotoStats
 from viewport.zip_utils import build_zip_fallback_name, make_unique_zip_entry_name, sanitize_zip_entry_name
 
 pytestmark = pytest.mark.requires_s3
@@ -88,8 +89,7 @@ class TestPublicAPI:
         )
         sharelink = SimpleNamespace(created_at=datetime(2026, 4, 19, 12, 30, 0), project=None)
         repo = MagicMock()
-        repo.get_photo_count_by_gallery = AsyncMock(return_value=1)
-        repo.get_photo_total_size_by_gallery = AsyncMock(return_value=2048)
+        repo.get_photo_stats_by_gallery = AsyncMock(return_value=GalleryPhotoStats(photo_count=1, total_size_bytes=2048))
         repo.get_photos_by_gallery_id = AsyncMock(return_value=[photo])
         repo.record_view = AsyncMock()
         repo.db.execute = AsyncMock(return_value=SimpleNamespace(scalar_one_or_none=lambda: photo))
@@ -145,8 +145,7 @@ class TestPublicAPI:
             height=800,
         )
         repo = MagicMock()
-        repo.get_photo_count_by_gallery = AsyncMock(return_value=1)
-        repo.get_photo_total_size_by_gallery = AsyncMock(return_value=1024)
+        repo.get_photo_stats_by_gallery = AsyncMock(return_value=GalleryPhotoStats(photo_count=1, total_size_bytes=1024))
         repo.get_photos_by_gallery_id = AsyncMock(return_value=[photo])
         repo.record_view = AsyncMock()
         repo.db.execute = AsyncMock(return_value=SimpleNamespace(scalar_one_or_none=lambda: None))

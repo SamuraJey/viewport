@@ -103,8 +103,7 @@ async def _build_public_gallery_response(
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
 
     sort_by, order = _resolve_public_sorting(gallery)
-    total_photos = await repo.get_photo_count_by_gallery(gallery.id)
-    total_size_bytes = await repo.get_photo_total_size_by_gallery(gallery.id)
+    photo_stats = await repo.get_photo_stats_by_gallery(gallery.id)
     photos_to_process = await repo.get_photos_by_gallery_id(
         gallery_id=gallery.id,
         limit=limit,
@@ -119,7 +118,7 @@ async def _build_public_gallery_response(
         len(photos_to_process),
         offset,
         limit,
-        total_photos,
+        photo_stats.photo_count,
         sort_by.value,
         order.value,
     )
@@ -194,8 +193,8 @@ async def _build_public_gallery_response(
         gallery_name=gallery_name,
         date=date_str,
         site_url=_site_url(request),
-        total_photos=total_photos,
-        total_size_bytes=total_size_bytes,
+        total_photos=photo_stats.photo_count,
+        total_size_bytes=photo_stats.total_size_bytes,
         project_id=str(gallery.project_id) if getattr(gallery, "project_id", None) else None,
         project_name=project_name,
         parent_share_id=str(parent_share_id) if parent_share_id else None,

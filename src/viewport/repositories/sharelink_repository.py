@@ -12,7 +12,7 @@ from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_analytics import ShareLinkDailyStat, ShareLinkDailyVisitor
 from viewport.repositories.base_repository import BaseRepository
-from viewport.repositories.gallery_stats import gallery_photo_total_size_stmt
+from viewport.repositories.gallery_stats import GalleryPhotoStats, gallery_photo_stats_stmt, gallery_photo_total_size_stmt
 from viewport.repositories.photo_query_helpers import build_photo_order_clauses
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 from viewport.sharelink_utils import is_sharelink_expired
@@ -216,6 +216,10 @@ class ShareLinkRepository(BaseRepository):
         stmt = select(func.count()).select_from(Photo).join(Photo.gallery).where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
         count = int((await self.db.execute(stmt)).scalar() or 0)
         return await self._finish_read(count)
+
+    async def get_photo_stats_by_gallery(self, gallery_id: uuid.UUID) -> GalleryPhotoStats:
+        count, total_size = (await self.db.execute(gallery_photo_stats_stmt(gallery_id))).one()
+        return await self._finish_read(GalleryPhotoStats(photo_count=int(count or 0), total_size_bytes=int(total_size or 0)))
 
     async def get_photo_total_size_by_gallery(self, gallery_id: uuid.UUID) -> int:
         stmt = gallery_photo_total_size_stmt(gallery_id)

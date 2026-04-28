@@ -10,7 +10,7 @@ from viewport.filename_utils import sanitize_filename, split_name_and_ext
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.repositories.base_repository import BaseRepository
-from viewport.repositories.gallery_stats import gallery_photo_total_size_stmt
+from viewport.repositories.gallery_stats import GalleryPhotoStats, gallery_photo_stats_stmt, gallery_photo_total_size_stmt
 from viewport.repositories.photo_query_helpers import build_photo_order_clauses
 from viewport.repositories.user_repository import UserRepository
 from viewport.s3_service import AsyncS3Client
@@ -444,6 +444,10 @@ class GalleryRepository(BaseRepository):
         stmt = select(func.count()).select_from(Photo).join(Photo.gallery).where(*self._build_photo_filters(gallery_id, search))
         count = int((await self.db.execute(stmt)).scalar() or 0)
         return await self._finish_read(count)
+
+    async def get_photo_stats_by_gallery(self, gallery_id: uuid.UUID) -> GalleryPhotoStats:
+        count, total_size = (await self.db.execute(gallery_photo_stats_stmt(gallery_id))).one()
+        return await self._finish_read(GalleryPhotoStats(photo_count=int(count or 0), total_size_bytes=int(total_size or 0)))
 
     async def get_photo_total_size_by_gallery(self, gallery_id: uuid.UUID) -> int:
         stmt = gallery_photo_total_size_stmt(gallery_id)

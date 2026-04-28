@@ -469,6 +469,13 @@ async def test_get_photo_total_size_by_gallery_excludes_deleted_galleries(repo: 
     )
     await db_session.commit()
 
+    active_stats = await repo.get_photo_stats_by_gallery(active_gallery.id)
+    deleted_stats = await repo.get_photo_stats_by_gallery(deleted_gallery.id)
+
+    assert active_stats.photo_count == 2
+    assert active_stats.total_size_bytes == 5555
+    assert deleted_stats.photo_count == 0
+    assert deleted_stats.total_size_bytes == 0
     assert await repo.get_photo_total_size_by_gallery(active_gallery.id) == 5555
     assert await repo.get_photo_total_size_by_gallery(deleted_gallery.id) == 0
 
