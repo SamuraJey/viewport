@@ -153,14 +153,8 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
 
   useEffect(() => {
     if (gridLayout !== 'masonry') return;
-    photos.forEach((photo) => {
-      const apiRatio = getPhotoAspectRatio(photo);
-      if (apiRatio) {
-        setCachedPhotoAspectRatio(photo.photo_id, apiRatio);
-      }
-    });
     scheduleComputeSpans();
-  }, [gridLayout, gridDensity, photos, scheduleComputeSpans]);
+  }, [gridLayout, gridDensity, photos.length, scheduleComputeSpans]);
 
   const clearGridRowSpans = useCallback(() => {
     const grid = gridRef.current;
