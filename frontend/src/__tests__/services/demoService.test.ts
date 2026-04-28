@@ -176,8 +176,11 @@ describe('demoService', () => {
       throw new Error('Expected project root route to resolve to a project payload');
     }
 
+    const listedProjectGalleries = project.galleries.filter(
+      (gallery) => (gallery.project_visibility ?? 'listed') === 'listed',
+    );
     expect(projectShare.total_size_bytes).toBe(
-      project.galleries.reduce((sum, gallery) => sum + (gallery.total_size_bytes || 0), 0),
+      listedProjectGalleries.reduce((sum, gallery) => sum + (gallery.total_size_bytes || 0), 0),
     );
 
     const firstGallery = await service.getSharedGallery(projectShareLink!.id, {
