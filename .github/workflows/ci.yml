@@ -12,6 +12,7 @@ jobs:
   detect-changes:
     name: Detect Changed Areas
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     permissions:
       contents: read
     outputs:
@@ -41,6 +42,7 @@ jobs:
   build-backend-image:
     name: Build Backend Docker Image
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.backend == 'true' }}
     permissions:
@@ -61,6 +63,7 @@ jobs:
   python-tests:
     name: Python Tests (with coverage >= 80%)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.backend == 'true' }}
     permissions:
@@ -100,11 +103,11 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
 
   frontend-build-and-tests:
-    name: Frontend Build and Tests (allowed to fail)
+    name: Frontend Build and Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.frontend == 'true' }}
-    continue-on-error: true
     permissions:
       contents: read
     steps:
@@ -121,12 +124,30 @@ jobs:
       - name: Lint
         working-directory: frontend
         run: npm run lint
-      - name: Security audit
-        working-directory: frontend
-        run: npm audit --production --audit-level moderate
       - name: Typecheck and build
         working-directory: frontend
         run: npm run build
       - name: Run unit tests (vitest)
         working-directory: frontend
         run: npm run test:run -- --reporter=dot
+
+  frontend-security-audit:
+    name: Frontend Security Audit (optional)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.frontend == 'true' }}
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: Security audit
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level moderate

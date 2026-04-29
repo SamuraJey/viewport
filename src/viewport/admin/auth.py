@@ -16,7 +16,20 @@ class AdminAuth(AuthenticationBackend):
 
     def __init__(self, secret_key: str):
         super().__init__(secret_key)
-        self._session_maker: async_sessionmaker[AsyncSession] = get_session_maker()
+        self._session_maker: async_sessionmaker[AsyncSession] | None = None
+
+    def _get_session_maker(self) -> async_sessionmaker[AsyncSession]:
+        """Return the admin DB session factory, initializing it lazily.
+
+        ``viewport.main`` constructs this backend at import time so SQLAdmin can
+        be attached to the FastAPI app.  Resolving the sessionmaker there also
+        resolves ``DatabaseSettings`` and creates an engine, which makes import-
+        only tests and tooling depend on ambient database environment variables.
+        Keep database access on the request path instead.
+        """
+        if self._session_maker is None:
+            self._session_maker = get_session_maker()
+        return self._session_maker
 
     async def authenticate(self, request: Request) -> bool:
         """Return True if a user is currently authenticated for the admin."""
@@ -24,7 +37,8 @@ class AdminAuth(AuthenticationBackend):
         if not user_id:
             return False
 
-        async with self._session_maker() as session:
+        session_maker = self._get_session_maker()
+        async with session_maker() as session:
             stmt = select(User.is_admin).where(User.id == user_id)
             is_admin = (await session.execute(stmt)).scalar_one_or_none()
             return bool(is_admin)
@@ -57,7 +71,8 @@ class AdminAuth(AuthenticationBackend):
         if not email or not password:
             return False
 
-        async with self._session_maker() as session:
+        session_maker = self._get_session_maker()
+        async with session_maker() as session:
             stmt = select(User).where(User.email == email)
             user = (await session.execute(stmt)).scalar_one_or_none()
 

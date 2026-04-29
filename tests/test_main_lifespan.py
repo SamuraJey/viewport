@@ -1,4 +1,5 @@
 import importlib
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -15,11 +16,34 @@ def main_module():
     ):
         import viewport.main as imported_main
 
-        yield importlib.reload(imported_main)
+        try:
+            yield importlib.reload(imported_main)
+        finally:
+            # Do not reload outside the patches: a real ``get_engine()`` call would
+            # make this import-only lifespan test depend on ambient DB settings.
+            sys.modules.pop("viewport.main", None)
 
-    import viewport.main as restored_main
 
-    importlib.reload(restored_main)
+def test_import_main_does_not_initialize_admin_db_sessionmaker():
+    with (
+        patch("viewport.logging_config.configure_logging"),
+        patch("viewport.metrics.setup_metrics"),
+        patch("viewport.models.db.get_engine", return_value=MagicMock(name="engine")),
+        patch(
+            "viewport.admin.auth.get_session_maker",
+            side_effect=AssertionError("sessionmaker should be lazy"),
+        ) as mock_get_session_maker,
+        patch("sqladmin.Admin"),
+    ):
+        try:
+            import viewport.main as imported_main
+
+            reloaded_main = importlib.reload(imported_main)
+        finally:
+            sys.modules.pop("viewport.main", None)
+
+    mock_get_session_maker.assert_not_called()
+    assert reloaded_main.authentication_backend._session_maker is None
 
 
 @pytest.mark.asyncio
