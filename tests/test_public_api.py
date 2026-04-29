@@ -44,7 +44,7 @@ class TestPublicAPI:
         repo.get_sharelink_for_public_access = AsyncMock(return_value=None)
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_valid_sharelink(uuid4(), repo=repo)
+            await get_valid_sharelink(uuid4(), request=MagicMock(headers={}), repo=repo)
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "ShareLink not found"
@@ -280,6 +280,9 @@ class TestPublicAPI:
         assert public_resp.headers.get("Cache-Control") == "no-store, max-age=0, must-revalidate"
         assert public_resp.headers.get("Pragma") == "no-cache"
         assert public_resp.headers.get("Expires") == "0"
+        unlock_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "client-pass"})
+        assert unlock_resp.status_code == 410
+        assert unlock_resp.headers.get("Cache-Control") == "no-store, max-age=0, must-revalidate"
 
     def test_get_photos_by_sharelink_returns_404_for_inactive_link(self, authenticated_client: TestClient, gallery_id_fixture: str):
         create_resp = authenticated_client.post(
@@ -298,6 +301,201 @@ class TestPublicAPI:
         public_resp = authenticated_client.get(f"/s/{share_id}")
         assert public_resp.status_code == 404
         assert public_resp.headers.get("Cache-Control") == "no-store, max-age=0, must-revalidate"
+        unlock_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "client-pass"})
+        assert unlock_resp.status_code == 404
+        assert unlock_resp.headers.get("Cache-Control") == "no-store, max-age=0, must-revalidate"
+
+    def test_password_protected_gallery_share_uses_unlock_cookie_for_public_routes(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"protected", "protected.jpg")
+        create_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"expires_at": "2099-01-01T00:00:00Z", "password": "client-pass"},
+        )
+        assert create_resp.status_code == 201
+        share_id = create_resp.json()["id"]
+        assert create_resp.json()["has_password"] is True
+        assert "password" not in create_resp.json()
+        assert "password_hash" not in create_resp.json()
+
+        missing_resp = authenticated_client.get(f"/s/{share_id}")
+        assert missing_resp.status_code == 401
+        assert missing_resp.headers.get("WWW-Authenticate") == 'ShareLinkPassword realm="viewport"'
+
+        wrong_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "wrong-pass"})
+        assert wrong_resp.status_code == 401
+
+        short_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "short"})
+        assert short_resp.status_code == 422
+
+        long_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "a" * 73})
+        assert long_resp.status_code == 422
+
+        multibyte_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "é" * 37})
+        assert multibyte_resp.status_code == 422
+
+        owner_after_denied = authenticated_client.get(f"/galleries/{gallery_id_fixture}/share-links").json()[0]
+        assert owner_after_denied["views"] == 0
+
+        missing_by_ids_resp = authenticated_client.get(f"/s/{share_id}/photos/by-ids?photo_ids={photo_id}")
+        assert missing_by_ids_resp.status_code == 401
+
+        missing_zip_resp = authenticated_client.get(f"/s/{share_id}/download/all")
+        assert missing_zip_resp.status_code == 401
+        missing_zip_head_resp = authenticated_client.head(f"/s/{share_id}/download/all")
+        assert missing_zip_head_resp.status_code == 401
+
+        unlock_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "client-pass"})
+        assert unlock_resp.status_code == 204
+        set_cookie = unlock_resp.headers.get("set-cookie", "")
+        assert "viewport-share-access-" in set_cookie
+        assert "HttpOnly" in set_cookie
+        assert "SameSite=lax" in set_cookie
+        assert "client-pass" not in set_cookie
+
+        public_resp = authenticated_client.get(f"/s/{share_id}")
+        assert public_resp.status_code == 200
+        assert public_resp.json()["scope_type"] == "gallery"
+
+        by_ids_resp = authenticated_client.get(f"/s/{share_id}/photos/by-ids?photo_ids={photo_id}")
+        assert by_ids_resp.status_code == 200
+        assert by_ids_resp.json()[0]["photo_id"] == photo_id
+
+        zip_resp = authenticated_client.get(f"/s/{share_id}/download/all")
+        assert zip_resp.status_code == 200
+        assert zip_resp.headers["content-type"].startswith("application/zip")
+        zip_head_resp = authenticated_client.head(f"/s/{share_id}/download/all")
+        assert zip_head_resp.status_code == 204
+        assert zip_head_resp.content == b""
+
+    def test_password_header_rejects_bcrypt_truncation_bypass(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+    ):
+        password = "a" * 72
+        create_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"expires_at": "2099-01-01T00:00:00Z", "password": password},
+        )
+        assert create_resp.status_code == 201
+        share_id = create_resp.json()["id"]
+
+        overlong_header_resp = authenticated_client.get(
+            f"/s/{share_id}",
+            headers={"X-Viewport-Share-Password": f"{password}extra"},
+        )
+        assert overlong_header_resp.status_code == 401
+
+        valid_header_resp = authenticated_client.get(
+            f"/s/{share_id}",
+            headers={"X-Viewport-Share-Password": password},
+        )
+        assert valid_header_resp.status_code == 200
+
+    def test_password_unlock_cookie_uses_samesite_none_for_cross_origin_https(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+    ):
+        create_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"expires_at": "2099-01-01T00:00:00Z", "password": "client-pass"},
+        )
+        assert create_resp.status_code == 201
+        share_id = create_resp.json()["id"]
+
+        unlock_resp = authenticated_client.post(
+            f"/s/{share_id}/unlock",
+            json={"password": "client-pass"},
+            headers={
+                "Origin": "https://client.example.com",
+                "X-Forwarded-Proto": "https",
+                "Host": "api.example.com",
+            },
+        )
+
+        assert unlock_resp.status_code == 204
+        set_cookie = unlock_resp.headers.get("set-cookie", "")
+        assert "viewport-share-access-" in set_cookie
+        assert "HttpOnly" in set_cookie
+        assert "Secure" in set_cookie
+        assert "samesite=none" in set_cookie.lower()
+        assert "client-pass" not in set_cookie
+
+    def test_password_protected_project_share_uses_unlock_cookie_for_public_routes(self, authenticated_client: TestClient):
+        project_resp = authenticated_client.post("/projects", json={"name": "Protected Project"})
+        assert project_resp.status_code == 201
+        project_id = project_resp.json()["id"]
+        gallery_resp = authenticated_client.post(
+            f"/projects/{project_id}/galleries",
+            json={"name": "Delivery", "project_visibility": "listed"},
+        )
+        assert gallery_resp.status_code == 201
+        gallery_id = gallery_resp.json()["id"]
+        photo_id = _upload_photo(authenticated_client, gallery_id, b"project", "project.jpg")
+
+        create_resp = authenticated_client.post(
+            f"/projects/{project_id}/share-links",
+            json={"expires_at": "2099-01-01T00:00:00Z", "password": "client-pass"},
+        )
+        assert create_resp.status_code == 201
+        share_id = create_resp.json()["id"]
+
+        assert authenticated_client.get(f"/s/{share_id}").status_code == 401
+        assert authenticated_client.get(f"/s/{share_id}/galleries/{gallery_id}").status_code == 401
+        assert authenticated_client.get(f"/s/{share_id}/folders/{gallery_id}").status_code == 401
+        assert authenticated_client.get(f"/s/{share_id}/photos/by-ids?photo_ids={photo_id}").status_code == 401
+        assert authenticated_client.get(f"/s/{share_id}/download/all").status_code == 401
+        assert authenticated_client.get(f"/s/{share_id}/galleries/{gallery_id}/download/all").status_code == 401
+        assert authenticated_client.head(f"/s/{share_id}/download/all").status_code == 401
+        assert authenticated_client.head(f"/s/{share_id}/galleries/{gallery_id}/download/all").status_code == 401
+
+        unlock_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "client-pass"})
+        assert unlock_resp.status_code == 204
+        assert "viewport-share-access-" in unlock_resp.headers.get("set-cookie", "")
+
+        root_resp = authenticated_client.get(f"/s/{share_id}")
+        assert root_resp.status_code == 200
+        assert root_resp.json()["scope_type"] == "project"
+
+        nested_resp = authenticated_client.get(f"/s/{share_id}/galleries/{gallery_id}")
+        assert nested_resp.status_code == 200
+        assert nested_resp.json()["gallery_name"] == "Delivery"
+
+        folder_alias_resp = authenticated_client.get(f"/s/{share_id}/folders/{gallery_id}")
+        assert folder_alias_resp.status_code == 200
+        assert folder_alias_resp.json()["gallery_name"] == "Delivery"
+
+        by_ids_resp = authenticated_client.get(f"/s/{share_id}/photos/by-ids?photo_ids={photo_id}")
+        assert by_ids_resp.status_code == 200
+        assert by_ids_resp.json()[0]["photo_id"] == photo_id
+
+        fake_bucket = "test-bucket"
+
+        def _fake_get_object(*args, **kwargs):
+            return {"Body": io.BytesIO(b"zip-content"), "ContentType": "image/jpeg"}
+
+        with patch("viewport.api.public.get_s3_settings") as mock_get_settings, patch("viewport.api.public.get_s3_client") as mock_get_s3:
+            mock_settings = MagicMock()
+            mock_settings.bucket = fake_bucket
+            mock_get_settings.return_value = mock_settings
+            mock_client = MagicMock()
+            mock_client.get_object.side_effect = _fake_get_object
+            mock_get_s3.return_value = mock_client
+
+            project_zip_resp = authenticated_client.get(f"/s/{share_id}/download/all")
+            assert project_zip_resp.status_code == 200
+
+            gallery_zip_resp = authenticated_client.get(f"/s/{share_id}/galleries/{gallery_id}/download/all")
+            assert gallery_zip_resp.status_code == 200
+
+        project_zip_head_resp = authenticated_client.head(f"/s/{share_id}/download/all")
+        assert project_zip_head_resp.status_code == 204
+        assert project_zip_head_resp.content == b""
+
+        gallery_zip_head_resp = authenticated_client.head(f"/s/{share_id}/galleries/{gallery_id}/download/all")
+        assert gallery_zip_head_resp.status_code == 204
+        assert gallery_zip_head_resp.content == b""
 
     def test_get_photos_by_sharelink_uses_saved_gallery_sort_settings(self, authenticated_client: TestClient, gallery_id_fixture: str):
         _upload_photo(authenticated_client, gallery_id_fixture, b"one", "a.jpg")
@@ -741,3 +939,27 @@ class TestPublicAPI:
 
         download_resp = authenticated_client.get(f"/s/{project_share_resp.json()['id']}/download/all")
         assert download_resp.status_code == 404
+
+
+def test_public_share_route_inventory_is_explicitly_covered():
+    from viewport.main import app
+
+    expected_routes = {
+        ("GET", "/s/{share_id}"),
+        ("POST", "/s/{share_id}/unlock"),
+        ("GET", "/s/{share_id}/folders/{folder_id}"),
+        ("GET", "/s/{share_id}/galleries/{folder_id}"),
+        ("GET", "/s/{share_id}/photos/by-ids"),
+        ("GET", "/s/{share_id}/galleries/{folder_id}/download/all"),
+        ("GET", "/s/{share_id}/download/all"),
+        ("GET", "/s/{share_id}/selection/config"),
+        ("POST", "/s/{share_id}/selection/session"),
+        ("GET", "/s/{share_id}/selection/session/me"),
+        ("PUT", "/s/{share_id}/selection/session/items/{photo_id}"),
+        ("PATCH", "/s/{share_id}/selection/session/items/{photo_id}"),
+        ("PATCH", "/s/{share_id}/selection/session"),
+        ("POST", "/s/{share_id}/selection/session/submit"),
+    }
+    public_routes = {(method, route.path) for route in app.routes for method in getattr(route, "methods", set()) if method != "HEAD" and route.path.startswith("/s/{share_id}")}
+
+    assert public_routes == expected_routes

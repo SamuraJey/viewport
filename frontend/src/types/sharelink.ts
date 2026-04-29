@@ -16,6 +16,7 @@ export interface ShareLink {
   views: number;
   zip_downloads: number;
   single_downloads: number;
+  has_password?: boolean;
   created_at: string;
   updated_at?: string;
 }
@@ -79,12 +80,15 @@ export interface ShareLinkUpdateRequest {
   label?: string | null;
   is_active?: boolean;
   expires_at?: string | null;
+  password?: string;
+  password_clear?: boolean;
 }
 
 export interface ShareLinkCreateRequest {
   label?: string | null;
   is_active?: boolean;
   expires_at?: string | null;
+  password?: string;
 }
 
 export interface PublicPhoto {

@@ -36,9 +36,14 @@ const setStoredResumeToken = (shareId: string, token?: string | null): void => {
 interface UsePublicSelectionProps {
   shareId: string | undefined;
   initialResumeToken?: string;
+  accessVersion?: number;
 }
 
-export const usePublicSelection = ({ shareId, initialResumeToken }: UsePublicSelectionProps) => {
+export const usePublicSelection = ({
+  shareId,
+  initialResumeToken,
+  accessVersion = 0,
+}: UsePublicSelectionProps) => {
   const [config, setConfig] = useState<SelectionConfig | null>(null);
   const [session, setSession] = useState<SelectionSession | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(false);
@@ -144,7 +149,7 @@ export const usePublicSelection = ({ shareId, initialResumeToken }: UsePublicSel
     return () => {
       cancelled = true;
     };
-  }, [loadSession, resolveResumeToken, shareId]);
+  }, [accessVersion, loadSession, resolveResumeToken, shareId]);
 
   const refreshSession = useCallback(async () => {
     if (!shareId) return;

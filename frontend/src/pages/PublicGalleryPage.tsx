@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useNavigationType, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -6,6 +7,7 @@ import {
   Download as DownloadIcon,
   Heart,
   Link2,
+  LockKeyhole,
   LogOut,
 } from 'lucide-react';
 import { SkipToContentLink } from '../components/a11y/SkipToContentLink';
@@ -30,8 +32,6 @@ import { getDemoService } from '../services/demoService';
 import { shareLinkService } from '../services/shareLinkService';
 import type { PublicPhoto, SelectionSessionStartRequest, SharedProjectShare } from '../types';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const createInitialStartForm = (): SelectionSessionStartRequest => ({
   client_name: '',
@@ -70,20 +70,38 @@ export const PublicGalleryPage = () => {
   const [selectedPhotos, setSelectedPhotos] = useState<PublicPhoto[]>([]);
   const [selectedPhotosError, setSelectedPhotosError] = useState('');
   const [isLoadingSelectedPhotos, setIsLoadingSelectedPhotos] = useState(false);
+  const [sharePasswordDraft, setSharePasswordDraft] = useState('');
+  const [sharePasswordError, setSharePasswordError] = useState('');
+  const [downloadError, setDownloadError] = useState('');
+  const [isDownloadPasswordRequired, setIsDownloadPasswordRequired] = useState(false);
+  const [isDownloadExpired, setIsDownloadExpired] = useState(false);
   const startNameInputRef = useRef<HTMLInputElement | null>(null);
 
-  const { gallery, photos, isLoading, isLoadingMore, hasMore, error, errorStatus, loadMorePhotos } =
-    usePublicGallery({
-      shareId,
-      galleryId: activeGalleryId,
-      skipProjectViewCount: shouldSkipProjectViewCount,
-    });
+  const {
+    gallery,
+    photos,
+    isLoading,
+    isLoadingMore,
+    hasMore,
+    error,
+    errorStatus,
+    isPasswordRequired,
+    isVerifyingPassword,
+    passwordVersion,
+    submitPassword,
+    loadMorePhotos,
+  } = usePublicGallery({
+    shareId,
+    galleryId: activeGalleryId,
+    skipProjectViewCount: shouldSkipProjectViewCount,
+  });
   const isInitialGalleryLoading = isLoading && !gallery;
   const isGalleryPhotoSwitching = isLoading && Boolean(gallery);
 
   const selection = usePublicSelection({
     shareId,
     initialResumeToken: resumeToken,
+    accessVersion: passwordVersion,
   });
   const isSelectionEnabled = selection.config?.is_enabled ?? false;
   const openSelectionStartModal = selection.openStartModal;
@@ -207,7 +225,7 @@ export const PublicGalleryPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [photos, selection.session, shareId]);
+  }, [passwordVersion, photos, selection.session, shareId]);
 
   const displayedPhotos = useMemo(
     () => (isFavoritesView ? selectedPhotos : photos),
@@ -246,6 +264,12 @@ export const PublicGalleryPage = () => {
   }, [loadMorePhotos]);
 
   useEffect(() => {
+    setDownloadError('');
+    setIsDownloadPasswordRequired(false);
+    setIsDownloadExpired(false);
+  }, [activeGalleryId, shareId]);
+
+  useEffect(() => {
     if (isFavoritesView) {
       return;
     }
@@ -271,25 +295,75 @@ export const PublicGalleryPage = () => {
     };
   }, [hasMore, isFavoritesView, isLoadingMore, loadMorePhotos]);
 
-  const handleDownloadAll = useCallback(() => {
+  const handleDownloadFailure = useCallback((err: unknown) => {
+    const apiError = handleApiError(err);
+    if (apiError.statusCode === 401) {
+      setIsDownloadPasswordRequired(true);
+      setSharePasswordError('Password is required or incorrect. Please try again.');
+      setDownloadError('');
+      return;
+    }
+    if (apiError.statusCode === 410) {
+      setIsDownloadExpired(true);
+      setDownloadError('');
+      return;
+    }
+    setDownloadError(apiError.message || 'Failed to download photos. Please try again.');
+  }, []);
+
+  const handleDownloadAll = useCallback(async () => {
     if (!shareId) return;
-    if (isDemoModeEnabled()) {
-      getDemoService().downloadSharedGalleryZip(shareId);
-      return;
+    setDownloadError('');
+    try {
+      if (isDemoModeEnabled()) {
+        await getDemoService().downloadSharedGalleryZip(shareId);
+        return;
+      }
+
+      await shareLinkService.downloadSharedGalleryZip(shareId);
+    } catch (err) {
+      handleDownloadFailure(err);
     }
+  }, [handleDownloadFailure, shareId]);
 
-    window.open(`${API_BASE_URL}/s/${shareId}/download/all`, '_blank');
-  }, [shareId]);
-
-  const handleDownloadCurrentGallery = useCallback(() => {
+  const handleDownloadCurrentGallery = useCallback(async () => {
     if (!shareId || !activeGalleryId) return;
-    if (isDemoModeEnabled()) {
-      getDemoService().downloadSharedGalleryZip(shareId);
-      return;
-    }
+    setDownloadError('');
+    try {
+      if (isDemoModeEnabled()) {
+        await getDemoService().downloadGalleryZip(activeGalleryId);
+        return;
+      }
 
-    window.open(`${API_BASE_URL}/s/${shareId}/galleries/${activeGalleryId}/download/all`, '_blank');
-  }, [activeGalleryId, shareId]);
+      await shareLinkService.downloadSharedProjectGalleryZip(shareId, activeGalleryId);
+    } catch (err) {
+      handleDownloadFailure(err);
+    }
+  }, [activeGalleryId, handleDownloadFailure, shareId]);
+
+  const handleSubmitSharePassword = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if (!shareId) return;
+      const password = sharePasswordDraft;
+      if (!password.trim()) {
+        setSharePasswordError('Enter the password provided by the photographer.');
+        return;
+      }
+      setSharePasswordError('');
+      try {
+        const unlocked = await submitPassword(password);
+        if (unlocked) {
+          setIsDownloadPasswordRequired(false);
+          setDownloadError('');
+          setIsDownloadExpired(false);
+        }
+      } finally {
+        setSharePasswordDraft('');
+      }
+    },
+    [shareId, sharePasswordDraft, submitPassword],
+  );
 
   const handleOpenFavorites = useCallback(() => {
     if (!shareId || !isSelectionEnabled) {
@@ -430,6 +504,7 @@ export const PublicGalleryPage = () => {
   );
 
   const combinedSelectionError = selectedPhotosError || selection.error;
+  const shouldShowPasswordPrompt = isPasswordRequired || isDownloadPasswordRequired;
   useDocumentTitle(
     isFavoritesView
       ? `${folderShare?.gallery_name || 'Favorites'} · Viewport`
@@ -437,6 +512,56 @@ export const PublicGalleryPage = () => {
         ? `${projectGalleryTabs?.project_name || folderShare?.project_name || 'Public Project'} · Viewport`
         : `${folderShare?.gallery_name || 'Public Gallery'} · Viewport`,
   );
+
+  if (shouldShowPasswordPrompt) {
+    return (
+      <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
+        <SkipToContentLink targetId="main-content" />
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex min-h-screen items-center justify-center px-4"
+        >
+          <form
+            onSubmit={(event) => void handleSubmitSharePassword(event)}
+            className="w-full max-w-md rounded-3xl border border-border/50 bg-surface px-6 py-7 shadow-lg dark:border-border/30 dark:bg-surface-dark"
+          >
+            <div className="mb-5 flex items-center gap-3">
+              <div className="rounded-2xl bg-accent/10 p-3 text-accent">
+                <LockKeyhole className="h-6 w-6" aria-hidden="true" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-text">Password required</h1>
+                <p className="text-sm text-muted">Enter the password shared by the photographer.</p>
+              </div>
+            </div>
+            <label className="block space-y-2 text-sm font-semibold text-text">
+              <span>Share password</span>
+              <input
+                type="password"
+                value={sharePasswordDraft}
+                onChange={(event) => setSharePasswordDraft(event.target.value)}
+                autoComplete="current-password"
+                className="w-full rounded-xl border border-border/50 bg-surface-1 px-3 py-2.5 text-text outline-none transition-colors focus:border-accent dark:bg-surface-dark-1"
+              />
+            </label>
+            {sharePasswordError || errorStatus === 401 ? (
+              <p className="mt-3 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                {sharePasswordError || 'Password is required or incorrect. Please try again.'}
+              </p>
+            ) : null}
+            <button
+              type="submit"
+              disabled={isVerifyingPassword}
+              className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isVerifyingPassword ? 'Checking…' : 'Unlock share'}
+            </button>
+          </form>
+        </main>
+      </div>
+    );
+  }
 
   if (isInitialGalleryLoading) {
     return (
@@ -460,8 +585,8 @@ export const PublicGalleryPage = () => {
     );
   }
 
-  if (error) {
-    if (errorStatus === 410) {
+  if (error || isDownloadExpired) {
+    if (errorStatus === 410 || isDownloadExpired) {
       return <PublicGalleryExpired />;
     }
     return <PublicGalleryError error={error} />;
@@ -834,6 +959,12 @@ export const PublicGalleryPage = () => {
 
         {isFavoritesView && isLoadingSelectedPhotos ? (
           <div className="mt-4 text-center text-sm text-muted">Loading selected photos...</div>
+        ) : null}
+
+        {downloadError ? (
+          <div className="mt-4 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+            {downloadError}
+          </div>
         ) : null}
 
         {combinedSelectionError ? (

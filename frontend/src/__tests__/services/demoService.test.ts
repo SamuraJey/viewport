@@ -151,6 +151,32 @@ describe('demoService', () => {
     expect(detail.galleries.map((folder) => folder.name)).toEqual(['Photos', '3eds']);
   });
 
+  it('does not surface password protection for demo shares because public demo access is not gated', async () => {
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    const project = await service.createProject({ name: 'Demo Passwords' });
+    const gallery = await service.createProjectFolder(project.id, { name: 'Proofs' });
+
+    const galleryLink = await service.createShareLink(gallery.id, { password: 'client-pass' });
+    const projectLink = await service.createProjectShareLink(project.id, {
+      password: 'client-pass',
+    });
+
+    expect(galleryLink.has_password).toBe(false);
+    expect(projectLink.has_password).toBe(false);
+
+    const updatedGalleryLink = await service.updateShareLink(gallery.id, galleryLink.id, {
+      password: 'updated-pass',
+    });
+    const updatedProjectLink = await service.updateProjectShareLink(project.id, projectLink.id, {
+      password: 'updated-pass',
+    });
+
+    expect(updatedGalleryLink.has_password).toBe(false);
+    expect(updatedProjectLink.has_password).toBe(false);
+  });
+
   it('supports one project selection session across multiple listed galleries in demo mode', async () => {
     const { getDemoService } = await import('../../services/demoService');
     const service = getDemoService();

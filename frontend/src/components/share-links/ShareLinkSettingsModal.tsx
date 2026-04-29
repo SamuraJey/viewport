@@ -11,6 +11,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Timer,
+  LockKeyhole,
   Users,
   X,
 } from 'lucide-react';
@@ -27,12 +28,14 @@ import { formatUtcDateTimeInputValue, parseUtcDateTimeInputValue } from './share
 type ShareLinkSettingsMode = 'create' | 'edit';
 type TtlPreset = 'none' | '24h' | '7d' | '30d' | 'custom';
 type SettingsTabId = 'setup' | 'link' | 'access' | 'selection' | 'review';
+type PasswordMode = 'none' | 'keep' | 'set' | 'clear';
 
 interface EditableShareLink {
   id: string;
   label?: string | null;
   is_active?: boolean;
   expires_at: string | null;
+  has_password?: boolean;
 }
 
 interface SelectionSettingsDraft {
@@ -69,6 +72,8 @@ const TTL_OPTIONS: { value: TtlPreset; label: string; description: string }[] = 
   { value: '30d', label: '30 days', description: 'Longer campaign access' },
   { value: 'custom', label: 'Custom date', description: 'Pick an exact UTC time' },
 ];
+const SHARE_LINK_PASSWORD_MIN_LENGTH = 8;
+const SHARE_LINK_PASSWORD_MAX_BYTES = 72;
 
 const SETTINGS_TABS: {
   id: SettingsTabId;
@@ -179,6 +184,8 @@ export const ShareLinkSettingsModal = ({
   const [isActive, setIsActive] = useState(true);
   const [ttlPreset, setTtlPreset] = useState<TtlPreset>('none');
   const [customExpiresAt, setCustomExpiresAt] = useState('');
+  const [passwordMode, setPasswordMode] = useState<PasswordMode>('none');
+  const [password, setPassword] = useState('');
   const [selectionDraft, setSelectionDraft] =
     useState<SelectionSettingsDraft>(DEFAULT_SELECTION_DRAFT);
   const [createdLink, setCreatedLink] = useState<ShareLink | null>(null);
@@ -218,6 +225,8 @@ export const ShareLinkSettingsModal = ({
       setIsActive(link.is_active ?? true);
       setTtlPreset(link.expires_at ? 'custom' : 'none');
       setCustomExpiresAt(formatUtcDateTimeInputValue(link.expires_at));
+      setPasswordMode(link.has_password ? 'keep' : 'none');
+      setPassword('');
       return;
     }
 
@@ -225,6 +234,8 @@ export const ShareLinkSettingsModal = ({
     setIsActive(true);
     setTtlPreset('none');
     setCustomExpiresAt('');
+    setPasswordMode('none');
+    setPassword('');
   }, [isOpen, link, mode]);
 
   useEffect(() => {
@@ -258,13 +269,26 @@ export const ShareLinkSettingsModal = ({
   );
 
   const normalizedLabel = label.trim();
+  const normalizedPassword = password;
+  const passwordByteLength = useMemo(() => new TextEncoder().encode(password).length, [password]);
+  const passwordPayload = useMemo(() => {
+    if (passwordMode === 'set') {
+      return { password: normalizedPassword };
+    }
+    if (mode === 'edit' && passwordMode === 'clear') {
+      return { password_clear: true };
+    }
+    return {};
+  }, [mode, normalizedPassword, passwordMode]);
+
   const sharePayload = useMemo(
     () => ({
       label: normalizedLabel.length > 0 ? normalizedLabel : null,
       is_active: isActive,
       expires_at: resolvedExpiresAt,
+      ...passwordPayload,
     }),
-    [isActive, normalizedLabel, resolvedExpiresAt],
+    [isActive, normalizedLabel, passwordPayload, resolvedExpiresAt],
   );
 
   const hasEditChanges = useMemo(() => {
@@ -279,9 +303,11 @@ export const ShareLinkSettingsModal = ({
     return (
       sharePayload.label !== (link.label ?? null) ||
       sharePayload.is_active !== (link.is_active ?? true) ||
-      sharePayload.expires_at !== currentExpiresAt
+      sharePayload.expires_at !== currentExpiresAt ||
+      passwordMode === 'set' ||
+      passwordMode === 'clear'
     );
-  }, [link, mode, sharePayload]);
+  }, [link, mode, passwordMode, sharePayload]);
 
   const hasInvalidCustomExpiry =
     ttlPreset === 'custom' &&
@@ -291,12 +317,18 @@ export const ShareLinkSettingsModal = ({
   const hasInvalidSelectionLimit =
     selectionDraft.limit_enabled &&
     (selectionDraft.limit_value.trim().length === 0 || selectionLimit === null);
+  const hasInvalidPassword =
+    passwordMode === 'set' &&
+    (password.trim().length === 0 ||
+      password.length < SHARE_LINK_PASSWORD_MIN_LENGTH ||
+      passwordByteLength > SHARE_LINK_PASSWORD_MAX_BYTES);
   const canSubmit =
     !isSaving &&
     !createdLink &&
     !hasInvalidCustomExpiry &&
     !hasMissingCustomExpiry &&
     !hasInvalidSelectionLimit &&
+    !hasInvalidPassword &&
     (mode === 'create' || hasEditChanges);
 
   const publicUrl = createdLink ? `${window.location.origin}/share/${createdLink.id}` : '';
@@ -513,6 +545,85 @@ export const ShareLinkSettingsModal = ({
           </div>
         ) : null}
       </section>
+
+      <section className="space-y-3">
+        <div>
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-text">
+            <LockKeyhole className="h-4 w-4 text-accent" aria-hidden="true" />
+            Password protection
+          </h3>
+          <p className="text-xs text-muted">
+            Store only a hash; send the password to clients separately.
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(mode === 'edit' && link?.has_password
+            ? [
+                {
+                  value: 'keep' as const,
+                  label: 'Keep current password',
+                  description: 'Do not change protection.',
+                },
+                {
+                  value: 'set' as const,
+                  label: 'Replace password',
+                  description: 'Set a new password.',
+                },
+                {
+                  value: 'clear' as const,
+                  label: 'Remove password',
+                  description: 'Make the link open without password.',
+                },
+              ]
+            : [
+                {
+                  value: 'none' as const,
+                  label: 'No password',
+                  description: 'Anyone with the link can open it.',
+                },
+                {
+                  value: 'set' as const,
+                  label: 'Require password',
+                  description: 'Clients must enter a password.',
+                },
+              ]
+          ).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setPasswordMode(option.value)}
+              disabled={isSaving}
+              className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                passwordMode === option.value
+                  ? 'border-accent bg-accent/10 text-text'
+                  : 'border-border/50 bg-surface-1 text-text hover:border-accent/40'
+              }`}
+            >
+              <span className="block text-sm font-semibold">{option.label}</span>
+              <span className="mt-1 block text-xs text-muted">{option.description}</span>
+            </button>
+          ))}
+        </div>
+        {passwordMode === 'set' ? (
+          <label className="block space-y-1.5 text-sm">
+            <span className="font-semibold text-text">New share password</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              minLength={SHARE_LINK_PASSWORD_MIN_LENGTH}
+              maxLength={SHARE_LINK_PASSWORD_MAX_BYTES}
+              autoComplete="new-password"
+              className="w-full rounded-xl border border-border/50 bg-surface-1 px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-accent dark:bg-surface-dark-1"
+              disabled={isSaving}
+            />
+            <span className="block text-xs text-muted">
+              Use at least 8 characters and at most 72 UTF-8 bytes. The password cannot be recovered
+              later.
+            </span>
+          </label>
+        ) : null}
+      </section>
     </div>
   );
 
@@ -667,6 +778,16 @@ export const ShareLinkSettingsModal = ({
         <div className="rounded-2xl border border-border/50 bg-surface-1 px-4 py-3 dark:bg-surface-dark-1">
           <dt className="text-xs font-semibold uppercase text-muted">Expiration</dt>
           <dd className="mt-1 text-text">{formatExpirySummary(resolvedExpiresAt)}</dd>
+        </div>
+        <div className="rounded-2xl border border-border/50 bg-surface-1 px-4 py-3 dark:bg-surface-dark-1">
+          <dt className="text-xs font-semibold uppercase text-muted">Password</dt>
+          <dd className="mt-1 text-text">
+            {passwordMode === 'set'
+              ? 'Required'
+              : passwordMode === 'clear' || passwordMode === 'none'
+                ? 'Not required'
+                : 'Current password kept'}
+          </dd>
         </div>
         <div className="rounded-2xl border border-border/50 bg-surface-1 px-4 py-3 dark:bg-surface-dark-1">
           <dt className="text-xs font-semibold uppercase text-muted">Selection</dt>
@@ -850,6 +971,11 @@ export const ShareLinkSettingsModal = ({
             {hasInvalidSelectionLimit ? (
               <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                 Selection limit must be at least 1.
+              </p>
+            ) : null}
+            {hasInvalidPassword ? (
+              <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                Share password must be non-blank, at least 8 characters, and at most 72 UTF-8 bytes.
               </p>
             ) : null}
             {error ? (

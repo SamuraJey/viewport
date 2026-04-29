@@ -173,7 +173,7 @@ def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (1000, 1000
                 speed=8,
             )
             return thumbnail_io.getvalue(), width, height
-    except Exception as e:  # 50 фото за 14 секунд
+    except Exception as e:
         logger.error("Failed to create thumbnail: %s", e)
         raise
 

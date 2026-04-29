@@ -1397,6 +1397,7 @@ class DemoServiceStore {
       label: normalizedLabel ? normalizedLabel : null,
       is_active: payload?.is_active ?? true,
       expires_at: payload?.expires_at ?? null,
+      has_password: false,
       views: 0,
       zip_downloads: 0,
       single_downloads: 0,
@@ -1436,6 +1437,9 @@ class DemoServiceStore {
     }
     if (Object.prototype.hasOwnProperty.call(payload, 'expires_at')) {
       link.expires_at = payload.expires_at ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, 'password') || payload.password_clear) {
+      link.has_password = false;
     }
     link.updated_at = nowIso();
 
@@ -1568,6 +1572,7 @@ class DemoServiceStore {
       label: normalizedLabel ? normalizedLabel : null,
       is_active: payload?.is_active ?? true,
       expires_at: payload?.expires_at ?? null,
+      has_password: false,
       views: 0,
       zip_downloads: 0,
       single_downloads: 0,
@@ -1609,6 +1614,9 @@ class DemoServiceStore {
     }
     if (Object.prototype.hasOwnProperty.call(payload, 'expires_at')) {
       link.expires_at = payload.expires_at ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, 'password') || payload.password_clear) {
+      link.has_password = false;
     }
     link.updated_at = nowIso();
     this.recalculateProjects();
@@ -2656,40 +2664,6 @@ class DemoServiceStore {
       );
     }
     triggerDownload(`gallery_${galleryId}_selection_links.csv`, lines.join('\n'));
-  }
-
-  async getPublicPhotoUrl(
-    shareId: string,
-    photoId: string,
-  ): Promise<{ url: string; expires_in: number }> {
-    const state = this.findByShareId(shareId);
-    if (!state) {
-      throw this.createNotFoundError('Share link not found');
-    }
-
-    const photo = state.photos.find((item) => item.id === photoId);
-    if (!photo) {
-      throw this.createNotFoundError('Photo not found');
-    }
-
-    return {
-      url: photo.url,
-      expires_in: 3600,
-    };
-  }
-
-  async getAllPublicPhotoUrls(shareId: string) {
-    const state = this.findByShareId(shareId);
-    if (!state) {
-      throw this.createNotFoundError('Share link not found');
-    }
-
-    return state.photos.map((photo) => ({
-      photo_id: photo.id,
-      thumbnail_url: photo.thumbnail_url,
-      full_url: photo.url,
-      filename: photo.filename,
-    }));
   }
 
   async getPublicPhotosByIds(shareId: string, photoIds: string[]) {

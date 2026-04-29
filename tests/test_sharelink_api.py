@@ -33,6 +33,158 @@ class TestSharelinkAPI:
         assert data["single_downloads"] == 0
         assert data["zip_downloads"] == 0
 
+    def test_create_update_and_clear_gallery_sharelink_password(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        create_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"password": "client-pass"},
+        )
+        assert create_resp.status_code == 201
+        created = create_resp.json()
+        assert created["has_password"] is True
+        assert "password" not in created
+        assert "password_hash" not in created
+        sharelink_id = created["id"]
+
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 401
+        assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "client-pass"}).status_code == 200
+        unlock_resp = authenticated_client.post(f"/s/{sharelink_id}/unlock", json={"password": "client-pass"})
+        assert unlock_resp.status_code == 204
+        assert "client-pass" not in unlock_resp.headers.get("set-cookie", "")
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 200
+
+        replace_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{sharelink_id}",
+            json={"password": "new-client-pass"},
+        )
+        assert replace_resp.status_code == 200
+        assert replace_resp.json()["has_password"] is True
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 401
+        assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "client-pass"}).status_code == 401
+        assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "new-client-pass"}).status_code == 200
+        assert authenticated_client.post(f"/s/{sharelink_id}/unlock", json={"password": "new-client-pass"}).status_code == 204
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 200
+
+        clear_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{sharelink_id}",
+            json={"password_clear": True},
+        )
+        assert clear_resp.status_code == 200
+        assert clear_resp.json()["has_password"] is False
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 200
+
+    def test_create_update_and_clear_project_sharelink_password(self, authenticated_client: TestClient):
+        project_resp = authenticated_client.post("/projects", json={"name": "Protected Project"})
+        assert project_resp.status_code == 201
+        project_id = project_resp.json()["id"]
+
+        gallery_resp = authenticated_client.post(
+            f"/projects/{project_id}/galleries",
+            json={"name": "Client Gallery", "project_visibility": "listed"},
+        )
+        assert gallery_resp.status_code == 201
+
+        create_resp = authenticated_client.post(
+            f"/projects/{project_id}/share-links",
+            json={"password": "client-pass"},
+        )
+        assert create_resp.status_code == 201
+        created = create_resp.json()
+        assert created["has_password"] is True
+        assert "password" not in created
+        assert "password_hash" not in created
+        sharelink_id = created["id"]
+
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 401
+        assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "client-pass"}).status_code == 200
+        unlock_resp = authenticated_client.post(f"/s/{sharelink_id}/unlock", json={"password": "client-pass"})
+        assert unlock_resp.status_code == 204
+        assert "client-pass" not in unlock_resp.headers.get("set-cookie", "")
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 200
+
+        replace_resp = authenticated_client.patch(
+            f"/projects/{project_id}/share-links/{sharelink_id}",
+            json={"password": "new-client-pass"},
+        )
+        assert replace_resp.status_code == 200
+        assert replace_resp.json()["has_password"] is True
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 401
+        assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "client-pass"}).status_code == 401
+        assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "new-client-pass"}).status_code == 200
+        assert authenticated_client.post(f"/s/{sharelink_id}/unlock", json={"password": "new-client-pass"}).status_code == 204
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 200
+
+        clear_resp = authenticated_client.patch(
+            f"/projects/{project_id}/share-links/{sharelink_id}",
+            json={"password_clear": True},
+        )
+        assert clear_resp.status_code == 200
+        assert clear_resp.json()["has_password"] is False
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 200
+
+    def test_sharelink_password_validation(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        short_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"password": "short"},
+        )
+        assert short_resp.status_code == 422
+
+        long_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"password": "a" * 73},
+        )
+        assert long_resp.status_code == 422
+
+        multibyte_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"password": "é" * 37},
+        )
+        assert multibyte_resp.status_code == 422
+
+        create_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"password": "client-pass"},
+        )
+        sharelink_id = create_resp.json()["id"]
+        conflict_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{sharelink_id}",
+            json={"password": "new-client-pass", "password_clear": True},
+        )
+        assert conflict_resp.status_code == 422
+
+        null_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{sharelink_id}",
+            json={"password": None},
+        )
+        assert null_resp.status_code == 422
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 401
+        assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "client-pass"}).status_code == 200
+
+    def test_project_sharelink_rejects_null_password_without_clearing(self, authenticated_client: TestClient):
+        project_resp = authenticated_client.post("/projects", json={"name": "Null Password Project"})
+        assert project_resp.status_code == 201
+        project_id = project_resp.json()["id"]
+
+        gallery_resp = authenticated_client.post(
+            f"/projects/{project_id}/galleries",
+            json={"name": "Listed Gallery", "project_visibility": "listed"},
+        )
+        assert gallery_resp.status_code == 201
+
+        create_resp = authenticated_client.post(
+            f"/projects/{project_id}/share-links",
+            json={"password": "client-pass"},
+        )
+        assert create_resp.status_code == 201
+        sharelink_id = create_resp.json()["id"]
+
+        null_resp = authenticated_client.patch(
+            f"/projects/{project_id}/share-links/{sharelink_id}",
+            json={"password": None},
+        )
+        assert null_resp.status_code == 422
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 401
+        assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "client-pass"}).status_code == 200
+
     def test_list_sharelinks_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test listing sharelinks for a gallery."""
         expires_at = (datetime.now(UTC) + timedelta(days=1)).isoformat()

@@ -38,6 +38,7 @@ class ShareLink(Base):
         server_default=ShareScopeType.GALLERY.value,
     )
     label: Mapped[str | None] = mapped_column(String(127), nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     views: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -59,6 +60,10 @@ class ShareLink(Base):
         back_populates="sharelink",
         passive_deletes=True,
     )
+
+    @property
+    def has_password(self) -> bool:
+        return self.password_hash is not None
 
     __table_args__ = (
         CheckConstraint(

@@ -1,4 +1,4 @@
-import { api } from '../lib/api';
+import { api, publicApi } from '../lib/api';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { getDemoService } from './demoService';
 import type {
@@ -68,6 +68,20 @@ const parseDownloadFilename = (
   }
 
   return fallback;
+};
+
+const triggerBrowserDownload = (path: string): void => {
+  const anchor = document.createElement('a');
+  anchor.href = publicApi.getUri({ url: path });
+  anchor.rel = 'noopener';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+};
+
+const downloadPublicShare = async (path: string): Promise<void> => {
+  await publicApi.head(path, { headers: {} });
+  triggerBrowserDownload(path);
 };
 
 const downloadOwnerExport = async (path: string, fallbackFilename: string): Promise<void> => {
@@ -150,18 +164,20 @@ const getSharedGallery = async (
   const basePath = nestedGalleryId ? `/s/${shareId}/galleries/${nestedGalleryId}` : `/s/${shareId}`;
   const queryString = params.toString();
   const url = queryString ? `${basePath}?${queryString}` : basePath;
-  const headers: Record<string, string> = {
-    'Cache-Control': 'no-cache',
-    Pragma: 'no-cache',
-  };
-  if (options?.skipProjectViewCount) {
-    headers['X-Viewport-Internal-Navigation'] = '1';
+  const config = options?.skipProjectViewCount
+    ? { headers: { 'X-Viewport-Internal-Navigation': '1' } }
+    : undefined;
+
+  const response = config ? await publicApi.get(url, config) : await publicApi.get(url);
+  return response.data;
+};
+
+const unlockSharedGallery = async (shareId: string, password: string): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    return;
   }
 
-  const response = await api.get(url, {
-    headers,
-  });
-  return response.data;
+  await publicApi.post(`/s/${shareId}/unlock`, { password });
 };
 
 const getProjectShareLinks = async (projectId: string): Promise<ShareLink[]> => {
@@ -261,27 +277,6 @@ const getShareLinkAnalytics = async (
   return response.data;
 };
 
-const getPublicPhotoUrl = async (
-  shareId: string,
-  photoId: string,
-): Promise<{ url: string; expires_in: number }> => {
-  if (isDemoModeEnabled()) {
-    return getDemoService().getPublicPhotoUrl(shareId, photoId);
-  }
-
-  const response = await api.get(`/s/${shareId}/photos/${photoId}/url`);
-  return response.data;
-};
-
-const getAllPublicPhotoUrls = async (shareId: string): Promise<PublicPhoto[]> => {
-  if (isDemoModeEnabled()) {
-    return getDemoService().getAllPublicPhotoUrls(shareId);
-  }
-
-  const response = await api.get(`/s/${shareId}/photos/urls`);
-  return response.data;
-};
-
 const getPublicPhotosByIds = async (
   shareId: string,
   photoIds: string[],
@@ -301,7 +296,10 @@ const getPublicPhotosByIds = async (
     return [];
   }
 
-  const response = await api.get<PublicPhoto[]>(`/s/${shareId}/photos/by-ids?${params.toString()}`);
+  const response = await publicApi.get<PublicPhoto[]>(
+    `/s/${shareId}/photos/by-ids?${params.toString()}`,
+    { headers: {} },
+  );
   return response.data;
 };
 
@@ -310,7 +308,9 @@ const getPublicSelectionConfig = async (shareId: string): Promise<SelectionConfi
     return getDemoService().getPublicSelectionConfig(shareId);
   }
 
-  const response = await api.get<SelectionConfig>(`/s/${shareId}/selection/config`);
+  const response = await publicApi.get<SelectionConfig>(`/s/${shareId}/selection/config`, {
+    headers: {},
+  });
   return response.data;
 };
 
@@ -322,7 +322,11 @@ const startPublicSelectionSession = async (
     return getDemoService().startPublicSelectionSession(shareId, payload);
   }
 
-  const response = await api.post<SelectionSession>(`/s/${shareId}/selection/session`, payload);
+  const response = await publicApi.post<SelectionSession>(
+    `/s/${shareId}/selection/session`,
+    payload,
+    { headers: {} },
+  );
   return response.data;
 };
 
@@ -342,7 +346,9 @@ const getPublicSelectionSession = async (
   const url = query
     ? `/s/${shareId}/selection/session/me?${query}`
     : `/s/${shareId}/selection/session/me`;
-  const response = await api.get<SelectionSession>(url);
+  const response = await publicApi.get<SelectionSession>(url, {
+    headers: {},
+  });
   return response.data;
 };
 
@@ -363,7 +369,9 @@ const togglePublicSelectionItem = async (
   const url = query
     ? `/s/${shareId}/selection/session/items/${photoId}?${query}`
     : `/s/${shareId}/selection/session/items/${photoId}`;
-  const response = await api.put<SelectionToggleResponse>(url);
+  const response = await publicApi.put<SelectionToggleResponse>(url, undefined, {
+    headers: {},
+  });
   return response.data;
 };
 
@@ -390,7 +398,9 @@ const updatePublicSelectionItemComment = async (
   const url = query
     ? `/s/${shareId}/selection/session/items/${photoId}?${query}`
     : `/s/${shareId}/selection/session/items/${photoId}`;
-  const response = await api.patch<SelectionSession['items'][number]>(url, payload);
+  const response = await publicApi.patch<SelectionSession['items'][number]>(url, payload, {
+    headers: {},
+  });
   return response.data;
 };
 
@@ -411,7 +421,9 @@ const updatePublicSelectionSession = async (
   const url = query
     ? `/s/${shareId}/selection/session?${query}`
     : `/s/${shareId}/selection/session`;
-  const response = await api.patch<SelectionSession>(url, payload);
+  const response = await publicApi.patch<SelectionSession>(url, payload, {
+    headers: {},
+  });
   return response.data;
 };
 
@@ -431,8 +443,31 @@ const submitPublicSelectionSession = async (
   const url = query
     ? `/s/${shareId}/selection/session/submit?${query}`
     : `/s/${shareId}/selection/session/submit`;
-  const response = await api.post<SelectionSubmitResponse>(url);
+  const response = await publicApi.post<SelectionSubmitResponse>(url, undefined, {
+    headers: {},
+  });
   return response.data;
+};
+
+const downloadSharedGalleryZip = async (shareId: string): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    await getDemoService().downloadSharedGalleryZip(shareId);
+    return;
+  }
+
+  await downloadPublicShare(`/s/${shareId}/download/all`);
+};
+
+const downloadSharedProjectGalleryZip = async (
+  shareId: string,
+  galleryId: string,
+): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    await getDemoService().downloadGalleryZip(galleryId);
+    return;
+  }
+
+  await downloadPublicShare(`/s/${shareId}/galleries/${galleryId}/download/all`);
 };
 
 const getOwnerSelectionConfig = async (
@@ -648,8 +683,7 @@ export const shareLinkService = {
   updateShareLink,
   deleteShareLink,
   getSharedGallery,
-  getPublicPhotoUrl,
-  getAllPublicPhotoUrls,
+  unlockSharedGallery,
   getPublicPhotosByIds,
   getOwnerShareLinks,
   getShareLinkAnalytics,
@@ -660,6 +694,8 @@ export const shareLinkService = {
   updatePublicSelectionItemComment,
   updatePublicSelectionSession,
   submitPublicSelectionSession,
+  downloadSharedGalleryZip,
+  downloadSharedProjectGalleryZip,
   getOwnerSelectionConfig,
   updateOwnerSelectionConfig,
   getShareLinkSelectionConfig,

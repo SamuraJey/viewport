@@ -33,6 +33,7 @@ from viewport.schemas.selection import (
     SelectionSubmitResponse,
     SelectionTogglePhotoResponse,
 )
+from viewport.sharelink_access import require_sharelink_password
 from viewport.sharelink_utils import is_sharelink_expired
 
 router = APIRouter(tags=["selection"])
@@ -263,7 +264,7 @@ def _selection_rollup_status(
     return "not_started"
 
 
-async def _get_public_sharelink_or_404(share_id: uuid.UUID, repo: SelectionRepository) -> ShareLink:
+async def _get_public_sharelink_or_404(share_id: uuid.UUID, repo: SelectionRepository, request: Request) -> ShareLink:
     sharelink = await repo.get_public_sharelink(share_id)
     if not sharelink:
         raise HTTPException(status_code=404, detail="ShareLink not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
@@ -271,6 +272,7 @@ async def _get_public_sharelink_or_404(share_id: uuid.UUID, repo: SelectionRepos
         raise HTTPException(status_code=404, detail="ShareLink not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
     if is_sharelink_expired(sharelink.expires_at):
         raise HTTPException(status_code=410, detail="ShareLink expired", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+    await require_sharelink_password(sharelink, request)
     return sharelink
 
 
@@ -313,11 +315,12 @@ def _csv_response(filename: str, headers: list[str], rows: list[list[str]]) -> R
 @router.get("/s/{share_id}/selection/config", response_model=SelectionConfigResponse)
 async def get_public_selection_config(
     share_id: uuid.UUID,
+    request: Request,
     response: Response,
     repo: SelectionRepository = Depends(get_selection_repository),
 ) -> SelectionConfigResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
-    sharelink = await _get_public_sharelink_or_404(share_id, repo)
+    sharelink = await _get_public_sharelink_or_404(share_id, repo, request)
     config = await _get_enabled_selection_config_or_404(sharelink.id, repo)
     return _to_selection_config_response(config)
 
@@ -332,7 +335,7 @@ async def start_public_selection_session(
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> SelectionSessionResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
-    sharelink = await _get_public_sharelink_or_404(share_id, repo)
+    sharelink = await _get_public_sharelink_or_404(share_id, repo, request)
     config = await _get_enabled_selection_config_or_404(sharelink.id, repo)
 
     client_name, client_email, client_phone, client_note = _validate_contact_requirements(config, req)
@@ -365,7 +368,7 @@ async def get_public_selection_session(
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> SelectionSessionResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
-    sharelink = await _get_public_sharelink_or_404(share_id, repo)
+    sharelink = await _get_public_sharelink_or_404(share_id, repo, request)
     await _get_enabled_selection_config_or_404(sharelink.id, repo)
 
     session, resolved_token = await _get_session_by_token_or_404(request=request, share_id=share_id, repo=repo, resume_token=resume_token)
@@ -388,7 +391,7 @@ async def toggle_public_selection_item(
     repo: SelectionRepository = Depends(get_selection_repository),
 ) -> SelectionTogglePhotoResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
-    sharelink = await _get_public_sharelink_or_404(share_id, repo)
+    sharelink = await _get_public_sharelink_or_404(share_id, repo, request)
     config = await _get_enabled_selection_config_or_404(sharelink.id, repo)
     session, resolved_token = await _get_session_by_token_or_404(request=request, share_id=share_id, repo=repo, resume_token=resume_token)
     if resume_token is None:
@@ -428,7 +431,7 @@ async def update_public_selection_item_comment(
     repo: SelectionRepository = Depends(get_selection_repository),
 ) -> SelectionItemResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
-    sharelink = await _get_public_sharelink_or_404(share_id, repo)
+    sharelink = await _get_public_sharelink_or_404(share_id, repo, request)
     config = await _get_enabled_selection_config_or_404(sharelink.id, repo)
     if not config.allow_photo_comments:
         raise HTTPException(status_code=403, detail="Photo comments are disabled")
@@ -466,7 +469,7 @@ async def update_public_selection_session(
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> SelectionSessionResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
-    sharelink = await _get_public_sharelink_or_404(share_id, repo)
+    sharelink = await _get_public_sharelink_or_404(share_id, repo, request)
     config = await _get_enabled_selection_config_or_404(sharelink.id, repo)
 
     session, resolved_token = await _get_session_by_token_or_404(request=request, share_id=share_id, repo=repo, resume_token=resume_token)
@@ -495,7 +498,7 @@ async def submit_public_selection_session(
     repo: SelectionRepository = Depends(get_selection_repository),
 ) -> SelectionSubmitResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
-    sharelink = await _get_public_sharelink_or_404(share_id, repo)
+    sharelink = await _get_public_sharelink_or_404(share_id, repo, request)
     config = await _get_enabled_selection_config_or_404(sharelink.id, repo)
 
     session, resolved_token = await _get_session_by_token_or_404(request=request, share_id=share_id, repo=repo, resume_token=resume_token)
