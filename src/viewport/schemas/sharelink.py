@@ -15,7 +15,7 @@ PASSWORD_MIN_LENGTH = 8
 PASSWORD_MAX_BYTES = 72
 
 
-def _validate_sharelink_password(password: str | None) -> str | None:
+def validate_sharelink_password(password: str | None) -> str | None:
     if password is None:
         return None
     if not password.strip():
@@ -44,7 +44,7 @@ class ShareLinkCreateRequest(ShareLinkBase):
     @model_validator(mode="after")
     def validate_password(self):
         if "password" in self.model_fields_set:
-            self.password = _validate_sharelink_password(self.password)
+            self.password = validate_sharelink_password(self.password)
         return self
 
 
@@ -80,7 +80,7 @@ class ShareLinkUpdateRequest(BaseModel):
         if self.password_clear and "password" in self.model_fields_set:
             raise ValueError("password and password_clear cannot be provided together")
         if "password" in self.model_fields_set:
-            self.password = _validate_sharelink_password(self.password)
+            self.password = validate_sharelink_password(self.password)
         return self
 
 

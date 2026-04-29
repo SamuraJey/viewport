@@ -13,6 +13,7 @@ from viewport.api.auth import verify_password
 from viewport.auth_utils import authsettings
 from viewport.logger import logger
 from viewport.models.sharelink import ShareLink
+from viewport.schemas.sharelink import validate_sharelink_password
 from viewport.sharelink_utils import is_sharelink_expired
 
 PUBLIC_CACHE_CONTROL_HEADERS = {
@@ -70,6 +71,10 @@ async def require_sharelink_password(sharelink: ShareLink, request: Request) -> 
         _log_denied_password_attempt(sharelink, request, reason="password_required")
         raise HTTPException(status_code=401, detail="ShareLink password required", headers=PASSWORD_CHALLENGE_HEADERS)
 
+    if not _is_valid_sharelink_password_shape(supplied_password):
+        _log_denied_password_attempt(sharelink, request, reason="password_failed")
+        raise HTTPException(status_code=401, detail="ShareLink password required", headers=PASSWORD_CHALLENGE_HEADERS)
+
     is_valid = await run_in_threadpool(verify_password, supplied_password, sharelink.password_hash)
     if not is_valid:
         _log_denied_password_attempt(sharelink, request, reason="password_failed")
@@ -91,6 +96,14 @@ async def unlock_sharelink_password(
         raise HTTPException(status_code=401, detail="ShareLink password required", headers=PASSWORD_CHALLENGE_HEADERS)
 
     set_share_access_cookie(sharelink, request, response)
+
+
+def _is_valid_sharelink_password_shape(password: str) -> bool:
+    try:
+        validate_sharelink_password(password)
+    except ValueError:
+        return False
+    return True
 
 
 def has_valid_share_access_cookie(sharelink: ShareLink, request: Request) -> bool:

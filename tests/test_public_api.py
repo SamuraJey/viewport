@@ -324,6 +324,15 @@ class TestPublicAPI:
         wrong_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "wrong-pass"})
         assert wrong_resp.status_code == 401
 
+        short_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "short"})
+        assert short_resp.status_code == 422
+
+        long_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "a" * 73})
+        assert long_resp.status_code == 422
+
+        multibyte_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "é" * 37})
+        assert multibyte_resp.status_code == 422
+
         owner_after_denied = authenticated_client.get(f"/galleries/{gallery_id_fixture}/share-links").json()[0]
         assert owner_after_denied["views"] == 0
 
@@ -352,6 +361,31 @@ class TestPublicAPI:
         zip_resp = authenticated_client.get(f"/s/{share_id}/download/all")
         assert zip_resp.status_code == 200
         assert zip_resp.headers["content-type"].startswith("application/zip")
+
+    def test_password_header_rejects_bcrypt_truncation_bypass(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+    ):
+        password = "a" * 72
+        create_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"expires_at": "2099-01-01T00:00:00Z", "password": password},
+        )
+        assert create_resp.status_code == 201
+        share_id = create_resp.json()["id"]
+
+        overlong_header_resp = authenticated_client.get(
+            f"/s/{share_id}",
+            headers={"X-Viewport-Share-Password": f"{password}extra"},
+        )
+        assert overlong_header_resp.status_code == 401
+
+        valid_header_resp = authenticated_client.get(
+            f"/s/{share_id}",
+            headers={"X-Viewport-Share-Password": password},
+        )
+        assert valid_header_resp.status_code == 200
 
     def test_password_unlock_cookie_uses_samesite_none_for_cross_origin_https(
         self,

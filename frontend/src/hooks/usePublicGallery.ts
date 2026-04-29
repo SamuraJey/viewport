@@ -141,7 +141,7 @@ export const usePublicGallery = ({
 
   const submitPassword = useCallback(
     async (password: string) => {
-      if (!shareId) return;
+      if (!shareId) return false;
       setIsVerifyingPassword(true);
       try {
         await shareLinkService.unlockSharedGallery(shareId, password);
@@ -149,6 +149,7 @@ export const usePublicGallery = ({
         if (unlocked) {
           setPasswordVersion((current) => current + 1);
         }
+        return unlocked;
       } catch (err) {
         const status = getErrorStatus(err);
         setErrorStatus(status ?? null);
@@ -159,6 +160,7 @@ export const usePublicGallery = ({
           setError(status === 410 ? 'Share link has expired' : 'Gallery not found');
           setHasMore(false);
         }
+        return false;
       } finally {
         setIsVerifyingPassword(false);
       }

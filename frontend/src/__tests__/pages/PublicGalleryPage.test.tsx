@@ -11,6 +11,7 @@ if (!(global as any).ResizeObserver) {
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { ApiError } from '../../lib/errorHandling';
 let PublicGalleryPage: any;
 const mockNavigate = vi.fn();
 let mockRouteParams: {
@@ -456,6 +457,37 @@ describe('PublicGalleryPage', () => {
       'abc123',
       'gallery-2',
     );
+  });
+
+  it('prompts for password again when a ZIP download loses share access', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.downloadSharedGalleryZip).mockRejectedValueOnce(
+      new ApiError(401, 'ShareLink password required'),
+    );
+
+    render(wrapper());
+
+    const button = await screen.findByRole('button', { name: /download all photos/i });
+    await userEvent.click(button);
+
+    expect(await screen.findByRole('heading', { name: /password required/i })).toBeInTheDocument();
+    expect(
+      screen.getByText('Password is required or incorrect. Please try again.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the expired state when a ZIP download reports an expired share', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.downloadSharedGalleryZip).mockRejectedValueOnce(
+      new ApiError(410, 'ShareLink expired'),
+    );
+
+    render(wrapper());
+
+    const button = await screen.findByRole('button', { name: /download all photos/i });
+    await userEvent.click(button);
+
+    expect(await screen.findByText(/link has expired/i)).toBeInTheDocument();
   });
 
   it('reuses nested gallery project navigation without refetching the root project share', async () => {

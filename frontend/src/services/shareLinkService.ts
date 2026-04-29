@@ -492,7 +492,7 @@ const downloadSharedProjectGalleryZip = async (
   galleryId: string,
 ): Promise<void> => {
   if (isDemoModeEnabled()) {
-    await getDemoService().downloadSharedGalleryZip(shareId);
+    await getDemoService().downloadGalleryZip(galleryId);
     return;
   }
 
