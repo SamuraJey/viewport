@@ -80,7 +80,7 @@ export interface ShareLinkUpdateRequest {
   label?: string | null;
   is_active?: boolean;
   expires_at?: string | null;
-  password?: string | null;
+  password?: string;
   password_clear?: boolean;
 }
 
@@ -88,7 +88,7 @@ export interface ShareLinkCreateRequest {
   label?: string | null;
   is_active?: boolean;
   expires_at?: string | null;
-  password?: string | null;
+  password?: string;
 }
 
 export interface PublicPhoto {

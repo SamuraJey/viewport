@@ -128,6 +128,18 @@ class TestSharelinkAPI:
         )
         assert short_resp.status_code == 422
 
+        long_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"password": "a" * 73},
+        )
+        assert long_resp.status_code == 422
+
+        multibyte_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"password": "é" * 37},
+        )
+        assert multibyte_resp.status_code == 422
+
         create_resp = authenticated_client.post(
             f"/galleries/{gallery_id_fixture}/share-links",
             json={"password": "client-pass"},
@@ -138,6 +150,40 @@ class TestSharelinkAPI:
             json={"password": "new-client-pass", "password_clear": True},
         )
         assert conflict_resp.status_code == 422
+
+        null_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{sharelink_id}",
+            json={"password": None},
+        )
+        assert null_resp.status_code == 422
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 401
+        assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "client-pass"}).status_code == 200
+
+    def test_project_sharelink_rejects_null_password_without_clearing(self, authenticated_client: TestClient):
+        project_resp = authenticated_client.post("/projects", json={"name": "Null Password Project"})
+        assert project_resp.status_code == 201
+        project_id = project_resp.json()["id"]
+
+        gallery_resp = authenticated_client.post(
+            f"/projects/{project_id}/galleries",
+            json={"name": "Listed Gallery", "project_visibility": "listed"},
+        )
+        assert gallery_resp.status_code == 201
+
+        create_resp = authenticated_client.post(
+            f"/projects/{project_id}/share-links",
+            json={"password": "client-pass"},
+        )
+        assert create_resp.status_code == 201
+        sharelink_id = create_resp.json()["id"]
+
+        null_resp = authenticated_client.patch(
+            f"/projects/{project_id}/share-links/{sharelink_id}",
+            json={"password": None},
+        )
+        assert null_resp.status_code == 422
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 401
+        assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "client-pass"}).status_code == 200
 
     def test_list_sharelinks_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Test listing sharelinks for a gallery."""

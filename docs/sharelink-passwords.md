@@ -7,8 +7,8 @@ Viewport share links can be optionally password-protected for both gallery and p
 - Share-link create/update APIs accept a write-only `password` field.
 - Existing passwords are replaced by sending a new `password`.
 - Passwords are removed only with explicit `password_clear: true`.
-- `password: null` or an omitted `password` does not clear an existing password.
-- Passwords must be 8-128 non-blank characters.
+- Omitted `password` fields leave an existing password unchanged; `password: null` is rejected to prevent accidental clears.
+- Passwords must be at least 8 non-blank characters and at most 72 UTF-8 bytes, matching bcrypt input limits.
 - API responses expose only `has_password`; plaintext passwords and `password_hash` are never returned.
 - Stored passwords are bcrypt hashes in `share_links.password_hash`. There is no password recovery flow; owners can only replace or clear the password.
 

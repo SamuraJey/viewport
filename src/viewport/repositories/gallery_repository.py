@@ -841,6 +841,8 @@ class GalleryRepository(BaseRepository):
             sharelink.is_active = is_active
             updated = True
         if "password" in fields_set:
+            if password_hash is None:
+                raise ValueError("password cannot be null")
             sharelink.password_hash = password_hash
             updated = True
         if "password_clear" in fields_set:

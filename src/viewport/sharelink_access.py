@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Protocol
+from typing import Literal, Protocol
 from urllib.parse import urlsplit
 
 import jwt
@@ -157,7 +157,7 @@ def _should_use_secure_share_cookie(request: Request) -> bool:
     return _is_request_https(request)
 
 
-def _resolve_share_cookie_samesite(request: Request) -> str:
+def _resolve_share_cookie_samesite(request: Request) -> Literal["lax", "none"]:
     if _is_cross_origin_request(request) and _is_request_https(request):
         return "none"
     return "lax"

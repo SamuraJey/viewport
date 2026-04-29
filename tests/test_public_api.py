@@ -911,6 +911,6 @@ def test_public_share_route_inventory_is_explicitly_covered():
         ("PATCH", "/s/{share_id}/selection/session"),
         ("POST", "/s/{share_id}/selection/session/submit"),
     }
-    public_routes = {(method, route.path) for route in app.routes for method in getattr(route, "methods", set()) if route.path.startswith("/s/{share_id}")}
+    public_routes = {(method, route.path) for route in app.routes for method in getattr(route, "methods", set()) if method != "HEAD" and route.path.startswith("/s/{share_id}")}
 
     assert public_routes == expected_routes

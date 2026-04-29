@@ -72,6 +72,8 @@ const TTL_OPTIONS: { value: TtlPreset; label: string; description: string }[] = 
   { value: '30d', label: '30 days', description: 'Longer campaign access' },
   { value: 'custom', label: 'Custom date', description: 'Pick an exact UTC time' },
 ];
+const SHARE_LINK_PASSWORD_MIN_LENGTH = 8;
+const SHARE_LINK_PASSWORD_MAX_BYTES = 72;
 
 const SETTINGS_TABS: {
   id: SettingsTabId;
@@ -268,6 +270,7 @@ export const ShareLinkSettingsModal = ({
 
   const normalizedLabel = label.trim();
   const normalizedPassword = password;
+  const passwordByteLength = useMemo(() => new TextEncoder().encode(password).length, [password]);
   const passwordPayload = useMemo(() => {
     if (passwordMode === 'set') {
       return { password: normalizedPassword };
@@ -316,7 +319,9 @@ export const ShareLinkSettingsModal = ({
     (selectionDraft.limit_value.trim().length === 0 || selectionLimit === null);
   const hasInvalidPassword =
     passwordMode === 'set' &&
-    (password.trim().length === 0 || password.length < 8 || password.length > 128);
+    (password.trim().length === 0 ||
+      password.length < SHARE_LINK_PASSWORD_MIN_LENGTH ||
+      passwordByteLength > SHARE_LINK_PASSWORD_MAX_BYTES);
   const canSubmit =
     !isSaving &&
     !createdLink &&
@@ -606,14 +611,15 @@ export const ShareLinkSettingsModal = ({
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              minLength={8}
-              maxLength={128}
+              minLength={SHARE_LINK_PASSWORD_MIN_LENGTH}
+              maxLength={SHARE_LINK_PASSWORD_MAX_BYTES}
               autoComplete="new-password"
               className="w-full rounded-xl border border-border/50 bg-surface-1 px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-accent dark:bg-surface-dark-1"
               disabled={isSaving}
             />
             <span className="block text-xs text-muted">
-              Use 8–128 characters. The password cannot be recovered later.
+              Use at least 8 characters and at most 72 UTF-8 bytes. The password cannot be recovered
+              later.
             </span>
           </label>
         ) : null}
@@ -969,7 +975,7 @@ export const ShareLinkSettingsModal = ({
             ) : null}
             {hasInvalidPassword ? (
               <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
-                Share password must be 8–128 non-blank characters.
+                Share password must be non-blank, at least 8 characters, and at most 72 UTF-8 bytes.
               </p>
             ) : null}
             {error ? (
