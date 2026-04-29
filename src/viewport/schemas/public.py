@@ -3,6 +3,10 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 
+class PublicShareUnlockRequest(BaseModel):
+    password: str = Field(..., min_length=1, max_length=128)
+
+
 class PublicPhoto(BaseModel):
     photo_id: str
     thumbnail_url: str

@@ -316,7 +316,11 @@ export const PublicGalleryPage = () => {
         return;
       }
       setSharePasswordError('');
-      await submitPassword(password);
+      try {
+        await submitPassword(password);
+      } finally {
+        setSharePasswordDraft('');
+      }
     },
     [shareId, sharePasswordDraft, submitPassword],
   );

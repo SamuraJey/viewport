@@ -20,8 +20,8 @@ from viewport.repositories.sharelink_repository import ShareLinkRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client, get_s3_settings
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
-from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto, PublicProjectFolder, PublicProjectResponse, PublicShareResponse
-from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_valid_public_sharelink
+from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto, PublicProjectFolder, PublicProjectResponse, PublicShareResponse, PublicShareUnlockRequest
+from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_available_public_sharelink, get_valid_public_sharelink, unlock_sharelink_password
 from viewport.zip_utils import build_zip_fallback_name, make_unique_zip_entry_name, sanitize_zip_entry_name
 
 router = APIRouter(prefix="/s", tags=["public"])
@@ -64,6 +64,20 @@ async def get_valid_sharelink(
 ) -> ShareLink:
     """Get active, non-expired sharelink and enforce optional password."""
     return await get_valid_public_sharelink(share_id, repo, request)
+
+
+@router.post("/{share_id}/unlock", status_code=204)
+async def unlock_sharelink(
+    share_id: UUID,
+    payload: PublicShareUnlockRequest,
+    request: Request,
+    response: Response,
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
+) -> None:
+    """Validate a protected public share password and issue an HttpOnly access cookie."""
+    response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
+    sharelink = await get_available_public_sharelink(share_id, repo)
+    await unlock_sharelink_password(sharelink, payload.password, request, response)
 
 
 def _site_url(request: Request) -> str:

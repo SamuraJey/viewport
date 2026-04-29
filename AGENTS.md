@@ -58,7 +58,7 @@
   - Theme preference is persisted under `localStorage['theme-preference']` with values `light|dark|system`.
   - Auth header is injected from `authStore`, and 401 triggers refresh via `/auth/refresh`.
 - **API calls**: Live in `frontend/src/services/*Service.ts` and use shared Axios instance `frontend/src/lib/api.ts`.
-  - Public share (`/s/{share_id}`) calls use the unauthenticated `publicApi` client plus `X-Viewport-Share-Password` from per-share `sessionStorage` when present; never send share passwords in URLs, localStorage, analytics, or owner auth headers.
+  - Public share (`/s/{share_id}`) calls use the unauthenticated `publicApi` client with credentials enabled; protected shares unlock via `POST /s/{share_id}/unlock`, which sets a signed `HttpOnly` share-access cookie (`SameSite=Lax` for same-site, `SameSite=None; Secure` for cross-origin HTTPS). Never persist share passwords in Web Storage or send them in URLs, analytics, or owner auth headers.
   - Demo environment: `frontend/src/services/demoService.ts` is the in-memory source of truth for demo data. Service methods should branch through `isDemoModeEnabled()` (`frontend/src/lib/demoMode.ts`) so Dashboard/Gallery/Profile/Public flows can run without backend auth.
   - Demo entry points: use one-click demo access from auth/landing UI by enabling demo mode in localStorage (`viewport-demo-mode`) and logging into `authStore` with mock user/tokens.
 - **Dev API routing**: Vite proxy rewrites `VITE_DEV_API_PREFIX` (default `/api`) to the backend (see `frontend/vite.config.ts`).

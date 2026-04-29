@@ -115,8 +115,7 @@ vi.mock('../../services/shareLinkService', () => ({
     getPublicPhotosByIds: vi.fn(),
     downloadSharedGalleryZip: vi.fn(),
     downloadSharedProjectGalleryZip: vi.fn(),
-    setStoredSharePassword: vi.fn(),
-    clearStoredSharePassword: vi.fn(),
+    unlockSharedGallery: vi.fn(),
   },
 }));
 
@@ -329,6 +328,7 @@ describe('PublicGalleryPage', () => {
     vi.mocked(shareLinkService.getSharedGallery)
       .mockRejectedValueOnce({ response: { status: 401 } })
       .mockResolvedValueOnce(mockPublicGallery);
+    vi.mocked(shareLinkService.unlockSharedGallery).mockResolvedValue(undefined);
 
     render(wrapper());
 
@@ -336,13 +336,18 @@ describe('PublicGalleryPage', () => {
     await userEvent.type(screen.getByLabelText(/share password/i), 'client-pass');
     await userEvent.click(screen.getByRole('button', { name: /unlock share/i }));
 
-    expect(shareLinkService.setStoredSharePassword).toHaveBeenCalledWith('abc123', 'client-pass');
+    expect(shareLinkService.unlockSharedGallery).toHaveBeenCalledWith('abc123', 'client-pass');
     await waitFor(() => expect(screen.getByText('Photos')).toBeInTheDocument());
   });
 
-  it('does not keep a rejected share password in session storage', async () => {
+  it('keeps the password prompt open when unlock is rejected', async () => {
     const { shareLinkService } = await import('../../services/shareLinkService');
-    vi.mocked(shareLinkService.getSharedGallery).mockRejectedValue({ response: { status: 401 } });
+    vi.mocked(shareLinkService.getSharedGallery).mockRejectedValueOnce({
+      response: { status: 401 },
+    });
+    vi.mocked(shareLinkService.unlockSharedGallery).mockRejectedValueOnce({
+      response: { status: 401 },
+    });
 
     render(wrapper());
 
@@ -351,8 +356,9 @@ describe('PublicGalleryPage', () => {
     await userEvent.click(screen.getByRole('button', { name: /unlock share/i }));
 
     await waitFor(() =>
-      expect(shareLinkService.clearStoredSharePassword).toHaveBeenCalledWith('abc123'),
+      expect(shareLinkService.unlockSharedGallery).toHaveBeenCalledWith('abc123', 'wrong-pass'),
     );
+    expect(screen.getByText(/Password is required or incorrect/i)).toBeInTheDocument();
   });
 
   it('shows dedicated expired state for 410 responses', async () => {

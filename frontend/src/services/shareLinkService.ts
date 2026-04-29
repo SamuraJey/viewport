@@ -70,38 +70,10 @@ const parseDownloadFilename = (
   return fallback;
 };
 
-const SHARE_PASSWORD_HEADER = 'X-Viewport-Share-Password';
-const getSharePasswordStorageKey = (shareId: string): string =>
-  `viewport-share-password-${shareId}`;
-
-const getStoredSharePassword = (shareId: string): string | null => {
-  if (typeof window === 'undefined') return null;
-  return window.sessionStorage.getItem(getSharePasswordStorageKey(shareId));
-};
-
-const setStoredSharePassword = (shareId: string, password: string): void => {
-  if (typeof window === 'undefined') return;
-  window.sessionStorage.setItem(getSharePasswordStorageKey(shareId), password);
-};
-
-const clearStoredSharePassword = (shareId: string): void => {
-  if (typeof window === 'undefined') return;
-  window.sessionStorage.removeItem(getSharePasswordStorageKey(shareId));
-};
-
-const getPublicShareHeaders = (shareId: string): Record<string, string> => {
-  const password = getStoredSharePassword(shareId);
-  return password ? { [SHARE_PASSWORD_HEADER]: password } : {};
-};
-
-const downloadPublicShareBlob = async (
-  shareId: string,
-  path: string,
-  fallbackFilename: string,
-): Promise<void> => {
+const downloadPublicShareBlob = async (path: string, fallbackFilename: string): Promise<void> => {
   const response = await publicApi.get<Blob>(path, {
     responseType: 'blob',
-    headers: getPublicShareHeaders(shareId),
+    headers: {},
   });
   const contentDisposition =
     (response.headers['content-disposition'] as string | undefined) ??
@@ -200,13 +172,16 @@ const getSharedGallery = async (
     headers['X-Viewport-Internal-Navigation'] = '1';
   }
 
-  const response = await publicApi.get(url, {
-    headers: {
-      ...headers,
-      ...getPublicShareHeaders(shareId),
-    },
-  });
+  const response = await publicApi.get(url, { headers });
   return response.data;
+};
+
+const unlockSharedGallery = async (shareId: string, password: string): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    return;
+  }
+
+  await publicApi.post(`/s/${shareId}/unlock`, { password });
 };
 
 const getProjectShareLinks = async (projectId: string): Promise<ShareLink[]> => {
@@ -315,7 +290,7 @@ const getPublicPhotoUrl = async (
   }
 
   const response = await publicApi.get(`/s/${shareId}/photos/${photoId}/url`, {
-    headers: getPublicShareHeaders(shareId),
+    headers: {},
   });
   return response.data;
 };
@@ -326,7 +301,7 @@ const getAllPublicPhotoUrls = async (shareId: string): Promise<PublicPhoto[]> =>
   }
 
   const response = await publicApi.get(`/s/${shareId}/photos/urls`, {
-    headers: getPublicShareHeaders(shareId),
+    headers: {},
   });
   return response.data;
 };
@@ -352,7 +327,7 @@ const getPublicPhotosByIds = async (
 
   const response = await publicApi.get<PublicPhoto[]>(
     `/s/${shareId}/photos/by-ids?${params.toString()}`,
-    { headers: getPublicShareHeaders(shareId) },
+    { headers: {} },
   );
   return response.data;
 };
@@ -363,7 +338,7 @@ const getPublicSelectionConfig = async (shareId: string): Promise<SelectionConfi
   }
 
   const response = await publicApi.get<SelectionConfig>(`/s/${shareId}/selection/config`, {
-    headers: getPublicShareHeaders(shareId),
+    headers: {},
   });
   return response.data;
 };
@@ -379,7 +354,7 @@ const startPublicSelectionSession = async (
   const response = await publicApi.post<SelectionSession>(
     `/s/${shareId}/selection/session`,
     payload,
-    { headers: getPublicShareHeaders(shareId) },
+    { headers: {} },
   );
   return response.data;
 };
@@ -401,7 +376,7 @@ const getPublicSelectionSession = async (
     ? `/s/${shareId}/selection/session/me?${query}`
     : `/s/${shareId}/selection/session/me`;
   const response = await publicApi.get<SelectionSession>(url, {
-    headers: getPublicShareHeaders(shareId),
+    headers: {},
   });
   return response.data;
 };
@@ -424,7 +399,7 @@ const togglePublicSelectionItem = async (
     ? `/s/${shareId}/selection/session/items/${photoId}?${query}`
     : `/s/${shareId}/selection/session/items/${photoId}`;
   const response = await publicApi.put<SelectionToggleResponse>(url, undefined, {
-    headers: getPublicShareHeaders(shareId),
+    headers: {},
   });
   return response.data;
 };
@@ -453,7 +428,7 @@ const updatePublicSelectionItemComment = async (
     ? `/s/${shareId}/selection/session/items/${photoId}?${query}`
     : `/s/${shareId}/selection/session/items/${photoId}`;
   const response = await publicApi.patch<SelectionSession['items'][number]>(url, payload, {
-    headers: getPublicShareHeaders(shareId),
+    headers: {},
   });
   return response.data;
 };
@@ -476,7 +451,7 @@ const updatePublicSelectionSession = async (
     ? `/s/${shareId}/selection/session?${query}`
     : `/s/${shareId}/selection/session`;
   const response = await publicApi.patch<SelectionSession>(url, payload, {
-    headers: getPublicShareHeaders(shareId),
+    headers: {},
   });
   return response.data;
 };
@@ -498,7 +473,7 @@ const submitPublicSelectionSession = async (
     ? `/s/${shareId}/selection/session/submit?${query}`
     : `/s/${shareId}/selection/session/submit`;
   const response = await publicApi.post<SelectionSubmitResponse>(url, undefined, {
-    headers: getPublicShareHeaders(shareId),
+    headers: {},
   });
   return response.data;
 };
@@ -509,7 +484,7 @@ const downloadSharedGalleryZip = async (shareId: string): Promise<void> => {
     return;
   }
 
-  await downloadPublicShareBlob(shareId, `/s/${shareId}/download/all`, `share_${shareId}.zip`);
+  await downloadPublicShareBlob(`/s/${shareId}/download/all`, `share_${shareId}.zip`);
 };
 
 const downloadSharedProjectGalleryZip = async (
@@ -522,7 +497,6 @@ const downloadSharedProjectGalleryZip = async (
   }
 
   await downloadPublicShareBlob(
-    shareId,
     `/s/${shareId}/galleries/${galleryId}/download/all`,
     `share_${shareId}_gallery_${galleryId}.zip`,
   );
@@ -741,6 +715,7 @@ export const shareLinkService = {
   updateShareLink,
   deleteShareLink,
   getSharedGallery,
+  unlockSharedGallery,
   getPublicPhotoUrl,
   getAllPublicPhotoUrls,
   getPublicPhotosByIds,
@@ -755,8 +730,6 @@ export const shareLinkService = {
   submitPublicSelectionSession,
   downloadSharedGalleryZip,
   downloadSharedProjectGalleryZip,
-  setStoredSharePassword,
-  clearStoredSharePassword,
   getOwnerSelectionConfig,
   updateOwnerSelectionConfig,
   getShareLinkSelectionConfig,

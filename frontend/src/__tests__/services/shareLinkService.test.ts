@@ -22,7 +22,6 @@ vi.mock('../../lib/api', () => ({
 describe('shareLinkService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    window.sessionStorage.clear();
   });
 
   it('fetches share links', async () => {
@@ -145,17 +144,29 @@ describe('shareLinkService', () => {
     expect(result).toEqual([{ photo_id: 'p2' }, { photo_id: 'p1' }]);
   });
 
-  it('attaches stored share password to public share calls', async () => {
+  it('unlocks protected shares without writing passwords to Web Storage', async () => {
+    vi.mocked(publicApi.post).mockResolvedValue({} as any);
+
+    await shareLinkService.unlockSharedGallery('share123', 'client-pass');
+
+    expect(window.sessionStorage.setItem).not.toHaveBeenCalled();
+    expect(window.localStorage.setItem).not.toHaveBeenCalled();
+    expect(publicApi.post).toHaveBeenCalledWith('/s/share123/unlock', {
+      password: 'client-pass',
+    });
+  });
+
+  it('does not attach plaintext passwords to public share calls after unlock', async () => {
     vi.mocked(publicApi.get).mockResolvedValue({ data: { photos: [], total_photos: 0 } } as any);
 
-    shareLinkService.setStoredSharePassword('share123', 'client-pass');
     await shareLinkService.getSharedGallery('share123');
 
+    expect(window.sessionStorage.setItem).not.toHaveBeenCalled();
+    expect(window.localStorage.setItem).not.toHaveBeenCalled();
     expect(publicApi.get).toHaveBeenCalledWith('/s/share123', {
       headers: {
         'Cache-Control': 'no-cache',
         Pragma: 'no-cache',
-        'X-Viewport-Share-Password': 'client-pass',
       },
     });
   });
@@ -191,7 +202,7 @@ describe('shareLinkService', () => {
     expect(result).toEqual({ selected: true, selected_count: 1 });
   });
 
-  it('downloads public ZIP through publicApi with password header and response filename', async () => {
+  it('downloads public ZIP through publicApi with HttpOnly cookie credentials and response filename', async () => {
     const createObjectUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:url');
     const revokeObjectUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
@@ -200,12 +211,11 @@ describe('shareLinkService', () => {
       headers: { 'content-disposition': 'attachment; filename="client.zip"' },
     } as any);
 
-    shareLinkService.setStoredSharePassword('share123', 'client-pass');
     await shareLinkService.downloadSharedGalleryZip('share123');
 
     expect(publicApi.get).toHaveBeenCalledWith('/s/share123/download/all', {
       responseType: 'blob',
-      headers: { 'X-Viewport-Share-Password': 'client-pass' },
+      headers: {},
     });
     const anchor = document.querySelector('a[download="client.zip"]');
     expect(anchor).toBeNull();

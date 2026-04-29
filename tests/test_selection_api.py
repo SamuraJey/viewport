@@ -68,47 +68,39 @@ class TestSelectionAPI:
         )
         assert enable_resp.status_code == 200
 
-        headers = {"X-Viewport-Share-Password": "client-pass"}
-
         assert authenticated_client.get(f"/s/{share_id}/selection/config").status_code == 401
-        config_resp = authenticated_client.get(f"/s/{share_id}/selection/config", headers=headers)
+        unlock_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "client-pass"})
+        assert unlock_resp.status_code == 204
+
+        config_resp = authenticated_client.get(f"/s/{share_id}/selection/config")
         assert config_resp.status_code == 200
 
-        assert authenticated_client.post(f"/s/{share_id}/selection/session", json={"client_name": "Client", "client_note": "note"}).status_code == 401
         start_resp = authenticated_client.post(
             f"/s/{share_id}/selection/session",
             json={"client_name": "Client", "client_note": "note"},
-            headers=headers,
         )
         assert start_resp.status_code == 200
         resume_token = start_resp.json()["resume_token"]
 
-        assert authenticated_client.get(f"/s/{share_id}/selection/session/me?resume_token={resume_token}").status_code == 401
-        me_resp = authenticated_client.get(f"/s/{share_id}/selection/session/me?resume_token={resume_token}", headers=headers)
+        me_resp = authenticated_client.get(f"/s/{share_id}/selection/session/me?resume_token={resume_token}")
         assert me_resp.status_code == 200
 
-        assert authenticated_client.put(f"/s/{share_id}/selection/session/items/{photo_id}?resume_token={resume_token}").status_code == 401
-        toggle_resp = authenticated_client.put(f"/s/{share_id}/selection/session/items/{photo_id}?resume_token={resume_token}", headers=headers)
+        toggle_resp = authenticated_client.put(f"/s/{share_id}/selection/session/items/{photo_id}?resume_token={resume_token}")
         assert toggle_resp.status_code == 200
 
-        assert authenticated_client.patch(f"/s/{share_id}/selection/session/items/{photo_id}?resume_token={resume_token}", json={"comment": "yes"}).status_code == 401
         comment_resp = authenticated_client.patch(
             f"/s/{share_id}/selection/session/items/{photo_id}?resume_token={resume_token}",
             json={"comment": "yes"},
-            headers=headers,
         )
         assert comment_resp.status_code == 200
 
-        assert authenticated_client.patch(f"/s/{share_id}/selection/session?resume_token={resume_token}", json={"client_note": "updated"}).status_code == 401
         note_resp = authenticated_client.patch(
             f"/s/{share_id}/selection/session?resume_token={resume_token}",
             json={"client_note": "updated"},
-            headers=headers,
         )
         assert note_resp.status_code == 200
 
-        assert authenticated_client.post(f"/s/{share_id}/selection/session/submit?resume_token={resume_token}").status_code == 401
-        submit_resp = authenticated_client.post(f"/s/{share_id}/selection/session/submit?resume_token={resume_token}", headers=headers)
+        submit_resp = authenticated_client.post(f"/s/{share_id}/selection/session/submit?resume_token={resume_token}")
         assert submit_resp.status_code == 200
 
     def test_public_selection_supports_multiple_independent_sessions(

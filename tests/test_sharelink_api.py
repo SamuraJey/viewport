@@ -47,6 +47,10 @@ class TestSharelinkAPI:
 
         assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 401
         assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "client-pass"}).status_code == 200
+        unlock_resp = authenticated_client.post(f"/s/{sharelink_id}/unlock", json={"password": "client-pass"})
+        assert unlock_resp.status_code == 204
+        assert "client-pass" not in unlock_resp.headers.get("set-cookie", "")
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 200
 
         replace_resp = authenticated_client.patch(
             f"/galleries/{gallery_id_fixture}/share-links/{sharelink_id}",
@@ -54,8 +58,11 @@ class TestSharelinkAPI:
         )
         assert replace_resp.status_code == 200
         assert replace_resp.json()["has_password"] is True
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 401
         assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "client-pass"}).status_code == 401
         assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "new-client-pass"}).status_code == 200
+        assert authenticated_client.post(f"/s/{sharelink_id}/unlock", json={"password": "new-client-pass"}).status_code == 204
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 200
 
         clear_resp = authenticated_client.patch(
             f"/galleries/{gallery_id_fixture}/share-links/{sharelink_id}",
@@ -89,6 +96,10 @@ class TestSharelinkAPI:
 
         assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 401
         assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "client-pass"}).status_code == 200
+        unlock_resp = authenticated_client.post(f"/s/{sharelink_id}/unlock", json={"password": "client-pass"})
+        assert unlock_resp.status_code == 204
+        assert "client-pass" not in unlock_resp.headers.get("set-cookie", "")
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 200
 
         replace_resp = authenticated_client.patch(
             f"/projects/{project_id}/share-links/{sharelink_id}",
@@ -96,8 +107,11 @@ class TestSharelinkAPI:
         )
         assert replace_resp.status_code == 200
         assert replace_resp.json()["has_password"] is True
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 401
         assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "client-pass"}).status_code == 401
         assert authenticated_client.get(f"/s/{sharelink_id}", headers={"X-Viewport-Share-Password": "new-client-pass"}).status_code == 200
+        assert authenticated_client.post(f"/s/{sharelink_id}/unlock", json={"password": "new-client-pass"}).status_code == 204
+        assert authenticated_client.get(f"/s/{sharelink_id}").status_code == 200
 
         clear_resp = authenticated_client.patch(
             f"/projects/{project_id}/share-links/{sharelink_id}",

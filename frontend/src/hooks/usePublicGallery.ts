@@ -13,6 +13,10 @@ const getErrorStatus = (error: unknown): number | undefined => {
   return typeof status === 'number' ? status : undefined;
 };
 
+const isExpectedPublicGalleryStatus = (status: number | undefined): boolean =>
+  status === PUBLIC_GALLERY_PASSWORD_STATUS ||
+  (typeof status === 'number' && PUBLIC_GALLERY_FATAL_STATUSES.has(status));
+
 interface UsePublicGalleryProps {
   shareId: string | undefined;
   galleryId?: string;
@@ -66,8 +70,10 @@ export const usePublicGallery = ({
       setHasMore(loadedPhotos.length === photosPerPage);
       return true;
     } catch (err) {
-      console.error('Failed to fetch shared gallery:', err);
       const status = getErrorStatus(err);
+      if (!isExpectedPublicGalleryStatus(status)) {
+        console.error('Failed to fetch shared gallery:', err);
+      }
       setErrorStatus(status ?? null);
       if (status === PUBLIC_GALLERY_PASSWORD_STATUS) {
         setIsPasswordRequired(true);
@@ -102,8 +108,10 @@ export const usePublicGallery = ({
       setPhotos((prev) => [...prev, ...newPhotos]);
       setHasMore(newPhotos.length === photosPerPage);
     } catch (err) {
-      console.error('Failed to load more photos:', err);
       const status = getErrorStatus(err);
+      if (!isExpectedPublicGalleryStatus(status)) {
+        console.error('Failed to load more photos:', err);
+      }
       if (status === PUBLIC_GALLERY_PASSWORD_STATUS) {
         setErrorStatus(status);
         setIsPasswordRequired(true);
@@ -135,13 +143,21 @@ export const usePublicGallery = ({
     async (password: string) => {
       if (!shareId) return;
       setIsVerifyingPassword(true);
-      shareLinkService.setStoredSharePassword(shareId, password);
       try {
+        await shareLinkService.unlockSharedGallery(shareId, password);
         const unlocked = await fetchGalleryData();
         if (unlocked) {
           setPasswordVersion((current) => current + 1);
-        } else {
-          shareLinkService.clearStoredSharePassword(shareId);
+        }
+      } catch (err) {
+        const status = getErrorStatus(err);
+        setErrorStatus(status ?? null);
+        if (status === PUBLIC_GALLERY_PASSWORD_STATUS) {
+          setIsPasswordRequired(true);
+          setError('Password required');
+        } else if (status && PUBLIC_GALLERY_FATAL_STATUSES.has(status)) {
+          setError(status === 410 ? 'Share link has expired' : 'Gallery not found');
+          setHasMore(false);
         }
       } finally {
         setIsVerifyingPassword(false);
