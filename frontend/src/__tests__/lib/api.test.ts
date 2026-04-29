@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { publicApi } from '../../lib/api';
 
 // Mock environment variables
 const mockEnv = {
@@ -69,6 +70,10 @@ describe('api', () => {
   });
 
   describe('API configuration', () => {
+    it('does not set a default Content-Type header on public requests', () => {
+      expect(publicApi.defaults.headers.common['Content-Type']).toBeUndefined();
+    });
+
     it('should use development API URL when in dev mode', () => {
       mockEnv.DEV = true;
       mockEnv.VITE_API_URL = '';
