@@ -21,15 +21,10 @@ from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client, get_s3_settings
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto, PublicProjectFolder, PublicProjectResponse, PublicShareResponse
-from viewport.sharelink_utils import is_sharelink_expired
+from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_valid_public_sharelink
 from viewport.zip_utils import build_zip_fallback_name, make_unique_zip_entry_name, sanitize_zip_entry_name
 
 router = APIRouter(prefix="/s", tags=["public"])
-PUBLIC_CACHE_CONTROL_HEADERS = {
-    "Cache-Control": "no-store, max-age=0, must-revalidate",
-    "Pragma": "no-cache",
-    "Expires": "0",
-}
 INTERNAL_PROJECT_NAVIGATION_HEADER = "x-viewport-internal-navigation"
 
 
@@ -62,16 +57,13 @@ def get_project_repository(db: AsyncSession = Depends(get_db)) -> ProjectReposit
     return ProjectRepository(db)
 
 
-async def get_valid_sharelink(share_id: UUID, repo: ShareLinkRepository = Depends(get_sharelink_repository)) -> ShareLink:
-    """Get valid sharelink."""
-    sharelink = await repo.get_sharelink_for_public_access(share_id)
-    if not sharelink:
-        raise HTTPException(status_code=404, detail="ShareLink not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-    if not sharelink.is_active:
-        raise HTTPException(status_code=404, detail="ShareLink not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-    if is_sharelink_expired(sharelink.expires_at):
-        raise HTTPException(status_code=410, detail="ShareLink expired", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-    return sharelink
+async def get_valid_sharelink(
+    share_id: UUID,
+    request: Request,
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
+) -> ShareLink:
+    """Get active, non-expired sharelink and enforce optional password."""
+    return await get_valid_public_sharelink(share_id, repo, request)
 
 
 def _site_url(request: Request) -> str:

@@ -452,11 +452,13 @@ class ProjectRepository(BaseRepository):
         *,
         label: str | None = None,
         is_active: bool = True,
+        password_hash: str | None = None,
     ) -> ShareLink:
         sharelink = ShareLink(
             project_id=project_id,
             scope_type=ShareScopeType.PROJECT.value,
             label=label,
+            password_hash=password_hash,
             is_active=is_active,
             expires_at=expires_at,
             created_at=datetime.now(UTC),
@@ -491,6 +493,8 @@ class ProjectRepository(BaseRepository):
         label: str | None = None,
         expires_at: datetime | None = None,
         is_active: bool | None = None,
+        password_hash: str | None = None,
+        password_clear: bool | None = None,
         fields_set: set[str],
     ) -> ShareLink | None:
         project = await self.get_project_by_id_and_owner(project_id, owner_id)
@@ -518,6 +522,15 @@ class ProjectRepository(BaseRepository):
                 raise ValueError("is_active cannot be null")
             sharelink.is_active = is_active
             updated = True
+        if "password" in fields_set:
+            sharelink.password_hash = password_hash
+            updated = True
+        if "password_clear" in fields_set:
+            if password_clear is None:
+                raise ValueError("password_clear cannot be null")
+            if password_clear:
+                sharelink.password_hash = None
+                updated = True
         if updated:
             sharelink.updated_at = datetime.now(UTC)
             await self.db.commit()

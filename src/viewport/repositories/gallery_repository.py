@@ -789,11 +789,13 @@ class GalleryRepository(BaseRepository):
         expires_at: datetime | None,
         label: str | None = None,
         is_active: bool = True,
+        password_hash: str | None = None,
     ) -> ShareLink:
         sharelink = ShareLink(
             gallery_id=gallery_id,
             scope_type=ShareScopeType.GALLERY.value,
             label=label,
+            password_hash=password_hash,
             is_active=is_active,
             expires_at=expires_at,
             created_at=datetime.now(UTC),
@@ -813,6 +815,8 @@ class GalleryRepository(BaseRepository):
         label: str | None = None,
         expires_at: datetime | None = None,
         is_active: bool | None = None,
+        password_hash: str | None = None,
+        password_clear: bool | None = None,
         fields_set: set[str],
     ) -> ShareLink | None:
         gallery = await self.get_gallery_by_id_and_owner(gallery_id, owner_id)
@@ -836,6 +840,15 @@ class GalleryRepository(BaseRepository):
                 raise ValueError("is_active cannot be null")
             sharelink.is_active = is_active
             updated = True
+        if "password" in fields_set:
+            sharelink.password_hash = password_hash
+            updated = True
+        if "password_clear" in fields_set:
+            if password_clear is None:
+                raise ValueError("password_clear cannot be null")
+            if password_clear:
+                sharelink.password_hash = None
+                updated = True
 
         if updated:
             sharelink.updated_at = datetime.now(UTC)

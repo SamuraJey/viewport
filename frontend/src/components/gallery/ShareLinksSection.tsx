@@ -13,6 +13,7 @@ import {
   Copy,
   Check,
   Trash2,
+  LockKeyhole,
 } from 'lucide-react';
 import type { ShareLink } from '../../types';
 import { copyTextToClipboard } from '../../lib/clipboard';
@@ -271,6 +272,12 @@ const ShareLinksSectionComponent = ({
                               {link.label?.trim() || 'Untitled share link'}
                             </p>
                             <ShareLinkStatusBadge status={status} />
+                            {link.has_password ? (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wide text-accent">
+                                <LockKeyhole className="h-3 w-3" aria-hidden="true" />
+                                Protected
+                              </span>
+                            ) : null}
                           </div>
 
                           <div className="flex min-w-0 items-start gap-2">

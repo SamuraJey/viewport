@@ -113,6 +113,10 @@ vi.mock('../../services/shareLinkService', () => ({
     updatePublicSelectionSession: vi.fn(),
     submitPublicSelectionSession: vi.fn(),
     getPublicPhotosByIds: vi.fn(),
+    downloadSharedGalleryZip: vi.fn(),
+    downloadSharedProjectGalleryZip: vi.fn(),
+    setStoredSharePassword: vi.fn(),
+    clearStoredSharePassword: vi.fn(),
   },
 }));
 
@@ -164,6 +168,8 @@ describe('PublicGalleryPage', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { shareLinkService } = await import('../../services/shareLinkService');
     vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue(mockPublicGallery);
+    vi.mocked(shareLinkService.downloadSharedGalleryZip).mockResolvedValue(undefined as any);
+    vi.mocked(shareLinkService.downloadSharedProjectGalleryZip).mockResolvedValue(undefined as any);
     vi.mocked(shareLinkService.getPublicSelectionConfig).mockRejectedValue({
       response: { status: 404, data: { detail: 'Selection is not enabled' } },
     } as any);
@@ -318,6 +324,37 @@ describe('PublicGalleryPage', () => {
     expect(screen.getByText(/Gallery not found/i)).toBeInTheDocument();
   });
 
+  it('prompts for password on public 401 and retries after submission', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.getSharedGallery)
+      .mockRejectedValueOnce({ response: { status: 401 } })
+      .mockResolvedValueOnce(mockPublicGallery);
+
+    render(wrapper());
+
+    await waitFor(() => expect(screen.getByText('Password required')).toBeInTheDocument());
+    await userEvent.type(screen.getByLabelText(/share password/i), 'client-pass');
+    await userEvent.click(screen.getByRole('button', { name: /unlock share/i }));
+
+    expect(shareLinkService.setStoredSharePassword).toHaveBeenCalledWith('abc123', 'client-pass');
+    await waitFor(() => expect(screen.getByText('Photos')).toBeInTheDocument());
+  });
+
+  it('does not keep a rejected share password in session storage', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.getSharedGallery).mockRejectedValue({ response: { status: 401 } });
+
+    render(wrapper());
+
+    await waitFor(() => expect(screen.getByText('Password required')).toBeInTheDocument());
+    await userEvent.type(screen.getByLabelText(/share password/i), 'wrong-pass');
+    await userEvent.click(screen.getByRole('button', { name: /unlock share/i }));
+
+    await waitFor(() =>
+      expect(shareLinkService.clearStoredSharePassword).toHaveBeenCalledWith('abc123'),
+    );
+  });
+
   it('shows dedicated expired state for 410 responses', async () => {
     const { shareLinkService } = await import('../../services/shareLinkService');
     vi.mocked(shareLinkService.getSharedGallery).mockRejectedValue({
@@ -334,9 +371,7 @@ describe('PublicGalleryPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('calls window.open when Download All clicked', async () => {
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null as any);
-
+  it('uses header-capable share link service when Download All is clicked', async () => {
     render(wrapper());
 
     await waitFor(() => {
@@ -347,10 +382,8 @@ describe('PublicGalleryPage', () => {
     const btn = screen.getByRole('button', { name: /download all photos/i });
     await userEvent.click(btn);
 
-    // Should use VITE_API_URL from environment, or fallback to localhost:8000
-    const expectedUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/s/abc123/download/all`;
-    expect(openSpy).toHaveBeenCalledWith(expectedUrl, '_blank');
-    openSpy.mockRestore();
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    expect(shareLinkService.downloadSharedGalleryZip).toHaveBeenCalledWith('abc123');
   });
 
   it('redirects project shares to the first visible gallery by default', async () => {
@@ -402,7 +435,6 @@ describe('PublicGalleryPage', () => {
 
   it('downloads only the active gallery from project share navigation', async () => {
     const { shareLinkService } = await import('../../services/shareLinkService');
-    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-2' };
     vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue({
       ...mockProjectGallery,
@@ -414,9 +446,10 @@ describe('PublicGalleryPage', () => {
     const button = await screen.findByRole('button', { name: /download gallery/i });
     await userEvent.click(button);
 
-    const expectedUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/s/abc123/galleries/gallery-2/download/all`;
-    expect(openSpy).toHaveBeenCalledWith(expectedUrl, '_blank');
-    openSpy.mockRestore();
+    expect(shareLinkService.downloadSharedProjectGalleryZip).toHaveBeenCalledWith(
+      'abc123',
+      'gallery-2',
+    );
   });
 
   it('reuses nested gallery project navigation without refetching the root project share', async () => {

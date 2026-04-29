@@ -10,6 +10,22 @@ class ShareScopeType(StrEnum):
     PROJECT = "project"
 
 
+PASSWORD_MIN_LENGTH = 8
+PASSWORD_MAX_LENGTH = 128
+
+
+def _validate_sharelink_password(password: str | None) -> str | None:
+    if password is None:
+        return None
+    if not password.strip():
+        raise ValueError("password cannot be blank")
+    if len(password) < PASSWORD_MIN_LENGTH:
+        raise ValueError(f"password must be at least {PASSWORD_MIN_LENGTH} characters")
+    if len(password) > PASSWORD_MAX_LENGTH:
+        raise ValueError(f"password must be at most {PASSWORD_MAX_LENGTH} characters")
+    return password
+
+
 class ShareLinkBase(BaseModel):
     label: str | None = Field(None, max_length=127)
     expires_at: datetime | None = None
@@ -17,13 +33,20 @@ class ShareLinkBase(BaseModel):
 
 
 class ShareLinkCreateRequest(ShareLinkBase):
-    pass
+    password: str | None = Field(None, json_schema_extra={"writeOnly": True})
+
+    @model_validator(mode="after")
+    def validate_password(self):
+        self.password = _validate_sharelink_password(self.password)
+        return self
 
 
 class ShareLinkUpdateRequest(BaseModel):
     label: str | None = Field(None, max_length=127)
     expires_at: datetime | None = None
     is_active: bool | None = None
+    password: str | None = Field(None, json_schema_extra={"writeOnly": True})
+    password_clear: bool | None = None
 
     @model_validator(mode="after")
     def validate_payload(self):
@@ -31,6 +54,11 @@ class ShareLinkUpdateRequest(BaseModel):
             raise ValueError("At least one field must be provided for update")
         if "is_active" in self.model_fields_set and self.is_active is None:
             raise ValueError("is_active cannot be null")
+        if "password_clear" in self.model_fields_set and self.password_clear is None:
+            raise ValueError("password_clear cannot be null")
+        if self.password_clear and "password" in self.model_fields_set:
+            raise ValueError("password and password_clear cannot be provided together")
+        self.password = _validate_sharelink_password(self.password)
         return self
 
 
@@ -40,6 +68,7 @@ class GalleryShareLinkResponse(ShareLinkBase):
     views: int
     zip_downloads: int
     single_downloads: int
+    has_password: bool = False
     created_at: datetime
     updated_at: datetime
 

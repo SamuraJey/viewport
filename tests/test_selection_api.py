@@ -11,11 +11,11 @@ from viewport.repositories.selection_repository import SelectionRepository
 pytestmark = pytest.mark.requires_s3
 
 
-def _create_sharelink(authenticated_client: TestClient, gallery_id: str) -> str:
+def _create_sharelink(authenticated_client: TestClient, gallery_id: str, password: str | None = None) -> str:
     expires_at = (datetime.now(UTC) + timedelta(days=7)).isoformat()
     response = authenticated_client.post(
         f"/galleries/{gallery_id}/share-links",
-        json={"expires_at": expires_at},
+        json={"expires_at": expires_at, **({"password": password} if password else {})},
     )
     assert response.status_code == 201
     return response.json()["id"]
@@ -51,6 +51,65 @@ class TestSelectionAPI:
             json={"client_name": "Deleted Gallery Client"},
         )
         assert session_resp.status_code == 404
+
+    def test_public_selection_routes_require_share_password(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr("viewport.api.selection.notify_selection_submitted_task.delay", lambda payload: None)
+
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"pick", "pick.jpg")
+        share_id = _create_sharelink(authenticated_client, gallery_id_fixture, password="client-pass")
+        enable_resp = authenticated_client.patch(
+            f"/galleries/{gallery_id_fixture}/share-links/{share_id}/selection-config",
+            json={"is_enabled": True, "allow_photo_comments": True, "require_client_note": True},
+        )
+        assert enable_resp.status_code == 200
+
+        headers = {"X-Viewport-Share-Password": "client-pass"}
+
+        assert authenticated_client.get(f"/s/{share_id}/selection/config").status_code == 401
+        config_resp = authenticated_client.get(f"/s/{share_id}/selection/config", headers=headers)
+        assert config_resp.status_code == 200
+
+        assert authenticated_client.post(f"/s/{share_id}/selection/session", json={"client_name": "Client", "client_note": "note"}).status_code == 401
+        start_resp = authenticated_client.post(
+            f"/s/{share_id}/selection/session",
+            json={"client_name": "Client", "client_note": "note"},
+            headers=headers,
+        )
+        assert start_resp.status_code == 200
+        resume_token = start_resp.json()["resume_token"]
+
+        assert authenticated_client.get(f"/s/{share_id}/selection/session/me?resume_token={resume_token}").status_code == 401
+        me_resp = authenticated_client.get(f"/s/{share_id}/selection/session/me?resume_token={resume_token}", headers=headers)
+        assert me_resp.status_code == 200
+
+        assert authenticated_client.put(f"/s/{share_id}/selection/session/items/{photo_id}?resume_token={resume_token}").status_code == 401
+        toggle_resp = authenticated_client.put(f"/s/{share_id}/selection/session/items/{photo_id}?resume_token={resume_token}", headers=headers)
+        assert toggle_resp.status_code == 200
+
+        assert authenticated_client.patch(f"/s/{share_id}/selection/session/items/{photo_id}?resume_token={resume_token}", json={"comment": "yes"}).status_code == 401
+        comment_resp = authenticated_client.patch(
+            f"/s/{share_id}/selection/session/items/{photo_id}?resume_token={resume_token}",
+            json={"comment": "yes"},
+            headers=headers,
+        )
+        assert comment_resp.status_code == 200
+
+        assert authenticated_client.patch(f"/s/{share_id}/selection/session?resume_token={resume_token}", json={"client_note": "updated"}).status_code == 401
+        note_resp = authenticated_client.patch(
+            f"/s/{share_id}/selection/session?resume_token={resume_token}",
+            json={"client_note": "updated"},
+            headers=headers,
+        )
+        assert note_resp.status_code == 200
+
+        assert authenticated_client.post(f"/s/{share_id}/selection/session/submit?resume_token={resume_token}").status_code == 401
+        submit_resp = authenticated_client.post(f"/s/{share_id}/selection/session/submit?resume_token={resume_token}", headers=headers)
+        assert submit_resp.status_code == 200
 
     def test_public_selection_supports_multiple_independent_sessions(
         self,

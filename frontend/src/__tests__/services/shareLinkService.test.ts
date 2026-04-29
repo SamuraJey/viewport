@@ -1,9 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { shareLinkService } from '../../services/shareLinkService';
-import { api } from '../../lib/api';
+import { api, publicApi } from '../../lib/api';
 
 vi.mock('../../lib/api', () => ({
   api: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+  },
+  publicApi: {
     get: vi.fn(),
     post: vi.fn(),
     put: vi.fn(),
@@ -15,6 +22,7 @@ vi.mock('../../lib/api', () => ({
 describe('shareLinkService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.sessionStorage.clear();
   });
 
   it('fetches share links', async () => {
@@ -64,14 +72,14 @@ describe('shareLinkService', () => {
   });
 
   it('fetches shared gallery with pagination params', async () => {
-    vi.mocked(api.get).mockResolvedValue({ data: { photos: [], total_photos: 0 } } as any);
+    vi.mocked(publicApi.get).mockResolvedValue({ data: { photos: [], total_photos: 0 } } as any);
 
     const result = await shareLinkService.getSharedGallery('share123', {
       limit: 10,
       offset: 20,
     });
 
-    expect(api.get).toHaveBeenCalledWith('/s/share123?limit=10&offset=20', {
+    expect(publicApi.get).toHaveBeenCalledWith('/s/share123?limit=10&offset=20', {
       headers: {
         'Cache-Control': 'no-cache',
         Pragma: 'no-cache',
@@ -81,14 +89,14 @@ describe('shareLinkService', () => {
   });
 
   it('sends the internal navigation header when project gallery views should not increment analytics', async () => {
-    vi.mocked(api.get).mockResolvedValue({ data: { photos: [], total_photos: 0 } } as any);
+    vi.mocked(publicApi.get).mockResolvedValue({ data: { photos: [], total_photos: 0 } } as any);
 
     await shareLinkService.getSharedGallery('share123', {
       galleryId: 'gallery-1',
       skipProjectViewCount: true,
     });
 
-    expect(api.get).toHaveBeenCalledWith('/s/share123/galleries/gallery-1', {
+    expect(publicApi.get).toHaveBeenCalledWith('/s/share123/galleries/gallery-1', {
       headers: {
         'Cache-Control': 'no-cache',
         Pragma: 'no-cache',
@@ -106,41 +114,68 @@ describe('shareLinkService', () => {
   });
 
   it('fetches public photo urls', async () => {
-    vi.mocked(api.get)
+    vi.mocked(publicApi.get)
       .mockResolvedValueOnce({ data: { url: '/photo.jpg', expires_in: 60 } } as any)
       .mockResolvedValueOnce({ data: [{ photo_id: 'p1', full_url: '/p1' }] } as any);
 
     const urlResponse = await shareLinkService.getPublicPhotoUrl('share123', 'p1');
     const batchResponse = await shareLinkService.getAllPublicPhotoUrls('share123');
 
-    expect(api.get).toHaveBeenNthCalledWith(1, '/s/share123/photos/p1/url');
-    expect(api.get).toHaveBeenNthCalledWith(2, '/s/share123/photos/urls');
+    expect(publicApi.get).toHaveBeenNthCalledWith(1, '/s/share123/photos/p1/url', {
+      headers: {},
+    });
+    expect(publicApi.get).toHaveBeenNthCalledWith(2, '/s/share123/photos/urls', {
+      headers: {},
+    });
     expect(urlResponse).toEqual({ url: '/photo.jpg', expires_in: 60 });
     expect(batchResponse).toEqual([{ photo_id: 'p1', full_url: '/p1' }]);
   });
 
   it('fetches public photo cards by ids preserving query order', async () => {
-    vi.mocked(api.get).mockResolvedValue({ data: [{ photo_id: 'p2' }, { photo_id: 'p1' }] } as any);
+    vi.mocked(publicApi.get).mockResolvedValue({
+      data: [{ photo_id: 'p2' }, { photo_id: 'p1' }],
+    } as any);
 
     const result = await shareLinkService.getPublicPhotosByIds('share123', ['p2', 'p1']);
 
-    expect(api.get).toHaveBeenCalledWith('/s/share123/photos/by-ids?photo_ids=p2&photo_ids=p1');
+    expect(publicApi.get).toHaveBeenCalledWith(
+      '/s/share123/photos/by-ids?photo_ids=p2&photo_ids=p1',
+      { headers: {} },
+    );
     expect(result).toEqual([{ photo_id: 'p2' }, { photo_id: 'p1' }]);
   });
 
+  it('attaches stored share password to public share calls', async () => {
+    vi.mocked(publicApi.get).mockResolvedValue({ data: { photos: [], total_photos: 0 } } as any);
+
+    shareLinkService.setStoredSharePassword('share123', 'client-pass');
+    await shareLinkService.getSharedGallery('share123');
+
+    expect(publicApi.get).toHaveBeenCalledWith('/s/share123', {
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+        'X-Viewport-Share-Password': 'client-pass',
+      },
+    });
+  });
+
   it('fetches public selection session with resume token query', async () => {
-    vi.mocked(api.get).mockResolvedValue({ data: { id: 'session-1' } } as any);
+    vi.mocked(publicApi.get).mockResolvedValue({ data: { id: 'session-1' } } as any);
 
     const result = await shareLinkService.getPublicSelectionSession('share123', 'resume-token');
 
-    expect(api.get).toHaveBeenCalledWith(
+    expect(publicApi.get).toHaveBeenCalledWith(
       '/s/share123/selection/session/me?resume_token=resume-token',
+      { headers: {} },
     );
     expect(result).toEqual({ id: 'session-1' });
   });
 
   it('toggles public selection item with resume token query', async () => {
-    vi.mocked(api.put).mockResolvedValue({ data: { selected: true, selected_count: 1 } } as any);
+    vi.mocked(publicApi.put).mockResolvedValue({
+      data: { selected: true, selected_count: 1 },
+    } as any);
 
     const result = await shareLinkService.togglePublicSelectionItem(
       'share123',
@@ -148,10 +183,37 @@ describe('shareLinkService', () => {
       'resume-token',
     );
 
-    expect(api.put).toHaveBeenCalledWith(
+    expect(publicApi.put).toHaveBeenCalledWith(
       '/s/share123/selection/session/items/photo-1?resume_token=resume-token',
+      undefined,
+      { headers: {} },
     );
     expect(result).toEqual({ selected: true, selected_count: 1 });
+  });
+
+  it('downloads public ZIP through publicApi with password header and response filename', async () => {
+    const createObjectUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:url');
+    const revokeObjectUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    vi.mocked(publicApi.get).mockResolvedValue({
+      data: new Blob(['zip']),
+      headers: { 'content-disposition': 'attachment; filename="client.zip"' },
+    } as any);
+
+    shareLinkService.setStoredSharePassword('share123', 'client-pass');
+    await shareLinkService.downloadSharedGalleryZip('share123');
+
+    expect(publicApi.get).toHaveBeenCalledWith('/s/share123/download/all', {
+      responseType: 'blob',
+      headers: { 'X-Viewport-Share-Password': 'client-pass' },
+    });
+    const anchor = document.querySelector('a[download="client.zip"]');
+    expect(anchor).toBeNull();
+    expect(clickSpy).toHaveBeenCalled();
+
+    createObjectUrlSpy.mockRestore();
+    revokeObjectUrlSpy.mockRestore();
+    clickSpy.mockRestore();
   });
 
   it('fetches owner selection detail', async () => {

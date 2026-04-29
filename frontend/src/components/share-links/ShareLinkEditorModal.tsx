@@ -6,6 +6,7 @@ interface EditableShareLink {
   label?: string | null;
   is_active?: boolean;
   expires_at: string | null;
+  has_password?: boolean;
 }
 
 interface ShareLinkEditorModalProps {

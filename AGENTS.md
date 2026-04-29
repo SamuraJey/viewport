@@ -30,6 +30,7 @@
   - `galleries.project_visibility` controls project-share visibility: `listed` galleries appear inside project shares, `direct_only` galleries are hidden from project shares and remain accessible only via their own direct gallery share link.
   - Shared gallery photo listing (`GET /s/{share_id}`) uses gallery-level persisted settings (`galleries.public_sort_by`, `galleries.public_sort_order`) configured in private gallery management; sorting and pagination must be done at SQL level and `total_photos` must represent full gallery size before pagination.
   - Share links support lifecycle controls (`share_links.label`, `share_links.is_active`, editable `expires_at`) and now have explicit scope: gallery links live under `/galleries/{gallery_id}/share-links`, project links live under `/projects/{project_id}/share-links`, and owner-wide analytics remain under `/share-links`.
+  - Share links may be password-protected via `share_links.password_hash`; expose only `has_password` in APIs. Public `/s/{share_id}` routes must use the shared password gate and preserve `404` for missing/inactive links and `410` for expired links.
   - Selection/favorites is sharelink-scoped: gallery links still select within one gallery, while project links can run one shared selection flow across all currently `listed` galleries in that project. Project selection must reject `direct_only` galleries and owner/export responses must preserve gallery context.
   - Share-link analytics are stored as daily aggregates in `share_link_daily_stats` with dedup support via `share_link_daily_visitors` (hash of IP+User-Agent); do not add raw per-open event logs unless explicitly required.
   - Public share access dispatches by scope: gallery links return gallery photos, project links return a project payload whose first listed gallery becomes the default entry tab, inactive links must remain non-disclosing (`404`), and expired links return `410` so frontend can render a dedicated expiration state.
@@ -57,6 +58,7 @@
   - Theme preference is persisted under `localStorage['theme-preference']` with values `light|dark|system`.
   - Auth header is injected from `authStore`, and 401 triggers refresh via `/auth/refresh`.
 - **API calls**: Live in `frontend/src/services/*Service.ts` and use shared Axios instance `frontend/src/lib/api.ts`.
+  - Public share (`/s/{share_id}`) calls use the unauthenticated `publicApi` client plus `X-Viewport-Share-Password` from per-share `sessionStorage` when present; never send share passwords in URLs, localStorage, analytics, or owner auth headers.
   - Demo environment: `frontend/src/services/demoService.ts` is the in-memory source of truth for demo data. Service methods should branch through `isDemoModeEnabled()` (`frontend/src/lib/demoMode.ts`) so Dashboard/Gallery/Profile/Public flows can run without backend auth.
   - Demo entry points: use one-click demo access from auth/landing UI by enabling demo mode in localStorage (`viewport-demo-mode`) and logging into `authStore` with mock user/tokens.
 - **Dev API routing**: Vite proxy rewrites `VITE_DEV_API_PREFIX` (default `/api`) to the backend (see `frontend/vite.config.ts`).

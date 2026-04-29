@@ -1397,6 +1397,7 @@ class DemoServiceStore {
       label: normalizedLabel ? normalizedLabel : null,
       is_active: payload?.is_active ?? true,
       expires_at: payload?.expires_at ?? null,
+      has_password: Boolean(payload?.password),
       views: 0,
       zip_downloads: 0,
       single_downloads: 0,
@@ -1436,6 +1437,12 @@ class DemoServiceStore {
     }
     if (Object.prototype.hasOwnProperty.call(payload, 'expires_at')) {
       link.expires_at = payload.expires_at ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, 'password')) {
+      link.has_password = Boolean(payload.password);
+    }
+    if (payload.password_clear) {
+      link.has_password = false;
     }
     link.updated_at = nowIso();
 
@@ -1568,6 +1575,7 @@ class DemoServiceStore {
       label: normalizedLabel ? normalizedLabel : null,
       is_active: payload?.is_active ?? true,
       expires_at: payload?.expires_at ?? null,
+      has_password: Boolean(payload?.password),
       views: 0,
       zip_downloads: 0,
       single_downloads: 0,
@@ -1609,6 +1617,12 @@ class DemoServiceStore {
     }
     if (Object.prototype.hasOwnProperty.call(payload, 'expires_at')) {
       link.expires_at = payload.expires_at ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, 'password')) {
+      link.has_password = Boolean(payload.password);
+    }
+    if (payload.password_clear) {
+      link.has_password = false;
     }
     link.updated_at = nowIso();
     this.recalculateProjects();

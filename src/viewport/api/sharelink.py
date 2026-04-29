@@ -4,7 +4,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
+from viewport.api.auth import hash_password
 from viewport.auth_utils import get_current_user
 from viewport.models.db import get_db
 from viewport.models.sharelink_selection import SelectionSessionStatus
@@ -46,6 +48,12 @@ def get_sharelink_repository(db: AsyncSession = Depends(get_db)) -> ShareLinkRep
 
 def get_selection_repository(db: AsyncSession = Depends(get_db)) -> SelectionRepository:
     return SelectionRepository(db)
+
+
+async def _hash_sharelink_password(password: str | None) -> str | None:
+    if password is None:
+        return None
+    return await run_in_threadpool(hash_password, password)
 
 
 def _normalize_label(label: str | None) -> str | None:
@@ -117,7 +125,8 @@ async def create_sharelink(gallery_id: UUID, req: ShareLinkCreateRequest, repo: 
     gallery = await repo.get_gallery_by_id_and_owner(gallery_id, user.id)
     if not gallery:
         raise HTTPException(status_code=404, detail="Gallery not found")
-    sharelink = await repo.create_sharelink(gallery_id, req.expires_at, label=_normalize_label(req.label), is_active=req.is_active)
+    password_hash = await _hash_sharelink_password(req.password)
+    sharelink = await repo.create_sharelink(gallery_id, req.expires_at, label=_normalize_label(req.label), is_active=req.is_active, password_hash=password_hash)
     return GalleryShareLinkResponse.model_validate(sharelink)
 
 
@@ -132,6 +141,7 @@ async def update_sharelink(
     update_data = req.model_dump(exclude_unset=True)
     if "label" in update_data:
         update_data["label"] = _normalize_label(update_data["label"])
+    password_hash = await _hash_sharelink_password(update_data.get("password")) if "password" in update_data else None
 
     try:
         sharelink = await repo.update_sharelink(
@@ -142,6 +152,8 @@ async def update_sharelink(
             label=update_data.get("label"),
             expires_at=update_data.get("expires_at"),
             is_active=update_data.get("is_active"),
+            password_hash=password_hash,
+            password_clear=update_data.get("password_clear"),
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -221,7 +233,8 @@ async def create_project_sharelink(
     project = await repo.get_project_by_id_and_owner(project_id, user.id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    sharelink = await repo.create_project_sharelink(project_id, req.expires_at, label=_normalize_label(req.label), is_active=req.is_active)
+    password_hash = await _hash_sharelink_password(req.password)
+    sharelink = await repo.create_project_sharelink(project_id, req.expires_at, label=_normalize_label(req.label), is_active=req.is_active, password_hash=password_hash)
     return ScopedShareLinkResponse.model_validate(sharelink)
 
 
@@ -236,6 +249,7 @@ async def update_project_sharelink(
     update_data = req.model_dump(exclude_unset=True)
     if "label" in update_data:
         update_data["label"] = _normalize_label(update_data["label"])
+    password_hash = await _hash_sharelink_password(update_data.get("password")) if "password" in update_data else None
 
     try:
         sharelink = await repo.update_project_sharelink(
@@ -246,6 +260,8 @@ async def update_project_sharelink(
             label=update_data.get("label"),
             expires_at=update_data.get("expires_at"),
             is_active=update_data.get("is_active"),
+            password_hash=password_hash,
+            password_clear=update_data.get("password_clear"),
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -305,6 +321,7 @@ async def list_owner_sharelinks(
             views=sharelink.views,
             zip_downloads=sharelink.zip_downloads,
             single_downloads=sharelink.single_downloads,
+            has_password=sharelink.has_password,
             created_at=sharelink.created_at,
             updated_at=sharelink.updated_at,
             selection_summary=_to_selection_summary_response(*selection_summaries.get(sharelink.id, empty_selection_summary)),
@@ -365,6 +382,7 @@ async def get_sharelink_analytics(
         views=sharelink.views,
         zip_downloads=sharelink.zip_downloads,
         single_downloads=sharelink.single_downloads,
+        has_password=sharelink.has_password,
         created_at=sharelink.created_at,
         updated_at=sharelink.updated_at,
     )
