@@ -12,6 +12,8 @@ vi.mock('../../lib/api', () => ({
   },
   publicApi: {
     get: vi.fn(),
+    head: vi.fn(),
+    getUri: vi.fn(({ url }: { url: string }) => `/api${url}`),
     post: vi.fn(),
     put: vi.fn(),
     patch: vi.fn(),
@@ -202,27 +204,21 @@ describe('shareLinkService', () => {
     expect(result).toEqual({ selected: true, selected_count: 1 });
   });
 
-  it('downloads public ZIP through publicApi with HttpOnly cookie credentials and response filename', async () => {
-    const createObjectUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:url');
-    const revokeObjectUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+  it('preflights public ZIP access and streams download through browser navigation', async () => {
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
-    vi.mocked(publicApi.get).mockResolvedValue({
-      data: new Blob(['zip']),
-      headers: { 'content-disposition': 'attachment; filename="client.zip"' },
-    } as any);
+    vi.mocked(publicApi.head).mockResolvedValue({ status: 204 } as any);
 
     await shareLinkService.downloadSharedGalleryZip('share123');
 
-    expect(publicApi.get).toHaveBeenCalledWith('/s/share123/download/all', {
-      responseType: 'blob',
-      headers: {},
-    });
-    const anchor = document.querySelector('a[download="client.zip"]');
-    expect(anchor).toBeNull();
+    expect(publicApi.head).toHaveBeenCalledWith('/s/share123/download/all', { headers: {} });
+    expect(publicApi.get).not.toHaveBeenCalledWith(
+      '/s/share123/download/all',
+      expect.objectContaining({ responseType: 'blob' }),
+    );
+    expect(publicApi.getUri).toHaveBeenCalledWith({ url: '/s/share123/download/all' });
+    expect(document.querySelector('a[href="/api/s/share123/download/all"]')).toBeNull();
     expect(clickSpy).toHaveBeenCalled();
 
-    createObjectUrlSpy.mockRestore();
-    revokeObjectUrlSpy.mockRestore();
     clickSpy.mockRestore();
   });
 

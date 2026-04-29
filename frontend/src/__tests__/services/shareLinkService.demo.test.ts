@@ -23,6 +23,8 @@ vi.mock('../../lib/api', () => ({
   },
   publicApi: {
     get: vi.fn(),
+    head: vi.fn(),
+    getUri: vi.fn(({ url }: { url: string }) => `/api${url}`),
     post: vi.fn(),
     put: vi.fn(),
     patch: vi.fn(),

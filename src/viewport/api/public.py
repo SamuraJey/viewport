@@ -498,6 +498,28 @@ async def get_public_photos_by_ids(
     ]
 
 
+@router.head("/{share_id}/galleries/{folder_id}/download/all")
+async def check_project_gallery_photos_zip(
+    folder_id: UUID,
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    project_repo: ProjectRepository = Depends(get_project_repository),
+    sharelink: ShareLink = Depends(get_valid_sharelink),
+) -> Response:
+    """Check whether one visible project gallery ZIP can be downloaded without building it."""
+    if sharelink.scope_type != ShareScopeType.PROJECT.value or sharelink.project_id is None:
+        raise HTTPException(status_code=404, detail="Project share not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+
+    gallery = await project_repo.get_visible_project_folder_by_id(sharelink.project_id, folder_id)
+    if gallery is None:
+        raise HTTPException(status_code=404, detail="Folder not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+
+    gallery_photos = await repo.get_photos_by_gallery_id(gallery.id)
+    if not gallery_photos:
+        raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+
+    return Response(status_code=204, headers=PUBLIC_CACHE_CONTROL_HEADERS)
+
+
 # intentionally not async
 @router.get("/{share_id}/galleries/{folder_id}/download/all")
 def download_project_gallery_photos_zip(
@@ -552,6 +574,30 @@ def download_project_gallery_photos_zip(
 
 
 # intetionally not async
+@router.head("/{share_id}/download/all")
+def check_download_all_photos_zip(
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    project_repo: ProjectRepository = Depends(get_project_repository),
+    sharelink: ShareLink = Depends(get_valid_sharelink),
+) -> Response:
+    """Check whether a public share ZIP can be downloaded without building it."""
+    if sharelink.scope_type == ShareScopeType.PROJECT.value:
+        project_id = sharelink.project_id
+        if project_id is None:
+            raise HTTPException(status_code=404, detail="Project not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+        project_zip_entries = asyncio_run(_load_project_zip_entries(project_id, project_repo=project_repo, repo=repo))
+        if not any(folder_photos for _, folder_photos in project_zip_entries):
+            raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+        return Response(status_code=204, headers=PUBLIC_CACHE_CONTROL_HEADERS)
+
+    gallery_id = _require_gallery_share_id(sharelink)
+    gallery_photos = asyncio_run(repo.get_photos_by_gallery_id(gallery_id))
+    if not gallery_photos:
+        raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+
+    return Response(status_code=204, headers=PUBLIC_CACHE_CONTROL_HEADERS)
+
+
 @router.get("/{share_id}/download/all")
 def download_all_photos_zip(
     share_id: UUID,

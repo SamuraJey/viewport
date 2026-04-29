@@ -70,18 +70,18 @@ const parseDownloadFilename = (
   return fallback;
 };
 
-const downloadPublicShareBlob = async (path: string, fallbackFilename: string): Promise<void> => {
-  const response = await publicApi.get<Blob>(path, {
-    responseType: 'blob',
-    headers: {},
-  });
-  const contentDisposition =
-    (response.headers['content-disposition'] as string | undefined) ??
-    (response.headers['Content-Disposition' as keyof typeof response.headers] as
-      | string
-      | undefined);
-  const filename = parseDownloadFilename(contentDisposition, fallbackFilename);
-  triggerBlobDownload(response.data, filename);
+const triggerBrowserDownload = (path: string): void => {
+  const anchor = document.createElement('a');
+  anchor.href = publicApi.getUri({ url: path });
+  anchor.rel = 'noopener';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+};
+
+const downloadPublicShare = async (path: string): Promise<void> => {
+  await publicApi.head(path, { headers: {} });
+  triggerBrowserDownload(path);
 };
 
 const downloadOwnerExport = async (path: string, fallbackFilename: string): Promise<void> => {
@@ -484,7 +484,7 @@ const downloadSharedGalleryZip = async (shareId: string): Promise<void> => {
     return;
   }
 
-  await downloadPublicShareBlob(`/s/${shareId}/download/all`, `share_${shareId}.zip`);
+  await downloadPublicShare(`/s/${shareId}/download/all`);
 };
 
 const downloadSharedProjectGalleryZip = async (
@@ -496,10 +496,7 @@ const downloadSharedProjectGalleryZip = async (
     return;
   }
 
-  await downloadPublicShareBlob(
-    `/s/${shareId}/galleries/${galleryId}/download/all`,
-    `share_${shareId}_gallery_${galleryId}.zip`,
-  );
+  await downloadPublicShare(`/s/${shareId}/galleries/${galleryId}/download/all`);
 };
 
 const getOwnerSelectionConfig = async (

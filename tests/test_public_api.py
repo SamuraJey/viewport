@@ -341,6 +341,8 @@ class TestPublicAPI:
 
         missing_zip_resp = authenticated_client.get(f"/s/{share_id}/download/all")
         assert missing_zip_resp.status_code == 401
+        missing_zip_head_resp = authenticated_client.head(f"/s/{share_id}/download/all")
+        assert missing_zip_head_resp.status_code == 401
 
         unlock_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "client-pass"})
         assert unlock_resp.status_code == 204
@@ -361,6 +363,9 @@ class TestPublicAPI:
         zip_resp = authenticated_client.get(f"/s/{share_id}/download/all")
         assert zip_resp.status_code == 200
         assert zip_resp.headers["content-type"].startswith("application/zip")
+        zip_head_resp = authenticated_client.head(f"/s/{share_id}/download/all")
+        assert zip_head_resp.status_code == 204
+        assert zip_head_resp.content == b""
 
     def test_password_header_rejects_bcrypt_truncation_bypass(
         self,
@@ -442,6 +447,8 @@ class TestPublicAPI:
         assert authenticated_client.get(f"/s/{share_id}/photos/by-ids?photo_ids={photo_id}").status_code == 401
         assert authenticated_client.get(f"/s/{share_id}/download/all").status_code == 401
         assert authenticated_client.get(f"/s/{share_id}/galleries/{gallery_id}/download/all").status_code == 401
+        assert authenticated_client.head(f"/s/{share_id}/download/all").status_code == 401
+        assert authenticated_client.head(f"/s/{share_id}/galleries/{gallery_id}/download/all").status_code == 401
 
         unlock_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "client-pass"})
         assert unlock_resp.status_code == 204
@@ -481,6 +488,14 @@ class TestPublicAPI:
 
             gallery_zip_resp = authenticated_client.get(f"/s/{share_id}/galleries/{gallery_id}/download/all")
             assert gallery_zip_resp.status_code == 200
+
+        project_zip_head_resp = authenticated_client.head(f"/s/{share_id}/download/all")
+        assert project_zip_head_resp.status_code == 204
+        assert project_zip_head_resp.content == b""
+
+        gallery_zip_head_resp = authenticated_client.head(f"/s/{share_id}/galleries/{gallery_id}/download/all")
+        assert gallery_zip_head_resp.status_code == 204
+        assert gallery_zip_head_resp.content == b""
 
     def test_get_photos_by_sharelink_uses_saved_gallery_sort_settings(self, authenticated_client: TestClient, gallery_id_fixture: str):
         _upload_photo(authenticated_client, gallery_id_fixture, b"one", "a.jpg")
