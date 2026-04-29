@@ -80,12 +80,7 @@ describe('shareLinkService', () => {
       offset: 20,
     });
 
-    expect(publicApi.get).toHaveBeenCalledWith('/s/share123?limit=10&offset=20', {
-      headers: {
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
-      },
-    });
+    expect(publicApi.get).toHaveBeenCalledWith('/s/share123?limit=10&offset=20');
     expect(result).toEqual({ photos: [], total_photos: 0 });
   });
 
@@ -99,8 +94,6 @@ describe('shareLinkService', () => {
 
     expect(publicApi.get).toHaveBeenCalledWith('/s/share123/galleries/gallery-1', {
       headers: {
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
         'X-Viewport-Internal-Navigation': '1',
       },
     });
@@ -112,24 +105,6 @@ describe('shareLinkService', () => {
     await shareLinkService.getOwnerShareLinks(2, 25, 'ivan', 'inactive');
 
     expect(api.get).toHaveBeenCalledWith('/share-links?page=2&size=25&search=ivan&status=inactive');
-  });
-
-  it('fetches public photo urls', async () => {
-    vi.mocked(publicApi.get)
-      .mockResolvedValueOnce({ data: { url: '/photo.jpg', expires_in: 60 } } as any)
-      .mockResolvedValueOnce({ data: [{ photo_id: 'p1', full_url: '/p1' }] } as any);
-
-    const urlResponse = await shareLinkService.getPublicPhotoUrl('share123', 'p1');
-    const batchResponse = await shareLinkService.getAllPublicPhotoUrls('share123');
-
-    expect(publicApi.get).toHaveBeenNthCalledWith(1, '/s/share123/photos/p1/url', {
-      headers: {},
-    });
-    expect(publicApi.get).toHaveBeenNthCalledWith(2, '/s/share123/photos/urls', {
-      headers: {},
-    });
-    expect(urlResponse).toEqual({ url: '/photo.jpg', expires_in: 60 });
-    expect(batchResponse).toEqual([{ photo_id: 'p1', full_url: '/p1' }]);
   });
 
   it('fetches public photo cards by ids preserving query order', async () => {
@@ -165,12 +140,7 @@ describe('shareLinkService', () => {
 
     expect(window.sessionStorage.setItem).not.toHaveBeenCalled();
     expect(window.localStorage.setItem).not.toHaveBeenCalled();
-    expect(publicApi.get).toHaveBeenCalledWith('/s/share123', {
-      headers: {
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
-      },
-    });
+    expect(publicApi.get).toHaveBeenCalledWith('/s/share123');
   });
 
   it('fetches public selection session with resume token query', async () => {

@@ -164,15 +164,11 @@ const getSharedGallery = async (
   const basePath = nestedGalleryId ? `/s/${shareId}/galleries/${nestedGalleryId}` : `/s/${shareId}`;
   const queryString = params.toString();
   const url = queryString ? `${basePath}?${queryString}` : basePath;
-  const headers: Record<string, string> = {
-    'Cache-Control': 'no-cache',
-    Pragma: 'no-cache',
-  };
-  if (options?.skipProjectViewCount) {
-    headers['X-Viewport-Internal-Navigation'] = '1';
-  }
+  const config = options?.skipProjectViewCount
+    ? { headers: { 'X-Viewport-Internal-Navigation': '1' } }
+    : undefined;
 
-  const response = await publicApi.get(url, { headers });
+  const response = config ? await publicApi.get(url, config) : await publicApi.get(url);
   return response.data;
 };
 
@@ -278,31 +274,6 @@ const getShareLinkAnalytics = async (
   const response = await api.get<ShareLinkAnalyticsResponse>(
     `/share-links/${shareLinkId}/analytics?days=${days}`,
   );
-  return response.data;
-};
-
-const getPublicPhotoUrl = async (
-  shareId: string,
-  photoId: string,
-): Promise<{ url: string; expires_in: number }> => {
-  if (isDemoModeEnabled()) {
-    return getDemoService().getPublicPhotoUrl(shareId, photoId);
-  }
-
-  const response = await publicApi.get(`/s/${shareId}/photos/${photoId}/url`, {
-    headers: {},
-  });
-  return response.data;
-};
-
-const getAllPublicPhotoUrls = async (shareId: string): Promise<PublicPhoto[]> => {
-  if (isDemoModeEnabled()) {
-    return getDemoService().getAllPublicPhotoUrls(shareId);
-  }
-
-  const response = await publicApi.get(`/s/${shareId}/photos/urls`, {
-    headers: {},
-  });
   return response.data;
 };
 
@@ -713,8 +684,6 @@ export const shareLinkService = {
   deleteShareLink,
   getSharedGallery,
   unlockSharedGallery,
-  getPublicPhotoUrl,
-  getAllPublicPhotoUrls,
   getPublicPhotosByIds,
   getOwnerShareLinks,
   getShareLinkAnalytics,
