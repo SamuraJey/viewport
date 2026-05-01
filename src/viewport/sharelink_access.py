@@ -148,7 +148,7 @@ def set_share_access_cookie(sharelink: ShareLink, request: Request, response: Re
         max_age=SHARE_ACCESS_TTL_SECONDS,
         httponly=True,
         samesite=_resolve_share_cookie_samesite(request),
-        secure=_should_use_secure_share_cookie(request),
+        secure=_is_request_https(request),
         path="/",
     )
 
@@ -164,10 +164,6 @@ def _share_password_fingerprint(sharelink: ShareLink) -> str:
         password_hash.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()
-
-
-def _should_use_secure_share_cookie(request: Request) -> bool:
-    return _is_request_https(request)
 
 
 def _resolve_share_cookie_samesite(request: Request) -> Literal["lax", "none"]:
