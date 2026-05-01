@@ -23,15 +23,16 @@
 
 ## Задачи
 
-### 1. redis-client-module
-**Создать модуль Redis-клиента с настройками и DI**
+### 1. redis-service-module
+**Использовать единый RedisService с настройками и DI**
 
-- Создать `src/viewport/redis_client.py`:
+- Использовать существующий `src/viewport/services/redis_service.py`:
   - `RedisSettings(BaseSettings)` — URL из env `REDIS_URL` (default: `redis://localhost:6379/1`)
   - Использовать отдельную БД (`/1`) от Celery (`/0`) для изоляции
-  - Функция `create_redis_client()` → `redis.asyncio.Redis`
-  - Глобальный instance + `get_redis_client()` dependency (паттерн как в `dependencies.py` для S3)
-  - Graceful shutdown: `await client.aclose()` в lifespan
+  - `RedisService.create()` создаёт инфраструктурный Redis wrapper с connection pool
+  - Глобальный instance доступен через `set_redis_service()` / `get_redis_service()` и DI `Depends(get_redis)`
+  - Graceful shutdown: `await service.close()` в lifespan
+- Не добавлять совместимый legacy Redis shim: он удалён, новые интеграции должны идти только через `RedisService`.
 
 ### 2. redis-cache-utils
 **Переписать cache_utils.py для работы с Redis**
@@ -50,7 +51,7 @@
 - В `main.py`:
   - Инициализировать Redis client в lifespan (после S3)
   - Закрыть при shutdown
-  - Сохранить в глобальный instance через `set_redis_client_instance()`
+  - Сохранить в глобальный instance через `set_redis_service()`
 
 ### 4. update-s3-service
 **Обновить s3_service.py для использования Redis cache**
@@ -80,7 +81,7 @@
 ## Зависимости задач
 
 ```
-redis-client-module
+redis-service-module
        ↓
 redis-cache-utils ← integrate-lifespan
        ↓
@@ -112,11 +113,8 @@ presign:{bucket}:{object_key}:{disposition_hash}
 ### Connection Pooling
 
 ```python
-redis_client = redis.asyncio.Redis.from_url(
-    settings.redis_url,
-    decode_responses=True,
-    max_connections=20,
-)
+redis_service = await RedisService.create(settings)
+set_redis_service(redis_service)
 ```
 
 ### Graceful Degradation

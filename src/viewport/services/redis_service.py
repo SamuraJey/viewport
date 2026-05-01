@@ -170,10 +170,10 @@ class RedisService:
         return self._available and self._client is not None
 
     async def close(self) -> None:
-        """Close Redis connection and pool."""
+        """Close Redis connection and connection pool."""
         if self._client is not None:
             try:
-                await self._client.aclose()
+                await self._client.aclose(close_connection_pool=True)
                 logger.info("Redis client closed successfully")
             except Exception as e:
                 logger.error("Error closing Redis client: %s", e)

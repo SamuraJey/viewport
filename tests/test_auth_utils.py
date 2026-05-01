@@ -12,7 +12,8 @@ from viewport.auth_utils import get_current_user
 from viewport.models.user import User
 
 JWT_ALGORITHM = "HS256"
-JWT_SECRET = "keks"
+JWT_SECRET = "test-jwt-secret-key-that-is-long-enough-for-hs512-and-hs256-tests"
+WRONG_JWT_SECRET = "wrong-test-jwt-secret-key-that-is-long-enough-for-hs256-tests"
 
 
 class TestJWTAuthentication:
@@ -124,7 +125,7 @@ class TestJWTAuthentication:
         user_id = str(uuid.uuid4())
         payload = {"sub": user_id}
         # Sign with wrong secret
-        token = jwt.encode(payload, "wrong_secret", algorithm=JWT_ALGORITHM)
+        token = jwt.encode(payload, WRONG_JWT_SECRET, algorithm=JWT_ALGORITHM)
 
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 

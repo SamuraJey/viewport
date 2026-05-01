@@ -114,6 +114,7 @@
   - Connection pool management with configurable timeouts
   - Methods: `get`, `set`, `mget`, `delete`, `sadd`, `sunion`, `pipeline`
   - Initialized in lifespan, accessed via `get_redis_service()` or DI `Depends(get_redis)`
+  - Legacy Redis compatibility shim has been removed; import/use `RedisService` only.
 - **PresignedUrlCacheService** (`src/viewport/services/presigned_cache.py`):
   - Business logic for caching presigned S3 URLs
   - Cache key format: `presign:{bucket}:{base64_object_key}:{disposition_hash}`
