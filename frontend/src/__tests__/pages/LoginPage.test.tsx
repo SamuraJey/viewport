@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { LoginPage } from '../../pages/LoginPage';
+
+const fillInput = (input: HTMLElement, value: string) => {
+  fireEvent.change(input, { target: { value } });
+};
 
 // Mock the auth service
 const mockLogin = vi.fn();
@@ -72,22 +76,20 @@ describe('LoginPage', () => {
     expect(screen.getByText('Create your account')).toBeInTheDocument();
   });
 
-  it('should handle email input changes', async () => {
-    const user = userEvent.setup();
+  it('should handle email input changes', () => {
     render(<LoginPageWrapper />);
 
     const emailInput = screen.getByLabelText('Email address');
-    await user.type(emailInput, 'test@example.com');
+    fillInput(emailInput, 'test@example.com');
 
     expect(emailInput).toHaveValue('test@example.com');
   });
 
-  it('should handle password input changes', async () => {
-    const user = userEvent.setup();
+  it('should handle password input changes', () => {
     render(<LoginPageWrapper />);
 
     const passwordInput = screen.getByLabelText('Password');
-    await user.type(passwordInput, 'password123');
+    fillInput(passwordInput, 'password123');
 
     expect(passwordInput).toHaveValue('password123');
   });
@@ -116,8 +118,8 @@ describe('LoginPage', () => {
     const passwordInput = screen.getByLabelText('Password');
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
-    await user.type(emailInput, 'invalid-email');
-    await user.type(passwordInput, 'password123');
+    fillInput(emailInput, 'invalid-email');
+    fillInput(passwordInput, 'password123');
     await user.click(submitButton);
 
     // Should prevent form submission due to validation
@@ -133,8 +135,8 @@ describe('LoginPage', () => {
     const passwordInput = screen.getByLabelText('Password');
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
-    await user.type(emailInput, 'fgg@fd.5');
-    await user.type(passwordInput, 'password123');
+    fillInput(emailInput, 'fgg@fd.5');
+    fillInput(passwordInput, 'password123');
     await user.click(submitButton);
 
     await waitFor(() => {
@@ -152,7 +154,7 @@ describe('LoginPage', () => {
     const emailInput = screen.getByLabelText('Email address');
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
-    await user.type(emailInput, 'test@example.com');
+    fillInput(emailInput, 'test@example.com');
     await user.click(submitButton);
 
     // Should prevent form submission due to validation
@@ -180,8 +182,8 @@ describe('LoginPage', () => {
     const passwordInput = screen.getByLabelText('Password');
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
-    await user.type(emailInput, 'test@example.com');
-    await user.type(passwordInput, 'password123');
+    fillInput(emailInput, 'test@example.com');
+    fillInput(passwordInput, 'password123');
     await user.click(submitButton);
 
     await waitFor(() => {
@@ -219,8 +221,8 @@ describe('LoginPage', () => {
     const passwordInput = screen.getByLabelText('Password');
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
-    await user.type(emailInput, 'test@example.com');
-    await user.type(passwordInput, 'password123');
+    fillInput(emailInput, 'test@example.com');
+    fillInput(passwordInput, 'password123');
     await user.click(submitButton);
 
     await waitFor(() => {
@@ -255,8 +257,8 @@ describe('LoginPage', () => {
     const passwordInput = screen.getByLabelText('Password');
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
-    await user.type(emailInput, 'test@example.com');
-    await user.type(passwordInput, 'wrongpassword');
+    fillInput(emailInput, 'test@example.com');
+    fillInput(passwordInput, 'wrongpassword');
     await user.click(submitButton);
 
     await waitFor(() => {
@@ -300,8 +302,8 @@ describe('LoginPage', () => {
     const passwordInput = screen.getByLabelText('Password');
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
-    await user.type(emailInput, 'test@example.com');
-    await user.type(passwordInput, 'password123');
+    fillInput(emailInput, 'test@example.com');
+    fillInput(passwordInput, 'password123');
     await user.click(submitButton);
 
     await waitFor(() => {
@@ -321,8 +323,8 @@ describe('LoginPage', () => {
     const passwordInput = screen.getByLabelText('Password');
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
-    await user.type(emailInput, 'test@example.com');
-    await user.type(passwordInput, 'password123');
+    fillInput(emailInput, 'test@example.com');
+    fillInput(passwordInput, 'password123');
     await user.click(submitButton);
 
     await waitFor(() => {
@@ -348,8 +350,8 @@ describe('LoginPage', () => {
     const passwordInput = screen.getByLabelText('Password');
     const submitButton = screen.getByRole('button', { name: /sign in/i });
 
-    await user.type(emailInput, 'test@example.com');
-    await user.type(passwordInput, 'password123');
+    fillInput(emailInput, 'test@example.com');
+    fillInput(passwordInput, 'password123');
     await user.click(submitButton);
 
     // Should show loading state
