@@ -24,11 +24,11 @@ from testcontainers.postgres import PostgresContainer
 
 POSTGRES_IMAGE = "postgres:17-alpine"
 
-S3_IMAGE = "rustfs/rustfs:1.0.0-alpha.85"
+S3_IMAGE = "rustfs/rustfs:1.0.0-beta.1"
 S3_ROOT_ACCESS_KEY = "testaccesskey"
 S3_ROOT_SECRET_KEY = "testsecretkey"
 S3_PORT = 9000
-VALKEY_IMAGE = "valkey/valkey:8-alpine"
+VALKEY_IMAGE = "valkey/valkey:9-alpine"
 VALKEY_PORT = 6379
 S3_TRIGGER_FIXTURES = {"s3_container"}
 DB_TRIGGER_FIXTURES = {
