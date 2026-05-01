@@ -155,7 +155,7 @@ async def _build_project_responses(
     return responses
 
 
-async def _build_project_folder_responses(
+async def _build_project_gallery_responses(
     galleries: list,
     gallery_repo: GalleryRepository,
     s3_client: AsyncS3Client,
@@ -259,9 +259,9 @@ async def get_project_detail(
         raise HTTPException(status_code=404, detail="Project not found")
 
     base_response = await _build_project_response(project, repo, s3_client)
-    folders = await repo.get_project_folders_by_owner(project_id, current_user.id)
-    folder_responses = await _build_project_folder_responses(folders, gallery_repo, s3_client, project_name=project.name)
-    return ProjectDetailResponse(**base_response.model_dump(), galleries=folder_responses)
+    galleries = await repo.get_project_folders_by_owner(project_id, current_user.id)
+    gallery_responses = await _build_project_gallery_responses(galleries, gallery_repo, s3_client, project_name=project.name)
+    return ProjectDetailResponse(**base_response.model_dump(), galleries=gallery_responses)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
@@ -291,7 +291,6 @@ async def delete_project(
         await run_in_threadpool(delete_gallery_data_task.delay, str(gallery_id))
 
 
-@router.put("/{project_id}/folders/reorder", status_code=status.HTTP_204_NO_CONTENT)
 @router.put("/{project_id}/galleries/reorder", status_code=status.HTTP_204_NO_CONTENT)
 async def reorder_project_galleries(
     project_id: uuid.UUID,
@@ -315,9 +314,8 @@ async def reorder_project_galleries(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/{project_id}/folders", response_model=ProjectGallerySummaryResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/{project_id}/galleries", response_model=ProjectGallerySummaryResponse, status_code=status.HTTP_201_CREATED)
-async def create_project_folder(
+async def create_project_gallery(
     project_id: uuid.UUID,
     request: GalleryCreateRequest,
     project_repo: ProjectRepository = Depends(get_project_repository),
@@ -339,5 +337,5 @@ async def create_project_folder(
         project_position=request.project_position,
         project_visibility=GalleryProjectVisibility(request.project_visibility.value),
     )
-    folder_responses = await _build_project_folder_responses([gallery], gallery_repo, s3_client, project_name=project.name)
-    return folder_responses[0]
+    gallery_responses = await _build_project_gallery_responses([gallery], gallery_repo, s3_client, project_name=project.name)
+    return gallery_responses[0]

@@ -1207,7 +1207,7 @@ class DemoServiceStore {
     this.persistState();
   }
 
-  async createProjectFolder(
+  async createProjectGallery(
     projectId: string,
     payload: {
       name?: string;
@@ -1882,7 +1882,7 @@ class DemoServiceStore {
     if (!projectState) {
       throw this.createNotFoundError('Gallery not found or link expired');
     }
-    const nestedGalleryId = options?.galleryId ?? options?.folderId;
+    const nestedGalleryId = options?.galleryId;
     const listedFolderStates = this.galleries
       .filter((entry) => entry.gallery.project_id === projectState.project.id)
       .filter((entry) => (entry.gallery.project_visibility ?? 'listed') === 'listed');
@@ -1947,7 +1947,7 @@ class DemoServiceStore {
     if (nestedGalleryId) {
       const folderState = listedFolderStates.find((entry) => entry.gallery.id === nestedGalleryId);
       if (!folderState) {
-        throw this.createNotFoundError('Folder not found');
+        throw this.createNotFoundError('Gallery not found');
       }
       const sortBy: GalleryPhotoSortBy = folderState.gallery.public_sort_by ?? 'original_filename';
       const sortOrder: SortOrder = folderState.gallery.public_sort_order ?? 'asc';

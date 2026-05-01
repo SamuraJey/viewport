@@ -396,11 +396,10 @@ async def get_photos_by_sharelink(
     )
 
 
-@router.get("/{share_id}/folders/{folder_id}", response_model=PublicGalleryResponse)
-@router.get("/{share_id}/galleries/{folder_id}", response_model=PublicGalleryResponse)
-async def get_project_folder_by_sharelink(
+@router.get("/{share_id}/galleries/{gallery_id}", response_model=PublicGalleryResponse)
+async def get_project_gallery_by_sharelink(
     share_id: UUID,
-    folder_id: UUID,
+    gallery_id: UUID,
     request: Request,
     response: Response,
     limit: int | None = Query(None, ge=1, le=500, description="Limit number of photos to return"),
@@ -414,13 +413,13 @@ async def get_project_folder_by_sharelink(
     if sharelink.scope_type != ShareScopeType.PROJECT.value or sharelink.project is None:
         raise HTTPException(status_code=404, detail="Project share not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
-    gallery = await project_repo.get_visible_project_folder_by_id(sharelink.project.id, folder_id)
+    gallery = await project_repo.get_visible_project_folder_by_id(sharelink.project.id, gallery_id)
     if gallery is None:
         logger.warning(
-            "Denied hidden or missing folder access via project share",
-            extra={"scope_type": "project", "share_id": str(share_id), "folder_id": str(folder_id)},
+            "Denied hidden or missing gallery access via project share",
+            extra={"scope_type": "project", "share_id": str(share_id), "gallery_id": str(gallery_id)},
         )
-        raise HTTPException(status_code=404, detail="Folder not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+        raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
     record_project_view = request.headers.get(INTERNAL_PROJECT_NAVIGATION_HEADER) != "1"
     project_navigation = await _build_public_project_response(
@@ -498,9 +497,9 @@ async def get_public_photos_by_ids(
     ]
 
 
-@router.head("/{share_id}/galleries/{folder_id}/download/all")
+@router.head("/{share_id}/galleries/{gallery_id}/download/all")
 async def check_project_gallery_photos_zip(
-    folder_id: UUID,
+    gallery_id: UUID,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     project_repo: ProjectRepository = Depends(get_project_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
@@ -509,9 +508,9 @@ async def check_project_gallery_photos_zip(
     if sharelink.scope_type != ShareScopeType.PROJECT.value or sharelink.project_id is None:
         raise HTTPException(status_code=404, detail="Project share not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
-    gallery = await project_repo.get_visible_project_folder_by_id(sharelink.project_id, folder_id)
+    gallery = await project_repo.get_visible_project_folder_by_id(sharelink.project_id, gallery_id)
     if gallery is None:
-        raise HTTPException(status_code=404, detail="Folder not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+        raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
     gallery_photos = await repo.get_photos_by_gallery_id(gallery.id)
     if not gallery_photos:
@@ -521,10 +520,10 @@ async def check_project_gallery_photos_zip(
 
 
 # intentionally not async
-@router.get("/{share_id}/galleries/{folder_id}/download/all")
+@router.get("/{share_id}/galleries/{gallery_id}/download/all")
 def download_project_gallery_photos_zip(
     share_id: UUID,
-    folder_id: UUID,
+    gallery_id: UUID,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     project_repo: ProjectRepository = Depends(get_project_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
@@ -533,9 +532,9 @@ def download_project_gallery_photos_zip(
     if sharelink.scope_type != ShareScopeType.PROJECT.value or sharelink.project_id is None:
         raise HTTPException(status_code=404, detail="Project share not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
-    gallery = asyncio_run(project_repo.get_visible_project_folder_by_id(sharelink.project_id, folder_id))
+    gallery = asyncio_run(project_repo.get_visible_project_folder_by_id(sharelink.project_id, gallery_id))
     if gallery is None:
-        raise HTTPException(status_code=404, detail="Folder not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+        raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
     settings = get_s3_settings()
     z = zipstream.ZipStream()
@@ -565,7 +564,7 @@ def download_project_gallery_photos_zip(
         extra={"gallery_id": str(gallery.id), "photo_count": len(gallery_photos)},
     )
 
-    safe_gallery_name = sanitize_zip_entry_name(gallery.name or f"gallery_{folder_id}", fallback=f"gallery_{folder_id}")
+    safe_gallery_name = sanitize_zip_entry_name(gallery.name or f"gallery_{gallery_id}", fallback=f"gallery_{gallery_id}")
     headers = {
         "Content-Disposition": f'attachment; filename="{safe_gallery_name}.zip"',
         **PUBLIC_CACHE_CONTROL_HEADERS,

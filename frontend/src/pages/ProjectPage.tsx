@@ -242,7 +242,7 @@ export const ProjectPage = () => {
     }
     setIsCreatingGallery(true);
     try {
-      await projectService.createProjectFolder(projectId, {
+      await projectService.createProjectGallery(projectId, {
         name: galleryDraft.name.trim(),
         shooting_date: galleryDraft.shooting_date,
         project_visibility: galleryDraft.project_visibility,
@@ -356,12 +356,12 @@ export const ProjectPage = () => {
     });
   };
 
-  const handleReorderGallery = async (folderId: string, targetIndex: number) => {
+  const handleReorderGallery = async (galleryId: string, targetIndex: number) => {
     if (!project) {
       return;
     }
 
-    const currentIndex = project.galleries.findIndex((folder) => folder.id === folderId);
+    const currentIndex = project.galleries.findIndex((gallery) => gallery.id === galleryId);
     if (currentIndex === -1) {
       return;
     }
@@ -372,18 +372,18 @@ export const ProjectPage = () => {
     }
 
     const reorderedGalleries = [...project.galleries];
-    const [movedFolder] = reorderedGalleries.splice(currentIndex, 1);
-    reorderedGalleries.splice(boundedTargetIndex, 0, movedFolder);
+    const [movedGallery] = reorderedGalleries.splice(currentIndex, 1);
+    reorderedGalleries.splice(boundedTargetIndex, 0, movedGallery);
 
     const updates = reorderedGalleries
-      .map((folder, index) => ({ folder, index }))
-      .filter(({ folder, index }) => (folder.project_position ?? 0) !== index);
+      .map((gallery, index) => ({ gallery, index }))
+      .filter(({ gallery, index }) => (gallery.project_position ?? 0) !== index);
 
     if (updates.length === 0) {
       return;
     }
 
-    setIsReorderingGallery(folderId);
+    setIsReorderingGallery(galleryId);
     try {
       await projectService.reorderProjectGalleries(
         projectId,

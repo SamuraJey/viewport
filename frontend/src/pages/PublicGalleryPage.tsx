@@ -45,17 +45,16 @@ const INTERNAL_PROJECT_NAVIGATION_STATE = {
 } as const;
 
 export const PublicGalleryPage = () => {
-  const { shareId, resumeToken, folderId, galleryId } = useParams<{
+  const { shareId, resumeToken, galleryId } = useParams<{
     shareId: string;
     resumeToken?: string;
-    folderId?: string;
     galleryId?: string;
   }>();
   const location = useLocation();
   const navigate = useNavigate();
   const navigationType = useNavigationType();
   const isFavoritesView = Boolean(resumeToken);
-  const activeGalleryId = galleryId ?? folderId;
+  const activeGalleryId = galleryId;
   const shouldSkipProjectViewCount =
     Boolean(
       activeGalleryId &&

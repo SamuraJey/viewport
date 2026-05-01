@@ -160,7 +160,7 @@ const getSharedGallery = async (
     params.append('offset', options.offset.toString());
   }
 
-  const nestedGalleryId = options?.galleryId ?? options?.folderId;
+  const nestedGalleryId = options?.galleryId;
   const basePath = nestedGalleryId ? `/s/${shareId}/galleries/${nestedGalleryId}` : `/s/${shareId}`;
   const queryString = params.toString();
   const url = queryString ? `${basePath}?${queryString}` : basePath;

@@ -17,7 +17,6 @@ const mockNavigate = vi.fn();
 let mockRouteParams: {
   shareId: string;
   resumeToken?: string;
-  folderId?: string;
   galleryId?: string;
 } = {
   shareId: 'abc123',
@@ -517,7 +516,7 @@ describe('PublicGalleryPage', () => {
     const getRootProjectCalls = () =>
       vi
         .mocked(shareLinkService.getSharedGallery)
-        .mock.calls.filter(([, options]) => !options?.galleryId && !options?.folderId).length;
+        .mock.calls.filter(([, options]) => !options?.galleryId).length;
 
     expect(getRootProjectCalls()).toBe(0);
 

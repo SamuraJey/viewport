@@ -443,7 +443,6 @@ class TestPublicAPI:
 
         assert authenticated_client.get(f"/s/{share_id}").status_code == 401
         assert authenticated_client.get(f"/s/{share_id}/galleries/{gallery_id}").status_code == 401
-        assert authenticated_client.get(f"/s/{share_id}/folders/{gallery_id}").status_code == 401
         assert authenticated_client.get(f"/s/{share_id}/photos/by-ids?photo_ids={photo_id}").status_code == 401
         assert authenticated_client.get(f"/s/{share_id}/download/all").status_code == 401
         assert authenticated_client.get(f"/s/{share_id}/galleries/{gallery_id}/download/all").status_code == 401
@@ -461,10 +460,6 @@ class TestPublicAPI:
         nested_resp = authenticated_client.get(f"/s/{share_id}/galleries/{gallery_id}")
         assert nested_resp.status_code == 200
         assert nested_resp.json()["gallery_name"] == "Delivery"
-
-        folder_alias_resp = authenticated_client.get(f"/s/{share_id}/folders/{gallery_id}")
-        assert folder_alias_resp.status_code == 200
-        assert folder_alias_resp.json()["gallery_name"] == "Delivery"
 
         by_ids_resp = authenticated_client.get(f"/s/{share_id}/photos/by-ids?photo_ids={photo_id}")
         assert by_ids_resp.status_code == 200
@@ -819,15 +814,15 @@ class TestPublicAPI:
         project_resp = authenticated_client.post("/projects", json={"name": "Public Project"})
         assert project_resp.status_code == 201
         project_id = project_resp.json()["id"]
-        folder_resp = authenticated_client.post(
+        gallery_resp = authenticated_client.post(
             f"/projects/{project_id}/galleries",
             json={"name": "Delivery", "project_visibility": "listed"},
         )
-        assert folder_resp.status_code == 201
-        folder_id = folder_resp.json()["id"]
+        assert gallery_resp.status_code == 201
+        gallery_id = gallery_resp.json()["id"]
 
-        photo_id = _upload_photo(authenticated_client, folder_id, b"delivery", "delivery.jpg")
-        cover_resp = authenticated_client.post(f"/galleries/{folder_id}/cover/{photo_id}")
+        photo_id = _upload_photo(authenticated_client, gallery_id, b"delivery", "delivery.jpg")
+        cover_resp = authenticated_client.post(f"/galleries/{gallery_id}/cover/{photo_id}")
         assert cover_resp.status_code == 200
 
         project_share_resp = authenticated_client.post(f"/projects/{project_id}/share-links", json={})
@@ -839,10 +834,10 @@ class TestPublicAPI:
         payload = root_resp.json()
         assert payload["folders"][0]["cover_thumbnail_url"].startswith("http")
 
-        gallery_share_resp = authenticated_client.post(f"/galleries/{folder_id}/share-links", json={})
+        gallery_share_resp = authenticated_client.post(f"/galleries/{gallery_id}/share-links", json={})
         assert gallery_share_resp.status_code == 201
         nested_on_gallery_share = authenticated_client.get(
-            f"/s/{gallery_share_resp.json()['id']}/galleries/{folder_id}",
+            f"/s/{gallery_share_resp.json()['id']}/galleries/{gallery_id}",
         )
         assert nested_on_gallery_share.status_code == 404
         assert nested_on_gallery_share.json()["detail"] == "Project share not found"
@@ -947,10 +942,9 @@ def test_public_share_route_inventory_is_explicitly_covered():
     expected_routes = {
         ("GET", "/s/{share_id}"),
         ("POST", "/s/{share_id}/unlock"),
-        ("GET", "/s/{share_id}/folders/{folder_id}"),
-        ("GET", "/s/{share_id}/galleries/{folder_id}"),
+        ("GET", "/s/{share_id}/galleries/{gallery_id}"),
         ("GET", "/s/{share_id}/photos/by-ids"),
-        ("GET", "/s/{share_id}/galleries/{folder_id}/download/all"),
+        ("GET", "/s/{share_id}/galleries/{gallery_id}/download/all"),
         ("GET", "/s/{share_id}/download/all"),
         ("GET", "/s/{share_id}/selection/config"),
         ("POST", "/s/{share_id}/selection/session"),
