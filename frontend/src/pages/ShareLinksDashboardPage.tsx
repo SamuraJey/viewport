@@ -171,9 +171,9 @@ const getInsightLinkLabel = (link: ShareLinkDashboardItem) => {
 };
 
 const getStatusDotClasses = (status: ReturnType<typeof getShareLinkStatus>) => {
-  if (status === 'active') return 'bg-success shadow-[0_0_18px_rgba(34,197,94,0.45)]';
-  if (status === 'expired') return 'bg-muted shadow-[0_0_18px_rgba(148,163,184,0.25)]';
-  return 'bg-amber-400 shadow-[0_0_18px_rgba(251,191,36,0.38)]';
+  if (status === 'active') return 'bg-success';
+  if (status === 'expired') return 'bg-muted';
+  return 'bg-amber-400';
 };
 
 const buildFallbackTrendValues = (links: ShareLinkDashboardItem[], totalViews: number) => {
@@ -218,7 +218,7 @@ const DashboardMetricCard = ({ metric }: DashboardMetricCardProps) => {
   const Icon = metric.icon;
 
   return (
-    <article className="rounded-[1.05rem] border border-border/40 bg-surface-1/80 px-4 py-3.5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/35 hover:bg-surface-2/75 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.055]">
+    <article className="rounded-[1.05rem] border border-border/40 bg-surface-1/80 px-4 py-3.5 transition-colors duration-200 hover:border-accent/35 hover:bg-surface-2/75 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.055]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-muted">
@@ -368,7 +368,7 @@ const ShareLinkPreview = ({
 }: ShareLinkPreviewProps) => (
   <div
     className={cn(
-      'relative h-20 w-24 shrink-0 overflow-hidden rounded-xl border border-white/12 shadow-inner sm:h-[6.4rem] sm:w-[7.25rem]',
+      'relative h-20 w-24 shrink-0 overflow-hidden rounded-xl border border-white/12 sm:h-[6.4rem] sm:w-[7.25rem]',
       thumbnailUrl
         ? 'bg-surface-2 dark:bg-white/[0.04]'
         : cn('bg-gradient-to-br', PREVIEW_STYLES[index % PREVIEW_STYLES.length]),
@@ -826,7 +826,7 @@ export const ShareLinksDashboardPage = () => {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
               to="/dashboard"
-              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-bold text-accent-foreground shadow-lg shadow-accent/20 transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-bold text-accent-foreground transition-all duration-200 hover:bg-accent/90 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
               <Plus className="h-4 w-4" />
               Create share link
@@ -836,7 +836,7 @@ export const ShareLinksDashboardPage = () => {
               onClick={() => void fetchLinks({ preserveRows: true })}
               aria-label="Refresh list"
               disabled={isRefreshing}
-              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1/80 px-5 py-3 text-sm font-bold text-text shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground dark:hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1/80 px-5 py-3 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:bg-surface-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground dark:hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isRefreshing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -860,7 +860,7 @@ export const ShareLinksDashboardPage = () => {
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <main className="space-y-5">
-          <section className="rounded-[1.35rem] border border-border/50 bg-surface/95 p-4 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-surface-dark/90 dark:shadow-black/20 lg:p-5">
+          <section className="rounded-[1.35rem] border border-border/50 bg-surface/95 p-4 dark:border-white/10 dark:bg-surface-dark/90 lg:p-5">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-bold text-text dark:text-accent-foreground">
@@ -879,7 +879,7 @@ export const ShareLinksDashboardPage = () => {
             </div>
           </section>
 
-          <section className="rounded-[1.35rem] border border-border/50 bg-surface/95 p-4 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-surface-dark/90 dark:shadow-black/20 lg:p-5">
+          <section className="rounded-[1.35rem] border border-border/50 bg-surface/95 p-4 dark:border-white/10 dark:bg-surface-dark/90 lg:p-5">
             <div className="flex flex-col gap-4 border-b border-border/35 pb-4 dark:border-white/10 2xl:flex-row 2xl:items-end 2xl:justify-between">
               <div>
                 <h2 className="text-xl font-bold text-text dark:text-accent-foreground">
@@ -902,7 +902,7 @@ export const ShareLinksDashboardPage = () => {
                         className={cn(
                           'cursor-pointer rounded-full border px-4 py-2 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
                           active
-                            ? 'border-accent/50 bg-accent text-accent-foreground shadow-lg shadow-accent/15'
+                            ? 'border-accent/50 bg-accent text-accent-foreground'
                             : 'border-border/50 bg-surface-1 text-muted hover:border-accent/35 hover:bg-surface-2 hover:text-text dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]',
                         )}
                       >
@@ -913,7 +913,7 @@ export const ShareLinksDashboardPage = () => {
                 </div>
                 <label
                   htmlFor="share-links-search"
-                  className="flex h-11 min-w-0 items-center gap-2 rounded-xl border border-border/45 bg-surface-1 px-3 text-sm text-text shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15 dark:border-white/10 dark:bg-white/[0.035] lg:w-64"
+                  className="flex h-11 min-w-0 items-center gap-2 rounded-xl border border-border/45 bg-surface-1 px-3 text-sm text-text transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15 dark:border-white/10 dark:bg-white/[0.035] lg:w-64"
                 >
                   <Search className="h-4 w-4 shrink-0 text-muted" />
                   <input
@@ -973,7 +973,7 @@ export const ShareLinksDashboardPage = () => {
                   return (
                     <article
                       key={link.id}
-                      className="group rounded-[1.05rem] border border-border/45 bg-surface-1/80 p-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/35 hover:bg-surface-2/70 hover:shadow-md dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.065]"
+                      className="group rounded-[1.05rem] border border-border/45 bg-surface-1/80 p-3 transition-colors duration-200 hover:border-accent/35 hover:bg-surface-2/70 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.065]"
                     >
                       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(31rem,0.86fr)_8rem] xl:items-center">
                         <div className="flex min-w-0 items-center gap-4">
@@ -1144,7 +1144,7 @@ export const ShareLinksDashboardPage = () => {
         </main>
 
         <aside className="space-y-4">
-          <section className="rounded-[1.35rem] border border-border/50 bg-surface/95 p-4 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-surface-dark/90 dark:shadow-black/20 lg:p-5">
+          <section className="rounded-[1.35rem] border border-border/50 bg-surface/95 p-4 dark:border-white/10 dark:bg-surface-dark/90 lg:p-5">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/10 text-accent">
@@ -1205,7 +1205,7 @@ export const ShareLinksDashboardPage = () => {
             </Link>
           </section>
 
-          <section className="rounded-[1.35rem] border border-border/50 bg-surface/95 p-4 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-surface-dark/90 dark:shadow-black/20 lg:p-5">
+          <section className="rounded-[1.35rem] border border-border/50 bg-surface/95 p-4 dark:border-white/10 dark:bg-surface-dark/90 lg:p-5">
             <div className="flex items-start gap-3">
               <div className="rounded-xl bg-accent/10 p-2.5 text-accent">
                 <SlidersHorizontal className="h-5 w-5" />
@@ -1223,7 +1223,7 @@ export const ShareLinksDashboardPage = () => {
             <div className="mt-5 space-y-3">
               <Link
                 to="/dashboard"
-                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-accent-foreground shadow-lg shadow-accent/15 transition-all hover:-translate-y-0.5 hover:brightness-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-accent-foreground transition-all hover:bg-accent/90 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
               >
                 <Plus className="h-4 w-4" />
                 Create share link
@@ -1270,7 +1270,7 @@ export const ShareLinksDashboardPage = () => {
             </div>
           </section>
 
-          <section className="rounded-[1.15rem] border border-border/50 bg-surface/95 p-4 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-surface-dark/90 dark:shadow-black/20">
+          <section className="rounded-[1.15rem] border border-border/50 bg-surface/95 p-4 dark:border-white/10 dark:bg-surface-dark/90">
             <div className="flex items-start gap-3">
               <Info className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
               <div className="min-w-0 text-sm">
