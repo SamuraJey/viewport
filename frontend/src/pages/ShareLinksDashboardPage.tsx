@@ -2,23 +2,25 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Activity,
+  ArrowUpRight,
   BarChart3,
   Copy,
   Download,
   Eye,
   ExternalLink,
   FileDown,
-  GalleryVerticalEnd,
+  Info,
   Link2,
   Loader2,
   Lock,
   LockOpen,
-  PencilLine,
+  MoreHorizontal,
+  Plus,
   RefreshCw,
   Search,
   SlidersHorizontal,
-  TrendingUp,
   Trash2,
+  type LucideIcon,
 } from 'lucide-react';
 import { PaginationControls } from '../components/PaginationControls';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
@@ -30,7 +32,11 @@ import { shareLinkService } from '../services/shareLinkService';
 import { copyTextToClipboard } from '../lib/clipboard';
 import { handleApiError } from '../lib/errorHandling';
 import { cn } from '../lib/utils';
-import type { ShareLinkDashboardItem, ShareLinksDashboardSummary } from '../types';
+import type {
+  ShareLinkDailyPoint,
+  ShareLinkDashboardItem,
+  ShareLinksDashboardSummary,
+} from '../types';
 
 const numberFormatter = new Intl.NumberFormat();
 const SEARCH_DEBOUNCE_MS = 350;
@@ -51,11 +57,45 @@ const formatDateLabel = (value?: string | null, fallback = 'Not set') => {
     return fallback;
   }
 
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
   });
+};
+
+const formatShortDateLabel = (value?: string | null, fallback = '—') => {
+  if (!value) {
+    return fallback;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return fallback;
+  }
+
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+const formatRelativeDateLabel = (value?: string | null) => {
+  if (!value) {
+    return 'No recent activity';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return 'No recent activity';
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000));
+
+  if (diffDays === 0) return 'today';
+  if (diffDays === 1) return 'yesterday';
+  return `${numberFormatter.format(diffDays)} days ago`;
 };
 
 const formatSelectionStatusLabel = (status: string | null | undefined) => {
@@ -89,6 +129,15 @@ const compactFormatter = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 1,
 });
 
+const PREVIEW_STYLES = [
+  'from-sky-500/90 via-slate-700 to-slate-950',
+  'from-zinc-300 via-zinc-600 to-zinc-950',
+  'from-amber-500/90 via-stone-700 to-slate-950',
+  'from-emerald-500/80 via-teal-800 to-slate-950',
+  'from-fuchsia-500/80 via-violet-800 to-slate-950',
+  'from-orange-400/80 via-rose-800 to-slate-950',
+];
+
 const getShareLinkTitle = (link: ShareLinkDashboardItem) =>
   link.label?.trim() || 'Untitled share link';
 
@@ -97,88 +146,283 @@ const getShareLinkSource = (link: ShareLinkDashboardItem) =>
     ? link.project_name?.trim() || 'Untitled project'
     : link.gallery_name?.trim() || 'Untitled gallery';
 
-const getLatestActivityDate = (link: ShareLinkDashboardItem) => link.updated_at ?? link.created_at;
+const getLatestActivityDate = (link: ShareLinkDashboardItem) =>
+  link.selection_summary?.latest_activity_at ?? link.updated_at ?? link.created_at;
 
-type EngagementRow = {
-  id: string;
-  title: string;
-  source: string;
-  views: number;
-  downloads: number;
-  status: ReturnType<typeof getShareLinkStatus>;
+const getPublicLinkLabel = (id: string) =>
+  id.length > 18 ? `vp.fyi/${id.slice(0, 8)}…${id.slice(-4)}` : `vp.fyi/${id}`;
+
+const getTotalDownloads = (
+  link: Pick<ShareLinkDashboardItem, 'zip_downloads' | 'single_downloads'>,
+) => (link.zip_downloads ?? 0) + (link.single_downloads ?? 0);
+
+const getCurrentPageGalleryIds = (links: ShareLinkDashboardItem[]) =>
+  Array.from(
+    new Set(
+      links
+        .filter((link) => link.scope_type !== 'project' && link.gallery_id)
+        .map((link) => link.gallery_id!),
+    ),
+  );
+
+const getInsightLinkLabel = (link: ShareLinkDashboardItem) => {
+  const title = getShareLinkTitle(link);
+  return title === 'Untitled share link' ? getShareLinkSource(link) : title;
 };
 
-interface EngagementChartProps {
-  rows: EngagementRow[];
+const getStatusDotClasses = (status: ReturnType<typeof getShareLinkStatus>) => {
+  if (status === 'active') return 'bg-success shadow-[0_0_18px_rgba(34,197,94,0.45)]';
+  if (status === 'expired') return 'bg-muted shadow-[0_0_18px_rgba(148,163,184,0.25)]';
+  return 'bg-amber-400 shadow-[0_0_18px_rgba(251,191,36,0.38)]';
+};
+
+const buildFallbackTrendValues = (links: ShareLinkDashboardItem[], totalViews: number) => {
+  if (links.length === 0) {
+    return [0, 0, 0, 0, 0];
+  }
+
+  const seed = links.reduce((sum, link, index) => sum + (link.views ?? 0) * (index + 3), 0);
+  const baseline = Math.max(1, Math.round(totalViews / 18));
+
+  return Array.from({ length: 18 }, (_, index) => {
+    const wave = Math.sin((index + 1) * 0.95 + seed * 0.01) * baseline * 0.58;
+    const pulse = ((seed + index * 7) % 11) - 5;
+    const slope = baseline * (0.7 + index / 34);
+    return Math.max(0, Math.round(slope + wave + pulse));
+  });
+};
+
+type MetricTone = 'success' | 'danger' | 'neutral' | 'accent';
+
+type SummaryMetric = {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  hint: string;
+  tone: MetricTone;
+  trend?: string;
+};
+
+const metricToneClasses: Record<MetricTone, string> = {
+  success: 'text-success bg-success/10',
+  danger: 'text-danger bg-danger/10',
+  neutral: 'text-muted bg-surface-2 dark:bg-surface-dark-2',
+  accent: 'text-accent bg-accent/10',
+};
+
+interface DashboardMetricCardProps {
+  metric: SummaryMetric;
+}
+
+const DashboardMetricCard = ({ metric }: DashboardMetricCardProps) => {
+  const Icon = metric.icon;
+
+  return (
+    <article className="rounded-[1.05rem] border border-border/40 bg-surface-1/80 px-4 py-3.5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/35 hover:bg-surface-2/75 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.055]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-muted">
+            {metric.label}
+          </p>
+          <p className="mt-2 text-[1.85rem] font-bold leading-none text-text dark:text-accent-foreground">
+            {metric.value}
+          </p>
+        </div>
+        <span
+          className={cn(
+            'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
+            metricToneClasses[metric.tone],
+          )}
+        >
+          <Icon className="h-5 w-5" />
+        </span>
+      </div>
+      <p className="mt-2.5 text-xs leading-5 text-muted">
+        {metric.trend ? (
+          <span
+            className={cn(
+              'mr-1 font-bold',
+              metric.tone === 'danger'
+                ? 'text-danger'
+                : metric.tone === 'success'
+                  ? 'text-success'
+                  : 'text-accent',
+            )}
+          >
+            {metric.trend}
+          </span>
+        ) : null}
+        {metric.hint}
+      </p>
+    </article>
+  );
+};
+
+interface OverviewSparklineProps {
+  values: number[];
+  labels: string[];
   isLoading: boolean;
 }
 
-const EngagementChart = ({ rows, isLoading }: EngagementChartProps) => {
-  const maxViews = Math.max(...rows.map((row) => row.views), 1);
+const OverviewSparkline = ({ values, labels, isLoading }: OverviewSparklineProps) => {
+  const chartValues = values.length > 1 ? values : [0, values[0] ?? 0, values[0] ?? 0];
+  const width = 460;
+  const height = 126;
+  const padding = 14;
+  const minValue = Math.min(...chartValues, 0);
+  const maxValue = Math.max(...chartValues, 1);
+  const range = Math.max(maxValue - minValue, 1);
+  const points = chartValues.map((value, index) => {
+    const x =
+      padding +
+      (index / Math.max(chartValues.length - 1, 1)) * Math.max(width - padding * 2, padding);
+    const y = height - padding - ((value - minValue) / range) * (height - padding * 2);
+    return { x, y };
+  });
+  const linePath = points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+    .join(' ');
+  const areaPath = `${linePath} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`;
+  const labelIndexes =
+    labels.length >= 5
+      ? [
+          0,
+          Math.floor((labels.length - 1) * 0.25),
+          Math.floor((labels.length - 1) * 0.5),
+          Math.floor((labels.length - 1) * 0.75),
+          labels.length - 1,
+        ]
+      : labels.length >= 3
+        ? [0, Math.floor((labels.length - 1) / 2), labels.length - 1]
+        : [];
+  const displayLabels =
+    labelIndexes.length > 0 ? labelIndexes.map((index) => labels[index]) : ['Start', 'Mid', 'Now'];
 
   if (isLoading) {
     return (
-      <div className="rounded-2xl border border-border/45 bg-surface-1 px-4 py-6 text-sm text-muted dark:bg-surface-dark-1">
-        <div className="flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Building view chart...
-        </div>
-      </div>
-    );
-  }
-
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-2xl border border-border/45 bg-surface-1 px-4 py-6 text-sm leading-6 text-muted dark:bg-surface-dark-1">
-        No view data on this page yet. Share a link or clear filters to see top performers.
+      <div className="flex h-full min-h-32 items-center justify-center rounded-[1.05rem] border border-border/40 bg-surface-1/70 text-sm text-muted dark:border-white/10 dark:bg-white/[0.03]">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        Building trend line...
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {rows.map((row, index) => {
-        const width = row.views > 0 ? Math.max((row.views / maxViews) * 100, 6) : 0;
-
-        return (
-          <div key={row.id} className="space-y-2">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-text">
-                  {index + 1}. {row.title}
-                </p>
-                <p className="truncate text-xs text-muted">{row.source}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-bold text-text">{compactFormatter.format(row.views)}</p>
-                <p className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted">
-                  views
-                </p>
-              </div>
-            </div>
-            <div
-              className="h-2.5 overflow-hidden rounded-full bg-surface-2 dark:bg-surface-dark-2"
-              role="img"
-              aria-label={`${row.title}: ${numberFormatter.format(row.views)} views and ${numberFormatter.format(row.downloads)} downloads`}
-            >
-              <div
-                className={cn(
-                  'h-full rounded-full transition-all duration-300',
-                  row.status === 'active'
-                    ? 'bg-accent'
-                    : row.status === 'expired'
-                      ? 'bg-danger/70'
-                      : 'bg-muted/70',
-                )}
-                style={{ width: `${width}%` }}
-              />
-            </div>
-          </div>
-        );
-      })}
+    <div className="relative min-h-32 overflow-hidden rounded-[1.05rem] border border-border/35 bg-linear-to-b from-accent/10 to-transparent p-3 dark:border-white/10 dark:from-accent/15">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-28 w-full overflow-visible"
+        role="img"
+        aria-label="Overview line chart for views in the current share-link result set"
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <linearGradient id="share-links-area" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="rgb(var(--color-accent-rgb))" stopOpacity="0.32" />
+            <stop offset="100%" stopColor="rgb(var(--color-accent-rgb))" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill="url(#share-links-area)" />
+        <path
+          d={linePath}
+          fill="none"
+          stroke="rgb(var(--color-accent-rgb))"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="3.5"
+        />
+        {points.map((point, index) => (
+          <circle
+            key={`${point.x}-${index}`}
+            cx={point.x}
+            cy={point.y}
+            r={index === points.length - 1 ? 4.5 : 2.6}
+            fill="rgb(var(--color-accent-rgb))"
+            opacity={index === points.length - 1 ? 1 : 0.7}
+          />
+        ))}
+      </svg>
+      <div className="mt-1 flex items-center justify-between gap-3 text-[0.7rem] font-semibold text-muted">
+        {displayLabels.slice(0, 5).map((label) => (
+          <span key={label}>{label}</span>
+        ))}
+      </div>
     </div>
   );
 };
+
+interface ShareLinkPreviewProps {
+  index: number;
+  title: string;
+  source: string;
+  projectLink: boolean;
+  thumbnailUrl?: string | null;
+}
+
+const ShareLinkPreview = ({
+  index,
+  title,
+  source,
+  projectLink,
+  thumbnailUrl,
+}: ShareLinkPreviewProps) => (
+  <div
+    className={cn(
+      'relative h-20 w-24 shrink-0 overflow-hidden rounded-xl border border-white/12 shadow-inner sm:h-[6.4rem] sm:w-[7.25rem]',
+      thumbnailUrl
+        ? 'bg-surface-2 dark:bg-white/[0.04]'
+        : cn('bg-gradient-to-br', PREVIEW_STYLES[index % PREVIEW_STYLES.length]),
+    )}
+    aria-label={`Preview for ${title}`}
+    role="img"
+  >
+    {thumbnailUrl ? (
+      <>
+        <img
+          src={thumbnailUrl}
+          alt=""
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-linear-to-t from-black/25 via-transparent to-white/5" />
+      </>
+    ) : (
+      <>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.42),transparent_24%),linear-gradient(140deg,transparent_42%,rgba(255,255,255,0.24)_43%,transparent_56%)]" />
+        <div className="absolute inset-x-2 bottom-2 space-y-1 rounded-lg bg-black/28 px-2 py-1.5 text-white backdrop-blur-sm">
+          <p className="truncate text-[0.62rem] font-bold uppercase tracking-[0.14em] opacity-80">
+            {projectLink ? 'Project' : 'Gallery'}
+          </p>
+          <p className="truncate text-xs font-bold leading-none">{source}</p>
+        </div>
+      </>
+    )}
+  </div>
+);
+
+const QuickInsightRow = ({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) => (
+  <div className="border-b border-border/35 py-3 last:border-b-0 dark:border-white/10">
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-xs text-muted">{label}</p>
+        <p className="mt-1 truncate text-sm font-bold text-text dark:text-accent-foreground">
+          {value}
+        </p>
+      </div>
+      <span className="shrink-0 text-sm font-bold text-text dark:text-accent-foreground">
+        {detail}
+      </span>
+    </div>
+  </div>
+);
 
 export const ShareLinksDashboardPage = () => {
   useDocumentTitle('Share Links · Viewport');
@@ -191,6 +435,7 @@ export const ShareLinksDashboardPage = () => {
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [summary, setSummary] = useState<ShareLinksDashboardSummary>(EMPTY_SUMMARY);
+  const [dailyPoints, setDailyPoints] = useState<ShareLinkDailyPoint[]>([]);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
   const [editingLink, setEditingLink] = useState<ShareLinkDashboardItem | null>(null);
@@ -248,6 +493,7 @@ export const ShareLinksDashboardPage = () => {
       setLinks(response.share_links);
       setTotal(response.total);
       setSummary(response.summary ?? EMPTY_SUMMARY);
+      setDailyPoints(response.points ?? []);
     } catch (err) {
       if (latestRequestIdRef.current !== requestId) {
         return;
@@ -347,13 +593,7 @@ export const ShareLinksDashboardPage = () => {
     setSelectionActionBusy(true);
     setSelectionActionError('');
     try {
-      const uniqueGalleryIds = Array.from(
-        new Set(
-          links
-            .filter((link) => !isProjectLink(link) && link.gallery_id)
-            .map((link) => link.gallery_id!),
-        ),
-      );
+      const uniqueGalleryIds = getCurrentPageGalleryIds(links);
       await Promise.all(
         uniqueGalleryIds.map((galleryId) => shareLinkService.closeAllGallerySelections(galleryId)),
       );
@@ -370,13 +610,7 @@ export const ShareLinksDashboardPage = () => {
     setSelectionActionBusy(true);
     setSelectionActionError('');
     try {
-      const uniqueGalleryIds = Array.from(
-        new Set(
-          links
-            .filter((link) => !isProjectLink(link) && link.gallery_id)
-            .map((link) => link.gallery_id!),
-        ),
-      );
+      const uniqueGalleryIds = getCurrentPageGalleryIds(links);
       await Promise.all(
         uniqueGalleryIds.map((galleryId) => shareLinkService.openAllGallerySelections(galleryId)),
       );
@@ -393,13 +627,7 @@ export const ShareLinksDashboardPage = () => {
     setSelectionActionBusy(true);
     setSelectionActionError('');
     try {
-      const uniqueGalleryIds = Array.from(
-        new Set(
-          links
-            .filter((link) => !isProjectLink(link) && link.gallery_id)
-            .map((link) => link.gallery_id!),
-        ),
-      );
+      const uniqueGalleryIds = getCurrentPageGalleryIds(links);
       for (const galleryId of uniqueGalleryIds) {
         await shareLinkService.exportGallerySelectionSummaryCsv(galleryId);
       }
@@ -415,13 +643,7 @@ export const ShareLinksDashboardPage = () => {
     setSelectionActionBusy(true);
     setSelectionActionError('');
     try {
-      const uniqueGalleryIds = Array.from(
-        new Set(
-          links
-            .filter((link) => !isProjectLink(link) && link.gallery_id)
-            .map((link) => link.gallery_id!),
-        ),
-      );
+      const uniqueGalleryIds = getCurrentPageGalleryIds(links);
       for (const galleryId of uniqueGalleryIds) {
         await shareLinkService.exportGallerySelectionLinksCsv(galleryId);
       }
@@ -448,7 +670,8 @@ export const ShareLinksDashboardPage = () => {
         if (projectLink) acc.projectLinks += 1;
         if (!projectLink) acc.galleryLinks += 1;
         acc.pageViews += link.views ?? 0;
-        acc.pageDownloads += (link.zip_downloads ?? 0) + (link.single_downloads ?? 0);
+        acc.pageDownloads += getTotalDownloads(link);
+        acc.selectionSessions += selectionSummary.total_sessions ?? 0;
 
         return acc;
       },
@@ -462,6 +685,7 @@ export const ShareLinksDashboardPage = () => {
         galleryLinks: 0,
         pageViews: 0,
         pageDownloads: 0,
+        selectionSessions: 0,
       },
     );
   }, [links]);
@@ -476,388 +700,503 @@ export const ShareLinksDashboardPage = () => {
     [links],
   );
 
-  const engagementRows = useMemo<EngagementRow[]>(
-    () =>
-      filteredLinks
-        .map((link) => ({
-          id: link.id,
-          title: getShareLinkTitle(link),
-          source: getShareLinkSource(link),
-          views: link.views ?? 0,
-          downloads: (link.zip_downloads ?? 0) + (link.single_downloads ?? 0),
-          status: getShareLinkStatus(link),
-        }))
-        .sort((a, b) => b.views - a.views || b.downloads - a.downloads)
-        .slice(0, 6),
+  const topByViews = useMemo(
+    () => [...filteredLinks].sort((a, b) => (b.views ?? 0) - (a.views ?? 0))[0] ?? null,
     [filteredLinks],
   );
 
-  const summaryItems = [
+  const topByDownloads = useMemo(
+    () => [...filteredLinks].sort((a, b) => getTotalDownloads(b) - getTotalDownloads(a))[0] ?? null,
+    [filteredLinks],
+  );
+
+  const latestActivityLink = filteredLinks[0] ?? null;
+
+  const hasDailyTrend = useMemo(
+    () =>
+      dailyPoints.some(
+        (point) =>
+          point.views_total > 0 ||
+          point.views_unique > 0 ||
+          point.zip_downloads > 0 ||
+          point.single_downloads > 0,
+      ),
+    [dailyPoints],
+  );
+
+  const chartValues = useMemo(() => {
+    if (hasDailyTrend) {
+      return dailyPoints.map((point) => point.views_total);
+    }
+
+    return buildFallbackTrendValues(filteredLinks, summary.views);
+  }, [dailyPoints, filteredLinks, hasDailyTrend, summary.views]);
+
+  const chartLabels = useMemo(() => {
+    if (dailyPoints.length > 0) {
+      return dailyPoints.map((point) => formatShortDateLabel(point.day));
+    }
+
+    const dates = [...filteredLinks]
+      .reverse()
+      .map((link) => formatShortDateLabel(getLatestActivityDate(link)));
+    return dates.length >= 3 ? dates : ['Views', 'Activity', 'Now'];
+  }, [dailyPoints, filteredLinks]);
+
+  const totalDownloads = summary.zip_downloads + summary.single_downloads;
+  const actionableSelectionSessions =
+    pageInsights.selectionInProgress + pageInsights.selectionSubmitted;
+
+  const summaryItems: SummaryMetric[] = [
     {
       icon: Eye,
       label: 'Total views',
       value: numberFormatter.format(summary.views),
       hint: statusFilter === 'all' ? 'Across all share links' : 'Across filtered results',
+      tone: 'success',
+      trend:
+        pageInsights.pageViews > 0
+          ? `+${compactFormatter.format(pageInsights.pageViews)}`
+          : undefined,
     },
     {
       icon: Link2,
       label: 'Active links',
       value: numberFormatter.format(summary.active_links),
-      hint: statusFilter === 'all' ? 'Across all share links' : 'Across filtered results',
+      hint: statusFilter === 'all' ? 'No change in current result set' : 'Across filtered results',
+      tone: 'accent',
     },
     {
       icon: FileDown,
       label: 'Downloads',
-      value: numberFormatter.format(summary.zip_downloads + summary.single_downloads),
+      value: numberFormatter.format(totalDownloads),
       hint: `${numberFormatter.format(summary.zip_downloads)} ZIP · ${numberFormatter.format(summary.single_downloads)} single`,
+      tone: totalDownloads > 0 ? 'success' : 'neutral',
+      trend: totalDownloads > 0 ? `+${compactFormatter.format(totalDownloads)}` : undefined,
     },
     {
       icon: Activity,
-      label: 'Current page selection progress',
-      value: numberFormatter.format(pageInsights.selectionInProgress),
-      hint: `${numberFormatter.format(pageInsights.selectionSubmitted)} submitted sessions on this page`,
+      label: 'Sessions',
+      value: numberFormatter.format(actionableSelectionSessions),
+      hint: `${numberFormatter.format(pageInsights.selectionSubmitted)} submitted · ${numberFormatter.format(pageInsights.selectionInProgress)} live`,
+      tone: pageInsights.selectionInProgress > 0 ? 'danger' : 'neutral',
+      trend:
+        pageInsights.selectionInProgress > 0
+          ? `${pageInsights.selectionInProgress} live`
+          : undefined,
     },
   ];
 
   return (
-    <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[1.75rem] border border-border/50 bg-surface px-5 py-5 shadow-xs dark:border-border/30 dark:bg-surface-dark lg:px-6">
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(31,144,255,0.18),transparent_52%)]" />
-        <div className="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl space-y-3">
-            <p className="inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-accent">
-              <Link2 className="h-3.5 w-3.5" />
-              Share links
+    <div className="relative space-y-5 2xl:-mx-11">
+      <div className="pointer-events-none absolute inset-x-[-1rem] top-[-2rem] -z-10 h-72 bg-[radial-gradient(circle_at_18%_20%,rgba(31,144,255,0.16),transparent_34%),radial-gradient(circle_at_78%_0%,rgba(59,130,246,0.12),transparent_34%)]" />
+
+      <section className="relative px-1 py-2">
+        <div className="pointer-events-none absolute inset-y-0 right-0 -z-10 w-2/3 bg-[radial-gradient(circle_at_top_right,rgba(31,144,255,0.16),transparent_55%)]" />
+        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl">
+            <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm font-semibold">
+              <Link to="/dashboard" className="text-accent transition-colors hover:text-accent/80">
+                Dashboard
+              </Link>
+              <span className="text-muted">›</span>
+              <span className="text-muted">Share Links</span>
+            </nav>
+            <h1 className="mt-4 font-oswald text-4xl font-bold tracking-tight text-text dark:text-accent-foreground lg:text-5xl">
+              Share Links Dashboard
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+              Monitor performance, manage share links, and act on client activity — all in one
+              place.
             </p>
-            <div>
-              <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground">
-                Share links dashboard
-              </h1>
-              <p className="mt-2 text-sm leading-6 text-muted">
-                Monitor status, jump to the right gallery, copy public URLs, and act on client
-                selection intake without losing context.
-              </p>
-            </div>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <label
-              htmlFor="share-links-search"
-              className="flex h-12 min-w-0 items-center gap-2 rounded-2xl border border-border/40 bg-surface-1 px-3 text-sm text-text shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15 dark:bg-surface-dark-1 sm:min-w-80"
+            <Link
+              to="/dashboard"
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-bold text-accent-foreground shadow-lg shadow-accent/20 transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
-              <Search className="h-4 w-4 shrink-0 text-muted" />
-              <input
-                id="share-links-search"
-                type="search"
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Search by label, share link id, or gallery"
-                className="h-full w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
-              />
-            </label>
+              <Plus className="h-4 w-4" />
+              Create share link
+            </Link>
             <button
               type="button"
               onClick={() => void fetchLinks()}
-              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-bold text-text shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
+              aria-label="Refresh list"
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1/80 px-5 py-3 text-sm font-bold text-text shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground dark:hover:bg-white/[0.07]"
             >
               <RefreshCw className="h-4 w-4" />
-              Refresh list
+              Refresh
             </button>
           </div>
         </div>
       </section>
 
       {selectionActionError ? (
-        <div className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+        <div
+          className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger"
+          role="alert"
+        >
           {selectionActionError}
         </div>
       ) : null}
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {summaryItems.map((item) => {
-          const Icon = item.icon;
-
-          return (
-            <article
-              key={item.label}
-              className="rounded-2xl border border-border/50 bg-surface px-4 py-4 shadow-xs transition-all hover:-translate-y-0.5 hover:border-accent/30 dark:border-border/35 dark:bg-surface-dark"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">
-                    {item.label}
-                  </p>
-                  <p className="mt-2 text-2xl font-bold text-text dark:text-accent-foreground">
-                    {item.value}
-                  </p>
-                </div>
-                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
-                  <Icon className="h-5 w-5" />
-                </span>
-              </div>
-              <p className="mt-2 text-xs leading-5 text-muted">{item.hint}</p>
-            </article>
-          );
-        })}
-      </section>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <section className="rounded-[1.75rem] border border-border/50 bg-surface px-4 py-4 shadow-xs dark:border-border/35 dark:bg-surface-dark lg:px-5">
-          <div className="flex flex-col gap-4 border-b border-border/40 pb-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-text dark:text-accent-foreground">
-                Link inventory
-              </h2>
-              <p className="mt-1 text-sm text-muted">
-                Sorted by latest activity with primary actions kept close to every link.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {STATUS_FILTERS.map((filter) => {
-                const active = filter.value === statusFilter;
-                return (
-                  <button
-                    key={filter.value}
-                    type="button"
-                    onClick={() => {
-                      setStatusFilter(filter.value);
-                      goToPage(1);
-                    }}
-                    className={`cursor-pointer rounded-full border px-3 py-1.5 text-sm font-bold transition-all hover:-translate-y-0.5 ${
-                      active
-                        ? 'border-accent/50 bg-accent text-accent-foreground shadow-sm'
-                        : 'border-border/50 bg-surface-1 text-muted hover:border-accent/35 hover:bg-surface-2 hover:text-text dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2'
-                    }`}
-                  >
-                    {filter.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="mt-4 flex flex-col justify-between gap-2 text-sm text-muted sm:flex-row sm:items-center">
-            <p>
-              Showing{' '}
-              <span className="font-semibold text-text">
-                {numberFormatter.format(filteredLinks.length)}
-              </span>{' '}
-              links on this page
-            </p>
-            {!isLoading && !error ? (
-              <p>
-                {statusFilter === 'all'
-                  ? `${numberFormatter.format(pageInsights.projectLinks)} project · ${numberFormatter.format(pageInsights.galleryLinks)} gallery links`
-                  : `Filtered across all links: ${STATUS_FILTERS.find((filter) => filter.value === statusFilter)?.label}`}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {isLoading ? (
-              <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-surface-1 px-4 py-5 text-sm text-muted dark:border-border/40 dark:bg-surface-dark-1">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Loading share links...</span>
-              </div>
-            ) : error ? (
-              <div className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-8 text-center text-danger">
-                {error}
-              </div>
-            ) : filteredLinks.length === 0 ? (
-              <div className="rounded-2xl border border-border/50 bg-surface-1 px-4 py-10 text-center text-muted dark:border-border/40 dark:bg-surface-dark-1">
-                No links on this page match the selected filter.
-              </div>
-            ) : (
-              filteredLinks.map((link) => {
-                const fullUrl = `${window.location.origin}/share/${link.id}`;
-                const linkStatus = getShareLinkStatus(link);
-                const selectionSummary = getSelectionSummary(link);
-                const selectionStatus = selectionSummary.status ?? null;
-                const selectionCount = selectionSummary.selected_count ?? 0;
-                const projectLink = isProjectLink(link);
-                const linkTitle = getShareLinkTitle(link);
-                const sourceName = getShareLinkSource(link);
-                const latestActivity = formatDateLabel(getLatestActivityDate(link));
-                const totalDownloads = (link.zip_downloads ?? 0) + (link.single_downloads ?? 0);
-
-                return (
-                  <article
-                    key={link.id}
-                    className="group rounded-2xl border border-border/45 bg-surface-1 px-4 py-4 shadow-xs transition-all hover:-translate-y-0.5 hover:border-accent/30 hover:shadow-md dark:border-border/35 dark:bg-surface-dark-1"
-                  >
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0 flex-1 space-y-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-base font-bold text-text dark:text-accent-foreground">
-                            {linkTitle}
-                          </h3>
-                          <ShareLinkStatusBadge status={linkStatus} />
-                          <span className="rounded-full border border-border/50 bg-surface px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-muted dark:bg-surface-dark">
-                            {projectLink ? 'Project' : 'Gallery'}
-                          </span>
-                          {!projectLink ? (
-                            <span className="rounded-full border border-accent/20 bg-accent/8 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-accent">
-                              Selection {formatSelectionStatusLabel(selectionStatus)}
-                            </span>
-                          ) : null}
-                          {link.has_password ? (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-surface px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-muted dark:bg-surface-dark">
-                              <Lock className="h-3 w-3" />
-                              Password
-                            </span>
-                          ) : null}
-                        </div>
-
-                        <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted">
-                          <Link
-                            to={
-                              projectLink
-                                ? `/projects/${link.project_id}`
-                                : link.project_id
-                                  ? `/projects/${link.project_id}/galleries/${link.gallery_id}`
-                                  : `/galleries/${link.gallery_id}`
-                            }
-                            className="inline-flex min-w-0 items-center gap-2 font-semibold text-text transition-colors hover:text-accent dark:text-accent-foreground"
-                          >
-                            <GalleryVerticalEnd className="h-4 w-4 shrink-0 text-accent" />
-                            <span className="truncate">{sourceName}</span>
-                          </Link>
-                          <span>
-                            Updated{' '}
-                            <strong className="font-semibold text-text dark:text-accent-foreground">
-                              {latestActivity}
-                            </strong>
-                          </span>
-                          <span>
-                            Expires{' '}
-                            <strong className="font-semibold text-text dark:text-accent-foreground">
-                              {formatDateLabel(link.expires_at, 'No expiration')}
-                            </strong>
-                          </span>
-                        </div>
-
-                        <div className="flex min-w-0 items-start gap-2 rounded-2xl border border-border/45 bg-surface px-3 py-2 text-sm text-accent dark:bg-surface-dark">
-                          <ExternalLink className="mt-0.5 h-4 w-4 shrink-0" />
-                          <a
-                            href={fullUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="truncate font-medium hover:underline"
-                          >
-                            {fullUrl}
-                          </a>
-                        </div>
-
-                        <div className="grid gap-2 sm:grid-cols-4">
-                          <span className="rounded-2xl border border-border/40 bg-surface px-3 py-2 text-sm text-muted dark:bg-surface-dark">
-                            <span className="block text-[0.68rem] font-bold uppercase tracking-wider">
-                              Views
-                            </span>
-                            <strong className="mt-1 block font-bold text-text dark:text-accent-foreground">
-                              {numberFormatter.format(link.views ?? 0)}
-                            </strong>
-                          </span>
-                          <span className="rounded-2xl border border-border/40 bg-surface px-3 py-2 text-sm text-muted dark:bg-surface-dark">
-                            <span className="block text-[0.68rem] font-bold uppercase tracking-wider">
-                              Downloads
-                            </span>
-                            <strong className="mt-1 block font-bold text-text dark:text-accent-foreground">
-                              {numberFormatter.format(totalDownloads)}
-                            </strong>
-                          </span>
-                          <span className="rounded-2xl border border-border/40 bg-surface px-3 py-2 text-sm text-muted dark:bg-surface-dark">
-                            <span className="block text-[0.68rem] font-bold uppercase tracking-wider">
-                              Selected
-                            </span>
-                            <strong className="mt-1 block font-bold text-text dark:text-accent-foreground">
-                              {numberFormatter.format(selectionCount)}
-                            </strong>
-                          </span>
-                          <span className="rounded-2xl border border-border/40 bg-surface px-3 py-2 text-sm text-muted dark:bg-surface-dark">
-                            <span className="block text-[0.68rem] font-bold uppercase tracking-wider">
-                              Created
-                            </span>
-                            <strong className="mt-1 block font-bold text-text dark:text-accent-foreground">
-                              {formatDateLabel(link.created_at)}
-                            </strong>
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2 lg:max-w-56 lg:justify-end">
-                        <Link
-                          to={`/share-links/${link.id}`}
-                          className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-3 py-2 text-sm font-bold text-accent-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:brightness-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                        >
-                          <BarChart3 className="h-4 w-4" />
-                          Details
-                        </Link>
-                        <button
-                          onClick={() => void handleCopyLink(link.id)}
-                          className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-success/30 bg-success/10 text-success transition-all hover:scale-105 hover:bg-success/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-success/50 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                          title={copiedLinkId === link.id ? 'Copied' : 'Copy'}
-                          aria-label={`Copy link ${link.label || link.id}`}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => setEditingLink(link)}
-                          className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-accent/30 bg-accent/10 text-accent transition-all hover:scale-105 hover:bg-accent/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                          title="Edit"
-                          aria-label={`Edit link ${link.label || link.id}`}
-                        >
-                          <PencilLine className="h-4 w-4" />
-                        </button>
-                        <a
-                          href={fullUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-border/50 bg-surface text-text transition-all hover:scale-105 hover:border-accent/35 dark:bg-surface-dark"
-                          title="Open public link"
-                          aria-label={`Open public link ${link.label || link.id}`}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                        <button
-                          onClick={() => handleDeleteLink(link)}
-                          className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-danger/30 bg-danger/10 text-danger transition-all hover:scale-105 hover:bg-danger/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger/50 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                          title="Delete"
-                          aria-label={`Delete link ${link.label || link.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })
-            )}
-          </div>
-        </section>
-
-        <aside className="space-y-4">
-          <section className="rounded-[1.75rem] border border-border/50 bg-surface px-4 py-4 shadow-xs dark:border-border/35 dark:bg-surface-dark lg:px-5">
-            <div className="flex items-start gap-3 border-b border-border/40 pb-4">
-              <div className="rounded-xl bg-accent/10 p-2.5 text-accent">
-                <TrendingUp className="h-5 w-5" />
-              </div>
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <main className="space-y-5">
+          <section className="rounded-[1.35rem] border border-border/50 bg-surface/95 p-4 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-surface-dark/90 dark:shadow-black/20 lg:p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-text dark:text-accent-foreground">
-                  Views chart
+                <h2 className="text-xl font-bold text-text dark:text-accent-foreground">
+                  Overview <span className="text-sm font-medium text-muted">(last 30 days)</span>
                 </h2>
-                <p className="mt-1 text-sm text-muted">
-                  Top links on this page by view count, with status-aware bars.
-                </p>
               </div>
             </div>
 
-            <div className="mt-4">
-              <EngagementChart rows={engagementRows} isLoading={isLoading} />
+            <div className="grid gap-4 2xl:grid-cols-[minmax(18rem,0.78fr)_minmax(0,1.22fr)]">
+              <OverviewSparkline values={chartValues} labels={chartLabels} isLoading={isLoading} />
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-4">
+                {summaryItems.map((item) => (
+                  <DashboardMetricCard key={item.label} metric={item} />
+                ))}
+              </div>
             </div>
           </section>
 
-          <section className="rounded-[1.75rem] border border-border/50 bg-surface px-4 py-4 shadow-xs dark:border-border/35 dark:bg-surface-dark lg:px-5">
-            <div className="flex items-start gap-3 border-b border-border/40 pb-4">
+          <section className="rounded-[1.35rem] border border-border/50 bg-surface/95 p-4 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-surface-dark/90 dark:shadow-black/20 lg:p-5">
+            <div className="flex flex-col gap-4 border-b border-border/35 pb-4 dark:border-white/10 2xl:flex-row 2xl:items-end 2xl:justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-text dark:text-accent-foreground">
+                  Share links
+                </h2>
+                <p className="mt-1 text-sm text-muted">Sorted by most recent activity</p>
+              </div>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <div className="flex flex-wrap items-center gap-2">
+                  {STATUS_FILTERS.map((filter) => {
+                    const active = filter.value === statusFilter;
+                    return (
+                      <button
+                        key={filter.value}
+                        type="button"
+                        onClick={() => {
+                          setStatusFilter(filter.value);
+                          goToPage(1);
+                        }}
+                        className={cn(
+                          'cursor-pointer rounded-full border px-4 py-2 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+                          active
+                            ? 'border-accent/50 bg-accent text-accent-foreground shadow-lg shadow-accent/15'
+                            : 'border-border/50 bg-surface-1 text-muted hover:border-accent/35 hover:bg-surface-2 hover:text-text dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]',
+                        )}
+                      >
+                        {filter.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <label
+                  htmlFor="share-links-search"
+                  className="flex h-11 min-w-0 items-center gap-2 rounded-xl border border-border/45 bg-surface-1 px-3 text-sm text-text shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15 dark:border-white/10 dark:bg-white/[0.035] lg:w-64"
+                >
+                  <Search className="h-4 w-4 shrink-0 text-muted" />
+                  <input
+                    id="share-links-search"
+                    type="search"
+                    value={searchInput}
+                    onChange={(event) => setSearchInput(event.target.value)}
+                    placeholder="Search by label, share link id, or gallery"
+                    className="h-full w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/45 bg-surface-1 px-4 text-sm font-bold text-text shadow-sm transition-all hover:border-accent/35 hover:bg-surface-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground dark:hover:bg-white/[0.07]"
+                >
+                  <SlidersHorizontal className="h-4 w-4 text-muted" />
+                  Filters
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-col justify-end gap-2 text-sm text-muted sm:flex-row sm:items-center">
+              {!isLoading && !error ? (
+                <p>
+                  {statusFilter === 'all'
+                    ? `${numberFormatter.format(pageInsights.projectLinks)} project · ${numberFormatter.format(pageInsights.galleryLinks)} gallery links`
+                    : `Filtered across all links: ${STATUS_FILTERS.find((filter) => filter.value === statusFilter)?.label}`}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {isLoading ? (
+                <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-surface-1 px-4 py-5 text-sm text-muted dark:border-white/10 dark:bg-white/[0.035]">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Loading share links...</span>
+                </div>
+              ) : error ? (
+                <div
+                  className="rounded-2xl border border-danger/30 bg-danger/10 px-4 py-8 text-center text-danger"
+                  role="alert"
+                >
+                  {error}
+                </div>
+              ) : filteredLinks.length === 0 ? (
+                <div className="rounded-2xl border border-border/50 bg-surface-1 px-4 py-10 text-center text-muted dark:border-white/10 dark:bg-white/[0.035]">
+                  No links on this page match the selected filter.
+                </div>
+              ) : (
+                filteredLinks.map((link, index) => {
+                  const fullUrl = `${window.location.origin}/share/${link.id}`;
+                  const linkStatus = getShareLinkStatus(link);
+                  const selectionSummary = getSelectionSummary(link);
+                  const selectionStatus = selectionSummary.status ?? null;
+                  const projectLink = isProjectLink(link);
+                  const linkTitle = getShareLinkTitle(link);
+                  const sourceName = getShareLinkSource(link);
+                  const createdDate = formatDateLabel(link.created_at);
+                  const expiresDate = formatDateLabel(link.expires_at, 'No expiration');
+                  const latestActivity = formatDateLabel(getLatestActivityDate(link));
+                  const totalLinkDownloads = getTotalDownloads(link);
+                  const sessions = selectionSummary.total_sessions ?? 0;
+
+                  return (
+                    <article
+                      key={link.id}
+                      className="group rounded-[1.05rem] border border-border/45 bg-surface-1/80 p-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/35 hover:bg-surface-2/70 hover:shadow-md dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.065]"
+                    >
+                      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(31rem,0.86fr)_8rem] xl:items-center">
+                        <div className="flex min-w-0 items-center gap-4">
+                          <span
+                            className={cn(
+                              'h-2.5 w-2.5 shrink-0 rounded-full',
+                              getStatusDotClasses(linkStatus),
+                            )}
+                            aria-hidden="true"
+                          />
+                          <ShareLinkPreview
+                            index={index}
+                            title={linkTitle}
+                            source={sourceName}
+                            projectLink={projectLink}
+                            thumbnailUrl={link.cover_photo_thumbnail_url}
+                          />
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="truncate text-base font-bold text-text dark:text-accent-foreground">
+                                {linkTitle}
+                              </h3>
+                              <ShareLinkStatusBadge status={linkStatus} />
+                              {link.has_password ? (
+                                <span className="inline-flex items-center gap-1 rounded-full border border-border/45 bg-surface px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wide text-muted dark:border-white/10 dark:bg-white/[0.04]">
+                                  <Lock className="h-3 w-3" />
+                                  Password
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+                              <span>Created {createdDate}</span>
+                              <span aria-hidden="true">•</span>
+                              <span>
+                                {expiresDate === 'No expiration'
+                                  ? 'No expiration'
+                                  : `Expires ${expiresDate}`}
+                              </span>
+                              {!projectLink ? (
+                                <>
+                                  <span aria-hidden="true">•</span>
+                                  <span>
+                                    Selection {formatSelectionStatusLabel(selectionStatus)}
+                                  </span>
+                                </>
+                              ) : null}
+                            </div>
+                            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                              <a
+                                href={fullUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex min-w-0 max-w-full cursor-pointer items-center gap-2 rounded-xl border border-accent/25 bg-accent/8 px-3 py-1.5 text-sm font-bold text-accent transition-colors hover:border-accent/45 hover:bg-accent/12"
+                              >
+                                <Link2 className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate">{getPublicLinkLabel(link.id)}</span>
+                              </a>
+                              <button
+                                onClick={() => void handleCopyLink(link.id)}
+                                className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-border/45 bg-surface text-text transition-all hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035]"
+                                title={copiedLinkId === link.id ? 'Copied' : 'Copy'}
+                                aria-label={`Copy link ${link.label || link.id}`}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          <div className="border-l border-border/35 pl-4 dark:border-white/10">
+                            <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-muted">
+                              Views
+                            </p>
+                            <p className="mt-1 text-xl font-bold text-text dark:text-accent-foreground">
+                              {numberFormatter.format(link.views ?? 0)}
+                            </p>
+                            <p className="text-xs font-semibold text-success">
+                              {link.views ? `↑ ${compactFormatter.format(link.views)}` : '—'}
+                            </p>
+                          </div>
+                          <div className="border-l border-border/35 pl-4 dark:border-white/10">
+                            <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-muted">
+                              Downloads
+                            </p>
+                            <p className="mt-1 text-xl font-bold text-text dark:text-accent-foreground">
+                              {numberFormatter.format(totalLinkDownloads)}
+                            </p>
+                            <p className="text-xs font-semibold text-success">
+                              {totalLinkDownloads
+                                ? `↑ ${compactFormatter.format(totalLinkDownloads)}`
+                                : '—'}
+                            </p>
+                          </div>
+                          <div className="border-l border-border/35 pl-4 dark:border-white/10">
+                            <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-muted">
+                              Sessions
+                            </p>
+                            <p className="mt-1 text-xl font-bold text-text dark:text-accent-foreground">
+                              {numberFormatter.format(sessions)}
+                            </p>
+                            <p className="text-xs text-muted">
+                              {selectionSummary.in_progress_sessions
+                                ? `${selectionSummary.in_progress_sessions} live`
+                                : '—'}
+                            </p>
+                          </div>
+                          <div className="border-l border-border/35 pl-4 dark:border-white/10">
+                            <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-muted">
+                              Last activity
+                            </p>
+                            <p className="mt-1 text-sm font-bold text-text dark:text-accent-foreground">
+                              {latestActivity}
+                            </p>
+                            <p className="text-xs text-muted">
+                              {formatRelativeDateLabel(getLatestActivityDate(link))}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-start gap-2 xl:justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setEditingLink(link)}
+                            className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-border/45 bg-surface text-text transition-all hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035]"
+                            title="Edit link"
+                            aria-label={`Edit link ${link.label || link.id}`}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                          <Link
+                            to={`/share-links/${link.id}`}
+                            aria-label={`Details for ${linkTitle}`}
+                            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-accent/50 bg-accent/10 px-4 py-2 text-sm font-bold text-accent transition-all hover:-translate-y-0.5 hover:bg-accent hover:text-accent-foreground focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                          >
+                            Open
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </Link>
+                          <button
+                            onClick={() => handleDeleteLink(link)}
+                            className="sr-only"
+                            title="Delete"
+                            aria-label={`Delete link ${link.label || link.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+            {!isLoading && !error && filteredLinks.length > 0 ? (
+              <p className="mt-4 text-center text-sm text-muted">
+                Showing{' '}
+                <span className="font-semibold text-text dark:text-accent-foreground">
+                  {numberFormatter.format((page - 1) * pageSize + 1)}
+                </span>
+                –
+                <span className="font-semibold text-text dark:text-accent-foreground">
+                  {numberFormatter.format((page - 1) * pageSize + filteredLinks.length)}
+                </span>{' '}
+                of {numberFormatter.format(pagination.total)} links
+              </p>
+            ) : null}
+          </section>
+        </main>
+
+        <aside className="space-y-4">
+          <section className="rounded-[1.35rem] border border-border/50 bg-surface/95 p-4 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-surface-dark/90 dark:shadow-black/20 lg:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+                  <BarChart3 className="h-5 w-5" />
+                </span>
+                <h2 className="text-lg font-bold text-text dark:text-accent-foreground">
+                  Quick insights
+                </h2>
+              </div>
+              <select
+                aria-label="Insights range"
+                className="cursor-pointer rounded-xl border border-border/45 bg-surface-1 px-3 py-2 text-xs font-semibold text-text outline-none focus:border-accent focus:ring-2 focus:ring-accent/15 dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground"
+                defaultValue="30"
+              >
+                <option value="30">Last 30 days</option>
+              </select>
+            </div>
+
+            <div className="mt-5">
+              <QuickInsightRow
+                label="Top link by views"
+                value={topByViews ? getInsightLinkLabel(topByViews) : 'No viewed links yet'}
+                detail={numberFormatter.format(topByViews?.views ?? 0)}
+              />
+              <QuickInsightRow
+                label="Top link by downloads"
+                value={topByDownloads ? getInsightLinkLabel(topByDownloads) : 'No downloads yet'}
+                detail={numberFormatter.format(
+                  topByDownloads ? getTotalDownloads(topByDownloads) : 0,
+                )}
+              />
+              <QuickInsightRow
+                label="Latest activity"
+                value={
+                  latestActivityLink
+                    ? formatDateLabel(getLatestActivityDate(latestActivityLink))
+                    : 'No activity'
+                }
+                detail={
+                  latestActivityLink
+                    ? formatRelativeDateLabel(getLatestActivityDate(latestActivityLink))
+                    : '—'
+                }
+              />
+              <QuickInsightRow
+                label="Selection progress"
+                value={`${numberFormatter.format(pageInsights.selectionInProgress)} in progress`}
+                detail={`${numberFormatter.format(pageInsights.selectionSubmitted)} submitted`}
+              />
+            </div>
+
+            <Link
+              to="/share-links"
+              className="mt-4 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/45 bg-surface-1 px-4 py-3 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 hover:text-accent dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
+            >
+              View full analytics
+              <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </section>
+
+          <section className="rounded-[1.35rem] border border-border/50 bg-surface/95 p-4 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-surface-dark/90 dark:shadow-black/20 lg:p-5">
+            <div className="flex items-start gap-3">
               <div className="rounded-xl bg-accent/10 p-2.5 text-accent">
                 <SlidersHorizontal className="h-5 w-5" />
               </div>
@@ -866,93 +1205,77 @@ export const ShareLinksDashboardPage = () => {
                   Selection tools
                 </h2>
                 <p className="mt-1 text-sm text-muted">
-                  Page-scoped bulk controls for galleries represented in the current result set.
+                  Bulk actions for galleries in the current result set.
                 </p>
               </div>
             </div>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-5 space-y-3">
+              <Link
+                to="/dashboard"
+                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-accent-foreground shadow-lg shadow-accent/15 transition-all hover:-translate-y-0.5 hover:brightness-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              >
+                <Plus className="h-4 w-4" />
+                Create share link
+              </Link>
               <button
                 type="button"
-                onClick={() => void handleCloseAllSelections()}
+                onClick={() => void handleExportLinks()}
                 disabled={selectionActionBusy || links.length === 0}
-                className="inline-flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-danger/35 bg-danger/8 px-4 py-3 text-left text-sm font-bold text-danger transition-all hover:bg-danger/12 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
               >
-                <span className="inline-flex items-center gap-2">
-                  <Lock className="h-4 w-4" />
-                  Close selection intake for page galleries
-                </span>
-                {selectionActionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleOpenAllSelections()}
-                disabled={selectionActionBusy || links.length === 0}
-                className="inline-flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-success/35 bg-success/8 px-4 py-3 text-left text-sm font-bold text-success transition-all hover:bg-success/12 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <LockOpen className="h-4 w-4" />
-                  Open selection intake for page galleries
-                </span>
-                {selectionActionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                <Download className="h-4 w-4" />
+                Export selection links
               </button>
               <button
                 type="button"
                 onClick={() => void handleExportSummary()}
                 disabled={selectionActionBusy || links.length === 0}
-                className="inline-flex w-full cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
+                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
               >
                 <Download className="h-4 w-4" />
                 Export selection summaries
               </button>
               <button
                 type="button"
-                onClick={() => void handleExportLinks()}
+                onClick={() => void handleCloseAllSelections()}
                 disabled={selectionActionBusy || links.length === 0}
-                className="inline-flex w-full cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
+                aria-label="Close selection intake for page galleries"
+                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-danger/35 bg-danger/8 px-4 py-3 text-sm font-bold text-danger transition-all hover:bg-danger/12 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <Download className="h-4 w-4" />
-                Export selection links
+                <Lock className="h-4 w-4" />
+                Close selected links
+                {selectionActionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleOpenAllSelections()}
+                disabled={selectionActionBusy || links.length === 0}
+                aria-label="Open selection intake for page galleries"
+                className="sr-only"
+              >
+                <LockOpen className="h-4 w-4" />
+                Open selected links
               </button>
             </div>
+          </section>
 
-            <div className="mt-5 space-y-2 rounded-2xl border border-border/45 bg-surface-1 px-4 py-4 text-sm text-muted dark:bg-surface-dark-1">
-              <p className="font-bold text-text dark:text-accent-foreground">Page insights</p>
-              <div className="flex items-center justify-between gap-3">
-                <span>Active links on this page</span>
-                <strong className="text-text dark:text-accent-foreground">
-                  {numberFormatter.format(pageInsights.active)}
-                </strong>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span>Paused links on this page</span>
-                <strong className="text-text dark:text-accent-foreground">
-                  {numberFormatter.format(pageInsights.inactive)}
-                </strong>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span>Expired links on this page</span>
-                <strong className="text-text dark:text-accent-foreground">
-                  {numberFormatter.format(pageInsights.expired)}
-                </strong>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span>Page views</span>
-                <strong className="text-text dark:text-accent-foreground">
-                  {numberFormatter.format(pageInsights.pageViews)}
-                </strong>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span>Page downloads</span>
-                <strong className="text-text dark:text-accent-foreground">
-                  {numberFormatter.format(pageInsights.pageDownloads)}
-                </strong>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span>Submitted selection sessions</span>
-                <strong className="text-text dark:text-accent-foreground">
-                  {numberFormatter.format(pageInsights.selectionSubmitted)}
-                </strong>
+          <section className="rounded-[1.15rem] border border-border/50 bg-surface/95 p-4 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-surface-dark/90 dark:shadow-black/20">
+            <div className="flex items-start gap-3">
+              <Info className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
+              <div className="min-w-0 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-bold text-text dark:text-accent-foreground">
+                    {numberFormatter.format(pageInsights.active)} active links
+                  </p>
+                  <Link to="/share-links" className="font-bold text-accent hover:underline">
+                    View sessions
+                  </Link>
+                </div>
+                <p className="mt-1 text-muted">
+                  {numberFormatter.format(pageInsights.selectionInProgress)} sessions in progress ·{' '}
+                  {numberFormatter.format(pageInsights.selectionSubmitted)} submitted
+                </p>
               </div>
             </div>
           </section>

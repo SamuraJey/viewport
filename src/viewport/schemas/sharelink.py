@@ -110,6 +110,7 @@ class ShareLinkResponse(ScopedShareLinkResponse):
 class ShareLinkDashboardItemResponse(ShareLinkResponse):
     gallery_name: str | None = None
     project_name: str | None = None
+    cover_photo_thumbnail_url: str | None = None
 
 
 class ShareLinkSelectionSummaryResponse(BaseModel):
@@ -134,20 +135,21 @@ class ShareLinkDashboardSummaryResponse(BaseModel):
     active_links: int
 
 
-class ShareLinkDashboardResponse(BaseModel):
-    share_links: list[ShareLinkDashboardListItemResponse]
-    total: int
-    page: int
-    size: int
-    summary: ShareLinkDashboardSummaryResponse
-
-
 class ShareLinkDailyPointResponse(BaseModel):
     day: date
     views_total: int
     views_unique: int
     zip_downloads: int
     single_downloads: int
+
+
+class ShareLinkDashboardResponse(BaseModel):
+    share_links: list[ShareLinkDashboardListItemResponse]
+    total: int
+    page: int
+    size: int
+    summary: ShareLinkDashboardSummaryResponse
+    points: list[ShareLinkDailyPointResponse] = Field(default_factory=list)
 
 
 class ShareLinkAnalyticsResponse(BaseModel):

@@ -51,6 +51,7 @@ describe('ShareLinksDashboardPage', () => {
           id: 'link-1',
           gallery_id: 'gallery-1',
           gallery_name: 'Wedding',
+          cover_photo_thumbnail_url: 'https://example.com/thumb-wedding.jpg',
           label: 'Preview for Ivan',
           is_active: true,
           expires_at: null,
@@ -119,12 +120,12 @@ describe('ShareLinksDashboardPage', () => {
     expect(
       await screen.findByRole('heading', { name: /share links dashboard/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/monitor status, jump to the right gallery/i)).toBeInTheDocument();
+    expect(screen.getByText(/monitor performance, manage share links/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /selection tools/i })).toBeInTheDocument();
-    expect(screen.getByText('Preview for Ivan')).toBeInTheDocument();
-    expect(screen.getByText('Untitled share link')).toBeInTheDocument();
+    expect(screen.getAllByText('Preview for Ivan').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Untitled share link').length).toBeGreaterThan(0);
     expect(screen.getByText(/selection progress/i)).toBeInTheDocument();
-    expect(screen.getByText(/submitted sessions on this page/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/submitted/i).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: /details/i })).toHaveLength(2);
   });
 
@@ -132,7 +133,7 @@ describe('ShareLinksDashboardPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText('Preview for Ivan');
+    await screen.findAllByText('Preview for Ivan');
     await user.click(
       screen.getByRole('button', { name: /close selection intake for page galleries/i }),
     );
@@ -148,7 +149,7 @@ describe('ShareLinksDashboardPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText('Preview for Ivan');
+    await screen.findAllByText('Preview for Ivan');
 
     expect(
       screen.getByPlaceholderText(/search by label, share link id, or gallery/i),
@@ -166,7 +167,7 @@ describe('ShareLinksDashboardPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText('Preview for Ivan');
+    await screen.findAllByText('Preview for Ivan');
     await user.click(screen.getByRole('button', { name: /paused/i }));
 
     expect(mockGoToPage).toHaveBeenCalledWith(1);
@@ -182,7 +183,7 @@ describe('ShareLinksDashboardPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByText('Preview for Ivan');
+    await screen.findAllByText('Preview for Ivan');
     await user.click(screen.getByRole('button', { name: /paused/i }));
 
     expect(await screen.findAllByText(/across filtered results/i)).toHaveLength(2);
@@ -247,7 +248,7 @@ describe('ShareLinksDashboardPage', () => {
       },
     });
 
-    await screen.findByText('Latest result');
+    await screen.findAllByText('Latest result');
 
     resolveFirst?.({
       share_links: [
@@ -287,7 +288,7 @@ describe('ShareLinksDashboardPage', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Latest result')).toBeInTheDocument();
+      expect(screen.getAllByText('Latest result').length).toBeGreaterThan(0);
     });
     expect(screen.queryByText('Stale result')).not.toBeInTheDocument();
   });

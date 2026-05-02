@@ -1655,6 +1655,13 @@ class DemoServiceStore {
         gallery_name: entry.gallery.name,
         project_id: entry.gallery.project_id ?? null,
         project_name: entry.gallery.project_name ?? null,
+        cover_photo_thumbnail_url:
+          entry.gallery.cover_photo_thumbnail_url ??
+          (entry.gallery.cover_photo_id
+            ? entry.photos.find((photo) => photo.id === entry.gallery.cover_photo_id)?.thumbnail_url
+            : null) ??
+          entry.photos[0]?.thumbnail_url ??
+          null,
         selection_summary: this.buildSelectionSummary(entry, link.id),
       })),
     );
@@ -1666,6 +1673,7 @@ class DemoServiceStore {
         gallery_name: null,
         project_id: entry.project.id,
         project_name: entry.project.name,
+        cover_photo_thumbnail_url: entry.project.cover_photo_thumbnail_url ?? null,
         selection_summary: this.buildSelectionSummary(entry, link.id),
       })),
     );
@@ -1723,6 +1731,37 @@ class DemoServiceStore {
         active_links: 0,
       },
     );
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - 29);
+    const points = Array.from({ length: 30 }, (_, index) => {
+      const day = new Date(startDate);
+      day.setDate(startDate.getDate() + index);
+      return {
+        day: day.toISOString().slice(0, 10),
+        views_total: 0,
+        views_unique: 0,
+        zip_downloads: 0,
+        single_downloads: 0,
+      };
+    });
+
+    sorted.forEach((item) => {
+      const activityDate = new Date(item.updated_at ?? item.created_at);
+      activityDate.setHours(0, 0, 0, 0);
+      const dayIndex = Math.floor((activityDate.getTime() - startDate.getTime()) / 86_400_000);
+      if (dayIndex < 0 || dayIndex >= points.length) {
+        return;
+      }
+      points[dayIndex].views_total += item.views || 0;
+      points[dayIndex].views_unique += Math.min(
+        item.views || 0,
+        Math.max(1, Math.floor((item.views || 0) * 0.7)),
+      );
+      points[dayIndex].zip_downloads += item.zip_downloads || 0;
+      points[dayIndex].single_downloads += item.single_downloads || 0;
+    });
 
     return {
       share_links: sorted.slice(start, start + size),
@@ -1730,6 +1769,7 @@ class DemoServiceStore {
       page,
       size,
       summary,
+      points,
     };
   }
 
