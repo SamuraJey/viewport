@@ -127,7 +127,7 @@ describe('ShareLinksDashboardPage', () => {
       await screen.findByRole('heading', { name: /share links dashboard/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/monitor performance, manage share links/i)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /selection tools/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /selection scope/i })).toBeInTheDocument();
     expect(screen.getAllByText('Preview for Ivan').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Untitled share link').length).toBeGreaterThan(0);
     expect(screen.getByText(/selection progress/i)).toBeInTheDocument();
@@ -194,7 +194,7 @@ describe('ShareLinksDashboardPage', () => {
     expect(screen.getByText('Jan 5')).toBeInTheDocument();
   });
 
-  it('keeps bulk selection actions share-link scoped and includes project links', async () => {
+  it('runs bulk selection actions only for checked share links', async () => {
     const user = userEvent.setup();
     vi.mocked(shareLinkService.getOwnerShareLinks).mockResolvedValue({
       share_links: [
@@ -292,14 +292,21 @@ describe('ShareLinksDashboardPage', () => {
     renderPage();
 
     await screen.findAllByText('Project intake');
+    await user.click(screen.getByRole('checkbox', { name: /select share link gallery intake/i }));
+    await user.click(screen.getByRole('checkbox', { name: /select share link project intake/i }));
+
     await user.click(
-      screen.getByRole('button', { name: /close selection intake for 4 active sessions/i }),
+      screen.getByRole('button', {
+        name: /close selection intake for 4 selected active sessions/i,
+      }),
     );
     await waitFor(() => {
       expect(shareLinkService.closeAllShareLinkSelections).toHaveBeenCalledWith('project-link-1');
     });
     await user.click(
-      screen.getByRole('button', { name: /open selection intake for 4 closed sessions/i }),
+      screen.getByRole('button', {
+        name: /reopen selection intake for 2 selected closed sessions/i,
+      }),
     );
 
     expect(shareLinkService.closeAllShareLinkSelections).toHaveBeenCalledWith('gallery-link-1');
@@ -308,7 +315,9 @@ describe('ShareLinksDashboardPage', () => {
     expect(shareLinkService.closeAllGallerySelections).not.toHaveBeenCalled();
     expect(shareLinkService.openAllShareLinkSelections).toHaveBeenCalledWith('gallery-link-1');
     expect(shareLinkService.openAllShareLinkSelections).toHaveBeenCalledWith('project-link-1');
-    expect(shareLinkService.openAllShareLinkSelections).toHaveBeenCalledWith('closed-project-link');
+    expect(shareLinkService.openAllShareLinkSelections).not.toHaveBeenCalledWith(
+      'closed-project-link',
+    );
     expect(shareLinkService.reopenOwnerSelection).not.toHaveBeenCalled();
     expect(shareLinkService.openAllGallerySelections).not.toHaveBeenCalled();
   });

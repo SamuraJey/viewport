@@ -482,6 +482,7 @@ export const ShareLinksDashboardPage = () => {
   const [selectionActionError, setSelectionActionError] = useState('');
   const [selectionActionNotice, setSelectionActionNotice] = useState('');
   const [selectionActionBusy, setSelectionActionBusy] = useState(false);
+  const [selectedLinkIds, setSelectedLinkIds] = useState<Set<string>>(() => new Set());
 
   const { page, pageSize, setTotal, goToPage } = pagination;
 
@@ -562,6 +563,46 @@ export const ShareLinksDashboardPage = () => {
     void fetchLinks();
   }, [fetchLinks]);
 
+  useEffect(() => {
+    setSelectedLinkIds((current) => {
+      if (current.size === 0) return current;
+      const visibleIds = new Set(links.map((link) => link.id));
+      const next = new Set([...current].filter((linkId) => visibleIds.has(linkId)));
+      return next.size === current.size ? current : next;
+    });
+  }, [links]);
+
+  const handleToggleLinkSelection = (linkId: string) => {
+    setSelectedLinkIds((current) => {
+      const next = new Set(current);
+      if (next.has(linkId)) {
+        next.delete(linkId);
+      } else {
+        next.add(linkId);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleVisibleSelection = () => {
+    setSelectedLinkIds((current) => {
+      if (links.length === 0) return current;
+      const visibleIds = links.map((link) => link.id);
+      const allVisibleSelected = visibleIds.every((linkId) => current.has(linkId));
+      const next = new Set(current);
+      if (allVisibleSelected) {
+        visibleIds.forEach((linkId) => next.delete(linkId));
+      } else {
+        visibleIds.forEach((linkId) => next.add(linkId));
+      }
+      return next;
+    });
+  };
+
+  const handleClearSelectedLinks = () => {
+    setSelectedLinkIds(new Set());
+  };
+
   const handleCopyLink = async (linkId: string) => {
     const fullUrl = `${window.location.origin}/share/${linkId}`;
     const copied = await copyTextToClipboard(fullUrl);
@@ -591,6 +632,17 @@ export const ShareLinksDashboardPage = () => {
       selected_count: 0,
       latest_activity_at: null,
     };
+
+  const selectedLinks = useMemo(
+    () => links.filter((link) => selectedLinkIds.has(link.id)),
+    [links, selectedLinkIds],
+  );
+  const selectedLinkCount = selectedLinks.length;
+  const allVisibleLinksSelected =
+    links.length > 0 && links.every((link) => selectedLinkIds.has(link.id));
+  const selectedClosableSessionCount = getClosableSessionTotal(selectedLinks);
+  const selectedReopenableSessionCount = getReopenableSessionTotal(selectedLinks);
+  const selectedGalleryCount = getCurrentPageGalleryIds(selectedLinks).length;
 
   const handleDeleteLink = (link: ShareLinkDashboardItem) => {
     openConfirm({
@@ -640,8 +692,8 @@ export const ShareLinksDashboardPage = () => {
     }
   };
 
-  const handleCloseAllSelections = async () => {
-    const targetLinks = getClosableSelectionLinks(links);
+  const handleCloseSelectedSelections = async () => {
+    const targetLinks = getClosableSelectionLinks(selectedLinks);
     if (targetLinks.length === 0) return;
     setSelectionActionBusy(true);
     setSelectionActionError('');
@@ -652,7 +704,7 @@ export const ShareLinksDashboardPage = () => {
       );
       const affectedCount = results.reduce((sum, result) => sum + result.affected_count, 0);
       setSelectionActionNotice(
-        `Closed ${numberFormatter.format(affectedCount)} active session${affectedCount === 1 ? '' : 's'} across ${numberFormatter.format(targetLinks.length)} visible link${targetLinks.length === 1 ? '' : 's'}.`,
+        `Closed ${numberFormatter.format(affectedCount)} active session${affectedCount === 1 ? '' : 's'} across ${numberFormatter.format(targetLinks.length)} selected link${targetLinks.length === 1 ? '' : 's'}.`,
       );
       await fetchLinks();
     } catch (err) {
@@ -662,8 +714,8 @@ export const ShareLinksDashboardPage = () => {
     }
   };
 
-  const handleOpenAllSelections = async () => {
-    const targetLinks = getReopenableSelectionLinks(links);
+  const handleReopenSelectedSelections = async () => {
+    const targetLinks = getReopenableSelectionLinks(selectedLinks);
     if (targetLinks.length === 0) return;
     setSelectionActionBusy(true);
     setSelectionActionError('');
@@ -674,7 +726,7 @@ export const ShareLinksDashboardPage = () => {
       );
       const affectedCount = results.reduce((sum, result) => sum + result.affected_count, 0);
       setSelectionActionNotice(
-        `Reopened ${numberFormatter.format(affectedCount)} closed session${affectedCount === 1 ? '' : 's'} across ${numberFormatter.format(targetLinks.length)} visible link${targetLinks.length === 1 ? '' : 's'}.`,
+        `Reopened ${numberFormatter.format(affectedCount)} closed session${affectedCount === 1 ? '' : 's'} across ${numberFormatter.format(targetLinks.length)} selected link${targetLinks.length === 1 ? '' : 's'}.`,
       );
       await fetchLinks();
     } catch (err) {
@@ -684,12 +736,12 @@ export const ShareLinksDashboardPage = () => {
     }
   };
 
-  const handleExportSummary = async () => {
-    if (links.length === 0) return;
+  const handleExportSelectedSummary = async () => {
+    if (selectedLinkIds.size === 0) return;
     setSelectionActionBusy(true);
     setSelectionActionError('');
     try {
-      const uniqueGalleryIds = getCurrentPageGalleryIds(links);
+      const uniqueGalleryIds = getCurrentPageGalleryIds(selectedLinks);
       for (const galleryId of uniqueGalleryIds) {
         await shareLinkService.exportGallerySelectionSummaryCsv(galleryId);
       }
@@ -700,12 +752,12 @@ export const ShareLinksDashboardPage = () => {
     }
   };
 
-  const handleExportLinks = async () => {
-    if (links.length === 0) return;
+  const handleExportSelectedLinks = async () => {
+    if (selectedLinkIds.size === 0) return;
     setSelectionActionBusy(true);
     setSelectionActionError('');
     try {
-      const uniqueGalleryIds = getCurrentPageGalleryIds(links);
+      const uniqueGalleryIds = getCurrentPageGalleryIds(selectedLinks);
       for (const galleryId of uniqueGalleryIds) {
         await shareLinkService.exportGallerySelectionLinksCsv(galleryId);
       }
@@ -753,7 +805,6 @@ export const ShareLinksDashboardPage = () => {
   }, [links]);
 
   const filteredLinks = links;
-
   const topByViews = useMemo(
     () => [...filteredLinks].sort((a, b) => (b.views ?? 0) - (a.views ?? 0))[0] ?? null,
     [filteredLinks],
@@ -800,10 +851,6 @@ export const ShareLinksDashboardPage = () => {
   const totalDownloads = summary.zip_downloads + summary.single_downloads;
   const actionableSelectionSessions =
     pageInsights.selectionInProgress + pageInsights.selectionSubmitted;
-  const closableSelectionSessionCount = getClosableSessionTotal(links);
-  const reopenableSelectionSessionCount = getReopenableSessionTotal(links);
-  const currentPageGalleryCount = getCurrentPageGalleryIds(links).length;
-
   const summaryItems: SummaryMetric[] = [
     {
       icon: Eye,
@@ -988,6 +1035,76 @@ export const ShareLinksDashboardPage = () => {
               ) : null}
             </div>
 
+            {!isLoading && !error && filteredLinks.length > 0 ? (
+              <div className="mt-4 rounded-2xl border border-border/45 bg-surface-1/85 p-3 dark:border-white/10 dark:bg-white/[0.035]">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                  <label className="inline-flex cursor-pointer items-center gap-3 text-sm font-bold text-text dark:text-accent-foreground">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleLinksSelected}
+                      onChange={handleToggleVisibleSelection}
+                      className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-accent"
+                    />
+                    Select all shown
+                    <span className="font-medium text-muted">
+                      {selectedLinkCount > 0
+                        ? `${numberFormatter.format(selectedLinkCount)} selected`
+                        : 'Choose links to run bulk actions'}
+                    </span>
+                  </label>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleExportSelectedLinks()}
+                      disabled={selectionActionBusy || selectedGalleryCount === 0}
+                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
+                    >
+                      <Download className="h-4 w-4" />
+                      Export selected links
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleExportSelectedSummary()}
+                      disabled={selectionActionBusy || selectedGalleryCount === 0}
+                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
+                    >
+                      <Download className="h-4 w-4" />
+                      Export selected summaries
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleCloseSelectedSelections()}
+                      disabled={selectionActionBusy || selectedClosableSessionCount === 0}
+                      aria-label={`Close selection intake for ${selectedClosableSessionCount} selected active sessions`}
+                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-danger/35 bg-danger/8 px-3 py-2 text-sm font-bold text-danger transition-all hover:bg-danger/12 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Lock className="h-4 w-4" />
+                      Close selected {numberFormatter.format(selectedClosableSessionCount)}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleReopenSelectedSelections()}
+                      disabled={selectionActionBusy || selectedReopenableSessionCount === 0}
+                      aria-label={`Reopen selection intake for ${selectedReopenableSessionCount} selected closed sessions`}
+                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
+                    >
+                      <LockOpen className="h-4 w-4" />
+                      Reopen selected {numberFormatter.format(selectedReopenableSessionCount)}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearSelectedLinks}
+                      disabled={selectionActionBusy || selectedLinkCount === 0}
+                      className="inline-flex cursor-pointer items-center justify-center rounded-xl px-3 py-2 text-sm font-bold text-muted transition-colors hover:bg-surface-2 hover:text-text disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/[0.07]"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-4 space-y-3">
               {isLoading ? (
                 <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-surface-1 px-4 py-5 text-sm text-muted dark:border-white/10 dark:bg-white/[0.035]">
@@ -1019,14 +1136,29 @@ export const ShareLinksDashboardPage = () => {
                   const latestActivity = formatDateLabel(getLatestActivityDate(link));
                   const totalLinkDownloads = getTotalDownloads(link);
                   const sessions = selectionSummary.total_sessions ?? 0;
+                  const isSelected = selectedLinkIds.has(link.id);
 
                   return (
                     <article
                       key={link.id}
-                      className="group rounded-[1.05rem] border border-border/45 bg-surface-1/80 p-3 transition-colors duration-200 hover:border-accent/35 hover:bg-surface-2/70 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.065]"
+                      className={cn(
+                        'group rounded-[1.05rem] border bg-surface-1/80 p-3 transition-colors duration-200 hover:border-accent/35 hover:bg-surface-2/70 dark:bg-white/[0.035] dark:hover:bg-white/[0.065]',
+                        isSelected
+                          ? 'border-accent/60 ring-2 ring-accent/15'
+                          : 'border-border/45 dark:border-white/10',
+                      )}
                     >
                       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(31rem,0.86fr)_8rem] xl:items-center">
                         <div className="flex min-w-0 items-center gap-4">
+                          <label className="inline-flex cursor-pointer items-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleLinkSelection(link.id)}
+                              aria-label={`Select share link ${linkTitle}`}
+                              className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-accent"
+                            />
+                          </label>
                           <span
                             className={cn(
                               'h-2.5 w-2.5 shrink-0 rounded-full',
@@ -1263,64 +1395,24 @@ export const ShareLinksDashboardPage = () => {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-text dark:text-accent-foreground">
-                  Selection tools
+                  Selection scope
                 </h2>
                 <p className="mt-1 text-sm text-muted">
-                  Bulk actions for visible share-link sessions in the current result set.
+                  Use the checkboxes beside share links, then run bulk actions from the toolbar
+                  above the list.
                 </p>
               </div>
             </div>
 
-            <div className="mt-5 space-y-3">
-              <Link
-                to="/dashboard"
-                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-bold text-accent-foreground transition-all hover:bg-accent/90 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-              >
-                <Plus className="h-4 w-4" />
-                Create share link
-              </Link>
-              <button
-                type="button"
-                onClick={() => void handleExportLinks()}
-                disabled={selectionActionBusy || currentPageGalleryCount === 0}
-                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
-              >
-                <Download className="h-4 w-4" />
-                Export gallery selection links
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleExportSummary()}
-                disabled={selectionActionBusy || currentPageGalleryCount === 0}
-                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
-              >
-                <Download className="h-4 w-4" />
-                Export gallery selection summaries
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleCloseAllSelections()}
-                disabled={selectionActionBusy || closableSelectionSessionCount === 0}
-                aria-label={`Close selection intake for ${closableSelectionSessionCount} active sessions`}
-                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-danger/35 bg-danger/8 px-4 py-3 text-sm font-bold text-danger transition-all hover:bg-danger/12 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Lock className="h-4 w-4" />
-                Close {numberFormatter.format(closableSelectionSessionCount)} active session
-                {closableSelectionSessionCount === 1 ? '' : 's'}
-                {selectionActionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleOpenAllSelections()}
-                disabled={selectionActionBusy || reopenableSelectionSessionCount === 0}
-                aria-label={`Reopen selection intake for ${reopenableSelectionSessionCount} closed sessions`}
-                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
-              >
-                <LockOpen className="h-4 w-4" />
-                Reopen selection intake for{' '}
-                {numberFormatter.format(reopenableSelectionSessionCount)} closed session
-                {reopenableSelectionSessionCount === 1 ? '' : 's'}
-              </button>
+            <div className="mt-5 rounded-2xl border border-border/45 bg-surface-1 px-4 py-3 text-sm dark:border-white/10 dark:bg-white/[0.035]">
+              <p className="font-bold text-text dark:text-accent-foreground">
+                {numberFormatter.format(selectedLinkCount)} selected
+              </p>
+              <p className="mt-1 text-muted">
+                {numberFormatter.format(selectedClosableSessionCount)} active sessions can be closed
+                · {numberFormatter.format(selectedReopenableSessionCount)} closed sessions can be
+                reopened
+              </p>
             </div>
           </section>
 
