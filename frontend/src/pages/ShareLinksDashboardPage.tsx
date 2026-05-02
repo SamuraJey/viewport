@@ -1313,11 +1313,12 @@ export const ShareLinksDashboardPage = () => {
                 type="button"
                 onClick={() => void handleOpenAllSelections()}
                 disabled={selectionActionBusy || reopenableSelectionSessionCount === 0}
-                aria-label={`Open selection intake for ${reopenableSelectionSessionCount} closed sessions`}
+                aria-label={`Reopen selection intake for ${reopenableSelectionSessionCount} closed sessions`}
                 className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
               >
                 <LockOpen className="h-4 w-4" />
-                Open {numberFormatter.format(reopenableSelectionSessionCount)} closed session
+                Reopen selection intake for{' '}
+                {numberFormatter.format(reopenableSelectionSessionCount)} closed session
                 {reopenableSelectionSessionCount === 1 ? '' : 's'}
               </button>
             </div>

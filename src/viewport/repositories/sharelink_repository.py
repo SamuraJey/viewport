@@ -7,7 +7,7 @@ from sqlalchemy import String, and_, case, cast, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload
 
-from viewport.models.gallery import Gallery, Photo, ProjectVisibility
+from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
 from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_analytics import ShareLinkDailyStat, ShareLinkDailyVisitor
@@ -281,12 +281,23 @@ class ShareLinkRepository(BaseRepository):
         if not sharelink_ids:
             return await self._finish_read({})
 
-        thumbnail_keys_by_sharelink: dict[uuid.UUID, str] = {}
+        cover_image_keys_by_sharelink: dict[uuid.UUID, str] = {}
+        cover_image_key = case(
+            (
+                and_(
+                    Photo.status == PhotoUploadStatus.SUCCESSFUL,
+                    Photo.thumbnail_object_key != Photo.object_key,
+                ),
+                Photo.thumbnail_object_key,
+            ),
+            else_=Photo.object_key,
+        ).label("cover_image_key")
+        coverable_statuses = (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING)
 
         gallery_ranked = (
             select(
                 ShareLink.id.label("sharelink_id"),
-                Photo.thumbnail_object_key.label("thumbnail_object_key"),
+                cover_image_key,
                 func.row_number()
                 .over(
                     partition_by=ShareLink.id,
@@ -306,21 +317,21 @@ class ShareLinkRepository(BaseRepository):
                 ShareLink.scope_type == ShareScopeType.GALLERY.value,
                 Gallery.owner_id == owner_id,
                 Gallery.is_deleted.is_(False),
-                Photo.thumbnail_object_key.is_not(None),
+                Photo.status.in_(coverable_statuses),
             )
             .subquery()
         )
         gallery_rows = await self.db.execute(
-            select(gallery_ranked.c.sharelink_id, gallery_ranked.c.thumbnail_object_key).where(
+            select(gallery_ranked.c.sharelink_id, gallery_ranked.c.cover_image_key).where(
                 gallery_ranked.c.photo_rank == 1,
             )
         )
-        thumbnail_keys_by_sharelink.update({sharelink_id: thumbnail_key for sharelink_id, thumbnail_key in gallery_rows.all() if thumbnail_key})
+        cover_image_keys_by_sharelink.update({sharelink_id: image_key for sharelink_id, image_key in gallery_rows.all() if image_key})
 
         project_ranked = (
             select(
                 ShareLink.id.label("sharelink_id"),
-                Photo.thumbnail_object_key.label("thumbnail_object_key"),
+                cover_image_key,
                 func.row_number()
                 .over(
                     partition_by=ShareLink.id,
@@ -345,18 +356,18 @@ class ShareLinkRepository(BaseRepository):
                 Project.is_deleted.is_(False),
                 Gallery.is_deleted.is_(False),
                 Gallery.project_visibility == ProjectVisibility.LISTED.value,
-                Photo.thumbnail_object_key.is_not(None),
+                Photo.status.in_(coverable_statuses),
             )
             .subquery()
         )
         project_rows = await self.db.execute(
-            select(project_ranked.c.sharelink_id, project_ranked.c.thumbnail_object_key).where(
+            select(project_ranked.c.sharelink_id, project_ranked.c.cover_image_key).where(
                 project_ranked.c.photo_rank == 1,
             )
         )
-        thumbnail_keys_by_sharelink.update({sharelink_id: thumbnail_key for sharelink_id, thumbnail_key in project_rows.all() if thumbnail_key})
+        cover_image_keys_by_sharelink.update({sharelink_id: image_key for sharelink_id, image_key in project_rows.all() if image_key})
 
-        return await self._finish_read(thumbnail_keys_by_sharelink)
+        return await self._finish_read(cover_image_keys_by_sharelink)
 
     async def get_sharelinks_for_project_warnings(
         self,

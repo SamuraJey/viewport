@@ -189,7 +189,11 @@ async def test_get_sharelink_daily_stats_returns_requested_range_in_ascending_or
 async def test_get_owner_sharelink_daily_stats_aggregates_owner_links(
     repo: ShareLinkRepository,
     db_session,
+    freezer: FrozenDateTimeFactory,
 ):
+    now = datetime(2026, 4, 17, 10, 0, 0, tzinfo=UTC)
+    freezer.move_to(now)
+
     user = User(email=f"sharelink-daily-owner-{uuid4()}@example.com", password_hash="hashed", display_name="sharelink user")
     other_user = User(email=f"sharelink-daily-other-{uuid4()}@example.com", password_hash="hashed", display_name="other user")
     db_session.add_all([user, other_user])
@@ -206,7 +210,7 @@ async def test_get_owner_sharelink_daily_stats_aggregates_owner_links(
     db_session.add_all([first_sharelink, second_sharelink, other_sharelink])
     await db_session.commit()
 
-    today = datetime.now(UTC).date()
+    today = now.date()
     db_session.add_all(
         [
             ShareLinkDailyStat(sharelink_id=first_sharelink.id, day=today, views_total=3, views_unique=2, zip_downloads=1, single_downloads=0),
@@ -642,6 +646,63 @@ async def test_get_owner_sharelink_cover_thumbnail_keys_prefers_covers_and_proje
 
     assert thumbnail_keys[gallery_sharelink.id] == "gallery-cover-thumb"
     assert thumbnail_keys[project_sharelink.id] == "project-first-thumb"
+
+
+@pytest.mark.asyncio
+async def test_get_owner_sharelink_cover_thumbnail_keys_falls_back_to_originals(
+    repo: ShareLinkRepository,
+    db_session,
+):
+    user = User(
+        email=f"sharelink-originals-{uuid4()}@example.com",
+        password_hash="hashed",
+        display_name="Original fallback user",
+    )
+    db_session.add(user)
+    await db_session.commit()
+
+    project = Project(owner_id=user.id, name="Original Fallback Project")
+    gallery = Gallery(owner_id=user.id, project=project, name="Original Fallback Gallery")
+    db_session.add_all([project, gallery])
+    await db_session.commit()
+
+    pending_photo = Photo(
+        gallery_id=gallery.id,
+        status=PhotoUploadStatus.PENDING,
+        object_key=f"{gallery.id}/pending.jpg",
+        display_name="pending.jpg",
+        thumbnail_object_key=f"{gallery.id}/pending.jpg",
+        file_size=1024,
+        uploaded_at=datetime(2026, 1, 2),
+    )
+    confirmed_without_thumbnail = Photo(
+        gallery_id=gallery.id,
+        status=PhotoUploadStatus.THUMBNAIL_CREATING,
+        object_key=f"{gallery.id}/confirmed.jpg",
+        display_name="confirmed.jpg",
+        thumbnail_object_key=f"{gallery.id}/confirmed.jpg",
+        file_size=1024,
+        uploaded_at=datetime(2026, 1, 1),
+    )
+    db_session.add_all([pending_photo, confirmed_without_thumbnail])
+    await db_session.commit()
+
+    gallery.cover_photo_id = pending_photo.id
+    gallery_sharelink = ShareLink(gallery_id=gallery.id)
+    project_sharelink = ShareLink(
+        project_id=project.id,
+        scope_type=ShareScopeType.PROJECT.value,
+    )
+    db_session.add_all([gallery_sharelink, project_sharelink])
+    await db_session.commit()
+
+    image_keys = await repo.get_owner_sharelink_cover_thumbnail_keys(
+        [gallery_sharelink.id, project_sharelink.id],
+        user.id,
+    )
+
+    assert image_keys[gallery_sharelink.id] == confirmed_without_thumbnail.object_key
+    assert image_keys[project_sharelink.id] == confirmed_without_thumbnail.object_key
 
 
 @pytest.mark.asyncio
