@@ -163,6 +163,105 @@ describe('ShareLinksDashboardPage', () => {
     );
   });
 
+  it('shows a refresh loading state for manual refresh', async () => {
+    const user = userEvent.setup();
+    let refreshResolve: (value: any) => void;
+
+    vi.mocked(shareLinkService.getOwnerShareLinks).mockReset();
+    vi.mocked(shareLinkService.getOwnerShareLinks).mockResolvedValueOnce({
+      share_links: [
+        {
+          id: 'link-1',
+          gallery_id: 'gallery-1',
+          gallery_name: 'Wedding',
+          cover_photo_thumbnail_url: 'https://example.com/thumb-wedding.jpg',
+          label: 'Preview for Ivan',
+          is_active: true,
+          expires_at: null,
+          views: 12,
+          zip_downloads: 2,
+          single_downloads: 3,
+          created_at: '2026-04-10T10:00:00Z',
+          updated_at: '2026-04-12T10:00:00Z',
+          selection_summary: {
+            is_enabled: true,
+            status: 'in_progress',
+            total_sessions: 1,
+            submitted_sessions: 0,
+            in_progress_sessions: 1,
+            closed_sessions: 0,
+            selected_count: 4,
+            latest_activity_at: '2026-04-12T10:00:00Z',
+          },
+        },
+      ],
+      total: 1,
+      page: 1,
+      size: 20,
+      summary: {
+        views: 12,
+        zip_downloads: 2,
+        single_downloads: 3,
+        active_links: 1,
+      },
+    } as any);
+    vi.mocked(shareLinkService.getOwnerShareLinks).mockImplementationOnce(() => {
+      return new Promise((resolve) => {
+        refreshResolve = resolve;
+      });
+    });
+
+    renderPage();
+    await screen.findAllByText('Preview for Ivan');
+
+    const refreshButton = screen.getByRole('button', { name: /refresh list/i });
+    await user.click(refreshButton);
+
+    expect(refreshButton).toBeDisabled();
+    expect(screen.getByText('Refreshing…')).toBeInTheDocument();
+
+    refreshResolve?.({
+      share_links: [
+        {
+          id: 'link-3',
+          gallery_id: 'gallery-3',
+          gallery_name: 'Family',
+          label: 'Refreshed',
+          is_active: true,
+          expires_at: null,
+          views: 0,
+          zip_downloads: 0,
+          single_downloads: 0,
+          created_at: '2026-04-14T10:00:00Z',
+          updated_at: '2026-04-14T10:00:00Z',
+          selection_summary: {
+            is_enabled: false,
+            status: 'not_started',
+            total_sessions: 0,
+            submitted_sessions: 0,
+            in_progress_sessions: 0,
+            closed_sessions: 0,
+            selected_count: 0,
+            latest_activity_at: null,
+          },
+        },
+      ],
+      total: 1,
+      page: 1,
+      size: 20,
+      summary: {
+        views: 0,
+        zip_downloads: 0,
+        single_downloads: 0,
+        active_links: 1,
+      },
+    });
+
+    expect((await screen.findAllByText('Refreshed')).length).toBeGreaterThan(0);
+    expect(refreshButton).not.toBeDisabled();
+    expect(screen.getByText('Refresh')).toBeInTheDocument();
+  });
+
   it('requests backend-filtered results by status and resets pagination', async () => {
     const user = userEvent.setup();
     renderPage();

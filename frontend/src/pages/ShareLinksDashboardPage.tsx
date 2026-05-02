@@ -431,6 +431,7 @@ export const ShareLinksDashboardPage = () => {
 
   const [links, setLinks] = useState<ShareLinkDashboardItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -474,37 +475,48 @@ export const ShareLinksDashboardPage = () => {
     [],
   );
 
-  const fetchLinks = useCallback(async () => {
-    const requestId = latestRequestIdRef.current + 1;
-    latestRequestIdRef.current = requestId;
-    setIsLoading(true);
-    setError('');
+  const fetchLinks = useCallback(
+    async ({ preserveRows = false } = {}) => {
+      const requestId = latestRequestIdRef.current + 1;
+      latestRequestIdRef.current = requestId;
+      if (preserveRows) {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
+      setError('');
 
-    try {
-      const response = await shareLinkService.getOwnerShareLinks(
-        page,
-        pageSize,
-        debouncedSearch || undefined,
-        statusFilter === 'all' ? undefined : statusFilter,
-      );
-      if (latestRequestIdRef.current !== requestId) {
-        return;
+      try {
+        const response = await shareLinkService.getOwnerShareLinks(
+          page,
+          pageSize,
+          debouncedSearch || undefined,
+          statusFilter === 'all' ? undefined : statusFilter,
+        );
+        if (latestRequestIdRef.current !== requestId) {
+          return;
+        }
+        setLinks(response.share_links);
+        setTotal(response.total);
+        setSummary(response.summary ?? EMPTY_SUMMARY);
+        setDailyPoints(response.points ?? []);
+      } catch (err) {
+        if (latestRequestIdRef.current !== requestId) {
+          return;
+        }
+        setError(handleApiError(err).message || 'Failed to load share links dashboard');
+      } finally {
+        if (latestRequestIdRef.current === requestId) {
+          if (preserveRows) {
+            setIsRefreshing(false);
+          } else {
+            setIsLoading(false);
+          }
+        }
       }
-      setLinks(response.share_links);
-      setTotal(response.total);
-      setSummary(response.summary ?? EMPTY_SUMMARY);
-      setDailyPoints(response.points ?? []);
-    } catch (err) {
-      if (latestRequestIdRef.current !== requestId) {
-        return;
-      }
-      setError(handleApiError(err).message || 'Failed to load share links dashboard');
-    } finally {
-      if (latestRequestIdRef.current === requestId) {
-        setIsLoading(false);
-      }
-    }
-  }, [debouncedSearch, page, pageSize, setTotal, statusFilter]);
+    },
+    [debouncedSearch, page, pageSize, setTotal, statusFilter],
+  );
 
   useEffect(() => {
     void fetchLinks();
@@ -821,12 +833,17 @@ export const ShareLinksDashboardPage = () => {
             </Link>
             <button
               type="button"
-              onClick={() => void fetchLinks()}
+              onClick={() => void fetchLinks({ preserveRows: true })}
               aria-label="Refresh list"
-              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1/80 px-5 py-3 text-sm font-bold text-text shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground dark:hover:bg-white/[0.07]"
+              disabled={isRefreshing}
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1/80 px-5 py-3 text-sm font-bold text-text shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground dark:hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <RefreshCw className="h-4 w-4" />
-              Refresh
+              {isRefreshing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {isRefreshing ? 'Refreshing…' : 'Refresh'}
             </button>
           </div>
         </div>
@@ -908,13 +925,6 @@ export const ShareLinksDashboardPage = () => {
                     className="h-full w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
                   />
                 </label>
-                <button
-                  type="button"
-                  className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/45 bg-surface-1 px-4 text-sm font-bold text-text shadow-sm transition-all hover:border-accent/35 hover:bg-surface-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground dark:hover:bg-white/[0.07]"
-                >
-                  <SlidersHorizontal className="h-4 w-4 text-muted" />
-                  Filters
-                </button>
               </div>
             </div>
 
