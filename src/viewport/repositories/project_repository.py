@@ -362,9 +362,9 @@ class ProjectRepository(BaseRepository):
         galleries = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read(galleries)
 
-    async def get_visible_project_folder_by_id(self, project_id: uuid.UUID, folder_id: uuid.UUID) -> Gallery | None:
+    async def get_visible_project_gallery_by_id(self, project_id: uuid.UUID, gallery_id: uuid.UUID) -> Gallery | None:
         stmt = select(Gallery).where(
-            Gallery.id == folder_id,
+            Gallery.id == gallery_id,
             Gallery.project_id == project_id,
             Gallery.is_deleted.is_(False),
             Gallery.project_visibility == ProjectVisibility.LISTED.value,
