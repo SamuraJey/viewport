@@ -92,15 +92,19 @@ describe('LandingPage and root route', () => {
 
     expect(screen.getByRole('link', { name: /Log in/i })).toHaveAttribute('href', '/auth/login');
     expect(screen.getByText('Built for photographers and studios')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Gallery delivery,/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        name: /Deliver photo galleries that sell your studio twice/i,
+      }),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Viewport keeps the whole workflow in one place, from first upload to final delivery.',
+        /Viewport gives photographers a polished delivery workflow: fast uploads, beautiful client links/i,
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText('Core capabilities')).toBeInTheDocument();
-    expect(screen.getByText('Spring Campaign - Lofoten')).toBeInTheDocument();
-    expect(screen.getByAltText(/Spring Campaign - Lofoten cover/i)).toBeInTheDocument();
+    expect(screen.getByText('Why Viewport')).toBeInTheDocument();
+    expect(screen.getByText('Northern Editorial')).toBeInTheDocument();
+    expect(screen.getByText('Preview ready')).toBeInTheDocument();
   });
 
   it('opens demo cabinet: enables demo mode, logs in demo user, and navigates to dashboard', async () => {

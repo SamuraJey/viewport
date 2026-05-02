@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  Activity,
   BarChart3,
   Copy,
   Download,
+  Eye,
   ExternalLink,
+  FileDown,
   GalleryVerticalEnd,
+  Link2,
   Loader2,
   Lock,
   LockOpen,
@@ -13,6 +17,7 @@ import {
   RefreshCw,
   Search,
   SlidersHorizontal,
+  TrendingUp,
   Trash2,
 } from 'lucide-react';
 import { PaginationControls } from '../components/PaginationControls';
@@ -24,6 +29,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { shareLinkService } from '../services/shareLinkService';
 import { copyTextToClipboard } from '../lib/clipboard';
 import { handleApiError } from '../lib/errorHandling';
+import { cn } from '../lib/utils';
 import type { ShareLinkDashboardItem, ShareLinksDashboardSummary } from '../types';
 
 const numberFormatter = new Intl.NumberFormat();
@@ -77,6 +83,102 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: 'inactive', label: 'Paused' },
   { value: 'expired', label: 'Expired' },
 ];
+
+const compactFormatter = new Intl.NumberFormat(undefined, {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
+
+const getShareLinkTitle = (link: ShareLinkDashboardItem) =>
+  link.label?.trim() || 'Untitled share link';
+
+const getShareLinkSource = (link: ShareLinkDashboardItem) =>
+  link.scope_type === 'project'
+    ? link.project_name?.trim() || 'Untitled project'
+    : link.gallery_name?.trim() || 'Untitled gallery';
+
+const getLatestActivityDate = (link: ShareLinkDashboardItem) => link.updated_at ?? link.created_at;
+
+type EngagementRow = {
+  id: string;
+  title: string;
+  source: string;
+  views: number;
+  downloads: number;
+  status: ReturnType<typeof getShareLinkStatus>;
+};
+
+interface EngagementChartProps {
+  rows: EngagementRow[];
+  isLoading: boolean;
+}
+
+const EngagementChart = ({ rows, isLoading }: EngagementChartProps) => {
+  const maxViews = Math.max(...rows.map((row) => row.views), 1);
+
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border border-border/45 bg-surface-1 px-4 py-6 text-sm text-muted dark:bg-surface-dark-1">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Building view chart...
+        </div>
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border/45 bg-surface-1 px-4 py-6 text-sm leading-6 text-muted dark:bg-surface-dark-1">
+        No view data on this page yet. Share a link or clear filters to see top performers.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {rows.map((row, index) => {
+        const width = row.views > 0 ? Math.max((row.views / maxViews) * 100, 6) : 0;
+
+        return (
+          <div key={row.id} className="space-y-2">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-text">
+                  {index + 1}. {row.title}
+                </p>
+                <p className="truncate text-xs text-muted">{row.source}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-bold text-text">{compactFormatter.format(row.views)}</p>
+                <p className="text-[0.68rem] font-semibold uppercase tracking-wider text-muted">
+                  views
+                </p>
+              </div>
+            </div>
+            <div
+              className="h-2.5 overflow-hidden rounded-full bg-surface-2 dark:bg-surface-dark-2"
+              role="img"
+              aria-label={`${row.title}: ${numberFormatter.format(row.views)} views and ${numberFormatter.format(row.downloads)} downloads`}
+            >
+              <div
+                className={cn(
+                  'h-full rounded-full transition-all duration-300',
+                  row.status === 'active'
+                    ? 'bg-accent'
+                    : row.status === 'expired'
+                      ? 'bg-danger/70'
+                      : 'bg-muted/70',
+                )}
+                style={{ width: `${width}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 export const ShareLinksDashboardPage = () => {
   useDocumentTitle('Share Links · Viewport');
@@ -336,12 +438,17 @@ export const ShareLinksDashboardPage = () => {
         const status = getShareLinkStatus(link);
         const selectionSummary = getSelectionSummary(link);
         const selectionStatus = selectionSummary.status ?? null;
+        const projectLink = isProjectLink(link);
 
         if (status === 'active') acc.active += 1;
         if (status === 'inactive') acc.inactive += 1;
         if (status === 'expired') acc.expired += 1;
         if (selectionStatus === 'in_progress') acc.selectionInProgress += 1;
         if (selectionStatus === 'submitted') acc.selectionSubmitted += 1;
+        if (projectLink) acc.projectLinks += 1;
+        if (!projectLink) acc.galleryLinks += 1;
+        acc.pageViews += link.views ?? 0;
+        acc.pageDownloads += (link.zip_downloads ?? 0) + (link.single_downloads ?? 0);
 
         return acc;
       },
@@ -351,57 +458,84 @@ export const ShareLinksDashboardPage = () => {
         expired: 0,
         selectionInProgress: 0,
         selectionSubmitted: 0,
+        projectLinks: 0,
+        galleryLinks: 0,
+        pageViews: 0,
+        pageDownloads: 0,
       },
     );
   }, [links]);
 
+  const filteredLinks = useMemo(
+    () =>
+      [...links].sort(
+        (a, b) =>
+          new Date(getLatestActivityDate(b)).getTime() -
+          new Date(getLatestActivityDate(a)).getTime(),
+      ),
+    [links],
+  );
+
+  const engagementRows = useMemo<EngagementRow[]>(
+    () =>
+      filteredLinks
+        .map((link) => ({
+          id: link.id,
+          title: getShareLinkTitle(link),
+          source: getShareLinkSource(link),
+          views: link.views ?? 0,
+          downloads: (link.zip_downloads ?? 0) + (link.single_downloads ?? 0),
+          status: getShareLinkStatus(link),
+        }))
+        .sort((a, b) => b.views - a.views || b.downloads - a.downloads)
+        .slice(0, 6),
+    [filteredLinks],
+  );
+
   const summaryItems = [
     {
+      icon: Eye,
       label: 'Total views',
       value: numberFormatter.format(summary.views),
       hint: statusFilter === 'all' ? 'Across all share links' : 'Across filtered results',
     },
     {
+      icon: Link2,
       label: 'Active links',
       value: numberFormatter.format(summary.active_links),
       hint: statusFilter === 'all' ? 'Across all share links' : 'Across filtered results',
     },
     {
+      icon: FileDown,
       label: 'Downloads',
       value: numberFormatter.format(summary.zip_downloads + summary.single_downloads),
       hint: `${numberFormatter.format(summary.zip_downloads)} ZIP · ${numberFormatter.format(summary.single_downloads)} single`,
     },
     {
+      icon: Activity,
       label: 'Current page selection progress',
       value: numberFormatter.format(pageInsights.selectionInProgress),
       hint: `${numberFormatter.format(pageInsights.selectionSubmitted)} submitted sessions on this page`,
     },
   ];
 
-  const filteredLinks = useMemo(
-    () =>
-      [...links].sort(
-        (a, b) =>
-          new Date(b.updated_at ?? b.created_at).getTime() -
-          new Date(a.updated_at ?? a.created_at).getTime(),
-      ),
-    [links],
-  );
-
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-border/50 bg-surface px-5 py-5 shadow-xs dark:border-border/30 dark:bg-surface-dark lg:px-6">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent/80">
+      <section className="relative overflow-hidden rounded-[1.75rem] border border-border/50 bg-surface px-5 py-5 shadow-xs dark:border-border/30 dark:bg-surface-dark lg:px-6">
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(31,144,255,0.18),transparent_52%)]" />
+        <div className="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl space-y-3">
+            <p className="inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-accent">
+              <Link2 className="h-3.5 w-3.5" />
               Share links
             </p>
             <div>
-              <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">
+              <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground">
                 Share links dashboard
               </h1>
-              <p className="mt-1 text-sm text-muted">
-                Monitor status, jump to the right gallery, and keep bulk tools out of the main list.
+              <p className="mt-2 text-sm leading-6 text-muted">
+                Monitor status, jump to the right gallery, copy public URLs, and act on client
+                selection intake without losing context.
               </p>
             </div>
           </div>
@@ -409,9 +543,9 @@ export const ShareLinksDashboardPage = () => {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <label
               htmlFor="share-links-search"
-              className="flex h-11 min-w-72 items-center gap-2 rounded-xl border border-border/40 bg-surface-1 px-3 text-sm text-text transition-colors focus-within:border-accent dark:bg-surface-dark-1"
+              className="flex h-12 min-w-0 items-center gap-2 rounded-2xl border border-border/40 bg-surface-1 px-3 text-sm text-text shadow-sm transition-colors focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/15 dark:bg-surface-dark-1 sm:min-w-80"
             >
-              <Search className="h-4 w-4 text-muted" />
+              <Search className="h-4 w-4 shrink-0 text-muted" />
               <input
                 id="share-links-search"
                 type="search"
@@ -422,8 +556,9 @@ export const ShareLinksDashboardPage = () => {
               />
             </label>
             <button
+              type="button"
               onClick={() => void fetchLinks()}
-              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2.5 text-sm font-semibold text-text transition-colors hover:border-accent/40 hover:bg-surface-2"
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-bold text-text shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
             >
               <RefreshCw className="h-4 w-4" />
               Refresh list
@@ -438,27 +573,43 @@ export const ShareLinksDashboardPage = () => {
         </div>
       ) : null}
 
-      <section className="rounded-2xl border border-border/50 bg-surface px-4 py-3 shadow-xs dark:bg-surface-dark">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 xl:divide-x xl:divide-border/40">
-          {summaryItems.map((item) => (
-            <div key={item.label} className="min-w-0 px-2 py-1 xl:px-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted">
-                {item.label}
-              </p>
-              <p className="mt-2 text-2xl font-bold text-text">{item.value}</p>
-              <p className="mt-1 text-xs text-muted">{item.hint}</p>
-            </div>
-          ))}
-        </div>
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {summaryItems.map((item) => {
+          const Icon = item.icon;
+
+          return (
+            <article
+              key={item.label}
+              className="rounded-2xl border border-border/50 bg-surface px-4 py-4 shadow-xs transition-all hover:-translate-y-0.5 hover:border-accent/30 dark:border-border/35 dark:bg-surface-dark"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">
+                    {item.label}
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-text dark:text-accent-foreground">
+                    {item.value}
+                  </p>
+                </div>
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+                  <Icon className="h-5 w-5" />
+                </span>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-muted">{item.hint}</p>
+            </article>
+          );
+        })}
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <section className="rounded-2xl border border-border/50 bg-surface px-4 py-4 shadow-xs dark:bg-surface-dark lg:px-5">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <section className="rounded-[1.75rem] border border-border/50 bg-surface px-4 py-4 shadow-xs dark:border-border/35 dark:bg-surface-dark lg:px-5">
           <div className="flex flex-col gap-4 border-b border-border/40 pb-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-text">All links</h2>
+              <h2 className="text-xl font-bold text-text dark:text-accent-foreground">
+                Link inventory
+              </h2>
               <p className="mt-1 text-sm text-muted">
-                Primary list for current status, source gallery, and the next useful action.
+                Sorted by latest activity with primary actions kept close to every link.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -472,10 +623,10 @@ export const ShareLinksDashboardPage = () => {
                       setStatusFilter(filter.value);
                       goToPage(1);
                     }}
-                    className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    className={`cursor-pointer rounded-full border px-3 py-1.5 text-sm font-bold transition-all hover:-translate-y-0.5 ${
                       active
-                        ? 'border-accent/50 bg-accent/10 text-accent'
-                        : 'border-border/50 bg-surface-1 text-muted hover:border-accent/35 hover:text-text'
+                        ? 'border-accent/50 bg-accent text-accent-foreground shadow-sm'
+                        : 'border-border/50 bg-surface-1 text-muted hover:border-accent/35 hover:bg-surface-2 hover:text-text dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2'
                     }`}
                   >
                     {filter.label}
@@ -485,7 +636,7 @@ export const ShareLinksDashboardPage = () => {
             </div>
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-3 text-sm text-muted">
+          <div className="mt-4 flex flex-col justify-between gap-2 text-sm text-muted sm:flex-row sm:items-center">
             <p>
               Showing{' '}
               <span className="font-semibold text-text">
@@ -496,7 +647,7 @@ export const ShareLinksDashboardPage = () => {
             {!isLoading && !error ? (
               <p>
                 {statusFilter === 'all'
-                  ? 'Sorted by latest activity first'
+                  ? `${numberFormatter.format(pageInsights.projectLinks)} project · ${numberFormatter.format(pageInsights.galleryLinks)} gallery links`
                   : `Filtered across all links: ${STATUS_FILTERS.find((filter) => filter.value === statusFilter)?.label}`}
               </p>
             ) : null}
@@ -523,94 +674,111 @@ export const ShareLinksDashboardPage = () => {
                 const selectionSummary = getSelectionSummary(link);
                 const selectionStatus = selectionSummary.status ?? null;
                 const selectionCount = selectionSummary.selected_count ?? 0;
+                const projectLink = isProjectLink(link);
+                const linkTitle = getShareLinkTitle(link);
+                const sourceName = getShareLinkSource(link);
+                const latestActivity = formatDateLabel(getLatestActivityDate(link));
+                const totalDownloads = (link.zip_downloads ?? 0) + (link.single_downloads ?? 0);
 
                 return (
                   <article
                     key={link.id}
-                    className="rounded-2xl border border-border/45 bg-surface-1 px-4 py-4 transition-colors hover:border-accent/25 dark:border-border/35 dark:bg-surface-dark-1"
+                    className="group rounded-2xl border border-border/45 bg-surface-1 px-4 py-4 shadow-xs transition-all hover:-translate-y-0.5 hover:border-accent/30 hover:shadow-md dark:border-border/35 dark:bg-surface-dark-1"
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0 flex-1 space-y-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-base font-semibold text-text">
-                            {link.label?.trim() || 'Untitled share link'}
+                          <h3 className="text-base font-bold text-text dark:text-accent-foreground">
+                            {linkTitle}
                           </h3>
                           <ShareLinkStatusBadge status={linkStatus} />
-                          <span className="rounded-full border border-border/50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
-                            {isProjectLink(link)
-                              ? 'Project link'
-                              : `Selection ${formatSelectionStatusLabel(selectionStatus)}`}
+                          <span className="rounded-full border border-border/50 bg-surface px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-muted dark:bg-surface-dark">
+                            {projectLink ? 'Project' : 'Gallery'}
+                          </span>
+                          {!projectLink ? (
+                            <span className="rounded-full border border-accent/20 bg-accent/8 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-accent">
+                              Selection {formatSelectionStatusLabel(selectionStatus)}
+                            </span>
+                          ) : null}
+                          {link.has_password ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-surface px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-muted dark:bg-surface-dark">
+                              <Lock className="h-3 w-3" />
+                              Password
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted">
+                          <Link
+                            to={
+                              projectLink
+                                ? `/projects/${link.project_id}`
+                                : link.project_id
+                                  ? `/projects/${link.project_id}/galleries/${link.gallery_id}`
+                                  : `/galleries/${link.gallery_id}`
+                            }
+                            className="inline-flex min-w-0 items-center gap-2 font-semibold text-text transition-colors hover:text-accent dark:text-accent-foreground"
+                          >
+                            <GalleryVerticalEnd className="h-4 w-4 shrink-0 text-accent" />
+                            <span className="truncate">{sourceName}</span>
+                          </Link>
+                          <span>
+                            Updated{' '}
+                            <strong className="font-semibold text-text dark:text-accent-foreground">
+                              {latestActivity}
+                            </strong>
+                          </span>
+                          <span>
+                            Expires{' '}
+                            <strong className="font-semibold text-text dark:text-accent-foreground">
+                              {formatDateLabel(link.expires_at, 'No expiration')}
+                            </strong>
                           </span>
                         </div>
 
-                        <div className="flex min-w-0 items-start gap-2 text-sm text-accent">
+                        <div className="flex min-w-0 items-start gap-2 rounded-2xl border border-border/45 bg-surface px-3 py-2 text-sm text-accent dark:bg-surface-dark">
                           <ExternalLink className="mt-0.5 h-4 w-4 shrink-0" />
                           <a
                             href={fullUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="truncate hover:underline"
+                            className="truncate font-medium hover:underline"
                           >
                             {fullUrl}
                           </a>
                         </div>
 
-                        <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted">
-                          {isProjectLink(link) ? (
-                            <Link
-                              to={`/projects/${link.project_id}`}
-                              className="inline-flex min-w-0 items-center gap-2 font-medium text-text transition-colors hover:text-accent"
-                            >
-                              <GalleryVerticalEnd className="h-4 w-4 shrink-0" />
-                              <span className="truncate">{link.project_name}</span>
-                            </Link>
-                          ) : (
-                            <Link
-                              to={
-                                link.project_id
-                                  ? `/projects/${link.project_id}/galleries/${link.gallery_id}`
-                                  : `/galleries/${link.gallery_id}`
-                              }
-                              className="inline-flex min-w-0 items-center gap-2 font-medium text-text transition-colors hover:text-accent"
-                            >
-                              <GalleryVerticalEnd className="h-4 w-4 shrink-0" />
-                              <span className="truncate">{link.gallery_name}</span>
-                            </Link>
-                          )}
-                          <span>
-                            Created{' '}
-                            <strong className="font-semibold text-text">
-                              {formatDateLabel(link.created_at)}
-                            </strong>
-                          </span>
-                          <span>
-                            Expires{' '}
-                            <strong className="font-semibold text-text">
-                              {formatDateLabel(link.expires_at, 'No expiration')}
-                            </strong>
-                          </span>
-                          <span>
-                            Selected{' '}
-                            <strong className="font-semibold text-text">
-                              {numberFormatter.format(selectionCount)}
-                            </strong>
-                          </span>
-                          <span>
-                            Views{' '}
-                            <strong className="font-semibold text-text">
+                        <div className="grid gap-2 sm:grid-cols-4">
+                          <span className="rounded-2xl border border-border/40 bg-surface px-3 py-2 text-sm text-muted dark:bg-surface-dark">
+                            <span className="block text-[0.68rem] font-bold uppercase tracking-wider">
+                              Views
+                            </span>
+                            <strong className="mt-1 block font-bold text-text dark:text-accent-foreground">
                               {numberFormatter.format(link.views ?? 0)}
                             </strong>
                           </span>
-                          <span>
-                            ZIP{' '}
-                            <strong className="font-semibold text-text">
-                              {numberFormatter.format(link.zip_downloads ?? 0)}
+                          <span className="rounded-2xl border border-border/40 bg-surface px-3 py-2 text-sm text-muted dark:bg-surface-dark">
+                            <span className="block text-[0.68rem] font-bold uppercase tracking-wider">
+                              Downloads
+                            </span>
+                            <strong className="mt-1 block font-bold text-text dark:text-accent-foreground">
+                              {numberFormatter.format(totalDownloads)}
                             </strong>
                           </span>
-                          <span>
-                            Single{' '}
-                            <strong className="font-semibold text-text">
-                              {numberFormatter.format(link.single_downloads ?? 0)}
+                          <span className="rounded-2xl border border-border/40 bg-surface px-3 py-2 text-sm text-muted dark:bg-surface-dark">
+                            <span className="block text-[0.68rem] font-bold uppercase tracking-wider">
+                              Selected
+                            </span>
+                            <strong className="mt-1 block font-bold text-text dark:text-accent-foreground">
+                              {numberFormatter.format(selectionCount)}
+                            </strong>
+                          </span>
+                          <span className="rounded-2xl border border-border/40 bg-surface px-3 py-2 text-sm text-muted dark:bg-surface-dark">
+                            <span className="block text-[0.68rem] font-bold uppercase tracking-wider">
+                              Created
+                            </span>
+                            <strong className="mt-1 block font-bold text-text dark:text-accent-foreground">
+                              {formatDateLabel(link.created_at)}
                             </strong>
                           </span>
                         </div>
@@ -619,7 +787,7 @@ export const ShareLinksDashboardPage = () => {
                       <div className="flex flex-wrap items-center gap-2 lg:max-w-56 lg:justify-end">
                         <Link
                           to={`/share-links/${link.id}`}
-                          className="inline-flex items-center gap-2 rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground transition-opacity hover:opacity-95"
+                          className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-3 py-2 text-sm font-bold text-accent-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:brightness-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
                         >
                           <BarChart3 className="h-4 w-4" />
                           Details
@@ -644,7 +812,7 @@ export const ShareLinksDashboardPage = () => {
                           href={fullUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/50 bg-surface text-text transition-transform hover:scale-105"
+                          className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-border/50 bg-surface text-text transition-all hover:scale-105 hover:border-accent/35 dark:bg-surface-dark"
                           title="Open public link"
                           aria-label={`Open public link ${link.label || link.id}`}
                         >
@@ -667,82 +835,127 @@ export const ShareLinksDashboardPage = () => {
           </div>
         </section>
 
-        <aside className="rounded-2xl border border-border/50 bg-surface px-4 py-4 shadow-xs dark:bg-surface-dark lg:px-5">
-          <div className="flex items-start gap-3 border-b border-border/40 pb-4">
-            <div className="rounded-xl bg-accent/10 p-2.5 text-accent">
-              <SlidersHorizontal className="h-5 w-5" />
+        <aside className="space-y-4">
+          <section className="rounded-[1.75rem] border border-border/50 bg-surface px-4 py-4 shadow-xs dark:border-border/35 dark:bg-surface-dark lg:px-5">
+            <div className="flex items-start gap-3 border-b border-border/40 pb-4">
+              <div className="rounded-xl bg-accent/10 p-2.5 text-accent">
+                <TrendingUp className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-text dark:text-accent-foreground">
+                  Views chart
+                </h2>
+                <p className="mt-1 text-sm text-muted">
+                  Top links on this page by view count, with status-aware bars.
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-text">Selection tools</h2>
-              <p className="mt-1 text-sm text-muted">
-                These controls operate per gallery for galleries represented on the current page, so
-                the main list can stay focused on link health and next actions.
-              </p>
-            </div>
-          </div>
 
-          <div className="mt-4 space-y-3">
-            <button
-              onClick={() => void handleCloseAllSelections()}
-              disabled={selectionActionBusy || links.length === 0}
-              className="inline-flex w-full items-center justify-between gap-3 rounded-xl border border-danger/35 bg-danger/8 px-4 py-3 text-left text-sm font-semibold text-danger disabled:opacity-60"
-            >
-              <span className="inline-flex items-center gap-2">
-                <Lock className="h-4 w-4" />
-                Close selection intake for page galleries
-              </span>
-              {selectionActionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            </button>
-            <button
-              onClick={() => void handleOpenAllSelections()}
-              disabled={selectionActionBusy || links.length === 0}
-              className="inline-flex w-full items-center justify-between gap-3 rounded-xl border border-success/35 bg-success/8 px-4 py-3 text-left text-sm font-semibold text-success disabled:opacity-60"
-            >
-              <span className="inline-flex items-center gap-2">
-                <LockOpen className="h-4 w-4" />
-                Open selection intake for page galleries
-              </span>
-              {selectionActionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            </button>
-            <button
-              onClick={() => void handleExportSummary()}
-              disabled={selectionActionBusy || links.length === 0}
-              className="inline-flex w-full items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-semibold text-text disabled:opacity-60"
-            >
-              <Download className="h-4 w-4" />
-              Export selection summaries
-            </button>
-            <button
-              onClick={() => void handleExportLinks()}
-              disabled={selectionActionBusy || links.length === 0}
-              className="inline-flex w-full items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-semibold text-text disabled:opacity-60"
-            >
-              <Download className="h-4 w-4" />
-              Export selection links
-            </button>
-          </div>
+            <div className="mt-4">
+              <EngagementChart rows={engagementRows} isLoading={isLoading} />
+            </div>
+          </section>
 
-          <div className="mt-5 space-y-2 rounded-2xl border border-border/45 bg-surface-1 px-4 py-4 text-sm text-muted dark:bg-surface-dark-1">
-            <p className="font-semibold text-text">Page insights</p>
-            <div className="flex items-center justify-between gap-3">
-              <span>Active links on this page</span>
-              <strong className="text-text">{numberFormatter.format(pageInsights.active)}</strong>
+          <section className="rounded-[1.75rem] border border-border/50 bg-surface px-4 py-4 shadow-xs dark:border-border/35 dark:bg-surface-dark lg:px-5">
+            <div className="flex items-start gap-3 border-b border-border/40 pb-4">
+              <div className="rounded-xl bg-accent/10 p-2.5 text-accent">
+                <SlidersHorizontal className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-text dark:text-accent-foreground">
+                  Selection tools
+                </h2>
+                <p className="mt-1 text-sm text-muted">
+                  Page-scoped bulk controls for galleries represented in the current result set.
+                </p>
+              </div>
             </div>
-            <div className="flex items-center justify-between gap-3">
-              <span>Paused links on this page</span>
-              <strong className="text-text">{numberFormatter.format(pageInsights.inactive)}</strong>
+
+            <div className="mt-4 space-y-3">
+              <button
+                type="button"
+                onClick={() => void handleCloseAllSelections()}
+                disabled={selectionActionBusy || links.length === 0}
+                className="inline-flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-danger/35 bg-danger/8 px-4 py-3 text-left text-sm font-bold text-danger transition-all hover:bg-danger/12 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  Close selection intake for page galleries
+                </span>
+                {selectionActionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleOpenAllSelections()}
+                disabled={selectionActionBusy || links.length === 0}
+                className="inline-flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-success/35 bg-success/8 px-4 py-3 text-left text-sm font-bold text-success transition-all hover:bg-success/12 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <LockOpen className="h-4 w-4" />
+                  Open selection intake for page galleries
+                </span>
+                {selectionActionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleExportSummary()}
+                disabled={selectionActionBusy || links.length === 0}
+                className="inline-flex w-full cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
+              >
+                <Download className="h-4 w-4" />
+                Export selection summaries
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleExportLinks()}
+                disabled={selectionActionBusy || links.length === 0}
+                className="inline-flex w-full cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
+              >
+                <Download className="h-4 w-4" />
+                Export selection links
+              </button>
             </div>
-            <div className="flex items-center justify-between gap-3">
-              <span>Expired links on this page</span>
-              <strong className="text-text">{numberFormatter.format(pageInsights.expired)}</strong>
+
+            <div className="mt-5 space-y-2 rounded-2xl border border-border/45 bg-surface-1 px-4 py-4 text-sm text-muted dark:bg-surface-dark-1">
+              <p className="font-bold text-text dark:text-accent-foreground">Page insights</p>
+              <div className="flex items-center justify-between gap-3">
+                <span>Active links on this page</span>
+                <strong className="text-text dark:text-accent-foreground">
+                  {numberFormatter.format(pageInsights.active)}
+                </strong>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span>Paused links on this page</span>
+                <strong className="text-text dark:text-accent-foreground">
+                  {numberFormatter.format(pageInsights.inactive)}
+                </strong>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span>Expired links on this page</span>
+                <strong className="text-text dark:text-accent-foreground">
+                  {numberFormatter.format(pageInsights.expired)}
+                </strong>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span>Page views</span>
+                <strong className="text-text dark:text-accent-foreground">
+                  {numberFormatter.format(pageInsights.pageViews)}
+                </strong>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span>Page downloads</span>
+                <strong className="text-text dark:text-accent-foreground">
+                  {numberFormatter.format(pageInsights.pageDownloads)}
+                </strong>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span>Submitted selection sessions</span>
+                <strong className="text-text dark:text-accent-foreground">
+                  {numberFormatter.format(pageInsights.selectionSubmitted)}
+                </strong>
+              </div>
             </div>
-            <div className="flex items-center justify-between gap-3">
-              <span>Submitted selection sessions</span>
-              <strong className="text-text">
-                {numberFormatter.format(pageInsights.selectionSubmitted)}
-              </strong>
-            </div>
-          </div>
+          </section>
         </aside>
       </div>
 
