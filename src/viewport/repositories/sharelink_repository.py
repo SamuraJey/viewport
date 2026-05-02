@@ -11,6 +11,7 @@ from viewport.models.gallery import Gallery, Photo, ProjectVisibility
 from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_analytics import ShareLinkDailyStat, ShareLinkDailyVisitor
+from viewport.models.sharelink_selection import ShareLinkSelectionSession
 from viewport.repositories.base_repository import BaseRepository
 from viewport.repositories.gallery_stats import GalleryPhotoStats, gallery_photo_stats_stmt, gallery_photo_total_size_stmt
 from viewport.repositories.photo_query_helpers import build_photo_order_clauses
@@ -103,7 +104,7 @@ class ShareLinkRepository(BaseRepository):
         size: int,
         search: str | None = None,
         status: OwnerShareLinkStatus | None = None,
-    ) -> tuple[list[tuple[ShareLink, str | None, str | None]], int, dict[str, int]]:
+    ) -> tuple[list[tuple[ShareLink, str | None, str | None, datetime]], int, dict[str, int]]:
         filters = [self._owner_filter(owner_id)]
         now = datetime.now(UTC).replace(tzinfo=None)
         normalized_search = (search or "").strip()
@@ -130,6 +131,26 @@ class ShareLinkRepository(BaseRepository):
             filters.append(ShareLink.is_active.is_(False))
         elif status == "expired":
             filters.extend([ShareLink.is_active.is_(True), ShareLink.expires_at.is_not(None), ShareLink.expires_at <= now])
+
+        candidate_sharelink_ids_subquery = select(ShareLink.id.label("sharelink_id")).outerjoin(ShareLink.gallery).outerjoin(ShareLink.project).where(*filters).subquery()
+
+        session_activity_subquery = (
+            select(
+                ShareLinkSelectionSession.sharelink_id.label("sharelink_id"),
+                func.max(ShareLinkSelectionSession.updated_at).label("latest_activity_at"),
+            )
+            .join(
+                candidate_sharelink_ids_subquery,
+                candidate_sharelink_ids_subquery.c.sharelink_id == ShareLinkSelectionSession.sharelink_id,
+            )
+            .group_by(ShareLinkSelectionSession.sharelink_id)
+            .subquery()
+        )
+        latest_activity_expr = func.greatest(
+            func.coalesce(session_activity_subquery.c.latest_activity_at, ShareLink.created_at),
+            func.coalesce(ShareLink.updated_at, ShareLink.created_at),
+            ShareLink.created_at,
+        ).label("latest_activity_at")
 
         base_stmt = select(ShareLink).outerjoin(ShareLink.gallery).outerjoin(ShareLink.project).where(*filters)
 
@@ -171,15 +192,21 @@ class ShareLinkRepository(BaseRepository):
         }
 
         stmt = (
-            select(ShareLink, Gallery.name, Project.name)
+            select(ShareLink, Gallery.name, Project.name, latest_activity_expr)
             .outerjoin(ShareLink.gallery)
             .outerjoin(ShareLink.project)
+            .outerjoin(session_activity_subquery, session_activity_subquery.c.sharelink_id == ShareLink.id)
             .where(*filters)
-            .order_by(ShareLink.updated_at.desc(), ShareLink.created_at.desc())
+            .order_by(
+                latest_activity_expr.desc(),
+                ShareLink.updated_at.desc(),
+                ShareLink.created_at.desc(),
+                ShareLink.id.desc(),
+            )
             .offset((page - 1) * size)
             .limit(size)
         )
-        rows = [(row[0], row[1], row[2]) for row in (await self.db.execute(stmt)).all()]
+        rows = [(row[0], row[1], row[2], row[3]) for row in (await self.db.execute(stmt)).all()]
         return await self._finish_read((rows, total, summary))
 
     async def get_owner_sharelink_daily_stats(

@@ -133,7 +133,7 @@ describe('ShareLinksDashboardPage', () => {
     expect(screen.getByText(/selection progress/i)).toBeInTheDocument();
     expect(screen.getAllByText(/submitted/i).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: /details/i })).toHaveLength(2);
-    expect(screen.getByText(/sorted by most recent activity on this page/i)).toBeInTheDocument();
+    expect(screen.getByText(/sorted by most recent activity/i)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /delete link/i })).toHaveLength(2);
   });
 

@@ -260,6 +260,7 @@ class TestSharelinkAPI:
         assert data["share_links"][0]["gallery_id"] == gallery_id_fixture
         assert "gallery_name" in data["share_links"][0]
         assert "cover_photo_thumbnail_url" in data["share_links"][0]
+        assert "latest_activity_at" in data["share_links"][0]
         assert "selection_summary" in data["share_links"][0]
         assert {"is_enabled", "status", "selected_count", "total_sessions"} <= set(data["share_links"][0]["selection_summary"].keys())
         assert "summary" in data

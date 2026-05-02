@@ -312,7 +312,7 @@ async def list_owner_sharelinks(
         status=status_filter,
     )
 
-    sharelink_ids = [sharelink.id for sharelink, _, _ in rows]
+    sharelink_ids = [sharelink.id for sharelink, _, _, _ in rows]
     selection_summaries = await selection_repo.get_sharelink_selection_summaries(sharelink_ids)
     empty_selection_summary = (False, 0, 0, 0, 0, 0, None)
     thumbnail_keys_by_sharelink = await repo.get_owner_sharelink_cover_thumbnail_keys(
@@ -359,9 +359,10 @@ async def list_owner_sharelinks(
             has_password=sharelink.has_password,
             created_at=sharelink.created_at,
             updated_at=sharelink.updated_at,
+            latest_activity_at=latest_activity_at,
             selection_summary=_to_selection_summary_response(*selection_summaries.get(sharelink.id, empty_selection_summary)),
         )
-        for sharelink, gallery_name, project_name in rows
+        for sharelink, gallery_name, project_name, latest_activity_at in rows
     ]
 
     return ShareLinkDashboardResponse(

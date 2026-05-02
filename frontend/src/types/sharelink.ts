@@ -27,6 +27,7 @@ export interface ShareLinkDashboardItem extends ShareLink {
   project_id?: string | null;
   project_name?: string | null;
   cover_photo_thumbnail_url?: string | null;
+  latest_activity_at: string;
   selection_summary: ShareLinkSelectionSummary | null;
 }
 

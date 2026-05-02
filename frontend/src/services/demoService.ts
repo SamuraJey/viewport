@@ -1647,35 +1647,55 @@ class DemoServiceStore {
     search?: string,
     status?: 'active' | 'inactive' | 'expired',
   ): Promise<ShareLinksDashboardResponse> {
+    const getLatestActivityAt = (
+      link: ShareLink,
+      selectionSummary: ShareLinkSelectionSummary | null,
+    ): string =>
+      [selectionSummary?.latest_activity_at, link.updated_at, link.created_at]
+        .filter((candidate): candidate is string => Boolean(candidate))
+        .reduce(
+          (latest, candidate) => (Date.parse(candidate) > Date.parse(latest) ? candidate : latest),
+          link.created_at,
+        );
+
     const galleryLinks = this.galleries.flatMap((entry) =>
-      entry.shareLinks.map((link) => ({
-        ...link,
-        scope_type: link.scope_type ?? 'gallery',
-        gallery_id: entry.gallery.id,
-        gallery_name: entry.gallery.name,
-        project_id: entry.gallery.project_id ?? null,
-        project_name: entry.gallery.project_name ?? null,
-        cover_photo_thumbnail_url:
-          entry.gallery.cover_photo_thumbnail_url ??
-          (entry.gallery.cover_photo_id
-            ? entry.photos.find((photo) => photo.id === entry.gallery.cover_photo_id)?.thumbnail_url
-            : null) ??
-          entry.photos[0]?.thumbnail_url ??
-          null,
-        selection_summary: this.buildSelectionSummary(entry, link.id),
-      })),
+      entry.shareLinks.map((link) => {
+        const selectionSummary = this.buildSelectionSummary(entry, link.id);
+        return {
+          ...link,
+          scope_type: link.scope_type ?? 'gallery',
+          gallery_id: entry.gallery.id,
+          gallery_name: entry.gallery.name,
+          project_id: entry.gallery.project_id ?? null,
+          project_name: entry.gallery.project_name ?? null,
+          cover_photo_thumbnail_url:
+            entry.gallery.cover_photo_thumbnail_url ??
+            (entry.gallery.cover_photo_id
+              ? entry.photos.find((photo) => photo.id === entry.gallery.cover_photo_id)
+                  ?.thumbnail_url
+              : null) ??
+            entry.photos[0]?.thumbnail_url ??
+            null,
+          latest_activity_at: getLatestActivityAt(link, selectionSummary),
+          selection_summary: selectionSummary,
+        };
+      }),
     );
     const projectLinks = this.projects.flatMap((entry) =>
-      entry.shareLinks.map((link) => ({
-        ...link,
-        scope_type: 'project' as const,
-        gallery_id: null,
-        gallery_name: null,
-        project_id: entry.project.id,
-        project_name: entry.project.name,
-        cover_photo_thumbnail_url: entry.project.cover_photo_thumbnail_url ?? null,
-        selection_summary: this.buildSelectionSummary(entry, link.id),
-      })),
+      entry.shareLinks.map((link) => {
+        const selectionSummary = this.buildSelectionSummary(entry, link.id);
+        return {
+          ...link,
+          scope_type: 'project' as const,
+          gallery_id: null,
+          gallery_name: null,
+          project_id: entry.project.id,
+          project_name: entry.project.name,
+          cover_photo_thumbnail_url: entry.project.cover_photo_thumbnail_url ?? null,
+          latest_activity_at: getLatestActivityAt(link, selectionSummary),
+          selection_summary: selectionSummary,
+        };
+      }),
     );
     const allLinks = [...galleryLinks, ...projectLinks];
 
@@ -1704,11 +1724,14 @@ class DemoServiceStore {
         })
       : searched;
 
-    const sorted = filtered.sort(
-      (left, right) =>
-        Date.parse(right.updated_at ?? right.created_at) -
-        Date.parse(left.updated_at ?? left.created_at),
-    );
+    const sorted = filtered.sort((left, right) => {
+      const rightActivity = Date.parse(right.latest_activity_at);
+      const leftActivity = Date.parse(left.latest_activity_at);
+      return (
+        (Number.isNaN(rightActivity) ? 0 : rightActivity) -
+        (Number.isNaN(leftActivity) ? 0 : leftActivity)
+      );
+    });
     const start = (page - 1) * size;
     const summary = sorted.reduce(
       (acc, item) => {

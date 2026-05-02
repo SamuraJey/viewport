@@ -250,6 +250,86 @@ async def test_get_sharelinks_by_owner_counts_active_links_using_naive_utc_now(r
 
 
 @pytest.mark.asyncio
+async def test_get_sharelinks_by_owner_orders_latest_activity_before_pagination(repo: ShareLinkRepository, db_session):
+    user = User(email=f"sharelink-activity-{uuid4()}@example.com", password_hash="hashed", display_name="sharelink user")
+    db_session.add(user)
+    await db_session.commit()
+
+    gallery = Gallery(owner_id=user.id, name="Activity Gallery")
+    db_session.add(gallery)
+    await db_session.commit()
+
+    older_link = ShareLink(
+        gallery_id=gallery.id,
+        label="Older link update",
+        created_at=datetime(2026, 1, 1, 9, 0, 0),
+        updated_at=datetime(2026, 1, 4, 9, 0, 0),
+    )
+    latest_session_link = ShareLink(
+        gallery_id=gallery.id,
+        label="Latest session activity",
+        created_at=datetime(2026, 1, 1, 8, 0, 0),
+        updated_at=datetime(2026, 1, 1, 8, 0, 0),
+    )
+    newest_link_update = ShareLink(
+        gallery_id=gallery.id,
+        label="Newest link update",
+        created_at=datetime(2026, 1, 1, 6, 0, 0),
+        updated_at=datetime(2026, 1, 6, 9, 0, 0),
+    )
+    middle_link = ShareLink(
+        gallery_id=gallery.id,
+        label="Middle link update",
+        created_at=datetime(2026, 1, 1, 7, 0, 0),
+        updated_at=datetime(2026, 1, 3, 9, 0, 0),
+    )
+    db_session.add_all([older_link, latest_session_link, newest_link_update, middle_link])
+    await db_session.commit()
+
+    config = ShareLinkSelectionConfig(sharelink_id=latest_session_link.id, is_enabled=True)
+    stale_config = ShareLinkSelectionConfig(sharelink_id=newest_link_update.id, is_enabled=True)
+    db_session.add_all([config, stale_config])
+    await db_session.commit()
+
+    db_session.add_all(
+        [
+            ShareLinkSelectionSession(
+                sharelink_id=latest_session_link.id,
+                config_id=config.id,
+                client_name="Client",
+                status=SelectionSessionStatus.IN_PROGRESS.value,
+                resume_token_hash=f"token-{uuid4()}",
+                last_activity_at=datetime(2026, 1, 5, 9, 0, 0),
+                created_at=datetime(2026, 1, 5, 9, 0, 0),
+                updated_at=datetime(2026, 1, 5, 9, 0, 0),
+            ),
+            ShareLinkSelectionSession(
+                sharelink_id=newest_link_update.id,
+                config_id=stale_config.id,
+                client_name="Earlier Client",
+                status=SelectionSessionStatus.IN_PROGRESS.value,
+                resume_token_hash=f"token-{uuid4()}",
+                last_activity_at=datetime(2026, 1, 2, 9, 0, 0),
+                created_at=datetime(2026, 1, 2, 9, 0, 0),
+                updated_at=datetime(2026, 1, 2, 9, 0, 0),
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    first_page_rows, total, _ = await repo.get_sharelinks_by_owner(user.id, page=1, size=1)
+    second_page_rows, _, _ = await repo.get_sharelinks_by_owner(user.id, page=2, size=1)
+    third_page_rows, _, _ = await repo.get_sharelinks_by_owner(user.id, page=3, size=1)
+
+    assert total == 4
+    assert [row[0].label for row in first_page_rows] == ["Newest link update"]
+    assert first_page_rows[0][3] == datetime(2026, 1, 6, 9, 0, 0)
+    assert [row[0].label for row in second_page_rows] == ["Latest session activity"]
+    assert second_page_rows[0][3] == datetime(2026, 1, 5, 9, 0, 0)
+    assert [row[0].label for row in third_page_rows] == ["Older link update"]
+
+
+@pytest.mark.asyncio
 async def test_get_sharelink_for_public_access_hides_deleted_targets(repo: ShareLinkRepository, db_session):
     user = User(email=f"sharelink-{uuid4()}@example.com", password_hash="hashed", display_name="sharelink user")
     db_session.add(user)

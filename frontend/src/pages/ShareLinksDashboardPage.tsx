@@ -168,8 +168,7 @@ const getShareLinkSource = (link: ShareLinkDashboardItem) =>
     ? link.project_name?.trim() || 'Untitled project'
     : link.gallery_name?.trim() || 'Untitled gallery';
 
-const getLatestActivityDate = (link: ShareLinkDashboardItem) =>
-  link.selection_summary?.latest_activity_at ?? link.updated_at ?? link.created_at;
+const getLatestActivityDate = (link: ShareLinkDashboardItem) => link.latest_activity_at;
 
 const getPublicLinkLabel = (id: string) =>
   id.length > 18 ? `vp.fyi/${id.slice(0, 8)}…${id.slice(-4)}` : `vp.fyi/${id}`;
@@ -753,15 +752,7 @@ export const ShareLinksDashboardPage = () => {
     );
   }, [links]);
 
-  const filteredLinks = useMemo(
-    () =>
-      [...links].sort(
-        (a, b) =>
-          new Date(getLatestActivityDate(b)).getTime() -
-          new Date(getLatestActivityDate(a)).getTime(),
-      ),
-    [links],
-  );
+  const filteredLinks = links;
 
   const topByViews = useMemo(
     () => [...filteredLinks].sort((a, b) => (b.views ?? 0) - (a.views ?? 0))[0] ?? null,
@@ -944,9 +935,7 @@ export const ShareLinksDashboardPage = () => {
                 <h2 className="text-xl font-bold text-text dark:text-accent-foreground">
                   Share links
                 </h2>
-                <p className="mt-1 text-sm text-muted">
-                  Sorted by most recent activity on this page
-                </p>
+                <p className="mt-1 text-sm text-muted">Sorted by most recent activity</p>
               </div>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
                 <div className="flex flex-wrap items-center gap-2">
