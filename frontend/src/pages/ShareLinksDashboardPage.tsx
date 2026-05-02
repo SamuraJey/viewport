@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { PaginationControls } from '../components/PaginationControls';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
+import { AppPopover } from '../components/ui';
 import { ShareLinkStatusBadge } from '../components/share-links/ShareLinkStatusBadge';
 import { getShareLinkStatus } from '../components/share-links/shareLinkStatus';
 import { useConfirmation, usePagination } from '../hooks';
@@ -86,22 +87,6 @@ const formatDateLabel = (value?: string | null, fallback = 'Not set') => {
   });
 };
 
-const formatShortDateLabel = (value?: string | null, fallback = '—') => {
-  if (!value) {
-    return fallback;
-  }
-
-  const date = parseDateLabelValue(value);
-  if (Number.isNaN(date.getTime())) {
-    return fallback;
-  }
-
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
-};
-
 const formatRelativeDateLabel = (value?: string | null) => {
   if (!value) {
     return 'No recent activity';
@@ -160,13 +145,21 @@ const PREVIEW_STYLES = [
   'from-orange-400/80 via-rose-800 to-slate-950',
 ];
 
-const getShareLinkTitle = (link: ShareLinkDashboardItem) =>
-  link.label?.trim() || 'Untitled share link';
-
 const getShareLinkSource = (link: ShareLinkDashboardItem) =>
   link.scope_type === 'project'
     ? link.project_name?.trim() || 'Untitled project'
     : link.gallery_name?.trim() || 'Untitled gallery';
+
+const getShareLinkTitle = (link: ShareLinkDashboardItem) => {
+  const label = link.label?.trim();
+  if (label) return label;
+
+  const source = getShareLinkSource(link);
+  if (source === 'Untitled project') return 'Project share link';
+  if (source === 'Untitled gallery') return 'Gallery share link';
+
+  return `Share link for “${source}”`;
+};
 
 const getLatestActivityDate = (link: ShareLinkDashboardItem) => link.latest_activity_at;
 
@@ -204,16 +197,7 @@ const getClosableSessionTotal = (links: ShareLinkDashboardItem[]) =>
 const getReopenableSessionTotal = (links: ShareLinkDashboardItem[]) =>
   links.reduce((sum, link) => sum + getReopenableSessionCount(link), 0);
 
-const getInsightLinkLabel = (link: ShareLinkDashboardItem) => {
-  const title = getShareLinkTitle(link);
-  return title === 'Untitled share link' ? getShareLinkSource(link) : title;
-};
-
-const getStatusDotClasses = (status: ReturnType<typeof getShareLinkStatus>) => {
-  if (status === 'active') return 'bg-success';
-  if (status === 'expired') return 'bg-muted';
-  return 'bg-amber-400';
-};
+const getInsightLinkLabel = (link: ShareLinkDashboardItem) => getShareLinkTitle(link);
 
 const buildFallbackTrendValues = (links: ShareLinkDashboardItem[], totalViews: number) => {
   if (links.length === 0) {
@@ -240,6 +224,7 @@ type SummaryMetric = {
   hint: string;
   tone: MetricTone;
   trend?: string;
+  sparklineValues?: number[];
 };
 
 const metricToneClasses: Record<MetricTone, string> = {
@@ -253,61 +238,11 @@ interface DashboardMetricCardProps {
   metric: SummaryMetric;
 }
 
-const DashboardMetricCard = ({ metric }: DashboardMetricCardProps) => {
-  const Icon = metric.icon;
-
-  return (
-    <article className="rounded-[1.05rem] border border-border/40 bg-surface-1/80 px-4 py-3.5 transition-colors duration-200 hover:border-accent/35 hover:bg-surface-2/75 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.055]">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-muted">
-            {metric.label}
-          </p>
-          <p className="mt-2 text-[1.85rem] font-bold leading-none text-text dark:text-accent-foreground">
-            {metric.value}
-          </p>
-        </div>
-        <span
-          className={cn(
-            'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
-            metricToneClasses[metric.tone],
-          )}
-        >
-          <Icon className="h-5 w-5" />
-        </span>
-      </div>
-      <p className="mt-2.5 text-xs leading-5 text-muted">
-        {metric.trend ? (
-          <span
-            className={cn(
-              'mr-1 font-bold',
-              metric.tone === 'danger'
-                ? 'text-danger'
-                : metric.tone === 'success'
-                  ? 'text-success'
-                  : 'text-accent',
-            )}
-          >
-            {metric.trend}
-          </span>
-        ) : null}
-        {metric.hint}
-      </p>
-    </article>
-  );
-};
-
-interface OverviewSparklineProps {
-  values: number[];
-  labels: string[];
-  isLoading: boolean;
-}
-
-const OverviewSparkline = ({ values, labels, isLoading }: OverviewSparklineProps) => {
+const MiniSparkline = ({ values }: { values: number[] }) => {
   const chartValues = values.length > 1 ? values : [0, values[0] ?? 0, values[0] ?? 0];
-  const width = 460;
-  const height = 126;
-  const padding = 14;
+  const width = 120;
+  const height = 34;
+  const padding = 3;
   const minValue = Math.min(...chartValues, 0);
   const maxValue = Math.max(...chartValues, 1);
   const range = Math.max(maxValue - minValue, 1);
@@ -321,72 +256,71 @@ const OverviewSparkline = ({ values, labels, isLoading }: OverviewSparklineProps
   const linePath = points
     .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
     .join(' ');
-  const areaPath = `${linePath} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`;
-  const labelIndexes =
-    labels.length >= 5
-      ? [
-          0,
-          Math.floor((labels.length - 1) * 0.25),
-          Math.floor((labels.length - 1) * 0.5),
-          Math.floor((labels.length - 1) * 0.75),
-          labels.length - 1,
-        ]
-      : labels.length >= 3
-        ? [0, Math.floor((labels.length - 1) / 2), labels.length - 1]
-        : [];
-  const displayLabels =
-    labelIndexes.length > 0 ? labelIndexes.map((index) => labels[index]) : ['Start', 'Mid', 'Now'];
-
-  if (isLoading) {
-    return (
-      <div className="flex h-full min-h-32 items-center justify-center rounded-[1.05rem] border border-border/40 bg-surface-1/70 text-sm text-muted dark:border-white/10 dark:bg-white/[0.03]">
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        Building trend line...
-      </div>
-    );
-  }
 
   return (
-    <div className="relative min-h-32 overflow-hidden rounded-[1.05rem] border border-border/35 bg-linear-to-b from-accent/10 to-transparent p-3 dark:border-white/10 dark:from-accent/15">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="h-28 w-full overflow-visible"
-        role="img"
-        aria-label="Overview line chart for views in the current share-link result set"
-        preserveAspectRatio="none"
-      >
-        <defs>
-          <linearGradient id="share-links-area" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="rgb(var(--color-accent-rgb))" stopOpacity="0.32" />
-            <stop offset="100%" stopColor="rgb(var(--color-accent-rgb))" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={areaPath} fill="url(#share-links-area)" />
-        <path
-          d={linePath}
-          fill="none"
-          stroke="rgb(var(--color-accent-rgb))"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="3.5"
-        />
-        {points.map((point, index) => (
-          <circle
-            key={`${point.x}-${index}`}
-            cx={point.x}
-            cy={point.y}
-            r={index === points.length - 1 ? 4.5 : 2.6}
-            fill="rgb(var(--color-accent-rgb))"
-            opacity={index === points.length - 1 ? 1 : 0.7}
-          />
-        ))}
-      </svg>
-      <div className="mt-1 flex items-center justify-between gap-3 text-[0.7rem] font-semibold text-muted">
-        {displayLabels.slice(0, 5).map((label) => (
-          <span key={label}>{label}</span>
-        ))}
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className="h-8 w-28 text-accent"
+      role="img"
+      aria-label="Views trend sparkline"
+      preserveAspectRatio="none"
+    >
+      <path
+        d={linePath}
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="3"
+      />
+    </svg>
+  );
+};
+
+const DashboardMetricCard = ({ metric }: DashboardMetricCardProps) => {
+  const Icon = metric.icon;
+
+  return (
+    <article className="rounded-2xl border border-border/40 bg-surface-1/80 px-4 py-3 transition-colors duration-200 hover:border-accent/35 hover:bg-surface-2/75 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.055]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-muted">
+            {metric.label}
+          </p>
+          <p className="mt-1.5 font-sans text-2xl font-bold leading-none text-text [font-variant-numeric:tabular-nums] dark:text-accent-foreground">
+            {metric.value}
+          </p>
+        </div>
+        <span
+          className={cn(
+            'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
+            metricToneClasses[metric.tone],
+          )}
+        >
+          <Icon className="h-5 w-5" />
+        </span>
       </div>
-    </div>
+      <div className="mt-2 flex min-h-8 items-end justify-between gap-3 text-xs leading-5 text-muted">
+        <p>
+          {metric.trend ? (
+            <span
+              className={cn(
+                'mr-1 font-bold',
+                metric.tone === 'danger'
+                  ? 'text-danger'
+                  : metric.tone === 'success'
+                    ? 'text-success'
+                    : 'text-accent',
+              )}
+            >
+              {metric.trend}
+            </span>
+          ) : null}
+          {metric.hint}
+        </p>
+        {metric.sparklineValues ? <MiniSparkline values={metric.sparklineValues} /> : null}
+      </div>
+    </article>
   );
 };
 
@@ -692,6 +626,21 @@ export const ShareLinksDashboardPage = () => {
     }
   };
 
+  const handleToggleLinkActive = async (link: ShareLinkDashboardItem, isActive: boolean) => {
+    try {
+      if (isProjectLink(link)) {
+        await shareLinkService.updateProjectShareLink(link.project_id!, link.id, {
+          is_active: isActive,
+        });
+      } else {
+        await shareLinkService.updateShareLink(link.gallery_id!, link.id, { is_active: isActive });
+      }
+      await fetchLinks({ preserveRows: true });
+    } catch (err) {
+      setError(handleApiError(err).message || 'Failed to update share link');
+    }
+  };
+
   const handleCloseSelectedSelections = async () => {
     const targetLinks = getClosableSelectionLinks(selectedLinks);
     if (targetLinks.length === 0) return;
@@ -837,20 +786,7 @@ export const ShareLinksDashboardPage = () => {
     return buildFallbackTrendValues(filteredLinks, summary.views);
   }, [dailyPoints, filteredLinks, hasDailyTrend, summary.views]);
 
-  const chartLabels = useMemo(() => {
-    if (dailyPoints.length > 0) {
-      return dailyPoints.map((point) => formatShortDateLabel(point.day));
-    }
-
-    const dates = [...filteredLinks]
-      .reverse()
-      .map((link) => formatShortDateLabel(getLatestActivityDate(link)));
-    return dates.length >= 3 ? dates : ['Views', 'Activity', 'Now'];
-  }, [dailyPoints, filteredLinks]);
-
   const totalDownloads = summary.zip_downloads + summary.single_downloads;
-  const actionableSelectionSessions =
-    pageInsights.selectionInProgress + pageInsights.selectionSubmitted;
   const summaryItems: SummaryMetric[] = [
     {
       icon: Eye,
@@ -862,6 +798,7 @@ export const ShareLinksDashboardPage = () => {
         pageInsights.pageViews > 0
           ? `+${compactFormatter.format(pageInsights.pageViews)}`
           : undefined,
+      sparklineValues: chartValues,
     },
     {
       icon: Link2,
@@ -881,63 +818,69 @@ export const ShareLinksDashboardPage = () => {
     {
       icon: Activity,
       label: 'Sessions',
-      value: numberFormatter.format(actionableSelectionSessions),
-      hint: `${numberFormatter.format(pageInsights.selectionSubmitted)} submitted · ${numberFormatter.format(pageInsights.selectionInProgress)} live`,
+      value: numberFormatter.format(pageInsights.selectionSessions),
+      hint: `${numberFormatter.format(pageInsights.selectionInProgress)} live right now`,
       tone: pageInsights.selectionInProgress > 0 ? 'danger' : 'neutral',
       trend:
         pageInsights.selectionInProgress > 0
           ? `${pageInsights.selectionInProgress} live`
           : undefined,
     },
+    {
+      icon: LockOpen,
+      label: 'Selection submitted',
+      value: numberFormatter.format(pageInsights.selectionSubmitted),
+      hint: 'Links with a completed client selection',
+      tone: pageInsights.selectionSubmitted > 0 ? 'success' : 'neutral',
+    },
   ];
 
   return (
-    <div className="relative space-y-5 2xl:-mx-11">
+    <div className="relative space-y-4 2xl:-mx-11">
       <div className="pointer-events-none absolute inset-x-[-1rem] top-[-2rem] -z-10 h-72 bg-[radial-gradient(circle_at_18%_20%,rgba(31,144,255,0.16),transparent_34%),radial-gradient(circle_at_78%_0%,rgba(59,130,246,0.12),transparent_34%)]" />
 
-      <section className="relative px-1 py-2">
+      <section className="relative px-1 pt-0 pb-1">
         <div className="pointer-events-none absolute inset-y-0 right-0 -z-10 w-2/3 bg-[radial-gradient(circle_at_top_right,rgba(31,144,255,0.16),transparent_55%)]" />
-        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm font-semibold">
-              <Link to="/dashboard" className="text-accent transition-colors hover:text-accent/80">
-                Dashboard
-              </Link>
-              <span className="text-muted">›</span>
-              <span className="text-muted">Share Links</span>
-            </nav>
-            <h1 className="mt-4 font-oswald text-4xl font-bold tracking-tight text-text dark:text-accent-foreground lg:text-5xl">
+        <div className="relative">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm font-semibold">
+            <Link to="/dashboard" className="text-accent transition-colors hover:text-accent/80">
+              Dashboard
+            </Link>
+            <span className="text-muted">›</span>
+            <span className="text-muted">Share Links</span>
+          </nav>
+
+          <div className="mt-2 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <h1 className="font-oswald text-4xl font-bold tracking-tight text-text dark:text-accent-foreground lg:text-5xl">
               Share Links Dashboard
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-              Monitor performance, manage share links, and act on client activity — all in one
-              place.
-            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Link
+                to="/dashboard"
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:bg-accent/90 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              >
+                <Plus className="h-4 w-4" />
+                Create share link
+              </Link>
+              <button
+                type="button"
+                onClick={() => void fetchLinks({ preserveRows: true })}
+                aria-label="Refresh list"
+                disabled={isRefreshing}
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1/80 px-4 py-2.5 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:bg-surface-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground dark:hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isRefreshing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {isRefreshing ? 'Refreshing…' : 'Refresh'}
+              </button>
+            </div>
           </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Link
-              to="/dashboard"
-              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-bold text-accent-foreground transition-all duration-200 hover:bg-accent/90 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-            >
-              <Plus className="h-4 w-4" />
-              Create share link
-            </Link>
-            <button
-              type="button"
-              onClick={() => void fetchLinks({ preserveRows: true })}
-              aria-label="Refresh list"
-              disabled={isRefreshing}
-              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1/80 px-5 py-3 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:bg-surface-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground dark:hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isRefreshing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              {isRefreshing ? 'Refreshing…' : 'Refresh'}
-            </button>
-          </div>
+          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-muted">
+            Monitor performance, manage share links, and act on client activity — all in one place.
+          </p>
         </div>
       </section>
 
@@ -957,22 +900,19 @@ export const ShareLinksDashboardPage = () => {
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <main className="space-y-5">
-          <section className="rounded-[1.35rem] border border-border/50 bg-surface/95 p-4 dark:border-white/10 dark:bg-surface-dark/90 lg:p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
+          <section className="rounded-[1.35rem] border border-border/50 bg-surface/95 p-4 dark:border-white/10 dark:bg-surface-dark/90">
+            <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold text-text dark:text-accent-foreground">
+                <h2 className="text-lg font-bold text-text dark:text-accent-foreground">
                   Overview <span className="text-sm font-medium text-muted">(last 30 days)</span>
                 </h2>
               </div>
             </div>
 
-            <div className="grid gap-4 2xl:grid-cols-[minmax(18rem,0.78fr)_minmax(0,1.22fr)]">
-              <OverviewSparkline values={chartValues} labels={chartLabels} isLoading={isLoading} />
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-4">
-                {summaryItems.map((item) => (
-                  <DashboardMetricCard key={item.label} metric={item} />
-                ))}
-              </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              {summaryItems.map((item) => (
+                <DashboardMetricCard key={item.label} metric={item} />
+              ))}
             </div>
           </section>
 
@@ -1025,87 +965,99 @@ export const ShareLinksDashboardPage = () => {
               </div>
             </div>
 
-            <div className="mt-4 flex flex-col justify-end gap-2 text-sm text-muted sm:flex-row sm:items-center">
-              {!isLoading && !error ? (
-                <p>
-                  {statusFilter === 'all'
-                    ? `${numberFormatter.format(pageInsights.projectLinks)} project · ${numberFormatter.format(pageInsights.galleryLinks)} gallery links`
-                    : `Filtered across all links: ${STATUS_FILTERS.find((filter) => filter.value === statusFilter)?.label}`}
-                </p>
-              ) : null}
-            </div>
-
             {!isLoading && !error && filteredLinks.length > 0 ? (
-              <div className="mt-4 rounded-2xl border border-border/45 bg-surface-1/85 p-3 dark:border-white/10 dark:bg-white/[0.035]">
-                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                  <label className="inline-flex cursor-pointer items-center gap-3 text-sm font-bold text-text dark:text-accent-foreground">
-                    <input
-                      type="checkbox"
-                      checked={allVisibleLinksSelected}
-                      onChange={handleToggleVisibleSelection}
-                      className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-accent"
-                    />
-                    Select all shown
-                    <span className="font-medium text-muted">
-                      {selectedLinkCount > 0
-                        ? `${numberFormatter.format(selectedLinkCount)} selected`
-                        : 'Choose links to run bulk actions'}
-                    </span>
-                  </label>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleExportSelectedLinks()}
-                      disabled={selectionActionBusy || selectedGalleryCount === 0}
-                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
-                    >
-                      <Download className="h-4 w-4" />
-                      Export selected links
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleExportSelectedSummary()}
-                      disabled={selectionActionBusy || selectedGalleryCount === 0}
-                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
-                    >
-                      <Download className="h-4 w-4" />
-                      Export selected summaries
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleCloseSelectedSelections()}
-                      disabled={selectionActionBusy || selectedClosableSessionCount === 0}
-                      aria-label={`Close selection intake for ${selectedClosableSessionCount} selected active sessions`}
-                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-danger/35 bg-danger/8 px-3 py-2 text-sm font-bold text-danger transition-all hover:bg-danger/12 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <Lock className="h-4 w-4" />
-                      Close selected {numberFormatter.format(selectedClosableSessionCount)}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleReopenSelectedSelections()}
-                      disabled={selectionActionBusy || selectedReopenableSessionCount === 0}
-                      aria-label={`Reopen selection intake for ${selectedReopenableSessionCount} selected closed sessions`}
-                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
-                    >
-                      <LockOpen className="h-4 w-4" />
-                      Reopen selected {numberFormatter.format(selectedReopenableSessionCount)}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleClearSelectedLinks}
-                      disabled={selectionActionBusy || selectedLinkCount === 0}
-                      className="inline-flex cursor-pointer items-center justify-center rounded-xl px-3 py-2 text-sm font-bold text-muted transition-colors hover:bg-surface-2 hover:text-text disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/[0.07]"
-                    >
-                      Clear
-                    </button>
+              <div className="mt-4 rounded-2xl border border-border/45 bg-surface-1/85 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.035]">
+                {selectedLinkCount === 0 ? (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <label className="inline-flex cursor-pointer items-center gap-3 text-sm font-bold text-text dark:text-accent-foreground">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleLinksSelected}
+                        onChange={handleToggleVisibleSelection}
+                        aria-label="Select all shown share links"
+                        className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-accent"
+                      />
+                      Select all shown
+                    </label>
+                    <p className="text-sm text-muted">
+                      {numberFormatter.format(pageInsights.projectLinks)} project ·{' '}
+                      {numberFormatter.format(pageInsights.galleryLinks)} gallery links
+                    </p>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="text-sm font-bold text-text dark:text-accent-foreground">
+                        {numberFormatter.format(selectedLinkCount)} selected
+                      </p>
+                      <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-muted">
+                        <input
+                          type="checkbox"
+                          checked={allVisibleLinksSelected}
+                          onChange={handleToggleVisibleSelection}
+                          aria-label="Toggle all shown share links"
+                          className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-accent"
+                        />
+                        Select all shown
+                      </label>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleExportSelectedLinks()}
+                        disabled={selectionActionBusy || selectedGalleryCount === 0}
+                        className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
+                      >
+                        <Download className="h-4 w-4" />
+                        Export links
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleExportSelectedSummary()}
+                        disabled={selectionActionBusy || selectedGalleryCount === 0}
+                        className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
+                      >
+                        <Download className="h-4 w-4" />
+                        Export summaries
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleCloseSelectedSelections()}
+                        disabled={selectionActionBusy || selectedClosableSessionCount === 0}
+                        aria-label={`Close selection intake for ${selectedClosableSessionCount} selected active sessions`}
+                        className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-danger/35 bg-danger/8 px-3 py-2 text-sm font-bold text-danger transition-all hover:bg-danger/12 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <Lock className="h-4 w-4" />
+                        Close selected
+                      </button>
+                      {selectedReopenableSessionCount > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => void handleReopenSelectedSelections()}
+                          disabled={selectionActionBusy}
+                          aria-label={`Reopen selection intake for ${selectedReopenableSessionCount} selected closed sessions`}
+                          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
+                        >
+                          <LockOpen className="h-4 w-4" />
+                          Reopen selected
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={handleClearSelectedLinks}
+                        disabled={selectionActionBusy}
+                        className="inline-flex cursor-pointer items-center justify-center rounded-xl px-3 py-2 text-sm font-bold text-muted transition-colors hover:bg-surface-2 hover:text-text disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/[0.07]"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : null}
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-4">
               {isLoading ? (
                 <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-surface-1 px-4 py-5 text-sm text-muted dark:border-white/10 dark:bg-white/[0.035]">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1123,191 +1075,233 @@ export const ShareLinksDashboardPage = () => {
                   No links on this page match the selected filter.
                 </div>
               ) : (
-                filteredLinks.map((link, index) => {
-                  const fullUrl = `${window.location.origin}/share/${link.id}`;
-                  const linkStatus = getShareLinkStatus(link);
-                  const selectionSummary = getSelectionSummary(link);
-                  const selectionStatus = selectionSummary.status ?? null;
-                  const projectLink = isProjectLink(link);
-                  const linkTitle = getShareLinkTitle(link);
-                  const sourceName = getShareLinkSource(link);
-                  const createdDate = formatDateLabel(link.created_at);
-                  const expiresDate = formatDateLabel(link.expires_at, 'No expiration');
-                  const latestActivity = formatDateLabel(getLatestActivityDate(link));
-                  const totalLinkDownloads = getTotalDownloads(link);
-                  const sessions = selectionSummary.total_sessions ?? 0;
-                  const isSelected = selectedLinkIds.has(link.id);
+                <div className="overflow-x-auto rounded-2xl border border-border/45 bg-surface-1/85 dark:border-white/10 dark:bg-white/[0.035]">
+                  <div className="grid min-w-[62rem] grid-cols-[minmax(24rem,1fr)_6.5rem_7.5rem_7rem_9.5rem_11rem] gap-3 border-b border-border/45 px-4 py-3 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-muted dark:border-white/10">
+                    <span>Link</span>
+                    <span className="text-right">Views</span>
+                    <span className="text-right">Downloads</span>
+                    <span className="text-right">Sessions</span>
+                    <span>Last activity</span>
+                    <span className="text-right">Actions</span>
+                  </div>
 
-                  return (
-                    <article
-                      key={link.id}
-                      className={cn(
-                        'group rounded-[1.05rem] border bg-surface-1/80 p-3 transition-colors duration-200 hover:border-accent/35 hover:bg-surface-2/70 dark:bg-white/[0.035] dark:hover:bg-white/[0.065]',
-                        isSelected
-                          ? 'border-accent/60 ring-2 ring-accent/15'
-                          : 'border-border/45 dark:border-white/10',
-                      )}
-                    >
-                      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(31rem,0.86fr)_8rem] xl:items-center">
-                        <div className="flex min-w-0 items-center gap-4">
-                          <label className="inline-flex cursor-pointer items-center">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => handleToggleLinkSelection(link.id)}
-                              aria-label={`Select share link ${linkTitle}`}
-                              className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-accent"
+                  <div className="divide-y divide-border/35 dark:divide-white/10">
+                    {filteredLinks.map((link, index) => {
+                      const fullUrl = `${window.location.origin}/share/${link.id}`;
+                      const linkStatus = getShareLinkStatus(link);
+                      const selectionSummary = getSelectionSummary(link);
+                      const selectionStatus = selectionSummary.status ?? null;
+                      const projectLink = isProjectLink(link);
+                      const importantSelectionLabel =
+                        !projectLink &&
+                        (selectionStatus === 'submitted' || selectionStatus === 'in_progress')
+                          ? `Selection ${formatSelectionStatusLabel(selectionStatus)}`
+                          : null;
+                      const linkTitle = getShareLinkTitle(link);
+                      const sourceName = getShareLinkSource(link);
+                      const createdDate = formatDateLabel(link.created_at);
+                      const expiresDate = formatDateLabel(link.expires_at, 'No expiration');
+                      const latestActivityDate = getLatestActivityDate(link);
+                      const latestActivity = formatDateLabel(latestActivityDate);
+                      const totalLinkDownloads = getTotalDownloads(link);
+                      const sessions = selectionSummary.total_sessions ?? 0;
+                      const isSelected = selectedLinkIds.has(link.id);
+
+                      return (
+                        <article
+                          key={link.id}
+                          className={cn(
+                            'group grid min-w-[62rem] grid-cols-[minmax(24rem,1fr)_6.5rem_7.5rem_7rem_9.5rem_11rem] gap-3 px-4 py-3.5 transition-colors duration-200 hover:bg-surface-2/70 dark:hover:bg-white/[0.055]',
+                            isSelected ? 'bg-accent/8 ring-1 ring-inset ring-accent/35' : '',
+                          )}
+                        >
+                          <div className="flex min-w-0 items-center gap-3">
+                            <label className="inline-flex cursor-pointer items-center border-r border-border/35 pr-3 dark:border-white/10">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleToggleLinkSelection(link.id)}
+                                aria-label={`Select share link ${linkTitle}`}
+                                className="h-4 w-4 cursor-pointer rounded border-border text-accent focus:ring-accent"
+                              />
+                            </label>
+                            <ShareLinkPreview
+                              index={index}
+                              title={linkTitle}
+                              source={sourceName}
+                              projectLink={projectLink}
+                              thumbnailUrl={link.cover_photo_thumbnail_url}
                             />
-                          </label>
-                          <span
-                            className={cn(
-                              'h-2.5 w-2.5 shrink-0 rounded-full',
-                              getStatusDotClasses(linkStatus),
-                            )}
-                            aria-hidden="true"
-                          />
-                          <ShareLinkPreview
-                            index={index}
-                            title={linkTitle}
-                            source={sourceName}
-                            projectLink={projectLink}
-                            thumbnailUrl={link.cover_photo_thumbnail_url}
-                          />
-                          <div className="min-w-0 flex-1 space-y-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="truncate text-base font-bold text-text dark:text-accent-foreground">
-                                {linkTitle}
-                              </h3>
-                              <ShareLinkStatusBadge status={linkStatus} />
-                              {link.has_password ? (
-                                <span className="inline-flex items-center gap-1 rounded-full border border-border/45 bg-surface px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wide text-muted dark:border-white/10 dark:bg-white/[0.04]">
-                                  <Lock className="h-3 w-3" />
-                                  Password
+                            <div className="min-w-0 flex-1 space-y-1.5">
+                              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                <Link
+                                  to={`/share-links/${link.id}`}
+                                  className="min-w-0 truncate text-[1.05rem] font-bold leading-tight text-text transition-colors hover:text-accent focus:outline-hidden focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-accent dark:text-accent-foreground"
+                                >
+                                  {linkTitle}
+                                </Link>
+                                <ShareLinkStatusBadge status={linkStatus} />
+                                <span className="inline-flex rounded-full border border-border/45 bg-surface px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wide text-muted dark:border-white/10 dark:bg-white/[0.04]">
+                                  {projectLink ? 'Project' : 'Gallery'}
                                 </span>
-                              ) : null}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
-                              <span>Created {createdDate}</span>
-                              <span aria-hidden="true">•</span>
-                              <span>
-                                {expiresDate === 'No expiration'
-                                  ? 'No expiration'
-                                  : `Expires ${expiresDate}`}
-                              </span>
-                              {!projectLink ? (
-                                <>
-                                  <span aria-hidden="true">•</span>
-                                  <span>
-                                    Selection {formatSelectionStatusLabel(selectionStatus)}
+                                {importantSelectionLabel ? (
+                                  <span className="inline-flex rounded-full border border-success/25 bg-success/10 px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wide text-success">
+                                    {importantSelectionLabel}
                                   </span>
-                                </>
-                              ) : null}
-                            </div>
-                            <div className="flex min-w-0 flex-wrap items-center gap-2">
-                              <a
-                                href={fullUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex min-w-0 max-w-full cursor-pointer items-center gap-2 rounded-xl border border-accent/25 bg-accent/8 px-3 py-1.5 text-sm font-bold text-accent transition-colors hover:border-accent/45 hover:bg-accent/12"
-                              >
-                                <Link2 className="h-3.5 w-3.5 shrink-0" />
-                                <span className="truncate">{getPublicLinkLabel(link.id)}</span>
-                              </a>
-                              <button
-                                onClick={() => void handleCopyLink(link.id)}
-                                className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-border/45 bg-surface text-text transition-all hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035]"
-                                title={copiedLinkId === link.id ? 'Copied' : 'Copy'}
-                                aria-label={`Copy link ${link.label || link.id}`}
-                              >
-                                <Copy className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
+                                ) : null}
+                                {link.has_password ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-border/45 bg-surface px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wide text-muted dark:border-white/10 dark:bg-white/[0.04]">
+                                    <Lock className="h-3 w-3" />
+                                    Password
+                                  </span>
+                                ) : null}
+                              </div>
 
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                          <div className="border-l border-border/35 pl-4 dark:border-white/10">
-                            <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-muted">
-                              Views
-                            </p>
-                            <p className="mt-1 text-xl font-bold text-text dark:text-accent-foreground">
-                              {numberFormatter.format(link.views ?? 0)}
-                            </p>
-                            <p className="text-xs font-semibold text-success">
-                              {link.views ? `↑ ${compactFormatter.format(link.views)}` : '—'}
-                            </p>
+                              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+                                <a
+                                  href={fullUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="min-w-0 truncate font-semibold text-accent transition-colors hover:text-accent/80"
+                                >
+                                  {getPublicLinkLabel(link.id)}
+                                </a>
+                                <span aria-hidden="true">·</span>
+                                <span>
+                                  {projectLink ? 'Project link' : `${sourceName} gallery link`}
+                                </span>
+                                <span aria-hidden="true">·</span>
+                                <span>Created {createdDate}</span>
+                                <span aria-hidden="true">·</span>
+                                <span>
+                                  {expiresDate === 'No expiration'
+                                    ? 'No expiration'
+                                    : `Expires ${expiresDate}`}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                          <div className="border-l border-border/35 pl-4 dark:border-white/10">
-                            <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-muted">
-                              Downloads
-                            </p>
-                            <p className="mt-1 text-xl font-bold text-text dark:text-accent-foreground">
-                              {numberFormatter.format(totalLinkDownloads)}
-                            </p>
-                            <p className="text-xs font-semibold text-success">
-                              {totalLinkDownloads
-                                ? `↑ ${compactFormatter.format(totalLinkDownloads)}`
-                                : '—'}
-                            </p>
+
+                          <div className="flex items-center justify-end font-sans text-sm font-bold text-text [font-variant-numeric:tabular-nums] dark:text-accent-foreground">
+                            {numberFormatter.format(link.views ?? 0)}
                           </div>
-                          <div className="border-l border-border/35 pl-4 dark:border-white/10">
-                            <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-muted">
-                              Sessions
-                            </p>
-                            <p className="mt-1 text-xl font-bold text-text dark:text-accent-foreground">
-                              {numberFormatter.format(sessions)}
-                            </p>
-                            <p className="text-xs text-muted">
-                              {selectionSummary.in_progress_sessions
-                                ? `${selectionSummary.in_progress_sessions} live`
-                                : '—'}
-                            </p>
+                          <div className="flex items-center justify-end font-sans text-sm font-bold text-text [font-variant-numeric:tabular-nums] dark:text-accent-foreground">
+                            {numberFormatter.format(totalLinkDownloads)}
                           </div>
-                          <div className="border-l border-border/35 pl-4 dark:border-white/10">
-                            <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-muted">
-                              Last activity
-                            </p>
-                            <p className="mt-1 text-sm font-bold text-text dark:text-accent-foreground">
+                          <div className="flex items-center justify-end font-sans text-sm font-bold text-text [font-variant-numeric:tabular-nums] dark:text-accent-foreground">
+                            {numberFormatter.format(sessions)}
+                          </div>
+                          <div className="flex flex-col justify-center text-sm">
+                            <span className="font-bold text-text dark:text-accent-foreground">
                               {latestActivity}
-                            </p>
-                            <p className="text-xs text-muted">
-                              {formatRelativeDateLabel(getLatestActivityDate(link))}
-                            </p>
+                            </span>
+                            <span className="text-xs text-muted">
+                              {formatRelativeDateLabel(latestActivityDate)}
+                            </span>
                           </div>
-                        </div>
 
-                        <div className="flex items-center justify-start gap-2 xl:justify-end">
-                          <button
-                            type="button"
-                            onClick={() => setEditingLink(link)}
-                            className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-border/45 bg-surface text-text transition-all hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035]"
-                            title="Edit link"
-                            aria-label={`Edit link ${link.label || link.id}`}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
-                          <Link
-                            to={`/share-links/${link.id}`}
-                            aria-label={`Details for ${linkTitle}`}
-                            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-accent/50 bg-accent/10 px-4 py-2 text-sm font-bold text-accent transition-all hover:-translate-y-0.5 hover:bg-accent hover:text-accent-foreground focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                          >
-                            Open
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteLink(link)}
-                            className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-danger/30 bg-danger/8 text-danger transition-all hover:border-danger/45 hover:bg-danger/12 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                            title="Delete"
-                            aria-label={`Delete link ${link.label || link.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })
+                          <div className="flex items-center justify-end gap-2">
+                            <Link
+                              to={`/share-links/${link.id}`}
+                              aria-label={`Open details for ${linkTitle}`}
+                              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-accent/50 bg-accent/10 px-3 py-2 text-sm font-bold text-accent transition-all hover:bg-accent hover:text-accent-foreground focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                            >
+                              Open
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => void handleCopyLink(link.id)}
+                              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/45 bg-surface px-3 py-2 text-sm font-bold text-text transition-all hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035]"
+                              aria-label={`Copy link ${linkTitle}`}
+                            >
+                              <Copy className="h-4 w-4" />
+                              {copiedLinkId === link.id ? 'Copied' : 'Copy'}
+                            </button>
+                            <AppPopover
+                              className="relative"
+                              buttonAriaLabel={`More actions for ${linkTitle}`}
+                              buttonClassName={(open) =>
+                                cn(
+                                  'inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-border/45 bg-surface text-text transition-all hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035]',
+                                  open ? 'border-accent/45 text-accent' : '',
+                                )
+                              }
+                              buttonContent={<MoreHorizontal className="h-4 w-4" />}
+                              panelFocus
+                              panelClassName="w-56 rounded-2xl border border-border/50 bg-surface p-2 shadow-lg dark:border-white/10 dark:bg-surface-dark-1"
+                              panel={(close) => (
+                                <div
+                                  className="space-y-1"
+                                  role="group"
+                                  aria-label={`More actions for ${linkTitle}`}
+                                >
+                                  <Link
+                                    to={`/share-links/${link.id}`}
+                                    onClick={() => close()}
+                                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/[0.06]"
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                    Details
+                                  </Link>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      close();
+                                      setEditingLink(link);
+                                    }}
+                                    className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/[0.06]"
+                                  >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                    Edit label
+                                  </button>
+                                  {linkStatus === 'active' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        close();
+                                        void handleToggleLinkActive(link, false);
+                                      }}
+                                      className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/[0.06]"
+                                    >
+                                      <Lock className="h-4 w-4" />
+                                      Pause link
+                                    </button>
+                                  ) : null}
+                                  {linkStatus === 'inactive' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        close();
+                                        void handleToggleLinkActive(link, true);
+                                      }}
+                                      className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/[0.06]"
+                                    >
+                                      <LockOpen className="h-4 w-4" />
+                                      Resume link
+                                    </button>
+                                  ) : null}
+                                  <div className="my-1 h-px bg-border/50 dark:bg-white/10" />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      close();
+                                      handleDeleteLink(link);
+                                    }}
+                                    className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-danger transition-colors hover:bg-danger/10"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Delete link
+                                  </button>
+                                </div>
+                              )}
+                            />
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
             </div>
             {!isLoading && !error && filteredLinks.length > 0 ? (

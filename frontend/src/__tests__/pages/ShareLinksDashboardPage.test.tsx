@@ -129,12 +129,18 @@ describe('ShareLinksDashboardPage', () => {
     expect(screen.getByText(/monitor performance, manage share links/i)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /selection scope/i })).toBeInTheDocument();
     expect(screen.getAllByText('Preview for Ivan').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Untitled share link').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Share link for “Portraits”').length).toBeGreaterThan(0);
+    expect(screen.getByText('Link')).toBeInTheDocument();
+    expect(screen.getAllByText('Views').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Downloads').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Sessions').length).toBeGreaterThan(0);
+    expect(screen.getByText('Last activity')).toBeInTheDocument();
     expect(screen.getByText(/selection progress/i)).toBeInTheDocument();
     expect(screen.getAllByText(/submitted/i).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: /details/i })).toHaveLength(2);
     expect(screen.getByText(/sorted by most recent activity/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /delete link/i })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /more actions/i })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: /delete link/i })).not.toBeInTheDocument();
   });
 
   it('renders date-only analytics labels as local calendar days', async () => {
@@ -190,8 +196,8 @@ describe('ShareLinksDashboardPage', () => {
 
     renderPage();
 
-    expect(await screen.findByText('Jan 1')).toBeInTheDocument();
-    expect(screen.getByText('Jan 5')).toBeInTheDocument();
+    expect(await screen.findByText('3')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /views trend sparkline/i })).toBeInTheDocument();
   });
 
   it('runs bulk selection actions only for checked share links', async () => {
