@@ -551,6 +551,32 @@ const reopenOwnerSelection = async (shareLinkId: string): Promise<SelectionSessi
   return response.data;
 };
 
+const closeAllShareLinkSelections = async (
+  shareLinkId: string,
+): Promise<BulkSelectionActionResponse> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().closeAllShareLinkSelections(shareLinkId);
+  }
+
+  const response = await api.post<BulkSelectionActionResponse>(
+    `/share-links/${shareLinkId}/selection/actions/close-all`,
+  );
+  return response.data;
+};
+
+const openAllShareLinkSelections = async (
+  shareLinkId: string,
+): Promise<BulkSelectionActionResponse> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().openAllShareLinkSelections(shareLinkId);
+  }
+
+  const response = await api.post<BulkSelectionActionResponse>(
+    `/share-links/${shareLinkId}/selection/actions/open-all`,
+  );
+  return response.data;
+};
+
 const getOwnerSelectionSessionDetail = async (
   shareLinkId: string,
   sessionId: string,
@@ -703,6 +729,8 @@ export const shareLinkService = {
   getOwnerSelectionDetail,
   closeOwnerSelection,
   reopenOwnerSelection,
+  closeAllShareLinkSelections,
+  openAllShareLinkSelections,
   getOwnerSelectionSessionDetail,
   closeOwnerSelectionSession,
   reopenOwnerSelectionSession,

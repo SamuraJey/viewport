@@ -2465,6 +2465,51 @@ class DemoServiceStore {
     return this.withSelectionSessionContext(shareLinkId, session);
   }
 
+  async closeAllShareLinkSelections(shareLinkId: string): Promise<BulkSelectionActionResponse> {
+    const { state } = this.getSelectionSessionForShareId(shareLinkId, {
+      mustExist: false,
+      useStoredToken: false,
+    });
+    state.selectionSessions = state.selectionSessions ?? {};
+    const sessions = state.selectionSessions[shareLinkId] ?? [];
+    const now = nowIso();
+    let affected = 0;
+
+    for (const session of sessions) {
+      if (session.status !== 'in_progress') continue;
+      session.status = 'closed';
+      session.updated_at = now;
+      session.last_activity_at = now;
+      affected += 1;
+    }
+
+    this.persistState();
+    return { affected_count: affected };
+  }
+
+  async openAllShareLinkSelections(shareLinkId: string): Promise<BulkSelectionActionResponse> {
+    const { state } = this.getSelectionSessionForShareId(shareLinkId, {
+      mustExist: false,
+      useStoredToken: false,
+    });
+    state.selectionSessions = state.selectionSessions ?? {};
+    const sessions = state.selectionSessions[shareLinkId] ?? [];
+    const now = nowIso();
+    let affected = 0;
+
+    for (const session of sessions) {
+      if (session.status !== 'closed') continue;
+      session.status = 'in_progress';
+      session.submitted_at = null;
+      session.updated_at = now;
+      session.last_activity_at = now;
+      affected += 1;
+    }
+
+    this.persistState();
+    return { affected_count: affected };
+  }
+
   async getOwnerSelectionSessionDetail(
     shareLinkId: string,
     sessionId: string,

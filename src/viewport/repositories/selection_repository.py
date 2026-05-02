@@ -397,6 +397,55 @@ class SelectionRepository(BaseRepository):
         await self.db.refresh(session, attribute_names=["items"])
         return session
 
+    async def _set_sharelink_sessions_status(
+        self,
+        sharelink_id: uuid.UUID,
+        owner_id: uuid.UUID,
+        *,
+        from_status: SelectionSessionStatus,
+        to_status: SelectionSessionStatus,
+        clear_submitted_at: bool = False,
+    ) -> int:
+        now = datetime.now(UTC)
+        stmt = (
+            select(ShareLinkSelectionSession)
+            .join(ShareLink, ShareLink.id == ShareLinkSelectionSession.sharelink_id)
+            .outerjoin(ShareLink.gallery)
+            .outerjoin(ShareLink.project)
+            .where(
+                ShareLink.id == sharelink_id,
+                self._owner_filter(owner_id),
+                ShareLinkSelectionSession.status == from_status.value,
+            )
+        )
+        sessions = list((await self.db.execute(stmt)).scalars().all())
+        for session in sessions:
+            session.status = to_status.value
+            if clear_submitted_at:
+                session.submitted_at = None
+            session.updated_at = now
+            session.last_activity_at = now
+        if sessions:
+            await self.db.commit()
+        return await self._finish_read(len(sessions))
+
+    async def close_all_for_sharelink(self, sharelink_id: uuid.UUID, owner_id: uuid.UUID) -> int:
+        return await self._set_sharelink_sessions_status(
+            sharelink_id,
+            owner_id,
+            from_status=SelectionSessionStatus.IN_PROGRESS,
+            to_status=SelectionSessionStatus.CLOSED,
+        )
+
+    async def reopen_all_for_sharelink(self, sharelink_id: uuid.UUID, owner_id: uuid.UUID) -> int:
+        return await self._set_sharelink_sessions_status(
+            sharelink_id,
+            owner_id,
+            from_status=SelectionSessionStatus.CLOSED,
+            to_status=SelectionSessionStatus.IN_PROGRESS,
+            clear_submitted_at=True,
+        )
+
     async def get_owner_selection_row(self, sharelink_id: uuid.UUID, owner_id: uuid.UUID) -> tuple[ShareLink, ShareLinkSelectionSession | None, ShareLinkSelectionConfig | None] | None:
         latest_session_id_subquery = (
             select(ShareLinkSelectionSession.id)

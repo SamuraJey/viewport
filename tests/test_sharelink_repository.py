@@ -484,13 +484,20 @@ async def test_get_owner_sharelink_cover_thumbnail_keys_prefers_covers_and_proje
     await db_session.commit()
 
     gallery = Gallery(owner_id=user.id, project=project, name="Gallery Link", project_position=2)
+    hidden_first_gallery = Gallery(
+        owner_id=user.id,
+        project=project,
+        name="Direct Only First",
+        project_position=0,
+        project_visibility=ProjectVisibility.DIRECT_ONLY.value,
+    )
     project_first_gallery = Gallery(
         owner_id=user.id,
         project=project,
         name="Project First",
-        project_position=0,
+        project_position=1,
     )
-    db_session.add_all([gallery, project_first_gallery])
+    db_session.add_all([gallery, hidden_first_gallery, project_first_gallery])
     await db_session.commit()
 
     gallery_fallback_photo = Photo(
@@ -520,7 +527,23 @@ async def test_get_owner_sharelink_cover_thumbnail_keys_prefers_covers_and_proje
         file_size=1024,
         uploaded_at=datetime(2024, 1, 1),
     )
-    db_session.add_all([gallery_fallback_photo, gallery_cover_photo, project_first_photo])
+    hidden_first_photo = Photo(
+        gallery_id=hidden_first_gallery.id,
+        status=PhotoUploadStatus.SUCCESSFUL,
+        object_key=f"{hidden_first_gallery.id}/hidden-first.jpg",
+        display_name="hidden-first.jpg",
+        thumbnail_object_key="hidden-project-thumb",
+        file_size=1024,
+        uploaded_at=datetime(2026, 1, 1),
+    )
+    db_session.add_all(
+        [
+            gallery_fallback_photo,
+            gallery_cover_photo,
+            project_first_photo,
+            hidden_first_photo,
+        ]
+    )
     await db_session.commit()
 
     gallery.cover_photo_id = gallery_cover_photo.id

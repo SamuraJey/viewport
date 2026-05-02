@@ -47,12 +47,34 @@ const EMPTY_SUMMARY: ShareLinksDashboardSummary = {
   active_links: 0,
 };
 
+const parseDateLabelValue = (value: string) => {
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    const yearValue = Number(year);
+    const monthValue = Number(month);
+    const dayValue = Number(day);
+    const localDate = new Date(yearValue, monthValue - 1, dayValue);
+    if (
+      localDate.getFullYear() !== yearValue ||
+      localDate.getMonth() !== monthValue - 1 ||
+      localDate.getDate() !== dayValue
+    ) {
+      return new Date(Number.NaN);
+    }
+
+    return localDate;
+  }
+
+  return new Date(value);
+};
+
 const formatDateLabel = (value?: string | null, fallback = 'Not set') => {
   if (!value) {
     return fallback;
   }
 
-  const date = new Date(value);
+  const date = parseDateLabelValue(value);
   if (Number.isNaN(date.getTime())) {
     return fallback;
   }
@@ -69,7 +91,7 @@ const formatShortDateLabel = (value?: string | null, fallback = '—') => {
     return fallback;
   }
 
-  const date = new Date(value);
+  const date = parseDateLabelValue(value);
   if (Number.isNaN(date.getTime())) {
     return fallback;
   }
@@ -164,6 +186,24 @@ const getCurrentPageGalleryIds = (links: ShareLinkDashboardItem[]) =>
         .map((link) => link.gallery_id!),
     ),
   );
+
+const getClosableSessionCount = (link: ShareLinkDashboardItem) =>
+  link.selection_summary?.in_progress_sessions ?? 0;
+
+const getClosableSelectionLinks = (links: ShareLinkDashboardItem[]) =>
+  links.filter((link) => getClosableSessionCount(link) > 0);
+
+const getReopenableSessionCount = (link: ShareLinkDashboardItem) =>
+  link.selection_summary?.closed_sessions ?? 0;
+
+const getReopenableSelectionLinks = (links: ShareLinkDashboardItem[]) =>
+  links.filter((link) => getReopenableSessionCount(link) > 0);
+
+const getClosableSessionTotal = (links: ShareLinkDashboardItem[]) =>
+  links.reduce((sum, link) => sum + getClosableSessionCount(link), 0);
+
+const getReopenableSessionTotal = (links: ShareLinkDashboardItem[]) =>
+  links.reduce((sum, link) => sum + getReopenableSessionCount(link), 0);
 
 const getInsightLinkLabel = (link: ShareLinkDashboardItem) => {
   const title = getShareLinkTitle(link);
@@ -441,6 +481,7 @@ export const ShareLinksDashboardPage = () => {
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
   const [editingLink, setEditingLink] = useState<ShareLinkDashboardItem | null>(null);
   const [selectionActionError, setSelectionActionError] = useState('');
+  const [selectionActionNotice, setSelectionActionNotice] = useState('');
   const [selectionActionBusy, setSelectionActionBusy] = useState(false);
 
   const { page, pageSize, setTotal, goToPage } = pagination;
@@ -601,13 +642,18 @@ export const ShareLinksDashboardPage = () => {
   };
 
   const handleCloseAllSelections = async () => {
-    if (links.length === 0) return;
+    const targetLinks = getClosableSelectionLinks(links);
+    if (targetLinks.length === 0) return;
     setSelectionActionBusy(true);
     setSelectionActionError('');
+    setSelectionActionNotice('');
     try {
-      const uniqueGalleryIds = getCurrentPageGalleryIds(links);
-      await Promise.all(
-        uniqueGalleryIds.map((galleryId) => shareLinkService.closeAllGallerySelections(galleryId)),
+      const results = await Promise.all(
+        targetLinks.map((link) => shareLinkService.closeAllShareLinkSelections(link.id)),
+      );
+      const affectedCount = results.reduce((sum, result) => sum + result.affected_count, 0);
+      setSelectionActionNotice(
+        `Closed ${numberFormatter.format(affectedCount)} active session${affectedCount === 1 ? '' : 's'} across ${numberFormatter.format(targetLinks.length)} visible link${targetLinks.length === 1 ? '' : 's'}.`,
       );
       await fetchLinks();
     } catch (err) {
@@ -618,13 +664,18 @@ export const ShareLinksDashboardPage = () => {
   };
 
   const handleOpenAllSelections = async () => {
-    if (links.length === 0) return;
+    const targetLinks = getReopenableSelectionLinks(links);
+    if (targetLinks.length === 0) return;
     setSelectionActionBusy(true);
     setSelectionActionError('');
+    setSelectionActionNotice('');
     try {
-      const uniqueGalleryIds = getCurrentPageGalleryIds(links);
-      await Promise.all(
-        uniqueGalleryIds.map((galleryId) => shareLinkService.openAllGallerySelections(galleryId)),
+      const results = await Promise.all(
+        targetLinks.map((link) => shareLinkService.openAllShareLinkSelections(link.id)),
+      );
+      const affectedCount = results.reduce((sum, result) => sum + result.affected_count, 0);
+      setSelectionActionNotice(
+        `Reopened ${numberFormatter.format(affectedCount)} closed session${affectedCount === 1 ? '' : 's'} across ${numberFormatter.format(targetLinks.length)} visible link${targetLinks.length === 1 ? '' : 's'}.`,
       );
       await fetchLinks();
     } catch (err) {
@@ -758,6 +809,9 @@ export const ShareLinksDashboardPage = () => {
   const totalDownloads = summary.zip_downloads + summary.single_downloads;
   const actionableSelectionSessions =
     pageInsights.selectionInProgress + pageInsights.selectionSubmitted;
+  const closableSelectionSessionCount = getClosableSessionTotal(links);
+  const reopenableSelectionSessionCount = getReopenableSessionTotal(links);
+  const currentPageGalleryCount = getCurrentPageGalleryIds(links).length;
 
   const summaryItems: SummaryMetric[] = [
     {
@@ -857,6 +911,11 @@ export const ShareLinksDashboardPage = () => {
           {selectionActionError}
         </div>
       ) : null}
+      {selectionActionNotice ? (
+        <div className="rounded-xl border border-success/30 bg-success/10 px-4 py-3 text-sm font-semibold text-success">
+          {selectionActionNotice}
+        </div>
+      ) : null}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <main className="space-y-5">
@@ -885,7 +944,9 @@ export const ShareLinksDashboardPage = () => {
                 <h2 className="text-xl font-bold text-text dark:text-accent-foreground">
                   Share links
                 </h2>
-                <p className="mt-1 text-sm text-muted">Sorted by most recent activity</p>
+                <p className="mt-1 text-sm text-muted">
+                  Sorted by most recent activity on this page
+                </p>
               </div>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
                 <div className="flex flex-wrap items-center gap-2">
@@ -1113,8 +1174,9 @@ export const ShareLinksDashboardPage = () => {
                             <ExternalLink className="h-3.5 w-3.5" />
                           </Link>
                           <button
+                            type="button"
                             onClick={() => handleDeleteLink(link)}
-                            className="sr-only"
+                            className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-danger/30 bg-danger/8 text-danger transition-all hover:border-danger/45 hover:bg-danger/12 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
                             title="Delete"
                             aria-label={`Delete link ${link.label || link.id}`}
                           >
@@ -1215,7 +1277,7 @@ export const ShareLinksDashboardPage = () => {
                   Selection tools
                 </h2>
                 <p className="mt-1 text-sm text-muted">
-                  Bulk actions for galleries in the current result set.
+                  Bulk actions for visible share-link sessions in the current result set.
                 </p>
               </div>
             </div>
@@ -1231,41 +1293,43 @@ export const ShareLinksDashboardPage = () => {
               <button
                 type="button"
                 onClick={() => void handleExportLinks()}
-                disabled={selectionActionBusy || links.length === 0}
+                disabled={selectionActionBusy || currentPageGalleryCount === 0}
                 className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
               >
                 <Download className="h-4 w-4" />
-                Export selection links
+                Export gallery selection links
               </button>
               <button
                 type="button"
                 onClick={() => void handleExportSummary()}
-                disabled={selectionActionBusy || links.length === 0}
+                disabled={selectionActionBusy || currentPageGalleryCount === 0}
                 className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
               >
                 <Download className="h-4 w-4" />
-                Export selection summaries
+                Export gallery selection summaries
               </button>
               <button
                 type="button"
                 onClick={() => void handleCloseAllSelections()}
-                disabled={selectionActionBusy || links.length === 0}
-                aria-label="Close selection intake for page galleries"
+                disabled={selectionActionBusy || closableSelectionSessionCount === 0}
+                aria-label={`Close selection intake for ${closableSelectionSessionCount} active sessions`}
                 className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-danger/35 bg-danger/8 px-4 py-3 text-sm font-bold text-danger transition-all hover:bg-danger/12 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Lock className="h-4 w-4" />
-                Close selected links
+                Close {numberFormatter.format(closableSelectionSessionCount)} active session
+                {closableSelectionSessionCount === 1 ? '' : 's'}
                 {selectionActionBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               </button>
               <button
                 type="button"
                 onClick={() => void handleOpenAllSelections()}
-                disabled={selectionActionBusy || links.length === 0}
-                aria-label="Open selection intake for page galleries"
-                className="sr-only"
+                disabled={selectionActionBusy || reopenableSelectionSessionCount === 0}
+                aria-label={`Open selection intake for ${reopenableSelectionSessionCount} closed sessions`}
+                className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm font-bold text-text transition-all hover:border-accent/35 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]"
               >
                 <LockOpen className="h-4 w-4" />
-                Open selected links
+                Open {numberFormatter.format(reopenableSelectionSessionCount)} closed session
+                {reopenableSelectionSessionCount === 1 ? '' : 's'}
               </button>
             </div>
           </section>

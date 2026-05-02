@@ -317,6 +317,7 @@ class ShareLinkRepository(BaseRepository):
                 Project.owner_id == owner_id,
                 Project.is_deleted.is_(False),
                 Gallery.is_deleted.is_(False),
+                Gallery.project_visibility == ProjectVisibility.LISTED.value,
                 Photo.thumbnail_object_key.is_not(None),
             )
             .subquery()

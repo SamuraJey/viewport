@@ -13,7 +13,13 @@ vi.mock('../../services/shareLinkService', () => ({
     getOwnerShareLinks: vi.fn(),
     getGallerySelections: vi.fn(),
     deleteShareLink: vi.fn(),
+    deleteProjectShareLink: vi.fn(),
     updateShareLink: vi.fn(),
+    updateProjectShareLink: vi.fn(),
+    closeOwnerSelection: vi.fn(),
+    reopenOwnerSelection: vi.fn(),
+    closeAllShareLinkSelections: vi.fn(),
+    openAllShareLinkSelections: vi.fn(),
     closeAllGallerySelections: vi.fn(),
     openAllGallerySelections: vi.fn(),
     exportGallerySelectionSummaryCsv: vi.fn(),
@@ -63,9 +69,9 @@ describe('ShareLinksDashboardPage', () => {
           selection_summary: {
             is_enabled: true,
             status: 'in_progress',
-            total_sessions: 1,
+            total_sessions: 2,
             submitted_sessions: 0,
-            in_progress_sessions: 1,
+            in_progress_sessions: 2,
             closed_sessions: 0,
             selected_count: 4,
             latest_activity_at: '2026-04-12T10:00:00Z',
@@ -127,22 +133,184 @@ describe('ShareLinksDashboardPage', () => {
     expect(screen.getByText(/selection progress/i)).toBeInTheDocument();
     expect(screen.getAllByText(/submitted/i).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: /details/i })).toHaveLength(2);
+    expect(screen.getByText(/sorted by most recent activity on this page/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /delete link/i })).toHaveLength(2);
   });
 
-  it('keeps bulk selection actions outside the main list and calls them', async () => {
-    const user = userEvent.setup();
+  it('renders date-only analytics labels as local calendar days', async () => {
+    vi.mocked(shareLinkService.getOwnerShareLinks).mockResolvedValue({
+      share_links: [],
+      total: 0,
+      page: 1,
+      size: 20,
+      summary: {
+        views: 3,
+        zip_downloads: 0,
+        single_downloads: 0,
+        active_links: 0,
+      },
+      points: [
+        {
+          day: '2026-01-01',
+          views_total: 1,
+          views_unique: 1,
+          zip_downloads: 0,
+          single_downloads: 0,
+        },
+        {
+          day: '2026-01-02',
+          views_total: 0,
+          views_unique: 0,
+          zip_downloads: 0,
+          single_downloads: 0,
+        },
+        {
+          day: '2026-01-03',
+          views_total: 1,
+          views_unique: 1,
+          zip_downloads: 0,
+          single_downloads: 0,
+        },
+        {
+          day: '2026-01-04',
+          views_total: 0,
+          views_unique: 0,
+          zip_downloads: 0,
+          single_downloads: 0,
+        },
+        {
+          day: '2026-01-05',
+          views_total: 1,
+          views_unique: 1,
+          zip_downloads: 0,
+          single_downloads: 0,
+        },
+      ],
+    } as any);
+
     renderPage();
 
-    await screen.findAllByText('Preview for Ivan');
+    expect(await screen.findByText('Jan 1')).toBeInTheDocument();
+    expect(screen.getByText('Jan 5')).toBeInTheDocument();
+  });
+
+  it('keeps bulk selection actions share-link scoped and includes project links', async () => {
+    const user = userEvent.setup();
+    vi.mocked(shareLinkService.getOwnerShareLinks).mockResolvedValue({
+      share_links: [
+        {
+          id: 'gallery-link-1',
+          scope_type: 'gallery',
+          gallery_id: 'gallery-1',
+          gallery_name: 'Wedding',
+          label: 'Gallery intake',
+          is_active: true,
+          expires_at: null,
+          views: 12,
+          zip_downloads: 2,
+          single_downloads: 3,
+          created_at: '2026-04-10T10:00:00Z',
+          updated_at: '2026-04-12T10:00:00Z',
+          selection_summary: {
+            is_enabled: true,
+            status: 'in_progress',
+            total_sessions: 3,
+            submitted_sessions: 0,
+            in_progress_sessions: 2,
+            closed_sessions: 1,
+            selected_count: 4,
+            latest_activity_at: '2026-04-12T10:00:00Z',
+          },
+        },
+        {
+          id: 'project-link-1',
+          scope_type: 'project',
+          project_id: 'project-1',
+          project_name: 'Wedding Project',
+          label: 'Project intake',
+          is_active: true,
+          expires_at: null,
+          views: 5,
+          zip_downloads: 0,
+          single_downloads: 0,
+          created_at: '2026-04-11T10:00:00Z',
+          updated_at: '2026-04-13T10:00:00Z',
+          selection_summary: {
+            is_enabled: true,
+            status: 'in_progress',
+            total_sessions: 3,
+            submitted_sessions: 0,
+            in_progress_sessions: 2,
+            closed_sessions: 1,
+            selected_count: 8,
+            latest_activity_at: '2026-04-13T10:00:00Z',
+          },
+        },
+        {
+          id: 'closed-project-link',
+          scope_type: 'project',
+          project_id: 'project-2',
+          project_name: 'Closed Project',
+          label: 'Closed project intake',
+          is_active: true,
+          expires_at: null,
+          views: 1,
+          zip_downloads: 0,
+          single_downloads: 0,
+          created_at: '2026-04-09T10:00:00Z',
+          updated_at: '2026-04-09T10:00:00Z',
+          selection_summary: {
+            is_enabled: true,
+            status: 'closed',
+            total_sessions: 2,
+            submitted_sessions: 0,
+            in_progress_sessions: 0,
+            closed_sessions: 2,
+            selected_count: 2,
+            latest_activity_at: '2026-04-09T10:00:00Z',
+          },
+        },
+      ],
+      total: 3,
+      page: 1,
+      size: 20,
+      summary: {
+        views: 18,
+        zip_downloads: 2,
+        single_downloads: 3,
+        active_links: 3,
+      },
+    } as any);
+    vi.mocked(shareLinkService.closeAllShareLinkSelections)
+      .mockResolvedValueOnce({ affected_count: 2 })
+      .mockResolvedValueOnce({ affected_count: 2 });
+    vi.mocked(shareLinkService.openAllShareLinkSelections)
+      .mockResolvedValueOnce({ affected_count: 1 })
+      .mockResolvedValueOnce({ affected_count: 1 })
+      .mockResolvedValueOnce({ affected_count: 2 });
+
+    renderPage();
+
+    await screen.findAllByText('Project intake');
     await user.click(
-      screen.getByRole('button', { name: /close selection intake for page galleries/i }),
+      screen.getByRole('button', { name: /close selection intake for 4 active sessions/i }),
     );
+    await waitFor(() => {
+      expect(shareLinkService.closeAllShareLinkSelections).toHaveBeenCalledWith('project-link-1');
+    });
     await user.click(
-      screen.getByRole('button', { name: /open selection intake for page galleries/i }),
+      screen.getByRole('button', { name: /open selection intake for 4 closed sessions/i }),
     );
 
-    expect(shareLinkService.closeAllGallerySelections).toHaveBeenCalled();
-    expect(shareLinkService.openAllGallerySelections).toHaveBeenCalled();
+    expect(shareLinkService.closeAllShareLinkSelections).toHaveBeenCalledWith('gallery-link-1');
+    expect(shareLinkService.closeAllShareLinkSelections).toHaveBeenCalledWith('project-link-1');
+    expect(shareLinkService.closeOwnerSelection).not.toHaveBeenCalled();
+    expect(shareLinkService.closeAllGallerySelections).not.toHaveBeenCalled();
+    expect(shareLinkService.openAllShareLinkSelections).toHaveBeenCalledWith('gallery-link-1');
+    expect(shareLinkService.openAllShareLinkSelections).toHaveBeenCalledWith('project-link-1');
+    expect(shareLinkService.openAllShareLinkSelections).toHaveBeenCalledWith('closed-project-link');
+    expect(shareLinkService.reopenOwnerSelection).not.toHaveBeenCalled();
+    expect(shareLinkService.openAllGallerySelections).not.toHaveBeenCalled();
   });
 
   it('renders search and refresh controls for list navigation', async () => {
@@ -165,7 +333,7 @@ describe('ShareLinksDashboardPage', () => {
 
   it('shows a refresh loading state for manual refresh', async () => {
     const user = userEvent.setup();
-    let refreshResolve: (value: any) => void;
+    let refreshResolve: ((value: any) => void) | undefined;
 
     vi.mocked(shareLinkService.getOwnerShareLinks).mockReset();
     vi.mocked(shareLinkService.getOwnerShareLinks).mockResolvedValueOnce({
