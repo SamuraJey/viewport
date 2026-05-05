@@ -8,7 +8,7 @@ if (!(global as any).ResizeObserver) {
     disconnect() {}
   };
 }
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ApiError } from '../../lib/errorHandling';
@@ -17,7 +17,6 @@ const mockNavigate = vi.fn();
 let mockRouteParams: {
   shareId: string;
   resumeToken?: string;
-  folderId?: string;
   galleryId?: string;
 } = {
   shareId: 'abc123',
@@ -158,6 +157,10 @@ const wrapper = () => (
     <PublicGalleryPage />
   </MemoryRouter>
 );
+
+const fillInput = (input: HTMLElement, value: string) => {
+  fireEvent.change(input, { target: { value } });
+};
 
 describe('PublicGalleryPage', () => {
   beforeEach(async () => {
@@ -334,7 +337,7 @@ describe('PublicGalleryPage', () => {
     render(wrapper());
 
     await waitFor(() => expect(screen.getByText('Password required')).toBeInTheDocument());
-    await userEvent.type(screen.getByLabelText(/share password/i), 'client-pass');
+    fillInput(screen.getByLabelText(/share password/i), 'client-pass');
     await userEvent.click(screen.getByRole('button', { name: /unlock share/i }));
 
     expect(shareLinkService.unlockSharedGallery).toHaveBeenCalledWith('abc123', 'client-pass');
@@ -353,7 +356,7 @@ describe('PublicGalleryPage', () => {
     render(wrapper());
 
     await waitFor(() => expect(screen.getByText('Password required')).toBeInTheDocument());
-    await userEvent.type(screen.getByLabelText(/share password/i), 'wrong-pass');
+    fillInput(screen.getByLabelText(/share password/i), 'wrong-pass');
     await userEvent.click(screen.getByRole('button', { name: /unlock share/i }));
 
     await waitFor(() =>
@@ -517,7 +520,7 @@ describe('PublicGalleryPage', () => {
     const getRootProjectCalls = () =>
       vi
         .mocked(shareLinkService.getSharedGallery)
-        .mock.calls.filter(([, options]) => !options?.galleryId && !options?.folderId).length;
+        .mock.calls.filter(([, options]) => !options?.galleryId).length;
 
     expect(getRootProjectCalls()).toBe(0);
 

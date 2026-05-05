@@ -186,6 +186,48 @@ async def test_get_sharelink_daily_stats_returns_requested_range_in_ascending_or
 
 
 @pytest.mark.asyncio
+async def test_get_owner_sharelink_daily_stats_aggregates_owner_links(
+    repo: ShareLinkRepository,
+    db_session,
+    freezer: FrozenDateTimeFactory,
+):
+    now = datetime(2026, 4, 17, 10, 0, 0, tzinfo=UTC)
+    freezer.move_to(now)
+
+    user = User(email=f"sharelink-daily-owner-{uuid4()}@example.com", password_hash="hashed", display_name="sharelink user")
+    other_user = User(email=f"sharelink-daily-other-{uuid4()}@example.com", password_hash="hashed", display_name="other user")
+    db_session.add_all([user, other_user])
+    await db_session.commit()
+
+    gallery = Gallery(owner_id=user.id, name="Daily Stats Gallery")
+    other_gallery = Gallery(owner_id=other_user.id, name="Other Daily Stats Gallery")
+    db_session.add_all([gallery, other_gallery])
+    await db_session.commit()
+
+    first_sharelink = ShareLink(gallery_id=gallery.id, label="Needle Daily")
+    second_sharelink = ShareLink(gallery_id=gallery.id, label="Other Daily")
+    other_sharelink = ShareLink(gallery_id=other_gallery.id, label="Hidden Daily")
+    db_session.add_all([first_sharelink, second_sharelink, other_sharelink])
+    await db_session.commit()
+
+    today = now.date()
+    db_session.add_all(
+        [
+            ShareLinkDailyStat(sharelink_id=first_sharelink.id, day=today, views_total=3, views_unique=2, zip_downloads=1, single_downloads=0),
+            ShareLinkDailyStat(sharelink_id=second_sharelink.id, day=today, views_total=7, views_unique=4, zip_downloads=0, single_downloads=2),
+            ShareLinkDailyStat(sharelink_id=other_sharelink.id, day=today, views_total=99, views_unique=99, zip_downloads=99, single_downloads=99),
+        ]
+    )
+    await db_session.commit()
+
+    rows = await repo.get_owner_sharelink_daily_stats(user.id, days=1)
+    searched_rows = await repo.get_owner_sharelink_daily_stats(user.id, days=1, search="Needle")
+
+    assert rows == [(today, 10, 6, 1, 2)]
+    assert searched_rows == [(today, 3, 2, 1, 0)]
+
+
+@pytest.mark.asyncio
 async def test_get_sharelinks_by_owner_counts_active_links_using_naive_utc_now(repo: ShareLinkRepository, db_session):
     user = User(email=f"sharelink-{uuid4()}@example.com", password_hash="hashed", display_name="sharelink user")
     db_session.add(user)
@@ -209,6 +251,86 @@ async def test_get_sharelinks_by_owner_counts_active_links_using_naive_utc_now(r
     assert summary["views"] == 0
     assert summary["zip_downloads"] == 0
     assert summary["single_downloads"] == 0
+
+
+@pytest.mark.asyncio
+async def test_get_sharelinks_by_owner_orders_latest_activity_before_pagination(repo: ShareLinkRepository, db_session):
+    user = User(email=f"sharelink-activity-{uuid4()}@example.com", password_hash="hashed", display_name="sharelink user")
+    db_session.add(user)
+    await db_session.commit()
+
+    gallery = Gallery(owner_id=user.id, name="Activity Gallery")
+    db_session.add(gallery)
+    await db_session.commit()
+
+    older_link = ShareLink(
+        gallery_id=gallery.id,
+        label="Older link update",
+        created_at=datetime(2026, 1, 1, 9, 0, 0),
+        updated_at=datetime(2026, 1, 4, 9, 0, 0),
+    )
+    latest_session_link = ShareLink(
+        gallery_id=gallery.id,
+        label="Latest session activity",
+        created_at=datetime(2026, 1, 1, 8, 0, 0),
+        updated_at=datetime(2026, 1, 1, 8, 0, 0),
+    )
+    newest_link_update = ShareLink(
+        gallery_id=gallery.id,
+        label="Newest link update",
+        created_at=datetime(2026, 1, 1, 6, 0, 0),
+        updated_at=datetime(2026, 1, 6, 9, 0, 0),
+    )
+    middle_link = ShareLink(
+        gallery_id=gallery.id,
+        label="Middle link update",
+        created_at=datetime(2026, 1, 1, 7, 0, 0),
+        updated_at=datetime(2026, 1, 3, 9, 0, 0),
+    )
+    db_session.add_all([older_link, latest_session_link, newest_link_update, middle_link])
+    await db_session.commit()
+
+    config = ShareLinkSelectionConfig(sharelink_id=latest_session_link.id, is_enabled=True)
+    stale_config = ShareLinkSelectionConfig(sharelink_id=newest_link_update.id, is_enabled=True)
+    db_session.add_all([config, stale_config])
+    await db_session.commit()
+
+    db_session.add_all(
+        [
+            ShareLinkSelectionSession(
+                sharelink_id=latest_session_link.id,
+                config_id=config.id,
+                client_name="Client",
+                status=SelectionSessionStatus.IN_PROGRESS.value,
+                resume_token_hash=f"token-{uuid4()}",
+                last_activity_at=datetime(2026, 1, 5, 9, 0, 0),
+                created_at=datetime(2026, 1, 5, 9, 0, 0),
+                updated_at=datetime(2026, 1, 5, 9, 0, 0),
+            ),
+            ShareLinkSelectionSession(
+                sharelink_id=newest_link_update.id,
+                config_id=stale_config.id,
+                client_name="Earlier Client",
+                status=SelectionSessionStatus.IN_PROGRESS.value,
+                resume_token_hash=f"token-{uuid4()}",
+                last_activity_at=datetime(2026, 1, 2, 9, 0, 0),
+                created_at=datetime(2026, 1, 2, 9, 0, 0),
+                updated_at=datetime(2026, 1, 2, 9, 0, 0),
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    first_page_rows, total, _ = await repo.get_sharelinks_by_owner(user.id, page=1, size=1)
+    second_page_rows, _, _ = await repo.get_sharelinks_by_owner(user.id, page=2, size=1)
+    third_page_rows, _, _ = await repo.get_sharelinks_by_owner(user.id, page=3, size=1)
+
+    assert total == 4
+    assert [row[0].label for row in first_page_rows] == ["Newest link update"]
+    assert first_page_rows[0][3] == datetime(2026, 1, 6, 9, 0, 0)
+    assert [row[0].label for row in second_page_rows] == ["Latest session activity"]
+    assert second_page_rows[0][3] == datetime(2026, 1, 5, 9, 0, 0)
+    assert [row[0].label for row in third_page_rows] == ["Older link update"]
 
 
 @pytest.mark.asyncio
@@ -426,6 +548,161 @@ async def test_sharelink_repository_lookup_and_photo_scope_helpers(repo: ShareLi
     assert await repo.get_photos_by_ids_and_project(project.id, []) == []
     project_photos = await repo.get_photos_by_ids_and_project(project.id, [photo.id, uuid4()])
     assert [item.id for item in project_photos] == [photo.id]
+
+
+@pytest.mark.asyncio
+async def test_get_owner_sharelink_cover_thumbnail_keys_prefers_covers_and_project_order(
+    repo: ShareLinkRepository,
+    db_session,
+):
+    user = User(
+        email=f"sharelink-thumbs-{uuid4()}@example.com",
+        password_hash="hashed",
+        display_name="Thumb user",
+    )
+    db_session.add(user)
+    await db_session.commit()
+
+    project = Project(owner_id=user.id, name="Thumb Project")
+    db_session.add(project)
+    await db_session.commit()
+
+    gallery = Gallery(owner_id=user.id, project=project, name="Gallery Link", project_position=2)
+    hidden_first_gallery = Gallery(
+        owner_id=user.id,
+        project=project,
+        name="Direct Only First",
+        project_position=0,
+        project_visibility=ProjectVisibility.DIRECT_ONLY.value,
+    )
+    project_first_gallery = Gallery(
+        owner_id=user.id,
+        project=project,
+        name="Project First",
+        project_position=1,
+    )
+    db_session.add_all([gallery, hidden_first_gallery, project_first_gallery])
+    await db_session.commit()
+
+    gallery_fallback_photo = Photo(
+        gallery_id=gallery.id,
+        status=PhotoUploadStatus.SUCCESSFUL,
+        object_key=f"{gallery.id}/fallback.jpg",
+        display_name="fallback.jpg",
+        thumbnail_object_key="gallery-fallback-thumb",
+        file_size=1024,
+        uploaded_at=datetime(2026, 1, 1),
+    )
+    gallery_cover_photo = Photo(
+        gallery_id=gallery.id,
+        status=PhotoUploadStatus.SUCCESSFUL,
+        object_key=f"{gallery.id}/cover.jpg",
+        display_name="cover.jpg",
+        thumbnail_object_key="gallery-cover-thumb",
+        file_size=1024,
+        uploaded_at=datetime(2025, 1, 1),
+    )
+    project_first_photo = Photo(
+        gallery_id=project_first_gallery.id,
+        status=PhotoUploadStatus.SUCCESSFUL,
+        object_key=f"{project_first_gallery.id}/project-first.jpg",
+        display_name="project-first.jpg",
+        thumbnail_object_key="project-first-thumb",
+        file_size=1024,
+        uploaded_at=datetime(2024, 1, 1),
+    )
+    hidden_first_photo = Photo(
+        gallery_id=hidden_first_gallery.id,
+        status=PhotoUploadStatus.SUCCESSFUL,
+        object_key=f"{hidden_first_gallery.id}/hidden-first.jpg",
+        display_name="hidden-first.jpg",
+        thumbnail_object_key="hidden-project-thumb",
+        file_size=1024,
+        uploaded_at=datetime(2026, 1, 1),
+    )
+    db_session.add_all(
+        [
+            gallery_fallback_photo,
+            gallery_cover_photo,
+            project_first_photo,
+            hidden_first_photo,
+        ]
+    )
+    await db_session.commit()
+
+    gallery.cover_photo_id = gallery_cover_photo.id
+    gallery_sharelink = ShareLink(gallery_id=gallery.id)
+    project_sharelink = ShareLink(
+        project_id=project.id,
+        scope_type=ShareScopeType.PROJECT.value,
+    )
+    db_session.add_all([gallery_sharelink, project_sharelink])
+    await db_session.commit()
+
+    thumbnail_keys = await repo.get_owner_sharelink_cover_thumbnail_keys(
+        [gallery_sharelink.id, project_sharelink.id, uuid4()],
+        user.id,
+    )
+
+    assert thumbnail_keys[gallery_sharelink.id] == "gallery-cover-thumb"
+    assert thumbnail_keys[project_sharelink.id] == "project-first-thumb"
+
+
+@pytest.mark.asyncio
+async def test_get_owner_sharelink_cover_thumbnail_keys_falls_back_to_originals(
+    repo: ShareLinkRepository,
+    db_session,
+):
+    user = User(
+        email=f"sharelink-originals-{uuid4()}@example.com",
+        password_hash="hashed",
+        display_name="Original fallback user",
+    )
+    db_session.add(user)
+    await db_session.commit()
+
+    project = Project(owner_id=user.id, name="Original Fallback Project")
+    gallery = Gallery(owner_id=user.id, project=project, name="Original Fallback Gallery")
+    db_session.add_all([project, gallery])
+    await db_session.commit()
+
+    pending_photo = Photo(
+        gallery_id=gallery.id,
+        status=PhotoUploadStatus.PENDING,
+        object_key=f"{gallery.id}/pending.jpg",
+        display_name="pending.jpg",
+        thumbnail_object_key=f"{gallery.id}/pending.jpg",
+        file_size=1024,
+        uploaded_at=datetime(2026, 1, 2),
+    )
+    confirmed_without_thumbnail = Photo(
+        gallery_id=gallery.id,
+        status=PhotoUploadStatus.THUMBNAIL_CREATING,
+        object_key=f"{gallery.id}/confirmed.jpg",
+        display_name="confirmed.jpg",
+        thumbnail_object_key=f"{gallery.id}/confirmed.jpg",
+        file_size=1024,
+        uploaded_at=datetime(2026, 1, 1),
+    )
+    db_session.add_all([pending_photo, confirmed_without_thumbnail])
+    await db_session.commit()
+
+    gallery.cover_photo_id = pending_photo.id
+    gallery_sharelink = ShareLink(gallery_id=gallery.id)
+    project_sharelink = ShareLink(
+        project_id=project.id,
+        scope_type=ShareScopeType.PROJECT.value,
+    )
+    db_session.add_all([gallery_sharelink, project_sharelink])
+    await db_session.commit()
+
+    image_keys = await repo.get_owner_sharelink_cover_thumbnail_keys(
+        [gallery_sharelink.id, project_sharelink.id],
+        user.id,
+    )
+
+    assert image_keys[gallery_sharelink.id] == confirmed_without_thumbnail.object_key
+    assert image_keys[project_sharelink.id] == confirmed_without_thumbnail.object_key
 
 
 @pytest.mark.asyncio

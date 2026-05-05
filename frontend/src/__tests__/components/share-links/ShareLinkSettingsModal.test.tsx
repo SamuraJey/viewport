@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ShareLinkSettingsModal } from '../../../components/share-links/ShareLinkSettingsModal';
 import type { ShareLink } from '../../../types';
+
+const fillInput = (input: HTMLElement, value: string) => {
+  fireEvent.change(input, { target: { value } });
+};
 
 const createdLink: ShareLink = {
   id: 'created-link',
@@ -64,7 +68,7 @@ describe('ShareLinkSettingsModal', () => {
       />,
     );
 
-    await user.type(screen.getByLabelText(/share link internal label/i), 'Client proofing');
+    fillInput(screen.getByLabelText(/share link internal label/i), 'Client proofing');
     await user.click(screen.getByRole('button', { name: /create link/i }));
 
     await waitFor(() => {
@@ -155,15 +159,13 @@ describe('ShareLinkSettingsModal', () => {
     await user.click(screen.getByRole('switch', { name: /limit selection count/i }));
 
     const limitInput = screen.getByLabelText('Selection limit');
-    await user.clear(limitInput);
-    await user.type(limitInput, '1.5');
+    fillInput(limitInput, '1.5');
 
     const submitButton = screen.getByRole('button', { name: /create link/i });
     expect(submitButton).toBeDisabled();
     expect(screen.getByText('Selection limit must be at least 1.')).toBeInTheDocument();
 
-    await user.clear(limitInput);
-    await user.type(limitInput, '3');
+    fillInput(limitInput, '3');
     expect(submitButton).toBeEnabled();
   });
 });

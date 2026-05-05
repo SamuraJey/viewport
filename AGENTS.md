@@ -23,7 +23,7 @@
   - Keep business logic close to repository methods when it’s DB/S3 orchestration (e.g. async delete/rename in `GalleryRepository`).
   - `Project` is the only top-level delivery object and `Gallery` remains the leaf upload unit inside a project. Legacy standalone galleries are backfilled into one-gallery projects, and compatibility endpoints should preserve that invariant.
   - Private gallery photo listing (`GET /galleries/{gallery_id}`) supports query params `search`, `sort_by`, and `order`; repository methods must apply filters inside `gallery_id` with `galleries.is_deleted = false`, and `total_photos` must reflect filtered results.
-  - Gallery copy is stored at gallery level: `galleries.private_notes` is owner-only and must never reach public/share responses, while `galleries.public_description` is the shared-gallery copy returned from both owner detail and public folder-share responses.
+  - Gallery copy is stored at gallery level: `galleries.private_notes` is owner-only and must never reach public/share responses, while `galleries.public_description` is the shared-gallery copy returned from both owner detail and public gallery-share responses.
   - `POST /projects` is the canonical project creation flow and must create an empty project only; galleries are added explicitly through project gallery/folder creation. Legacy top-level gallery creation remains compatibility-only and should auto-wrap into a new one-gallery project.
   - Owner project listing (`GET /projects`) supports query params `search`, `sort_by`, and `order` with project sort fields `created_at`, `shooting_date`, `name`, `photo_count`, and `total_size_bytes`; sorting must happen in SQL before pagination, and aggregate photo count/size sorts include all non-deleted project galleries including `direct_only`.
   - Owner project API responses use gallery terminology only (`gallery_count`, `visible_gallery_count`, `galleries`) and return a single project `cover_photo_thumbnail_url`; do not reintroduce duplicate `folder_*` response fields or multi-URL project previews.
@@ -114,6 +114,7 @@
   - Connection pool management with configurable timeouts
   - Methods: `get`, `set`, `mget`, `delete`, `sadd`, `sunion`, `pipeline`
   - Initialized in lifespan, accessed via `get_redis_service()` or DI `Depends(get_redis)`
+  - Legacy Redis compatibility shim has been removed; import/use `RedisService` only.
 - **PresignedUrlCacheService** (`src/viewport/services/presigned_cache.py`):
   - Business logic for caching presigned S3 URLs
   - Cache key format: `presign:{bucket}:{base64_object_key}:{disposition_hash}`

@@ -298,7 +298,7 @@ class TestRedisServiceClose:
 
         await service.close()
 
-        mock_client.aclose.assert_called_once()
+        mock_client.aclose.assert_called_once_with(close_connection_pool=True)
         assert service.is_available is False
         assert service._client is None
 

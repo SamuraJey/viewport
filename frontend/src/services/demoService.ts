@@ -1207,7 +1207,7 @@ class DemoServiceStore {
     this.persistState();
   }
 
-  async createProjectFolder(
+  async createProjectGallery(
     projectId: string,
     payload: {
       name?: string;
@@ -1647,27 +1647,55 @@ class DemoServiceStore {
     search?: string,
     status?: 'active' | 'inactive' | 'expired',
   ): Promise<ShareLinksDashboardResponse> {
+    const getLatestActivityAt = (
+      link: ShareLink,
+      selectionSummary: ShareLinkSelectionSummary | null,
+    ): string =>
+      [selectionSummary?.latest_activity_at, link.updated_at, link.created_at]
+        .filter((candidate): candidate is string => Boolean(candidate))
+        .reduce(
+          (latest, candidate) => (Date.parse(candidate) > Date.parse(latest) ? candidate : latest),
+          link.created_at,
+        );
+
     const galleryLinks = this.galleries.flatMap((entry) =>
-      entry.shareLinks.map((link) => ({
-        ...link,
-        scope_type: link.scope_type ?? 'gallery',
-        gallery_id: entry.gallery.id,
-        gallery_name: entry.gallery.name,
-        project_id: entry.gallery.project_id ?? null,
-        project_name: entry.gallery.project_name ?? null,
-        selection_summary: this.buildSelectionSummary(entry, link.id),
-      })),
+      entry.shareLinks.map((link) => {
+        const selectionSummary = this.buildSelectionSummary(entry, link.id);
+        return {
+          ...link,
+          scope_type: link.scope_type ?? 'gallery',
+          gallery_id: entry.gallery.id,
+          gallery_name: entry.gallery.name,
+          project_id: entry.gallery.project_id ?? null,
+          project_name: entry.gallery.project_name ?? null,
+          cover_photo_thumbnail_url:
+            entry.gallery.cover_photo_thumbnail_url ??
+            (entry.gallery.cover_photo_id
+              ? entry.photos.find((photo) => photo.id === entry.gallery.cover_photo_id)
+                  ?.thumbnail_url
+              : null) ??
+            entry.photos[0]?.thumbnail_url ??
+            null,
+          latest_activity_at: getLatestActivityAt(link, selectionSummary),
+          selection_summary: selectionSummary,
+        };
+      }),
     );
     const projectLinks = this.projects.flatMap((entry) =>
-      entry.shareLinks.map((link) => ({
-        ...link,
-        scope_type: 'project' as const,
-        gallery_id: null,
-        gallery_name: null,
-        project_id: entry.project.id,
-        project_name: entry.project.name,
-        selection_summary: this.buildSelectionSummary(entry, link.id),
-      })),
+      entry.shareLinks.map((link) => {
+        const selectionSummary = this.buildSelectionSummary(entry, link.id);
+        return {
+          ...link,
+          scope_type: 'project' as const,
+          gallery_id: null,
+          gallery_name: null,
+          project_id: entry.project.id,
+          project_name: entry.project.name,
+          cover_photo_thumbnail_url: entry.project.cover_photo_thumbnail_url ?? null,
+          latest_activity_at: getLatestActivityAt(link, selectionSummary),
+          selection_summary: selectionSummary,
+        };
+      }),
     );
     const allLinks = [...galleryLinks, ...projectLinks];
 
@@ -1696,11 +1724,14 @@ class DemoServiceStore {
         })
       : searched;
 
-    const sorted = filtered.sort(
-      (left, right) =>
-        Date.parse(right.updated_at ?? right.created_at) -
-        Date.parse(left.updated_at ?? left.created_at),
-    );
+    const sorted = filtered.sort((left, right) => {
+      const rightActivity = Date.parse(right.latest_activity_at);
+      const leftActivity = Date.parse(left.latest_activity_at);
+      return (
+        (Number.isNaN(rightActivity) ? 0 : rightActivity) -
+        (Number.isNaN(leftActivity) ? 0 : leftActivity)
+      );
+    });
     const start = (page - 1) * size;
     const summary = sorted.reduce(
       (acc, item) => {
@@ -1723,6 +1754,37 @@ class DemoServiceStore {
         active_links: 0,
       },
     );
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - 29);
+    const points = Array.from({ length: 30 }, (_, index) => {
+      const day = new Date(startDate);
+      day.setDate(startDate.getDate() + index);
+      return {
+        day: day.toISOString().slice(0, 10),
+        views_total: 0,
+        views_unique: 0,
+        zip_downloads: 0,
+        single_downloads: 0,
+      };
+    });
+
+    sorted.forEach((item) => {
+      const activityDate = new Date(item.updated_at ?? item.created_at);
+      activityDate.setHours(0, 0, 0, 0);
+      const dayIndex = Math.floor((activityDate.getTime() - startDate.getTime()) / 86_400_000);
+      if (dayIndex < 0 || dayIndex >= points.length) {
+        return;
+      }
+      points[dayIndex].views_total += item.views || 0;
+      points[dayIndex].views_unique += Math.min(
+        item.views || 0,
+        Math.max(1, Math.floor((item.views || 0) * 0.7)),
+      );
+      points[dayIndex].zip_downloads += item.zip_downloads || 0;
+      points[dayIndex].single_downloads += item.single_downloads || 0;
+    });
 
     return {
       share_links: sorted.slice(start, start + size),
@@ -1730,6 +1792,7 @@ class DemoServiceStore {
       page,
       size,
       summary,
+      points,
     };
   }
 
@@ -1882,7 +1945,7 @@ class DemoServiceStore {
     if (!projectState) {
       throw this.createNotFoundError('Gallery not found or link expired');
     }
-    const nestedGalleryId = options?.galleryId ?? options?.folderId;
+    const nestedGalleryId = options?.galleryId;
     const listedFolderStates = this.galleries
       .filter((entry) => entry.gallery.project_id === projectState.project.id)
       .filter((entry) => (entry.gallery.project_visibility ?? 'listed') === 'listed');
@@ -1947,7 +2010,7 @@ class DemoServiceStore {
     if (nestedGalleryId) {
       const folderState = listedFolderStates.find((entry) => entry.gallery.id === nestedGalleryId);
       if (!folderState) {
-        throw this.createNotFoundError('Folder not found');
+        throw this.createNotFoundError('Gallery not found');
       }
       const sortBy: GalleryPhotoSortBy = folderState.gallery.public_sort_by ?? 'original_filename';
       const sortOrder: SortOrder = folderState.gallery.public_sort_order ?? 'asc';
@@ -2423,6 +2486,51 @@ class DemoServiceStore {
     );
     this.persistState();
     return this.withSelectionSessionContext(shareLinkId, session);
+  }
+
+  async closeAllShareLinkSelections(shareLinkId: string): Promise<BulkSelectionActionResponse> {
+    const { state } = this.getSelectionSessionForShareId(shareLinkId, {
+      mustExist: false,
+      useStoredToken: false,
+    });
+    state.selectionSessions = state.selectionSessions ?? {};
+    const sessions = state.selectionSessions[shareLinkId] ?? [];
+    const now = nowIso();
+    let affected = 0;
+
+    for (const session of sessions) {
+      if (session.status !== 'in_progress') continue;
+      session.status = 'closed';
+      session.updated_at = now;
+      session.last_activity_at = now;
+      affected += 1;
+    }
+
+    this.persistState();
+    return { affected_count: affected };
+  }
+
+  async openAllShareLinkSelections(shareLinkId: string): Promise<BulkSelectionActionResponse> {
+    const { state } = this.getSelectionSessionForShareId(shareLinkId, {
+      mustExist: false,
+      useStoredToken: false,
+    });
+    state.selectionSessions = state.selectionSessions ?? {};
+    const sessions = state.selectionSessions[shareLinkId] ?? [];
+    const now = nowIso();
+    let affected = 0;
+
+    for (const session of sessions) {
+      if (session.status !== 'closed') continue;
+      session.status = 'in_progress';
+      session.submitted_at = null;
+      session.updated_at = now;
+      session.last_activity_at = now;
+      affected += 1;
+    }
+
+    this.persistState();
+    return { affected_count: affected };
   }
 
   async getOwnerSelectionSessionDetail(

@@ -26,6 +26,8 @@ export interface ShareLinkDashboardItem extends ShareLink {
   gallery_name?: string | null;
   project_id?: string | null;
   project_name?: string | null;
+  cover_photo_thumbnail_url?: string | null;
+  latest_activity_at: string;
   selection_summary: ShareLinkSelectionSummary | null;
 }
 
@@ -34,6 +36,7 @@ export interface ShareLinkAnalyticsItem extends ShareLink {
   gallery_name?: string | null;
   project_id?: string | null;
   project_name?: string | null;
+  cover_photo_thumbnail_url?: string | null;
 }
 
 export interface ShareLinkSelectionSummary {
@@ -60,6 +63,7 @@ export interface ShareLinksDashboardResponse {
   page: number;
   size: number;
   summary: ShareLinksDashboardSummary;
+  points?: ShareLinkDailyPoint[];
 }
 
 export interface ShareLinkDailyPoint {
@@ -113,7 +117,6 @@ export interface SharedGalleryQueryOptions {
   limit?: number;
   offset?: number;
   galleryId?: string;
-  folderId?: string;
   skipProjectViewCount?: boolean;
 }
 

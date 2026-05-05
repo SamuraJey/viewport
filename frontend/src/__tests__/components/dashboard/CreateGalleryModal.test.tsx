@@ -1,10 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { createRef, useRef, useState } from 'react';
 
 import { CreateGalleryModal } from '../../../components/dashboard/CreateGalleryModal';
 import { GALLERY_NAME_MAX_LENGTH } from '../../../constants/gallery';
+
+const fillInput = (input: HTMLElement, value: string) => {
+  fireEvent.change(input, { target: { value } });
+};
+
+const flushDialogMount = async () => {
+  await act(async () => {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  });
+};
 
 const defaultProps = {
   isOpen: true,
@@ -31,11 +40,11 @@ const ModalWithState = ({ initialName = '' }: { initialName?: string }) => {
 
 describe('CreateGalleryModal', () => {
   it('shows helper text that counts down remaining characters', async () => {
-    const user = userEvent.setup();
     render(<ModalWithState />);
+    await flushDialogMount();
 
     const input = screen.getByLabelText(/Gallery name/i);
-    await user.type(input, 'Hello');
+    fillInput(input, 'Hello');
 
     expect(
       screen.getByText(new RegExp(`Up to ${GALLERY_NAME_MAX_LENGTH} characters.`)),
@@ -45,7 +54,7 @@ describe('CreateGalleryModal', () => {
     ).toBeInTheDocument();
   });
 
-  it('disables the confirm button when the name exceeds the limit', () => {
+  it('disables the confirm button when the name exceeds the limit', async () => {
     const longName = 'A'.repeat(GALLERY_NAME_MAX_LENGTH + 5);
     const inputRef = createRef<HTMLInputElement>();
 
@@ -57,6 +66,7 @@ describe('CreateGalleryModal', () => {
         onNameChange={vi.fn()}
       />,
     );
+    await flushDialogMount();
 
     const button = screen.getByRole('button', { name: /create gallery/i });
     expect(button).toBeDisabled();

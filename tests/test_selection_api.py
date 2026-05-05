@@ -552,6 +552,19 @@ class TestSelectionAPI:
         assert open_all_resp.status_code == 200
         assert open_all_resp.json()["affected_count"] >= 2
 
+        close_all_sharelink_resp = authenticated_client.post(f"/share-links/{share_id}/selection/actions/close-all")
+        assert close_all_sharelink_resp.status_code == 200
+        assert close_all_sharelink_resp.json()["affected_count"] == 2
+
+        after_sharelink_close_resp = authenticated_client.get(f"/share-links/{share_id}/selection")
+        assert after_sharelink_close_resp.status_code == 200
+        assert after_sharelink_close_resp.json()["aggregate"]["in_progress_sessions"] == 0
+        assert after_sharelink_close_resp.json()["aggregate"]["closed_sessions"] == 2
+
+        open_all_sharelink_resp = authenticated_client.post(f"/share-links/{share_id}/selection/actions/open-all")
+        assert open_all_sharelink_resp.status_code == 200
+        assert open_all_sharelink_resp.json()["affected_count"] == 2
+
         files_csv = authenticated_client.get(f"/share-links/{share_id}/selection/export/files.csv")
         assert files_csv.status_code == 200
         assert "filename,comment" in files_csv.text
@@ -796,6 +809,14 @@ class TestSelectionAPI:
         reopen_missing_share_resp = authenticated_client.post(f"/share-links/{fake_share_id}/selection/reopen")
         assert reopen_missing_share_resp.status_code == 404
         assert reopen_missing_share_resp.json()["detail"] == "Share link not found"
+
+        close_all_missing_share_resp = authenticated_client.post(f"/share-links/{fake_share_id}/selection/actions/close-all")
+        assert close_all_missing_share_resp.status_code == 404
+        assert close_all_missing_share_resp.json()["detail"] == "Share link not found"
+
+        reopen_all_missing_share_resp = authenticated_client.post(f"/share-links/{fake_share_id}/selection/actions/open-all")
+        assert reopen_all_missing_share_resp.status_code == 404
+        assert reopen_all_missing_share_resp.json()["detail"] == "Share link not found"
 
         close_no_sessions_resp = authenticated_client.post(f"/share-links/{share_id}/selection/close")
         assert close_no_sessions_resp.status_code == 404

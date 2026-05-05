@@ -751,6 +751,34 @@ async def reopen_owner_selection(
     return await _to_selection_session_response(updated_session, s3_client=s3_client)
 
 
+@router.post("/share-links/{sharelink_id}/selection/actions/close-all", response_model=BulkSelectionActionResponse)
+async def close_all_sharelink_selections(
+    sharelink_id: uuid.UUID,
+    repo: SelectionRepository = Depends(get_selection_repository),
+    current_user: User = Depends(get_current_user),
+) -> BulkSelectionActionResponse:
+    sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
+    if not sharelink:
+        raise HTTPException(status_code=404, detail="Share link not found")
+
+    affected_count = await repo.close_all_for_sharelink(sharelink.id, current_user.id)
+    return BulkSelectionActionResponse(affected_count=affected_count)
+
+
+@router.post("/share-links/{sharelink_id}/selection/actions/open-all", response_model=BulkSelectionActionResponse)
+async def reopen_all_sharelink_selections(
+    sharelink_id: uuid.UUID,
+    repo: SelectionRepository = Depends(get_selection_repository),
+    current_user: User = Depends(get_current_user),
+) -> BulkSelectionActionResponse:
+    sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
+    if not sharelink:
+        raise HTTPException(status_code=404, detail="Share link not found")
+
+    affected_count = await repo.reopen_all_for_sharelink(sharelink.id, current_user.id)
+    return BulkSelectionActionResponse(affected_count=affected_count)
+
+
 @router.get("/share-links/{sharelink_id}/selection/sessions/{session_id}", response_model=SelectionSessionResponse)
 async def get_owner_selection_session_detail(
     sharelink_id: uuid.UUID,

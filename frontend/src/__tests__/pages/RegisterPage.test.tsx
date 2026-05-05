@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { AxiosError } from 'axios';
 import { RegisterPage } from '../../pages/RegisterPage';
 import { authService } from '../../services/authService';
+
+const fillInput = (input: HTMLElement, value: string) => {
+  fireEvent.change(input, { target: { value } });
+};
 
 // Mock the auth service
 vi.mock('../../services/authService', () => ({
@@ -50,16 +54,16 @@ describe('RegisterPage', () => {
     expect(screen.getByRole('button', { name: 'Create Account' })).toBeInTheDocument();
   });
 
-  it('should handle form input correctly', async () => {
+  it('should handle form input correctly', () => {
     render(<RegisterPageWrapper />);
 
     const emailInput = screen.getByLabelText('Email Address');
     const passwordInput = screen.getByLabelText(/^Password$/);
     const confirmPasswordInput = screen.getByLabelText('Confirm Password');
 
-    await userEvent.type(emailInput, 'test@example.com');
-    await userEvent.type(passwordInput, 'password123');
-    await userEvent.type(confirmPasswordInput, 'password123');
+    fillInput(emailInput, 'test@example.com');
+    fillInput(passwordInput, 'password123');
+    fillInput(confirmPasswordInput, 'password123');
 
     expect(emailInput).toHaveValue('test@example.com');
     expect(passwordInput).toHaveValue('password123');
@@ -98,9 +102,9 @@ describe('RegisterPage', () => {
     const submitButton = screen.getByRole('button', { name: 'Create Account' });
 
     // Type invalid email and valid passwords
-    await userEvent.type(emailInput, 'invalid-email');
-    await userEvent.type(passwordInput, 'validPassword123');
-    await userEvent.type(confirmPasswordInput, 'validPassword123');
+    fillInput(emailInput, 'invalid-email');
+    fillInput(passwordInput, 'validPassword123');
+    fillInput(confirmPasswordInput, 'validPassword123');
 
     // Click submit button
     await userEvent.click(submitButton);
@@ -119,10 +123,10 @@ describe('RegisterPage', () => {
     const inviteCodeInput = screen.getByLabelText('Invite Code');
     const submitButton = screen.getByRole('button', { name: 'Create Account' });
 
-    await userEvent.type(emailInput, 'fgg@fd.5');
-    await userEvent.type(passwordInput, 'validPassword123');
-    await userEvent.type(confirmPasswordInput, 'validPassword123');
-    await userEvent.type(inviteCodeInput, 'INVITE123');
+    fillInput(emailInput, 'fgg@fd.5');
+    fillInput(passwordInput, 'validPassword123');
+    fillInput(confirmPasswordInput, 'validPassword123');
+    fillInput(inviteCodeInput, 'INVITE123');
     await userEvent.click(submitButton);
 
     await waitFor(() => {
@@ -141,9 +145,9 @@ describe('RegisterPage', () => {
     const confirmPasswordInput = screen.getByLabelText('Confirm Password');
     const submitButton = screen.getByRole('button', { name: /create account/i });
 
-    await user.type(emailInput, 'test@example.com');
-    await user.type(passwordInput, 'weak');
-    await user.type(confirmPasswordInput, 'weak');
+    fillInput(emailInput, 'test@example.com');
+    fillInput(passwordInput, 'weak');
+    fillInput(confirmPasswordInput, 'weak');
     await user.click(submitButton);
 
     const { authService } = await import('../../services/authService');
@@ -159,10 +163,10 @@ describe('RegisterPage', () => {
     const inviteCodeInput = screen.getByLabelText('Invite Code');
     const submitButton = screen.getByRole('button', { name: 'Create Account' });
 
-    await userEvent.type(emailInput, 'test@example.com');
-    await userEvent.type(passwordInput, 'password123');
-    await userEvent.type(confirmPasswordInput, 'differentpassword');
-    await userEvent.type(inviteCodeInput, 'INVITE123');
+    fillInput(emailInput, 'test@example.com');
+    fillInput(passwordInput, 'password123');
+    fillInput(confirmPasswordInput, 'differentpassword');
+    fillInput(inviteCodeInput, 'INVITE123');
     await userEvent.click(submitButton);
 
     expect(screen.getByText('Passwords do not match.')).toBeInTheDocument();
@@ -182,10 +186,10 @@ describe('RegisterPage', () => {
     const inviteCodeInput = screen.getByLabelText('Invite Code');
     const submitButton = screen.getByRole('button', { name: 'Create Account' });
 
-    await userEvent.type(emailInput, 'test@example.com');
-    await userEvent.type(passwordInput, 'password123');
-    await userEvent.type(confirmPasswordInput, 'password123');
-    await userEvent.type(inviteCodeInput, 'INVITE123');
+    fillInput(emailInput, 'test@example.com');
+    fillInput(passwordInput, 'password123');
+    fillInput(confirmPasswordInput, 'password123');
+    fillInput(inviteCodeInput, 'INVITE123');
     await userEvent.click(submitButton);
 
     expect(mockRegister).toHaveBeenCalledWith({
@@ -228,10 +232,10 @@ describe('RegisterPage', () => {
     const submitButton = screen.getByRole('button', { name: /create account/i });
     const inviteCodeInput = screen.getByLabelText('Invite Code');
 
-    await user.type(emailInput, 'test@example.com');
-    await user.type(passwordInput, 'Password123!');
-    await user.type(confirmPasswordInput, 'Password123!');
-    await user.type(inviteCodeInput, 'INVITE123');
+    fillInput(emailInput, 'test@example.com');
+    fillInput(passwordInput, 'Password123!');
+    fillInput(confirmPasswordInput, 'Password123!');
+    fillInput(inviteCodeInput, 'INVITE123');
     await user.click(submitButton);
 
     await waitFor(() => {
@@ -273,10 +277,10 @@ describe('RegisterPage', () => {
     const inviteCodeInput = screen.getByLabelText('Invite Code');
     const submitButton = screen.getByRole('button', { name: /create account/i });
 
-    await user.type(emailInput, 'test@example.com');
-    await user.type(passwordInput, 'Password123!');
-    await user.type(confirmPasswordInput, 'Password123!');
-    await user.type(inviteCodeInput, 'INVITE123');
+    fillInput(emailInput, 'test@example.com');
+    fillInput(passwordInput, 'Password123!');
+    fillInput(confirmPasswordInput, 'Password123!');
+    fillInput(inviteCodeInput, 'INVITE123');
     await user.click(submitButton);
 
     await waitFor(() => {

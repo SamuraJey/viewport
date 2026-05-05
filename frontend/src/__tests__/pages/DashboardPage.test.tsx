@@ -56,7 +56,7 @@ vi.mock('../../services/projectService', () => ({
     getProject: vi.fn(),
     updateProject: vi.fn(),
     deleteProject: vi.fn(),
-    createProjectFolder: vi.fn(),
+    createProjectGallery: vi.fn(),
   },
 }));
 
@@ -71,6 +71,10 @@ vi.mock('react-router-dom', async () => {
 const LocationProbe = () => {
   const location = useLocation();
   return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
+};
+
+const fillInput = (input: HTMLElement, value: string) => {
+  fireEvent.change(input, { target: { value } });
 };
 
 const DashboardPageWrapper = ({ initialPath = '/dashboard' }: { initialPath?: string }) => (
@@ -225,7 +229,6 @@ describe('DashboardPage', () => {
   });
 
   it('updates project search and resets pagination without dropping the search query', async () => {
-    const user = userEvent.setup();
     const { projectService } = await import('../../services/projectService');
 
     render(<DashboardPageWrapper initialPath="/dashboard?page=3" />);
@@ -238,8 +241,7 @@ describe('DashboardPage', () => {
       });
     });
 
-    await user.clear(screen.getByLabelText('Search projects'));
-    await user.type(screen.getByLabelText('Search projects'), 'client');
+    fillInput(screen.getByLabelText('Search projects'), 'client');
 
     await waitFor(
       () => {
@@ -321,7 +323,7 @@ describe('DashboardPage', () => {
 
     await screen.findByText('Wedding Weekend');
     await user.click(screen.getByRole('button', { name: 'Create new project' }));
-    await user.type(screen.getByPlaceholderText('Project name'), 'Client Delivery');
+    fillInput(screen.getByPlaceholderText('Project name'), 'Client Delivery');
     await user.click(screen.getByRole('button', { name: 'Create Project' }));
 
     await waitFor(() => {
@@ -362,7 +364,7 @@ describe('DashboardPage', () => {
 
     await screen.findByText('Wedding Weekend');
     await user.click(screen.getByRole('button', { name: 'Create new project' }));
-    await user.type(screen.getByPlaceholderText('Project name'), 'Client Delivery');
+    fillInput(screen.getByPlaceholderText('Project name'), 'Client Delivery');
     await user.click(screen.getByRole('button', { name: 'Create Project' }));
 
     await waitFor(() => {

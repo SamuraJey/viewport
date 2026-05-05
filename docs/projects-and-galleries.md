@@ -59,11 +59,7 @@ The canonical nested public route is:
 
 - `GET /s/{share_id}/galleries/{gallery_id}`
 
-The legacy alias:
-
-- `GET /s/{share_id}/folders/{folder_id}`
-
-still works for compatibility and opens a gallery from the project share only when that gallery is `listed`.
+Legacy folder-named public aliases have been removed; project shares use gallery routes only.
 
 Shared project UX is gallery-tab based:
 
@@ -97,7 +93,6 @@ Project management:
 - `PATCH /projects/{project_id}`
 - `DELETE /projects/{project_id}`
 - `POST /projects/{project_id}/galleries`
-- `POST /projects/{project_id}/folders`
 
 Project share management:
 
@@ -108,8 +103,7 @@ Project share management:
 
 Creation semantics are project-first:
 
-- `POST /projects` creates the project **and its initial gallery**
-- the initial gallery defaults to the project name unless `initial_gallery_name` is provided
+- `POST /projects` creates an empty project; galleries are added explicitly with `POST /projects/{project_id}/galleries`
 - `POST /galleries` remains a compatibility entrypoint and now auto-wraps the created gallery into a new one-gallery project
 
 Gallery endpoints still work and now accept project placement fields where relevant.
@@ -117,7 +111,7 @@ Gallery endpoints still work and now accept project placement fields where relev
 ## Frontend surfaces
 
 - `DashboardPage.tsx` shows **Projects** only
-- creating a project immediately gives the user a first gallery and the dashboard navigates directly to that entry gallery
+- creating a project starts with an empty project; galleries are added explicitly from the project surface
 - `ProjectPage.tsx` remains the owner surface for project metadata, gallery visibility/order, and project-scoped share links
 - project gallery visibility and ordering are managed from in-card actions; order is persisted via `project_position`
 - when project share links already have active or submitted selection sessions, risky changes (hide as `direct_only`, delete gallery, reorder gallery) warn the owner before proceeding
@@ -147,7 +141,7 @@ Gallery endpoints still work and now accept project placement fields where relev
 The migration chain for this feature is:
 
 - parent revision: `9c4a7e2b1d3f`
-- project/folder/share-scope revision: `f1a2b3c4d5e6`
+- project/gallery/share-scope revision: `f1a2b3c4d5e6`
 
 If a local development database still points at an old deleted revision, re-align it before running checks:
 

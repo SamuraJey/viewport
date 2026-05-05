@@ -51,7 +51,7 @@ vi.mock('../../services/projectService', () => ({
     createProject: vi.fn(),
     updateProject: vi.fn(),
     deleteProject: vi.fn(),
-    createProjectFolder: vi.fn(),
+    createProjectGallery: vi.fn(),
     reorderProjectGalleries: vi.fn(),
   },
 }));

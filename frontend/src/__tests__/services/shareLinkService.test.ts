@@ -205,11 +205,15 @@ describe('shareLinkService', () => {
     vi.mocked(api.get).mockResolvedValue({ data: { id: 'session-1' } } as any);
     vi.mocked(api.post)
       .mockResolvedValueOnce({ data: { id: 'session-1', status: 'closed' } } as any)
-      .mockResolvedValueOnce({ data: { id: 'session-1', status: 'in_progress' } } as any);
+      .mockResolvedValueOnce({ data: { id: 'session-1', status: 'in_progress' } } as any)
+      .mockResolvedValueOnce({ data: { affected_count: 2 } } as any)
+      .mockResolvedValueOnce({ data: { affected_count: 1 } } as any);
 
     const detail = await shareLinkService.getOwnerSelectionSessionDetail('s1', 'session-1');
     const closed = await shareLinkService.closeOwnerSelectionSession('s1', 'session-1');
     const reopened = await shareLinkService.reopenOwnerSelectionSession('s1', 'session-1');
+    const closedAll = await shareLinkService.closeAllShareLinkSelections('s1');
+    const reopenedAll = await shareLinkService.openAllShareLinkSelections('s1');
 
     expect(api.get).toHaveBeenCalledWith('/share-links/s1/selection/sessions/session-1');
     expect(api.post).toHaveBeenNthCalledWith(
@@ -220,8 +224,12 @@ describe('shareLinkService', () => {
       2,
       '/share-links/s1/selection/sessions/session-1/reopen',
     );
+    expect(api.post).toHaveBeenNthCalledWith(3, '/share-links/s1/selection/actions/close-all');
+    expect(api.post).toHaveBeenNthCalledWith(4, '/share-links/s1/selection/actions/open-all');
     expect(detail).toEqual({ id: 'session-1' });
     expect(closed).toEqual({ id: 'session-1', status: 'closed' });
     expect(reopened).toEqual({ id: 'session-1', status: 'in_progress' });
+    expect(closedAll).toEqual({ affected_count: 2 });
+    expect(reopenedAll).toEqual({ affected_count: 1 });
   });
 });

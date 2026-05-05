@@ -7,10 +7,11 @@ from sqlalchemy import String, and_, case, cast, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload
 
-from viewport.models.gallery import Gallery, Photo, ProjectVisibility
+from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
 from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_analytics import ShareLinkDailyStat, ShareLinkDailyVisitor
+from viewport.models.sharelink_selection import ShareLinkSelectionSession
 from viewport.repositories.base_repository import BaseRepository
 from viewport.repositories.gallery_stats import GalleryPhotoStats, gallery_photo_stats_stmt, gallery_photo_total_size_stmt
 from viewport.repositories.photo_query_helpers import build_photo_order_clauses
@@ -103,7 +104,7 @@ class ShareLinkRepository(BaseRepository):
         size: int,
         search: str | None = None,
         status: OwnerShareLinkStatus | None = None,
-    ) -> tuple[list[tuple[ShareLink, str | None, str | None]], int, dict[str, int]]:
+    ) -> tuple[list[tuple[ShareLink, str | None, str | None, datetime]], int, dict[str, int]]:
         filters = [self._owner_filter(owner_id)]
         now = datetime.now(UTC).replace(tzinfo=None)
         normalized_search = (search or "").strip()
@@ -130,6 +131,26 @@ class ShareLinkRepository(BaseRepository):
             filters.append(ShareLink.is_active.is_(False))
         elif status == "expired":
             filters.extend([ShareLink.is_active.is_(True), ShareLink.expires_at.is_not(None), ShareLink.expires_at <= now])
+
+        candidate_sharelink_ids_subquery = select(ShareLink.id.label("sharelink_id")).outerjoin(ShareLink.gallery).outerjoin(ShareLink.project).where(*filters).subquery()
+
+        session_activity_subquery = (
+            select(
+                ShareLinkSelectionSession.sharelink_id.label("sharelink_id"),
+                func.max(ShareLinkSelectionSession.updated_at).label("latest_activity_at"),
+            )
+            .join(
+                candidate_sharelink_ids_subquery,
+                candidate_sharelink_ids_subquery.c.sharelink_id == ShareLinkSelectionSession.sharelink_id,
+            )
+            .group_by(ShareLinkSelectionSession.sharelink_id)
+            .subquery()
+        )
+        latest_activity_expr = func.greatest(
+            func.coalesce(session_activity_subquery.c.latest_activity_at, ShareLink.created_at),
+            func.coalesce(ShareLink.updated_at, ShareLink.created_at),
+            ShareLink.created_at,
+        ).label("latest_activity_at")
 
         base_stmt = select(ShareLink).outerjoin(ShareLink.gallery).outerjoin(ShareLink.project).where(*filters)
 
@@ -171,16 +192,182 @@ class ShareLinkRepository(BaseRepository):
         }
 
         stmt = (
-            select(ShareLink, Gallery.name, Project.name)
+            select(ShareLink, Gallery.name, Project.name, latest_activity_expr)
             .outerjoin(ShareLink.gallery)
             .outerjoin(ShareLink.project)
+            .outerjoin(session_activity_subquery, session_activity_subquery.c.sharelink_id == ShareLink.id)
             .where(*filters)
-            .order_by(ShareLink.updated_at.desc(), ShareLink.created_at.desc())
+            .order_by(
+                latest_activity_expr.desc(),
+                ShareLink.updated_at.desc(),
+                ShareLink.created_at.desc(),
+                ShareLink.id.desc(),
+            )
             .offset((page - 1) * size)
             .limit(size)
         )
-        rows = [(row[0], row[1], row[2]) for row in (await self.db.execute(stmt)).all()]
+        rows = [(row[0], row[1], row[2], row[3]) for row in (await self.db.execute(stmt)).all()]
         return await self._finish_read((rows, total, summary))
+
+    async def get_owner_sharelink_daily_stats(
+        self,
+        owner_id: uuid.UUID,
+        *,
+        days: int,
+        search: str | None = None,
+        status: OwnerShareLinkStatus | None = None,
+    ) -> list[tuple[date, int, int, int, int]]:
+        filters = [self._owner_filter(owner_id)]
+        now = datetime.now(UTC).replace(tzinfo=None)
+        normalized_search = (search or "").strip()
+        if normalized_search:
+            escaped_search = self._escape_like_term(normalized_search)
+            pattern = f"%{escaped_search}%"
+            filters.append(
+                or_(
+                    ShareLink.label.ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
+                    Gallery.name.ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
+                    Project.name.ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
+                    cast(ShareLink.id, String).ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
+                )
+            )
+
+        if status == "active":
+            filters.extend(
+                [
+                    ShareLink.is_active.is_(True),
+                    or_(ShareLink.expires_at.is_(None), ShareLink.expires_at > now),
+                ]
+            )
+        elif status == "inactive":
+            filters.append(ShareLink.is_active.is_(False))
+        elif status == "expired":
+            filters.extend([ShareLink.is_active.is_(True), ShareLink.expires_at.is_not(None), ShareLink.expires_at <= now])
+
+        since_day = datetime.now(UTC).date() - timedelta(days=days - 1)
+        stmt = (
+            select(
+                ShareLinkDailyStat.day,
+                func.coalesce(func.sum(ShareLinkDailyStat.views_total), 0),
+                func.coalesce(func.sum(ShareLinkDailyStat.views_unique), 0),
+                func.coalesce(func.sum(ShareLinkDailyStat.zip_downloads), 0),
+                func.coalesce(func.sum(ShareLinkDailyStat.single_downloads), 0),
+            )
+            .select_from(ShareLinkDailyStat)
+            .join(ShareLink, ShareLinkDailyStat.sharelink_id == ShareLink.id)
+            .outerjoin(ShareLink.gallery)
+            .outerjoin(ShareLink.project)
+            .where(ShareLinkDailyStat.day >= since_day, *filters)
+            .group_by(ShareLinkDailyStat.day)
+            .order_by(ShareLinkDailyStat.day.asc())
+        )
+        rows = [
+            (
+                row_day,
+                int(views_total or 0),
+                int(views_unique or 0),
+                int(zip_downloads or 0),
+                int(single_downloads or 0),
+            )
+            for row_day, views_total, views_unique, zip_downloads, single_downloads in (await self.db.execute(stmt)).all()
+        ]
+        return await self._finish_read(rows)
+
+    async def get_owner_sharelink_cover_thumbnail_keys(
+        self,
+        sharelink_ids: list[uuid.UUID],
+        owner_id: uuid.UUID,
+    ) -> dict[uuid.UUID, str]:
+        if not sharelink_ids:
+            return await self._finish_read({})
+
+        cover_image_keys_by_sharelink: dict[uuid.UUID, str] = {}
+        cover_image_key = case(
+            (
+                and_(
+                    Photo.status == PhotoUploadStatus.SUCCESSFUL,
+                    Photo.thumbnail_object_key != Photo.object_key,
+                ),
+                Photo.thumbnail_object_key,
+            ),
+            else_=Photo.object_key,
+        ).label("cover_image_key")
+        coverable_statuses = (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING)
+
+        gallery_ranked = (
+            select(
+                ShareLink.id.label("sharelink_id"),
+                cover_image_key,
+                func.row_number()
+                .over(
+                    partition_by=ShareLink.id,
+                    order_by=(
+                        case((Photo.id == Gallery.cover_photo_id, 0), else_=1),
+                        Photo.uploaded_at.desc(),
+                        Photo.id.desc(),
+                    ),
+                )
+                .label("photo_rank"),
+            )
+            .select_from(ShareLink)
+            .join(Gallery, ShareLink.gallery_id == Gallery.id)
+            .join(Photo, Photo.gallery_id == Gallery.id)
+            .where(
+                ShareLink.id.in_(sharelink_ids),
+                ShareLink.scope_type == ShareScopeType.GALLERY.value,
+                Gallery.owner_id == owner_id,
+                Gallery.is_deleted.is_(False),
+                Photo.status.in_(coverable_statuses),
+            )
+            .subquery()
+        )
+        gallery_rows = await self.db.execute(
+            select(gallery_ranked.c.sharelink_id, gallery_ranked.c.cover_image_key).where(
+                gallery_ranked.c.photo_rank == 1,
+            )
+        )
+        cover_image_keys_by_sharelink.update({sharelink_id: image_key for sharelink_id, image_key in gallery_rows.all() if image_key})
+
+        project_ranked = (
+            select(
+                ShareLink.id.label("sharelink_id"),
+                cover_image_key,
+                func.row_number()
+                .over(
+                    partition_by=ShareLink.id,
+                    order_by=(
+                        Gallery.project_position.asc(),
+                        Gallery.created_at.asc(),
+                        Gallery.id.asc(),
+                        Photo.uploaded_at.desc(),
+                        Photo.id.desc(),
+                    ),
+                )
+                .label("photo_rank"),
+            )
+            .select_from(ShareLink)
+            .join(Project, ShareLink.project_id == Project.id)
+            .join(Gallery, Gallery.project_id == Project.id)
+            .join(Photo, Photo.gallery_id == Gallery.id)
+            .where(
+                ShareLink.id.in_(sharelink_ids),
+                ShareLink.scope_type == ShareScopeType.PROJECT.value,
+                Project.owner_id == owner_id,
+                Project.is_deleted.is_(False),
+                Gallery.is_deleted.is_(False),
+                Gallery.project_visibility == ProjectVisibility.LISTED.value,
+                Photo.status.in_(coverable_statuses),
+            )
+            .subquery()
+        )
+        project_rows = await self.db.execute(
+            select(project_ranked.c.sharelink_id, project_ranked.c.cover_image_key).where(
+                project_ranked.c.photo_rank == 1,
+            )
+        )
+        cover_image_keys_by_sharelink.update({sharelink_id: image_key for sharelink_id, image_key in project_rows.all() if image_key})
+
+        return await self._finish_read(cover_image_keys_by_sharelink)
 
     async def get_sharelinks_for_project_warnings(
         self,

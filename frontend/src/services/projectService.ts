@@ -83,7 +83,7 @@ const deleteProject = async (projectId: string): Promise<void> => {
   await api.delete(`/projects/${projectId}`);
 };
 
-const createProjectFolder = async (
+const createProjectGallery = async (
   projectId: string,
   payload: {
     name?: string;
@@ -95,7 +95,7 @@ const createProjectFolder = async (
   },
 ) => {
   if (isDemoModeEnabled()) {
-    return getDemoService().createProjectFolder(projectId, payload);
+    return getDemoService().createProjectGallery(projectId, payload);
   }
   const response = await api.post(`/projects/${projectId}/galleries`, payload ?? {});
   return response.data;
@@ -118,6 +118,6 @@ export const projectService = {
   createProject,
   updateProject,
   deleteProject,
-  createProjectFolder,
+  createProjectGallery,
   reorderProjectGalleries,
 };

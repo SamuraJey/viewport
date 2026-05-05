@@ -141,8 +141,8 @@ describe('demoService', () => {
 
     const project = await service.createProject({ name: 'Client Delivery' });
 
-    await service.createProjectFolder(project.id, { name: 'Photos' });
-    await service.createProjectFolder(project.id, { name: '3eds' });
+    await service.createProjectGallery(project.id, { name: 'Photos' });
+    await service.createProjectGallery(project.id, { name: '3eds' });
 
     const detail = await service.getProject(project.id);
 
@@ -156,7 +156,7 @@ describe('demoService', () => {
     const service = getDemoService();
 
     const project = await service.createProject({ name: 'Demo Passwords' });
-    const gallery = await service.createProjectFolder(project.id, { name: 'Proofs' });
+    const gallery = await service.createProjectGallery(project.id, { name: 'Proofs' });
 
     const galleryLink = await service.createShareLink(gallery.id, { password: 'client-pass' });
     const projectLink = await service.createProjectShareLink(project.id, {
@@ -210,10 +210,10 @@ describe('demoService', () => {
     );
 
     const firstGallery = await service.getSharedGallery(projectShareLink!.id, {
-      folderId: firstFolderId,
+      galleryId: firstFolderId,
     });
     const secondGallery = await service.getSharedGallery(projectShareLink!.id, {
-      folderId: secondFolderId,
+      galleryId: secondFolderId,
     });
 
     if (firstGallery.scope_type !== 'gallery' || secondGallery.scope_type !== 'gallery') {
@@ -275,7 +275,7 @@ describe('demoService', () => {
     const service = getDemoService();
 
     const project = await service.createProject({ name: 'Delete Me' });
-    const gallery = await service.createProjectFolder(project.id, { name: 'Proofs' });
+    const gallery = await service.createProjectGallery(project.id, { name: 'Proofs' });
     const galleryId = gallery.id;
     const projectShareLink = await service.createProjectShareLink(project.id, {});
     const galleryShareLink = await service.createShareLink(galleryId, {});

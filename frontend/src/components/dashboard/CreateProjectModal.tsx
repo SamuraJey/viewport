@@ -44,7 +44,7 @@ export const CreateProjectModal = ({
         New Project
       </AppDialogTitle>
       <AppDialogDescription className="mb-5 text-sm text-muted">
-        Create a project that can contain multiple folders and project-wide share links.
+        Create a project that can contain multiple galleries and project-wide share links.
       </AppDialogDescription>
       <div className="space-y-4">
         <div>

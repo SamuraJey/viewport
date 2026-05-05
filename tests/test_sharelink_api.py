@@ -259,10 +259,14 @@ class TestSharelinkAPI:
         assert isinstance(data["share_links"], list)
         assert data["share_links"][0]["gallery_id"] == gallery_id_fixture
         assert "gallery_name" in data["share_links"][0]
+        assert "cover_photo_thumbnail_url" in data["share_links"][0]
+        assert "latest_activity_at" in data["share_links"][0]
         assert "selection_summary" in data["share_links"][0]
         assert {"is_enabled", "status", "selected_count", "total_sessions"} <= set(data["share_links"][0]["selection_summary"].keys())
         assert "summary" in data
         assert {"views", "zip_downloads", "single_downloads", "active_links"} <= set(data["summary"].keys())
+        assert len(data["points"]) == 30
+        assert {"day", "views_total", "views_unique", "zip_downloads", "single_downloads"} <= set(data["points"][0].keys())
 
     def test_owner_sharelinks_dashboard_search_applies_before_pagination(self, authenticated_client: TestClient, gallery_id_fixture: str):
         first_resp = authenticated_client.post(

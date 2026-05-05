@@ -8,12 +8,14 @@ from starlette.concurrency import run_in_threadpool
 
 from viewport.api.auth import hash_password
 from viewport.auth_utils import get_current_user
+from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.models.db import get_db
 from viewport.models.sharelink_selection import SelectionSessionStatus
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.project_repository import ProjectRepository
 from viewport.repositories.selection_repository import SelectionRepository
 from viewport.repositories.sharelink_repository import ShareLinkRepository
+from viewport.s3_service import AsyncS3Client
 from viewport.schemas.sharelink import (
     GalleryShareLinkResponse,
     ScopedShareLinkResponse,
@@ -293,6 +295,7 @@ async def list_owner_sharelinks(
     ),
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     selection_repo: SelectionRepository = Depends(get_selection_repository),
+    s3_client: AsyncS3Client = Depends(get_async_s3_client),
     user=Depends(get_current_user),
 ) -> ShareLinkDashboardResponse:
     rows, total, summary = await repo.get_sharelinks_by_owner(
@@ -302,10 +305,37 @@ async def list_owner_sharelinks(
         search=search,
         status=status_filter,
     )
+    daily_stats = await repo.get_owner_sharelink_daily_stats(
+        user.id,
+        days=30,
+        search=search,
+        status=status_filter,
+    )
 
-    sharelink_ids = [sharelink.id for sharelink, _, _ in rows]
+    sharelink_ids = [sharelink.id for sharelink, _, _, _ in rows]
     selection_summaries = await selection_repo.get_sharelink_selection_summaries(sharelink_ids)
     empty_selection_summary = (False, 0, 0, 0, 0, 0, None)
+    thumbnail_keys_by_sharelink = await repo.get_owner_sharelink_cover_thumbnail_keys(
+        sharelink_ids,
+        user.id,
+    )
+    thumbnail_keys = list(dict.fromkeys(thumbnail_keys_by_sharelink.values()))
+    thumbnail_urls_by_key = await s3_client.generate_presigned_urls_batch(thumbnail_keys, expires_in=7200) if thumbnail_keys else {}
+    daily_stats_by_day = {row[0]: row for row in daily_stats}
+    start_day = datetime.now(UTC).date() - timedelta(days=29)
+    points = []
+    for offset in range(30):
+        day = start_day + timedelta(days=offset)
+        stat = daily_stats_by_day.get(day)
+        points.append(
+            ShareLinkDailyPointResponse(
+                day=day,
+                views_total=stat[1] if stat else 0,
+                views_unique=stat[2] if stat else 0,
+                zip_downloads=stat[3] if stat else 0,
+                single_downloads=stat[4] if stat else 0,
+            )
+        )
 
     share_links = [
         ShareLinkDashboardListItemResponse(
@@ -315,6 +345,11 @@ async def list_owner_sharelinks(
             project_id=sharelink.project_id,
             gallery_name=gallery_name,
             project_name=project_name,
+            cover_photo_thumbnail_url=thumbnail_urls_by_key.get(
+                thumbnail_keys_by_sharelink[sharelink.id],
+            )
+            if sharelink.id in thumbnail_keys_by_sharelink
+            else None,
             label=sharelink.label,
             is_active=sharelink.is_active,
             expires_at=sharelink.expires_at,
@@ -324,9 +359,10 @@ async def list_owner_sharelinks(
             has_password=sharelink.has_password,
             created_at=sharelink.created_at,
             updated_at=sharelink.updated_at,
+            latest_activity_at=latest_activity_at,
             selection_summary=_to_selection_summary_response(*selection_summaries.get(sharelink.id, empty_selection_summary)),
         )
-        for sharelink, gallery_name, project_name in rows
+        for sharelink, gallery_name, project_name, latest_activity_at in rows
     ]
 
     return ShareLinkDashboardResponse(
@@ -335,6 +371,7 @@ async def list_owner_sharelinks(
         page=page,
         size=size,
         summary=ShareLinkDashboardSummaryResponse(**summary),
+        points=points,
     )
 
 

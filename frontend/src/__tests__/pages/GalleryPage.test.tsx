@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { GalleryPage } from '../../pages/GalleryPage';
@@ -176,7 +176,7 @@ vi.mock('../../services/projectService', () => ({
     createProject: vi.fn(),
     updateProject: vi.fn(),
     deleteProject: vi.fn(),
-    createProjectFolder: vi.fn(),
+    createProjectGallery: vi.fn(),
   },
 }));
 
@@ -212,6 +212,10 @@ const GalleryPageWrapper = () => {
       <GalleryPage />
     </MemoryRouter>
   );
+};
+
+const fillInput = (input: HTMLElement, value: string) => {
+  fireEvent.change(input, { target: { value } });
 };
 
 describe('GalleryPage', () => {
@@ -431,7 +435,7 @@ describe('GalleryPage', () => {
       const shootingDateInput = await screen.findByLabelText(/shooting date/i);
       expect(shootingDateInput).toHaveValue('2024-01-01');
 
-      await userEvent.clear(shootingDateInput);
+      fillInput(shootingDateInput, '');
 
       await waitFor(
         () => {
