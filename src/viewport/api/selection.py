@@ -33,16 +33,10 @@ from viewport.schemas.selection import (
     SelectionSubmitResponse,
     SelectionTogglePhotoResponse,
 )
-from viewport.sharelink_access import require_sharelink_password
-from viewport.sharelink_utils import is_sharelink_expired
+from viewport.selection_utils import NOT_STARTED_SELECTION_STATUS, selection_rollup_status
+from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_valid_public_sharelink
 
 router = APIRouter(tags=["selection"])
-
-PUBLIC_CACHE_CONTROL_HEADERS = {
-    "Cache-Control": "no-store, max-age=0, must-revalidate",
-    "Pragma": "no-cache",
-    "Expires": "0",
-}
 SELECTION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 SELECTION_COOKIE_PREFIX = "viewport-selection-resume-"
 LIGHTROOM_SEPARATOR = "|"
@@ -247,33 +241,11 @@ def _to_owner_selection_aggregate_response(
     )
 
 
-def _selection_rollup_status(
-    total_sessions: int,
-    submitted_sessions: int,
-    in_progress_sessions: int,
-    closed_sessions: int,
-) -> str:
-    if total_sessions <= 0:
-        return "not_started"
-    if submitted_sessions > 0:
-        return SelectionSessionStatus.SUBMITTED.value
-    if in_progress_sessions > 0:
-        return SelectionSessionStatus.IN_PROGRESS.value
-    if closed_sessions > 0:
-        return SelectionSessionStatus.CLOSED.value
-    return "not_started"
+_selection_rollup_status = selection_rollup_status
 
 
 async def _get_public_sharelink_or_404(share_id: uuid.UUID, repo: SelectionRepository, request: Request) -> ShareLink:
-    sharelink = await repo.get_public_sharelink(share_id)
-    if not sharelink:
-        raise HTTPException(status_code=404, detail="ShareLink not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-    if not sharelink.is_active:
-        raise HTTPException(status_code=404, detail="ShareLink not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-    if is_sharelink_expired(sharelink.expires_at):
-        raise HTTPException(status_code=410, detail="ShareLink expired", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-    await require_sharelink_password(sharelink, request)
-    return sharelink
+    return await get_valid_public_sharelink(share_id, repo, request)
 
 
 async def _get_enabled_selection_config_or_404(sharelink_id: uuid.UUID, repo: SelectionRepository) -> ShareLinkSelectionConfig:
@@ -967,7 +939,7 @@ async def export_gallery_selection_links_csv(
             str(sharelink.id),
             sharelink.label or "",
             f"{base_url}/share/{sharelink.id}",
-            (_selection_rollup_status(aggregate[0], aggregate[1], aggregate[2], aggregate[3]) if aggregate is not None else "not_started"),
+            (_selection_rollup_status(aggregate[0], aggregate[1], aggregate[2], aggregate[3]) if aggregate is not None else NOT_STARTED_SELECTION_STATUS),
             str(aggregate[4] if aggregate is not None else 0),
             (aggregate[5] if aggregate is not None and aggregate[5] is not None else (session.updated_at if session else sharelink.updated_at)).isoformat(),
         ]

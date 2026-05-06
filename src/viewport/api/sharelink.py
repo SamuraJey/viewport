@@ -1,4 +1,6 @@
-from datetime import UTC, datetime, timedelta
+from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
@@ -10,7 +12,7 @@ from viewport.api.auth import hash_password
 from viewport.auth_utils import get_current_user
 from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.models.db import get_db
-from viewport.models.sharelink_selection import SelectionSessionStatus
+from viewport.models.sharelink import ShareLink
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.project_repository import ProjectRepository
 from viewport.repositories.selection_repository import SelectionRepository
@@ -29,11 +31,32 @@ from viewport.schemas.sharelink import (
     ShareLinkSelectionSummaryResponse,
     ShareLinkUpdateRequest,
 )
+from viewport.selection_utils import EMPTY_SHARELINK_SELECTION_SUMMARY, ShareLinkSelectionSummaryAggregate, selection_rollup_status
 
 gallery_router = APIRouter(prefix="/galleries/{gallery_id}/share-links", tags=["sharelinks"])
 project_router = APIRouter(prefix="/projects/{project_id}/share-links", tags=["sharelinks"])
 dashboard_router = APIRouter(prefix="/share-links", tags=["sharelinks"])
 router = APIRouter(tags=["sharelinks"])
+
+type DailyPointValues = tuple[int, int, int, int]
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedShareLinkCreate:
+    expires_at: datetime | None
+    label: str | None
+    is_active: bool
+    password_hash: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedShareLinkUpdate:
+    fields_set: set[str]
+    label: str | None
+    expires_at: datetime | None
+    is_active: bool | None
+    password_hash: str | None
+    password_clear: bool | None
 
 
 def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
@@ -65,47 +88,91 @@ def _normalize_label(label: str | None) -> str | None:
     return normalized or None
 
 
-def _selection_rollup_status(
-    total_sessions: int,
-    submitted_sessions: int,
-    in_progress_sessions: int,
-    closed_sessions: int,
-) -> str:
-    if total_sessions <= 0:
-        return "not_started"
-    if submitted_sessions > 0:
-        return SelectionSessionStatus.SUBMITTED.value
-    if in_progress_sessions > 0:
-        return SelectionSessionStatus.IN_PROGRESS.value
-    if closed_sessions > 0:
-        return SelectionSessionStatus.CLOSED.value
-    return "not_started"
+async def _prepare_sharelink_create(req: ShareLinkCreateRequest) -> PreparedShareLinkCreate:
+    return PreparedShareLinkCreate(
+        expires_at=req.expires_at,
+        label=_normalize_label(req.label),
+        is_active=req.is_active,
+        password_hash=await _hash_sharelink_password(req.password),
+    )
+
+
+async def _prepare_sharelink_update(req: ShareLinkUpdateRequest) -> PreparedShareLinkUpdate:
+    update_data = req.model_dump(exclude_unset=True)
+    if "label" in update_data:
+        update_data["label"] = _normalize_label(update_data["label"])
+
+    return PreparedShareLinkUpdate(
+        fields_set=set(update_data.keys()),
+        label=update_data.get("label"),
+        expires_at=update_data.get("expires_at"),
+        is_active=update_data.get("is_active"),
+        password_hash=await _hash_sharelink_password(update_data.get("password")) if "password" in update_data else None,
+        password_clear=update_data.get("password_clear"),
+    )
 
 
 def _to_selection_summary_response(
-    is_enabled: bool,
-    total_sessions: int,
-    submitted_sessions: int,
-    in_progress_sessions: int,
-    closed_sessions: int,
-    selected_count: int,
-    latest_activity_at: datetime | None,
+    summary: ShareLinkSelectionSummaryAggregate,
 ) -> ShareLinkSelectionSummaryResponse:
     return ShareLinkSelectionSummaryResponse(
-        is_enabled=is_enabled,
-        status=_selection_rollup_status(
-            total_sessions,
-            submitted_sessions,
-            in_progress_sessions,
-            closed_sessions,
+        is_enabled=summary.is_enabled,
+        status=selection_rollup_status(
+            summary.total_sessions,
+            summary.submitted_sessions,
+            summary.in_progress_sessions,
+            summary.closed_sessions,
         ),
-        total_sessions=total_sessions,
-        submitted_sessions=submitted_sessions,
-        in_progress_sessions=in_progress_sessions,
-        closed_sessions=closed_sessions,
-        selected_count=selected_count,
-        latest_activity_at=latest_activity_at,
+        total_sessions=summary.total_sessions,
+        submitted_sessions=summary.submitted_sessions,
+        in_progress_sessions=summary.in_progress_sessions,
+        closed_sessions=summary.closed_sessions,
+        selected_count=summary.selected_count,
+        latest_activity_at=summary.latest_activity_at,
     )
+
+
+def _selection_summary_from_map(
+    selection_summaries: Mapping[UUID, ShareLinkSelectionSummaryAggregate],
+    sharelink_id: UUID,
+) -> ShareLinkSelectionSummaryResponse:
+    return _to_selection_summary_response(selection_summaries.get(sharelink_id, EMPTY_SHARELINK_SELECTION_SUMMARY))
+
+
+def _scoped_sharelink_responses(
+    sharelinks: list[ShareLink],
+    selection_summaries: Mapping[UUID, ShareLinkSelectionSummaryAggregate],
+) -> list[ScopedShareLinkResponse]:
+    return [
+        ScopedShareLinkResponse.model_validate(sharelink).model_copy(
+            update={
+                "selection_summary": _selection_summary_from_map(selection_summaries, sharelink.id),
+            }
+        )
+        for sharelink in sharelinks
+    ]
+
+
+def _zero_filled_daily_points(
+    stats_by_day: Mapping[date, DailyPointValues],
+    *,
+    days: int,
+) -> list[ShareLinkDailyPointResponse]:
+    start_day = datetime.now(UTC).date() - timedelta(days=days - 1)
+    points: list[ShareLinkDailyPointResponse] = []
+    for offset in range(days):
+        day = start_day + timedelta(days=offset)
+        views_total, views_unique, zip_downloads, single_downloads = stats_by_day.get(day, (0, 0, 0, 0))
+        points.append(
+            ShareLinkDailyPointResponse(
+                day=day,
+                views_total=views_total,
+                views_unique=views_unique,
+                zip_downloads=zip_downloads,
+                single_downloads=single_downloads,
+            )
+        )
+    return points
 
 
 @gallery_router.get("", response_model=list[GalleryShareLinkResponse])
@@ -127,8 +194,14 @@ async def create_sharelink(gallery_id: UUID, req: ShareLinkCreateRequest, repo: 
     gallery = await repo.get_gallery_by_id_and_owner(gallery_id, user.id)
     if not gallery:
         raise HTTPException(status_code=404, detail="Gallery not found")
-    password_hash = await _hash_sharelink_password(req.password)
-    sharelink = await repo.create_sharelink(gallery_id, req.expires_at, label=_normalize_label(req.label), is_active=req.is_active, password_hash=password_hash)
+    create_data = await _prepare_sharelink_create(req)
+    sharelink = await repo.create_sharelink(
+        gallery_id,
+        create_data.expires_at,
+        label=create_data.label,
+        is_active=create_data.is_active,
+        password_hash=create_data.password_hash,
+    )
     return GalleryShareLinkResponse.model_validate(sharelink)
 
 
@@ -140,22 +213,19 @@ async def update_sharelink(
     repo: GalleryRepository = Depends(get_gallery_repository),
     user=Depends(get_current_user),
 ) -> GalleryShareLinkResponse:
-    update_data = req.model_dump(exclude_unset=True)
-    if "label" in update_data:
-        update_data["label"] = _normalize_label(update_data["label"])
-    password_hash = await _hash_sharelink_password(update_data.get("password")) if "password" in update_data else None
+    update_data = await _prepare_sharelink_update(req)
 
     try:
         sharelink = await repo.update_sharelink(
             sharelink_id,
             gallery_id,
             user.id,
-            fields_set=set(update_data.keys()),
-            label=update_data.get("label"),
-            expires_at=update_data.get("expires_at"),
-            is_active=update_data.get("is_active"),
-            password_hash=password_hash,
-            password_clear=update_data.get("password_clear"),
+            fields_set=update_data.fields_set,
+            label=update_data.label,
+            expires_at=update_data.expires_at,
+            is_active=update_data.is_active,
+            password_hash=update_data.password_hash,
+            password_clear=update_data.password_clear,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -185,15 +255,7 @@ async def list_project_sharelinks(
     selection_summaries = await selection_repo.get_sharelink_selection_summaries(
         [sharelink.id for sharelink in sharelinks],
     )
-    empty_selection_summary = (False, 0, 0, 0, 0, 0, None)
-    return [
-        ScopedShareLinkResponse.model_validate(sharelink).model_copy(
-            update={
-                "selection_summary": _to_selection_summary_response(*selection_summaries.get(sharelink.id, empty_selection_summary)),
-            }
-        )
-        for sharelink in sharelinks
-    ]
+    return _scoped_sharelink_responses(sharelinks, selection_summaries)
 
 
 @project_router.get("/warnings", response_model=list[ScopedShareLinkResponse])
@@ -212,17 +274,7 @@ async def list_project_warning_sharelinks(
     selection_summaries = await selection_repo.get_sharelink_selection_summaries(
         [sharelink.id for sharelink in sharelinks],
     )
-    empty_selection_summary = (False, 0, 0, 0, 0, 0, None)
-    return [
-        ScopedShareLinkResponse.model_validate(sharelink).model_copy(
-            update={
-                "selection_summary": _to_selection_summary_response(
-                    *selection_summaries.get(sharelink.id, empty_selection_summary),
-                ),
-            }
-        )
-        for sharelink in sharelinks
-    ]
+    return _scoped_sharelink_responses(sharelinks, selection_summaries)
 
 
 @project_router.post("", response_model=ScopedShareLinkResponse, status_code=status.HTTP_201_CREATED)
@@ -235,8 +287,14 @@ async def create_project_sharelink(
     project = await repo.get_project_by_id_and_owner(project_id, user.id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    password_hash = await _hash_sharelink_password(req.password)
-    sharelink = await repo.create_project_sharelink(project_id, req.expires_at, label=_normalize_label(req.label), is_active=req.is_active, password_hash=password_hash)
+    create_data = await _prepare_sharelink_create(req)
+    sharelink = await repo.create_project_sharelink(
+        project_id,
+        create_data.expires_at,
+        label=create_data.label,
+        is_active=create_data.is_active,
+        password_hash=create_data.password_hash,
+    )
     return ScopedShareLinkResponse.model_validate(sharelink)
 
 
@@ -248,22 +306,19 @@ async def update_project_sharelink(
     repo: ProjectRepository = Depends(get_project_repository),
     user=Depends(get_current_user),
 ) -> ScopedShareLinkResponse:
-    update_data = req.model_dump(exclude_unset=True)
-    if "label" in update_data:
-        update_data["label"] = _normalize_label(update_data["label"])
-    password_hash = await _hash_sharelink_password(update_data.get("password")) if "password" in update_data else None
+    update_data = await _prepare_sharelink_update(req)
 
     try:
         sharelink = await repo.update_project_sharelink(
             sharelink_id,
             project_id,
             user.id,
-            fields_set=set(update_data.keys()),
-            label=update_data.get("label"),
-            expires_at=update_data.get("expires_at"),
-            is_active=update_data.get("is_active"),
-            password_hash=password_hash,
-            password_clear=update_data.get("password_clear"),
+            fields_set=update_data.fields_set,
+            label=update_data.label,
+            expires_at=update_data.expires_at,
+            is_active=update_data.is_active,
+            password_hash=update_data.password_hash,
+            password_clear=update_data.password_clear,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -314,28 +369,13 @@ async def list_owner_sharelinks(
 
     sharelink_ids = [sharelink.id for sharelink, _, _, _ in rows]
     selection_summaries = await selection_repo.get_sharelink_selection_summaries(sharelink_ids)
-    empty_selection_summary = (False, 0, 0, 0, 0, 0, None)
     thumbnail_keys_by_sharelink = await repo.get_owner_sharelink_cover_thumbnail_keys(
         sharelink_ids,
         user.id,
     )
     thumbnail_keys = list(dict.fromkeys(thumbnail_keys_by_sharelink.values()))
     thumbnail_urls_by_key = await s3_client.generate_presigned_urls_batch(thumbnail_keys, expires_in=7200) if thumbnail_keys else {}
-    daily_stats_by_day = {row[0]: row for row in daily_stats}
-    start_day = datetime.now(UTC).date() - timedelta(days=29)
-    points = []
-    for offset in range(30):
-        day = start_day + timedelta(days=offset)
-        stat = daily_stats_by_day.get(day)
-        points.append(
-            ShareLinkDailyPointResponse(
-                day=day,
-                views_total=stat[1] if stat else 0,
-                views_unique=stat[2] if stat else 0,
-                zip_downloads=stat[3] if stat else 0,
-                single_downloads=stat[4] if stat else 0,
-            )
-        )
+    daily_stats_by_day = {row_day: (views_total, views_unique, zip_downloads, single_downloads) for row_day, views_total, views_unique, zip_downloads, single_downloads in daily_stats}
 
     share_links = [
         ShareLinkDashboardListItemResponse(
@@ -360,7 +400,7 @@ async def list_owner_sharelinks(
             created_at=sharelink.created_at,
             updated_at=sharelink.updated_at,
             latest_activity_at=latest_activity_at,
-            selection_summary=_to_selection_summary_response(*selection_summaries.get(sharelink.id, empty_selection_summary)),
+            selection_summary=_selection_summary_from_map(selection_summaries, sharelink.id),
         )
         for sharelink, gallery_name, project_name, latest_activity_at in rows
     ]
@@ -371,7 +411,7 @@ async def list_owner_sharelinks(
         page=page,
         size=size,
         summary=ShareLinkDashboardSummaryResponse(**summary),
-        points=points,
+        points=_zero_filled_daily_points(daily_stats_by_day, days=30),
     )
 
 
@@ -389,22 +429,7 @@ async def get_sharelink_analytics(
 
     sharelink, gallery_name, project_name = row
     stats = await repo.get_sharelink_daily_stats(sharelink_id, days=days)
-    points_by_day = {point.day: point for point in stats}
-
-    start_day = datetime.now(UTC).date() - timedelta(days=days - 1)
-    points = []
-    for offset in range(days):
-        day = start_day + timedelta(days=offset)
-        stat = points_by_day.get(day)
-        points.append(
-            ShareLinkDailyPointResponse(
-                day=day,
-                views_total=stat.views_total if stat else 0,
-                views_unique=stat.views_unique if stat else 0,
-                zip_downloads=stat.zip_downloads if stat else 0,
-                single_downloads=stat.single_downloads if stat else 0,
-            )
-        )
+    stats_by_day = {point.day: (point.views_total, point.views_unique, point.zip_downloads, point.single_downloads) for point in stats}
 
     share_link = ShareLinkDashboardItemResponse(
         id=sharelink.id,
@@ -425,12 +450,11 @@ async def get_sharelink_analytics(
     )
 
     sharelink_selection_summaries = await selection_repo.get_sharelink_selection_summaries([sharelink.id])
-    selection_summary = _to_selection_summary_response(*sharelink_selection_summaries.get(sharelink.id, (False, 0, 0, 0, 0, 0, None)))
 
     return ShareLinkAnalyticsResponse(
         share_link=share_link,
-        selection_summary=selection_summary,
-        points=points,
+        selection_summary=_selection_summary_from_map(sharelink_selection_summaries, sharelink.id),
+        points=_zero_filled_daily_points(stats_by_day, days=days),
     )
 
 

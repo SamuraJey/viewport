@@ -15,6 +15,7 @@ from viewport.models.user import User
 from viewport.s3_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client, get_s3_settings
 from viewport.services.redis_service import RedisService
 from viewport.task_utils import BatchTaskResult, task_db_session
+from viewport.thumbnail_tasks import ThumbnailTaskItem, ThumbnailTaskPayload, to_thumbnail_task_payloads
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ def _decrement_used_for_owner_totals(db, owner_totals: list[tuple[uuid.UUID, int
 
 
 def _process_single_photo(
-    photo_data: dict,
+    photo_data: ThumbnailTaskPayload,
     s3_client: "S3Client",
     bucket: str,
     existing_ids: set[str],
@@ -362,7 +363,7 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
     retry_backoff_max=120,
     retry_jitter=True,
 )
-def create_thumbnails_batch_task(self, photos: list[dict]) -> dict:
+def create_thumbnails_batch_task(self, photos: list[ThumbnailTaskPayload]) -> dict:
     """Background task to create thumbnails for multiple photos in one batch"""
     logger.info("Starting batch thumbnail creation for %s photos", len(photos))
 
@@ -638,7 +639,7 @@ def reconcile_successful_uploads_task() -> dict:
     if not rows:
         return {"requeued_count": 0}
 
-    photos = [{"photo_id": str(row[0]), "object_key": row[1]} for row in rows]
+    photos = to_thumbnail_task_payloads(ThumbnailTaskItem(row[0], row[1]) for row in rows)
     create_thumbnails_batch_task.delay(photos)
     logger.info("Requeued %s successful uploads missing thumbnails/metadata", len(photos))
     return {"requeued_count": len(photos)}

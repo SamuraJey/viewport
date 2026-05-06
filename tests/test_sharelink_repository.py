@@ -390,6 +390,48 @@ async def test_get_sharelinks_by_owner_filters_by_status(repo: ShareLinkReposito
 
 
 @pytest.mark.asyncio
+async def test_get_owner_sharelink_daily_stats_filters_by_status(
+    repo: ShareLinkRepository,
+    db_session,
+    freezer: FrozenDateTimeFactory,
+):
+    now = datetime(2026, 4, 17, 10, 0, 0, tzinfo=UTC)
+    freezer.move_to(now)
+
+    user = User(email=f"sharelink-daily-status-{uuid4()}@example.com", password_hash="hashed", display_name="sharelink user")
+    db_session.add(user)
+    await db_session.commit()
+
+    gallery = Gallery(owner_id=user.id, name="Daily Status Gallery")
+    db_session.add(gallery)
+    await db_session.commit()
+
+    active_sharelink = ShareLink(gallery_id=gallery.id, label="Active Daily", expires_at=now.replace(tzinfo=None) + timedelta(days=1), is_active=True)
+    inactive_sharelink = ShareLink(gallery_id=gallery.id, label="Inactive Daily", expires_at=now.replace(tzinfo=None) + timedelta(days=1), is_active=False)
+    expired_sharelink = ShareLink(gallery_id=gallery.id, label="Expired Daily", expires_at=now.replace(tzinfo=None) - timedelta(days=1), is_active=True)
+    db_session.add_all([active_sharelink, inactive_sharelink, expired_sharelink])
+    await db_session.commit()
+
+    today = now.date()
+    db_session.add_all(
+        [
+            ShareLinkDailyStat(sharelink_id=active_sharelink.id, day=today, views_total=3, views_unique=2, zip_downloads=1, single_downloads=0),
+            ShareLinkDailyStat(sharelink_id=inactive_sharelink.id, day=today, views_total=5, views_unique=4, zip_downloads=0, single_downloads=2),
+            ShareLinkDailyStat(sharelink_id=expired_sharelink.id, day=today, views_total=7, views_unique=6, zip_downloads=3, single_downloads=1),
+        ]
+    )
+    await db_session.commit()
+
+    active_rows = await repo.get_owner_sharelink_daily_stats(user.id, days=1, status="active")
+    inactive_rows = await repo.get_owner_sharelink_daily_stats(user.id, days=1, status="inactive")
+    expired_rows = await repo.get_owner_sharelink_daily_stats(user.id, days=1, status="expired")
+
+    assert active_rows == [(today, 3, 2, 1, 0)]
+    assert inactive_rows == [(today, 5, 4, 0, 2)]
+    assert expired_rows == [(today, 7, 6, 3, 1)]
+
+
+@pytest.mark.asyncio
 async def test_get_sharelinks_by_owner_treats_expiry_boundary_as_expired(
     repo: ShareLinkRepository,
     db_session,

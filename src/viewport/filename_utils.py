@@ -28,6 +28,11 @@ def split_name_and_ext(filename: str) -> tuple[str, str]:
     return stem, suffix
 
 
+def build_content_disposition(filename: str, disposition_type: str = "inline") -> str:
+    safe_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
+    return f'{disposition_type}; filename="{safe_filename}"'
+
+
 def truncate_utf8(value: str, max_bytes: int) -> str:
     if max_bytes <= 0:
         return ""

@@ -279,6 +279,11 @@ class TestPhotoAPI:
         result = response.json()
         assert result["confirmed_count"] == 1
         assert result["failed_count"] == 1
+        assert isinstance(captured["batch"], list)
+        assert isinstance(captured["batch"][0], dict)
+        assert set(captured["batch"][0]) == {"photo_id", "object_key"}
+        assert isinstance(captured["batch"][0]["photo_id"], str)
+        assert isinstance(captured["batch"][0]["object_key"], str)
         assert captured["batch"][0]["photo_id"] == photo_id
 
     @pytest.mark.skip(reason="FIx later")

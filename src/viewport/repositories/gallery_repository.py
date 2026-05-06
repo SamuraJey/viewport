@@ -12,6 +12,8 @@ from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.repositories.base_repository import BaseRepository
 from viewport.repositories.gallery_stats import GalleryPhotoStats, gallery_photo_stats_stmt, gallery_photo_total_size_stmt
 from viewport.repositories.photo_query_helpers import build_photo_order_clauses
+from viewport.repositories.query_utils import LIKE_ESCAPE_CHAR as DEFAULT_LIKE_ESCAPE_CHAR
+from viewport.repositories.query_utils import escape_like_term, literal_like_pattern
 from viewport.repositories.user_repository import UserRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.schemas.gallery import GalleryListSortBy, GalleryPhotoSortBy, SortOrder
@@ -21,19 +23,18 @@ logger = logging.getLogger(__name__)
 
 
 class GalleryRepository(BaseRepository):
-    LIKE_ESCAPE_CHAR = "\\"
+    LIKE_ESCAPE_CHAR = DEFAULT_LIKE_ESCAPE_CHAR
 
     @classmethod
     def _escape_like_term(cls, value: str) -> str:
         """Escape SQL LIKE wildcards so search behaves as a literal substring match."""
-        return value.replace(cls.LIKE_ESCAPE_CHAR, cls.LIKE_ESCAPE_CHAR * 2).replace("%", f"{cls.LIKE_ESCAPE_CHAR}%").replace("_", f"{cls.LIKE_ESCAPE_CHAR}_")
+        return escape_like_term(value, cls.LIKE_ESCAPE_CHAR)
 
     @staticmethod
     def _build_photo_filters(gallery_id: uuid.UUID, search: str | None = None):
         filters = [Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)]
         if search:
-            escaped_search = GalleryRepository._escape_like_term(search)
-            filters.append(Photo.display_name.ilike(f"%{escaped_search}%", escape=GalleryRepository.LIKE_ESCAPE_CHAR))
+            filters.append(Photo.display_name.ilike(literal_like_pattern(search, GalleryRepository.LIKE_ESCAPE_CHAR), escape=GalleryRepository.LIKE_ESCAPE_CHAR))
         return filters
 
     @staticmethod
@@ -180,8 +181,7 @@ class GalleryRepository(BaseRepository):
         if project_id is not None:
             filters.append(Gallery.project_id == project_id)
         if search:
-            escaped_search = self._escape_like_term(search)
-            filters.append(Gallery.name.ilike(f"%{escaped_search}%", escape=self.LIKE_ESCAPE_CHAR))
+            filters.append(Gallery.name.ilike(literal_like_pattern(search, self.LIKE_ESCAPE_CHAR), escape=self.LIKE_ESCAPE_CHAR))
 
         count_stmt = select(func.count()).select_from(Gallery).where(*filters)
         total = (await self.db.execute(count_stmt)).scalar()

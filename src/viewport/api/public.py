@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from viewport.dependencies import get_s3_client as get_async_s3_client
+from viewport.filename_utils import build_content_disposition
 from viewport.logger import logger
 from viewport.models.db import get_db
 from viewport.models.gallery import Gallery, Photo
@@ -26,11 +27,6 @@ from viewport.zip_utils import build_zip_fallback_name, make_unique_zip_entry_na
 
 router = APIRouter(prefix="/s", tags=["public"])
 INTERNAL_PROJECT_NAVIGATION_HEADER = "x-viewport-internal-navigation"
-
-
-def _build_content_disposition(filename: str, disposition_type: str = "inline") -> str:
-    safe_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
-    return f'{disposition_type}; filename="{safe_filename}"'
 
 
 def _resolve_public_sorting(gallery: Gallery) -> tuple[GalleryPhotoSortBy, SortOrder]:
@@ -132,7 +128,7 @@ async def _build_public_gallery_response(
     thumbnail_keys = [photo.thumbnail_object_key for photo in photos_to_process]
     thumb_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys)
     full_url_map = await s3_client.generate_presigned_urls_batch_for_dispositions(
-        {photo.object_key: _build_content_disposition(photo.display_name, disposition_type="inline") for photo in photos_to_process}
+        {photo.object_key: build_content_disposition(photo.display_name, disposition_type="inline") for photo in photos_to_process}
     )
 
     photo_list = []
@@ -167,7 +163,7 @@ async def _build_public_gallery_response(
             cover_filename = cover_photo_obj.display_name
             cover_url = full_url_map.get(cover_photo_obj.object_key) or await s3_client.generate_presigned_url_async(
                 cover_photo_obj.object_key,
-                response_content_disposition=_build_content_disposition(cover_photo_obj.display_name, disposition_type="inline"),
+                response_content_disposition=build_content_disposition(cover_photo_obj.display_name, disposition_type="inline"),
             )
             cover_thumb_url = thumb_url_map.get(cover_photo_obj.thumbnail_object_key, cover_url)
         else:
@@ -232,7 +228,7 @@ async def _build_project_cover(
 
     full_url = await s3_client.generate_presigned_url_async(
         cover_photo.object_key,
-        response_content_disposition=_build_content_disposition(cover_photo.display_name, disposition_type="inline"),
+        response_content_disposition=build_content_disposition(cover_photo.display_name, disposition_type="inline"),
     )
     thumbnail_url = await s3_client.generate_presigned_url_async(cover_photo.thumbnail_object_key)
 
@@ -480,7 +476,7 @@ async def get_public_photos_by_ids(
     thumbnail_keys = [photo.thumbnail_object_key for photo in ordered_photos]
     thumb_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys)
     full_url_map = await s3_client.generate_presigned_urls_batch_for_dispositions(
-        {photo.object_key: _build_content_disposition(photo.display_name, disposition_type="inline") for photo in ordered_photos}
+        {photo.object_key: build_content_disposition(photo.display_name, disposition_type="inline") for photo in ordered_photos}
     )
 
     return [

@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import cast
 
-from sqlalchemy import and_, case, func, or_, select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
@@ -15,24 +15,11 @@ from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_selection import SelectionSessionStatus, ShareLinkSelectionConfig, ShareLinkSelectionItem, ShareLinkSelectionSession
 from viewport.repositories.base_repository import BaseRepository
 from viewport.repositories.sharelink_repository import ShareLinkRepository
+from viewport.repositories.sharelink_scope_filters import scope_sharelinks_to_owner
+from viewport.selection_utils import ShareLinkSelectionSummaryAggregate
 
 
 class SelectionRepository(BaseRepository):
-    @staticmethod
-    def _owner_filter(owner_id: uuid.UUID):
-        return or_(
-            and_(
-                ShareLink.scope_type == ShareScopeType.GALLERY.value,
-                Gallery.owner_id == owner_id,
-                Gallery.is_deleted.is_(False),
-            ),
-            and_(
-                ShareLink.scope_type == ShareScopeType.PROJECT.value,
-                Project.owner_id == owner_id,
-                Project.is_deleted.is_(False),
-            ),
-        )
-
     @staticmethod
     def _hash_resume_token(token: str) -> str:
         return hashlib.sha256(token.encode("utf-8")).hexdigest()
@@ -42,23 +29,24 @@ class SelectionRepository(BaseRepository):
         token = secrets.token_urlsafe(32)
         return token, SelectionRepository._hash_resume_token(token)
 
-    async def get_public_sharelink(self, share_id: uuid.UUID) -> ShareLink | None:
+    async def get_sharelink_for_public_access(self, share_id: uuid.UUID) -> ShareLink | None:
         return await ShareLinkRepository(self.db).get_sharelink_for_public_access(share_id)
+
+    async def get_public_sharelink(self, share_id: uuid.UUID) -> ShareLink | None:
+        return await self.get_sharelink_for_public_access(share_id)
 
     async def get_owner_sharelink(self, sharelink_id: uuid.UUID, owner_id: uuid.UUID) -> ShareLink | None:
         stmt = (
             select(ShareLink)
-            .outerjoin(ShareLink.gallery)
-            .outerjoin(ShareLink.project)
             .where(
                 ShareLink.id == sharelink_id,
-                self._owner_filter(owner_id),
             )
             .options(
                 selectinload(ShareLink.gallery),
                 selectinload(ShareLink.project),
             )
         )
+        stmt = scope_sharelinks_to_owner(stmt, owner_id)
         sharelink = (await self.db.execute(stmt)).scalar_one_or_none()
         return await self._finish_read(sharelink)
 
@@ -410,14 +398,12 @@ class SelectionRepository(BaseRepository):
         stmt = (
             select(ShareLinkSelectionSession)
             .join(ShareLink, ShareLink.id == ShareLinkSelectionSession.sharelink_id)
-            .outerjoin(ShareLink.gallery)
-            .outerjoin(ShareLink.project)
             .where(
                 ShareLink.id == sharelink_id,
-                self._owner_filter(owner_id),
                 ShareLinkSelectionSession.status == from_status.value,
             )
         )
+        stmt = scope_sharelinks_to_owner(stmt, owner_id)
         sessions = list((await self.db.execute(stmt)).scalars().all())
         for session in sessions:
             session.status = to_status.value
@@ -550,7 +536,7 @@ class SelectionRepository(BaseRepository):
     async def get_sharelink_selection_summaries(
         self,
         sharelink_ids: list[uuid.UUID],
-    ) -> dict[uuid.UUID, tuple[bool, int, int, int, int, int, datetime | None]]:
+    ) -> dict[uuid.UUID, ShareLinkSelectionSummaryAggregate]:
         if not sharelink_ids:
             return await self._finish_read({})
 
@@ -602,17 +588,17 @@ class SelectionRepository(BaseRepository):
         )
 
         rows = (await self.db.execute(stmt)).all()
-        summaries: dict[uuid.UUID, tuple[bool, int, int, int, int, int, datetime | None]] = {}
+        summaries: dict[uuid.UUID, ShareLinkSelectionSummaryAggregate] = {}
         for row in rows:
             sharelink_id = cast(uuid.UUID, row.id)
-            summaries[sharelink_id] = (
-                bool(row.is_enabled),
-                int(row.total_sessions or 0),
-                int(row.submitted_sessions or 0),
-                int(row.in_progress_sessions or 0),
-                int(row.closed_sessions or 0),
-                int(row.selected_count or 0),
-                cast(datetime | None, row.latest_activity_at),
+            summaries[sharelink_id] = ShareLinkSelectionSummaryAggregate(
+                is_enabled=bool(row.is_enabled),
+                total_sessions=int(row.total_sessions or 0),
+                submitted_sessions=int(row.submitted_sessions or 0),
+                in_progress_sessions=int(row.in_progress_sessions or 0),
+                closed_sessions=int(row.closed_sessions or 0),
+                selected_count=int(row.selected_count or 0),
+                latest_activity_at=cast(datetime | None, row.latest_activity_at),
             )
         return await self._finish_read(summaries)
 
