@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
+  AlertTriangle,
   ArrowLeft,
   BarChart3,
+  CalendarClock,
+  CheckCircle2,
+  Clock3,
   Copy,
   Download,
   ExternalLink,
@@ -10,9 +14,12 @@ import {
   Loader2,
   Lock,
   LockOpen,
+  MousePointerClick,
   PencilLine,
+  ShieldCheck,
   SlidersHorizontal,
   Trash2,
+  type LucideIcon,
 } from 'lucide-react';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
 import { ShareLinkStatusBadge } from '../components/share-links/ShareLinkStatusBadge';
@@ -61,6 +68,67 @@ const formatDateTime = (value?: string | null, fallback = 'Not set') => {
   }
 
   return date.toLocaleString();
+};
+
+const formatRelativeDateLabel = (value?: string | null) => {
+  if (!value) return 'No activity yet';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'No activity yet';
+
+  const diffMs = Date.now() - date.getTime();
+  const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000));
+
+  if (diffDays === 0) return 'today';
+  if (diffDays === 1) return 'yesterday';
+  return `${numberFormatter.format(diffDays)} days ago`;
+};
+
+type HealthTone = 'success' | 'warning' | 'danger' | 'neutral' | 'accent';
+
+const healthToneClasses: Record<HealthTone, string> = {
+  success: 'border-success/25 bg-success/10 text-success',
+  warning: 'border-accent/25 bg-accent/10 text-accent',
+  danger: 'border-danger/30 bg-danger/10 text-danger',
+  neutral: 'border-border/50 bg-surface-1 text-muted dark:border-white/10 dark:bg-white/[0.035]',
+  accent: 'border-accent/25 bg-accent/10 text-accent',
+};
+
+interface LinkHealthCardProps {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  hint: string;
+  tone: HealthTone;
+}
+
+const LinkHealthCard = ({ icon: Icon, label, value, hint, tone }: LinkHealthCardProps) => (
+  <div
+    className={`rounded-2xl border p-4 shadow-xs transition-colors duration-200 motion-reduce:transition-none ${healthToneClasses[tone]}`}
+  >
+    <div className="flex items-start gap-3">
+      <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-current/10">
+        <Icon className="h-4 w-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] opacity-75">{label}</p>
+        <p className="mt-1 truncate text-lg font-bold text-text dark:text-accent-foreground">
+          {value}
+        </p>
+        <p className="mt-1 text-sm leading-5 text-muted">{hint}</p>
+      </div>
+    </div>
+  </div>
+);
+
+const resetScrollForBreadcrumbNavigation = () => {
+  const root = document.documentElement;
+  const previousScrollBehavior = root.style.scrollBehavior;
+  root.style.scrollBehavior = 'auto';
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  window.setTimeout(() => {
+    root.style.scrollBehavior = previousScrollBehavior;
+  }, 0);
 };
 
 export const ShareLinkDetailPage = () => {
@@ -249,6 +317,29 @@ export const ShareLinkDetailPage = () => {
     () => [...(analytics?.points ?? [])].slice(-5).reverse(),
     [analytics?.points],
   );
+  const selectionConfigHasChanges = useMemo(() => {
+    if (!selectionConfigDraft || !selectionDetail) {
+      return false;
+    }
+
+    const config = selectionDetail.config;
+    const draftLimitValue =
+      selectionConfigDraft.limit_enabled && selectionConfigDraft.limit_value.trim()
+        ? Number.parseInt(selectionConfigDraft.limit_value, 10)
+        : null;
+    const configLimitValue = config.limit_enabled ? config.limit_value : null;
+
+    return (
+      selectionConfigDraft.is_enabled !== config.is_enabled ||
+      selectionConfigDraft.list_title.trim() !== config.list_title ||
+      selectionConfigDraft.limit_enabled !== config.limit_enabled ||
+      draftLimitValue !== configLimitValue ||
+      selectionConfigDraft.allow_photo_comments !== config.allow_photo_comments ||
+      selectionConfigDraft.require_email !== config.require_email ||
+      selectionConfigDraft.require_phone !== config.require_phone ||
+      selectionConfigDraft.require_client_note !== config.require_client_note
+    );
+  }, [selectionConfigDraft, selectionDetail]);
 
   const handleCopyLink = async () => {
     if (!analytics) return;
@@ -447,6 +538,50 @@ export const ShareLinkDetailPage = () => {
     selected_count: 0,
     latest_activity_at: null,
   };
+  const totalDownloads = totals.zipDownloads + totals.singleDownloads;
+  const latestActivityLabel =
+    selectionSummary.latest_activity_at ?? latestPoint?.day ?? analytics.share_link.updated_at;
+  const healthCards: LinkHealthCardProps[] = [
+    {
+      icon: status === 'active' ? ShieldCheck : status === 'expired' ? AlertTriangle : Lock,
+      label: 'Link health',
+      value: status === 'active' ? 'Public and reachable' : status,
+      hint:
+        status === 'active'
+          ? 'Clients can open this share link now.'
+          : status === 'expired'
+            ? 'Extend the expiration date before sending it again.'
+            : 'Resume the link when you are ready for clients.',
+      tone: status === 'active' ? 'success' : status === 'expired' ? 'danger' : 'warning',
+    },
+    {
+      icon: MousePointerClick,
+      label: 'Engagement',
+      value: `${numberFormatter.format(totals.totalViews)} views`,
+      hint: `${numberFormatter.format(totals.uniqueViews)} unique · ${numberFormatter.format(totalDownloads)} downloads`,
+      tone: totals.totalViews > 0 ? 'accent' : 'neutral',
+    },
+    {
+      icon: CheckCircle2,
+      label: 'Selection',
+      value: selectionSummary.is_enabled
+        ? `${numberFormatter.format(selectionSummary.selected_count)} selected`
+        : 'Disabled',
+      hint: selectionSummary.is_enabled
+        ? `${numberFormatter.format(selectionSummary.in_progress_sessions)} in progress · ${numberFormatter.format(selectionSummary.submitted_sessions)} submitted`
+        : 'Enable photo selection from the Selection tab.',
+      tone: selectionSummary.in_progress_sessions > 0 ? 'warning' : 'neutral',
+    },
+    {
+      icon: CalendarClock,
+      label: 'Latest signal',
+      value: latestPoint
+        ? formatDay(latestPoint.day)
+        : formatRelativeDateLabel(latestActivityLabel),
+      hint: formatRelativeDateLabel(latestActivityLabel),
+      tone: latestPoint || selectionSummary.latest_activity_at ? 'success' : 'neutral',
+    },
+  ];
   const publicUrl = `${window.location.origin}/share/${analytics.share_link.id}`;
   const tabClassName = ({ selected }: { selected: boolean }) =>
     `inline-flex h-11 items-center justify-center whitespace-nowrap rounded-2xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
@@ -697,7 +832,16 @@ export const ShareLinkDetailPage = () => {
         <div className="space-y-5 rounded-2xl border border-border/50 bg-surface p-6 shadow-xs">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold text-text">Photo Selection</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-xl font-bold text-text dark:text-accent-foreground">
+                  Photo Selection
+                </h2>
+                {selectionConfigHasChanges ? (
+                  <span className="rounded-full border border-accent/25 bg-accent/10 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-accent">
+                    Unsaved changes
+                  </span>
+                ) : null}
+              </div>
               <p className="text-sm text-muted">
                 Manage selection configuration and per-client selection sessions.
               </p>
@@ -747,9 +891,27 @@ export const ShareLinkDetailPage = () => {
 
           {selectionConfigDraft ? (
             <>
+              <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 dark:border-white/10 dark:bg-white/[0.035]">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wide text-text dark:text-accent-foreground">
+                      Client intake settings
+                    </h3>
+                    <p className="text-sm text-muted">
+                      Changes stay local until you save, so it is safe to adjust multiple options.
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold text-muted">
+                    {selectionConfigHasChanges ? 'Review and save changes' : 'Settings are saved'}
+                  </span>
+                </div>
+              </div>
+
               <div className="grid gap-4 lg:grid-cols-2">
-                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
-                  <span className="font-semibold text-text">Enable selection</span>
+                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm dark:border-white/10 dark:bg-white/[0.035]">
+                  <span className="font-semibold text-text dark:text-accent-foreground">
+                    Enable selection
+                  </span>
                   <div className="mt-2">
                     <AppSwitch
                       checked={selectionConfigDraft.is_enabled}
@@ -765,8 +927,10 @@ export const ShareLinkDetailPage = () => {
                   </div>
                 </div>
 
-                <label className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
-                  <span className="font-semibold text-text">List title</span>
+                <label className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm dark:border-white/10 dark:bg-white/[0.035]">
+                  <span className="font-semibold text-text dark:text-accent-foreground">
+                    List title
+                  </span>
                   <input
                     value={selectionConfigDraft.list_title}
                     onChange={(event) =>
@@ -774,12 +938,14 @@ export const ShareLinkDetailPage = () => {
                         prev ? { ...prev, list_title: event.target.value } : prev,
                       )
                     }
-                    className="mt-2 w-full rounded-lg border border-border/50 bg-surface px-3 py-2 text-sm text-text outline-none focus:border-accent"
+                    className="mt-2 w-full rounded-lg border border-border/50 bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/15 dark:border-white/10 dark:bg-surface-dark dark:text-accent-foreground"
                   />
                 </label>
 
-                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
-                  <span className="font-semibold text-text">Limit selection count</span>
+                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm dark:border-white/10 dark:bg-white/[0.035]">
+                  <span className="font-semibold text-text dark:text-accent-foreground">
+                    Limit selection count
+                  </span>
                   <div className="mt-2 flex items-center gap-2">
                     <AppSwitch
                       checked={selectionConfigDraft.limit_enabled}
@@ -802,14 +968,16 @@ export const ShareLinkDetailPage = () => {
                             prev ? { ...prev, limit_value: event.target.value } : prev,
                           )
                         }
-                        className="w-24 rounded-lg border border-border/50 bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-accent"
+                        className="w-24 rounded-lg border border-border/50 bg-surface px-2 py-1.5 text-sm text-text outline-none transition-colors focus:border-accent focus:ring-2 focus:ring-accent/15 dark:border-white/10 dark:bg-surface-dark dark:text-accent-foreground"
                       />
                     ) : null}
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm">
-                  <span className="font-semibold text-text">Photo comments</span>
+                <div className="rounded-xl border border-border/50 bg-surface-1 px-4 py-3 text-sm dark:border-white/10 dark:bg-white/[0.035]">
+                  <span className="font-semibold text-text dark:text-accent-foreground">
+                    Photo comments
+                  </span>
                   <div className="mt-2">
                     <AppSwitch
                       checked={selectionConfigDraft.allow_photo_comments}
@@ -827,7 +995,7 @@ export const ShareLinkDetailPage = () => {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
-                <div className="inline-flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
+                <div className="inline-flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground">
                   <span>Require email</span>
                   <AppSwitch
                     checked={selectionConfigDraft.require_email}
@@ -841,7 +1009,7 @@ export const ShareLinkDetailPage = () => {
                     aria-label="Require email"
                   />
                 </div>
-                <div className="inline-flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
+                <div className="inline-flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground">
                   <span>Require phone</span>
                   <AppSwitch
                     checked={selectionConfigDraft.require_phone}
@@ -855,7 +1023,7 @@ export const ShareLinkDetailPage = () => {
                     aria-label="Require phone"
                   />
                 </div>
-                <div className="inline-flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text">
+                <div className="inline-flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-text dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground">
                   <span>Require note</span>
                   <AppSwitch
                     checked={selectionConfigDraft.require_client_note}
@@ -1012,14 +1180,17 @@ export const ShareLinkDetailPage = () => {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={isSavingSelectionConfig}
+              aria-label="Save selection settings"
+              disabled={
+                isSavingSelectionConfig || !selectionConfigDraft || !selectionConfigHasChanges
+              }
               onClick={() => {
                 void handleSaveSelectionConfig();
               }}
-              className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground disabled:opacity-60"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-4 py-2 text-sm font-bold text-accent-foreground transition-all hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSavingSelectionConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Save selection settings
+              {selectionConfigHasChanges ? 'Save selection settings' : 'Selection settings saved'}
             </button>
 
             <button
@@ -1028,7 +1199,7 @@ export const ShareLinkDetailPage = () => {
               onClick={() => {
                 void handleExportFilesCsv();
               }}
-              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2 text-sm font-semibold text-text disabled:opacity-60"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2 text-sm font-bold text-text transition-all hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground"
             >
               <Download className="h-4 w-4" />
               Export CSV
@@ -1040,7 +1211,7 @@ export const ShareLinkDetailPage = () => {
               onClick={() => {
                 void handleExportLightroom();
               }}
-              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2 text-sm font-semibold text-text disabled:opacity-60"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2 text-sm font-bold text-text transition-all hover:border-accent/40 hover:text-accent disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground"
             >
               <FileText className="h-4 w-4" />
               Export Lightroom
@@ -1070,9 +1241,15 @@ export const ShareLinkDetailPage = () => {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
-        <Link to="/share-links" className="hover:text-accent">
+    <div className="relative space-y-6">
+      <div className="pointer-events-none absolute inset-x-[-1rem] top-[-2rem] -z-10 h-72 bg-[radial-gradient(circle_at_12%_18%,rgba(31,144,255,0.16),transparent_34%),radial-gradient(circle_at_84%_8%,rgba(34,197,94,0.1),transparent_30%)]" />
+
+      <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-muted">
+        <Link
+          to="/share-links"
+          onClick={resetScrollForBreadcrumbNavigation}
+          className="transition-colors hover:text-accent focus:outline-hidden focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-accent"
+        >
           Share Links Dashboard
         </Link>
         <span>/</span>
@@ -1081,72 +1258,106 @@ export const ShareLinkDetailPage = () => {
         </span>
       </div>
 
-      <div className="flex flex-col gap-4 rounded-2xl border border-border/50 bg-surface p-6 shadow-xs dark:bg-surface-dark lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">
-              {analytics.share_link.label || 'Untitled Share Link'}
-            </h1>
-            <ShareLinkStatusBadge status={status} />
-          </div>
-          <p className="text-sm text-muted">Link id: {analytics.share_link.id}</p>
-          {isProjectLink ? (
-            <Link
-              to={`/projects/${analytics.share_link.project_id}`}
-              className="inline-flex items-center gap-2 text-sm font-semibold text-accent hover:underline"
-            >
-              Open source project: {analytics.share_link.project_name}
-            </Link>
-          ) : (
-            <Link
-              to={
-                analytics.share_link.project_id
-                  ? `/projects/${analytics.share_link.project_id}/galleries/${analytics.share_link.gallery_id}`
-                  : `/galleries/${analytics.share_link.gallery_id}`
-              }
-              className="inline-flex items-center gap-2 text-sm font-semibold text-accent hover:underline"
-            >
-              Open source gallery: {analytics.share_link.gallery_name}
-            </Link>
-          )}
-          <p className="text-sm text-muted">
-            {isProjectLink
-              ? 'This project link can collect one shared photo-selection flow across all listed galleries in the project.'
-              : 'The overview focuses on link health and engagement. Advanced photo-selection controls are moved into their own tab.'}
-          </p>
-        </div>
+      <div className="overflow-hidden rounded-[1.5rem] border border-border/50 bg-surface/95 shadow-xs dark:border-white/10 dark:bg-surface-dark/90">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="space-y-4 p-5 lg:p-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground">
+                {analytics.share_link.label || 'Untitled Share Link'}
+              </h1>
+              <ShareLinkStatusBadge status={status} />
+              {analytics.share_link.has_password ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-border/45 bg-surface-1 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-muted dark:border-white/10 dark:bg-white/[0.035]">
+                  <Lock className="h-3.5 w-3.5" />
+                  Password protected
+                </span>
+              ) : null}
+            </div>
+            <p className="text-sm text-muted">
+              Link id:{' '}
+              <span className="font-mono text-text dark:text-accent-foreground">
+                {analytics.share_link.id}
+              </span>
+            </p>
+            {isProjectLink ? (
+              <Link
+                to={`/projects/${analytics.share_link.project_id}`}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-accent transition-colors hover:text-accent/80 focus:outline-hidden focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                Open source project: {analytics.share_link.project_name}
+              </Link>
+            ) : (
+              <Link
+                to={
+                  analytics.share_link.project_id
+                    ? `/projects/${analytics.share_link.project_id}/galleries/${analytics.share_link.gallery_id}`
+                    : `/galleries/${analytics.share_link.gallery_id}`
+                }
+                className="inline-flex items-center gap-2 text-sm font-semibold text-accent transition-colors hover:text-accent/80 focus:outline-hidden focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                Open source gallery: {analytics.share_link.gallery_name}
+              </Link>
+            )}
+            <p className="text-sm text-muted">
+              {isProjectLink
+                ? 'This project link can collect one shared photo-selection flow across all listed galleries in the project.'
+                : 'The overview focuses on link health and engagement. Advanced photo-selection controls are moved into their own tab.'}
+            </p>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={publicUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Open link
-          </a>
-          <button
-            onClick={handleCopyLink}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-success/30 bg-success/10 px-3 py-2 text-sm font-semibold text-success"
-          >
-            <Copy className="h-4 w-4" />
-            {copied ? 'Copied' : 'Copy Link'}
-          </button>
-          <button
-            onClick={() => setEditingOpen(true)}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm font-semibold text-accent"
-          >
-            <PencilLine className="h-4 w-4" />
-            Edit
-          </button>
-          <button
-            onClick={handleDeleteLink}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-semibold text-danger"
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete
-          </button>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {healthCards.map((card) => (
+                <LinkHealthCard key={card.label} {...card} />
+              ))}
+            </div>
+          </div>
+
+          <aside className="border-t border-border/50 bg-surface-1/80 p-5 dark:border-white/10 dark:bg-white/[0.035] lg:border-t-0 lg:border-l">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+              Client-facing URL
+            </p>
+            <div className="mt-3 rounded-2xl border border-border/50 bg-surface px-3 py-3 dark:border-white/10 dark:bg-surface-dark">
+              <p className="break-all font-mono text-sm font-semibold text-text dark:text-accent-foreground">
+                {publicUrl}
+              </p>
+            </div>
+            <div className="mt-3 grid gap-2">
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2.5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:bg-accent/90 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface motion-reduce:transition-none"
+              >
+                <Copy className="h-4 w-4" />
+                {copied ? 'Copied' : 'Copy client link'}
+              </button>
+              <a
+                href={publicUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] motion-reduce:transition-none"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Open public page
+              </a>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingOpen(true)}
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm font-bold text-accent transition-all hover:bg-accent/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <PencilLine className="h-4 w-4" />
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteLink}
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-bold text-danger transition-all hover:bg-danger/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </button>
+            </div>
+          </aside>
         </div>
       </div>
 
@@ -1175,24 +1386,32 @@ export const ShareLinkDetailPage = () => {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/50 bg-surface p-4 shadow-xs">
-        <div>
-          <h2 className="text-lg font-semibold text-text">Analytics window</h2>
-          <p className="text-sm text-muted">
-            {latestPoint
-              ? `Latest activity recorded on ${formatDay(latestPoint.day)}.`
-              : 'No analytics points yet.'}
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/50 bg-surface/95 p-4 shadow-xs dark:border-white/10 dark:bg-surface-dark/90">
+        <div className="flex items-start gap-3">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+            <Clock3 className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-lg font-semibold text-text dark:text-accent-foreground">
+              Analytics window
+            </h2>
+            <p className="text-sm text-muted">
+              {latestPoint
+                ? `Latest activity recorded on ${formatDay(latestPoint.day)}.`
+                : 'No analytics points yet.'}
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {DAY_PRESETS.map((preset) => (
             <button
               key={preset}
+              type="button"
               onClick={() => setDays(preset)}
-              className={`rounded-xl px-3 py-2 text-sm font-semibold ${
+              className={`cursor-pointer rounded-xl px-3 py-2 text-sm font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface motion-reduce:transition-none ${
                 days === preset
                   ? 'bg-accent text-accent-foreground'
-                  : 'border border-border/50 bg-surface-1 text-text'
+                  : 'border border-border/50 bg-surface-1 text-text hover:border-accent/40 hover:text-accent dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground'
               }`}
             >
               Last {preset} days

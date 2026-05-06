@@ -53,6 +53,11 @@ export const AppPopover = ({
         <PopoverButton
           ref={buttonRef}
           aria-label={buttonAriaLabel}
+          onMouseDown={(event) => {
+            if (event.button === 0) {
+              event.preventDefault();
+            }
+          }}
           className={cn(
             typeof buttonClassName === 'function' ? buttonClassName(open) : buttonClassName,
           )}
