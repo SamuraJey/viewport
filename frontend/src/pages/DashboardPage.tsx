@@ -127,7 +127,6 @@ export const DashboardPage = () => {
     sortBy: activeSortBy,
     order: activeSortOrder,
   });
-
   const fetchProjects = useCallback(async () => {
     setIsLoading(true);
     setError('');
@@ -275,27 +274,44 @@ export const DashboardPage = () => {
   const renderEmptyState = () => (
     <div className="rounded-3xl border border-dashed border-border bg-surface-1/50 px-4 py-24 text-center dark:border-border/40 dark:bg-surface-dark-1/50">
       <div className="mb-6 inline-flex rounded-full bg-accent/10 p-4">
-        <Plus className="h-8 w-8 text-accent" />
-      </div>
-      <h2 className="mb-2 text-2xl font-semibold text-text">No projects yet</h2>
-      <p className="mx-auto mb-8 max-w-md text-lg text-muted">
-        Create your first project to upload photos, organize galleries, and share polished
-        deliveries with clients.
-      </p>
-      <button
-        type="button"
-        onClick={handleOpenProjectModal}
-        disabled={isCreatingProject}
-        className="inline-flex items-center gap-2 rounded-xl bg-accent px-8 py-3 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-        aria-label="Create your first project"
-      >
-        {isCreatingProject ? (
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent-foreground/20 border-t-accent-foreground" />
+        {activeSearch ? (
+          <Search className="h-8 w-8 text-accent" />
         ) : (
-          <Plus className="h-5 w-5" />
+          <Plus className="h-8 w-8 text-accent" />
         )}
-        Create your first project
-      </button>
+      </div>
+      <h2 className="mb-2 text-2xl font-semibold text-text">
+        {activeSearch ? 'No matching projects' : 'No projects yet'}
+      </h2>
+      <p className="mx-auto mb-8 max-w-md text-lg text-muted">
+        {activeSearch
+          ? `No project matches “${activeSearch}”. Clear search or try a shorter client name.`
+          : 'Create your first project to upload photos, organize galleries, and share polished deliveries with clients.'}
+      </p>
+      {activeSearch ? (
+        <button
+          type="button"
+          onClick={() => setSearchInput('')}
+          className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface px-8 py-3 font-semibold text-text shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+        >
+          Clear search
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={handleOpenProjectModal}
+          disabled={isCreatingProject}
+          className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-8 py-3 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+          aria-label="Create your first project"
+        >
+          {isCreatingProject ? (
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent-foreground/20 border-t-accent-foreground" />
+          ) : (
+            <Plus className="h-5 w-5" />
+          )}
+          Create your first project
+        </button>
+      )}
     </div>
   );
 
@@ -351,7 +367,7 @@ export const DashboardPage = () => {
               type="button"
               onClick={handleOpenProjectModal}
               disabled={isCreatingProject}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-accent px-4 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+              className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-accent px-4 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
               aria-label="Create new project"
             >
               {isCreatingProject ? (

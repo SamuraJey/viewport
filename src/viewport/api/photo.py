@@ -11,7 +11,7 @@ from viewport.background_tasks import create_thumbnails_batch_task, delete_photo
 from viewport.dependencies import get_s3_client
 from viewport.filename_utils import sanitize_filename, split_name_and_ext
 from viewport.models.db import get_db
-from viewport.models.gallery import PhotoUploadStatus
+from viewport.models.gallery import Photo, PhotoUploadStatus
 from viewport.models.user import User
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.user_repository import UserRepository
@@ -28,6 +28,7 @@ from viewport.schemas.photo import (
     PhotoResponse,
     PresignedUploadData,
 )
+from viewport.thumbnail_tasks import ThumbnailTaskItem, to_thumbnail_task_payloads
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,10 @@ def get_content_type_from_filename(filename: str | None) -> str:
         return CONTENT_TYPE_MAP.get(ext, "image/jpeg")
 
     return "image/jpeg"
+
+
+def _photo_needs_thumbnail_processing(photo: Photo) -> bool:
+    return photo.thumbnail_object_key == photo.object_key or photo.width is None or photo.height is None
 
 
 @router.post("/{gallery_id}/photos/batch-presigned", response_model=BatchPresignedUploadsResponse)
@@ -239,7 +244,7 @@ async def batch_confirm_uploads(
 
     confirmed_count = 0
     failed_count = 0
-    photos_to_process = []
+    photos_to_process: list[ThumbnailTaskItem] = []
     status_updates: dict[UUID, PhotoUploadStatus] = {}
 
     # 3. Process each photo (S3 verification deferred to background task)
@@ -268,8 +273,8 @@ async def batch_confirm_uploads(
         if photo.status in (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING):
             # Idempotent retry path: if metadata/thumbnail are still missing,
             # enqueue background processing again.
-            if photo.thumbnail_object_key == photo.object_key or photo.width is None or photo.height is None:
-                photos_to_process.append({"photo_id": str(photo.id), "object_key": photo.object_key})
+            if _photo_needs_thumbnail_processing(photo):
+                photos_to_process.append(ThumbnailTaskItem(photo.id, photo.object_key))
             confirmed_count += 1
             continue
 
@@ -279,8 +284,7 @@ async def batch_confirm_uploads(
 
         status_updates[photo.id] = PhotoUploadStatus.THUMBNAIL_CREATING
         confirmed_count += 1
-        # TODO find all places where we use dicts like this, and replace it with DTOs.
-        photos_to_process.append({"photo_id": str(photo.id), "object_key": photo.object_key})
+        photos_to_process.append(ThumbnailTaskItem(photo.id, photo.object_key))
 
     bytes_to_finalize = 0
     bytes_to_release = 0
@@ -306,8 +310,9 @@ async def batch_confirm_uploads(
 
     # 5. Start batch thumbnail processing (will retry tagging if needed)
     if photos_to_process:
+        thumbnail_payloads = to_thumbnail_task_payloads(photos_to_process)
         try:
-            await run_in_threadpool(create_thumbnails_batch_task.delay, photos_to_process)
+            await run_in_threadpool(create_thumbnails_batch_task.delay, thumbnail_payloads)
         except Exception as exc:
             logger.warning(
                 "Failed to enqueue thumbnail task",
@@ -390,7 +395,4 @@ async def rename_photo(
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
     await _invalidate_presigned_cache_safely(s3_client, [photo.object_key], "rename")
-    # TODO do we really need to fetch the photo again here? we already have it in the repo.rename_photo_async method, we can just return it from there instead of fetching it again. this would save us
-    # one db call and one s3 call, since we can generate the presigned url in the rename_photo_async method as well. let's refactor that method to return the renamed photo with the new presigned url,
-    # and then we can just return it here without fetching it again.
     return await PhotoResponse.from_db_photo(photo, s3_client)

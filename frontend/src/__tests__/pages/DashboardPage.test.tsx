@@ -335,6 +335,35 @@ describe('DashboardPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/projects/project-3');
   });
 
+  it('creates a project when Enter is pressed in the project modal', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+
+    vi.mocked(projectService.createProject).mockResolvedValue(
+      makeProject({
+        id: 'project-3',
+        name: 'Keyboard Delivery',
+        entry_gallery_id: null,
+        entry_gallery_name: null,
+        has_entry_gallery: false,
+        gallery_count: 0,
+        visible_gallery_count: 0,
+      }),
+    );
+
+    render(<DashboardPageWrapper />);
+
+    await screen.findByText('Wedding Weekend');
+    await user.click(screen.getByRole('button', { name: 'Create new project' }));
+    await user.type(screen.getByPlaceholderText('Project name'), 'Keyboard Delivery{Enter}');
+
+    await waitFor(() => {
+      expect(projectService.createProject).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Keyboard Delivery' }),
+      );
+    });
+  });
+
   it('navigates to a created project without waiting for dashboard refresh', async () => {
     const user = userEvent.setup();
     const { projectService } = await import('../../services/projectService');

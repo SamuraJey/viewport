@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../../components/ui', async (importOriginal) => {
@@ -223,6 +223,29 @@ describe('ProjectPage', () => {
     expect(selectionTab).toBeInTheDocument();
     await user.click(selectionTab);
     expect(screen.getByText(/client photo selection/i)).toBeInTheDocument();
+  });
+
+  it('creates a project gallery when Enter is pressed in Add gallery to project', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+
+    vi.mocked(projectService.createProjectGallery).mockResolvedValueOnce({} as any);
+
+    renderProjectPage();
+
+    expect(await screen.findByRole('heading', { name: 'Photos' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /add gallery/i }));
+    await user.type(screen.getByLabelText(/gallery name/i), 'Highlights{Enter}');
+
+    await waitFor(() => {
+      expect(projectService.createProjectGallery).toHaveBeenCalledWith(
+        'project-1',
+        expect.objectContaining({
+          name: 'Highlights',
+          project_visibility: 'listed',
+        }),
+      );
+    });
   });
 
   it('renders project galleries as full gallery cards instead of tab buttons', async () => {

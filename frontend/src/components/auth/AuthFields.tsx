@@ -8,7 +8,7 @@ type BaseInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'className'> &
 };
 
 const baseInputClassName =
-  'w-full px-4 py-3.5 bg-surface border-2 border-border/50 text-text rounded-xl focus:outline-hidden focus:border-accent focus:bg-surface focus:ring-4 focus:ring-accent/20 backdrop-blur-sm transition-all duration-200 hover:border-border/80 shadow-xs';
+  'w-full px-4 py-3.5 bg-surface-1 border-2 border-border/50 text-text rounded-xl focus:outline-hidden focus:border-accent focus:bg-surface focus:ring-4 focus:ring-accent/20 backdrop-blur-sm transition-all duration-200 hover:border-accent/35 shadow-xs placeholder:text-muted dark:bg-surface-dark-1';
 
 export const AuthTextField = ({ id, label, rightAdornment, ...inputProps }: BaseInputProps) => (
   <div>
@@ -55,7 +55,7 @@ export const AuthPasswordField = ({ id, label, ...inputProps }: PasswordFieldPro
         />
         <button
           type="button"
-          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted hover:text-text transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent rounded-lg p-1 group-focus-within:text-accent"
+          className="absolute right-3 top-1/2 transform -translate-y-1/2 cursor-pointer rounded-lg p-1 text-muted transition-all duration-200 hover:scale-110 hover:text-text active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent group-focus-within:text-accent"
           onClick={() => setShowPassword((prev) => !prev)}
           aria-label={showPassword ? 'Hide password' : 'Show password'}
         >

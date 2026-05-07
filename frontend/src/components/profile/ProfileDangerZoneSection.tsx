@@ -58,6 +58,7 @@ export const ProfileDangerZoneSection = ({
               <p className="mt-0.5 text-xs text-muted">End your current session on this device.</p>
             </div>
             <button
+              type="button"
               onClick={onLogout}
               className="flex shrink-0 items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-text shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-2 active:translate-y-0 dark:bg-surface-dark dark:hover:bg-surface-dark-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
@@ -77,6 +78,7 @@ export const ProfileDangerZoneSection = ({
               </p>
             </div>
             <button
+              type="button"
               onClick={onStartDelete}
               className="flex shrink-0 items-center gap-2 rounded-xl bg-danger px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-danger/90 active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
@@ -91,7 +93,15 @@ export const ProfileDangerZoneSection = ({
 
   if (deleteStep === 'password') {
     return (
-      <div className="space-y-5">
+      <form
+        className="space-y-5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (deletePassword) {
+            onVerifyDeletePassword();
+          }
+        }}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-danger" />
@@ -141,20 +151,21 @@ export const ProfileDangerZoneSection = ({
 
         <div className="flex gap-3">
           <button
+            type="button"
             onClick={onCancelDelete}
             className="flex-1 rounded-xl border border-border bg-surface-1 px-4 py-2.5 text-sm font-semibold text-text transition-all duration-200 hover:bg-surface-2 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
             Cancel
           </button>
           <button
-            onClick={onVerifyDeletePassword}
+            type="submit"
             disabled={!deletePassword}
             className="flex-1 rounded-xl bg-danger px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
             Continue →
           </button>
         </div>
-      </div>
+      </form>
     );
   }
 
@@ -189,12 +200,14 @@ export const ProfileDangerZoneSection = ({
 
       <div className="flex gap-3">
         <button
+          type="button"
           onClick={onCancelDelete}
           className="flex-1 rounded-xl border border-border bg-surface-1 px-4 py-2.5 text-sm font-semibold text-text transition-all duration-200 hover:bg-surface-2 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           Cancel
         </button>
         <button
+          type="button"
           onClick={onConfirmDelete}
           disabled={deletingAccount}
           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-danger px-4 py-2.5 text-sm font-bold text-white transition-all duration-200 hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"

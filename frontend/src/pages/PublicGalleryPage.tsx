@@ -75,6 +75,8 @@ export const PublicGalleryPage = () => {
   const [isDownloadPasswordRequired, setIsDownloadPasswordRequired] = useState(false);
   const [isDownloadExpired, setIsDownloadExpired] = useState(false);
   const startNameInputRef = useRef<HTMLInputElement | null>(null);
+  const heroBoundaryRef = useRef<HTMLDivElement | null>(null);
+  const [hasScrolledPastHero, setHasScrolledPastHero] = useState(false);
 
   const {
     gallery,
@@ -406,7 +408,11 @@ export const PublicGalleryPage = () => {
       : undefined;
   const isProjectFolderView = Boolean(folderShare?.parent_share_id && !isFavoritesView);
   const showStickyProjectSelectionBar = Boolean(
-    projectGalleryTabs && selection.config?.is_enabled && !isFavoritesView,
+    projectGalleryTabs &&
+    selection.config?.is_enabled &&
+    selection.session &&
+    hasScrolledPastHero &&
+    !isFavoritesView,
   );
   const heroTitle = isProjectFolderView
     ? folderShare?.project_name || projectGalleryTabs?.project_name || 'Public Project'
@@ -424,6 +430,34 @@ export const PublicGalleryPage = () => {
     : isGalleryPhotoSwitching && activeProjectGallery
       ? activeProjectGallery.photo_count
       : (folderShare?.total_photos ?? activeProjectGallery?.photo_count ?? photos.length);
+
+  useEffect(() => {
+    if (!projectGalleryTabs || isFavoritesView || !selection.session) {
+      setHasScrolledPastHero(false);
+      return;
+    }
+
+    const updateHeroVisibility = () => {
+      const heroElement = heroBoundaryRef.current;
+      if (!heroElement) {
+        setHasScrolledPastHero(window.scrollY > 0);
+        return;
+      }
+
+      const rect = heroElement.getBoundingClientRect();
+      const isPastHero = rect.height > 0 ? rect.bottom <= 0 : window.scrollY > 0;
+      setHasScrolledPastHero(isPastHero);
+    };
+
+    updateHeroVisibility();
+    window.addEventListener('scroll', updateHeroVisibility, { passive: true });
+    window.addEventListener('resize', updateHeroVisibility);
+
+    return () => {
+      window.removeEventListener('scroll', updateHeroVisibility);
+      window.removeEventListener('resize', updateHeroVisibility);
+    };
+  }, [isFavoritesView, projectGalleryTabs, selection.session]);
 
   useEffect(() => {
     if (isFavoritesView || activeGalleryId || !projectShare?.folders.length) {
@@ -468,6 +502,27 @@ export const PublicGalleryPage = () => {
       selection.openStartModal();
     },
     [selection],
+  );
+
+  const handleStartSelectionSubmit = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setStartFormError('');
+      void selection
+        .startSession({
+          client_name: startForm.client_name,
+          client_email: startForm.client_email || null,
+          client_phone: startForm.client_phone || null,
+          client_note: startForm.client_note || null,
+        })
+        .then(() => {
+          setStartForm(createInitialStartForm());
+        })
+        .catch((err) => {
+          setStartFormError(handleApiError(err).message || 'Failed to start session');
+        });
+    },
+    [selection, startForm],
   );
 
   const handleStickyFinishSelection = useCallback(() => {
@@ -646,12 +701,14 @@ export const PublicGalleryPage = () => {
         <ThemeSwitch variant="inline" />
       </div>
 
-      <PublicGalleryHero
-        title={heroTitle}
-        date={heroDate}
-        photographer={heroPhotographer}
-        cover={heroCover}
-      />
+      <div ref={heroBoundaryRef}>
+        <PublicGalleryHero
+          title={heroTitle}
+          date={heroDate}
+          photographer={heroPhotographer}
+          cover={heroCover}
+        />
+      </div>
 
       <main
         id="main-content"
@@ -679,6 +736,7 @@ export const PublicGalleryPage = () => {
                   {activeGalleryId ? (
                     <div className="flex flex-col items-start gap-1">
                       <button
+                        type="button"
                         onClick={handleDownloadCurrentGallery}
                         aria-describedby={galleryZipSizeLabel ? galleryZipSizeId : undefined}
                         className="inline-flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-4 py-2.5 text-sm font-semibold text-accent hover:bg-accent/15"
@@ -695,6 +753,7 @@ export const PublicGalleryPage = () => {
                   ) : null}
                   <div className="flex flex-col items-start gap-1">
                     <button
+                      type="button"
                       onClick={handleDownloadAll}
                       aria-describedby={projectZipSizeLabel ? projectZipSizeId : undefined}
                       className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
@@ -766,6 +825,7 @@ export const PublicGalleryPage = () => {
             {!isFavoritesView && photos.length > 0 && !projectGalleryTabs ? (
               <div className="flex flex-col items-end gap-1">
                 <button
+                  type="button"
                   onClick={handleDownloadAll}
                   aria-describedby={galleryZipSizeLabel ? galleryZipSizeId : undefined}
                   className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
@@ -884,6 +944,7 @@ export const PublicGalleryPage = () => {
                   disabled={!selection.canMutateSession}
                   className="min-h-28 w-full rounded-2xl border border-border/50 bg-surface px-4 py-3 text-sm text-text outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-70"
                   placeholder="General note for selected photos"
+                  aria-label="General note for selected photos"
                 />
 
                 <div className="flex flex-wrap items-center justify-center gap-3">
@@ -983,7 +1044,7 @@ export const PublicGalleryPage = () => {
             initialFocusRef={startNameInputRef}
             panelClassName="rounded-3xl border border-border/50 bg-surface p-5 shadow-xl dark:border-border/20 dark:bg-surface-dark"
           >
-            <div>
+            <form onSubmit={handleStartSelectionSubmit}>
               <AppDialogTitle className="text-lg font-semibold text-text">
                 Start selection
               </AppDialogTitle>
@@ -1098,33 +1159,15 @@ export const PublicGalleryPage = () => {
                     Cancel
                   </button>
                   <button
-                    type="button"
+                    type="submit"
                     disabled={selection.isMutating}
-                    onClick={() => {
-                      setStartFormError('');
-                      selection
-                        .startSession({
-                          client_name: startForm.client_name,
-                          client_email: startForm.client_email || null,
-                          client_phone: startForm.client_phone || null,
-                          client_note: startForm.client_note || null,
-                        })
-                        .then(() => {
-                          setStartForm(createInitialStartForm());
-                        })
-                        .catch((err) => {
-                          setStartFormError(
-                            handleApiError(err).message || 'Failed to start session',
-                          );
-                        });
-                    }}
                     className="rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-accent-foreground disabled:opacity-60"
                   >
                     Continue
                   </button>
                 </div>
               </div>
-            </div>
+            </form>
           </AppDialog>
         ) : null}
 

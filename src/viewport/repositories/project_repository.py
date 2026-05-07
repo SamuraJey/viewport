@@ -8,6 +8,8 @@ from viewport.models.gallery import Gallery, Photo, ProjectVisibility
 from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.repositories.base_repository import BaseRepository
+from viewport.repositories.query_utils import LIKE_ESCAPE_CHAR as DEFAULT_LIKE_ESCAPE_CHAR
+from viewport.repositories.query_utils import escape_like_term, literal_like_pattern
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 from viewport.schemas.gallery import ProjectVisibility as ProjectVisibilitySchema
 from viewport.schemas.project import ProjectListSortBy
@@ -17,11 +19,11 @@ DEFAULT_PUBLIC_SORT_ORDER = SortOrder(PUBLIC_GALLERY_SORT_ORDER_DEFAULT)
 
 
 class ProjectRepository(BaseRepository):
-    LIKE_ESCAPE_CHAR = "\\"
+    LIKE_ESCAPE_CHAR = DEFAULT_LIKE_ESCAPE_CHAR
 
     @classmethod
     def _escape_like_term(cls, value: str) -> str:
-        return value.replace(cls.LIKE_ESCAPE_CHAR, cls.LIKE_ESCAPE_CHAR * 2).replace("%", f"{cls.LIKE_ESCAPE_CHAR}%").replace("_", f"{cls.LIKE_ESCAPE_CHAR}_")
+        return escape_like_term(value, cls.LIKE_ESCAPE_CHAR)
 
     @staticmethod
     def _build_project_order_clauses(
@@ -181,8 +183,7 @@ class ProjectRepository(BaseRepository):
     ) -> tuple[list[Project], int]:
         filters = [Project.owner_id == owner_id, Project.is_deleted.is_(False)]
         if search:
-            escaped = self._escape_like_term(search)
-            filters.append(Project.name.ilike(f"%{escaped}%", escape=self.LIKE_ESCAPE_CHAR))
+            filters.append(Project.name.ilike(literal_like_pattern(search, self.LIKE_ESCAPE_CHAR), escape=self.LIKE_ESCAPE_CHAR))
 
         total_stmt = select(func.count()).select_from(Project).where(*filters)
         total = int((await self.db.execute(total_stmt)).scalar() or 0)

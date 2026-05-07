@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarClock,
   Check,
@@ -386,6 +386,11 @@ export const ShareLinkSettingsModal = ({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSubmitForm = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void handleSubmit();
   };
 
   const handleRetrySelectionSave = async () => {
@@ -946,7 +951,7 @@ export const ShareLinkSettingsModal = ({
           </div>
         </div>
       ) : (
-        <>
+        <form onSubmit={handleSubmitForm}>
           <AppTabs
             items={tabItems}
             selectedKey={activeTab}
@@ -995,8 +1000,7 @@ export const ShareLinkSettingsModal = ({
               Cancel
             </button>
             <button
-              type="button"
-              onClick={() => void handleSubmit()}
+              type="submit"
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={!canSubmit}
             >
@@ -1008,7 +1012,7 @@ export const ShareLinkSettingsModal = ({
               {mode === 'create' ? 'Create link' : 'Save changes'}
             </button>
           </div>
-        </>
+        </form>
       )}
     </AppDialog>
   );

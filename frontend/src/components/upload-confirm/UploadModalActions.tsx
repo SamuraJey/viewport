@@ -26,12 +26,14 @@ export const UploadCancelWarning = ({
     </p>
     <div className="flex gap-2 ml-7">
       <button
+        type="button"
         onClick={onConfirmClose}
         className="px-3 sm:px-4 py-2 bg-red-600 text-white text-xs sm:text-sm font-medium rounded-lg shadow-sm hover:shadow-md hover:bg-red-700 transition-all duration-200 active:scale-95"
       >
         {isUploading ? 'Yes, Cancel' : 'Yes, Close'}
       </button>
       <button
+        type="button"
         onClick={onCancelClose}
         className="px-3 sm:px-4 py-2 bg-surface-foreground dark:bg-surface text-text dark:text-muted text-xs sm:text-sm font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
       >
@@ -92,6 +94,7 @@ export const UploadModalFooter = ({
         <>
           {failedCount > 0 && (
             <button
+              type="button"
               onClick={onRetryFailed}
               disabled={isUploading}
               className="flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2 text-sm font-medium text-text transition-all duration-200 hover:bg-surface-2 active:scale-95 disabled:opacity-50 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
@@ -101,6 +104,7 @@ export const UploadModalFooter = ({
             </button>
           )}
           <button
+            type="button"
             onClick={onClose}
             className="px-5 py-2.5 bg-accent hover:bg-accent/90 text-white text-sm font-medium rounded-xl transition-all duration-200 active:scale-95"
           >
@@ -112,6 +116,7 @@ export const UploadModalFooter = ({
       {!result && (
         <>
           <button
+            type="button"
             onClick={onCancel}
             disabled={isUploading}
             className="px-5 py-2.5 bg-transparent hover:bg-surface-1 dark:hover:bg-surface-dark-1 text-muted hover:text-text dark:hover:text-white text-sm font-medium rounded-xl transition-all duration-200 disabled:opacity-50"
@@ -119,6 +124,7 @@ export const UploadModalFooter = ({
             Cancel
           </button>
           <button
+            type="button"
             ref={uploadButtonRef}
             onClick={onUpload}
             disabled={!hasValidFiles || isUploading}

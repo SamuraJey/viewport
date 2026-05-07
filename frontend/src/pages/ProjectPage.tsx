@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, EyeOff, FolderPlus, Settings2, Share2 } from 'lucide-react';
@@ -92,7 +100,7 @@ export const ProjectPage = () => {
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const projectTitleRef = useRef<HTMLHeadingElement | null>(null);
   const renameInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const [projectTitleFontSizePx, setProjectTitleFontSizePx] = useState(48);
+  const [projectTitleFontSizePx, setProjectTitleFontSizePx] = useState(40);
 
   const loadProject = useCallback(async () => {
     if (!projectId) return;
@@ -126,11 +134,11 @@ export const ProjectPage = () => {
       return;
     }
 
-    const minSize = 16;
-    const maxLines = 3;
+    const minSize = 20;
+    const maxLines = 2;
 
     const recalc = () => {
-      let nextSize = window.innerWidth >= 640 ? 48 : 36;
+      let nextSize = window.innerWidth >= 640 ? 40 : 32;
       heading.style.fontSize = `${nextSize}px`;
 
       while (nextSize > minSize) {
@@ -166,6 +174,7 @@ export const ProjectPage = () => {
         .length ?? 0,
     [project?.galleries],
   );
+  const directOnlyGalleryCount = (project?.gallery_count ?? 0) - visibleGalleryCount;
 
   const buildSelectionWarningSummary = useCallback((links: ShareLink[]) => {
     const affectedLinks = links.filter((link) => {
@@ -255,6 +264,11 @@ export const ProjectPage = () => {
     } finally {
       setIsCreatingGallery(false);
     }
+  };
+
+  const handleCreateGallerySubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void handleCreateGallery();
   };
 
   const beginInlineRename = (gallery: Gallery) => {
@@ -511,51 +525,57 @@ export const ProjectPage = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-3xl border border-border/50 bg-surface p-6 shadow-xs dark:border-border/30 dark:bg-surface-dark">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 max-w-full space-y-3">
+    <div className="space-y-5">
+      <section className="rounded-2xl border border-border/50 bg-surface p-4 shadow-xs sm:p-5 dark:border-border/30 dark:bg-surface-dark">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0 max-w-5xl space-y-2">
             <Link
               to="/dashboard"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-accent"
+              className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted transition-colors hover:text-accent"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to dashboard
             </Link>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">
                 Project
               </p>
               <h1
                 ref={projectTitleRef}
                 style={{ fontSize: `${projectTitleFontSizePx}px` }}
-                className="max-w-full whitespace-normal wrap-break-word font-oswald font-bold uppercase leading-tight tracking-wide text-text"
+                className="max-w-full whitespace-normal wrap-break-word font-oswald font-bold uppercase leading-none tracking-wide text-text"
               >
                 {project.name}
               </h1>
-              <p className="mt-2 text-sm text-muted">
-                {formatDateOnly(project.shooting_date)} · {project.gallery_count} galleries ·{' '}
-                {visibleGalleryCount} visible in project share
+              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+                <span>{formatDateOnly(project.shooting_date)}</span>
+                <span aria-hidden="true">·</span>
+                <span>{project.gallery_count} galleries</span>
+                <span aria-hidden="true">·</span>
+                <span>{visibleGalleryCount} visible</span>
+                <span aria-hidden="true">·</span>
+                <span>{project.total_photo_count} photos</span>
+                <span aria-hidden="true">·</span>
+                <span>{formatFileSize(project.total_size_bytes)}</span>
+                <span aria-hidden="true">·</span>
+                <span>
+                  {shareLinks.length} project share link{shareLinks.length === 1 ? '' : 's'}
+                </span>
+                {directOnlyGalleryCount > 0 ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{directOnlyGalleryCount} direct-only</span>
+                  </>
+                ) : null}
               </p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-sm text-muted">
-              <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
-                {project.total_photo_count} photos
-              </span>
-              <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
-                {formatFileSize(project.total_size_bytes)}
-              </span>
-              <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
-                {shareLinks.length} project share link{shareLinks.length === 1 ? '' : 's'}
-              </span>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
             <button
               type="button"
               onClick={() => setIsGalleryDialogOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3.5 py-2 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
             >
               <FolderPlus className="h-4 w-4" />
               Add gallery
@@ -563,7 +583,7 @@ export const ProjectPage = () => {
             <button
               type="button"
               onClick={() => setIsShareLinkCreateOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-3.5 py-2 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             >
               <Share2 className="h-4 w-4" />
               Share project
@@ -571,40 +591,53 @@ export const ProjectPage = () => {
             <button
               type="button"
               onClick={requestDeleteProject}
-              className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-2.5 text-sm font-semibold text-danger"
+              className="cursor-pointer rounded-xl border border-danger/30 bg-danger/10 px-3.5 py-2 text-sm font-semibold text-danger transition-all duration-200 hover:-translate-y-0.5 hover:bg-danger/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger"
             >
               Delete project
             </button>
           </div>
         </div>
         {error ? (
-          <div className="mt-4 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+          <div className="mt-3 rounded-xl border border-danger/30 bg-danger/10 px-4 py-2.5 text-sm text-danger">
             {error}
           </div>
         ) : null}
         {projectSelectionWarningSummary.hasSensitiveSessions ? (
-          <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-            This project has {projectSelectionWarningLabel}. Hiding, deleting, or reordering
-            galleries will ask for confirmation before changing the live proofing layout.
+          <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-800 dark:text-amber-200">
+            This project has {projectSelectionWarningLabel}. Gallery visibility, deletion, or order
+            changes will ask for confirmation before changing the live proofing layout.
           </div>
         ) : null}
       </section>
 
-      <section className="rounded-3xl border border-border/50 bg-surface p-6 shadow-xs dark:border-border/30 dark:bg-surface-dark">
-        <div className="mb-4 flex items-center justify-between gap-3">
+      <section className="rounded-2xl border border-border/50 bg-surface p-4 shadow-xs sm:p-5 dark:border-border/30 dark:bg-surface-dark">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold text-text">Galleries</h2>
             <p className="text-sm text-muted">
-              Project galleries use the same card layout as standalone galleries. Visibility lives
-              inside each card, and direct-link-only galleries stay hidden from project-wide public
-              shares.
+              Open galleries, reorder them, and manage project-share visibility from each card.
             </p>
           </div>
         </div>
         <div className="space-y-4">
           {project.galleries.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border/40 bg-surface-1/50 px-4 py-10 text-center text-sm text-muted">
-              No galleries yet. Add the first gallery to start uploading photos.
+            <div className="rounded-3xl border border-dashed border-border/50 bg-surface-1/60 px-4 py-14 text-center shadow-xs dark:border-border/35 dark:bg-surface-dark-1/60">
+              <div className="mx-auto mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+                <FolderPlus className="h-7 w-7" />
+              </div>
+              <h3 className="text-xl font-bold text-text">Build this project with galleries</h3>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
+                Add the first gallery to start uploading photos. You can keep galleries listed in
+                the project share or mark them direct-link-only later.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsGalleryDialogOpen(true)}
+                className="mt-6 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <FolderPlus className="h-4 w-4" />
+                Add first gallery
+              </button>
             </div>
           ) : (
             <div className="space-y-5">
@@ -803,88 +836,90 @@ export const ProjectPage = () => {
         initialFocusRef={galleryInputRef as React.RefObject<HTMLElement | null>}
         panelClassName="rounded-3xl border border-border/50 bg-surface p-6 shadow-2xl dark:border-border/20 dark:bg-surface-dark"
       >
-        <AppDialogTitle className="text-lg font-semibold text-text">
-          Add gallery to project
-        </AppDialogTitle>
-        <AppDialogDescription className="mt-2 text-sm text-muted">
-          This creates a gallery using the existing gallery upload flow.
-        </AppDialogDescription>
-        <div className="mt-4 space-y-4">
-          <div>
-            <label
-              className="mb-1.5 block text-sm font-medium text-text"
-              htmlFor="project-folder-name"
-            >
-              Gallery name
-            </label>
-            <input
-              id="project-folder-name"
-              ref={galleryInputRef}
-              value={galleryDraft.name}
-              onChange={(event) =>
-                setGalleryDraft((prev) => ({ ...prev, name: event.target.value }))
-              }
-              className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
-              placeholder="Gallery name"
-            />
+        <form onSubmit={handleCreateGallerySubmit}>
+          <AppDialogTitle className="text-lg font-semibold text-text">
+            Add gallery to project
+          </AppDialogTitle>
+          <AppDialogDescription className="mt-2 text-sm text-muted">
+            This creates a gallery using the existing gallery upload flow.
+          </AppDialogDescription>
+          <div className="mt-4 space-y-4">
+            <div>
+              <label
+                className="mb-1.5 block text-sm font-medium text-text"
+                htmlFor="project-folder-name"
+              >
+                Gallery name
+              </label>
+              <input
+                id="project-folder-name"
+                ref={galleryInputRef}
+                type="text"
+                value={galleryDraft.name}
+                onChange={(event) =>
+                  setGalleryDraft((prev) => ({ ...prev, name: event.target.value }))
+                }
+                className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
+                placeholder="Gallery name"
+              />
+            </div>
+            <div>
+              <label
+                className="mb-1.5 block text-sm font-medium text-text"
+                htmlFor="project-folder-date"
+              >
+                Shooting date
+              </label>
+              <input
+                id="project-folder-date"
+                type="date"
+                value={galleryDraft.shooting_date}
+                onChange={(event) =>
+                  setGalleryDraft((prev) => ({ ...prev, shooting_date: event.target.value }))
+                }
+                className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <label
+                className="mb-1.5 block text-sm font-medium text-text"
+                htmlFor="project-folder-visibility"
+              >
+                Visibility in project link
+              </label>
+              <select
+                id="project-folder-visibility"
+                value={galleryDraft.project_visibility}
+                onChange={(event) =>
+                  setGalleryDraft((prev) => ({
+                    ...prev,
+                    project_visibility: event.target.value as 'listed' | 'direct_only',
+                  }))
+                }
+                className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
+              >
+                <option value="listed">Visible in project</option>
+                <option value="direct_only">Direct link only</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label
-              className="mb-1.5 block text-sm font-medium text-text"
-              htmlFor="project-folder-date"
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setIsGalleryDialogOpen(false)}
+              className="rounded-xl border border-border/40 bg-surface px-4 py-2.5 text-sm font-semibold text-text"
             >
-              Shooting date
-            </label>
-            <input
-              id="project-folder-date"
-              type="date"
-              value={galleryDraft.shooting_date}
-              onChange={(event) =>
-                setGalleryDraft((prev) => ({ ...prev, shooting_date: event.target.value }))
-              }
-              className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
-            />
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isCreatingGallery || !galleryDraft.name.trim()}
+              className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isCreatingGallery ? 'Creating…' : 'Create gallery'}
+            </button>
           </div>
-          <div>
-            <label
-              className="mb-1.5 block text-sm font-medium text-text"
-              htmlFor="project-folder-visibility"
-            >
-              Visibility in project link
-            </label>
-            <select
-              id="project-folder-visibility"
-              value={galleryDraft.project_visibility}
-              onChange={(event) =>
-                setGalleryDraft((prev) => ({
-                  ...prev,
-                  project_visibility: event.target.value as 'listed' | 'direct_only',
-                }))
-              }
-              className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
-            >
-              <option value="listed">Visible in project</option>
-              <option value="direct_only">Direct link only</option>
-            </select>
-          </div>
-        </div>
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={() => setIsGalleryDialogOpen(false)}
-            className="rounded-xl border border-border/40 bg-surface px-4 py-2.5 text-sm font-semibold text-text"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={isCreatingGallery}
-            onClick={() => void handleCreateGallery()}
-            className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground"
-          >
-            {isCreatingGallery ? 'Creating…' : 'Create gallery'}
-          </button>
-        </div>
+        </form>
       </AppDialog>
 
       <ShareLinkSettingsModal

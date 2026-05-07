@@ -60,7 +60,7 @@ const SegmentedControl = <T extends string>({
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            className={`relative flex items-center gap-2 transition-all duration-200 hover:bg-surface-2/50 ${buttonClass} ${index > 0 ? 'border-l border-border/50' : ''}`}
+            className={`relative flex cursor-pointer items-center gap-2 transition-all duration-200 hover:bg-surface-2/50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${buttonClass} ${index > 0 ? 'border-l border-border/50' : ''}`}
             aria-pressed={isActive}
           >
             {isActive && (

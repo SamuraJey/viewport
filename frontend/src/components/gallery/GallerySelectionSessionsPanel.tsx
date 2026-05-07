@@ -323,6 +323,7 @@ export const GallerySelectionSessionsPanel = ({
             value={itemSearch}
             onChange={(event) => setItemSearch(event.target.value)}
             placeholder="Search by filename, id, comment"
+            aria-label="Search selected photos"
             className="h-9 w-full rounded-lg border border-border/50 bg-surface-1 px-3 text-xs text-text placeholder:text-muted sm:w-72"
           />
           <div className="inline-flex items-center gap-1 rounded-lg border border-border/40 bg-surface-1 p-1">

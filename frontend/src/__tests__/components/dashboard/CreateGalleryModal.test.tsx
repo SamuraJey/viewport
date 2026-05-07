@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createRef, useRef, useState } from 'react';
 
 import { CreateGalleryModal } from '../../../components/dashboard/CreateGalleryModal';
@@ -74,5 +75,27 @@ describe('CreateGalleryModal', () => {
     const helper = screen.getByText(new RegExp(`Up to ${GALLERY_NAME_MAX_LENGTH} characters.`));
     expect(helper).toHaveClass('text-danger');
     expect(helper).toHaveTextContent(/-\d+ left\./);
+  });
+
+  it('submits with Enter from the name field through the dialog form', async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    const inputRef = createRef<HTMLInputElement>();
+
+    render(
+      <CreateGalleryModal
+        {...defaultProps}
+        newGalleryName="Client Gallery"
+        inputRef={inputRef}
+        onNameChange={vi.fn()}
+        onConfirm={onConfirm}
+      />,
+    );
+    await flushDialogMount();
+
+    await user.click(screen.getByLabelText(/gallery name/i));
+    await user.keyboard('{Enter}');
+
+    expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 });

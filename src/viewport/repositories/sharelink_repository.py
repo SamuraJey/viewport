@@ -15,6 +15,9 @@ from viewport.models.sharelink_selection import ShareLinkSelectionSession
 from viewport.repositories.base_repository import BaseRepository
 from viewport.repositories.gallery_stats import GalleryPhotoStats, gallery_photo_stats_stmt, gallery_photo_total_size_stmt
 from viewport.repositories.photo_query_helpers import build_photo_order_clauses
+from viewport.repositories.query_utils import LIKE_ESCAPE_CHAR as DEFAULT_LIKE_ESCAPE_CHAR
+from viewport.repositories.query_utils import escape_like_term, literal_like_pattern
+from viewport.repositories.sharelink_scope_filters import scope_sharelinks_to_owner
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 from viewport.sharelink_utils import is_sharelink_expired
 
@@ -22,26 +25,11 @@ OwnerShareLinkStatus = Literal["active", "inactive", "expired"]
 
 
 class ShareLinkRepository(BaseRepository):
-    LIKE_ESCAPE_CHAR = "\\"
+    LIKE_ESCAPE_CHAR = DEFAULT_LIKE_ESCAPE_CHAR
 
     @classmethod
     def _escape_like_term(cls, value: str) -> str:
-        return value.replace(cls.LIKE_ESCAPE_CHAR, cls.LIKE_ESCAPE_CHAR * 2).replace("%", f"{cls.LIKE_ESCAPE_CHAR}%").replace("_", f"{cls.LIKE_ESCAPE_CHAR}_")
-
-    @staticmethod
-    def _owner_filter(owner_id: uuid.UUID):
-        return or_(
-            and_(
-                ShareLink.scope_type == ShareScopeType.GALLERY.value,
-                Gallery.owner_id == owner_id,
-                Gallery.is_deleted.is_(False),
-            ),
-            and_(
-                ShareLink.scope_type == ShareScopeType.PROJECT.value,
-                Project.owner_id == owner_id,
-                Project.is_deleted.is_(False),
-            ),
-        )
+        return escape_like_term(value, cls.LIKE_ESCAPE_CHAR)
 
     @staticmethod
     def _public_target_filter():
@@ -55,6 +43,54 @@ class ShareLinkRepository(BaseRepository):
                 Project.is_deleted.is_(False),
             ),
         )
+
+    @classmethod
+    def _owner_search_filter(cls, search: str | None):
+        normalized_search = (search or "").strip()
+        if not normalized_search:
+            return None
+
+        pattern = literal_like_pattern(normalized_search, cls.LIKE_ESCAPE_CHAR)
+        return or_(
+            ShareLink.label.ilike(pattern, escape=cls.LIKE_ESCAPE_CHAR),
+            Gallery.name.ilike(pattern, escape=cls.LIKE_ESCAPE_CHAR),
+            Project.name.ilike(pattern, escape=cls.LIKE_ESCAPE_CHAR),
+            cast(ShareLink.id, String).ilike(pattern, escape=cls.LIKE_ESCAPE_CHAR),
+        )
+
+    @staticmethod
+    def _owner_status_filters(
+        status: OwnerShareLinkStatus | None,
+        now: datetime,
+    ) -> list:
+        if status == "active":
+            return [
+                ShareLink.is_active.is_(True),
+                or_(ShareLink.expires_at.is_(None), ShareLink.expires_at > now),
+            ]
+        if status == "inactive":
+            return [ShareLink.is_active.is_(False)]
+        if status == "expired":
+            return [
+                ShareLink.is_active.is_(True),
+                ShareLink.expires_at.is_not(None),
+                ShareLink.expires_at <= now,
+            ]
+        return []
+
+    def _owner_dashboard_filters(
+        self,
+        *,
+        search: str | None,
+        status: OwnerShareLinkStatus | None,
+        now: datetime,
+    ) -> list:
+        filters = []
+        search_filter = self._owner_search_filter(search)
+        if search_filter is not None:
+            filters.append(search_filter)
+        filters.extend(self._owner_status_filters(status, now))
+        return filters
 
     async def get_sharelink_by_id(self, sharelink_id: uuid.UUID) -> ShareLink | None:
         stmt = select(ShareLink).where(ShareLink.id == sharelink_id)
@@ -91,7 +127,11 @@ class ShareLinkRepository(BaseRepository):
         return sharelink
 
     async def get_sharelink_for_owner(self, sharelink_id: uuid.UUID, owner_id: uuid.UUID) -> tuple[ShareLink, str | None, str | None] | None:
-        stmt = select(ShareLink, Gallery.name, Project.name).outerjoin(ShareLink.gallery).outerjoin(ShareLink.project).where(ShareLink.id == sharelink_id, self._owner_filter(owner_id))
+        stmt = scope_sharelinks_to_owner(
+            select(ShareLink, Gallery.name, Project.name),
+            owner_id,
+            ShareLink.id == sharelink_id,
+        )
         row = (await self.db.execute(stmt)).one_or_none()
         if row is None:
             return await self._finish_read(None)
@@ -105,34 +145,18 @@ class ShareLinkRepository(BaseRepository):
         search: str | None = None,
         status: OwnerShareLinkStatus | None = None,
     ) -> tuple[list[tuple[ShareLink, str | None, str | None, datetime]], int, dict[str, int]]:
-        filters = [self._owner_filter(owner_id)]
         now = datetime.now(UTC).replace(tzinfo=None)
-        normalized_search = (search or "").strip()
-        if normalized_search:
-            escaped_search = self._escape_like_term(normalized_search)
-            pattern = f"%{escaped_search}%"
-            filters.append(
-                or_(
-                    ShareLink.label.ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
-                    Gallery.name.ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
-                    Project.name.ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
-                    cast(ShareLink.id, String).ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
-                )
-            )
+        filters = self._owner_dashboard_filters(
+            search=search,
+            status=status,
+            now=now,
+        )
 
-        if status == "active":
-            filters.extend(
-                [
-                    ShareLink.is_active.is_(True),
-                    or_(ShareLink.expires_at.is_(None), ShareLink.expires_at > now),
-                ]
-            )
-        elif status == "inactive":
-            filters.append(ShareLink.is_active.is_(False))
-        elif status == "expired":
-            filters.extend([ShareLink.is_active.is_(True), ShareLink.expires_at.is_not(None), ShareLink.expires_at <= now])
-
-        candidate_sharelink_ids_subquery = select(ShareLink.id.label("sharelink_id")).outerjoin(ShareLink.gallery).outerjoin(ShareLink.project).where(*filters).subquery()
+        candidate_sharelink_ids_subquery = scope_sharelinks_to_owner(
+            select(ShareLink.id.label("sharelink_id")),
+            owner_id,
+            *filters,
+        ).subquery()
 
         session_activity_subquery = (
             select(
@@ -152,37 +176,32 @@ class ShareLinkRepository(BaseRepository):
             ShareLink.created_at,
         ).label("latest_activity_at")
 
-        base_stmt = select(ShareLink).outerjoin(ShareLink.gallery).outerjoin(ShareLink.project).where(*filters)
+        base_stmt = scope_sharelinks_to_owner(select(ShareLink), owner_id, *filters)
 
         count_stmt = select(func.count()).select_from(base_stmt.subquery())
         total = int((await self.db.execute(count_stmt)).scalar() or 0)
 
-        summary_stmt = (
-            select(
-                func.coalesce(func.sum(ShareLink.views), 0),
-                func.coalesce(func.sum(ShareLink.zip_downloads), 0),
-                func.coalesce(func.sum(ShareLink.single_downloads), 0),
-                func.coalesce(
-                    func.sum(
-                        case(
-                            (
-                                and_(
-                                    ShareLink.is_active.is_(True),
-                                    or_(ShareLink.expires_at.is_(None), ShareLink.expires_at > now),
-                                ),
-                                1,
+        summary_stmt = select(
+            func.coalesce(func.sum(ShareLink.views), 0),
+            func.coalesce(func.sum(ShareLink.zip_downloads), 0),
+            func.coalesce(func.sum(ShareLink.single_downloads), 0),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                ShareLink.is_active.is_(True),
+                                or_(ShareLink.expires_at.is_(None), ShareLink.expires_at > now),
                             ),
-                            else_=0,
-                        )
-                    ),
-                    0,
+                            1,
+                        ),
+                        else_=0,
+                    )
                 ),
-            )
-            .select_from(ShareLink)
-            .outerjoin(ShareLink.gallery)
-            .outerjoin(ShareLink.project)
-            .where(*filters)
-        )
+                0,
+            ),
+        ).select_from(ShareLink)
+        summary_stmt = scope_sharelinks_to_owner(summary_stmt, owner_id, *filters)
         summary_row = (await self.db.execute(summary_stmt)).one()
         summary = {
             "views": int(summary_row[0] or 0),
@@ -193,10 +212,7 @@ class ShareLinkRepository(BaseRepository):
 
         stmt = (
             select(ShareLink, Gallery.name, Project.name, latest_activity_expr)
-            .outerjoin(ShareLink.gallery)
-            .outerjoin(ShareLink.project)
             .outerjoin(session_activity_subquery, session_activity_subquery.c.sharelink_id == ShareLink.id)
-            .where(*filters)
             .order_by(
                 latest_activity_expr.desc(),
                 ShareLink.updated_at.desc(),
@@ -206,6 +222,7 @@ class ShareLinkRepository(BaseRepository):
             .offset((page - 1) * size)
             .limit(size)
         )
+        stmt = scope_sharelinks_to_owner(stmt, owner_id, *filters)
         rows = [(row[0], row[1], row[2], row[3]) for row in (await self.db.execute(stmt)).all()]
         return await self._finish_read((rows, total, summary))
 
@@ -217,34 +234,15 @@ class ShareLinkRepository(BaseRepository):
         search: str | None = None,
         status: OwnerShareLinkStatus | None = None,
     ) -> list[tuple[date, int, int, int, int]]:
-        filters = [self._owner_filter(owner_id)]
-        now = datetime.now(UTC).replace(tzinfo=None)
-        normalized_search = (search or "").strip()
-        if normalized_search:
-            escaped_search = self._escape_like_term(normalized_search)
-            pattern = f"%{escaped_search}%"
-            filters.append(
-                or_(
-                    ShareLink.label.ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
-                    Gallery.name.ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
-                    Project.name.ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
-                    cast(ShareLink.id, String).ilike(pattern, escape=self.LIKE_ESCAPE_CHAR),
-                )
-            )
+        now_utc = datetime.now(UTC)
+        now = now_utc.replace(tzinfo=None)
+        filters = self._owner_dashboard_filters(
+            search=search,
+            status=status,
+            now=now,
+        )
 
-        if status == "active":
-            filters.extend(
-                [
-                    ShareLink.is_active.is_(True),
-                    or_(ShareLink.expires_at.is_(None), ShareLink.expires_at > now),
-                ]
-            )
-        elif status == "inactive":
-            filters.append(ShareLink.is_active.is_(False))
-        elif status == "expired":
-            filters.extend([ShareLink.is_active.is_(True), ShareLink.expires_at.is_not(None), ShareLink.expires_at <= now])
-
-        since_day = datetime.now(UTC).date() - timedelta(days=days - 1)
+        since_day = now_utc.date() - timedelta(days=days - 1)
         stmt = (
             select(
                 ShareLinkDailyStat.day,
@@ -255,12 +253,11 @@ class ShareLinkRepository(BaseRepository):
             )
             .select_from(ShareLinkDailyStat)
             .join(ShareLink, ShareLinkDailyStat.sharelink_id == ShareLink.id)
-            .outerjoin(ShareLink.gallery)
-            .outerjoin(ShareLink.project)
-            .where(ShareLinkDailyStat.day >= since_day, *filters)
+            .where(ShareLinkDailyStat.day >= since_day)
             .group_by(ShareLinkDailyStat.day)
             .order_by(ShareLinkDailyStat.day.asc())
         )
+        stmt = scope_sharelinks_to_owner(stmt, owner_id, *filters)
         rows = [
             (
                 row_day,
@@ -548,6 +545,29 @@ class ShareLinkRepository(BaseRepository):
         )
         await self.db.execute(stmt)
 
+    async def _increment_sharelink_counters(
+        self,
+        sharelink_id: uuid.UUID,
+        *,
+        values: dict,
+        day: date | None = None,
+        views_total_inc: int = 0,
+        views_unique_inc: int = 0,
+        zip_downloads_inc: int = 0,
+        single_downloads_inc: int = 0,
+    ) -> None:
+        stat_day = day or datetime.now(UTC).date()
+        await self.db.execute(update(ShareLink).where(ShareLink.id == sharelink_id).values(**values))
+        await self._upsert_daily_stat(
+            sharelink_id,
+            day=stat_day,
+            views_total_inc=views_total_inc,
+            views_unique_inc=views_unique_inc,
+            zip_downloads_inc=zip_downloads_inc,
+            single_downloads_inc=single_downloads_inc,
+        )
+        await self.db.commit()
+
     async def record_view(self, sharelink_id: uuid.UUID, ip_address: str | None, user_agent: str | None) -> None:
         today = datetime.now(UTC).date()
         visitor_hash = self.build_visitor_hash(ip_address, user_agent)
@@ -568,26 +588,27 @@ class ShareLinkRepository(BaseRepository):
             inserted = await self.db.execute(visitor_stmt)
             is_unique = bool(getattr(inserted, "rowcount", 0))
 
-        await self.db.execute(update(ShareLink).where(ShareLink.id == sharelink_id).values(views=ShareLink.views + 1))
-        await self._upsert_daily_stat(
+        await self._increment_sharelink_counters(
             sharelink_id,
+            values={"views": ShareLink.views + 1},
             day=today,
             views_total_inc=1,
             views_unique_inc=1 if is_unique else 0,
         )
-        await self.db.commit()
 
     async def record_zip_download(self, sharelink_id: uuid.UUID) -> None:
-        today = datetime.now(UTC).date()
-        await self.db.execute(update(ShareLink).where(ShareLink.id == sharelink_id).values(zip_downloads=ShareLink.zip_downloads + 1))
-        await self._upsert_daily_stat(sharelink_id, day=today, zip_downloads_inc=1)
-        await self.db.commit()
+        await self._increment_sharelink_counters(
+            sharelink_id,
+            values={"zip_downloads": ShareLink.zip_downloads + 1},
+            zip_downloads_inc=1,
+        )
 
     async def record_single_download(self, sharelink_id: uuid.UUID) -> None:
-        today = datetime.now(UTC).date()
-        await self.db.execute(update(ShareLink).where(ShareLink.id == sharelink_id).values(single_downloads=ShareLink.single_downloads + 1))
-        await self._upsert_daily_stat(sharelink_id, day=today, single_downloads_inc=1)
-        await self.db.commit()
+        await self._increment_sharelink_counters(
+            sharelink_id,
+            values={"single_downloads": ShareLink.single_downloads + 1},
+            single_downloads_inc=1,
+        )
 
     async def get_sharelink_daily_stats(self, sharelink_id: uuid.UUID, *, days: int) -> list[ShareLinkDailyStat]:
         since_day = datetime.now(UTC).date() - timedelta(days=days - 1)

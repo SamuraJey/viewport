@@ -37,11 +37,11 @@ interface ErrorActionsProps {
 }
 
 const ErrorActions = ({ showBackButton, onRetry }: ErrorActionsProps) => (
-  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+  <div className="flex flex-col justify-center gap-3 sm:flex-row">
     {showBackButton && (
       <Link
         to="/"
-        className="inline-flex items-center gap-2 bg-accent text-accent-foreground font-semibold py-3 px-6 rounded-lg transition-all hover:-translate-y-0.5 no-underline"
+        className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 font-semibold text-accent-foreground no-underline transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
       >
         <Home className="w-5 h-5" />
         Go Home
@@ -50,8 +50,9 @@ const ErrorActions = ({ showBackButton, onRetry }: ErrorActionsProps) => (
 
     {onRetry && (
       <button
+        type="button"
         onClick={onRetry}
-        className="inline-flex items-center gap-2 bg-surface-foreground/10 hover:bg-surface-foreground/20 text-accent-foreground font-semibold py-3 px-6 rounded-lg shadow-sm hover:-translate-y-0.5 transition-all duration-200 border border-border"
+        className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-6 py-3 font-semibold text-text shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
       >
         <RefreshCw className="w-5 h-5" />
         Try Again
@@ -59,8 +60,9 @@ const ErrorActions = ({ showBackButton, onRetry }: ErrorActionsProps) => (
     )}
 
     <button
+      type="button"
       onClick={() => window.location.reload()}
-      className="inline-flex items-center gap-2 bg-transparent hover:bg-surface-foreground/10 text-muted hover:text-text font-medium py-3 px-6 rounded-lg shadow-sm transition-all duration-200 border border-border hover:border-border/50"
+      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-transparent px-6 py-3 font-medium text-muted shadow-sm transition-all duration-200 hover:border-accent/30 hover:bg-surface-1 hover:text-text focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
     >
       <RefreshCw className="w-5 h-5" />
       Refresh Page
@@ -78,13 +80,13 @@ const ErrorDiagnostics = ({ errorStatus, stackTrace, error }: ErrorDiagnosticsPr
   <div className="mt-12 text-sm text-muted">
     <p>Error Code: {errorStatus}</p>
     {stackTrace ? (
-      <details className="mt-4 text-left bg-surface-foreground/10 rounded-lg p-4">
+      <details className="mt-4 rounded-xl border border-border/40 bg-surface-1 p-4 text-left">
         <summary className="cursor-pointer text-muted mb-2">Stack Trace</summary>
         <pre className="text-xs text-muted overflow-auto whitespace-pre-wrap">{stackTrace}</pre>
       </details>
     ) : null}
     {error && import.meta.env.DEV && typeof error === 'object' && error !== null ? (
-      <details className="mt-4 text-left bg-surface-foreground/10 rounded-lg p-4">
+      <details className="mt-4 rounded-xl border border-border/40 bg-surface-1 p-4 text-left">
         <summary className="cursor-pointer text-muted mb-2">Debug Information (JSON)</summary>
         <pre className="text-xs text-muted overflow-auto">{JSON.stringify(error, null, 2)}</pre>
       </details>
@@ -114,21 +116,20 @@ const ErrorPageContent = ({
   const errorIcon = statusIcons[errorStatus] ?? <AlertTriangle className="w-20 h-20 text-muted" />;
 
   return (
-    <div
-      className={`min-h-screen bg-linear-to-br ${errorDetails.bgGradient} flex items-center justify-center p-4`}
-    >
-      <div className="max-w-2xl w-full text-center">
-        <div className="flex justify-center mb-8">{errorIcon}</div>
+    <div className="flex min-h-screen items-center justify-center bg-surface p-4 text-text dark:bg-surface-dark">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_30%_0%,rgba(31,144,255,0.14),transparent_40%)]" />
+      <div className="relative w-full max-w-2xl text-center">
+        <div className="mb-8 flex justify-center">{errorIcon}</div>
 
         <div className="mb-6">
-          <h1 className="text-8xl md:text-9xl font-bold text-white/20 leading-none">
+          <h1 className="font-oswald text-8xl font-bold leading-none text-accent/20 md:text-9xl">
             {errorStatus}
           </h1>
         </div>
 
-        <div className="bg-surface-foreground/5 backdrop-blur-sm rounded-2xl p-8 border border-border mb-8">
-          <h2 className="text-4xl font-bold text-white mb-4">{errorDetails.title}</h2>
-          <p className="text-xl text-muted mb-4">{errorDetails.description}</p>
+        <div className="mb-8 rounded-3xl border border-border/55 bg-surface/90 p-8 shadow-2xl backdrop-blur-sm dark:border-white/10 dark:bg-surface-dark-1/90">
+          <h2 className="mb-4 text-4xl font-bold tracking-tight text-text">{errorDetails.title}</h2>
+          <p className="mb-4 text-xl text-muted">{errorDetails.description}</p>
           <p className="text-muted">{errorDetails.suggestion}</p>
         </div>
 

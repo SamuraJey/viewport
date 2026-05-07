@@ -126,6 +126,7 @@ export const EnhancedGalleryCard = ({
             {extraActions}
             {onShare ? (
               <button
+                type="button"
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -139,6 +140,7 @@ export const EnhancedGalleryCard = ({
               </button>
             ) : null}
             <button
+              type="button"
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -198,32 +200,34 @@ export const EnhancedGalleryCard = ({
             </div>
           </div>
         ) : (
-          <Link
-            to={resolveGalleryPath(gallery)}
-            className="flex flex-1 flex-col justify-center gap-4 no-underline transition-colors"
-          >
-            <div className="group/title relative w-full pr-5 text-left">
-              <div className="min-w-0 flex-1">
-                <h3
-                  className={`wrap-anywhere whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors`}
-                >
-                  {galleryTitle}
-                </h3>
+          <div className="relative flex flex-1 flex-col justify-center gap-4">
+            <Link
+              to={resolveGalleryPath(gallery)}
+              className="flex flex-1 flex-col justify-center gap-4 pr-5 no-underline transition-colors"
+            >
+              <div className="group/title w-full text-left">
+                <div className="min-w-0 flex-1">
+                  <h3
+                    className={`wrap-anywhere whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors`}
+                  >
+                    {galleryTitle}
+                  </h3>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={beginRenameFromEvent}
-                className="absolute right-0 top-1 inline-flex h-4 w-4 items-center justify-center text-muted opacity-0 transition-opacity duration-200 hover:text-accent group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 focus:outline-none"
-                aria-label={`Rename ${galleryTitle}`}
-                title="Rename gallery"
-              >
-                <Edit3 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <p className="rounded-full border border-border/55 bg-surface-1 px-3 py-2 text-sm text-muted dark:border-border/45 dark:bg-surface-dark-1">
-              {metadataParts.join(' • ')}
-            </p>
-          </Link>
+              <p className="rounded-full border border-border/55 bg-surface-1 px-3 py-2 text-sm text-muted dark:border-border/45 dark:bg-surface-dark-1">
+                {metadataParts.join(' • ')}
+              </p>
+            </Link>
+            <button
+              type="button"
+              onClick={beginRenameFromEvent}
+              className="absolute right-0 top-1 inline-flex h-4 w-4 items-center justify-center text-muted opacity-0 transition-opacity duration-200 hover:text-accent group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 focus:outline-none"
+              aria-label={`Rename ${galleryTitle}`}
+              title="Rename gallery"
+            >
+              <Edit3 className="h-3.5 w-3.5" />
+            </button>
+          </div>
         )
       }
     />

@@ -8,11 +8,14 @@ interface GalleryLoadErrorStateProps {
 
 export const GalleryInitialLoadingState = () => (
   <div className="space-y-6">
-    <div className="h-12 w-64 rounded-xl bg-surface-foreground/10 dark:bg-surface/20 animate-pulse" />
+    <div className="h-12 w-64 animate-pulse rounded-xl bg-surface-foreground/10 dark:bg-surface/20" />
     <div className="rounded-3xl border border-border/50 bg-surface p-8 dark:border-border/30 dark:bg-surface-foreground/5 shadow-xs">
       <div className="flex items-center gap-4 text-muted">
-        <Loader2 className="w-6 h-6 animate-spin text-accent" />
-        <span className="text-base font-bold">Loading gallery content...</span>
+        <Loader2 className="h-6 w-6 animate-spin text-accent" />
+        <div>
+          <span className="text-base font-bold">Loading gallery content...</span>
+          <p className="mt-1 text-sm">Preparing photos, controls, and share settings.</p>
+        </div>
       </div>
       <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {Array.from({ length: 6 }).map((_, index) => (
@@ -32,8 +35,9 @@ export const GalleryLoadErrorState = ({ error, onRetry }: GalleryLoadErrorStateP
       <div className="text-danger text-xl font-bold">Failed to load gallery</div>
       <div className="text-muted dark:text-muted-dark font-medium">{error}</div>
       <button
+        type="button"
         onClick={onRetry}
-        className="px-6 py-3 bg-accent text-accent-foreground font-bold rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border border-accent/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0"
+        className="cursor-pointer px-6 py-3 bg-accent text-accent-foreground font-bold rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border border-accent/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0"
       >
         Try Again
       </button>

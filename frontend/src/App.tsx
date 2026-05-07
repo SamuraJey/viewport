@@ -44,9 +44,15 @@ export const RouteFallback = () => (
     role="status"
     aria-live="polite"
     aria-label="Loading page"
-    className="pointer-events-none fixed inset-x-0 top-0 z-100"
+    className="pointer-events-none fixed inset-0 z-100 flex items-start justify-center bg-surface/35 backdrop-blur-[2px] dark:bg-surface-dark/35"
   >
-    <div className="h-0.5 w-full bg-accent/70 animate-pulse" />
+    <div className="absolute inset-x-0 top-0 h-1 w-full overflow-hidden bg-accent/10">
+      <div className="h-full w-1/2 animate-pulse rounded-r-full bg-accent/80" />
+    </div>
+    <div className="mt-24 inline-flex items-center gap-3 rounded-2xl border border-border/60 bg-surface/95 px-4 py-3 text-sm font-semibold text-text shadow-xl backdrop-blur-lg dark:border-border/40 dark:bg-surface-dark/95">
+      <span className="h-3 w-3 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+      Preparing your workspace…
+    </div>
   </div>
 );
 

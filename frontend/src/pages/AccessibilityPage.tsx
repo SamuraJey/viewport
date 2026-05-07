@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Accessibility, ArrowLeft, Eye, Keyboard, Palette, Type } from 'lucide-react';
 import { ReadabilitySettingsButton } from '../components/ReadabilitySettingsButton';
+import { ThemeSwitch } from '../components/ThemeSwitch';
 import { SkipToContentLink } from '../components/a11y/SkipToContentLink';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { MAIN_CONTENT_ID } from '../lib/accessibility';
@@ -38,6 +39,7 @@ export const AccessibilityPage = () => {
       <SkipToContentLink targetId={MAIN_CONTENT_ID} />
       <div className="fixed right-4 top-4 z-40 flex items-center gap-2">
         <ReadabilitySettingsButton />
+        <ThemeSwitch variant="inline" />
       </div>
       <main
         id={MAIN_CONTENT_ID}
@@ -58,15 +60,19 @@ export const AccessibilityPage = () => {
           </span>
         </div>
 
-        <section className="rounded-3xl border border-border/50 bg-surface-1/70 p-6 shadow-sm dark:bg-surface-dark-1/60 sm:p-8">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Accessibility in Viewport
-          </h1>
-          <p className="mt-4 max-w-3xl text-base text-muted sm:text-lg">
-            Viewport is being aligned with an <strong>AA target</strong> based on{' '}
-            <strong>ГОСТ Р 52872-2019</strong> and WCAG guidance. We aim to keep the product usable
-            with keyboards, screen readers, browser zoom, and dedicated readability settings.
-          </p>
+        <section className="relative overflow-hidden rounded-3xl border border-border/50 bg-surface-1/70 p-6 shadow-sm dark:bg-surface-dark-1/60 sm:p-8">
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(31,144,255,0.14),transparent_55%)]" />
+          <div className="relative">
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              Accessibility in Viewport
+            </h1>
+            <p className="mt-4 max-w-3xl text-base text-muted sm:text-lg">
+              Viewport is being aligned with an <strong>AA target</strong> based on{' '}
+              <strong>ГОСТ Р 52872-2019</strong> and WCAG guidance. We aim to keep the product
+              usable with keyboards, screen readers, browser zoom, and dedicated readability
+              settings.
+            </p>
+          </div>
         </section>
 
         <section className="grid gap-4 sm:grid-cols-2">

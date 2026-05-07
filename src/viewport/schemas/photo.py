@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from viewport.filename_utils import build_content_disposition
+
 if TYPE_CHECKING:
     from viewport.models.gallery import Photo
     from viewport.s3_service import AsyncS3Client
@@ -14,11 +16,6 @@ if TYPE_CHECKING:
 class PhotoCreateRequest(BaseModel):
     file_size: int = Field(..., ge=1)
     # file will be handled as UploadFile in endpoint, not in schema
-
-
-def _build_content_disposition(filename: str, disposition_type: str = "inline") -> str:
-    safe_filename = filename.replace("\\", "\\\\").replace('"', '\\"')
-    return f'{disposition_type}; filename="{safe_filename}"'
 
 
 def _resolve_filename(photo: "Photo") -> str:
@@ -36,7 +33,7 @@ async def _generate_url_maps(
     s3_client: "AsyncS3Client",
 ) -> tuple[Mapping[str, str], Mapping[str, str]]:
     thumbnail_keys = [photo.thumbnail_object_key for photo in photos]
-    original_key_dispositions: Mapping[str, str | None] = {photo.object_key: _build_content_disposition(_resolve_filename(photo), disposition_type="inline") for photo in photos}
+    original_key_dispositions: Mapping[str, str | None] = {photo.object_key: build_content_disposition(_resolve_filename(photo), disposition_type="inline") for photo in photos}
 
     thumbnail_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys, expires_in=7200)
     full_url_map = await s3_client.generate_presigned_urls_batch_for_dispositions(
@@ -79,7 +76,7 @@ class PhotoResponse(BaseModel):
 
     @staticmethod
     def _build_content_disposition(filename: str, disposition_type: str = "inline") -> str:
-        return _build_content_disposition(filename, disposition_type)
+        return build_content_disposition(filename, disposition_type)
 
     @staticmethod
     def _resolve_filename(photo: "Photo") -> str:

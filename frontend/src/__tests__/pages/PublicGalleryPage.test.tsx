@@ -168,6 +168,7 @@ describe('PublicGalleryPage', () => {
     mockNavigate.mockReset();
     mockRouteParams = { shareId: 'abc123' };
     window.localStorage.clear();
+    Object.defineProperty(window, 'scrollY', { value: 0, writable: true, configurable: true });
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { shareLinkService } = await import('../../services/shareLinkService');
     vi.mocked(shareLinkService.getSharedGallery).mockResolvedValue(mockPublicGallery);
@@ -548,7 +549,7 @@ describe('PublicGalleryPage', () => {
     expect(getRootProjectCalls()).toBe(0);
   });
 
-  it('keeps a sticky project selection bar visible while browsing project galleries', async () => {
+  it('shows the sticky project selection bar only after selection starts and the hero is passed', async () => {
     const { shareLinkService } = await import('../../services/shareLinkService');
     mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-1' };
     vi.mocked(shareLinkService.getSharedGallery).mockImplementation(async (_shareId, options) => {
@@ -590,12 +591,120 @@ describe('PublicGalleryPage', () => {
 
     render(wrapper());
 
+    await waitFor(() => {
+      expect(screen.queryByText('Loading gallery photos...')).not.toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('project-selection-sticky-bar')).not.toBeInTheDocument();
+
+    Object.defineProperty(window, 'scrollY', { value: 500, writable: true, configurable: true });
+    fireEvent.scroll(window);
+
     const stickyBar = await screen.findByTestId('project-selection-sticky-bar');
     expect(within(stickyBar).getByText('4 selected')).toBeInTheDocument();
     expect(within(stickyBar).getByRole('button', { name: /open favorites/i })).toBeInTheDocument();
     expect(
       within(stickyBar).getByRole('button', { name: /finish selection/i }),
     ).toBeInTheDocument();
+  });
+
+  it('does not show the sticky project selection bar before a selection session starts', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-1' };
+    vi.mocked(shareLinkService.getSharedGallery).mockImplementation(async (_shareId, options) => {
+      if (options?.galleryId) {
+        return mockProjectGallery as any;
+      }
+      return mockProjectShare as any;
+    });
+    vi.mocked(shareLinkService.getPublicSelectionConfig).mockResolvedValue({
+      is_enabled: true,
+      list_title: 'Selected photos',
+      limit_enabled: true,
+      limit_value: 12,
+      allow_photo_comments: false,
+      require_name: true,
+      require_email: false,
+      require_phone: false,
+      require_client_note: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+    vi.mocked(shareLinkService.getPublicSelectionSession).mockRejectedValue({
+      response: { status: 404, data: { detail: 'Selection session not found' } },
+    } as any);
+
+    render(wrapper());
+
+    await waitFor(() => {
+      expect(screen.queryByText('Loading gallery photos...')).not.toBeInTheDocument();
+    });
+    Object.defineProperty(window, 'scrollY', { value: 500, writable: true, configurable: true });
+    fireEvent.scroll(window);
+
+    expect(screen.queryByTestId('project-selection-sticky-bar')).not.toBeInTheDocument();
+  });
+
+  it('submits the start selection modal with Enter from the name field', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    const user = userEvent.setup();
+    const createdSession = {
+      id: 'session-1',
+      sharelink_id: 'abc123',
+      status: 'in_progress',
+      client_name: 'Jane Client',
+      client_email: null,
+      client_phone: null,
+      client_note: null,
+      selected_count: 1,
+      submitted_at: null,
+      last_activity_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      resume_token: 'resume-token',
+      items: [
+        {
+          photo_id: 'p1',
+          comment: null,
+          selected_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+    };
+    vi.mocked(shareLinkService.getPublicSelectionConfig).mockResolvedValue({
+      is_enabled: true,
+      list_title: 'Selected photos',
+      limit_enabled: false,
+      limit_value: null,
+      allow_photo_comments: false,
+      require_name: true,
+      require_email: false,
+      require_phone: false,
+      require_client_note: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+    vi.mocked(shareLinkService.startPublicSelectionSession).mockResolvedValue(
+      createdSession as any,
+    );
+    vi.mocked(shareLinkService.togglePublicSelectionItem).mockResolvedValue(undefined as any);
+    vi.mocked(shareLinkService.getPublicSelectionSession).mockResolvedValue(createdSession as any);
+
+    render(wrapper());
+
+    const favoriteButton = await screen.findByRole('button', { name: /add 1.jpg to favorites/i });
+    await user.click(favoriteButton);
+    const nameInput = await screen.findByLabelText(/your name/i);
+
+    await user.type(nameInput, 'Jane Client{enter}');
+
+    await waitFor(() => {
+      expect(shareLinkService.startPublicSelectionSession).toHaveBeenCalledWith('abc123', {
+        client_name: 'Jane Client',
+        client_email: null,
+        client_phone: null,
+        client_note: null,
+      });
+    });
   });
 
   it('shows a compact note trigger for selected photos instead of placing comments in the grid', async () => {
@@ -644,8 +753,14 @@ describe('PublicGalleryPage', () => {
       expect(screen.getByLabelText(/remove 1.jpg from favorites/i)).toBeInTheDocument();
     });
 
-    expect(screen.getByLabelText(/add a note for 1.jpg/i)).toBeInTheDocument();
+    const noteButton = screen.getByLabelText(/add a note for 1.jpg/i);
+    expect(noteButton).toBeInTheDocument();
     expect(screen.queryByPlaceholderText('Comment for this photo')).not.toBeInTheDocument();
+
+    fireEvent.click(noteButton);
+
+    const commentInput = await screen.findByPlaceholderText('Comment for this photo');
+    expect(commentInput).toHaveFocus();
   });
 
   it('renders dedicated favorites view with finish button and back navigation', async () => {

@@ -58,6 +58,10 @@ export const Layout = ({ children }: LayoutProps) => {
   const isDashboardActive = location.pathname === '/dashboard';
   const isShareLinksActive =
     location.pathname === '/share-links' || location.pathname.startsWith('/share-links/');
+  const navItems = [
+    { to: '/dashboard', label: 'Dashboard', icon: Home, active: isDashboardActive },
+    { to: '/share-links', label: 'Share Links', icon: Share2, active: isShareLinksActive },
+  ];
 
   return (
     <div className="min-h-screen bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
@@ -80,34 +84,24 @@ export const Layout = ({ children }: LayoutProps) => {
               </span>
             ) : null}
             <div className="hidden md:flex items-center gap-2">
-              <Link
-                to="/dashboard"
-                aria-current={isDashboardActive ? 'page' : undefined}
-                className={`${topNavButtonBaseClass} ${isDashboardActive ? topNavButtonActiveClass : topNavButtonInactiveClass}`}
-              >
-                <Home className="h-3.5 w-3.5" />
-                Dashboard
-              </Link>
-              <Link
-                to="/accessibility"
-                className={`${topNavButtonBaseClass} ${topNavButtonInactiveClass}`}
-              >
-                Accessibility
-              </Link>
-              <Link
-                to="/share-links"
-                aria-current={isShareLinksActive ? 'page' : undefined}
-                className={`${topNavButtonBaseClass} ${isShareLinksActive ? topNavButtonActiveClass : topNavButtonInactiveClass}`}
-              >
-                <Share2 className="h-3.5 w-3.5" />
-                Share Links
-              </Link>
+              {navItems.map(({ to, label, icon: Icon, active }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  aria-current={active ? 'page' : undefined}
+                  className={`${topNavButtonBaseClass} ${active ? topNavButtonActiveClass : topNavButtonInactiveClass}`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </Link>
+              ))}
             </div>
             <ReadabilitySettingsButton />
             <ThemeSwitch variant="inline" />
             {user ? (
               <>
                 <button
+                  type="button"
                   onClick={openProfile}
                   title="Account Settings"
                   aria-label="Open account settings"
@@ -124,6 +118,7 @@ export const Layout = ({ children }: LayoutProps) => {
                   </span>
                 </button>
                 <button
+                  type="button"
                   onClick={openProfile}
                   title="Account Settings"
                   aria-label="Open account settings"
@@ -133,6 +128,7 @@ export const Layout = ({ children }: LayoutProps) => {
                   {initials}
                 </button>
                 <button
+                  type="button"
                   onClick={handleLogout}
                   title="Sign Out"
                   aria-label="Sign out"
@@ -149,15 +145,39 @@ export const Layout = ({ children }: LayoutProps) => {
       <main
         id="main-content"
         tabIndex={-1}
-        className="max-w-7xl xl:max-w-380 2xl:max-w-480 mx-auto px-4 xl:px-6 2xl:px-8 py-8"
+        className="max-w-7xl xl:max-w-380 2xl:max-w-480 mx-auto px-4 xl:px-6 2xl:px-8 py-8 pb-28 md:pb-8"
       >
         <NetworkStatus />
         {children}
       </main>
-      <footer className="border-t border-border/50 bg-surface/70 px-4 py-4 text-sm text-muted dark:bg-surface-dark/70">
-        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
-          <span>Viewport accessibility guidance and low-vision settings.</span>
-          <Link to="/accessibility" className="font-semibold text-accent hover:underline">
+      <nav
+        aria-label="Primary mobile navigation"
+        className="fixed inset-x-3 bottom-3 z-40 rounded-3xl border border-border/60 bg-surface/95 p-2 shadow-2xl backdrop-blur-xl dark:border-border/40 dark:bg-surface-dark/95 md:hidden"
+      >
+        <div className="grid grid-cols-2 gap-1">
+          {navItems.map(({ to, label, icon: Icon, active }) => (
+            <Link
+              key={to}
+              to={to}
+              aria-current={active ? 'page' : undefined}
+              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-2 text-[11px] font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
+                active
+                  ? 'bg-accent text-accent-foreground shadow-sm'
+                  : 'text-muted hover:bg-surface-1 hover:text-text dark:hover:bg-surface-dark-1'
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              <span className="truncate">{label}</span>
+            </Link>
+          ))}
+        </div>
+      </nav>
+      <footer className="border-t border-border/50 bg-surface/70 px-4 py-4 pb-24 text-sm text-muted dark:bg-surface-dark/70 md:pb-4">
+        <div className="mx-auto flex w-full max-w-7xl justify-end">
+          <Link
+            to="/accessibility"
+            className="font-semibold text-accent hover:underline focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark"
+          >
             Accessibility
           </Link>
         </div>
