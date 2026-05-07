@@ -234,14 +234,15 @@ class ShareLinkRepository(BaseRepository):
         search: str | None = None,
         status: OwnerShareLinkStatus | None = None,
     ) -> list[tuple[date, int, int, int, int]]:
-        now = datetime.now(UTC).replace(tzinfo=None)
+        now_utc = datetime.now(UTC)
+        now = now_utc.replace(tzinfo=None)
         filters = self._owner_dashboard_filters(
             search=search,
             status=status,
             now=now,
         )
 
-        since_day = datetime.now(UTC).date() - timedelta(days=days - 1)
+        since_day = now_utc.date() - timedelta(days=days - 1)
         stmt = (
             select(
                 ShareLinkDailyStat.day,

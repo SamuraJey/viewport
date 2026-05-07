@@ -1,11 +1,12 @@
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
 from freezegun.api import FrozenDateTimeFactory
 
+import viewport.repositories.sharelink_repository as sharelink_repository_module
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
 from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
@@ -19,6 +20,14 @@ from viewport.repositories.sharelink_repository import ShareLinkRepository
 class _InsertResult:
     def __init__(self, rowcount: int):
         self.rowcount = rowcount
+
+
+class _RowsResult:
+    def __init__(self, rows: list):
+        self._rows = rows
+
+    def all(self):
+        return self._rows
 
 
 @pytest_asyncio.fixture
@@ -51,6 +60,33 @@ async def test_record_view_with_new_identity_increments_unique_views():
 
     repo._upsert_daily_stat.assert_awaited_once()
     assert repo._upsert_daily_stat.await_args.kwargs["views_unique_inc"] == 1
+
+
+@pytest.mark.asyncio
+async def test_get_owner_sharelink_daily_stats_captures_utc_now_once(monkeypatch):
+    captured_now = datetime(2026, 4, 17, 23, 59, 59, tzinfo=UTC)
+
+    class SingleCallDateTime(datetime):
+        calls = 0
+
+        @classmethod
+        def now(cls, tz=None):
+            cls.calls += 1
+            if cls.calls > 1:
+                raise AssertionError("datetime.now(UTC) should be captured once")
+            return captured_now if tz is not None else captured_now.replace(tzinfo=None)
+
+    monkeypatch.setattr(sharelink_repository_module, "datetime", SingleCallDateTime)
+
+    db = Mock()
+    db.execute = AsyncMock(return_value=_RowsResult([]))
+    db.in_transaction.return_value = False
+    repo = ShareLinkRepository(db)
+
+    rows = await repo.get_owner_sharelink_daily_stats(uuid4(), days=1, status="active")
+
+    assert rows == []
+    assert SingleCallDateTime.calls == 1
 
 
 @pytest.mark.asyncio
