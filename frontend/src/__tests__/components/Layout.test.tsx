@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
 import { Layout } from '../../components/Layout';
@@ -158,6 +158,36 @@ describe('Layout', () => {
 
     // Should have main content area
     expect(screen.getByTestId('content')).toBeInTheDocument();
+  });
+
+  it('keeps accessibility out of navigation and exposes it only as a footer link', () => {
+    vi.mocked(useAuthStore).mockReturnValue({
+      user: null,
+      logout: mockLogout,
+    } as any);
+
+    renderWithRouter(
+      <Layout>
+        <div>Content</div>
+      </Layout>,
+    );
+
+    expect(
+      within(screen.getByRole('navigation', { name: /top navigation/i })).queryByRole('link', {
+        name: /accessibility/i,
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole('navigation', { name: /primary mobile navigation/i })).queryByRole(
+        'link',
+        {
+          name: /accessibility/i,
+        },
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('contentinfo')).toContainElement(
+      screen.getByRole('link', { name: /accessibility/i }),
+    );
   });
 
   it('moves focus to main content when skip link is activated', async () => {

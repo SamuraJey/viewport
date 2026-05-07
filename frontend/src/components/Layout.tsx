@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Accessibility, Camera, Home, LogOut, Share2 } from 'lucide-react';
+import { Camera, Home, LogOut, Share2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { isDemoModeEnabled } from '../lib/demoMode';
@@ -58,16 +58,9 @@ export const Layout = ({ children }: LayoutProps) => {
   const isDashboardActive = location.pathname === '/dashboard';
   const isShareLinksActive =
     location.pathname === '/share-links' || location.pathname.startsWith('/share-links/');
-  const isAccessibilityActive = location.pathname === '/accessibility';
   const navItems = [
     { to: '/dashboard', label: 'Dashboard', icon: Home, active: isDashboardActive },
     { to: '/share-links', label: 'Share Links', icon: Share2, active: isShareLinksActive },
-    {
-      to: '/accessibility',
-      label: 'Accessibility',
-      icon: Accessibility,
-      active: isAccessibilityActive,
-    },
   ];
 
   return (
@@ -158,7 +151,7 @@ export const Layout = ({ children }: LayoutProps) => {
         aria-label="Primary mobile navigation"
         className="fixed inset-x-3 bottom-3 z-40 rounded-3xl border border-border/60 bg-surface/95 p-2 shadow-2xl backdrop-blur-xl dark:border-border/40 dark:bg-surface-dark/95 md:hidden"
       >
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-2 gap-1">
           {navItems.map(({ to, label, icon: Icon, active }) => (
             <Link
               key={to}
@@ -177,9 +170,11 @@ export const Layout = ({ children }: LayoutProps) => {
         </div>
       </nav>
       <footer className="border-t border-border/50 bg-surface/70 px-4 py-4 pb-24 text-sm text-muted dark:bg-surface-dark/70 md:pb-4">
-        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
-          <span>Viewport accessibility guidance and low-vision settings.</span>
-          <Link to="/accessibility" className="font-semibold text-accent hover:underline">
+        <div className="mx-auto flex w-full max-w-7xl justify-end">
+          <Link
+            to="/accessibility"
+            className="font-semibold text-accent hover:underline focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark"
+          >
             Accessibility
           </Link>
         </div>

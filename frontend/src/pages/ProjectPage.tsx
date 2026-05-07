@@ -1,18 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import {
-  ArrowLeft,
-  Check,
-  Eye,
-  EyeOff,
-  FolderPlus,
-  HardDrive,
-  Images,
-  Link2,
-  Settings2,
-  Share2,
-} from 'lucide-react';
+import { ArrowLeft, Check, EyeOff, FolderPlus, Settings2, Share2 } from 'lucide-react';
 import { EnhancedGalleryCard } from '../components/dashboard/EnhancedGalleryCard';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { AppDialog, AppDialogDescription, AppDialogTitle, AppPopover } from '../components/ui';
@@ -103,7 +92,7 @@ export const ProjectPage = () => {
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const projectTitleRef = useRef<HTMLHeadingElement | null>(null);
   const renameInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const [projectTitleFontSizePx, setProjectTitleFontSizePx] = useState(48);
+  const [projectTitleFontSizePx, setProjectTitleFontSizePx] = useState(40);
 
   const loadProject = useCallback(async () => {
     if (!projectId) return;
@@ -137,11 +126,11 @@ export const ProjectPage = () => {
       return;
     }
 
-    const minSize = 16;
-    const maxLines = 3;
+    const minSize = 20;
+    const maxLines = 2;
 
     const recalc = () => {
-      let nextSize = window.innerWidth >= 640 ? 48 : 36;
+      let nextSize = window.innerWidth >= 640 ? 40 : 32;
       heading.style.fontSize = `${nextSize}px`;
 
       while (nextSize > minSize) {
@@ -523,51 +512,57 @@ export const ProjectPage = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-3xl border border-border/50 bg-surface p-6 shadow-xs dark:border-border/30 dark:bg-surface-dark">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 max-w-full space-y-3">
+    <div className="space-y-5">
+      <section className="rounded-2xl border border-border/50 bg-surface p-4 shadow-xs sm:p-5 dark:border-border/30 dark:bg-surface-dark">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0 max-w-5xl space-y-2">
             <Link
               to="/dashboard"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-muted hover:text-accent"
+              className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted transition-colors hover:text-accent"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to dashboard
             </Link>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">
                 Project
               </p>
               <h1
                 ref={projectTitleRef}
                 style={{ fontSize: `${projectTitleFontSizePx}px` }}
-                className="max-w-full whitespace-normal wrap-break-word font-oswald font-bold uppercase leading-tight tracking-wide text-text"
+                className="max-w-full whitespace-normal wrap-break-word font-oswald font-bold uppercase leading-none tracking-wide text-text"
               >
                 {project.name}
               </h1>
-              <p className="mt-2 text-sm text-muted">
-                {formatDateOnly(project.shooting_date)} · {project.gallery_count} galleries ·{' '}
-                {visibleGalleryCount} visible in project share
+              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+                <span>{formatDateOnly(project.shooting_date)}</span>
+                <span aria-hidden="true">·</span>
+                <span>{project.gallery_count} galleries</span>
+                <span aria-hidden="true">·</span>
+                <span>{visibleGalleryCount} visible</span>
+                <span aria-hidden="true">·</span>
+                <span>{project.total_photo_count} photos</span>
+                <span aria-hidden="true">·</span>
+                <span>{formatFileSize(project.total_size_bytes)}</span>
+                <span aria-hidden="true">·</span>
+                <span>
+                  {shareLinks.length} project share link{shareLinks.length === 1 ? '' : 's'}
+                </span>
+                {directOnlyGalleryCount > 0 ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{directOnlyGalleryCount} direct-only</span>
+                  </>
+                ) : null}
               </p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-sm text-muted">
-              <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
-                {project.total_photo_count} photos
-              </span>
-              <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
-                {formatFileSize(project.total_size_bytes)}
-              </span>
-              <span className="rounded-xl border border-border/40 bg-surface-1 px-3 py-2">
-                {shareLinks.length} project share link{shareLinks.length === 1 ? '' : 's'}
-              </span>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
             <button
               type="button"
               onClick={() => setIsGalleryDialogOpen(true)}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2.5 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3.5 py-2 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
             >
               <FolderPlus className="h-4 w-4" />
               Add gallery
@@ -575,7 +570,7 @@ export const ProjectPage = () => {
             <button
               type="button"
               onClick={() => setIsShareLinkCreateOpen(true)}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-3.5 py-2 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             >
               <Share2 className="h-4 w-4" />
               Share project
@@ -583,79 +578,31 @@ export const ProjectPage = () => {
             <button
               type="button"
               onClick={requestDeleteProject}
-              className="cursor-pointer rounded-xl border border-danger/30 bg-danger/10 px-4 py-2.5 text-sm font-semibold text-danger transition-all duration-200 hover:-translate-y-0.5 hover:bg-danger/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger"
+              className="cursor-pointer rounded-xl border border-danger/30 bg-danger/10 px-3.5 py-2 text-sm font-semibold text-danger transition-all duration-200 hover:-translate-y-0.5 hover:bg-danger/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger"
             >
               Delete project
             </button>
           </div>
         </div>
         {error ? (
-          <div className="mt-4 rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+          <div className="mt-3 rounded-xl border border-danger/30 bg-danger/10 px-4 py-2.5 text-sm text-danger">
             {error}
           </div>
         ) : null}
         {projectSelectionWarningSummary.hasSensitiveSessions ? (
-          <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-            This project has {projectSelectionWarningLabel}. Hiding, deleting, or reordering
-            galleries will ask for confirmation before changing the live proofing layout.
+          <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-800 dark:text-amber-200">
+            This project has {projectSelectionWarningLabel}. Gallery visibility, deletion, or order
+            changes will ask for confirmation before changing the live proofing layout.
           </div>
         ) : null}
-        <div className="mt-5 grid gap-3 border-t border-border/45 pt-5 sm:grid-cols-2 xl:grid-cols-4 dark:border-border/30">
-          {[
-            {
-              label: 'Total photos',
-              value: project.total_photo_count.toLocaleString(),
-              hint: 'Across every gallery',
-              icon: Images,
-            },
-            {
-              label: 'Project size',
-              value: formatFileSize(project.total_size_bytes),
-              hint: 'Current storage footprint',
-              icon: HardDrive,
-            },
-            {
-              label: 'Listed galleries',
-              value: visibleGalleryCount.toLocaleString(),
-              hint: `${Math.max(0, directOnlyGalleryCount)} direct-only`,
-              icon: Eye,
-            },
-            {
-              label: 'Share links',
-              value: shareLinks.length.toLocaleString(),
-              hint: 'Project-level links',
-              icon: Link2,
-            },
-          ].map(({ label, value, hint, icon: Icon }) => (
-            <div
-              key={label}
-              className="rounded-2xl border border-border/50 bg-surface-1/75 px-4 py-3 shadow-xs dark:border-border/35 dark:bg-surface-dark-1/75"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">
-                    {label}
-                  </p>
-                  <p className="mt-1 text-2xl font-bold text-text">{value}</p>
-                </div>
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                  <Icon className="h-4 w-4" />
-                </span>
-              </div>
-              <p className="mt-2 text-xs text-muted">{hint}</p>
-            </div>
-          ))}
-        </div>
       </section>
 
-      <section className="rounded-3xl border border-border/50 bg-surface p-6 shadow-xs dark:border-border/30 dark:bg-surface-dark">
-        <div className="mb-4 flex items-center justify-between gap-3">
+      <section className="rounded-2xl border border-border/50 bg-surface p-4 shadow-xs sm:p-5 dark:border-border/30 dark:bg-surface-dark">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold text-text">Galleries</h2>
             <p className="text-sm text-muted">
-              Project galleries use the same card layout as standalone galleries. Visibility lives
-              inside each card, and direct-link-only galleries stay hidden from project-wide public
-              shares.
+              Open galleries, reorder them, and manage project-share visibility from each card.
             </p>
           </div>
         </div>
