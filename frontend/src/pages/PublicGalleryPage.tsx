@@ -736,6 +736,7 @@ export const PublicGalleryPage = () => {
                   {activeGalleryId ? (
                     <div className="flex flex-col items-start gap-1">
                       <button
+                        type="button"
                         onClick={handleDownloadCurrentGallery}
                         aria-describedby={galleryZipSizeLabel ? galleryZipSizeId : undefined}
                         className="inline-flex items-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-4 py-2.5 text-sm font-semibold text-accent hover:bg-accent/15"
@@ -752,6 +753,7 @@ export const PublicGalleryPage = () => {
                   ) : null}
                   <div className="flex flex-col items-start gap-1">
                     <button
+                      type="button"
                       onClick={handleDownloadAll}
                       aria-describedby={projectZipSizeLabel ? projectZipSizeId : undefined}
                       className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
@@ -823,6 +825,7 @@ export const PublicGalleryPage = () => {
             {!isFavoritesView && photos.length > 0 && !projectGalleryTabs ? (
               <div className="flex flex-col items-end gap-1">
                 <button
+                  type="button"
                   onClick={handleDownloadAll}
                   aria-describedby={galleryZipSizeLabel ? galleryZipSizeId : undefined}
                   className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, EyeOff, FolderPlus, Settings2, Share2 } from 'lucide-react';
@@ -256,6 +264,11 @@ export const ProjectPage = () => {
     } finally {
       setIsCreatingGallery(false);
     }
+  };
+
+  const handleCreateGallerySubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void handleCreateGallery();
   };
 
   const beginInlineRename = (gallery: Gallery) => {
@@ -823,88 +836,90 @@ export const ProjectPage = () => {
         initialFocusRef={galleryInputRef as React.RefObject<HTMLElement | null>}
         panelClassName="rounded-3xl border border-border/50 bg-surface p-6 shadow-2xl dark:border-border/20 dark:bg-surface-dark"
       >
-        <AppDialogTitle className="text-lg font-semibold text-text">
-          Add gallery to project
-        </AppDialogTitle>
-        <AppDialogDescription className="mt-2 text-sm text-muted">
-          This creates a gallery using the existing gallery upload flow.
-        </AppDialogDescription>
-        <div className="mt-4 space-y-4">
-          <div>
-            <label
-              className="mb-1.5 block text-sm font-medium text-text"
-              htmlFor="project-folder-name"
-            >
-              Gallery name
-            </label>
-            <input
-              id="project-folder-name"
-              ref={galleryInputRef}
-              value={galleryDraft.name}
-              onChange={(event) =>
-                setGalleryDraft((prev) => ({ ...prev, name: event.target.value }))
-              }
-              className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
-              placeholder="Gallery name"
-            />
+        <form onSubmit={handleCreateGallerySubmit}>
+          <AppDialogTitle className="text-lg font-semibold text-text">
+            Add gallery to project
+          </AppDialogTitle>
+          <AppDialogDescription className="mt-2 text-sm text-muted">
+            This creates a gallery using the existing gallery upload flow.
+          </AppDialogDescription>
+          <div className="mt-4 space-y-4">
+            <div>
+              <label
+                className="mb-1.5 block text-sm font-medium text-text"
+                htmlFor="project-folder-name"
+              >
+                Gallery name
+              </label>
+              <input
+                id="project-folder-name"
+                ref={galleryInputRef}
+                type="text"
+                value={galleryDraft.name}
+                onChange={(event) =>
+                  setGalleryDraft((prev) => ({ ...prev, name: event.target.value }))
+                }
+                className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
+                placeholder="Gallery name"
+              />
+            </div>
+            <div>
+              <label
+                className="mb-1.5 block text-sm font-medium text-text"
+                htmlFor="project-folder-date"
+              >
+                Shooting date
+              </label>
+              <input
+                id="project-folder-date"
+                type="date"
+                value={galleryDraft.shooting_date}
+                onChange={(event) =>
+                  setGalleryDraft((prev) => ({ ...prev, shooting_date: event.target.value }))
+                }
+                className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <label
+                className="mb-1.5 block text-sm font-medium text-text"
+                htmlFor="project-folder-visibility"
+              >
+                Visibility in project link
+              </label>
+              <select
+                id="project-folder-visibility"
+                value={galleryDraft.project_visibility}
+                onChange={(event) =>
+                  setGalleryDraft((prev) => ({
+                    ...prev,
+                    project_visibility: event.target.value as 'listed' | 'direct_only',
+                  }))
+                }
+                className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
+              >
+                <option value="listed">Visible in project</option>
+                <option value="direct_only">Direct link only</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label
-              className="mb-1.5 block text-sm font-medium text-text"
-              htmlFor="project-folder-date"
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setIsGalleryDialogOpen(false)}
+              className="rounded-xl border border-border/40 bg-surface px-4 py-2.5 text-sm font-semibold text-text"
             >
-              Shooting date
-            </label>
-            <input
-              id="project-folder-date"
-              type="date"
-              value={galleryDraft.shooting_date}
-              onChange={(event) =>
-                setGalleryDraft((prev) => ({ ...prev, shooting_date: event.target.value }))
-              }
-              className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
-            />
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isCreatingGallery || !galleryDraft.name.trim()}
+              className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isCreatingGallery ? 'Creating…' : 'Create gallery'}
+            </button>
           </div>
-          <div>
-            <label
-              className="mb-1.5 block text-sm font-medium text-text"
-              htmlFor="project-folder-visibility"
-            >
-              Visibility in project link
-            </label>
-            <select
-              id="project-folder-visibility"
-              value={galleryDraft.project_visibility}
-              onChange={(event) =>
-                setGalleryDraft((prev) => ({
-                  ...prev,
-                  project_visibility: event.target.value as 'listed' | 'direct_only',
-                }))
-              }
-              className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
-            >
-              <option value="listed">Visible in project</option>
-              <option value="direct_only">Direct link only</option>
-            </select>
-          </div>
-        </div>
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={() => setIsGalleryDialogOpen(false)}
-            className="rounded-xl border border-border/40 bg-surface px-4 py-2.5 text-sm font-semibold text-text"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={isCreatingGallery}
-            onClick={() => void handleCreateGallery()}
-            className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground"
-          >
-            {isCreatingGallery ? 'Creating…' : 'Create gallery'}
-          </button>
-        </div>
+        </form>
       </AppDialog>
 
       <ShareLinkSettingsModal

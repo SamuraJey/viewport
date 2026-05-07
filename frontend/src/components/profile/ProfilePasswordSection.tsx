@@ -126,7 +126,15 @@ export const ProfilePasswordSection = ({
     !changingPassword && currentPassword && newPassword && confirmPassword && !passwordMismatch;
 
   return (
-    <div className="space-y-5">
+    <form
+      className="space-y-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (canSubmit) {
+          onChangePassword();
+        }
+      }}
+    >
       {/* Security tip */}
       <div className="flex items-start gap-3 rounded-xl border border-border/30 bg-surface-1/50 px-4 py-3 text-xs text-muted dark:bg-surface-dark-1/40">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
@@ -201,7 +209,7 @@ export const ProfilePasswordSection = ({
       </div>
 
       <button
-        onClick={onChangePassword}
+        type="submit"
         disabled={!canSubmit}
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:transform-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
       >
@@ -217,6 +225,6 @@ export const ProfilePasswordSection = ({
           </>
         )}
       </button>
-    </div>
+    </form>
   );
 };

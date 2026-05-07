@@ -81,6 +81,31 @@ describe('ShareLinkSettingsModal', () => {
     expect(await screen.findByText('Share link created')).toBeInTheDocument();
   });
 
+  it('creates a share link when Enter is pressed in the label field', async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn().mockResolvedValue(createdLink);
+
+    render(
+      <ShareLinkSettingsModal
+        isOpen
+        mode="create"
+        galleryName="Client Gallery"
+        onClose={vi.fn()}
+        onCreate={onCreate}
+      />,
+    );
+
+    await user.type(screen.getByLabelText(/share link internal label/i), 'Keyboard link{Enter}');
+
+    await waitFor(() => {
+      expect(onCreate).toHaveBeenCalledWith({
+        label: 'Keyboard link',
+        is_active: true,
+        expires_at: null,
+      });
+    });
+  });
+
   it('supports creating a paused draft link', async () => {
     const user = userEvent.setup();
     const onCreate = vi.fn().mockResolvedValue({ ...createdLink, is_active: false });

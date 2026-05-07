@@ -157,6 +157,7 @@ export const PhotoUploadConfirmModal = memo(
             </div>
 
             <button
+              type="button"
               onClick={handleClose}
               className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-border/50 bg-surface/80 text-muted transition-all duration-200 hover:scale-[1.03] hover:text-text hover:shadow-sm dark:bg-surface-dark-1/70 dark:hover:text-white"
               aria-label="Close upload dialog"

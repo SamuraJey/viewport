@@ -68,30 +68,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
   const initials = getInitials(displayName, email);
   const avatarHue = stringToHue(email || displayName);
 
-  // Keyboard events
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Enter') {
-        const activeElement = document.activeElement as HTMLElement | null;
-        const activeElementId = activeElement?.id;
-        const isPasswordField =
-          activeElementId === 'currentPassword' ||
-          activeElementId === 'newPassword' ||
-          activeElementId === 'confirmPassword';
-
-        if (isPasswordField) {
-          handlePasswordChange();
-        } else {
-          handleProfileSave();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, handlePasswordChange, handleProfileSave]);
-
   // Reset tab to profile when modal opens
   useEffect(() => {
     if (isOpen) setActiveTab('profile');
@@ -279,6 +255,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
         </div>
 
         <button
+          type="button"
           onClick={onClose}
           aria-label="Close account settings"
           className="ml-2 shrink-0 rounded-xl p-2 text-muted transition-all duration-200 hover:bg-surface-1 hover:text-text active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-surface-dark-1"
