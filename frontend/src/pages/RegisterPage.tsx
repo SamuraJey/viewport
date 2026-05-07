@@ -120,14 +120,17 @@ export const RegisterPage = () => {
           <p className="mt-2 text-xs text-muted">Password must be at least 8 characters long.</p>
         </div>
         {error && (
-          <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 px-4 py-3 rounded-xl text-center text-sm font-medium shadow-xs">
+          <div
+            role="alert"
+            className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-center text-sm font-semibold text-danger shadow-xs"
+          >
             {error}
           </div>
         )}
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-accent text-accent-foreground font-semibold py-3.5 px-6 rounded-xl shadow-sm hover:shadow-accent/20 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-sm flex items-center justify-center gap-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          className="w-full cursor-pointer bg-accent text-accent-foreground font-semibold py-3.5 px-6 rounded-xl shadow-sm hover:shadow-accent/20 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-sm flex items-center justify-center gap-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           {isLoading ? (
             <>
@@ -152,7 +155,7 @@ export const RegisterPage = () => {
         <div className="text-center">
           <Link
             to="/auth/login"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-text hover:text-accent transition-colors duration-200 p-2 rounded-lg hover:bg-surface-1/50"
+            className="inline-flex items-center gap-2 rounded-lg p-2 text-sm font-semibold text-text transition-colors duration-200 hover:bg-surface-1/50 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
           >
             Sign in to your account
           </Link>
@@ -162,7 +165,7 @@ export const RegisterPage = () => {
   );
 
   const renderSuccess = () => (
-    <div className="relative z-10 w-full max-w-md p-10 flex flex-col gap-6 rounded-2xl border border-border/50 bg-surface text-center shadow-xl backdrop-blur-lg dark:border-white/10 dark:bg-surface-foreground/95">
+    <div className="relative z-10 flex w-full max-w-md flex-col gap-6 rounded-2xl border border-border/50 bg-surface p-10 text-center shadow-xl backdrop-blur-lg dark:border-white/10 dark:bg-surface-dark-1">
       <div className="w-20 h-20 mx-auto bg-green-50 dark:bg-green-500/10 rounded-full flex items-center justify-center mb-2">
         <CheckCircle className="h-10 w-10 text-green-500" />
       </div>

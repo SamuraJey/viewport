@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import type { SharedFolderShare, SharedProjectShare } from '../../types/sharelink';
 
 interface PublicGalleryHeroProps {
@@ -64,7 +65,10 @@ export const PublicGalleryHero = ({ title, date, photographer, cover }: PublicGa
 
   if (!cover) {
     return (
-      <div className="text-center py-24 px-6 bg-surface-foreground/5 dark:bg-surface-1/30 rounded-3xl border border-border/50 shadow-xs mb-8">
+      <div className="mb-8 rounded-3xl border border-border/50 bg-surface-1/70 px-6 py-24 text-center shadow-xs dark:bg-surface-dark-1/70">
+        <p className="mb-3 text-xs font-bold uppercase tracking-[0.24em] text-accent">
+          Shared delivery
+        </p>
         <h1
           className={`${emptyTitleSizeClass} mb-4 font-bold tracking-tight text-text wrap-break-word`}
         >
@@ -130,7 +134,7 @@ export const PublicGalleryHero = ({ title, date, photographer, cover }: PublicGa
           <a
             href="#gallery-content"
             aria-label="Scroll to photos"
-            className="w-12 h-12 border-2 border-white/50 rounded-full flex items-center justify-center hover:bg-white/20 hover:border-white hover:scale-110 transition-all duration-300 backdrop-blur-xs"
+            className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white/50 backdrop-blur-xs transition-all duration-300 hover:scale-110 hover:border-white hover:bg-white/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white"
             onClick={(event) => {
               event.preventDefault();
               const target = document.getElementById('gallery-content');
@@ -140,16 +144,7 @@ export const PublicGalleryHero = ({ title, date, photographer, cover }: PublicGa
               target?.focus();
             }}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              className="w-6 h-6 text-white"
-            >
-              <path d="M6 9l6 6 6-6" />
-            </svg>
+            <ChevronDown className="h-6 w-6 text-white" />
           </a>
         </div>
       </div>

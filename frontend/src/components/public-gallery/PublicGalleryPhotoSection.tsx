@@ -1,4 +1,5 @@
 import type { MutableRefObject, TouchEventHandler } from 'react';
+import { useEffect, useRef } from 'react';
 import { Heart, ImageOff, Loader2, MessageSquare } from 'lucide-react';
 import type { PublicGridDensity, PublicGridLayout } from '../../hooks/usePublicGalleryGrid';
 import { getAccessiblePhotoName } from '../../lib/accessibility';
@@ -43,6 +44,61 @@ interface PublicGalleryPhotoSectionProps {
     onUpdatePhotoComment: (photoId: string, comment: string) => void;
   };
 }
+
+interface PhotoCommentPanelProps {
+  photoId: string;
+  accessiblePhotoName: string;
+  photoComment: string;
+  hasComment: boolean;
+  disabled: boolean;
+  onUpdatePhotoComment?: (photoId: string, comment: string) => void;
+}
+
+const PhotoCommentPanel = ({
+  photoId,
+  accessiblePhotoName,
+  photoComment,
+  hasComment,
+  disabled,
+  onUpdatePhotoComment,
+}: PhotoCommentPanelProps) => {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (disabled) {
+      return;
+    }
+
+    textareaRef.current?.focus({ preventScroll: true });
+  }, [disabled]);
+
+  return (
+    <div className="space-y-2">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Photo note</p>
+        <p className="mt-1 text-xs text-muted">
+          {hasComment
+            ? 'Refine the note for the photographer.'
+            : 'Add context for the photographer.'}
+        </p>
+      </div>
+      <label htmlFor={`selection-comment-${photoId}`} className="sr-only">
+        Comment for {accessiblePhotoName}
+      </label>
+      <textarea
+        id={`selection-comment-${photoId}`}
+        ref={textareaRef}
+        key={`${photoId}-${photoComment}`}
+        defaultValue={photoComment}
+        placeholder="Comment for this photo"
+        disabled={disabled}
+        onClick={(event) => event.stopPropagation()}
+        onBlur={(event) => onUpdatePhotoComment?.(photoId, event.currentTarget.value)}
+        className="min-h-28 w-full resize-none rounded-xl border border-border/40 bg-surface px-3 py-2 text-sm text-text outline-none focus:border-accent/50 disabled:cursor-not-allowed disabled:opacity-70"
+      />
+    </div>
+  );
+};
 
 export const PublicGalleryPhotoSection = ({
   photos,
@@ -174,39 +230,14 @@ export const PublicGalleryPhotoSection = ({
                             anchor={{ to: 'bottom end', gap: '10px' }}
                             panelClassName="w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-border/40 bg-surface/98 p-3 shadow-2xl backdrop-blur dark:bg-surface-dark"
                             panel={
-                              <div className="space-y-2">
-                                <div>
-                                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-                                    Photo note
-                                  </p>
-                                  <p className="mt-1 text-xs text-muted">
-                                    {hasComment
-                                      ? 'Refine the note for the photographer.'
-                                      : 'Add context for the photographer.'}
-                                  </p>
-                                </div>
-                                <label
-                                  htmlFor={`selection-comment-${photo.photo_id}`}
-                                  className="sr-only"
-                                >
-                                  Comment for {accessiblePhotoName}
-                                </label>
-                                <textarea
-                                  id={`selection-comment-${photo.photo_id}`}
-                                  key={`${photo.photo_id}-${photoComment}`}
-                                  defaultValue={photoComment}
-                                  placeholder="Comment for this photo"
-                                  disabled={!canMutateSelection}
-                                  onClick={(event) => event.stopPropagation()}
-                                  onBlur={(event) =>
-                                    selection?.onUpdatePhotoComment(
-                                      photo.photo_id,
-                                      event.currentTarget.value,
-                                    )
-                                  }
-                                  className="min-h-28 w-full resize-none rounded-xl border border-border/40 bg-surface px-3 py-2 text-sm text-text outline-none focus:border-accent/50 disabled:cursor-not-allowed disabled:opacity-70"
-                                />
-                              </div>
+                              <PhotoCommentPanel
+                                photoId={photo.photo_id}
+                                accessiblePhotoName={accessiblePhotoName}
+                                photoComment={photoComment}
+                                hasComment={hasComment}
+                                disabled={!canMutateSelection}
+                                onUpdatePhotoComment={selection?.onUpdatePhotoComment}
+                              />
                             }
                           />
                         ) : null}

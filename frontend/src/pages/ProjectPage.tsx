@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, EyeOff, FolderPlus, Settings2, Share2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  Check,
+  Eye,
+  EyeOff,
+  FolderPlus,
+  HardDrive,
+  Images,
+  Link2,
+  Settings2,
+  Share2,
+} from 'lucide-react';
 import { EnhancedGalleryCard } from '../components/dashboard/EnhancedGalleryCard';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { AppDialog, AppDialogDescription, AppDialogTitle, AppPopover } from '../components/ui';
@@ -166,6 +177,7 @@ export const ProjectPage = () => {
         .length ?? 0,
     [project?.galleries],
   );
+  const directOnlyGalleryCount = (project?.gallery_count ?? 0) - visibleGalleryCount;
 
   const buildSelectionWarningSummary = useCallback((links: ShareLink[]) => {
     const affectedLinks = links.filter((link) => {
@@ -555,7 +567,7 @@ export const ProjectPage = () => {
             <button
               type="button"
               onClick={() => setIsGalleryDialogOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2.5 text-sm font-semibold text-text hover:border-accent/40"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2.5 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
             >
               <FolderPlus className="h-4 w-4" />
               Add gallery
@@ -563,7 +575,7 @@ export const ProjectPage = () => {
             <button
               type="button"
               onClick={() => setIsShareLinkCreateOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             >
               <Share2 className="h-4 w-4" />
               Share project
@@ -571,7 +583,7 @@ export const ProjectPage = () => {
             <button
               type="button"
               onClick={requestDeleteProject}
-              className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-2.5 text-sm font-semibold text-danger"
+              className="cursor-pointer rounded-xl border border-danger/30 bg-danger/10 px-4 py-2.5 text-sm font-semibold text-danger transition-all duration-200 hover:-translate-y-0.5 hover:bg-danger/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger"
             >
               Delete project
             </button>
@@ -588,6 +600,52 @@ export const ProjectPage = () => {
             galleries will ask for confirmation before changing the live proofing layout.
           </div>
         ) : null}
+        <div className="mt-5 grid gap-3 border-t border-border/45 pt-5 sm:grid-cols-2 xl:grid-cols-4 dark:border-border/30">
+          {[
+            {
+              label: 'Total photos',
+              value: project.total_photo_count.toLocaleString(),
+              hint: 'Across every gallery',
+              icon: Images,
+            },
+            {
+              label: 'Project size',
+              value: formatFileSize(project.total_size_bytes),
+              hint: 'Current storage footprint',
+              icon: HardDrive,
+            },
+            {
+              label: 'Listed galleries',
+              value: visibleGalleryCount.toLocaleString(),
+              hint: `${Math.max(0, directOnlyGalleryCount)} direct-only`,
+              icon: Eye,
+            },
+            {
+              label: 'Share links',
+              value: shareLinks.length.toLocaleString(),
+              hint: 'Project-level links',
+              icon: Link2,
+            },
+          ].map(({ label, value, hint, icon: Icon }) => (
+            <div
+              key={label}
+              className="rounded-2xl border border-border/50 bg-surface-1/75 px-4 py-3 shadow-xs dark:border-border/35 dark:bg-surface-dark-1/75"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">
+                    {label}
+                  </p>
+                  <p className="mt-1 text-2xl font-bold text-text">{value}</p>
+                </div>
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                  <Icon className="h-4 w-4" />
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-muted">{hint}</p>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="rounded-3xl border border-border/50 bg-surface p-6 shadow-xs dark:border-border/30 dark:bg-surface-dark">
@@ -603,8 +661,23 @@ export const ProjectPage = () => {
         </div>
         <div className="space-y-4">
           {project.galleries.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border/40 bg-surface-1/50 px-4 py-10 text-center text-sm text-muted">
-              No galleries yet. Add the first gallery to start uploading photos.
+            <div className="rounded-3xl border border-dashed border-border/50 bg-surface-1/60 px-4 py-14 text-center shadow-xs dark:border-border/35 dark:bg-surface-dark-1/60">
+              <div className="mx-auto mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+                <FolderPlus className="h-7 w-7" />
+              </div>
+              <h3 className="text-xl font-bold text-text">Build this project with galleries</h3>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted">
+                Add the first gallery to start uploading photos. You can keep galleries listed in
+                the project share or mark them direct-link-only later.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsGalleryDialogOpen(true)}
+                className="mt-6 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                <FolderPlus className="h-4 w-4" />
+                Add first gallery
+              </button>
             </div>
           ) : (
             <div className="space-y-5">

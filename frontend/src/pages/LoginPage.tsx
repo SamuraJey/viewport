@@ -103,7 +103,10 @@ export const LoginPage = () => {
 
             {/* Error Message */}
             {error && (
-              <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 px-4 py-3 rounded-xl text-center text-sm font-medium shadow-xs">
+              <div
+                role="alert"
+                className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-center text-sm font-semibold text-danger shadow-xs"
+              >
                 {error}
               </div>
             )}
@@ -111,7 +114,7 @@ export const LoginPage = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-accent text-accent-foreground font-semibold py-3.5 px-6 rounded-xl shadow-sm hover:shadow-accent/20 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-sm flex items-center justify-center gap-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              className="w-full cursor-pointer bg-accent text-accent-foreground font-semibold py-3.5 px-6 rounded-xl shadow-sm hover:shadow-accent/20 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-sm flex items-center justify-center gap-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
               {isLoading ? (
                 <>
@@ -129,7 +132,7 @@ export const LoginPage = () => {
             <button
               type="button"
               onClick={handleDemoLogin}
-              className="w-full border border-border bg-surface-1 text-text font-semibold py-3.5 px-6 rounded-xl shadow-xs hover:border-accent/40 hover:text-accent hover:-translate-y-0.5 transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              className="w-full cursor-pointer border border-border bg-surface-1 text-text font-semibold py-3.5 px-6 rounded-xl shadow-xs hover:border-accent/40 hover:text-accent hover:-translate-y-0.5 transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
             >
               Open Demo Cabinet
             </button>
@@ -146,7 +149,7 @@ export const LoginPage = () => {
             <div className="text-center">
               <Link
                 to="/auth/register"
-                className="inline-flex items-center gap-2 text-sm font-semibold text-text hover:text-accent transition-colors duration-200 p-2 rounded-lg hover:bg-surface-1/50"
+                className="inline-flex items-center gap-2 rounded-lg p-2 text-sm font-semibold text-text transition-colors duration-200 hover:bg-surface-1/50 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <UserPlus className="h-4 w-4" />
                 Create your account
