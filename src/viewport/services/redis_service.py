@@ -9,6 +9,7 @@ This module provides a clean, reusable Redis client wrapper with:
 
 import builtins
 import logging
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -18,6 +19,9 @@ from typing import Any
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from redis.asyncio import ConnectionPool, Redis
 from redis.exceptions import RedisError
+
+from viewport.metrics import record_redis_operation, set_redis_available
+from viewport.telemetry_safety import fingerprint_value, safe_exception_summary
 
 logger = logging.getLogger(__name__)
 
@@ -154,14 +158,20 @@ class RedisService:
             # Test connection
             await client.ping()  # type: ignore[misc]
             logger.info("Redis connection established successfully")
+            set_redis_available(True)
+            record_redis_operation("connect", "success")
 
             return cls(client, pool, available=True)
 
         except RedisError as e:
-            logger.warning("Redis unavailable, operating in degraded mode: %s", e)
+            logger.warning("Redis unavailable, operating in degraded mode: %s", safe_exception_summary(e))
+            set_redis_available(False)
+            record_redis_operation("connect", "unavailable")
             return cls(None, None, available=False)
         except Exception as e:
-            logger.warning("Failed to connect to Redis, operating in degraded mode: %s", e)
+            logger.warning("Failed to connect to Redis, operating in degraded mode: %s", safe_exception_summary(e))
+            set_redis_available(False)
+            record_redis_operation("connect", "error")
             return cls(None, None, available=False)
 
     @property
@@ -175,8 +185,9 @@ class RedisService:
             try:
                 await self._client.aclose(close_connection_pool=True)
                 logger.info("Redis client closed successfully")
+                set_redis_available(False)
             except Exception as e:
-                logger.error("Error closing Redis client: %s", e)
+                logger.error("Error closing Redis client: %s", safe_exception_summary(e))
             finally:
                 self._client = None
                 self._pool = None
@@ -184,12 +195,16 @@ class RedisService:
 
     async def ping(self) -> bool:
         """Ping Redis to check connection."""
+        start = time.perf_counter()
         if not self.is_available:
+            record_redis_operation("ping", "unavailable", time.perf_counter() - start)
             return False
         try:
             await self._client.ping()  # type: ignore[union-attr, misc]
+            record_redis_operation("ping", "success", time.perf_counter() - start)
             return True
         except RedisError:
+            record_redis_operation("ping", "error", time.perf_counter() - start)
             return False
 
     async def get(self, key: str) -> str | None:
@@ -197,13 +212,18 @@ class RedisService:
 
         Returns None if Redis is unavailable or key doesn't exist.
         """
+        start = time.perf_counter()
         if not self.is_available:
+            record_redis_operation("get", "unavailable", time.perf_counter() - start)
             return None
         try:
             value = await self._client.get(key)  # type: ignore[union-attr]
-            return self._coerce_text(value)
+            decoded = self._coerce_text(value)
+            record_redis_operation("get", "hit" if decoded is not None else "miss", time.perf_counter() - start)
+            return decoded
         except RedisError as e:
-            logger.warning("Redis GET failed for key %s: %s", key, e)
+            logger.warning("Redis GET failed for key fingerprint %s: %s", fingerprint_value(key), safe_exception_summary(e))
+            record_redis_operation("get", "error", time.perf_counter() - start)
             return None
 
     async def set(
@@ -222,13 +242,17 @@ class RedisService:
         Returns:
             True if successful, False if Redis unavailable or operation failed.
         """
+        start = time.perf_counter()
         if not self.is_available:
+            record_redis_operation("set", "unavailable", time.perf_counter() - start)
             return False
         try:
             await self._client.set(key, value, ex=ex)  # type: ignore[union-attr]
+            record_redis_operation("set", "success", time.perf_counter() - start)
             return True
         except RedisError as e:
-            logger.warning("Redis SET failed for key %s: %s", key, e)
+            logger.warning("Redis SET failed for key fingerprint %s: %s", fingerprint_value(key), safe_exception_summary(e))
+            record_redis_operation("set", "error", time.perf_counter() - start)
             return False
 
     async def mget(self, keys: list[str]) -> dict[str, str]:
@@ -240,7 +264,9 @@ class RedisService:
         Returns:
             Dictionary mapping keys to values (only includes keys that exist).
         """
+        start = time.perf_counter()
         if not self.is_available or not keys:
+            record_redis_operation("mget", "unavailable" if keys else "miss", time.perf_counter() - start)
             return {}
         try:
             values = await self._client.mget(keys)  # type: ignore[union-attr]
@@ -249,9 +275,11 @@ class RedisService:
                 decoded = self._coerce_text(value)
                 if decoded is not None:
                     result[key] = decoded
+            record_redis_operation("mget", "hit" if result else "miss", time.perf_counter() - start)
             return result
         except RedisError as e:
-            logger.warning("Redis MGET failed: %s", e)
+            logger.warning("Redis MGET failed: %s", safe_exception_summary(e))
+            record_redis_operation("mget", "error", time.perf_counter() - start)
             return {}
 
     async def delete(self, *keys: str) -> int:
@@ -260,13 +288,17 @@ class RedisService:
         Returns:
             Number of keys deleted, 0 if Redis unavailable.
         """
+        start = time.perf_counter()
         if not self.is_available or not keys:
+            record_redis_operation("delete", "unavailable" if keys else "miss", time.perf_counter() - start)
             return 0
         try:
             result = await self._client.delete(*keys)  # type: ignore[union-attr]
+            record_redis_operation("delete", "success", time.perf_counter() - start)
             return int(result)
         except RedisError as e:
-            logger.warning("Redis DELETE failed: %s", e)
+            logger.warning("Redis DELETE failed: %s", safe_exception_summary(e))
+            record_redis_operation("delete", "error", time.perf_counter() - start)
             return 0
 
     async def sadd(self, key: str, *members: str) -> int:
@@ -275,13 +307,17 @@ class RedisService:
         Returns:
             Number of members added, 0 if Redis unavailable.
         """
+        start = time.perf_counter()
         if not self.is_available or not members:
+            record_redis_operation("sadd", "unavailable" if members else "miss", time.perf_counter() - start)
             return 0
         try:
             result = await self._client.sadd(key, *members)  # type: ignore[union-attr, misc]
+            record_redis_operation("sadd", "success", time.perf_counter() - start)
             return int(result)
         except RedisError as e:
-            logger.warning("Redis SADD failed for key %s: %s", key, e)
+            logger.warning("Redis SADD failed for key fingerprint %s: %s", fingerprint_value(key), safe_exception_summary(e))
+            record_redis_operation("sadd", "error", time.perf_counter() - start)
             return 0
 
     async def sunion(self, *keys: str) -> builtins.set[str]:
@@ -290,7 +326,9 @@ class RedisService:
         Returns:
             Set of all members, empty set if Redis unavailable.
         """
+        start = time.perf_counter()
         if not self.is_available or not keys:
+            record_redis_operation("sunion", "unavailable" if keys else "miss", time.perf_counter() - start)
             return builtins.set()
         try:
             result = await self._client.sunion(list(keys))  # type: ignore[union-attr, misc]
@@ -299,9 +337,11 @@ class RedisService:
                 text = self._coerce_text(m)
                 if text is not None:
                     coerced.add(text)
+            record_redis_operation("sunion", "hit" if coerced else "miss", time.perf_counter() - start)
             return coerced
         except RedisError as e:
-            logger.warning("Redis SUNION failed: %s", e)
+            logger.warning("Redis SUNION failed: %s", safe_exception_summary(e))
+            record_redis_operation("sunion", "error", time.perf_counter() - start)
             return builtins.set()
 
     @asynccontextmanager

@@ -12,9 +12,11 @@ from starlette.concurrency import run_in_threadpool
 from viewport.api.auth import verify_password
 from viewport.auth_utils import authsettings
 from viewport.logger import logger
+from viewport.metrics import record_public_share_event
 from viewport.models.sharelink import ShareLink
 from viewport.schemas.sharelink import validate_sharelink_password
 from viewport.sharelink_utils import is_sharelink_expired
+from viewport.telemetry_safety import safe_id, user_agent_family
 
 PUBLIC_CACHE_CONTROL_HEADERS = {
     "Cache-Control": "no-store, max-age=0, must-revalidate",
@@ -41,10 +43,13 @@ async def get_available_public_sharelink(
 ) -> ShareLink:
     sharelink = await repo.get_sharelink_for_public_access(share_id)
     if not sharelink:
+        record_public_share_event("access", "not_found")
         raise HTTPException(status_code=404, detail="ShareLink not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
     if not sharelink.is_active:
+        record_public_share_event("access", "inactive")
         raise HTTPException(status_code=404, detail="ShareLink not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
     if is_sharelink_expired(sharelink.expires_at):
+        record_public_share_event("access", "expired")
         raise HTTPException(status_code=410, detail="ShareLink expired", headers=PUBLIC_CACHE_CONTROL_HEADERS)
     return sharelink
 
@@ -68,15 +73,18 @@ async def require_sharelink_password(sharelink: ShareLink, request: Request) -> 
 
     supplied_password = request.headers.get(SHARE_PASSWORD_HEADER)
     if not supplied_password:
+        record_public_share_event("password", "password_required")
         _log_denied_password_attempt(sharelink, request, reason="password_required")
         raise HTTPException(status_code=401, detail="ShareLink password required", headers=PASSWORD_CHALLENGE_HEADERS)
 
     if not _is_valid_sharelink_password_shape(supplied_password):
+        record_public_share_event("password", "password_failed")
         _log_denied_password_attempt(sharelink, request, reason="password_failed")
         raise HTTPException(status_code=401, detail="ShareLink password required", headers=PASSWORD_CHALLENGE_HEADERS)
 
     is_valid = await run_in_threadpool(verify_password, supplied_password, sharelink.password_hash)
     if not is_valid:
+        record_public_share_event("password", "password_failed")
         _log_denied_password_attempt(sharelink, request, reason="password_failed")
         raise HTTPException(status_code=401, detail="ShareLink password required", headers=PASSWORD_CHALLENGE_HEADERS)
 
@@ -92,9 +100,11 @@ async def unlock_sharelink_password(
 
     is_valid = await run_in_threadpool(verify_password, password, sharelink.password_hash)
     if not is_valid:
+        record_public_share_event("password", "password_failed")
         _log_denied_password_attempt(sharelink, request, reason="password_failed")
         raise HTTPException(status_code=401, detail="ShareLink password required", headers=PASSWORD_CHALLENGE_HEADERS)
 
+    record_public_share_event("unlock", "unlocked")
     set_share_access_cookie(sharelink, request, response)
 
 
@@ -214,11 +224,11 @@ def _public_request_scheme(request: Request) -> str:
 def _log_denied_password_attempt(sharelink: ShareLink, request: Request, *, reason: str) -> None:
     logger.log_event(
         "sharelink_password_denied",
-        share_id=str(sharelink.id),
+        share_id_hash=safe_id(sharelink.id),
         scope_type=sharelink.scope_type,
         reason=reason,
         method=request.method,
-        path=request.url.path,
-        client_ip=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
+        route="/s/{share_id}",
+        client_ip_hash=safe_id(request.client.host if request.client else None),
+        user_agent_family=user_agent_family(request.headers.get("user-agent")),
     )

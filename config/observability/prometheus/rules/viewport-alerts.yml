@@ -1,0 +1,171 @@
+groups:
+  - name: viewport.api
+    rules:
+      - alert: ViewportAPIDown
+        expr: up{job="viewport-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: viewport-api
+          environment: local
+        annotations:
+          summary: Viewport API Prometheus target is down
+          description: Prometheus cannot scrape app:8000/metrics. User traffic may be impacted or /metrics may be unreachable.
+          runbook_url: docs/runbooks/api-down.md
+
+      - alert: ViewportHigh5xxRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="viewport-api",status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(http_requests_total{job="viewport-api"}[5m])), 1)
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+          service: viewport-api
+          environment: local
+        annotations:
+          summary: Viewport API 5xx error ratio is elevated
+          description: More than 5% of API requests are returning 5xx for 10 minutes. Operator TODO - tune threshold after baseline traffic.
+          runbook_url: docs/runbooks/api-error-rate.md
+
+      - alert: ViewportAPILatencyHigh
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="viewport-api"}[5m])) by (le)) > 1
+        for: 10m
+        labels:
+          severity: warning
+          service: viewport-api
+          environment: local
+        annotations:
+          summary: Viewport API p95 latency is high
+          description: API p95 latency exceeded 1s for 10 minutes. Operator TODO - tune by route and production SLO.
+          runbook_url: docs/runbooks/api-latency.md
+
+      - alert: ViewportMetricsMissing
+        expr: absent(up{job="viewport-api"})
+        for: 5m
+        labels:
+          severity: critical
+          service: viewport-api
+          environment: local
+        annotations:
+          summary: Viewport API scrape target is missing from Prometheus
+          description: The viewport-api target disappeared from Prometheus service discovery or config reload failed.
+          runbook_url: docs/runbooks/observability-pipeline.md
+
+  - name: viewport.dependencies
+    rules:
+      - alert: PostgresDown
+        expr: up{job="postgres-exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: postgres
+          environment: local
+        annotations:
+          summary: Postgres exporter or database is down
+          description: Prometheus cannot scrape postgres-exporter. Check Postgres container health and exporter credentials.
+          runbook_url: docs/runbooks/postgres-saturation.md
+
+      - alert: PostgresConnectionSaturation
+        expr: |
+          sum(pg_stat_activity_count) / clamp_min(sum(pg_settings_max_connections), 1) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          service: postgres
+          environment: local
+        annotations:
+          summary: Postgres connection usage is high
+          description: More than 85% of configured Postgres connections are in use. Operator TODO - tune threshold for production pool sizing.
+          runbook_url: docs/runbooks/postgres-saturation.md
+
+      - alert: RedisDown
+        expr: up{job="redis-exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: redis
+          environment: local
+        annotations:
+          summary: Redis/Valkey exporter or Redis is down
+          description: Redis/Valkey is not being scraped. Cache and Celery broker operations may be degraded.
+          runbook_url: docs/runbooks/redis-unavailable.md
+
+      - alert: RedisEvictions
+        expr: increase(redis_evicted_keys_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: redis
+          environment: local
+        annotations:
+          summary: Redis/Valkey is evicting keys
+          description: Redis evictions can break cache hit rates and Celery broker reliability. Check memory sizing and maxmemory policy.
+          runbook_url: docs/runbooks/redis-unavailable.md
+
+      - alert: ViewportInternalMetricsProbeFailed
+        expr: probe_success{job="blackbox-http",service="viewport-api"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: viewport-api
+          environment: local
+        annotations:
+          summary: Internal metrics HTTP probe failed
+          description: Blackbox exporter cannot reach the API metrics endpoint from inside the observability network.
+          runbook_url: docs/runbooks/observability-pipeline.md
+
+  - name: viewport.background
+    rules:
+      - alert: CeleryWorkerContainerDown
+        expr: absent(container_last_seen{name=~".*viewport_celery_worker.*"}) or (time() - max(container_last_seen{name=~".*viewport_celery_worker.*"}) > 120)
+        for: 2m
+        labels:
+          severity: critical
+          service: viewport-celery
+          environment: local
+        annotations:
+          summary: Celery worker container is not reporting
+          description: cAdvisor has not observed the Celery worker container recently. Background thumbnail/cleanup tasks may be stopped.
+          runbook_url: docs/runbooks/celery-backlog.md
+
+      - alert: CeleryContainerRestarting
+        expr: increase(container_start_time_seconds{name=~".*viewport_celery_worker.*"}[15m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: viewport-celery
+          environment: local
+        annotations:
+          summary: Celery worker appears to be restarting
+          description: The Celery worker container start time changed more than once in 15 minutes. Check logs and resource pressure.
+          runbook_url: docs/runbooks/celery-backlog.md
+
+  - name: viewport.observability
+    rules:
+      - alert: ObservabilityTargetDown
+        expr: up{job=~"prometheus|otel-collector|loki|tempo|grafana|alertmanager"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: observability
+          environment: local
+        annotations:
+          summary: Observability component target is down
+          description: One or more monitoring components are not being scraped by Prometheus.
+          runbook_url: docs/runbooks/observability-pipeline.md
+
+      - alert: HostDiskSpaceLow
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / clamp_min(node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}, 1)) < 0.15
+        for: 15m
+        labels:
+          severity: warning
+          service: host
+          environment: local
+        annotations:
+          summary: Host filesystem free space is below 15%
+          description: Monitoring, Postgres, RustFS, or Docker volumes may run out of disk. Operator TODO - tune filesystem filters for production.
+          runbook_url: docs/runbooks/disk-space.md

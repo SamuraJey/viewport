@@ -1,0 +1,241 @@
+# Local repository-owned observability stack for Viewport.
+# Run with: docker compose -f docker-compose.yml -f docker-compose.observability.yml --env-file .env.observability.example up -d
+# Operator TODOs before production use:
+# - Replace all placeholder credentials/receivers outside git.
+# - Put Grafana/Prometheus/Alertmanager behind VPN/SSO/TLS or private networks.
+# - Size persistent volumes and set backup/retention policies.
+# - Confirm /metrics is not internet-accessible.
+services:
+
+  app:
+    environment:
+      LOG_FORMAT: json
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: viewport-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_TRACES_SAMPLE_RATIO: "1.0"
+      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
+      SERVICE_VERSION: ${SERVICE_VERSION:-dev}
+    depends_on:
+      - postgres
+      - s3-service
+      - otel-collector
+
+  celery_worker:
+    environment:
+      LOG_FORMAT: json
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: viewport-celery
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_TRACES_SAMPLE_RATIO: "1.0"
+      DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-local}
+      SERVICE_VERSION: ${SERVICE_VERSION:-dev}
+      CELERY_METRICS_ENABLED: "true"
+      CELERY_METRICS_PORT: "9108"
+    expose:
+      - "9108"
+    depends_on:
+      - redis
+      - postgres
+      - s3-service
+      - otel-collector
+
+  prometheus:
+    image: prom/prometheus:v3.4.2
+    container_name: viewport_prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}
+      - --web.enable-lifecycle
+      - --web.enable-remote-write-receiver
+    volumes:
+      - ./config/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/observability/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      - alertmanager
+      - otel-collector
+    networks:
+      - backend
+      - observability
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    container_name: viewport_alertmanager
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./config/observability/alertmanager/alertmanager.yml.example:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    networks:
+      - observability
+
+  grafana:
+    image: grafana/grafana:12.0.2
+    container_name: viewport_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me-local-only}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_INSTALL_PLUGINS: ""
+    volumes:
+      - ./config/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    networks:
+      - observability
+
+  loki:
+    image: grafana/loki:3.5.1
+    container_name: viewport_loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./config/observability/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    networks:
+      - observability
+
+  tempo:
+    image: grafana/tempo:2.8.1
+    container_name: viewport_tempo
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./config/observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "${TEMPO_HTTP_PORT:-3200}:3200"
+    networks:
+      - observability
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.128.0
+    container_name: viewport_otel_collector
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=viewport,deployment.environment=${DEPLOYMENT_ENVIRONMENT:-local}
+    volumes:
+      - ./config/observability/otel-collector.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "${OTEL_GRPC_PORT:-4317}:4317"
+      - "${OTEL_HTTP_PORT:-4318}:4318"
+      - "${OTEL_HEALTH_PORT:-13133}:13133"
+    depends_on:
+      - loki
+      - tempo
+    networks:
+      - backend
+      - observability
+
+  alloy:
+    image: grafana/alloy:v1.9.1
+    container_name: viewport_alloy
+    restart: unless-stopped
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./config/observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "${ALLOY_PORT:-12345}:12345"
+    depends_on:
+      - loki
+    networks:
+      - backend
+      - observability
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.17.1
+    container_name: viewport_postgres_exporter
+    restart: unless-stopped
+    environment:
+      # Local placeholder. Operator TODO: use a least-privilege exporter user in production.
+      DATA_SOURCE_NAME: ${POSTGRES_EXPORTER_DSN:-postgresql://viewport:viewport@postgres:5432/viewport?sslmode=disable}
+    depends_on:
+      - postgres
+    networks:
+      - backend
+      - observability
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.74.0
+    container_name: viewport_redis_exporter
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - backend
+      - observability
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    container_name: viewport_cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - observability
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: viewport_node_exporter
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - observability
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.27.0
+    container_name: viewport_blackbox_exporter
+    restart: unless-stopped
+    volumes:
+      - ./config/observability/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    networks:
+      - backend
+      - observability
+
+volumes:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:
+  loki_data:
+  tempo_data:
+
+networks:
+  observability:
+    driver: bridge

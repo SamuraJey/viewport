@@ -121,6 +121,11 @@
   - TTL buffer: 10 minutes before actual URL expiry
   - Index sets for efficient invalidation by object key
   - Batch operations for performance
+- **Observability/Monitoring**:
+  - Prometheus-compatible metrics live in `src/viewport/metrics.py`; keep custom labels low-cardinality and never use raw user/share/project/gallery/photo IDs, object keys, filenames, IPs, user agents, URLs, or exception messages as labels.
+  - Production logging uses `LOG_FORMAT=json` via `src/viewport/logging_config.py`; local/default logging remains colored. Structured events should go through `viewport.logger.StructuredLogger` and privacy helpers in `src/viewport/telemetry_safety.py`.
+  - OpenTelemetry setup lives in `src/viewport/observability.py` and must remain safe-disabled by default and non-fatal when collectors/exporters are unavailable. FastAPI/ASGI spans must pass through `PrivacySanitizingSpanProcessor`/collector privacy deletion so raw paths, share IDs, IPs, User-Agents, SQL statements, object keys, and presigned URLs are not exported.
+  - Local monitoring stack config is under `config/observability/` with `docker-compose.observability.yml`; operator-owned production secrets, retention, TLS/auth, alert receivers, scrape access, and SLO thresholds must stay out of repo defaults. Loki labels must remain low-cardinality (no `trace_id`, `span_id`, `request_id`, raw routes, or IDs as labels).
 
 ## Gotchas worth keeping in mind
 - Presigned URL cache is Redis-backed with a TTL buffer (URL TTL minus 10 minutes). Redis outages should degrade gracefully to direct presign generation without failing requests.

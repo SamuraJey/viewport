@@ -10,6 +10,7 @@ from viewport.auth_utils import get_current_user
 from viewport.background_tasks import create_thumbnails_batch_task, delete_photos_batch_task
 from viewport.dependencies import get_s3_client
 from viewport.filename_utils import sanitize_filename, split_name_and_ext
+from viewport.metrics import record_upload_event
 from viewport.models.db import get_db
 from viewport.models.gallery import Photo, PhotoUploadStatus
 from viewport.models.user import User
@@ -28,6 +29,7 @@ from viewport.schemas.photo import (
     PhotoResponse,
     PresignedUploadData,
 )
+from viewport.telemetry_safety import safe_exception_summary, safe_id
 from viewport.thumbnail_tasks import ThumbnailTaskItem, to_thumbnail_task_payloads
 
 logger = logging.getLogger(__name__)
@@ -128,7 +130,10 @@ async def batch_presigned_uploads(
     if bytes_to_reserve > 0:
         reserved = await user_repo.reserve_storage(current_user.id, bytes_to_reserve)
         if not reserved:
+            record_upload_event("quota_reserve", "quota_exceeded")
+            record_upload_event("batch_presigned", "quota_exceeded")
             raise HTTPException(status_code=507, detail="Storage quota exceeded")
+        record_upload_event("quota_reserve", "success")
 
     items: list[BatchPresignedUploadItem] = []
     photos_payload: list[dict] = []
@@ -138,6 +143,7 @@ async def batch_presigned_uploads(
     # 2. Generate Photo records and presigned URLs
     for file_request in request.files:
         if file_request.file_size > MAX_FILE_SIZE:
+            record_upload_event("batch_presigned", "invalid")
             items.append(
                 BatchPresignedUploadItem(
                     filename=file_request.filename,
@@ -162,6 +168,7 @@ async def batch_presigned_uploads(
                 expires_in=900,
             )
         except ClientError:
+            record_upload_event("batch_presigned", "failure")
             failed_presign_bytes += file_request.file_size
             items.append(
                 BatchPresignedUploadItem(
@@ -213,6 +220,13 @@ async def batch_presigned_uploads(
                 await user_repo.release_reserved_storage(current_user.id, reserved_for_created)
             raise
 
+    if photos_payload and failed_presign_bytes == 0:
+        batch_outcome = "success"
+    elif photos_payload:
+        batch_outcome = "partial"
+    else:
+        batch_outcome = "failure"
+    record_upload_event("batch_presigned", batch_outcome)
     return BatchPresignedUploadsResponse(items=items)
 
 
@@ -235,6 +249,7 @@ async def batch_confirm_uploads(
     # 1. Verify gallery ownership
     gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
+        record_upload_event("batch_confirm", "failure")
         raise HTTPException(403, "Access denied")
 
     # 2. Batch fetch all photos
@@ -254,12 +269,14 @@ async def batch_confirm_uploads(
     for item in request.items:
         if item.photo_id in seen_photo_ids:
             failed_count += 1
+            record_upload_event("batch_confirm", "invalid")
             continue
 
         seen_photo_ids.add(item.photo_id)
         photo = photo_map.get(item.photo_id)
         if not photo:
             failed_count += 1
+            record_upload_event("batch_confirm", "invalid")
             continue
 
         previous_status_map[photo.id] = photo.status
@@ -314,6 +331,7 @@ async def batch_confirm_uploads(
         try:
             await run_in_threadpool(create_thumbnails_batch_task.delay, thumbnail_payloads)
         except Exception as exc:
+            record_upload_event("thumbnail_enqueue", "enqueue_failed")
             logger.warning(
                 "Failed to enqueue thumbnail task",
                 extra={"gallery_id": str(gallery_id), "photo_count": len(photos_to_process)},
@@ -323,6 +341,16 @@ async def batch_confirm_uploads(
             # and re-enqueue idempotently.
             raise HTTPException(status_code=503, detail="Failed to enqueue thumbnail task") from exc
 
+    if photos_to_process:
+        record_upload_event("thumbnail_enqueue", "success")
+    record_upload_event("quota_finalize", "success" if bytes_to_finalize or bytes_to_release else "partial")
+    if confirmed_count and failed_count == 0:
+        confirm_outcome = "success"
+    elif confirmed_count:
+        confirm_outcome = "partial"
+    else:
+        confirm_outcome = "failure"
+    record_upload_event("batch_confirm", confirm_outcome)
     return BatchConfirmUploadResponse(confirmed_count=confirmed_count, failed_count=failed_count)
 
 
@@ -361,7 +389,7 @@ async def delete_photos(
         try:
             await run_in_threadpool(delete_photos_batch_task.delay, [str(photo_id) for photo_id in existing_photo_ids], str(gallery_id), str(current_user.id))
         except Exception as exc:
-            logger.error("Failed to enqueue delete_photos_batch task for gallery %s: %s", gallery_id, exc)
+            logger.error("Failed to enqueue delete_photos_batch task for gallery_hash=%s: %s", safe_id(gallery_id), safe_exception_summary(exc))
             deleted_ids = []
             failed_ids = list(existing_photo_ids)
 

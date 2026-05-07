@@ -8,6 +8,8 @@ from botocore.client import Config
 from PIL import Image, ImageOps
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from viewport.metrics import record_s3_operation
+
 # Configure logging - set botocore to WARNING level to reduce noise
 logging.getLogger("botocore").setLevel(logging.INFO)
 logging.getLogger("boto3").setLevel(logging.INFO)
@@ -121,8 +123,13 @@ def upload_fileobj(
     if cache_control:
         extra_args["CacheControl"] = cache_control
 
-    s3_client.upload_fileobj(fileobj, settings.bucket, filename, ExtraArgs=extra_args if extra_args else None)
-    return f"/{settings.bucket}/{filename}"
+    try:
+        s3_client.upload_fileobj(fileobj, settings.bucket, filename, ExtraArgs=extra_args if extra_args else None)
+        record_s3_operation("upload", "success")
+        return f"/{settings.bucket}/{filename}"
+    except Exception:
+        record_s3_operation("upload", "error")
+        raise
 
 
 def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (1000, 1000), quality: int = 70) -> tuple[bytes, int, int]:

@@ -1,50 +1,50 @@
-import json
+from __future__ import annotations
+
 import logging
 from datetime import UTC, datetime
+from typing import Any
+
+from viewport.telemetry_safety import redact_mapping
 
 
 class StructuredLogger:
-    """A small wrapper that emits structured JSON events via the standard
-    logging system. The JSON is written as the message so it flows through the
-    configured handlers (stdout) and formatters.
+    """Structured event wrapper over the standard logging system.
+
+    In JSON logging mode the formatter merges ``structured_fields`` into the
+    top-level log object. In local colored mode the event still appears as a
+    readable message while preserving structured extras for test/log adapters.
     """
 
     def __init__(self, name: str = "viewport"):
         self._logger = logging.getLogger(name)
 
-    def log_event(self, event: str, **kwargs) -> None:
-        """Emit a structured event. Common usage:
+    def log_event(self, event: str, **kwargs: Any) -> None:
+        """Emit a privacy-safe structured event."""
 
-        logger.log_event("view_photo", share_id=..., extra={...})
-        """
-        payload = {"timestamp": datetime.now(UTC).isoformat() + "Z", "event": event}
+        payload: dict[str, Any] = {
+            "event": event,
+            "event_timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        }
 
-        # Merge kwargs into payload. If `extra` is provided and is a dict,
-        # merge its keys at top-level to match existing expectations.
-        for k, v in kwargs.items():
-            if k == "extra" and isinstance(v, dict):
-                payload.update(v)
+        for key, value in kwargs.items():
+            if key == "extra" and isinstance(value, dict):
+                payload.update(value)
             else:
-                payload[k] = v
+                payload[key] = value
 
-        try:
-            self._logger.info(json.dumps(payload, default=str))
-        except Exception:
-            # Fallback to plain log if JSON serialization fails
-            self._logger.info("%s %s", event, kwargs)
+        safe_payload = redact_mapping(payload)
+        self._logger.info(event, extra={"structured_fields": safe_payload})
 
-    # Proxy common logging methods to the underlying logger for convenience
-    def info(self, msg: str, *args, **kwargs):
-        return self._logger.info(msg, *args, **kwargs)
+    def info(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self._logger.info(msg, *args, **kwargs)
 
-    def warning(self, msg: str, *args, **kwargs):
-        return self._logger.warning(msg, *args, **kwargs)
+    def warning(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self._logger.warning(msg, *args, **kwargs)
 
-    def error(self, msg: str, *args, **kwargs):
-        return self._logger.error(msg, *args, **kwargs)
+    def error(self, msg: str, *args: Any, **kwargs: Any) -> None:
+        self._logger.error(msg, *args, **kwargs)
 
 
-# Export a single logger instance used by the project and tests
 logger = StructuredLogger()
 
 __all__ = ["logger", "StructuredLogger"]
