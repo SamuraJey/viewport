@@ -39,6 +39,7 @@ export const ErrorDisplay = ({
           <div className="flex justify-center gap-3 pt-2">
             {onRetry && (
               <button
+                type="button"
                 onClick={onRetry}
                 className="inline-flex items-center gap-2 bg-red-100 dark:bg-red-500/20 hover:bg-red-200 dark:hover:bg-red-500/30 text-red-700 dark:text-red-300 px-5 py-2.5 rounded-xl shadow-sm transition-all duration-200 font-semibold focus:outline-hidden focus-visible:ring-2 focus-visible:ring-red-500"
               >
@@ -48,6 +49,7 @@ export const ErrorDisplay = ({
             )}
             {onDismiss && (
               <button
+                type="button"
                 onClick={onDismiss}
                 className="inline-flex items-center gap-2 bg-surface-foreground dark:bg-surface hover:bg-surface text-text dark:text-text px-5 py-2.5 rounded-xl shadow-sm transition-all duration-200 font-semibold focus:outline-hidden focus-visible:ring-2 focus-visible:ring-surface-foreground"
               >
@@ -66,6 +68,7 @@ export const ErrorDisplay = ({
           <div className="flex items-center gap-3">
             {onDismiss && (
               <button
+                type="button"
                 onClick={onDismiss}
                 className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all duration-200 hover:scale-105 text-sm font-semibold focus:outline-hidden focus-visible:ring-2 focus-visible:ring-red-500 rounded-md px-2 py-1"
               >
@@ -74,6 +77,7 @@ export const ErrorDisplay = ({
             )}
             {onRetry && (
               <button
+                type="button"
                 onClick={onRetry}
                 className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-red-500 rounded-md p-1"
                 title="Retry"
@@ -103,6 +107,7 @@ export const NetworkStatus = () => {
       </span>
       <div className="ml-auto flex items-center gap-2">
         <button
+          type="button"
           onClick={() => window.location.reload()}
           className="inline-flex items-center gap-2 bg-yellow-100 dark:bg-yellow-500/10 hover:bg-yellow-200 dark:hover:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 px-3 py-1.5 rounded-lg text-sm shadow-sm font-semibold transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-yellow-500"
           title="Retry"

@@ -143,6 +143,7 @@ const ShareLinksSectionComponent = ({
         <div className="flex flex-wrap items-center gap-2">
           {onOpenDashboard ? (
             <button
+              type="button"
               onClick={onOpenDashboard}
               className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-text transition-colors hover:border-accent/40 hover:bg-surface-2"
             >
@@ -151,6 +152,7 @@ const ShareLinksSectionComponent = ({
             </button>
           ) : null}
           <button
+            type="button"
             onClick={onCreateLink}
             disabled={isCreatingLink}
             className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-accent/20 bg-accent px-5 py-3 font-bold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:transform-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0"
@@ -172,6 +174,7 @@ const ShareLinksSectionComponent = ({
           <p>{error}</p>
           {onRetry ? (
             <button
+              type="button"
               onClick={onRetry}
               className="mt-3 inline-flex items-center gap-2 rounded-xl border border-danger/30 px-3 py-2 font-semibold transition-colors hover:bg-danger/10"
             >
@@ -332,6 +335,7 @@ const ShareLinksSectionComponent = ({
                     <div className="flex items-center gap-2 self-end sm:self-center">
                       {onOpenLinkAnalytics ? (
                         <button
+                          type="button"
                           onClick={() => onOpenLinkAnalytics(link.id)}
                           className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-accent/20 bg-accent/10 p-2 text-accent transition-all duration-200 hover:scale-110 hover:bg-accent/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-95"
                           title="Open analytics"
@@ -342,6 +346,7 @@ const ShareLinksSectionComponent = ({
                       ) : null}
                       {onEditLink ? (
                         <button
+                          type="button"
                           onClick={() => onEditLink(link)}
                           className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-accent/20 bg-accent/10 p-2 text-accent transition-all duration-200 hover:scale-110 hover:bg-accent/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-95"
                           title="Edit link"
@@ -351,6 +356,7 @@ const ShareLinksSectionComponent = ({
                         </button>
                       ) : null}
                       <button
+                        type="button"
                         onClick={() => void copyToClipboard(fullUrl)}
                         className="gallery-copy__btn flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-success/20 bg-success/10 p-2 text-success transition-all duration-200 hover:scale-110 hover:bg-success/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-95"
                         title="Copy link"
@@ -363,6 +369,7 @@ const ShareLinksSectionComponent = ({
                         )}
                       </button>
                       <button
+                        type="button"
                         onClick={() => onDeleteLink(link.id)}
                         className="gallery-delete__btn flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-danger/20 bg-danger/10 p-2 text-danger transition-all duration-200 hover:scale-110 hover:bg-danger/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-95"
                         title="Delete link"

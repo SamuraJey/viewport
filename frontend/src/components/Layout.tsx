@@ -101,6 +101,7 @@ export const Layout = ({ children }: LayoutProps) => {
             {user ? (
               <>
                 <button
+                  type="button"
                   onClick={openProfile}
                   title="Account Settings"
                   aria-label="Open account settings"
@@ -117,6 +118,7 @@ export const Layout = ({ children }: LayoutProps) => {
                   </span>
                 </button>
                 <button
+                  type="button"
                   onClick={openProfile}
                   title="Account Settings"
                   aria-label="Open account settings"
@@ -126,6 +128,7 @@ export const Layout = ({ children }: LayoutProps) => {
                   {initials}
                 </button>
                 <button
+                  type="button"
                   onClick={handleLogout}
                   title="Sign Out"
                   aria-label="Sign out"

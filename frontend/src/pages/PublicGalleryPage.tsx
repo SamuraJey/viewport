@@ -944,6 +944,7 @@ export const PublicGalleryPage = () => {
                   disabled={!selection.canMutateSession}
                   className="min-h-28 w-full rounded-2xl border border-border/50 bg-surface px-4 py-3 text-sm text-text outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-70"
                   placeholder="General note for selected photos"
+                  aria-label="General note for selected photos"
                 />
 
                 <div className="flex flex-wrap items-center justify-center gap-3">

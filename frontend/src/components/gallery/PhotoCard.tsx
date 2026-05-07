@@ -101,6 +101,7 @@ const PhotoCardComponent = ({
       {/* Selection checkbox */}
       {isSelectionMode && (
         <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation();
             onToggleSelection(photo.id, e.shiftKey);
@@ -122,6 +123,7 @@ const PhotoCardComponent = ({
         {/* Action Panel - overlay at the bottom */}
         <div className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/80 via-black/40 to-transparent transition-all duration-200 z-20 flex items-center justify-center gap-2 opacity-0 pointer-events-none translate-y-4 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0">
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               onOpenPhoto(index);
@@ -134,6 +136,7 @@ const PhotoCardComponent = ({
           </button>
           {isCover ? (
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onClearCover();
@@ -146,6 +149,7 @@ const PhotoCardComponent = ({
             </button>
           ) : (
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onSetCover(photo.id);
@@ -158,6 +162,7 @@ const PhotoCardComponent = ({
             </button>
           )}
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               onRenamePhoto(photo.id, photo.filename);
@@ -169,6 +174,7 @@ const PhotoCardComponent = ({
             <Pencil className="h-4 w-4" />
           </button>
           <button
+            type="button"
             onClick={handleDownload}
             className="p-2.5 rounded-xl bg-white/20 hover:bg-green-500/80 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-green-500"
             title="Download photo"
@@ -177,6 +183,7 @@ const PhotoCardComponent = ({
             <Download className="h-4 w-4" />
           </button>
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               onDeletePhoto(photo.id);
@@ -191,6 +198,7 @@ const PhotoCardComponent = ({
 
         {/* Photo - takes full image area */}
         <button
+          type="button"
           onClick={(e) => {
             if (isSelectionMode) {
               onToggleSelection(photo.id, e.shiftKey);

@@ -35,6 +35,7 @@ export const PaginationControls = ({ pagination, isLoading = false }: Pagination
 
       <div className="flex items-center gap-1.5">
         <button
+          type="button"
           onClick={pagination.previousPage}
           disabled={pagination.isFirstPage || isLoading}
           className="inline-flex h-10 items-center gap-1 rounded-xl border border-border/50 bg-surface px-3 text-sm font-bold text-text shadow-xs transition-all duration-200 hover:bg-surface-1 hover:border-accent/30 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface disabled:hover:border-border/50 disabled:hover:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
@@ -65,6 +66,7 @@ export const PaginationControls = ({ pagination, isLoading = false }: Pagination
 
             return (
               <button
+                type="button"
                 key={pageNum}
                 onClick={() => pagination.goToPage(pageNum)}
                 disabled={pageNum === pagination.page || isLoading}
@@ -81,6 +83,7 @@ export const PaginationControls = ({ pagination, isLoading = false }: Pagination
         </div>
 
         <button
+          type="button"
           onClick={pagination.nextPage}
           disabled={pagination.isLastPage || isLoading}
           className="inline-flex h-10 items-center gap-1 rounded-xl border border-border/50 bg-surface px-3 text-sm font-bold text-text shadow-xs transition-all duration-200 hover:bg-surface-1 hover:border-accent/30 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface disabled:hover:border-border/50 disabled:hover:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"

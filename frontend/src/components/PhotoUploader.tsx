@@ -138,6 +138,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
           onChange={handleFileInput}
           multiple
           accept="image/jpeg,image/png,image/jpg"
+          aria-label="Choose photos to upload"
           className="hidden"
         />
 
