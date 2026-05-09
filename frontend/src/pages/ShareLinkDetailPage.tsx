@@ -27,6 +27,7 @@ import {
   Trash2,
   type LucideIcon,
 } from 'lucide-react';
+import { MetricCard } from '../components/dashboard/MetricCard';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
 import { ShareLinkStatusBadge } from '../components/share-links/ShareLinkStatusBadge';
 import { getShareLinkStatus } from '../components/share-links/shareLinkStatus';
@@ -123,30 +124,6 @@ const LinkHealthCard = ({ icon: Icon, label, value, hint, tone }: LinkHealthCard
         </p>
         <p className="mt-1 text-sm leading-5 text-muted">{hint}</p>
       </div>
-    </div>
-  </div>
-);
-
-interface DetailMetricCardProps {
-  label: string;
-  value: string;
-  helper: string;
-  icon: LucideIcon;
-}
-
-const DetailMetricCard = ({ label, value, helper, icon: Icon }: DetailMetricCardProps) => (
-  <div className="rounded-3xl border border-border/50 bg-surface-1 p-4 shadow-xs dark:border-white/10 dark:bg-white/[0.035]">
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">{label}</p>
-        <p className="mt-2 truncate text-2xl font-black leading-none text-text dark:text-accent-foreground">
-          {value}
-        </p>
-        <p className="mt-2 text-sm leading-5 text-muted">{helper}</p>
-      </div>
-      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
-        <Icon className="h-5 w-5" />
-      </span>
     </div>
   </div>
 );
@@ -801,25 +778,25 @@ export const ShareLinkDetailPage = () => {
       panel: (
         <div className="space-y-6">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <DetailMetricCard
+            <MetricCard
               icon={MousePointerClick}
               label="Total views"
               value={numberFormatter.format(totals.totalViews)}
               helper={`${numberFormatter.format(totals.uniqueViews)} unique · ${uniqueViewRate}% unique rate`}
             />
-            <DetailMetricCard
+            <MetricCard
               icon={BarChart3}
               label="Unique views"
               value={numberFormatter.format(totals.uniqueViews)}
               helper={latestPoint ? `Latest signal ${formatDay(latestPoint.day)}` : 'No visits yet'}
             />
-            <DetailMetricCard
+            <MetricCard
               icon={Download}
               label="Downloads"
               value={numberFormatter.format(totalDownloads)}
               helper={`${numberFormatter.format(totals.zipDownloads)} ZIP · ${numberFormatter.format(totals.singleDownloads)} single · ${downloadsPerView}% per view`}
             />
-            <DetailMetricCard
+            <MetricCard
               icon={CheckCircle2}
               label="Selection"
               value={numberFormatter.format(selectionSummary.selected_count)}

@@ -28,6 +28,7 @@ import {
   Share2,
 } from 'lucide-react';
 import { EnhancedGalleryCard } from '../components/dashboard/EnhancedGalleryCard';
+import { MetricCard } from '../components/dashboard/MetricCard';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { AppDialog, AppDialogDescription, AppDialogTitle, AppPopover } from '../components/ui';
 import { GALLERY_NAME_MAX_LENGTH } from '../constants/gallery';
@@ -92,30 +93,6 @@ const toProjectGalleryCard = (folder: ProjectGallerySummary): Gallery => ({
 
 const VISIBILITY_ACTION_BUTTON_CLASS =
   'flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-accent';
-
-interface ProjectStatProps {
-  label: string;
-  value: string | number;
-  helper: string;
-  icon: LucideIcon;
-}
-
-const ProjectStat = ({ label, value, helper, icon: Icon }: ProjectStatProps) => (
-  <div className="rounded-3xl border border-border/50 bg-surface-1 p-4 shadow-xs dark:border-white/10 dark:bg-white/[0.035]">
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">{label}</p>
-        <p className="mt-2 truncate text-2xl font-black leading-none text-text dark:text-accent-foreground">
-          {value}
-        </p>
-        <p className="mt-2 text-sm leading-5 text-muted">{helper}</p>
-      </div>
-      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
-        <Icon className="h-5 w-5" />
-      </span>
-    </div>
-  </div>
-);
 
 interface ProjectGuidanceItemProps {
   icon: LucideIcon;
@@ -716,25 +693,25 @@ export const ProjectPage = () => {
         </div>
 
         <div className="relative mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <ProjectStat
+          <MetricCard
             icon={FolderPlus}
             label="Galleries"
             value={project.gallery_count}
             helper={`${visibleGalleryCount} listed · ${directOnlyGalleryCount} direct-only`}
           />
-          <ProjectStat
+          <MetricCard
             icon={ImageIcon}
             label="Photos"
             value={project.total_photo_count}
             helper="Across every gallery in this project"
           />
-          <ProjectStat
+          <MetricCard
             icon={HardDrive}
             label="Storage"
             value={formatFileSize(project.total_size_bytes)}
             helper="Originals and generated thumbnails"
           />
-          <ProjectStat
+          <MetricCard
             icon={Link2}
             label="Project links"
             value={shareLinks.length}

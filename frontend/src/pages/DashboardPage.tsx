@@ -5,7 +5,6 @@ import {
   FolderOpen,
   HardDrive,
   ImageIcon,
-  type LucideIcon,
   Plus,
   Search,
   Share2,
@@ -18,6 +17,7 @@ import { PaginationControls } from '../components/PaginationControls';
 import { CollectionCard, CollectionShareBadge } from '../components/dashboard/CollectionCard';
 import { getCollectionTitleTextSizeClass } from '../components/dashboard/collectionCardUtils';
 import { CreateProjectModal } from '../components/dashboard/CreateProjectModal';
+import { MetricCard } from '../components/dashboard/MetricCard';
 import { AppListbox } from '../components/ui';
 import { useConfirmation, usePagination } from '../hooks';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -56,30 +56,6 @@ interface ProjectSortOption {
   value: `${ProjectListSortBy}:${SortOrder}`;
   label: string;
 }
-
-interface DashboardStatProps {
-  label: string;
-  value: string;
-  helper: string;
-  icon: LucideIcon;
-}
-
-const DashboardStat = ({ label, value, helper, icon: Icon }: DashboardStatProps) => (
-  <div className="rounded-3xl border border-border/60 bg-surface-1 p-4 shadow-xs dark:border-white/10 dark:bg-white/[0.035]">
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">{label}</p>
-        <p className="mt-2 truncate text-2xl font-black leading-none text-text dark:text-accent-foreground">
-          {value}
-        </p>
-        <p className="mt-2 text-sm leading-5 text-muted">{helper}</p>
-      </div>
-      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
-        <Icon className="h-5 w-5" />
-      </span>
-    </div>
-  </div>
-);
 
 const DEFAULT_PROJECT_SORT_STATE = {
   sortBy: DEFAULT_PROJECT_SORT_BY,
@@ -428,25 +404,25 @@ export const DashboardPage = () => {
         </div>
 
         <div className="relative mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <DashboardStat
+          <MetricCard
             icon={FolderOpen}
             label="Visible page"
             value={`${numberFormatter.format(pageSummary.projectCount)} projects`}
             helper={`${numberFormatter.format(total)} total in workspace`}
           />
-          <DashboardStat
+          <MetricCard
             icon={ImageIcon}
             label="Galleries"
             value={numberFormatter.format(pageSummary.galleryCount)}
             helper={`${numberFormatter.format(pageSummary.photoCount)} photos on this page`}
           />
-          <DashboardStat
+          <MetricCard
             icon={HardDrive}
             label="Storage"
             value={formatFileSize(pageSummary.storageBytes)}
             helper="Current page aggregate"
           />
-          <DashboardStat
+          <MetricCard
             icon={Share2}
             label="Client links"
             value={numberFormatter.format(pageSummary.activeShareProjects)}

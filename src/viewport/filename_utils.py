@@ -33,6 +33,18 @@ def build_content_disposition(filename: str, disposition_type: str = "inline") -
     return f'{disposition_type}; filename="{safe_filename}"'
 
 
+def resolve_photo_filename(photo: object) -> str:
+    """Resolve the user-facing filename for a photo-like object."""
+    display_name = getattr(photo, "display_name", None)
+    if isinstance(display_name, str) and display_name:
+        return display_name
+
+    object_key = str(getattr(photo, "object_key", ""))
+    if "/" in object_key:
+        return object_key.split("/", 1)[1]
+    return object_key or "file"
+
+
 def truncate_utf8(value: str, max_bytes: int) -> str:
     if max_bytes <= 0:
         return ""

@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from viewport.filename_utils import build_content_disposition
+from viewport.filename_utils import build_content_disposition, resolve_photo_filename
 
 if TYPE_CHECKING:
     from viewport.models.gallery import Photo
@@ -18,22 +18,18 @@ class PhotoCreateRequest(BaseModel):
     # file will be handled as UploadFile in endpoint, not in schema
 
 
-def _resolve_filename(photo: "Photo") -> str:
-    display_name = getattr(photo, "display_name", None)
-    if isinstance(display_name, str) and display_name:
-        return display_name
-    object_key = str(getattr(photo, "object_key", ""))
-    if "/" in object_key:
-        return object_key.split("/", 1)[1]
-    return object_key or "file"
-
-
 async def _generate_url_maps(
     photos: list["Photo"],
     s3_client: "AsyncS3Client",
 ) -> tuple[Mapping[str, str], Mapping[str, str]]:
     thumbnail_keys = [photo.thumbnail_object_key for photo in photos]
-    original_key_dispositions: Mapping[str, str | None] = {photo.object_key: build_content_disposition(_resolve_filename(photo), disposition_type="inline") for photo in photos}
+    original_key_dispositions: Mapping[str, str | None] = {
+        photo.object_key: build_content_disposition(
+            resolve_photo_filename(photo),
+            disposition_type="inline",
+        )
+        for photo in photos
+    }
 
     thumbnail_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys, expires_in=7200)
     full_url_map = await s3_client.generate_presigned_urls_batch_for_dispositions(
@@ -54,7 +50,7 @@ def _build_photo_response_payload(
         "id": photo.id,
         "url": full_url_map.get(photo.object_key, ""),
         "thumbnail_url": thumbnail_url_map.get(photo.thumbnail_object_key, ""),
-        "filename": _resolve_filename(photo),
+        "filename": resolve_photo_filename(photo),
         "file_size": photo.file_size,
         "uploaded_at": photo.uploaded_at,
     }
@@ -80,7 +76,7 @@ class PhotoResponse(BaseModel):
 
     @staticmethod
     def _resolve_filename(photo: "Photo") -> str:
-        return _resolve_filename(photo)
+        return resolve_photo_filename(photo)
 
     @classmethod
     async def from_db_photo(cls, photo: "Photo", s3_client: "AsyncS3Client") -> "PhotoResponse":

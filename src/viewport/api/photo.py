@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from viewport.auth_utils import get_current_user, get_current_user_for_download
 from viewport.background_tasks import create_thumbnails_batch_task, delete_photos_batch_task
 from viewport.dependencies import get_s3_client
-from viewport.filename_utils import build_content_disposition, sanitize_filename, split_name_and_ext
+from viewport.filename_utils import build_content_disposition, resolve_photo_filename, sanitize_filename, split_name_and_ext
 from viewport.models.db import get_db
 from viewport.models.gallery import Photo, PhotoUploadStatus
 from viewport.models.user import User
@@ -125,7 +125,7 @@ async def download_photo(
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
 
-    filename = PhotoResponse._resolve_filename(photo)
+    filename = resolve_photo_filename(photo)
     download_url = await s3_client.generate_presigned_url_async(
         photo.object_key,
         expires_in=7200,
