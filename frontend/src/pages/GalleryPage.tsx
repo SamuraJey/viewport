@@ -28,6 +28,7 @@ import { type PhotoUploaderHandle } from '../components/PhotoUploader';
 import { usePagination, useSelection, useGalleryActions, useGalleryDragAndDrop } from '../hooks';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { projectService } from '../services/projectService';
+import { photoService } from '../services/photoService';
 import { shareLinkService } from '../services/shareLinkService';
 import { handleApiError } from '../lib/errorHandling';
 import type {
@@ -933,6 +934,13 @@ export const GalleryPage = () => {
     void handleDownloadSelectedPhotos(selection.selectedIds);
   };
 
+  const handleDownloadPhoto = useCallback(
+    (photoId: string) => {
+      void photoService.downloadPhoto(galleryId, photoId);
+    },
+    [galleryId],
+  );
+
   const handleToggleSelectionMode = () => {
     if (isSelectionMode) {
       selection.clear();
@@ -1025,6 +1033,7 @@ export const GalleryPage = () => {
               onSetCover: handleSetCover,
               onClearCover: handleClearCover,
               onRenamePhoto: handleRenamePhoto,
+              onDownloadPhoto: handleDownloadPhoto,
               onDeletePhoto: handleDeletePhoto,
               onDownloadSelectedPhotos: handleDownloadSelectedPhotosWrapper,
               onClearSearch: () => {
@@ -1169,6 +1178,7 @@ export const GalleryPage = () => {
           alt: photo.filename,
           download: photo.url,
           downloadFilename: photo.filename,
+          onDownload: () => photoService.downloadPhoto(galleryId, photo.id),
         })),
         pagination.total,
       )}

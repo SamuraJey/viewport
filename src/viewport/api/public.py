@@ -5,7 +5,7 @@ from uuid import UUID
 
 import zipstream
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -352,6 +352,29 @@ def _require_gallery_share_id(sharelink: ShareLink) -> UUID:
     return sharelink.gallery_id
 
 
+async def _get_downloadable_public_photo(
+    *,
+    sharelink: ShareLink,
+    photo_id: UUID,
+    repo: ShareLinkRepository,
+) -> Photo:
+    if sharelink.scope_type == ShareScopeType.PROJECT.value:
+        if sharelink.project_id is None:
+            raise HTTPException(status_code=404, detail="Project not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+        photos = await repo.get_photos_by_ids_and_project(
+            sharelink.project_id,
+            [photo_id],
+            listed_only=True,
+        )
+    else:
+        gallery_id = _require_gallery_share_id(sharelink)
+        photos = await repo.get_photos_by_ids_and_gallery(gallery_id, [photo_id])
+
+    if not photos:
+        raise HTTPException(status_code=404, detail="Photo not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+    return photos[0]
+
+
 @router.get("/{share_id}", response_model=PublicShareResponse)
 async def get_photos_by_sharelink(
     share_id: UUID,
@@ -491,6 +514,45 @@ async def get_public_photos_by_ids(
         for photo in ordered_photos
         if thumb_url_map.get(photo.thumbnail_object_key) and full_url_map.get(photo.object_key)
     ]
+
+
+@router.head("/{share_id}/photos/{photo_id}/download")
+async def check_public_photo_download(
+    photo_id: UUID,
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    sharelink: ShareLink = Depends(get_valid_sharelink),
+) -> Response:
+    """Check whether one public/share photo can be downloaded."""
+    await _get_downloadable_public_photo(sharelink=sharelink, photo_id=photo_id, repo=repo)
+    return Response(status_code=204, headers=PUBLIC_CACHE_CONTROL_HEADERS)
+
+
+@router.get("/{share_id}/photos/{photo_id}/download")
+async def download_public_photo(
+    share_id: UUID,
+    photo_id: UUID,
+    repo: ShareLinkRepository = Depends(get_sharelink_repository),
+    sharelink: ShareLink = Depends(get_valid_sharelink),
+    s3_client: AsyncS3Client = Depends(get_async_s3_client),
+) -> RedirectResponse:
+    """Redirect a public single-photo download to an attachment presigned URL.
+
+    The browser follows the redirect as a navigation, so S3-compatible storage
+    does not need JavaScript CORS headers for single-photo downloads.
+    """
+    photo = await _get_downloadable_public_photo(sharelink=sharelink, photo_id=photo_id, repo=repo)
+    filename = photo.display_name or f"photo-{photo.id}"
+    download_url = await s3_client.generate_presigned_url_async(
+        photo.object_key,
+        expires_in=7200,
+        response_content_disposition=build_content_disposition(
+            filename,
+            disposition_type="attachment",
+        ),
+    )
+    await repo.record_single_download(share_id)
+    logger.log_event("download_single_photo", share_id=str(sharelink.id), extra={"photo_id": str(photo.id)})
+    return RedirectResponse(download_url, status_code=303, headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
 
 @router.head("/{share_id}/galleries/{gallery_id}/download/all")

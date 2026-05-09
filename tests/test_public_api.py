@@ -392,6 +392,40 @@ class TestPublicAPI:
         )
         assert valid_header_resp.status_code == 200
 
+    def test_public_single_photo_download_redirects_and_records_counter(
+        self,
+        authenticated_client: TestClient,
+        gallery_id_fixture: str,
+    ):
+        photo_id = _upload_photo(authenticated_client, gallery_id_fixture, b"single", "single.jpg")
+        create_resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/share-links",
+            json={"expires_at": "2099-01-01T00:00:00Z"},
+        )
+        assert create_resp.status_code == 201
+        share_id = create_resp.json()["id"]
+
+        head_resp = authenticated_client.head(f"/s/{share_id}/photos/{photo_id}/download")
+        assert head_resp.status_code == 204
+        assert head_resp.content == b""
+
+        with patch(
+            "viewport.api.public.AsyncS3Client.generate_presigned_url_async",
+            new_callable=AsyncMock,
+            return_value="https://storage.example/public-single-download",
+        ) as mock_presign:
+            response = authenticated_client.get(
+                f"/s/{share_id}/photos/{photo_id}/download",
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "https://storage.example/public-single-download"
+        assert mock_presign.await_args.kwargs["response_content_disposition"] == 'attachment; filename="single.jpg"'
+
+        owner_link = authenticated_client.get(f"/galleries/{gallery_id_fixture}/share-links").json()[0]
+        assert owner_link["single_downloads"] == 1
+
     def test_password_unlock_cookie_uses_samesite_none_for_cross_origin_https(
         self,
         authenticated_client: TestClient,

@@ -2,14 +2,15 @@ import logging
 from uuid import UUID, uuid4
 
 from botocore.exceptions import ClientError
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
-from viewport.auth_utils import get_current_user
+from viewport.auth_utils import get_current_user, get_current_user_for_download
 from viewport.background_tasks import create_thumbnails_batch_task, delete_photos_batch_task
 from viewport.dependencies import get_s3_client
-from viewport.filename_utils import sanitize_filename, split_name_and_ext
+from viewport.filename_utils import build_content_disposition, sanitize_filename, split_name_and_ext
 from viewport.models.db import get_db
 from viewport.models.gallery import Photo, PhotoUploadStatus
 from viewport.models.user import User
@@ -99,6 +100,41 @@ def get_content_type_from_filename(filename: str | None) -> str:
 
 def _photo_needs_thumbnail_processing(photo: Photo) -> bool:
     return photo.thumbnail_object_key == photo.object_key or photo.width is None or photo.height is None
+
+
+@router.post("/{gallery_id}/photos/{photo_id}/download")
+async def download_photo(
+    gallery_id: UUID,
+    photo_id: UUID,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user_for_download),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
+) -> RedirectResponse:
+    """Redirect an authenticated browser download to an attachment presigned URL.
+
+    Single-photo downloads are intentionally browser-managed instead of
+    fetched through JavaScript. Fetching the S3 presigned URL requires the
+    storage service to expose CORS headers, while a top-level browser download
+    can follow a signed redirect without CORS.
+    """
+    gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    if not gallery:
+        raise HTTPException(status_code=404, detail="Gallery not found")
+
+    photo = await repo.get_photo_by_id_and_gallery(photo_id, gallery_id)
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    filename = PhotoResponse._resolve_filename(photo)
+    download_url = await s3_client.generate_presigned_url_async(
+        photo.object_key,
+        expires_in=7200,
+        response_content_disposition=build_content_disposition(
+            filename,
+            disposition_type="attachment",
+        ),
+    )
+    return RedirectResponse(download_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/{gallery_id}/photos/batch-presigned", response_model=BatchPresignedUploadsResponse)

@@ -4,7 +4,7 @@ import io
 import zipfile
 from datetime import date
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -575,6 +575,23 @@ class TestGalleryAPI:
         assert "first.jpg" in names
         assert "second.jpg" in names
         assert first_photo_id != second_photo_id
+
+    def test_download_single_photo_redirects_to_attachment_presigned_url(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"single-bytes", "single.jpg")
+
+        with patch(
+            "viewport.api.photo.AsyncS3Client.generate_presigned_url_async",
+            new_callable=AsyncMock,
+            return_value="https://storage.example/single-download",
+        ) as mock_presign:
+            response = authenticated_client.post(
+                f"/galleries/{gallery_id_fixture}/photos/{photo_id}/download",
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "https://storage.example/single-download"
+        assert mock_presign.await_args.kwargs["response_content_disposition"] == 'attachment; filename="single.jpg"'
 
     def test_download_whole_gallery_as_zip_accepts_form_access_token(self, client: TestClient, auth_token: str):
         client.headers.update({"Authorization": f"Bearer {auth_token}"})

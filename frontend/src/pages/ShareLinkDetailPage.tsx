@@ -110,20 +110,56 @@ interface LinkHealthCardProps {
 
 const LinkHealthCard = ({ icon: Icon, label, value, hint, tone }: LinkHealthCardProps) => (
   <div
-    className={`rounded-2xl border p-4 shadow-xs transition-colors duration-200 motion-reduce:transition-none ${healthToneClasses[tone]}`}
+    className={`group rounded-3xl border p-4 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${healthToneClasses[tone]}`}
   >
     <div className="flex items-start gap-3">
-      <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-current/10">
+      <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-current/10 transition-transform duration-200 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
         <Icon className="h-4 w-4" />
       </span>
       <div className="min-w-0">
         <p className="text-xs font-bold uppercase tracking-[0.14em] opacity-75">{label}</p>
-        <p className="mt-1 truncate text-lg font-bold text-text dark:text-accent-foreground">
+        <p className="mt-1 text-base font-bold leading-5 text-text dark:text-accent-foreground">
           {value}
         </p>
         <p className="mt-1 text-sm leading-5 text-muted">{hint}</p>
       </div>
     </div>
+  </div>
+);
+
+interface DetailMetricCardProps {
+  label: string;
+  value: string;
+  helper: string;
+  icon: LucideIcon;
+}
+
+const DetailMetricCard = ({ label, value, helper, icon: Icon }: DetailMetricCardProps) => (
+  <div className="rounded-3xl border border-border/50 bg-surface-1 p-4 shadow-xs dark:border-white/10 dark:bg-white/[0.035]">
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted">{label}</p>
+        <p className="mt-2 truncate text-2xl font-black leading-none text-text dark:text-accent-foreground">
+          {value}
+        </p>
+        <p className="mt-2 text-sm leading-5 text-muted">{helper}</p>
+      </div>
+      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+        <Icon className="h-5 w-5" />
+      </span>
+    </div>
+  </div>
+);
+
+interface LinkMetaItemProps {
+  label: string;
+  value: string;
+}
+
+const LinkMetaItem = ({ label, value }: LinkMetaItemProps) => (
+  <div className="min-w-0 rounded-2xl border border-border/50 bg-surface/80 px-4 py-3 dark:border-white/10 dark:bg-surface-dark/60">
+    <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-muted">{label}</p>
+    <p className="mt-1 truncate text-sm font-bold text-text dark:text-accent-foreground">{value}</p>
   </div>
 );
 
@@ -660,6 +696,38 @@ export const ShareLinkDetailPage = () => {
     },
   ];
   const publicUrl = `${window.location.origin}/share/${analytics.share_link.id}`;
+  const shortShareId =
+    analytics.share_link.id.length > 18
+      ? `${analytics.share_link.id.slice(0, 8)}…${analytics.share_link.id.slice(-4)}`
+      : analytics.share_link.id;
+  const sourceLabel = isProjectLink
+    ? analytics.share_link.project_name || 'Untitled project'
+    : analytics.share_link.gallery_name || 'Untitled gallery';
+  const sourcePath = isProjectLink
+    ? `/projects/${analytics.share_link.project_id}`
+    : analytics.share_link.project_id
+      ? `/projects/${analytics.share_link.project_id}/galleries/${analytics.share_link.gallery_id}`
+      : `/galleries/${analytics.share_link.gallery_id}`;
+  const expiryLabel = formatDateTime(analytics.share_link.expires_at, 'No expiration');
+  const updatedLabel = formatDateTime(
+    analytics.share_link.updated_at ?? analytics.share_link.created_at,
+  );
+  const downloadsPerView =
+    totals.totalViews > 0 ? Math.round((totalDownloads / totals.totalViews) * 100) : 0;
+  const uniqueViewRate =
+    totals.totalViews > 0 ? Math.round((totals.uniqueViews / totals.totalViews) * 100) : 0;
+  const nextOwnerAction =
+    status === 'expired'
+      ? 'Extend the expiration date before sending this link again.'
+      : status === 'inactive'
+        ? 'Resume the link when the gallery is ready for client review.'
+        : selectionSummary.in_progress_sessions > 0
+          ? 'Review live selection sessions and close them when the client confirms.'
+          : selectionSummary.submitted_sessions > 0
+            ? 'Export submitted favorites for delivery or Lightroom.'
+            : totals.totalViews > 0
+              ? 'Share follow-up instructions or monitor the next delivery window.'
+              : 'Copy the public URL and send it to your client.';
   const tabClassName = ({ selected }: { selected: boolean }) =>
     `inline-flex h-11 items-center justify-center whitespace-nowrap rounded-2xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
       selected
@@ -733,38 +801,30 @@ export const ShareLinkDetailPage = () => {
       panel: (
         <div className="space-y-6">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Views Total
-              </p>
-              <p className="mt-2 text-2xl font-bold text-text">
-                {numberFormatter.format(totals.totalViews)}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Views Unique
-              </p>
-              <p className="mt-2 text-2xl font-bold text-text">
-                {numberFormatter.format(totals.uniqueViews)}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                ZIP Downloads
-              </p>
-              <p className="mt-2 text-2xl font-bold text-text">
-                {numberFormatter.format(totals.zipDownloads)}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Single Downloads
-              </p>
-              <p className="mt-2 text-2xl font-bold text-text">
-                {numberFormatter.format(totals.singleDownloads)}
-              </p>
-            </div>
+            <DetailMetricCard
+              icon={MousePointerClick}
+              label="Total views"
+              value={numberFormatter.format(totals.totalViews)}
+              helper={`${numberFormatter.format(totals.uniqueViews)} unique · ${uniqueViewRate}% unique rate`}
+            />
+            <DetailMetricCard
+              icon={BarChart3}
+              label="Unique views"
+              value={numberFormatter.format(totals.uniqueViews)}
+              helper={latestPoint ? `Latest signal ${formatDay(latestPoint.day)}` : 'No visits yet'}
+            />
+            <DetailMetricCard
+              icon={Download}
+              label="Downloads"
+              value={numberFormatter.format(totalDownloads)}
+              helper={`${numberFormatter.format(totals.zipDownloads)} ZIP · ${numberFormatter.format(totals.singleDownloads)} single · ${downloadsPerView}% per view`}
+            />
+            <DetailMetricCard
+              icon={CheckCircle2}
+              label="Selection"
+              value={numberFormatter.format(selectionSummary.selected_count)}
+              helper={`${numberFormatter.format(selectionSummary.total_sessions)} sessions · ${numberFormatter.format(selectionSummary.submitted_sessions)} submitted`}
+            />
           </div>
 
           <ShareLinkTrendChart points={analytics.points} />
@@ -1659,92 +1719,114 @@ export const ShareLinkDetailPage = () => {
         </span>
       </div>
 
-      <div className="overflow-hidden rounded-[1.5rem] border border-border/50 bg-surface/95 shadow-xs dark:border-white/10 dark:bg-surface-dark/90">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="space-y-4 p-5 lg:p-6">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground">
-                {analytics.share_link.label || 'Untitled Share Link'}
-              </h1>
-              <ShareLinkStatusBadge status={status} />
-              {analytics.share_link.has_password ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-border/45 bg-surface-1 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-muted dark:border-white/10 dark:bg-white/[0.035]">
-                  <Lock className="h-3.5 w-3.5" />
-                  Password protected
+      <div className="overflow-hidden rounded-[2rem] border border-border/50 bg-surface/95 shadow-xs dark:border-white/10 dark:bg-surface-dark/90">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_24rem]">
+          <div className="relative space-y-5 p-5 sm:p-6 lg:p-8">
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(31,144,255,0.10),transparent_38%),radial-gradient(circle_at_88%_12%,rgba(34,197,94,0.10),transparent_30%)]" />
+            <div className="relative space-y-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-accent/25 bg-accent/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-accent">
+                  Share delivery cockpit
                 </span>
-              ) : null}
-            </div>
-            <p className="text-sm text-muted">
-              Link id:{' '}
-              <span className="font-mono text-text dark:text-accent-foreground">
-                {analytics.share_link.id}
-              </span>
-            </p>
-            {isProjectLink ? (
-              <Link
-                to={`/projects/${analytics.share_link.project_id}`}
-                className="inline-flex items-center gap-2 text-sm font-semibold text-accent transition-colors hover:text-accent/80 focus:outline-hidden focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-accent"
-              >
-                Open source project: {analytics.share_link.project_name}
-              </Link>
-            ) : (
-              <Link
-                to={
-                  analytics.share_link.project_id
-                    ? `/projects/${analytics.share_link.project_id}/galleries/${analytics.share_link.gallery_id}`
-                    : `/galleries/${analytics.share_link.gallery_id}`
-                }
-                className="inline-flex items-center gap-2 text-sm font-semibold text-accent transition-colors hover:text-accent/80 focus:outline-hidden focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-accent"
-              >
-                Open source gallery: {analytics.share_link.gallery_name}
-              </Link>
-            )}
-            <p className="text-sm text-muted">
-              {isProjectLink
-                ? 'This project link can collect one shared photo-selection flow across all listed galleries in the project.'
-                : 'The overview focuses on link health and engagement. Advanced photo-selection controls are moved into their own tab.'}
-            </p>
+                <ShareLinkStatusBadge status={status} />
+                <span className="rounded-full border border-border/45 bg-surface-1 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-muted dark:border-white/10 dark:bg-white/[0.035]">
+                  {isProjectLink ? 'Project scope' : 'Gallery scope'}
+                </span>
+                {analytics.share_link.has_password ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border/45 bg-surface-1 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-muted dark:border-white/10 dark:bg-white/[0.035]">
+                    <Lock className="h-3.5 w-3.5" />
+                    Password
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-success/25 bg-success/10 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-success">
+                    <LockOpen className="h-3.5 w-3.5" />
+                    Open access
+                  </span>
+                )}
+              </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {healthCards.map((card) => (
-                <LinkHealthCard key={card.label} {...card} />
-              ))}
+              <div className="max-w-4xl">
+                <h1 className="text-balance font-oswald text-4xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground sm:text-5xl">
+                  {analytics.share_link.label || 'Untitled Share Link'}
+                </h1>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-muted sm:text-base">
+                  {isProjectLink
+                    ? 'A project-level client link with one shared photo-selection flow across all listed galleries.'
+                    : 'A gallery-level delivery link with analytics, client access controls, and selection sessions in one workspace.'}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="rounded-full border border-border/50 bg-surface/85 px-3 py-1.5 font-mono font-semibold text-muted dark:border-white/10 dark:bg-surface-dark/70">
+                  {shortShareId}
+                </span>
+                <Link
+                  to={sourcePath}
+                  className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1.5 font-bold text-accent transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                >
+                  Open source {isProjectLink ? 'project' : 'gallery'}: {sourceLabel}
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {healthCards.map((card) => (
+                  <LinkHealthCard key={card.label} {...card} />
+                ))}
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <LinkMetaItem label="Expires" value={expiryLabel} />
+                <LinkMetaItem label="Updated" value={updatedLabel} />
+                <LinkMetaItem label="Source" value={sourceLabel} />
+                <LinkMetaItem label="Download rate" value={`${downloadsPerView}% per view`} />
+              </div>
             </div>
           </div>
 
-          <aside className="border-t border-border/50 bg-surface-1/80 p-5 dark:border-white/10 dark:bg-white/[0.035] lg:border-t-0 lg:border-l">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
-              Client-facing URL
-            </p>
-            <div className="mt-3 rounded-2xl border border-border/50 bg-surface px-3 py-3 dark:border-white/10 dark:bg-surface-dark">
-              <p className="break-all font-mono text-sm font-semibold text-text dark:text-accent-foreground">
-                {publicUrl}
+          <aside className="border-t border-border/50 bg-surface-1/85 p-5 dark:border-white/10 dark:bg-white/[0.035] lg:border-t-0 lg:border-l">
+            <div className="rounded-3xl border border-border/50 bg-surface p-4 shadow-xs dark:border-white/10 dark:bg-surface-dark/80">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted">
+                Client-facing URL
+              </p>
+              <div className="mt-3 rounded-2xl border border-border/50 bg-surface-1 px-3 py-3 dark:border-white/10 dark:bg-white/[0.035]">
+                <p className="break-all font-mono text-sm font-semibold text-text dark:text-accent-foreground">
+                  {publicUrl}
+                </p>
+              </div>
+              <div className="mt-3 grid gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2.5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent/90 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                >
+                  <Copy className="h-4 w-4" />
+                  {copied ? 'Copied to clipboard' : 'Copy client link'}
+                </button>
+                <a
+                  href={publicUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm font-bold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open public page
+                </a>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-3xl border border-accent/20 bg-accent/10 p-4 text-accent dark:border-accent/25">
+              <p className="text-xs font-bold uppercase tracking-[0.16em]">Next best action</p>
+              <p className="mt-2 text-sm font-semibold leading-6 text-text dark:text-accent-foreground">
+                {nextOwnerAction}
               </p>
             </div>
-            <div className="mt-3 grid gap-2">
-              <button
-                type="button"
-                onClick={handleCopyLink}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2.5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:bg-accent/90 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface motion-reduce:transition-none"
-              >
-                <Copy className="h-4 w-4" />
-                {copied ? 'Copied' : 'Copy client link'}
-              </button>
-              <a
-                href={publicUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] motion-reduce:transition-none"
-              >
-                <ExternalLink className="h-4 w-4" />
-                Open public page
-              </a>
-            </div>
+
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setEditingOpen(true)}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm font-bold text-accent transition-all hover:bg-accent/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm font-bold text-accent transition-all hover:-translate-y-0.5 hover:bg-accent/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none motion-reduce:hover:translate-y-0"
               >
                 <PencilLine className="h-4 w-4" />
                 Edit
@@ -1752,7 +1834,7 @@ export const ShareLinkDetailPage = () => {
               <button
                 type="button"
                 onClick={handleDeleteLink}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-bold text-danger transition-all hover:bg-danger/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger"
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-bold text-danger transition-all hover:-translate-y-0.5 hover:bg-danger/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger motion-reduce:transition-none motion-reduce:hover:translate-y-0"
               >
                 <Trash2 className="h-4 w-4" />
                 Delete
@@ -1762,43 +1844,18 @@ export const ShareLinkDetailPage = () => {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Public status</p>
-          <p className="mt-2 text-lg font-semibold capitalize text-text">{status}</p>
-        </div>
-        <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Expires</p>
-          <p className="mt-2 text-lg font-semibold text-text">
-            {formatDateTime(analytics.share_link.expires_at, 'No expiration')}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Source scope</p>
-          <p className="mt-2 text-lg font-semibold text-text">
-            {isProjectLink ? analytics.share_link.project_name : analytics.share_link.gallery_name}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-border/50 bg-surface-1 p-4 shadow-xs">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Updated</p>
-          <p className="mt-2 text-lg font-semibold text-text">
-            {formatDateTime(analytics.share_link.updated_at ?? analytics.share_link.created_at)}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/50 bg-surface/95 p-4 shadow-xs dark:border-white/10 dark:bg-surface-dark/90">
+      <div className="sticky top-[4.5rem] z-20 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-border/50 bg-surface/95 p-3 shadow-lg shadow-black/5 backdrop-blur-xl dark:border-white/10 dark:bg-surface-dark/90">
         <div className="flex items-start gap-3">
           <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/10 text-accent">
             <Clock3 className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-lg font-semibold text-text dark:text-accent-foreground">
-              Analytics window
+            <h2 className="text-base font-bold text-text dark:text-accent-foreground">
+              Workspace controls
             </h2>
             <p className="text-sm text-muted">
               {latestPoint
-                ? `Latest activity recorded on ${formatDay(latestPoint.day)}.`
+                ? `Showing last ${days} days · latest activity ${formatDay(latestPoint.day)}.`
                 : 'No analytics points yet.'}
             </p>
           </div>
@@ -1825,7 +1882,7 @@ export const ShareLinkDetailPage = () => {
         items={detailTabItems}
         selectedKey={activeTab}
         onChange={setActiveTab}
-        listClassName="flex flex-wrap items-center gap-3"
+        listClassName="flex flex-wrap items-center gap-2 rounded-3xl border border-border/50 bg-surface/80 p-2 shadow-xs dark:border-white/10 dark:bg-surface-dark/80"
         panelsClassName="mt-6"
       />
 

@@ -16,8 +16,9 @@ export interface PhotoSlide {
   height?: number;
   /** Thumbnail URL shown immediately as a blurred placeholder while the full image loads */
   thumbnailSrc?: string;
-  download?: string;
+  download?: boolean | string | { url: string; filename: string };
   downloadFilename?: string;
+  onDownload?: () => void | Promise<void>;
   imageProps?: ImgHTMLAttributes<HTMLImageElement>;
 }
 
@@ -141,14 +142,24 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
           container: { backgroundColor: 'rgba(0, 0, 0, 0.85)' },
         }}
         download={{
-          download: async ({ slide, saveAs }) => {
-            const response = await fetch(slide.src);
-            const blob = await response.blob();
+          download: ({ slide, saveAs }) => {
+            const photoSlide = slide as PhotoSlide;
+            if (photoSlide.onDownload) {
+              void photoSlide.onDownload();
+              return;
+            }
+            const downloadSource =
+              typeof photoSlide.download === 'object'
+                ? photoSlide.download.url
+                : typeof photoSlide.download === 'string'
+                  ? photoSlide.download
+                  : photoSlide.src;
             const filename =
-              typeof slide.download === 'object'
-                ? slide.download.filename
-                : slide.alt || 'photo.jpg';
-            saveAs(blob, filename);
+              photoSlide.downloadFilename ||
+              (typeof photoSlide.download === 'object' ? photoSlide.download.filename : null) ||
+              photoSlide.alt ||
+              'photo.jpg';
+            saveAs(downloadSource, filename);
           },
         }}
         on={{
