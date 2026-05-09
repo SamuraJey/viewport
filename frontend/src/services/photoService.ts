@@ -161,6 +161,17 @@ const downloadSelectedPhotosZip = async (galleryId: string, photoIds: string[]):
   });
 };
 
+const downloadPhoto = async (galleryId: string, photoId: string): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    await getDemoService().downloadPhoto(galleryId, photoId);
+    return;
+  }
+
+  submitBrowserDownload(`/galleries/${galleryId}/photos/${photoId}/download`, {
+    access_token: getDownloadAccessToken(),
+  });
+};
+
 // Batch presigned upload methods
 const batchCreateUploadIntents = async (
   galleryId: string,
@@ -603,6 +614,7 @@ export const photoService = {
   renamePhoto,
   downloadGalleryZip,
   downloadSelectedPhotosZip,
+  downloadPhoto,
   uploadPhotosPresigned,
   retryFailedUploads,
 };

@@ -45,3 +45,6 @@ screenshots/
 .codex/skills/.system/**
 !.codex/prompts/
 !.codex/prompts/**
+.lazyweb/
+output/playwright/
+android/

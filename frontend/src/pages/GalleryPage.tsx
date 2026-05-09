@@ -239,6 +239,7 @@ export const GalleryPage = () => {
     handleDeleteGallery,
     handleDownloadGallery,
     handleDownloadSelectedPhotos,
+    handleDownloadPhoto,
     handleSetCover,
     handleClearCover,
     handleCreateShareLink,
@@ -1025,6 +1026,7 @@ export const GalleryPage = () => {
               onSetCover: handleSetCover,
               onClearCover: handleClearCover,
               onRenamePhoto: handleRenamePhoto,
+              onDownloadPhoto: handleDownloadPhoto,
               onDeletePhoto: handleDeletePhoto,
               onDownloadSelectedPhotos: handleDownloadSelectedPhotosWrapper,
               onClearSearch: () => {
@@ -1169,6 +1171,9 @@ export const GalleryPage = () => {
           alt: photo.filename,
           download: photo.url,
           downloadFilename: photo.filename,
+          onDownload: () => {
+            void handleDownloadPhoto(photo.id);
+          },
         })),
         pagination.total,
       )}

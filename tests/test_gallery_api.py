@@ -4,7 +4,7 @@ import io
 import zipfile
 from datetime import date
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -597,6 +597,64 @@ class TestGalleryAPI:
 
         with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
             assert archive.namelist() == ["mobile.jpg"]
+
+    def test_download_single_photo_redirects_to_attachment_presigned_url(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"single-bytes", "single.jpg")
+
+        with patch(
+            "viewport.api.photo.AsyncS3Client.generate_presigned_url_async",
+            new_callable=AsyncMock,
+            return_value="https://storage.example/single-download",
+        ) as mock_presign:
+            response = authenticated_client.post(
+                f"/galleries/{gallery_id_fixture}/photos/{photo_id}/download",
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "https://storage.example/single-download"
+        assert mock_presign.await_args.kwargs["response_content_disposition"] == 'attachment; filename="single.jpg"'
+
+    def test_download_single_photo_returns_404_for_unknown_gallery(self, authenticated_client: TestClient):
+        response = authenticated_client.post(
+            f"/galleries/{uuid4()}/photos/{uuid4()}/download",
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Gallery not found"
+
+    def test_download_single_photo_returns_404_for_unknown_photo(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        response = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/photos/{uuid4()}/download",
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Photo not found"
+
+    def test_download_single_photo_accepts_form_access_token(self, client: TestClient, auth_token: str):
+        client.headers.update({"Authorization": f"Bearer {auth_token}"})
+        gallery_response = client.post("/galleries", json={})
+        assert gallery_response.status_code == 201
+        gallery_id = gallery_response.json()["id"]
+        photo_id = upload_photo_via_presigned(client, gallery_id, b"single-bytes", "single.jpg")
+        client.headers.pop("Authorization", None)
+
+        with patch(
+            "viewport.api.photo.AsyncS3Client.generate_presigned_url_async",
+            new_callable=AsyncMock,
+            return_value="https://storage.example/single-form-download",
+        ) as mock_presign:
+            response = client.post(
+                f"/galleries/{gallery_id}/photos/{photo_id}/download",
+                data={"access_token": auth_token},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "https://storage.example/single-form-download"
+        assert mock_presign.await_args.kwargs["response_content_disposition"] == 'attachment; filename="single.jpg"'
 
     def test_download_whole_gallery_as_zip_accepts_form_access_token(self, client: TestClient, auth_token: str):
         client.headers.update({"Authorization": f"Bearer {auth_token}"})

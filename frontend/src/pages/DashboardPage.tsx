@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowUpDown, Plus, Search, Trash2 } from 'lucide-react';
+import {
+  ArrowUpDown,
+  FolderOpen,
+  HardDrive,
+  ImageIcon,
+  Plus,
+  Search,
+  Share2,
+  Trash2,
+} from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ErrorDisplay } from '../components/ErrorDisplay';
@@ -8,6 +17,7 @@ import { PaginationControls } from '../components/PaginationControls';
 import { CollectionCard, CollectionShareBadge } from '../components/dashboard/CollectionCard';
 import { getCollectionTitleTextSizeClass } from '../components/dashboard/collectionCardUtils';
 import { CreateProjectModal } from '../components/dashboard/CreateProjectModal';
+import { MetricCard } from '../components/dashboard/MetricCard';
 import { AppListbox } from '../components/ui';
 import { useConfirmation, usePagination } from '../hooks';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -40,6 +50,7 @@ const SEARCH_DEBOUNCE_MS = 300;
 const PROJECT_PAGE_SIZE = 18;
 const DEFAULT_PROJECT_SORT_BY: ProjectListSortBy = 'created_at';
 const DEFAULT_PROJECT_SORT_ORDER: SortOrder = 'desc';
+const numberFormatter = new Intl.NumberFormat();
 
 interface ProjectSortOption {
   value: `${ProjectListSortBy}:${SortOrder}`;
@@ -127,6 +138,16 @@ export const DashboardPage = () => {
     sortBy: activeSortBy,
     order: activeSortOrder,
   });
+  const pageSummary = useMemo(
+    () => ({
+      projectCount: projects.length,
+      galleryCount: projects.reduce((sum, project) => sum + project.gallery_count, 0),
+      photoCount: projects.reduce((sum, project) => sum + project.total_photo_count, 0),
+      storageBytes: projects.reduce((sum, project) => sum + project.total_size_bytes, 0),
+      activeShareProjects: projects.filter((project) => project.has_active_share_links).length,
+    }),
+    [projects],
+  );
   const fetchProjects = useCallback(async () => {
     setIsLoading(true);
     setError('');
@@ -316,18 +337,20 @@ export const DashboardPage = () => {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-8">
-      <header className="rounded-3xl border border-border/75 bg-surface p-5 shadow-sm dark:border-border/55 dark:bg-surface-dark">
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(23rem,30rem)] xl:items-center">
-          <div className="max-w-xl">
-            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.22em] text-accent/80">
-              Portfolio workspace
+    <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-8">
+      <header className="relative overflow-hidden rounded-[2rem] border border-border/75 bg-surface p-5 shadow-sm dark:border-border/55 dark:bg-surface-dark">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(circle_at_16%_0%,rgba(31,144,255,0.12),transparent_34%),radial-gradient(circle_at_82%_8%,rgba(34,197,94,0.09),transparent_28%)]" />
+        <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(23rem,34rem)] xl:items-center">
+          <div className="max-w-2xl">
+            <p className="mb-3 text-sm font-bold uppercase tracking-[0.22em] text-accent/80">
+              Portfolio command center
             </p>
-            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text">
+            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground sm:text-5xl">
               Projects
             </h1>
-            <p className="mt-3 max-w-lg font-cuprum text-lg text-muted">
-              Manage your client projects and galleries.
+            <p className="mt-3 max-w-xl font-cuprum text-lg leading-7 text-muted">
+              Find the next delivery quickly, review active share links, and start a new client
+              project without leaving the workspace.
             </p>
           </div>
 
@@ -379,6 +402,33 @@ export const DashboardPage = () => {
             </button>
           </div>
         </div>
+
+        <div className="relative mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            icon={FolderOpen}
+            label="Visible page"
+            value={`${numberFormatter.format(pageSummary.projectCount)} projects`}
+            helper={`${numberFormatter.format(total)} total in workspace`}
+          />
+          <MetricCard
+            icon={ImageIcon}
+            label="Galleries"
+            value={numberFormatter.format(pageSummary.galleryCount)}
+            helper={`${numberFormatter.format(pageSummary.photoCount)} photos on this page`}
+          />
+          <MetricCard
+            icon={HardDrive}
+            label="Storage"
+            value={formatFileSize(pageSummary.storageBytes)}
+            helper="Current page aggregate"
+          />
+          <MetricCard
+            icon={Share2}
+            label="Client links"
+            value={numberFormatter.format(pageSummary.activeShareProjects)}
+            helper="Projects with active delivery links"
+          />
+        </div>
       </header>
 
       {error ? (
@@ -424,7 +474,17 @@ export const DashboardPage = () => {
                             <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/10 to-black/40 transition-colors duration-300 group-hover:from-black/0 group-hover:via-black/15 group-hover:to-black/50" />
                           </>
                         ) : (
-                          <div className="absolute inset-0 bg-linear-to-br from-surface-2 to-surface dark:from-surface-dark-2 dark:to-surface-dark" />
+                          <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-linear-to-br from-accent/10 via-surface-2 to-surface dark:from-accent/15 dark:via-surface-dark-2 dark:to-surface-dark">
+                            <div className="absolute inset-0 opacity-45 [background-image:radial-gradient(circle_at_18%_24%,rgba(31,144,255,0.16),transparent_24%),radial-gradient(circle_at_82%_72%,rgba(34,197,94,0.12),transparent_26%)]" />
+                            <div className="relative text-center">
+                              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-border/45 bg-surface/70 text-accent shadow-xs backdrop-blur dark:border-white/10 dark:bg-surface-dark/70">
+                                <ImageIcon className="h-6 w-6" />
+                              </span>
+                              <span className="mt-3 block text-xs font-bold uppercase tracking-[0.18em] text-muted">
+                                No cover yet
+                              </span>
+                            </div>
+                          </div>
                         )
                       }
                       topOverlay={
@@ -454,7 +514,7 @@ export const DashboardPage = () => {
                           <div className="group/title relative w-full text-left">
                             <div className="min-w-0 flex-1">
                               <h2
-                                className={`wrap-anywhere whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors`}
+                                className={`wrap-anywhere overflow-hidden whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:4]`}
                               >
                                 {project.name}
                               </h2>

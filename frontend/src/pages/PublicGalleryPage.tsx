@@ -342,6 +342,29 @@ export const PublicGalleryPage = () => {
     }
   }, [activeGalleryId, handleDownloadFailure, shareId]);
 
+  const handleDownloadSinglePhoto = useCallback(
+    async (photo: PublicPhoto) => {
+      if (!shareId) return;
+      setDownloadError('');
+      try {
+        if (isDemoModeEnabled()) {
+          const anchor = document.createElement('a');
+          anchor.href = photo.full_url;
+          anchor.download = photo.filename || `photo-${photo.photo_id}.jpg`;
+          document.body.appendChild(anchor);
+          anchor.click();
+          anchor.remove();
+          return;
+        }
+
+        await shareLinkService.downloadSharedPhoto(shareId, photo.photo_id);
+      } catch (err) {
+        handleDownloadFailure(err);
+      }
+    },
+    [handleDownloadFailure, shareId],
+  );
+
   const handleSubmitSharePassword = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -553,8 +576,9 @@ export const PublicGalleryPage = () => {
         }),
         download: photo.full_url,
         downloadFilename: photo.filename || `photo-${photo.photo_id}.jpg`,
+        onDownload: () => handleDownloadSinglePhoto(photo),
       })),
-    [displayedPhotos],
+    [displayedPhotos, handleDownloadSinglePhoto],
   );
 
   const combinedSelectionError = selectedPhotosError || selection.error;

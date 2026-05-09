@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Edit3, Share2, Trash2 } from 'lucide-react';
+import { Edit3, ImageIcon, Share2, Trash2 } from 'lucide-react';
 import type { ReactNode, RefObject, SyntheticEvent } from 'react';
 import { useEffect } from 'react';
 
@@ -111,7 +111,17 @@ export const EnhancedGalleryCard = ({
             <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/10 to-black/40 transition-colors duration-300 group-hover:from-black/0 group-hover:via-black/15 group-hover:to-black/50" />
           </>
         ) : (
-          <div className="absolute inset-0 bg-linear-to-br from-surface-2 to-surface dark:from-surface-dark-2 dark:to-surface-dark" />
+          <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-linear-to-br from-accent/10 via-surface-2 to-surface dark:from-accent/15 dark:via-surface-dark-2 dark:to-surface-dark">
+            <div className="absolute inset-0 opacity-45 [background-image:radial-gradient(circle_at_18%_24%,rgba(31,144,255,0.16),transparent_24%),radial-gradient(circle_at_82%_72%,rgba(34,197,94,0.12),transparent_26%)]" />
+            <div className="relative text-center">
+              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-border/45 bg-surface/70 text-accent shadow-xs backdrop-blur dark:border-white/10 dark:bg-surface-dark/70">
+                <ImageIcon className="h-6 w-6" />
+              </span>
+              <span className="mt-3 block text-xs font-bold uppercase tracking-[0.18em] text-muted">
+                No cover yet
+              </span>
+            </div>
+          </div>
         )
       }
       topOverlay={

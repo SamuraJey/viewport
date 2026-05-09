@@ -143,6 +143,7 @@
 - Presigned URL cache is Redis-backed with a TTL buffer (URL TTL minus 10 minutes). Redis outages should degrade gracefully to direct presign generation without failing requests.
 - S3/RustFS can use separate endpoints: `S3_ENDPOINT` is the backend/container-reachable endpoint for S3 operations, while optional `S3_PUBLIC_ENDPOINT` is used when generating presigned URLs for browsers/Android devices. Presigned URL cache keys are endpoint-scoped; restart backend workers after changing `S3_PUBLIC_ENDPOINT` so fresh clients use the new namespace.
 - Shared ZIP filename sanitization/fallback/deduplication helpers live in `src/viewport/zip_utils.py` and are reused by both private (`api/gallery.py`) and public (`api/public.py`) download endpoints.
+- Single-photo downloads must be browser-managed, not `fetch()`ed from S3 presigned URLs in frontend code. Use private `POST /galleries/{gallery_id}/photos/{photo_id}/download` with form `access_token`, and public `GET/HEAD /s/{share_id}/photos/{photo_id}/download`; these endpoints redirect to attachment presigned URLs to avoid storage CORS issues and keep public single-download analytics accurate.
 
 ## Important rules
 - When making significant changes in the project, update this file to reflect new conventions or architectural patterns.

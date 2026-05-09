@@ -240,6 +240,29 @@ describe('photoService', () => {
     expect(accessTokenField?.value).toBe('test-access-token');
   });
 
+  it('submits single-photo download through browser form with access token', async () => {
+    const submitSpy = vi
+      .spyOn(HTMLFormElement.prototype, 'submit')
+      .mockImplementation(() => undefined);
+
+    await photoService.downloadPhoto('gallery-1', 'photo-1');
+
+    expect(api.post).not.toHaveBeenCalled();
+    expect(submitSpy).toHaveBeenCalledTimes(1);
+
+    const form = document.querySelector('form');
+    expect(form?.getAttribute('method')).toBe('POST');
+    expect(form?.getAttribute('action')).toContain('/galleries/gallery-1/photos/photo-1/download');
+
+    const accessTokenField = form?.querySelector(
+      'input[name="access_token"]',
+    ) as HTMLInputElement | null;
+    expect(accessTokenField?.value).toBe('test-access-token');
+
+    const iframe = document.getElementById('viewport-browser-download-frame');
+    expect(iframe).not.toBeNull();
+  });
+
   it('throws when zip download starts without auth token', async () => {
     useAuthStore.setState({
       user: null,
@@ -564,5 +587,35 @@ describe('photoService', () => {
     expect(createObjectURLSpy).toHaveBeenCalled();
     expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:demo-download-url');
     expect(api.get).not.toHaveBeenCalled();
+  });
+
+  it('uses demo single-photo download flow and skips the protected browser form', async () => {
+    vi.mocked(isDemoModeEnabled).mockReturnValue(true);
+    const submitSpy = vi
+      .spyOn(HTMLFormElement.prototype, 'submit')
+      .mockImplementation(() => undefined);
+    let clickedHref = '';
+    let clickedDownload = '';
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      clickedHref = this.href;
+      clickedDownload = this.download;
+    });
+
+    const store = getDemoService();
+    const seeded = await store.getGallery('demo-gallery-fashion', { limit: 1, offset: 0 });
+    const targetPhoto = seeded.photos[0];
+
+    expect(targetPhoto).toBeTruthy();
+
+    await photoService.downloadPhoto('demo-gallery-fashion', targetPhoto.id);
+
+    expect(submitSpy).not.toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(clickedHref).toBe(targetPhoto.url);
+    expect(clickedDownload).toBe(targetPhoto.filename);
+    expect(api.get).not.toHaveBeenCalled();
+    expect(api.post).not.toHaveBeenCalled();
   });
 });

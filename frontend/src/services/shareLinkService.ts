@@ -470,6 +470,16 @@ const downloadSharedProjectGalleryZip = async (
   await downloadPublicShare(`/s/${shareId}/galleries/${galleryId}/download/all`);
 };
 
+const downloadSharedPhoto = async (shareId: string, photoId: string): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    return;
+  }
+
+  const path = `/s/${shareId}/photos/${photoId}/download`;
+  await publicApi.head(path, { headers: {} });
+  triggerBrowserDownload(path);
+};
+
 const getOwnerSelectionConfig = async (
   galleryId: string,
   shareLinkId: string,
@@ -722,6 +732,7 @@ export const shareLinkService = {
   submitPublicSelectionSession,
   downloadSharedGalleryZip,
   downloadSharedProjectGalleryZip,
+  downloadSharedPhoto,
   getOwnerSelectionConfig,
   updateOwnerSelectionConfig,
   getShareLinkSelectionConfig,

@@ -8,7 +8,7 @@ import pytest
 import requests
 
 from tests.helpers import register_and_login, upload_photo_via_presigned
-from viewport.api.photo import MAX_FILE_SIZE, _invalidate_presigned_cache_safely, get_content_type_from_filename, sanitize_filename
+from viewport.api.photo import MAX_FILE_SIZE, _invalidate_presigned_cache_safely, _photo_needs_thumbnail_processing, get_content_type_from_filename, sanitize_filename
 from viewport.models.gallery import Photo, PhotoUploadStatus
 from viewport.models.user import User
 
@@ -21,6 +21,36 @@ pytestmark = pytest.mark.requires_s3
 
 class TestPhotoAPI:
     """Test photo API endpoints with comprehensive coverage."""
+
+    def test_photo_needs_thumbnail_processing_detects_missing_or_placeholder_metadata(self):
+        complete_photo = Photo(
+            gallery_id=uuid4(),
+            object_key="gallery/original.jpg",
+            thumbnail_object_key="gallery/thumb.jpg",
+            file_size=123,
+            width=1200,
+            height=800,
+        )
+        placeholder_thumb = Photo(
+            gallery_id=uuid4(),
+            object_key="gallery/original.jpg",
+            thumbnail_object_key="gallery/original.jpg",
+            file_size=123,
+            width=1200,
+            height=800,
+        )
+        missing_width = Photo(
+            gallery_id=uuid4(),
+            object_key="gallery/original.jpg",
+            thumbnail_object_key="gallery/thumb.jpg",
+            file_size=123,
+            width=None,
+            height=800,
+        )
+
+        assert _photo_needs_thumbnail_processing(complete_photo) is False
+        assert _photo_needs_thumbnail_processing(placeholder_thumb) is True
+        assert _photo_needs_thumbnail_processing(missing_width) is True
 
     def test_upload_photo_gallery_not_found(self, authenticated_client: TestClient):
         """Test uploading photo to non-existent gallery."""
