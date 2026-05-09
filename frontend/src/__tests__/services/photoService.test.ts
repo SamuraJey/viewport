@@ -240,6 +240,29 @@ describe('photoService', () => {
     expect(accessTokenField?.value).toBe('test-access-token');
   });
 
+  it('submits single-photo download through browser form with access token', async () => {
+    const submitSpy = vi
+      .spyOn(HTMLFormElement.prototype, 'submit')
+      .mockImplementation(() => undefined);
+
+    await photoService.downloadPhoto('gallery-1', 'photo-1');
+
+    expect(api.post).not.toHaveBeenCalled();
+    expect(submitSpy).toHaveBeenCalledTimes(1);
+
+    const form = document.querySelector('form');
+    expect(form?.getAttribute('method')).toBe('POST');
+    expect(form?.getAttribute('action')).toContain('/galleries/gallery-1/photos/photo-1/download');
+
+    const accessTokenField = form?.querySelector(
+      'input[name="access_token"]',
+    ) as HTMLInputElement | null;
+    expect(accessTokenField?.value).toBe('test-access-token');
+
+    const iframe = document.getElementById('viewport-browser-download-frame');
+    expect(iframe).not.toBeNull();
+  });
+
   it('throws when zip download starts without auth token', async () => {
     useAuthStore.setState({
       user: null,

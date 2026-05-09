@@ -593,6 +593,29 @@ class TestGalleryAPI:
         assert response.headers["location"] == "https://storage.example/single-download"
         assert mock_presign.await_args.kwargs["response_content_disposition"] == 'attachment; filename="single.jpg"'
 
+    def test_download_single_photo_accepts_form_access_token(self, client: TestClient, auth_token: str):
+        client.headers.update({"Authorization": f"Bearer {auth_token}"})
+        gallery_response = client.post("/galleries", json={})
+        assert gallery_response.status_code == 201
+        gallery_id = gallery_response.json()["id"]
+        photo_id = upload_photo_via_presigned(client, gallery_id, b"single-bytes", "single.jpg")
+        client.headers.pop("Authorization", None)
+
+        with patch(
+            "viewport.api.photo.AsyncS3Client.generate_presigned_url_async",
+            new_callable=AsyncMock,
+            return_value="https://storage.example/single-form-download",
+        ) as mock_presign:
+            response = client.post(
+                f"/galleries/{gallery_id}/photos/{photo_id}/download",
+                data={"access_token": auth_token},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303
+        assert response.headers["location"] == "https://storage.example/single-form-download"
+        assert mock_presign.await_args.kwargs["response_content_disposition"] == 'attachment; filename="single.jpg"'
+
     def test_download_whole_gallery_as_zip_accepts_form_access_token(self, client: TestClient, auth_token: str):
         client.headers.update({"Authorization": f"Bearer {auth_token}"})
         gallery_response = client.post("/galleries", json={})

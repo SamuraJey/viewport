@@ -192,6 +192,24 @@ describe('shareLinkService', () => {
     clickSpy.mockRestore();
   });
 
+  it('preflights public single-photo access and triggers browser navigation', async () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    vi.mocked(publicApi.head).mockResolvedValue({ status: 204 } as any);
+
+    await shareLinkService.downloadSharedPhoto('share123', 'photo-1');
+
+    expect(publicApi.head).toHaveBeenCalledWith('/s/share123/photos/photo-1/download', {
+      headers: {},
+    });
+    expect(publicApi.getUri).toHaveBeenCalledWith({
+      url: '/s/share123/photos/photo-1/download',
+    });
+    expect(document.querySelector('a[href="/api/s/share123/photos/photo-1/download"]')).toBeNull();
+    expect(clickSpy).toHaveBeenCalled();
+
+    clickSpy.mockRestore();
+  });
+
   it('fetches owner selection detail', async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { sharelink_id: 's1', sessions: [] } } as any);
 
