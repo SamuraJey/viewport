@@ -980,6 +980,7 @@ def test_public_share_route_inventory_is_explicitly_covered():
         ("GET", "/s/{share_id}/photos/by-ids"),
         ("GET", "/s/{share_id}/galleries/{gallery_id}/download/all"),
         ("GET", "/s/{share_id}/download/all"),
+        ("GET", "/s/{share_id}/photos/{photo_id}/download"),
         ("GET", "/s/{share_id}/selection/config"),
         ("POST", "/s/{share_id}/selection/session"),
         ("GET", "/s/{share_id}/selection/session/me"),
