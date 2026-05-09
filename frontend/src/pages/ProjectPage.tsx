@@ -9,10 +9,29 @@ import {
 } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, EyeOff, FolderPlus, Settings2, Share2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  CalendarDays,
+  Check,
+  Eye,
+  EyeOff,
+  FolderPlus,
+  GripHorizontal,
+  HardDrive,
+  ImageIcon,
+  Link2,
+  ListChecks,
+  Loader2,
+  PencilLine,
+  type LucideIcon,
+  Settings2,
+  Share2,
+} from 'lucide-react';
 import { EnhancedGalleryCard } from '../components/dashboard/EnhancedGalleryCard';
+import { MetricCard } from '../components/dashboard/MetricCard';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { AppDialog, AppDialogDescription, AppDialogTitle, AppPopover } from '../components/ui';
+import { GALLERY_NAME_MAX_LENGTH } from '../constants/gallery';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
 import { ShareLinkSettingsModal } from '../components/share-links/ShareLinkSettingsModal';
 import { useConfirmation } from '../hooks';
@@ -75,6 +94,24 @@ const toProjectGalleryCard = (folder: ProjectGallerySummary): Gallery => ({
 const VISIBILITY_ACTION_BUTTON_CLASS =
   'flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-accent';
 
+interface ProjectGuidanceItemProps {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}
+
+const ProjectGuidanceItem = ({ icon: Icon, title, description }: ProjectGuidanceItemProps) => (
+  <div className="flex gap-3 rounded-2xl border border-border/35 bg-surface-1/70 p-3 dark:border-border/25 dark:bg-white/[0.035]">
+    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+      <Icon className="h-4.5 w-4.5" />
+    </span>
+    <div>
+      <p className="text-sm font-bold text-text">{title}</p>
+      <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
+    </div>
+  </div>
+);
+
 export const ProjectPage = () => {
   const { id } = useParams<{ id: string }>();
   const projectId = id!;
@@ -94,10 +131,14 @@ export const ProjectPage = () => {
   const [isUpdatingGallery, setIsUpdatingGallery] = useState<string | null>(null);
   const [isReorderingGallery, setIsReorderingGallery] = useState<string | null>(null);
   const [sharingGallery, setSharingGallery] = useState<Gallery | null>(null);
+  const [isProjectRenameDialogOpen, setIsProjectRenameDialogOpen] = useState(false);
+  const [projectNameDraft, setProjectNameDraft] = useState('');
+  const [isRenamingProject, setIsRenamingProject] = useState(false);
   const [renameGalleryId, setRenameGalleryId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState('');
   const [isRenamingGallery, setIsRenamingGallery] = useState(false);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
+  const projectNameInputRef = useRef<HTMLInputElement | null>(null);
   const projectTitleRef = useRef<HTMLHeadingElement | null>(null);
   const renameInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [projectTitleFontSizePx, setProjectTitleFontSizePx] = useState(40);
@@ -269,6 +310,50 @@ export const ProjectPage = () => {
   const handleCreateGallerySubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void handleCreateGallery();
+  };
+
+  const openProjectRenameDialog = () => {
+    if (!project) return;
+    setError('');
+    setProjectNameDraft(project.name);
+    setIsProjectRenameDialogOpen(true);
+  };
+
+  const closeProjectRenameDialog = () => {
+    if (isRenamingProject) return;
+    setIsProjectRenameDialogOpen(false);
+    setProjectNameDraft('');
+  };
+
+  const handleRenameProject = async () => {
+    if (!project) return;
+
+    const normalizedName = projectNameDraft.trim();
+    const currentName = project.name.trim();
+    if (
+      !normalizedName ||
+      normalizedName === currentName ||
+      projectNameDraft.length > GALLERY_NAME_MAX_LENGTH
+    ) {
+      return;
+    }
+
+    setIsRenamingProject(true);
+    try {
+      await projectService.updateProject(projectId, { name: normalizedName });
+      setIsProjectRenameDialogOpen(false);
+      setProjectNameDraft('');
+      await loadProject();
+    } catch (err) {
+      setError(handleApiError(err).message || 'Failed to rename project');
+    } finally {
+      setIsRenamingProject(false);
+    }
+  };
+
+  const handleRenameProjectSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void handleRenameProject();
   };
 
   const beginInlineRename = (gallery: Gallery) => {
@@ -526,28 +611,29 @@ export const ProjectPage = () => {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-2xl border border-border/50 bg-surface p-4 shadow-xs sm:p-5 dark:border-border/30 dark:bg-surface-dark">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+      <section className="relative overflow-hidden rounded-[2rem] border border-border/50 bg-surface p-5 shadow-xs dark:border-border/30 dark:bg-surface-dark">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(31,144,255,0.12),transparent_34%),radial-gradient(circle_at_88%_10%,rgba(34,197,94,0.08),transparent_28%)]" />
+        <div className="relative flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 max-w-5xl space-y-2">
             <Link
               to="/dashboard"
-              className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted transition-colors hover:text-accent"
+              className="inline-flex items-center gap-2 rounded-full border border-border/50 bg-surface/80 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-muted transition-colors hover:border-accent/40 hover:text-accent dark:border-white/10 dark:bg-surface-dark/70"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to dashboard
             </Link>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted">
-                Project
+              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-accent">
+                Project delivery hub
               </p>
               <h1
                 ref={projectTitleRef}
                 style={{ fontSize: `${projectTitleFontSizePx}px` }}
-                className="max-w-full whitespace-normal wrap-break-word font-oswald font-bold uppercase leading-none tracking-wide text-text"
+                className="max-w-full whitespace-normal wrap-break-word font-oswald font-bold uppercase leading-none tracking-wide text-text dark:text-accent-foreground"
               >
                 {project.name}
               </h1>
-              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+              <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
                 <span>{formatDateOnly(project.shooting_date)}</span>
                 <span aria-hidden="true">·</span>
                 <span>{project.gallery_count} galleries</span>
@@ -574,6 +660,14 @@ export const ProjectPage = () => {
           <div className="flex flex-wrap items-center gap-2 xl:justify-end">
             <button
               type="button"
+              onClick={openProjectRenameDialog}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3.5 py-2 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <PencilLine className="h-4 w-4" />
+              Rename project
+            </button>
+            <button
+              type="button"
               onClick={() => setIsGalleryDialogOpen(true)}
               className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3.5 py-2 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
             >
@@ -597,13 +691,40 @@ export const ProjectPage = () => {
             </button>
           </div>
         </div>
+
+        <div className="relative mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            icon={FolderPlus}
+            label="Galleries"
+            value={project.gallery_count}
+            helper={`${visibleGalleryCount} listed · ${directOnlyGalleryCount} direct-only`}
+          />
+          <MetricCard
+            icon={ImageIcon}
+            label="Photos"
+            value={project.total_photo_count}
+            helper="Across every gallery in this project"
+          />
+          <MetricCard
+            icon={HardDrive}
+            label="Storage"
+            value={formatFileSize(project.total_size_bytes)}
+            helper="Originals and generated thumbnails"
+          />
+          <MetricCard
+            icon={Link2}
+            label="Project links"
+            value={shareLinks.length}
+            helper="Project-scoped client delivery links"
+          />
+        </div>
         {error ? (
-          <div className="mt-3 rounded-xl border border-danger/30 bg-danger/10 px-4 py-2.5 text-sm text-danger">
+          <div className="relative mt-3 rounded-xl border border-danger/30 bg-danger/10 px-4 py-2.5 text-sm text-danger">
             {error}
           </div>
         ) : null}
         {projectSelectionWarningSummary.hasSensitiveSessions ? (
-          <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-800 dark:text-amber-200">
+          <div className="relative mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-800 dark:text-amber-200">
             This project has {projectSelectionWarningLabel}. Gallery visibility, deletion, or order
             changes will ask for confirmation before changing the live proofing layout.
           </div>
@@ -640,177 +761,212 @@ export const ProjectPage = () => {
               </button>
             </div>
           ) : (
-            <div className="space-y-5">
-              <motion.div
-                className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-              >
-                <AnimatePresence mode="popLayout">
-                  {project.galleries.map((folder) => {
-                    const galleryCard = toProjectGalleryCard(folder);
-                    const currentIndex = project.galleries.findIndex(
-                      (projectFolder) => projectFolder.id === folder.id,
-                    );
-                    const isFirstGallery = currentIndex === 0;
-                    const isLastGallery = currentIndex === project.galleries.length - 1;
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_19rem]">
+              <div className="space-y-5">
+                <motion.div
+                  className="grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-3"
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  <AnimatePresence mode="popLayout">
+                    {project.galleries.map((folder) => {
+                      const galleryCard = toProjectGalleryCard(folder);
+                      const currentIndex = project.galleries.findIndex(
+                        (projectFolder) => projectFolder.id === folder.id,
+                      );
+                      const isFirstGallery = currentIndex === 0;
+                      const isLastGallery = currentIndex === project.galleries.length - 1;
 
-                    return (
-                      <div key={folder.id}>
-                        <EnhancedGalleryCard
-                          gallery={galleryCard}
-                          isRenamingThis={renameGalleryId === galleryCard.id}
-                          renameInput={renameInput}
-                          isRenaming={isRenamingGallery}
-                          renameInputRef={renameInputRef}
-                          onRenameInputChange={setRenameInput}
-                          onConfirmRename={handleConfirmRename}
-                          onCancelRename={cancelInlineRename}
-                          onBeginRename={beginInlineRename}
-                          onDelete={handleDeleteGallery}
-                          onShare={(gallery) => setSharingGallery(gallery)}
-                          extraTopBadges={
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium backdrop-blur-sm ${
-                                (folder.project_visibility ?? 'listed') === 'listed'
-                                  ? 'bg-accent/90 text-accent-foreground'
-                                  : 'bg-amber-500/85 text-slate-950'
-                              }`}
-                            >
-                              {(folder.project_visibility ?? 'listed') === 'listed' ? (
-                                <Check className="h-3 w-3" />
-                              ) : (
-                                <EyeOff className="h-3 w-3" />
-                              )}
-                              {(folder.project_visibility ?? 'listed') === 'listed'
-                                ? 'Visible in project'
-                                : 'Direct link only'}
-                            </span>
-                          }
-                          extraActions={
-                            <AppPopover
-                              key={`${folder.id}-${folder.project_visibility ?? 'listed'}`}
-                              className="relative"
-                              buttonClassName={VISIBILITY_ACTION_BUTTON_CLASS}
-                              buttonAriaLabel={`Change project visibility for ${folder.name}`}
-                              buttonContent={<Settings2 className="h-4 w-4" />}
-                              panelClassName="w-56 rounded-2xl border border-border/40 bg-surface p-2 shadow-2xl dark:bg-surface-dark"
-                              panel={
-                                <div className="space-y-1">
-                                  <p className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-                                    Project visibility
-                                  </p>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      void handleGalleryVisibilityChange(folder, 'listed')
-                                    }
-                                    disabled={isUpdatingGallery === folder.id}
-                                    className={`flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
-                                      (folder.project_visibility ?? 'listed') === 'listed'
-                                        ? 'bg-accent/10 text-accent'
-                                        : 'text-text hover:bg-surface-1'
-                                    }`}
-                                  >
-                                    <Check className="mt-0.5 h-4 w-4 shrink-0" />
-                                    <span>
-                                      <span className="block font-semibold">
-                                        Visible in project
+                      return (
+                        <div key={folder.id}>
+                          <EnhancedGalleryCard
+                            gallery={galleryCard}
+                            isRenamingThis={renameGalleryId === galleryCard.id}
+                            renameInput={renameInput}
+                            isRenaming={isRenamingGallery}
+                            renameInputRef={renameInputRef}
+                            onRenameInputChange={setRenameInput}
+                            onConfirmRename={handleConfirmRename}
+                            onCancelRename={cancelInlineRename}
+                            onBeginRename={beginInlineRename}
+                            onDelete={handleDeleteGallery}
+                            onShare={(gallery) => setSharingGallery(gallery)}
+                            extraTopBadges={
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium backdrop-blur-sm ${
+                                  (folder.project_visibility ?? 'listed') === 'listed'
+                                    ? 'bg-accent/90 text-accent-foreground'
+                                    : 'bg-amber-500/85 text-slate-950'
+                                }`}
+                              >
+                                {(folder.project_visibility ?? 'listed') === 'listed' ? (
+                                  <Check className="h-3 w-3" />
+                                ) : (
+                                  <EyeOff className="h-3 w-3" />
+                                )}
+                                {(folder.project_visibility ?? 'listed') === 'listed'
+                                  ? 'Visible in project'
+                                  : 'Direct link only'}
+                              </span>
+                            }
+                            extraActions={
+                              <AppPopover
+                                key={`${folder.id}-${folder.project_visibility ?? 'listed'}`}
+                                className="relative"
+                                buttonClassName={VISIBILITY_ACTION_BUTTON_CLASS}
+                                buttonAriaLabel={`Change project visibility for ${folder.name}`}
+                                buttonContent={<Settings2 className="h-4 w-4" />}
+                                panelClassName="w-56 rounded-2xl border border-border/40 bg-surface p-2 shadow-2xl dark:bg-surface-dark"
+                                panel={
+                                  <div className="space-y-1">
+                                    <p className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+                                      Project visibility
+                                    </p>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        void handleGalleryVisibilityChange(folder, 'listed')
+                                      }
+                                      disabled={isUpdatingGallery === folder.id}
+                                      className={`flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
+                                        (folder.project_visibility ?? 'listed') === 'listed'
+                                          ? 'bg-accent/10 text-accent'
+                                          : 'text-text hover:bg-surface-1'
+                                      }`}
+                                    >
+                                      <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                                      <span>
+                                        <span className="block font-semibold">
+                                          Visible in project
+                                        </span>
+                                        <span className="block text-xs text-muted">
+                                          Shows in project-wide public links.
+                                        </span>
                                       </span>
-                                      <span className="block text-xs text-muted">
-                                        Shows in project-wide public links.
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        requestGalleryVisibilityChange(folder, 'direct_only')
+                                      }
+                                      disabled={isUpdatingGallery === folder.id}
+                                      className={`flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
+                                        (folder.project_visibility ?? 'listed') === 'direct_only'
+                                          ? 'bg-amber-500/10 text-amber-600'
+                                          : 'text-text hover:bg-surface-1'
+                                      }`}
+                                    >
+                                      <EyeOff className="mt-0.5 h-4 w-4 shrink-0" />
+                                      <span>
+                                        <span className="block font-semibold">
+                                          Direct link only
+                                        </span>
+                                        <span className="block text-xs text-muted">
+                                          Hidden from project shares, available by direct gallery
+                                          link.
+                                        </span>
                                       </span>
-                                    </span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      requestGalleryVisibilityChange(folder, 'direct_only')
-                                    }
-                                    disabled={isUpdatingGallery === folder.id}
-                                    className={`flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
-                                      (folder.project_visibility ?? 'listed') === 'direct_only'
-                                        ? 'bg-amber-500/10 text-amber-600'
-                                        : 'text-text hover:bg-surface-1'
-                                    }`}
-                                  >
-                                    <EyeOff className="mt-0.5 h-4 w-4 shrink-0" />
-                                    <span>
-                                      <span className="block font-semibold">Direct link only</span>
-                                      <span className="block text-xs text-muted">
-                                        Hidden from project shares, available by direct gallery
-                                        link.
+                                    </button>
+                                    <div className="my-2 h-px bg-border/50" />
+                                    <p className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
+                                      Project order
+                                    </p>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        requestReorderGallery(folder, currentIndex - 1)
+                                      }
+                                      disabled={isFirstGallery || isReorderingGallery === folder.id}
+                                      className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      <span>
+                                        <span className="block font-semibold">Move earlier</span>
+                                        <span className="block text-xs text-muted">
+                                          Shift this gallery toward the left/start.
+                                        </span>
                                       </span>
-                                    </span>
-                                  </button>
-                                  <div className="my-2 h-px bg-border/50" />
-                                  <p className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-                                    Project order
-                                  </p>
-                                  <button
-                                    type="button"
-                                    onClick={() => requestReorderGallery(folder, currentIndex - 1)}
-                                    disabled={isFirstGallery || isReorderingGallery === folder.id}
-                                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    <span>
-                                      <span className="block font-semibold">Move earlier</span>
-                                      <span className="block text-xs text-muted">
-                                        Shift this gallery toward the left/start.
+                                      <span className="text-xs font-semibold text-muted">
+                                        {isFirstGallery ? 'First' : '←'}
                                       </span>
-                                    </span>
-                                    <span className="text-xs font-semibold text-muted">
-                                      {isFirstGallery ? 'First' : '←'}
-                                    </span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => requestReorderGallery(folder, currentIndex + 1)}
-                                    disabled={isLastGallery || isReorderingGallery === folder.id}
-                                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    <span>
-                                      <span className="block font-semibold">Move later</span>
-                                      <span className="block text-xs text-muted">
-                                        Shift this gallery toward the right/end.
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        requestReorderGallery(folder, currentIndex + 1)
+                                      }
+                                      disabled={isLastGallery || isReorderingGallery === folder.id}
+                                      className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      <span>
+                                        <span className="block font-semibold">Move later</span>
+                                        <span className="block text-xs text-muted">
+                                          Shift this gallery toward the right/end.
+                                        </span>
                                       </span>
-                                    </span>
-                                    <span className="text-xs font-semibold text-muted">
-                                      {isLastGallery ? 'Last' : '→'}
-                                    </span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => requestReorderGallery(folder, 0)}
-                                    disabled={isFirstGallery || isReorderingGallery === folder.id}
-                                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50"
-                                  >
-                                    <span>
-                                      <span className="block font-semibold">Make leftmost</span>
-                                      <span className="block text-xs text-muted">
-                                        This gallery will drive the shared project hero.
+                                      <span className="text-xs font-semibold text-muted">
+                                        {isLastGallery ? 'Last' : '→'}
                                       </span>
-                                    </span>
-                                  </button>
-                                </div>
-                              }
-                            />
-                          }
-                          variants={cardVariants}
-                        />
-                        <div className="mt-2 px-1 text-xs text-muted">
-                          Position {currentIndex + 1} of {project.galleries.length}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => requestReorderGallery(folder, 0)}
+                                      disabled={isFirstGallery || isReorderingGallery === folder.id}
+                                      className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-text transition-colors hover:bg-surface-1 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      <span>
+                                        <span className="block font-semibold">Make leftmost</span>
+                                        <span className="block text-xs text-muted">
+                                          This gallery will drive the shared project hero.
+                                        </span>
+                                      </span>
+                                    </button>
+                                  </div>
+                                }
+                              />
+                            }
+                            variants={cardVariants}
+                          />
+                          <div className="mt-2 px-1 text-xs text-muted">
+                            Position {currentIndex + 1} of {project.galleries.length}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </AnimatePresence>
-              </motion.div>
-              <p className="text-sm text-muted">
-                Direct-link-only galleries stay hidden from project-wide public shares, but they
-                keep their own direct share links.
-              </p>
+                      );
+                    })}
+                  </AnimatePresence>
+                </motion.div>
+                <p className="text-sm text-muted">
+                  Direct-link-only galleries stay hidden from project-wide public shares, but they
+                  keep their own direct share links.
+                </p>
+              </div>
+
+              <aside className="rounded-3xl border border-border/45 bg-linear-to-br from-surface-1 to-accent/5 p-4 shadow-xs dark:border-border/30 dark:from-white/[0.04] dark:to-accent/10">
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
+                  Delivery rules
+                </p>
+                <h3 className="mt-2 text-xl font-black text-text">Project share logic</h3>
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  Keep the client path predictable before publishing a project-wide link.
+                </p>
+                <div className="mt-4 space-y-3">
+                  <ProjectGuidanceItem
+                    icon={Eye}
+                    title="Listed galleries show"
+                    description="Visible galleries appear as tabs inside every project share link."
+                  />
+                  <ProjectGuidanceItem
+                    icon={EyeOff}
+                    title="Direct-only stays private"
+                    description="Use direct gallery links for side deliveries that should not appear in the project."
+                  />
+                  <ProjectGuidanceItem
+                    icon={GripHorizontal}
+                    title="Order sets the story"
+                    description="Move the hero gallery leftmost to make it the first client entry point."
+                  />
+                </div>
+              </aside>
             </div>
           )}
         </div>
@@ -827,65 +983,168 @@ export const ProjectPage = () => {
       />
 
       <AppDialog
+        open={isProjectRenameDialogOpen}
+        onClose={closeProjectRenameDialog}
+        size="md"
+        initialFocusRef={projectNameInputRef as React.RefObject<HTMLElement | null>}
+        panelClassName="overflow-hidden rounded-[2rem] border border-border/50 bg-surface shadow-2xl dark:border-border/20 dark:bg-surface-dark"
+      >
+        <form onSubmit={handleRenameProjectSubmit}>
+          <div className="bg-linear-to-br from-accent/12 via-surface to-surface px-6 py-5 dark:from-accent/15 dark:via-surface-dark dark:to-surface-dark">
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+                <PencilLine className="h-6 w-6" />
+              </span>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
+                  Project settings
+                </p>
+                <AppDialogTitle className="mt-1 font-oswald text-2xl font-bold uppercase tracking-wide text-text">
+                  Rename project
+                </AppDialogTitle>
+                <AppDialogDescription className="mt-1 text-sm leading-6 text-muted">
+                  Update the internal project name shown on the dashboard and this delivery hub.
+                </AppDialogDescription>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 p-6">
+            <label
+              className="block text-xs font-bold uppercase tracking-[0.16em] text-muted"
+              htmlFor="project-rename-name"
+            >
+              Project name
+            </label>
+            <input
+              id="project-rename-name"
+              ref={projectNameInputRef}
+              type="text"
+              value={projectNameDraft}
+              onChange={(event) => setProjectNameDraft(event.target.value)}
+              maxLength={GALLERY_NAME_MAX_LENGTH}
+              className="h-12 w-full rounded-2xl border border-border/45 bg-surface-1 px-4 text-sm font-semibold text-text outline-none transition-colors placeholder:text-muted/70 hover:border-accent/45 focus:border-accent dark:border-border/30 dark:bg-surface-dark-1"
+              placeholder="Project name"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+              <span>Use a name you can recognize later in the dashboard.</span>
+              <span>
+                {projectNameDraft.length}/{GALLERY_NAME_MAX_LENGTH}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 border-t border-border/40 bg-surface-1/55 px-6 py-4 dark:border-border/30 dark:bg-surface-dark-1/55">
+            <button
+              type="button"
+              onClick={closeProjectRenameDialog}
+              disabled={isRenamingProject}
+              className="rounded-xl border border-border/40 bg-surface px-4 py-2.5 text-sm font-semibold text-text transition-all duration-200 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-surface-dark dark:hover:bg-surface-dark-2"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={
+                isRenamingProject ||
+                !projectNameDraft.trim() ||
+                projectNameDraft.trim() === project.name.trim() ||
+                projectNameDraft.length > GALLERY_NAME_MAX_LENGTH
+              }
+              className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+            >
+              {isRenamingProject ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                'Save name'
+              )}
+            </button>
+          </div>
+        </form>
+      </AppDialog>
+
+      <AppDialog
         open={isGalleryDialogOpen}
         onClose={() => {
           setIsGalleryDialogOpen(false);
           setGalleryDraft(emptyGalleryDraft);
         }}
-        size="sm"
+        size="md"
         initialFocusRef={galleryInputRef as React.RefObject<HTMLElement | null>}
-        panelClassName="rounded-3xl border border-border/50 bg-surface p-6 shadow-2xl dark:border-border/20 dark:bg-surface-dark"
+        panelClassName="overflow-hidden rounded-[2rem] border border-border/50 bg-surface shadow-2xl dark:border-border/20 dark:bg-surface-dark"
       >
         <form onSubmit={handleCreateGallerySubmit}>
-          <AppDialogTitle className="text-lg font-semibold text-text">
-            Add gallery to project
-          </AppDialogTitle>
-          <AppDialogDescription className="mt-2 text-sm text-muted">
-            This creates a gallery using the existing gallery upload flow.
-          </AppDialogDescription>
-          <div className="mt-4 space-y-4">
-            <div>
-              <label
-                className="mb-1.5 block text-sm font-medium text-text"
-                htmlFor="project-folder-name"
-              >
-                Gallery name
-              </label>
-              <input
-                id="project-folder-name"
-                ref={galleryInputRef}
-                type="text"
-                value={galleryDraft.name}
-                onChange={(event) =>
-                  setGalleryDraft((prev) => ({ ...prev, name: event.target.value }))
-                }
-                className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
-                placeholder="Gallery name"
-              />
+          <div className="bg-linear-to-br from-accent/12 via-surface to-surface px-6 py-5 dark:from-accent/15 dark:via-surface-dark dark:to-surface-dark">
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+                <FolderPlus className="h-6 w-6" />
+              </span>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
+                  Add gallery
+                </p>
+                <AppDialogTitle className="mt-1 font-oswald text-2xl font-bold uppercase tracking-wide text-text">
+                  Build the next chapter
+                </AppDialogTitle>
+                <AppDialogDescription className="mt-1 text-sm leading-6 text-muted">
+                  Create a leaf gallery for uploads, client proofing, and optional direct delivery.
+                </AppDialogDescription>
+              </div>
             </div>
-            <div>
-              <label
-                className="mb-1.5 block text-sm font-medium text-text"
-                htmlFor="project-folder-date"
-              >
-                Shooting date
-              </label>
-              <input
-                id="project-folder-date"
-                type="date"
-                value={galleryDraft.shooting_date}
-                onChange={(event) =>
-                  setGalleryDraft((prev) => ({ ...prev, shooting_date: event.target.value }))
-                }
-                className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
-              />
+          </div>
+
+          <div className="space-y-5 p-6">
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_11rem]">
+              <div>
+                <label
+                  className="mb-1.5 block text-xs font-bold uppercase tracking-[0.16em] text-muted"
+                  htmlFor="project-folder-name"
+                >
+                  Gallery name
+                </label>
+                <input
+                  id="project-folder-name"
+                  ref={galleryInputRef}
+                  type="text"
+                  value={galleryDraft.name}
+                  onChange={(event) =>
+                    setGalleryDraft((prev) => ({ ...prev, name: event.target.value }))
+                  }
+                  className="h-12 w-full rounded-2xl border border-border/45 bg-surface-1 px-4 text-sm font-semibold text-text outline-none transition-colors placeholder:text-muted/70 hover:border-accent/45 focus:border-accent dark:border-border/30 dark:bg-surface-dark-1"
+                  placeholder="Wedding day, ceremony, reception…"
+                />
+              </div>
+              <div>
+                <label
+                  className="mb-1.5 block text-xs font-bold uppercase tracking-[0.16em] text-muted"
+                  htmlFor="project-folder-date"
+                >
+                  Shooting date
+                </label>
+                <div className="relative">
+                  <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+                  <input
+                    id="project-folder-date"
+                    type="date"
+                    value={galleryDraft.shooting_date}
+                    onChange={(event) =>
+                      setGalleryDraft((prev) => ({ ...prev, shooting_date: event.target.value }))
+                    }
+                    className="h-12 w-full rounded-2xl border border-border/45 bg-surface-1 pl-10 pr-3 text-sm font-semibold text-text outline-none transition-colors hover:border-accent/45 focus:border-accent dark:border-border/30 dark:bg-surface-dark-1"
+                  />
+                </div>
+              </div>
             </div>
+
             <div>
               <label
-                className="mb-1.5 block text-sm font-medium text-text"
+                className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-muted"
                 htmlFor="project-folder-visibility"
               >
-                Visibility in project link
+                Visibility in project share
               </label>
               <select
                 id="project-folder-visibility"
@@ -896,25 +1155,38 @@ export const ProjectPage = () => {
                     project_visibility: event.target.value as 'listed' | 'direct_only',
                   }))
                 }
-                className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
+                className="h-12 w-full rounded-2xl border border-border/45 bg-surface-1 px-4 text-sm font-semibold text-text outline-none transition-colors hover:border-accent/45 focus:border-accent dark:border-border/30 dark:bg-surface-dark-1"
               >
                 <option value="listed">Visible in project</option>
                 <option value="direct_only">Direct link only</option>
               </select>
+              <div className="mt-3 rounded-2xl border border-border/35 bg-surface-1/70 p-3 text-sm leading-6 text-muted dark:border-border/25 dark:bg-white/[0.035]">
+                <span className="inline-flex items-center gap-2 font-semibold text-text">
+                  <ListChecks className="h-4 w-4 text-accent" />
+                  What this controls
+                </span>
+                <p className="mt-1">
+                  Listed galleries appear in project links. Direct-link-only galleries stay hidden
+                  there, but can still receive their own share link.
+                </p>
+              </div>
             </div>
           </div>
-          <div className="mt-6 flex justify-end gap-3">
+          <div className="flex justify-end gap-3 border-t border-border/40 bg-surface-1/55 px-6 py-4 dark:border-border/30 dark:bg-surface-dark-1/55">
             <button
               type="button"
-              onClick={() => setIsGalleryDialogOpen(false)}
-              className="rounded-xl border border-border/40 bg-surface px-4 py-2.5 text-sm font-semibold text-text"
+              onClick={() => {
+                setIsGalleryDialogOpen(false);
+                setGalleryDraft(emptyGalleryDraft);
+              }}
+              className="rounded-xl border border-border/40 bg-surface px-4 py-2.5 text-sm font-semibold text-text transition-all duration-200 hover:bg-surface-2 dark:bg-surface-dark dark:hover:bg-surface-dark-2"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isCreatingGallery || !galleryDraft.name.trim()}
-              className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
             >
               {isCreatingGallery ? 'Creating…' : 'Create gallery'}
             </button>

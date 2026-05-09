@@ -35,6 +35,7 @@ describe('PhotoCard', () => {
         onSetCover={vi.fn()}
         onClearCover={vi.fn()}
         onRenamePhoto={vi.fn()}
+        onDownloadPhoto={vi.fn()}
         onDeletePhoto={vi.fn()}
       />,
     );

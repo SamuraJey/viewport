@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { X, FileText, Check } from 'lucide-react';
+import { X, FileText, Check, Loader2 } from 'lucide-react';
 import { sanitizeFilenameStem, isValidFilenameStem } from '../lib/filenameUtils';
 import { AppDialog, AppDialogDescription, AppDialogTitle } from './ui';
 
@@ -83,7 +83,7 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
         canClose={!isRenaming}
         size="sm"
         initialFocusRef={inputRef}
-        panelClassName="overflow-hidden rounded-3xl border border-border/50 bg-surface shadow-2xl dark:border-border/20 dark:bg-surface-foreground"
+        panelClassName="overflow-hidden rounded-[2rem] border border-border/50 bg-surface shadow-2xl dark:border-border/20 dark:bg-surface-dark"
       >
         <form
           onSubmit={(event) => {
@@ -93,39 +93,44 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
             }
           }}
         >
-          <div className="flex items-center justify-between p-6 border-b border-border dark:border-border">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center justify-center w-10 h-10 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
-                <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <div className="flex items-start justify-between gap-4 border-b border-border/40 bg-linear-to-br from-accent/12 via-surface to-surface p-6 dark:border-border/30 dark:from-accent/15 dark:via-surface-dark dark:to-surface-dark">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+                <FileText className="h-6 w-6" />
               </div>
-              <AppDialogTitle className="text-lg font-semibold text-text dark:text-white">
-                Rename Photo
-              </AppDialogTitle>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
+                  Photo metadata
+                </p>
+                <AppDialogTitle className="mt-1 font-oswald text-2xl font-bold uppercase tracking-wide text-text">
+                  Rename photo
+                </AppDialogTitle>
+                <AppDialogDescription className="mt-1 text-sm leading-6 text-muted">
+                  Update the filename stem while keeping the original extension.
+                </AppDialogDescription>
+              </div>
             </div>
             <button
               type="button"
               onClick={handleCancel}
               disabled={isRenaming}
               aria-label="Close rename photo dialog"
-              className="p-1 text-muted hover:text-text dark:hover:text-text transition-all duration-200 hover:scale-110 disabled:opacity-50"
+              className="rounded-xl p-2 text-muted transition-all duration-200 hover:bg-surface-1 hover:text-text active:scale-95 disabled:opacity-50 dark:hover:bg-surface-dark-1"
             >
-              <X className="w-5 h-5" />
+              <X className="h-5 w-5" />
             </button>
           </div>
 
-          <div className="p-6">
-            <AppDialogDescription className="sr-only">
-              Rename the selected photo and keep the existing file extension.
-            </AppDialogDescription>
+          <div className="space-y-5 p-6">
             <div className="space-y-4">
               <div>
                 <label
                   htmlFor="filename"
-                  className="block text-sm font-medium text-text dark:text-text mb-2"
+                  className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-muted"
                 >
                   Filename
                 </label>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 rounded-2xl border border-border/45 bg-surface-1 px-3 py-2 transition-all duration-200 focus-within:border-accent dark:border-border/30 dark:bg-surface-dark-1">
                   <input
                     ref={inputRef}
                     id="filename"
@@ -133,45 +138,50 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
                     value={nameWithoutExtension}
                     onChange={(e) => setNameWithoutExtension(e.target.value)}
                     disabled={isRenaming}
-                    className="flex-1 px-3 py-2 border border-border dark:border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-accent dark:bg-surface-foreground dark:text-accent-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="h-9 min-w-0 flex-1 bg-transparent text-sm font-semibold text-text placeholder:text-muted focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                     placeholder="Enter new filename"
                   />
                   {extension && (
-                    <span className="text-muted font-medium py-2 px-1">{extension}</span>
+                    <span className="rounded-xl bg-surface px-3 py-2 text-sm font-bold text-muted dark:bg-surface-dark-2">
+                      {extension}
+                    </span>
                   )}
                 </div>
+                <p className="mt-2 text-xs leading-5 text-muted">
+                  Invalid filesystem characters are sanitized before saving.
+                </p>
               </div>
 
               {error && (
-                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+                <div className="rounded-2xl border border-danger/25 bg-danger/10 p-3">
+                  <p className="text-sm font-medium text-danger">{error}</p>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 p-6 border-t border-border bg-surface-1/50 dark:bg-surface-dark-1/50">
+          <div className="flex items-center justify-end gap-3 border-t border-border/40 bg-surface-1/55 p-6 dark:border-border/30 dark:bg-surface-dark-1/55">
             <button
               type="button"
               onClick={handleCancel}
               disabled={isRenaming}
-              className="px-5 py-2.5 text-text dark:text-muted bg-surface-1 dark:bg-surface-dark-1 hover:bg-surface-2 dark:hover:bg-surface-dark-2 rounded-xl border border-border dark:border-border/40 shadow-sm transition-all duration-200 disabled:opacity-50 font-medium"
+              className="rounded-xl border border-border bg-surface px-5 py-2.5 font-medium text-text transition-all duration-200 hover:bg-surface-2 disabled:opacity-50 dark:border-border/40 dark:bg-surface-dark dark:hover:bg-surface-dark-2"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!canRename}
-              className="flex items-center gap-2 px-5 py-2.5 bg-accent hover:bg-accent/90 disabled:bg-accent/60 text-white rounded-xl shadow-sm hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none font-medium"
+              className="flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 font-medium text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
             >
               {isRenaming ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Renaming...
                 </>
               ) : (
                 <>
-                  <Check className="w-4 h-4" />
+                  <Check className="h-4 w-4" />
                   Rename
                 </>
               )}

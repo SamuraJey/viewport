@@ -24,6 +24,7 @@ interface PhotoCardProps {
   onSetCover: (photoId: string) => void;
   onClearCover: () => void;
   onRenamePhoto: (photoId: string, filename: string) => void;
+  onDownloadPhoto: (photoId: string) => void;
   onDeletePhoto: (photoId: string) => void;
 }
 
@@ -38,6 +39,7 @@ const PhotoCardComponent = ({
   onSetCover,
   onClearCover,
   onRenamePhoto,
+  onDownloadPhoto,
   onDeletePhoto,
 }: PhotoCardProps) => {
   const [imageState, setImageState] = useState<'loading' | 'loaded' | 'error'>('loading');
@@ -53,25 +55,9 @@ const PhotoCardComponent = ({
     setImageState('loading');
   }, [photo.thumbnail_url]);
 
-  const handleDownload = async (e: MouseEvent) => {
+  const handleDownload = (e: MouseEvent) => {
     e.stopPropagation();
-    try {
-      const response = await fetch(photo.url);
-      const blob = await response.blob();
-
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = photo.filename;
-      document.body.appendChild(link);
-      link.click();
-
-      // Cleanup
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Failed to download photo:', error);
-    }
+    onDownloadPhoto(photo.id);
   };
 
   const accessiblePhotoName = getAccessiblePhotoName({

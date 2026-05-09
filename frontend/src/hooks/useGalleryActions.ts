@@ -289,6 +289,20 @@ export const useGalleryActions = ({
     }
   };
 
+  const handleDownloadPhoto = useCallback(
+    async (photoId: string) => {
+      clearError();
+      setActionInfo('');
+
+      try {
+        await photoService.downloadPhoto(galleryId, photoId);
+      } catch (err) {
+        handleError(err);
+      }
+    },
+    [clearError, galleryId, handleError],
+  );
+
   const handleSetCover = async (photoId: string) => {
     try {
       await galleryService.setCoverPhoto(galleryId, photoId);
@@ -495,6 +509,7 @@ export const useGalleryActions = ({
     handleDeleteGallery,
     handleDownloadGallery,
     handleDownloadSelectedPhotos,
+    handleDownloadPhoto,
     handleSetCover,
     handleClearCover,
     handleCreateShareLink,

@@ -225,6 +225,43 @@ describe('ProjectPage', () => {
     expect(screen.getByText(/client photo selection/i)).toBeInTheDocument();
   });
 
+  it('renames the project from the project actions', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+
+    vi.mocked(projectService.updateProject).mockResolvedValueOnce({
+      id: 'project-1',
+      owner_id: 'user-1',
+      name: 'Renamed Weekend',
+      created_at: '2026-04-18T00:00:00Z',
+      shooting_date: '2026-04-18',
+      gallery_count: 2,
+      visible_gallery_count: 1,
+      total_photo_count: 12,
+      total_size_bytes: 1024,
+      has_active_share_links: true,
+      cover_photo_thumbnail_url: null,
+    } as any);
+
+    renderProjectPage();
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Wedding Weekend' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /rename project/i }));
+
+    const nameInput = screen.getByLabelText(/project name/i);
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Renamed Weekend');
+    await user.click(screen.getByRole('button', { name: /save name/i }));
+
+    await waitFor(() => {
+      expect(projectService.updateProject).toHaveBeenCalledWith('project-1', {
+        name: 'Renamed Weekend',
+      });
+    });
+  });
+
   it('creates a project gallery when Enter is pressed in Add gallery to project', async () => {
     const user = userEvent.setup();
     const { projectService } = await import('../../services/projectService');
