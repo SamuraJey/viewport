@@ -593,6 +593,24 @@ class TestGalleryAPI:
         assert response.headers["location"] == "https://storage.example/single-download"
         assert mock_presign.await_args.kwargs["response_content_disposition"] == 'attachment; filename="single.jpg"'
 
+    def test_download_single_photo_returns_404_for_unknown_gallery(self, authenticated_client: TestClient):
+        response = authenticated_client.post(
+            f"/galleries/{uuid4()}/photos/{uuid4()}/download",
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Gallery not found"
+
+    def test_download_single_photo_returns_404_for_unknown_photo(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        response = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/photos/{uuid4()}/download",
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Photo not found"
+
     def test_download_single_photo_accepts_form_access_token(self, client: TestClient, auth_token: str):
         client.headers.update({"Authorization": f"Bearer {auth_token}"})
         gallery_response = client.post("/galleries", json={})

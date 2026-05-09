@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from viewport.filename_utils import build_content_disposition, resolve_photo_filename
+from viewport.filename_utils import build_content_disposition, resolve_photo_filename, truncate_utf8
 
 
 def test_build_content_disposition_escapes_quotes_and_backslashes():
@@ -18,3 +18,12 @@ def test_resolve_photo_filename_falls_back_to_object_key_leaf():
     photo = SimpleNamespace(display_name="", object_key="gallery/original.jpg")
 
     assert resolve_photo_filename(photo) == "original.jpg"
+
+
+def test_resolve_photo_filename_falls_back_to_plain_object_key_or_file():
+    assert resolve_photo_filename(SimpleNamespace(display_name="", object_key="plain.jpg")) == "plain.jpg"
+    assert resolve_photo_filename(SimpleNamespace(display_name="", object_key="")) == "file"
+
+
+def test_truncate_utf8_returns_empty_string_for_non_positive_byte_limit():
+    assert truncate_utf8("filename.jpg", 0) == ""

@@ -16,6 +16,7 @@ from viewport.api.public import (
     _build_public_project_response,
     _date_str,
     _ensure_gallery_share_scope,
+    _get_downloadable_public_photo,
     _load_project_zip_entries,
     _require_gallery_share_id,
     download_all_photos_zip,
@@ -62,6 +63,37 @@ class TestPublicAPI:
         )
 
         assert await _build_project_cover(gallery=gallery, gallery_repo=gallery_repo, s3_client=s3_client) is None
+
+    @pytest.mark.asyncio
+    async def test_get_downloadable_public_photo_rejects_project_share_without_project_id(self):
+        repo = MagicMock()
+        sharelink = SimpleNamespace(scope_type=ShareScopeType.PROJECT.value, project_id=None)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await _get_downloadable_public_photo(sharelink=sharelink, photo_id=uuid4(), repo=repo)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Project not found"
+        repo.get_photos_by_ids_and_project.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_get_downloadable_public_photo_returns_404_when_photo_missing(self):
+        project_id = uuid4()
+        photo_id = uuid4()
+        repo = MagicMock()
+        repo.get_photos_by_ids_and_project = AsyncMock(return_value=[])
+        sharelink = SimpleNamespace(scope_type=ShareScopeType.PROJECT.value, project_id=project_id)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await _get_downloadable_public_photo(sharelink=sharelink, photo_id=photo_id, repo=repo)
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.detail == "Photo not found"
+        repo.get_photos_by_ids_and_project.assert_awaited_once_with(
+            project_id,
+            [photo_id],
+            listed_only=True,
+        )
 
     @pytest.mark.asyncio
     async def test_build_public_gallery_response_includes_cover_metadata(self):
