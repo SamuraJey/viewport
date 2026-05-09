@@ -32,6 +32,7 @@ class S3Settings(BaseSettings):
     """Configuration for the S3 client"""
 
     endpoint: str = "localhost:9000"
+    public_endpoint: str | None = None
     access_key: str = "rustfsadmin"
     secret_key: str = "rustfsadmin"
     bucket: str = "viewport"

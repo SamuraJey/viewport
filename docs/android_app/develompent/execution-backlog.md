@@ -2,6 +2,8 @@
 
 _Last updated: 2026-04-21_
 
+> Historical backlog: the implemented 2026-05-09 Android slice is photographer/owner-only and intentionally excludes PublicGallery/public share consumption. See `docs/android_app/photographer-app.md` for the current implementation contract.
+
 Источник для этого backlog:
 
 - approved PRD: `.omx/plans/prd-android-native-app-rev1.md`

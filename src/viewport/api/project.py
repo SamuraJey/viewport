@@ -1,19 +1,27 @@
+import logging
 import uuid
+from asyncio import run as asyncio_run
+from collections.abc import Sequence
 
+import zipstream
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from viewport.auth_utils import get_current_user
+from viewport.auth_utils import get_current_user, get_current_user_for_download
 from viewport.background_tasks import delete_gallery_data_task
 from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.models.db import get_db
+from viewport.models.gallery import Gallery, Photo
 from viewport.models.gallery import ProjectVisibility as GalleryProjectVisibility
 from viewport.models.project import Project
 from viewport.models.user import User
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.project_repository import ProjectRepository
 from viewport.s3_service import AsyncS3Client
+from viewport.s3_utils import get_s3_client as get_sync_s3_client
+from viewport.s3_utils import get_s3_settings
 from viewport.schemas.gallery import GalleryCreateRequest
 from viewport.schemas.project import (
     ProjectCreateRequest,
@@ -25,8 +33,10 @@ from viewport.schemas.project import (
     ProjectResponse,
     ProjectUpdateRequest,
 )
+from viewport.zip_utils import build_zip_fallback_name, make_unique_zip_entry_name, sanitize_zip_entry_name
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+logger = logging.getLogger(__name__)
 
 
 def get_project_repository(db: AsyncSession = Depends(get_db)) -> ProjectRepository:
@@ -262,6 +272,66 @@ async def get_project_detail(
     galleries = await repo.get_project_folders_by_owner(project_id, current_user.id)
     gallery_responses = await _build_project_gallery_responses(galleries, gallery_repo, s3_client, project_name=project.name)
     return ProjectDetailResponse(**base_response.model_dump(), galleries=gallery_responses)
+
+
+def _build_project_zip_response(project_id: uuid.UUID, gallery_entries: Sequence[tuple[Gallery, Sequence[Photo]]], archive_name: str) -> StreamingResponse:
+    if not any(photos for _, photos in gallery_entries):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No photos found")
+
+    settings = get_s3_settings()
+    archive = zipstream.ZipStream()
+    used_folder_names: set[str] = set()
+    total_photo_count = 0
+
+    for gallery, photos in gallery_entries:
+        if not photos:
+            continue
+
+        gallery_name = getattr(gallery, "name", "") or f"gallery_{getattr(gallery, 'id', project_id)}"
+        gallery_fallback = f"gallery_{getattr(gallery, 'id', project_id)}"
+        folder_name = sanitize_zip_entry_name(gallery_name, fallback=gallery_fallback)
+        folder_name = make_unique_zip_entry_name(folder_name, used_folder_names)
+        used_photo_names: set[str] = set()
+
+        for photo in photos:
+            total_photo_count += 1
+            object_key = photo.object_key
+            fallback = build_zip_fallback_name(photo.display_name, object_key=object_key, fallback_stem=f"photo-{photo.id}")
+            filename = sanitize_zip_entry_name(photo.display_name, fallback=fallback)
+            filename = make_unique_zip_entry_name(filename, used_photo_names)
+
+            def file_generator(key: str = object_key):
+                client = get_sync_s3_client()
+                obj = client.get_object(Bucket=settings.bucket, Key=key)
+                yield from iter(lambda: obj["Body"].read(1024 * 1024), b"")
+
+            archive.add(arcname=f"{folder_name}/{filename}", data=file_generator())
+
+    headers = {"Content-Disposition": f'attachment; filename="{archive_name}"'}
+    logger.info("Prepared private zip download for project %s with %s photos", project_id, total_photo_count)
+    return StreamingResponse(archive, media_type="application/zip", headers=headers)
+
+
+@router.get("/{project_id}/download/all")
+def download_project_zip(
+    project_id: uuid.UUID,
+    project_repo: ProjectRepository = Depends(get_project_repository),
+    gallery_repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user_for_download),
+) -> StreamingResponse:
+    project = asyncio_run(project_repo.get_project_by_id_and_owner(project_id, current_user.id))
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    galleries = asyncio_run(project_repo.get_project_folders_by_owner(project_id, current_user.id))
+    gallery_entries = [
+        (
+            gallery,
+            asyncio_run(gallery_repo.get_photos_by_gallery_id(gallery.id)),
+        )
+        for gallery in galleries
+    ]
+    return _build_project_zip_response(project_id, gallery_entries, archive_name=f"project_{project_id}.zip")
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)

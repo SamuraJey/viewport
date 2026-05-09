@@ -7,6 +7,7 @@ singleton via dependency injection.
 """
 
 import asyncio
+import hashlib
 import io
 import logging
 from collections.abc import Mapping
@@ -51,7 +52,10 @@ class AsyncS3Client:
         """Initialize the AsyncS3Client with configuration from environment."""
         self.settings = S3Settings()
         self._session: aioboto3.Session | None = None
-        self._endpoint_url = self._get_endpoint_url()
+        self._endpoint_url = self._get_endpoint_url(self.settings.endpoint)
+        public_endpoint = getattr(self.settings, "public_endpoint", None)
+        self._presign_endpoint_url = self._get_endpoint_url(public_endpoint or self.settings.endpoint)
+        self._presigned_cache_bucket = self._build_presigned_cache_bucket()
         # Use aggressive connection pooling configuration:
         # - Small pool size (15 connections max)
         # - Read timeout forces connections to close after idle period
@@ -80,16 +84,34 @@ class AsyncS3Client:
             multipart_threshold=50 * 1024 * 1024,  # 50MB threshold ensures small files (<5MB) never use multipart, even with overhead
             use_threads=False,
         )
-        logger.info("AsyncS3Client initialized: endpoint=%s, bucket=%s, region=%s", self._endpoint_url, self.settings.bucket, self.settings.region)
+        logger.info(
+            "AsyncS3Client initialized: endpoint=%s, presign_endpoint=%s, bucket=%s, region=%s",
+            self._endpoint_url,
+            self._presign_endpoint_url,
+            self.settings.bucket,
+            self.settings.region,
+        )
 
-    def _get_endpoint_url(self) -> str | None:
+    def _get_endpoint_url(self, endpoint: str) -> str | None:
         """Get the endpoint URL with protocol if needed."""
-        endpoint = cast(str, self.settings.endpoint)
         use_ssl = self.settings.use_ssl
         if not endpoint.startswith(("http://", "https://")):
             protocol = "https" if use_ssl else "http"
             return f"{protocol}://{endpoint}"
         return cast(str, endpoint)
+
+    def _build_presigned_cache_bucket(self) -> str:
+        """Return a cache namespace for presigned URLs.
+
+        Presigned URLs include the public endpoint host in their signature. If a
+        developer switches from a desktop-only endpoint (for example
+        ``localhost:9000``) to a phone-reachable LAN endpoint, Redis may still
+        contain otherwise-valid cached URLs for the old host. Include a stable
+        hash of the presign endpoint in the cache namespace so endpoint changes
+        immediately bypass stale URLs without requiring manual Redis cleanup.
+        """
+        endpoint_hash = hashlib.sha256((self._presign_endpoint_url or "").encode("utf-8")).hexdigest()[:12]
+        return f"{self.settings.bucket}:endpoint:{endpoint_hash}"
 
     @property
     def session(self) -> aioboto3.Session:
@@ -120,7 +142,7 @@ class AsyncS3Client:
         if self._presign_client is None:
             self._presign_client = boto3.client(
                 "s3",
-                endpoint_url=self._endpoint_url,
+                endpoint_url=self._presign_endpoint_url,
                 aws_access_key_id=self.settings.access_key,
                 aws_secret_access_key=self.settings.secret_key,
                 region_name=self.settings.region,
@@ -518,7 +540,7 @@ class AsyncS3Client:
         cache = get_presigned_cache_service()
 
         if cache is not None:
-            cache_key = cache.build_cache_key(self.settings.bucket, key, response_content_disposition)
+            cache_key = cache.build_cache_key(self._presigned_cache_bucket, key, response_content_disposition)
             cached = await cache.get_url_by_key(cache_key)
             if cached:
                 logger.debug("Using cached presigned URL for key_hash=%s", _key_hash(key))
@@ -610,7 +632,7 @@ class AsyncS3Client:
         to_generate: list[str] = []
 
         if cache is not None:
-            cache_keys = [cache.build_cache_key(self.settings.bucket, key, response_content_disposition) for key in unique_keys]
+            cache_keys = [cache.build_cache_key(self._presigned_cache_bucket, key, response_content_disposition) for key in unique_keys]
             cache_key_by_object_key = dict(zip(unique_keys, cache_keys, strict=False))
             cached_by_cache_key = await cache.get_urls_batch_by_keys(cache_keys)
 
@@ -659,7 +681,7 @@ class AsyncS3Client:
         to_generate: list[tuple[str, str | None]] = []
 
         if cache is not None:
-            cache_key_by_object_key: dict[str, str] = {key: cache.build_cache_key(self.settings.bucket, key, disposition) for key, disposition in key_dispositions.items()}
+            cache_key_by_object_key: dict[str, str] = {key: cache.build_cache_key(self._presigned_cache_bucket, key, disposition) for key, disposition in key_dispositions.items()}
             cache_keys = list(cache_key_by_object_key.values())
             cached_by_cache_key = await cache.get_urls_batch_by_keys(cache_keys)
 
@@ -693,7 +715,7 @@ class AsyncS3Client:
         """Clear cached presigned URLs for the given object keys."""
         cache = get_presigned_cache_service()
         if cache is not None:
-            await cache.clear_urls_for_object_keys(self.settings.bucket, object_keys)
+            await cache.clear_urls_for_object_keys(self._presigned_cache_bucket, object_keys)
 
     async def list_object_keys(self, prefix: str) -> list[str]:
         """List all object keys for a prefix."""
