@@ -588,4 +588,34 @@ describe('photoService', () => {
     expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:demo-download-url');
     expect(api.get).not.toHaveBeenCalled();
   });
+
+  it('uses demo single-photo download flow and skips the protected browser form', async () => {
+    vi.mocked(isDemoModeEnabled).mockReturnValue(true);
+    const submitSpy = vi
+      .spyOn(HTMLFormElement.prototype, 'submit')
+      .mockImplementation(() => undefined);
+    let clickedHref = '';
+    let clickedDownload = '';
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      clickedHref = this.href;
+      clickedDownload = this.download;
+    });
+
+    const store = getDemoService();
+    const seeded = await store.getGallery('demo-gallery-fashion', { limit: 1, offset: 0 });
+    const targetPhoto = seeded.photos[0];
+
+    expect(targetPhoto).toBeTruthy();
+
+    await photoService.downloadPhoto('demo-gallery-fashion', targetPhoto.id);
+
+    expect(submitSpy).not.toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(clickedHref).toBe(targetPhoto.url);
+    expect(clickedDownload).toBe(targetPhoto.filename);
+    expect(api.get).not.toHaveBeenCalled();
+    expect(api.post).not.toHaveBeenCalled();
+  });
 });

@@ -163,6 +163,7 @@ const downloadSelectedPhotosZip = async (galleryId: string, photoIds: string[]):
 
 const downloadPhoto = async (galleryId: string, photoId: string): Promise<void> => {
   if (isDemoModeEnabled()) {
+    await getDemoService().downloadPhoto(galleryId, photoId);
     return;
   }
 

@@ -551,6 +551,19 @@ const triggerDownload = (filename: string, content: string): void => {
   URL.revokeObjectURL(url);
 };
 
+const triggerUrlDownload = (url: string, filename: string): void => {
+  if (typeof window === 'undefined') return;
+
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = 'noopener';
+  anchor.target = '_blank';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+};
+
 class DemoServiceStore {
   private galleries: DemoGalleryState[];
   private projects: DemoProjectState[];
@@ -2948,6 +2961,16 @@ class DemoServiceStore {
       .map((photo) => photo.filename)
       .join('\n');
     triggerDownload(`${parsePhotoIndex(state.gallery.name)}-selected-photos.txt`, lines);
+  }
+
+  async downloadPhoto(galleryId: string, photoId: string): Promise<void> {
+    const state = this.getGalleryState(galleryId);
+    const photo = state.photos.find((item) => item.id === photoId);
+    if (!photo) {
+      throw this.createNotFoundError('Photo not found');
+    }
+
+    triggerUrlDownload(photo.url, photo.filename);
   }
 
   downloadSharedGalleryZip(shareId: string): void {
