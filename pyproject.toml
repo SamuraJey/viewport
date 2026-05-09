@@ -29,7 +29,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "mypy>=1.17.0,<2.0.0",
+    "mypy>=2.0.0,<3.0.0",
     "ruff>=0.15.0,<0.16.0",
     "pre-commit>=4.2.0,<5.0.0",
     "pytest>=9.0.0,<10.0.0",
@@ -151,7 +151,7 @@ addopts = ["--import-mode=importlib", "-v"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 markers = [
-    "requires_s3: tests that need real S3 object storage operations",
+    "requires_s3: tests that need real S3 object storage operations"
 ]
 norecursedirs = [
     "postgres_data",
