@@ -308,6 +308,20 @@ describe('ProjectPage', () => {
     expect(screen.getByText('Position 2 of 2')).toBeInTheDocument();
   });
 
+  it('shows project share rules from a compact info button', async () => {
+    const user = userEvent.setup();
+
+    renderProjectPage();
+
+    await screen.findByRole('heading', { name: 'Photos' });
+
+    expect(screen.queryByText('Project share logic')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /project share delivery rules/i }));
+
+    expect(await screen.findByText('Project share logic')).toBeInTheDocument();
+    expect(screen.getByText('Listed galleries show')).toBeInTheDocument();
+  });
+
   it('warns before deleting a gallery when project proofing sessions already exist', async () => {
     const user = userEvent.setup();
     const { shareLinkService } = await import('../../services/shareLinkService');
