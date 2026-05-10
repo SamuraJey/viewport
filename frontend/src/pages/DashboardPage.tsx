@@ -509,9 +509,9 @@ export const DashboardPage = () => {
                       body={
                         <Link
                           to={resolveProjectPath(project)}
-                          className="flex flex-1 flex-col justify-center gap-4 no-underline transition-colors"
+                          className="flex flex-1 flex-col justify-between gap-4 no-underline transition-colors"
                         >
-                          <div className="group/title relative w-full text-left">
+                          <div className="group/title relative flex flex-1 items-center text-left">
                             <div className="min-w-0 flex-1">
                               <h2
                                 className={`wrap-anywhere overflow-hidden whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:4]`}
@@ -520,7 +520,7 @@ export const DashboardPage = () => {
                               </h2>
                             </div>
                           </div>
-                          <p className="rounded-full border border-border/55 bg-surface-1 px-3 py-2 text-sm text-muted dark:border-border/45 dark:bg-surface-dark-1">
+                          <p className="mt-auto rounded-full border border-border/55 bg-surface-1 px-3 py-2 text-sm text-muted dark:border-border/45 dark:bg-surface-dark-1">
                             {formatCountLabel(project.gallery_count, 'gallery', 'galleries')} •{' '}
                             {formatCountLabel(project.total_photo_count, 'photo')} •{' '}
                             {formatFileSize(project.total_size_bytes)}

@@ -298,6 +298,7 @@ describe('ProjectPage', () => {
     expect(screen.getByLabelText('Change project visibility for 3eds')).toBeInTheDocument();
     expect(screen.getByText('8 photos • 512 Bytes • Apr 18, 2026')).toBeInTheDocument();
     expect(screen.getByText('4 photos • 512 Bytes • Apr 18, 2026')).toBeInTheDocument();
+    expect(screen.getByText('4 photos • 512 Bytes • Apr 18, 2026')).toHaveClass('mt-auto');
   });
 
   it('shows persisted project gallery order on the cards', async () => {
