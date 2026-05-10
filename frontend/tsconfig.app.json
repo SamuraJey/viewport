@@ -12,6 +12,7 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
+    "types": ["vitest/globals", "node"],
     "noEmit": true,
     "jsx": "react-jsx",
 

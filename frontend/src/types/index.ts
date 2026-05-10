@@ -2,9 +2,6 @@
  * Centralized type exports for the Viewport frontend
  */
 
-// Common types
-export type { PaginatedResponse, ApiError, AsyncState } from './common';
-
 // Gallery types
 export type {
   Gallery,
@@ -15,7 +12,6 @@ export type {
   GalleryPhotoQueryOptions,
   GalleryListSortBy,
   GalleryListQueryOptions,
-  ProjectVisibility,
 } from './gallery';
 
 export type {
@@ -36,12 +32,9 @@ export type {
   PhotoUploadResult,
   PhotoUploadResponse,
   PhotoUploadIntentRequest,
-  PresignedUploadData,
-  BatchPresignedUploadItem,
   BatchPresignedUploadsRequest,
   BatchPresignedUploadsResponse,
   ConfirmPhotoUploadItem,
-  BatchConfirmUploadRequest,
   BatchConfirmUploadResponse,
   BatchDeletePhotosRequest,
   BatchDeletePhotosResponse,
@@ -51,10 +44,8 @@ export type {
 
 // Share link types
 export type {
-  ShareScopeType,
   ShareLink,
   ShareLinkDashboardItem,
-  ShareLinkAnalyticsItem,
   ShareLinkSelectionSummary,
   ShareLinksDashboardSummary,
   ShareLinksDashboardResponse,
@@ -63,7 +54,6 @@ export type {
   ShareLinkCreateRequest,
   ShareLinkUpdateRequest,
   PublicPhoto,
-  PublicProjectFolder,
   SharedGallery,
   SharedProjectShare,
   SharedGalleryQueryOptions,
@@ -77,8 +67,6 @@ export type {
   SelectionToggleResponse,
   SelectionSubmitResponse,
   OwnerSelectionRow,
-  OwnerSelectionAggregate,
-  OwnerSelectionSessionListItem,
   OwnerSelectionDetail,
   BulkSelectionActionResponse,
 } from './sharelink';

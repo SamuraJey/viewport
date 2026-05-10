@@ -109,32 +109,9 @@ export const handleApiError = (error: unknown): ApiError => {
   return new ApiError(500, 'An unexpected error occurred');
 };
 
-export const redirectToErrorPage = (statusCode: number): void => {
-  const errorPath = `/error/${statusCode}`;
-
-  // Use replace to avoid adding to history
-  if (window.location.pathname !== errorPath) {
-    window.location.replace(errorPath);
-  }
-};
-
 export const getErrorMessage = (error: unknown): string => {
   const apiError = handleApiError(error);
   return apiError.message;
-};
-
-export const isNetworkError = (error: unknown): boolean => {
-  if (error instanceof AxiosError) {
-    return !error.response && error.code === 'ERR_NETWORK';
-  }
-  return false;
-};
-
-export const isTimeoutError = (error: unknown): boolean => {
-  if (error instanceof AxiosError) {
-    return error.code === 'ECONNABORTED' || error.response?.status === 408;
-  }
-  return false;
 };
 
 // Error message formatting for user display
@@ -174,32 +151,4 @@ export const shouldShowErrorPage = (error: unknown): boolean => {
   // Show error page for these status codes
   const errorPageCodes = [403, 404, 500, 502, 503, 504];
   return errorPageCodes.includes(apiError.statusCode);
-};
-
-// Helper to get user-friendly error title
-export const getErrorTitle = (statusCode: number): string => {
-  switch (statusCode) {
-    case 400:
-      return 'Bad Request';
-    case 401:
-      return 'Authentication Required';
-    case 403:
-      return 'Access Forbidden';
-    case 404:
-      return 'Not Found';
-    case 408:
-      return 'Request Timeout';
-    case 429:
-      return 'Too Many Requests';
-    case 500:
-      return 'Internal Server Error';
-    case 502:
-      return 'Bad Gateway';
-    case 503:
-      return 'Service Unavailable';
-    case 504:
-      return 'Gateway Timeout';
-    default:
-      return 'Error';
-  }
 };

@@ -1,12 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import {
-  cn,
-  formatDate,
-  validateEmail,
-  validatePassword,
-  formatFileSize,
-  copyToClipboard,
-} from '../../lib/utils';
+import { describe, it, expect } from 'vitest';
+import { cn, validateEmail, validatePassword, formatFileSize } from '../../lib/utils';
 
 describe('utils', () => {
   describe('cn', () => {
@@ -20,26 +13,6 @@ describe('utils', () => {
 
     it('should handle empty inputs', () => {
       expect(cn()).toBe('');
-    });
-  });
-
-  describe('formatDate', () => {
-    it('should format Date object correctly', () => {
-      const date = new Date('2025-01-15T10:30:00Z');
-      const formatted = formatDate(date);
-      expect(formatted).toMatch(/Jan 15, 2025/);
-    });
-
-    it('should format date string correctly', () => {
-      const dateString = '2025-01-15T10:30:00Z';
-      const formatted = formatDate(dateString);
-      expect(formatted).toMatch(/Jan 15, 2025/);
-    });
-
-    it('should include time in formatted date', () => {
-      const date = new Date('2025-01-15T10:30:00Z');
-      const formatted = formatDate(date);
-      expect(formatted).toMatch(/\d{1,2}:\d{2}/);
     });
   });
 
@@ -101,90 +74,6 @@ describe('utils', () => {
     it('should format gigabytes correctly', () => {
       expect(formatFileSize(1024 * 1024 * 1024)).toBe('1 GB');
       expect(formatFileSize(1024 * 1024 * 1024 * 1.5)).toBe('1.5 GB');
-    });
-  });
-
-  describe('copyToClipboard', () => {
-    beforeEach(() => {
-      // Reset mocks before each test
-      vi.clearAllMocks();
-    });
-
-    it('should use modern clipboard API when available', async () => {
-      const mockWriteText = vi.fn().mockResolvedValue(undefined);
-      Object.defineProperty(navigator, 'clipboard', {
-        value: { writeText: mockWriteText },
-        configurable: true,
-      });
-
-      const result = await copyToClipboard('test text');
-
-      expect(result).toBe(true);
-      expect(mockWriteText).toHaveBeenCalledWith('test text');
-    });
-
-    it('should fallback to execCommand when clipboard API is not available', async () => {
-      // Mock navigator.clipboard as undefined
-      Object.defineProperty(navigator, 'clipboard', {
-        value: undefined,
-        configurable: true,
-      });
-
-      // Mock document methods
-      const mockTextArea = {
-        value: '',
-        focus: vi.fn(),
-        select: vi.fn(),
-      };
-      const mockAppendChild = vi.fn();
-      const mockRemoveChild = vi.fn();
-      const mockCreateElement = vi.fn().mockReturnValue(mockTextArea);
-      const mockExecCommand = vi.fn().mockReturnValue(true);
-
-      Object.defineProperty(document, 'createElement', {
-        value: mockCreateElement,
-        configurable: true,
-      });
-      Object.defineProperty(document.body, 'appendChild', {
-        value: mockAppendChild,
-        configurable: true,
-      });
-      Object.defineProperty(document.body, 'removeChild', {
-        value: mockRemoveChild,
-        configurable: true,
-      });
-      Object.defineProperty(document, 'execCommand', {
-        value: mockExecCommand,
-        configurable: true,
-      });
-
-      const result = await copyToClipboard('test text');
-
-      expect(result).toBe(true);
-      expect(mockCreateElement).toHaveBeenCalledWith('textarea');
-      expect(mockTextArea.value).toBe('test text');
-      expect(mockTextArea.focus).toHaveBeenCalled();
-      expect(mockTextArea.select).toHaveBeenCalled();
-      expect(mockExecCommand).toHaveBeenCalledWith('copy');
-      expect(mockAppendChild).toHaveBeenCalledWith(mockTextArea);
-      expect(mockRemoveChild).toHaveBeenCalledWith(mockTextArea);
-    });
-
-    it('should handle errors and return false', async () => {
-      const mockWriteText = vi.fn().mockRejectedValue(new Error('Permission denied'));
-      Object.defineProperty(navigator, 'clipboard', {
-        value: { writeText: mockWriteText },
-        configurable: true,
-      });
-
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-      const result = await copyToClipboard('test text');
-
-      expect(result).toBe(false);
-      expect(consoleSpy).toHaveBeenCalledWith('Failed to copy text: ', expect.any(Error));
-
-      consoleSpy.mockRestore();
     });
   });
 });

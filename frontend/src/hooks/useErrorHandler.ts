@@ -1,11 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  handleApiError,
-  shouldShowErrorPage,
-  formatErrorMessage,
-  NetworkError,
-} from '../lib/errorHandling';
+import { handleApiError, shouldShowErrorPage, formatErrorMessage } from '../lib/errorHandling';
 
 interface UseErrorHandlerResult {
   error: string | null;
@@ -58,32 +53,5 @@ export const useErrorHandler = (): UseErrorHandlerResult => {
     handleError,
     isLoading,
     setLoading,
-  };
-};
-
-// Hook for handling network errors specifically
-export const useNetworkErrorHandler = () => {
-  const errorHandler = useErrorHandler();
-
-  const handleNetworkError = useCallback(
-    (error: unknown) => {
-      const apiError = handleApiError(error);
-
-      // Handle network-specific errors — wrap as NetworkError so it stays
-      // an "offline" (statusCode 0) case and won't redirect to /error/500.
-      if (apiError.statusCode === 0 || !navigator.onLine) {
-        errorHandler.handleError(
-          new NetworkError('No internet connection. Please check your network and try again.'),
-        );
-      } else {
-        errorHandler.handleError(error);
-      }
-    },
-    [errorHandler],
-  );
-
-  return {
-    ...errorHandler,
-    handleError: handleNetworkError,
   };
 };

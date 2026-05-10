@@ -39,7 +39,7 @@ const PublicGalleryPage = lazy(() =>
   import('./pages/PublicGalleryPage').then((module) => ({ default: module.PublicGalleryPage })),
 );
 
-export const RouteFallback = () => (
+const RouteFallback = () => (
   <div
     role="status"
     aria-live="polite"

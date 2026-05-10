@@ -97,5 +97,3 @@ export const AppTabs = <TKey extends string>({
     </TabGroup>
   );
 };
-
-export type { AppTabItem, AppTabRenderState };

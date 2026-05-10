@@ -28,7 +28,3 @@ export const getAccessiblePhotoName = (input: AccessiblePhotoNameInput): string 
 
   return 'Gallery photo';
 };
-
-export const createFieldMessageId = (fieldId: string, suffix: string) => `${fieldId}-${suffix}`;
-
-export const formatDocumentTitle = (pageTitle: string) => `${pageTitle} · Viewport`;

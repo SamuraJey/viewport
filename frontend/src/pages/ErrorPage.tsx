@@ -1,4 +1,4 @@
-import { useRouteError, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { ErrorInfo, ReactNode } from 'react';
 import {
   AlertTriangle,
@@ -143,49 +143,11 @@ const ErrorPageContent = ({
 // Main ErrorPage component for general use (doesn't use router hooks)
 export const ErrorPage = (props: ErrorPageProps) => <ErrorPageContent {...props} />;
 
-// RouterErrorPage component for use as a router errorElement (uses useRouteError hook)
-export const RouterErrorPage = () => {
-  const error = useRouteError();
-  return <ErrorPageContent error={error} />;
-};
-
 // Specific error page components for common status codes
 export const NotFoundPage = () => (
   <ErrorPage
     statusCode={404}
     title="Page Not Found"
     message="The page you're looking for doesn't exist"
-  />
-);
-
-export const ForbiddenPage = () => (
-  <ErrorPage
-    statusCode={403}
-    title="Access Forbidden"
-    message="You don't have permission to access this resource"
-  />
-);
-
-export const ServerErrorPage = () => (
-  <ErrorPage
-    statusCode={500}
-    title="Internal Server Error"
-    message="Something went wrong on our end"
-  />
-);
-
-export const ServiceUnavailablePage = () => (
-  <ErrorPage
-    statusCode={503}
-    title="Service Unavailable"
-    message="Our service is temporarily down for maintenance"
-  />
-);
-
-export const TimeoutPage = () => (
-  <ErrorPage
-    statusCode={408}
-    title="Request Timeout"
-    message="The request took too long to complete"
   />
 );

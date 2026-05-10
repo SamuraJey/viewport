@@ -36,13 +36,13 @@ export interface PhotoUploadIntentRequest {
   content_type: string;
 }
 
-export interface PresignedUploadData {
+interface PresignedUploadData {
   url: string;
   headers: Record<string, string>;
 }
 
 // Batch presigned upload types
-export interface BatchPresignedUploadItem {
+interface BatchPresignedUploadItem {
   filename: string;
   file_size: number;
   success: boolean;
@@ -63,10 +63,6 @@ export interface BatchPresignedUploadsRequest {
 export interface ConfirmPhotoUploadItem {
   photo_id: string;
   success?: boolean;
-}
-
-export interface BatchConfirmUploadRequest {
-  items: ConfirmPhotoUploadItem[];
 }
 
 export interface BatchConfirmUploadResponse {

@@ -6,8 +6,6 @@ import {
   handleApiError,
   formatErrorMessage,
   shouldShowErrorPage,
-  isNetworkError,
-  isTimeoutError,
   getErrorMessage,
 } from '../../lib/errorHandling';
 
@@ -42,14 +40,6 @@ describe('errorHandling utilities', () => {
     expect(formatErrorMessage(new ApiError(404, ''))).toContain('not found');
     expect(formatErrorMessage(new ApiError(503, ''))).toContain('Service unavailable');
     expect(formatErrorMessage(new ApiError(999, 'custom'))).toBe('custom');
-  });
-
-  it('detects network and timeout errors', () => {
-    const networkError = new AxiosError('network', 'ERR_NETWORK');
-    const timeoutError = new AxiosError('timeout', 'ECONNABORTED');
-
-    expect(isNetworkError(networkError)).toBe(true);
-    expect(isTimeoutError(timeoutError)).toBe(true);
   });
 
   it('maps Axios network error (no response) to statusCode 0', () => {

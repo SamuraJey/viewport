@@ -2,7 +2,7 @@
  * Share link and public gallery types
  */
 
-export type ShareScopeType = 'gallery' | 'project';
+type ShareScopeType = 'gallery' | 'project';
 
 export interface ShareLink {
   id: string;
@@ -31,7 +31,7 @@ export interface ShareLinkDashboardItem extends ShareLink {
   selection_summary: ShareLinkSelectionSummary | null;
 }
 
-export interface ShareLinkAnalyticsItem extends ShareLink {
+interface ShareLinkAnalyticsItem extends ShareLink {
   gallery_id?: string | null;
   gallery_name?: string | null;
   project_id?: string | null;
@@ -104,7 +104,7 @@ export interface PublicPhoto {
   height?: number | null;
 }
 
-export interface PublicProjectFolder {
+interface PublicProjectFolder {
   folder_id: string;
   folder_name: string;
   photo_count: number;
@@ -249,7 +249,7 @@ export interface OwnerSelectionRow {
   updated_at: string;
 }
 
-export interface OwnerSelectionAggregate {
+interface OwnerSelectionAggregate {
   total_sessions: number;
   submitted_sessions: number;
   in_progress_sessions: number;
@@ -258,7 +258,7 @@ export interface OwnerSelectionAggregate {
   latest_activity_at: string | null;
 }
 
-export interface OwnerSelectionSessionListItem {
+interface OwnerSelectionSessionListItem {
   id: string;
   status: string;
   client_name: string;
