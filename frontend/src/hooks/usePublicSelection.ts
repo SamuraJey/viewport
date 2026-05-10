@@ -278,7 +278,7 @@ export const usePublicSelection = ({
       } catch (err) {
         const apiError = handleApiError(err);
         setError(apiError.message || 'Failed to update photo comment');
-        throw err;
+        throw apiError;
       } finally {
         setIsMutating(false);
       }
