@@ -66,9 +66,6 @@ export const PublicGalleryHero = ({ title, date, photographer, cover }: PublicGa
   if (!cover) {
     return (
       <div className="mb-8 rounded-3xl border border-border/50 bg-surface-1/70 px-6 py-24 text-center shadow-xs dark:bg-surface-dark-1/70">
-        <p className="mb-3 text-xs font-bold uppercase tracking-[0.24em] text-accent">
-          Shared delivery
-        </p>
         <h1
           className={`${emptyTitleSizeClass} mb-4 font-bold tracking-tight text-text wrap-break-word`}
         >
