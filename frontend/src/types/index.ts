@@ -2,9 +2,6 @@
  * Centralized type exports for the Viewport frontend
  */
 
-// Common types
-export type { PaginatedResponse, ApiError, AsyncState } from './common';
-
 // Gallery types
 export type {
   Gallery,
@@ -15,7 +12,6 @@ export type {
   GalleryPhotoQueryOptions,
   GalleryListSortBy,
   GalleryListQueryOptions,
-  ProjectVisibility,
 } from './gallery';
 
 export type {
@@ -35,13 +31,9 @@ export type {
   GalleryPhoto,
   PhotoUploadResult,
   PhotoUploadResponse,
-  PhotoUploadIntentRequest,
-  PresignedUploadData,
-  BatchPresignedUploadItem,
   BatchPresignedUploadsRequest,
   BatchPresignedUploadsResponse,
   ConfirmPhotoUploadItem,
-  BatchConfirmUploadRequest,
   BatchConfirmUploadResponse,
   BatchDeletePhotosRequest,
   BatchDeletePhotosResponse,

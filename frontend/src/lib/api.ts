@@ -132,12 +132,6 @@ api.interceptors.response.use(
   },
 );
 
-// Utility function to get full photo URL
-export const getPhotoUrl = (relativeUrl: string): string => {
-  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-  return `${baseUrl}${relativeUrl}`;
-};
-
 // Declare module augmentation for retry flag
 declare module 'axios' {
   interface AxiosRequestConfig {

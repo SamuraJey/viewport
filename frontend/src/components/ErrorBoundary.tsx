@@ -1,11 +1,11 @@
-import React, { Component } from 'react';
-import type { ReactNode } from 'react';
+import { Component } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
 import { ErrorPage } from '../pages/ErrorPage';
 
 interface ErrorBoundaryState {
   hasError: boolean;
   error?: Error;
-  errorInfo?: React.ErrorInfo;
+  errorInfo?: ErrorInfo;
 }
 
 interface ErrorBoundaryProps {
@@ -23,7 +23,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Error caught by boundary:', error, errorInfo);
     this.setState({ error, errorInfo });
   }
@@ -53,18 +53,3 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     return this.props.children;
   }
 }
-
-// Hook-based error boundary wrapper
-export const withErrorBoundary = <P extends object>(
-  Component: React.ComponentType<P>,
-  fallback?: ReactNode,
-) => {
-  const WrappedComponent = (props: P) => (
-    <ErrorBoundary fallback={fallback}>
-      <Component {...props} />
-    </ErrorBoundary>
-  );
-
-  WrappedComponent.displayName = `withErrorBoundary(${Component.displayName || Component.name})`;
-  return WrappedComponent;
-};

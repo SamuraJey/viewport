@@ -19,7 +19,7 @@ export interface UsePaginationOptions {
   urlParam?: string;
 }
 
-export interface PaginationState {
+interface PaginationState {
   /** Current page (1-based) */
   page: number;
   /** Items per page */
@@ -30,7 +30,7 @@ export interface PaginationState {
   totalPages: number;
 }
 
-export interface PaginationActions {
+interface PaginationActions {
   /** Go to specific page */
   goToPage: (page: number) => void;
   /** Go to next page */

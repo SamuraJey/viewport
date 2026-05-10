@@ -1,7 +1,7 @@
 import { useState, useRef, memo, useCallback } from 'react';
 import { CheckCircle2, Images, Upload, X } from 'lucide-react';
-import type { PhotoUploadResponse } from '../services/photoService';
-import { usePhotoUpload } from '../hooks';
+import type { PhotoUploadResponse } from '../types';
+import { usePhotoUpload } from '../hooks/usePhotoUpload';
 import { UploadSelectionContent } from './upload-confirm/UploadSelectionContent';
 import { UploadProgressContent } from './upload-confirm/UploadProgressContent';
 import { UploadResultContent } from './upload-confirm/UploadResultContent';

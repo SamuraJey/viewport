@@ -30,7 +30,8 @@ import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorM
 import { AppPopover } from '../components/ui';
 import { ShareLinkStatusBadge } from '../components/share-links/ShareLinkStatusBadge';
 import { getShareLinkStatus } from '../components/share-links/shareLinkStatus';
-import { useConfirmation, usePagination } from '../hooks';
+import { useConfirmation } from '../hooks/useConfirmation';
+import { usePagination } from '../hooks/usePagination';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { shareLinkService } from '../services/shareLinkService';
 import { copyTextToClipboard } from '../lib/clipboard';

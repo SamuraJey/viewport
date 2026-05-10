@@ -1,9 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import {
-  shareLinkService,
-  type PublicPhoto,
-  type SharedGallery,
-} from '../services/shareLinkService';
+import { shareLinkService } from '../services/shareLinkService';
+import type { PublicPhoto, SharedGallery } from '../types';
 
 const PUBLIC_GALLERY_FATAL_STATUSES = new Set([404, 410]);
 const PUBLIC_GALLERY_PASSWORD_STATUS = 401;

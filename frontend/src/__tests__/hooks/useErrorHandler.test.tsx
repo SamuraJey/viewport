@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { vi } from 'vitest';
-import { useErrorHandler, useNetworkErrorHandler } from '../../hooks/useErrorHandler';
+import { useErrorHandler } from '../../hooks/useErrorHandler';
 
 const mockHandleApiError = vi.fn();
 const mockShouldShowErrorPage = vi.fn();
@@ -8,7 +8,6 @@ const mockFormatErrorMessage = vi.fn();
 const mockNavigate = vi.fn();
 
 vi.mock('../../lib/errorHandling', () => ({
-  NetworkError: class NetworkError extends Error {},
   handleApiError: (...args: unknown[]) => mockHandleApiError(...args),
   shouldShowErrorPage: (...args: unknown[]) => mockShouldShowErrorPage(...args),
   formatErrorMessage: (...args: unknown[]) => mockFormatErrorMessage(...args),
@@ -67,38 +66,5 @@ describe('useErrorHandler', () => {
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.error).toBeNull();
-  });
-});
-
-describe('useNetworkErrorHandler', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('normalizes network errors to a friendly message', () => {
-    mockHandleApiError.mockReturnValueOnce({ statusCode: 0, message: 'offline' }).mockReturnValue({
-      statusCode: 500,
-      message: 'No internet connection. Please check your network and try again.',
-    });
-    mockShouldShowErrorPage.mockReturnValue(false);
-    mockFormatErrorMessage.mockImplementation((err) =>
-      err instanceof Error ? err.message : 'formatted',
-    );
-
-    const { result } = renderHook(() => useNetworkErrorHandler());
-
-    act(() => {
-      result.current.handleError(new Error('network down'));
-    });
-
-    expect(result.current.error).toBe(
-      'No internet connection. Please check your network and try again.',
-    );
-    expect(mockNavigate).not.toHaveBeenCalled();
   });
 });

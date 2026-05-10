@@ -11,9 +11,6 @@ import type {
   SortOrder,
 } from '../types';
 
-// Re-export types for backward compatibility
-export type { Gallery, GalleryDetail, GalleryListResponse };
-
 const getGalleries = async (
   page = 1,
   size = 10,

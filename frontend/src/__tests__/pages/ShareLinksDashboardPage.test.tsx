@@ -27,7 +27,7 @@ vi.mock('../../services/shareLinkService', () => ({
   },
 }));
 
-vi.mock('../../hooks', () => ({
+vi.mock('../../hooks/usePagination', () => ({
   usePagination: () => ({
     page: 1,
     pageSize: 20,
@@ -35,6 +35,9 @@ vi.mock('../../hooks', () => ({
     setTotal: mockSetTotal,
     goToPage: mockGoToPage,
   }),
+}));
+
+vi.mock('../../hooks/useConfirmation', () => ({
   useConfirmation: () => ({
     openConfirm: ({ onConfirm }: { onConfirm: () => Promise<void> }) => {
       void onConfirm();

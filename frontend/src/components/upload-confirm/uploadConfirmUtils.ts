@@ -1,10 +1,10 @@
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 
-export const supportedUploadTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+const supportedUploadTypes = ['image/jpeg', 'image/png', 'image/jpg'];
 
-export const isFileTooLarge = (file: File) => file.size > MAX_UPLOAD_FILE_SIZE_BYTES;
+const isFileTooLarge = (file: File) => file.size > MAX_UPLOAD_FILE_SIZE_BYTES;
 
-export const isFileTypeInvalid = (file: File) => !supportedUploadTypes.includes(file.type);
+const isFileTypeInvalid = (file: File) => !supportedUploadTypes.includes(file.type);
 
 export const hasFileUploadError = (file: File) => isFileTooLarge(file) || isFileTypeInvalid(file);
 

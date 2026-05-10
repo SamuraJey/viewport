@@ -148,5 +148,3 @@ export const useReadabilityStore = create<ReadabilityState>()((set) => ({
     set(nextSettings);
   },
 }));
-
-export const readabilityStorageKey = READABILITY_STORAGE_KEY;

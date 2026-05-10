@@ -1,5 +1,5 @@
 import { AlertTriangle, Upload } from 'lucide-react';
-import type { PhotoUploadResponse } from '../../services/photoService';
+import type { PhotoUploadResponse } from '../../types';
 
 interface CancelWarningProps {
   isUploading: boolean;

@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
-import type { PhotoUploadResponse } from '../../services/photoService';
+import type { PhotoUploadResponse } from '../../types';
 
 interface UploadResultContentProps {
   result: PhotoUploadResponse;

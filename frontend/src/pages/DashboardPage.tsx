@@ -19,7 +19,8 @@ import { getCollectionTitleTextSizeClass } from '../components/dashboard/collect
 import { CreateProjectModal } from '../components/dashboard/CreateProjectModal';
 import { MetricCard } from '../components/dashboard/MetricCard';
 import { AppListbox } from '../components/ui';
-import { useConfirmation, usePagination } from '../hooks';
+import { useConfirmation } from '../hooks/useConfirmation';
+import { usePagination } from '../hooks/usePagination';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { handleApiError } from '../lib/errorHandling';
 import { formatFileSize } from '../lib/utils';

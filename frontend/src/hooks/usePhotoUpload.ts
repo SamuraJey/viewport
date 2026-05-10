@@ -2,8 +2,12 @@ import { useState, useRef, useCallback, useMemo } from 'react';
 import { photoService } from '../services/photoService';
 import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../constants/upload';
 import { getSafeNameAndExtension } from '../lib/filenameUtils';
-import type { PhotoUploadResponse } from '../services/photoService';
-import type { UploadPreparedFile, UploadRenameWarning, PhotoUploadResult } from '../types';
+import type {
+  PhotoUploadResponse,
+  UploadPreparedFile,
+  UploadRenameWarning,
+  PhotoUploadResult,
+} from '../types';
 
 export interface UploadProgress {
   loaded: number;

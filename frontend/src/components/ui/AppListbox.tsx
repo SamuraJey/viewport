@@ -123,5 +123,3 @@ export const AppListbox = <TValue extends string>({
     </Listbox>
   );
 };
-
-export type { AppListboxOption };

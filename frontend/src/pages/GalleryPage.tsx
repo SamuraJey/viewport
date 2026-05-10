@@ -25,7 +25,10 @@ import {
   GalleryNotFoundState,
 } from '../components/gallery/GalleryPageStates';
 import { type PhotoUploaderHandle } from '../components/PhotoUploader';
-import { usePagination, useSelection, useGalleryActions, useGalleryDragAndDrop } from '../hooks';
+import { useGalleryActions } from '../hooks/useGalleryActions';
+import { useGalleryDragAndDrop } from '../hooks/useGalleryDragAndDrop';
+import { usePagination } from '../hooks/usePagination';
+import { useSelection } from '../hooks/useSelection';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { projectService } from '../services/projectService';
 import { shareLinkService } from '../services/shareLinkService';

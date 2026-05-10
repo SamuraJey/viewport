@@ -10,9 +10,6 @@ import type {
   RegisterResponse,
 } from '../types';
 
-// Re-export types for backward compatibility
-export type { User, AuthTokens, LoginRequest, RegisterRequest, LoginResponse, RegisterResponse };
-
 export const authService = {
   login: async (data: LoginRequest): Promise<LoginResponse> => {
     if (isDemoModeEnabled()) {

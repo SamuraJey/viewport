@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, User, Lock, ShieldAlert } from 'lucide-react';
 
-import { useProfileActions } from '../hooks';
+import { useProfileActions } from '../hooks/useProfileActions';
 import { getAvatarInitials, stringToHue } from '../lib/avatar';
 import { ProfileInfoSection } from './profile/ProfileInfoSection';
 import { ProfilePasswordSection } from './profile/ProfilePasswordSection';

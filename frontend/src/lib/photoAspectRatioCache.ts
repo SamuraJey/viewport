@@ -106,7 +106,7 @@ const schedulePersistRatioCache = () => {
   }, PERSIST_DEBOUNCE_MS);
 };
 
-export const hydratePhotoAspectRatioCache = () => {
+const hydratePhotoAspectRatioCache = () => {
   if (isHydrated) return;
   isHydrated = true;
 
