@@ -612,7 +612,7 @@ export const ProjectPage = () => {
 
   return (
     <div className="space-y-5">
-      <section className="relative overflow-hidden rounded-[2rem] border border-border/50 bg-surface p-5 shadow-xs dark:border-border/30 dark:bg-surface-dark">
+      <section className="relative overflow-hidden rounded-4xl border border-border/50 bg-surface p-5 shadow-xs dark:border-border/30 dark:bg-surface-dark">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(31,144,255,0.12),transparent_34%),radial-gradient(circle_at_88%_10%,rgba(34,197,94,0.08),transparent_28%)]" />
         <div className="relative flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 max-w-5xl space-y-2">

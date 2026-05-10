@@ -160,9 +160,9 @@ const fadeUp = {
 
 const LandingPreview = () => (
   <div className="relative mx-auto w-full max-w-xl">
-    <div className="absolute -inset-6 rounded-[2rem] bg-accent/20 blur-3xl dark:bg-accent/10" />
-    <div className="relative overflow-hidden rounded-[2rem] border border-border/60 bg-surface/90 p-3 shadow-2xl backdrop-blur-xl dark:bg-surface-dark/85">
-      <div className="rounded-[1.5rem] border border-border/50 bg-surface-1/90 p-4 dark:bg-surface-dark-1/85">
+    <div className="absolute -inset-6 rounded-4xl bg-accent/20 blur-3xl dark:bg-accent/10" />
+    <div className="relative overflow-hidden rounded-4xl border border-border/60 bg-surface/90 p-3 shadow-2xl backdrop-blur-xl dark:bg-surface-dark/85">
+      <div className="rounded-3xl border border-border/50 bg-surface-1/90 p-4 dark:bg-surface-dark-1/85">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <p className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-accent">
@@ -178,7 +178,7 @@ const LandingPreview = () => (
 
         <div className="grid grid-cols-[1.2fr_0.8fr] gap-3">
           <div className="overflow-hidden rounded-2xl border border-border/50 bg-surface shadow-sm">
-            <div className="aspect-[4/3] bg-gradient-to-br from-slate-950 via-accent/70 to-sky-200" />
+            <div className="aspect-4/3 bg-linear-to-br from-slate-950 via-accent/70 to-sky-200" />
             <div className="space-y-2 p-3">
               <div className="h-2 w-2/3 rounded-full bg-text/20" />
               <div className="h-2 w-1/2 rounded-full bg-muted/20" />
@@ -188,7 +188,7 @@ const LandingPreview = () => (
             {galleryTiles.map((tile) => (
               <div
                 key={tile}
-                className={`rounded-2xl border border-border/50 bg-gradient-to-br ${tile}`}
+                className={`rounded-2xl border border-border/50 bg-linear-to-br ${tile}`}
               />
             ))}
           </div>
@@ -256,8 +256,8 @@ export const LandingPage = () => {
     <div className="relative min-h-screen overflow-hidden bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
       <SkipToContentLink />
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-32 top-0 h-[28rem] w-[28rem] rounded-full bg-accent/15 blur-3xl dark:bg-accent/10" />
-        <div className="absolute right-[-10rem] top-32 h-[32rem] w-[32rem] rounded-full bg-sky-400/15 blur-3xl dark:bg-sky-400/10" />
+        <div className="absolute -left-32 top-0 h-112 w-md rounded-full bg-accent/15 blur-3xl dark:bg-accent/10" />
+        <div className="absolute -right-40 top-32 h-128 w-lg rounded-full bg-sky-400/15 blur-3xl dark:bg-sky-400/10" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_10%,rgba(31,144,255,0.10),transparent_35%),linear-gradient(180deg,transparent,rgba(31,144,255,0.04),transparent)]" />
       </div>
 
@@ -422,7 +422,7 @@ export const LandingPage = () => {
           {...motionProps}
           className="mx-auto w-full max-w-7xl px-4 pb-20 sm:px-6"
         >
-          <div className="grid gap-6 rounded-[2rem] border border-border/60 bg-surface/85 p-6 shadow-xs backdrop-blur dark:border-border/40 dark:bg-surface-foreground/8 lg:grid-cols-[0.85fr_1.15fr] lg:p-8">
+          <div className="grid gap-6 rounded-4xl border border-border/60 bg-surface/85 p-6 shadow-xs backdrop-blur dark:border-border/40 dark:bg-surface-foreground/8 lg:grid-cols-[0.85fr_1.15fr] lg:p-8">
             <div className="space-y-4">
               <p className="text-sm font-bold uppercase tracking-[0.24em] text-accent">Workflow</p>
               <h2 className="font-oswald text-4xl font-bold uppercase tracking-wide sm:text-5xl">
@@ -484,7 +484,7 @@ export const LandingPage = () => {
             {planCards.map((card) => (
               <article
                 key={card.name}
-                className={`relative overflow-hidden rounded-[2rem] border p-6 shadow-xs transition-all hover:-translate-y-1 hover:shadow-lg ${
+                className={`relative overflow-hidden rounded-4xl border p-6 shadow-xs transition-all hover:-translate-y-1 hover:shadow-lg ${
                   card.highlighted
                     ? 'border-accent/45 bg-accent/10'
                     : 'border-border/60 bg-surface/85 dark:border-border/40 dark:bg-surface-foreground/8'
@@ -526,7 +526,7 @@ export const LandingPage = () => {
             {testimonials.map((item) => (
               <figure
                 key={item.name}
-                className="rounded-[2rem] border border-border/60 bg-surface/85 p-6 shadow-xs dark:border-border/40 dark:bg-surface-foreground/8"
+                className="rounded-4xl border border-border/60 bg-surface/85 p-6 shadow-xs dark:border-border/40 dark:bg-surface-foreground/8"
               >
                 <div className="mb-5 flex gap-1 text-accent" aria-label="Five star rating">
                   {Array.from({ length: 5 }).map((_, index) => (
@@ -584,9 +584,9 @@ export const LandingPage = () => {
           aria-labelledby="landing-final-cta-title"
           className="mx-auto w-full max-w-7xl px-4 pb-20 sm:px-6"
         >
-          <div className="relative overflow-hidden rounded-[2rem] border border-border/60 bg-surface/90 p-6 text-text shadow-xl shadow-accent/10 backdrop-blur dark:border-border/40 dark:bg-surface-dark-1/90 dark:text-accent-foreground sm:p-8 lg:p-10">
+          <div className="relative overflow-hidden rounded-4xl border border-border/60 bg-surface/90 p-6 text-text shadow-xl shadow-accent/10 backdrop-blur dark:border-border/40 dark:bg-surface-dark-1/90 dark:text-accent-foreground sm:p-8 lg:p-10">
             <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-accent/20 blur-3xl dark:bg-accent/15" />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/10 via-transparent to-surface-1/50 dark:to-surface-dark-2/40" />
+            <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-accent/10 via-transparent to-surface-1/50 dark:to-surface-dark-2/40" />
 
             <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
