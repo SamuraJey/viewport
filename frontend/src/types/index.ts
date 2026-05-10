@@ -43,8 +43,10 @@ export type {
 
 // Share link types
 export type {
+  ShareScopeType,
   ShareLink,
   ShareLinkDashboardItem,
+  ShareLinkAnalyticsItem,
   ShareLinkSelectionSummary,
   ShareLinksDashboardSummary,
   ShareLinksDashboardResponse,
@@ -53,6 +55,7 @@ export type {
   ShareLinkCreateRequest,
   ShareLinkUpdateRequest,
   PublicPhoto,
+  PublicProjectFolder,
   SharedGallery,
   SharedProjectShare,
   SharedGalleryQueryOptions,
@@ -66,6 +69,8 @@ export type {
   SelectionToggleResponse,
   SelectionSubmitResponse,
   OwnerSelectionRow,
+  OwnerSelectionAggregate,
+  OwnerSelectionSessionListItem,
   OwnerSelectionDetail,
   BulkSelectionActionResponse,
 } from './sharelink';
