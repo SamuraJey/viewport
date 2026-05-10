@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Camera, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Camera } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ReadabilitySettingsButton } from './ReadabilitySettingsButton';
 import { ThemeSwitch } from './ThemeSwitch';
@@ -35,40 +35,12 @@ export const AuthLayout = ({ children }: AuthLayoutProps) => {
         <ThemeSwitch variant="inline" />
       </div>
 
-      <div className="relative z-10 grid w-full max-w-6xl items-center gap-8 pt-16 lg:grid-cols-[minmax(0,0.95fr)_minmax(24rem,28rem)] lg:pt-0">
-        <aside className="hidden rounded-3xl border border-border/50 bg-surface/70 p-8 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-surface-dark/70 lg:block">
-          <div className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-accent">
-            <ShieldCheck className="h-4 w-4" />
-            Secure client proofing
-          </div>
-          <h1 className="mt-6 font-oswald text-5xl font-bold uppercase leading-none tracking-wide text-text dark:text-accent-foreground">
-            Deliver galleries with less friction.
-          </h1>
-          <p className="mt-5 max-w-xl text-lg leading-8 text-muted">
-            Manage projects, direct-only galleries, password-protected links, and client selections
-            from one focused workspace.
-          </p>
-          <ul className="mt-8 grid gap-4 text-sm font-semibold text-text dark:text-accent-foreground">
-            {[
-              'Project-first organization',
-              'Fast share-link controls',
-              'Accessible light and dark themes',
-            ].map((item) => (
-              <li key={item} className="flex items-center gap-3">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                  <CheckCircle2 className="h-4 w-4" />
-                </span>
-                {item}
-              </li>
-            ))}
-          </ul>
-        </aside>
-
+      <div className="relative z-10 grid w-full max-w-md items-center gap-8 pt-16 lg:pt-0">
         {/* Animated card wrapper */}
         <main
           id="main-content"
           tabIndex={-1}
-          className="relative z-10 w-full max-w-md animate-fade-in-up justify-self-center lg:justify-self-end"
+          className="relative z-10 w-full max-w-md animate-fade-in-up justify-self-center"
         >
           {children}
         </main>

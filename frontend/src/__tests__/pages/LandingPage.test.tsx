@@ -107,6 +107,36 @@ describe('LandingPage and root route', () => {
     expect(screen.getByText('Preview ready')).toBeInTheDocument();
   });
 
+  it('keeps the final CTA readable in both light and dark themes', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const finalCta = screen.getByRole('region', {
+      name: /make every delivery feel intentional/i,
+    });
+    const finalCtaHeading = screen.getByRole('heading', {
+      name: /make every delivery feel intentional/i,
+    });
+
+    expect(finalCta.firstElementChild).toHaveClass(
+      'bg-surface/90',
+      'text-text',
+      'dark:bg-surface-dark-1/90',
+      'dark:text-accent-foreground',
+    );
+    expect(finalCtaHeading).toHaveClass('text-text', 'dark:text-accent-foreground');
+    expect(finalCtaHeading).not.toHaveClass('dark:text-surface-dark');
+    expect(screen.getByRole('button', { name: /explore demo/i })).toHaveClass(
+      'text-text',
+      'dark:text-accent-foreground',
+    );
+  });
+
   it('opens demo cabinet: enables demo mode, logs in demo user, and navigates to dashboard', async () => {
     const user = userEvent.setup();
 
