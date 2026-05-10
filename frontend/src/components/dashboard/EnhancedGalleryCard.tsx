@@ -210,12 +210,12 @@ export const EnhancedGalleryCard = ({
             </div>
           </div>
         ) : (
-          <div className="relative flex flex-1 flex-col justify-center gap-4">
+          <div className="relative flex flex-1 flex-col">
             <Link
               to={resolveGalleryPath(gallery)}
-              className="flex flex-1 flex-col justify-center gap-4 pr-5 no-underline transition-colors"
+              className="flex flex-1 flex-col justify-between gap-4 pr-5 no-underline transition-colors"
             >
-              <div className="group/title w-full text-left">
+              <div className="group/title flex flex-1 items-center text-left">
                 <div className="min-w-0 flex-1">
                   <h3
                     className={`wrap-anywhere whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors`}
@@ -224,7 +224,7 @@ export const EnhancedGalleryCard = ({
                   </h3>
                 </div>
               </div>
-              <p className="rounded-full border border-border/55 bg-surface-1 px-3 py-2 text-sm text-muted dark:border-border/45 dark:bg-surface-dark-1">
+              <p className="mt-auto rounded-full border border-border/55 bg-surface-1 px-3 py-2 text-sm text-muted dark:border-border/45 dark:bg-surface-dark-1">
                 {metadataParts.join(' • ')}
               </p>
             </Link>

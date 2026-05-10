@@ -116,6 +116,7 @@ describe('DashboardPage', () => {
 
     expect(screen.getByText('2 galleries • 20 photos • 0 Bytes')).toBeInTheDocument();
     expect(screen.getByText('1 gallery • 8 photos • 0 Bytes')).toBeInTheDocument();
+    expect(screen.getByText('1 gallery • 8 photos • 0 Bytes')).toHaveClass('mt-auto');
     expect(
       screen.getByRole('heading', {
         level: 2,

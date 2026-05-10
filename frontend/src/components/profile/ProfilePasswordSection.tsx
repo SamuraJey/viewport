@@ -72,7 +72,7 @@ const PasswordField = ({
       />
       <button
         type="button"
-        aria-label={show ? 'Hide password' : 'Show password'}
+        aria-label={`${show ? 'Hide' : 'Show'} ${label.toLowerCase()}`}
         onClick={onToggleShow}
         className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted transition-all duration-200 hover:bg-surface-2 hover:text-text hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-surface-dark-2"
       >
@@ -122,8 +122,9 @@ export const ProfilePasswordSection = ({
   const { bg: strengthBg, text: strengthText } = strength;
   const passwordMismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
   const passwordMatch = confirmPassword.length > 0 && newPassword === confirmPassword;
-  const canSubmit =
-    !changingPassword && currentPassword && newPassword && confirmPassword && !passwordMismatch;
+  const canSubmit = Boolean(
+    !changingPassword && currentPassword && newPassword && confirmPassword && !passwordMismatch,
+  );
 
   return (
     <form

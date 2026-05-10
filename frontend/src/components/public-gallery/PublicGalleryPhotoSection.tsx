@@ -1,6 +1,14 @@
-import type { MutableRefObject, TouchEventHandler } from 'react';
-import { useEffect, useRef } from 'react';
-import { Heart, ImageOff, Loader2, MessageSquare } from 'lucide-react';
+import type { KeyboardEvent, MutableRefObject, TouchEventHandler } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  Heart,
+  ImageOff,
+  Loader2,
+  MessageSquare,
+  X,
+} from 'lucide-react';
 import type { PublicGridDensity, PublicGridLayout } from '../../hooks/usePublicGalleryGrid';
 import { getAccessiblePhotoName } from '../../lib/accessibility';
 import type { PublicPhoto, SelectionSession } from '../../types';
@@ -41,9 +49,11 @@ interface PublicGalleryPhotoSectionProps {
     session: SelectionSession | null;
     commentsByPhotoId: Record<string, string | null>;
     onTogglePhoto: (photoId: string) => void;
-    onUpdatePhotoComment: (photoId: string, comment: string) => void;
+    onUpdatePhotoComment: (photoId: string, comment: string) => void | Promise<void>;
   };
 }
+
+type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
 interface PhotoCommentPanelProps {
   photoId: string;
@@ -51,7 +61,8 @@ interface PhotoCommentPanelProps {
   photoComment: string;
   hasComment: boolean;
   disabled: boolean;
-  onUpdatePhotoComment?: (photoId: string, comment: string) => void;
+  onClose: () => void;
+  onUpdatePhotoComment?: (photoId: string, comment: string) => void | Promise<void>;
 }
 
 const PhotoCommentPanel = ({
@@ -60,9 +71,19 @@ const PhotoCommentPanel = ({
   photoComment,
   hasComment,
   disabled,
+  onClose,
   onUpdatePhotoComment,
 }: PhotoCommentPanelProps) => {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const draftRef = useRef(photoComment);
+  const savedDraftRef = useRef(photoComment);
+  const disabledRef = useRef(disabled);
+  const updateCommentRef = useRef(onUpdatePhotoComment);
+  const textareaId = useId();
+  const statusId = useId();
+  const [draft, setDraft] = useState(photoComment);
+  const [lastSavedDraft, setLastSavedDraft] = useState(photoComment);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
 
   useEffect(() => {
     if (disabled) {
@@ -72,30 +93,181 @@ const PhotoCommentPanel = ({
     textareaRef.current?.focus({ preventScroll: true });
   }, [disabled]);
 
+  useEffect(() => {
+    draftRef.current = photoComment;
+    savedDraftRef.current = photoComment;
+    setDraft(photoComment);
+    setLastSavedDraft(photoComment);
+    setSaveState('idle');
+  }, [photoId, photoComment]);
+
+  useEffect(() => {
+    disabledRef.current = disabled;
+    updateCommentRef.current = onUpdatePhotoComment;
+  }, [disabled, onUpdatePhotoComment]);
+
+  useEffect(
+    () => () => {
+      if (disabledRef.current || draftRef.current === savedDraftRef.current) {
+        return;
+      }
+
+      const updateComment = updateCommentRef.current;
+      if (!updateComment) {
+        return;
+      }
+
+      void Promise.resolve(updateComment(photoId, draftRef.current)).catch(() => undefined);
+    },
+    [photoId],
+  );
+
+  const hasUnsavedChanges = draft !== lastSavedDraft;
+  const isSaving = saveState === 'saving';
+  const isSaveDisabled = disabled || isSaving || !onUpdatePhotoComment || !hasUnsavedChanges;
+  const statusText = (() => {
+    if (disabled) return 'Selection is read-only';
+    if (saveState === 'saving') return 'Saving note...';
+    if (saveState === 'error') return 'Could not save. Please try again.';
+    if (hasUnsavedChanges) return 'Unsaved changes';
+    if (saveState === 'saved') return 'Saved';
+    return hasComment ? 'Saved note' : 'No note saved yet';
+  })();
+  const statusClassName = (() => {
+    if (saveState === 'error') return 'border-danger/30 bg-danger/10 text-danger';
+    if (saveState === 'saving') return 'border-accent/30 bg-accent/10 text-accent';
+    if (hasUnsavedChanges) {
+      return 'border-amber-400/30 bg-amber-400/10 text-amber-700 dark:text-amber-200';
+    }
+    return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200';
+  })();
+
+  const handleSave = useCallback(
+    async ({ closeAfterSave = false }: { closeAfterSave?: boolean } = {}) => {
+      if (disabled) {
+        onClose();
+        return;
+      }
+
+      if (!hasUnsavedChanges) {
+        if (closeAfterSave) onClose();
+        return;
+      }
+
+      if (!onUpdatePhotoComment) {
+        return;
+      }
+
+      setSaveState('saving');
+      try {
+        await onUpdatePhotoComment(photoId, draft);
+        savedDraftRef.current = draft;
+        setLastSavedDraft(draft);
+        setSaveState('saved');
+        if (closeAfterSave) {
+          onClose();
+        }
+      } catch {
+        setSaveState('error');
+      }
+    },
+    [disabled, draft, hasUnsavedChanges, onClose, onUpdatePhotoComment, photoId],
+  );
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault();
+      void handleSave({ closeAfterSave: true });
+    }
+  };
+
   return (
-    <div className="space-y-2">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Photo note</p>
-        <p className="mt-1 text-xs text-muted">
-          {hasComment
-            ? 'Refine the note for the photographer.'
-            : 'Add context for the photographer.'}
-        </p>
+    <div className="space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">Photo note</p>
+          <p className="mt-1 text-xs text-muted">
+            {hasComment
+              ? 'Refine the note for the photographer.'
+              : 'Add context for the photographer.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            void handleSave({ closeAfterSave: true });
+          }}
+          disabled={isSaving}
+          className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border/50 bg-surface text-muted transition-colors hover:border-accent/40 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-wait disabled:opacity-60"
+          aria-label={hasUnsavedChanges ? 'Save note and close' : 'Close note editor'}
+          title={hasUnsavedChanges ? 'Save note and close' : 'Close'}
+        >
+          {isSaving ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <X className="h-3.5 w-3.5" />
+          )}
+        </button>
       </div>
-      <label htmlFor={`selection-comment-${photoId}`} className="sr-only">
+      <label htmlFor={textareaId} className="sr-only">
         Comment for {accessiblePhotoName}
       </label>
       <textarea
-        id={`selection-comment-${photoId}`}
+        id={textareaId}
         ref={textareaRef}
-        key={`${photoId}-${photoComment}`}
-        defaultValue={photoComment}
+        value={draft}
         placeholder="Comment for this photo"
         disabled={disabled}
+        aria-describedby={statusId}
         onClick={(event) => event.stopPropagation()}
-        onBlur={(event) => onUpdatePhotoComment?.(photoId, event.currentTarget.value)}
-        className="min-h-28 w-full resize-none rounded-xl border border-border/40 bg-surface px-3 py-2 text-sm text-text outline-none focus:border-accent/50 disabled:cursor-not-allowed disabled:opacity-70"
+        onChange={(event) => {
+          const nextDraft = event.currentTarget.value;
+          draftRef.current = nextDraft;
+          setDraft(nextDraft);
+          setSaveState('dirty');
+        }}
+        onKeyDown={handleKeyDown}
+        className="min-h-32 w-full resize-none rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm text-text outline-none transition-colors placeholder:text-muted/70 focus:border-accent/60 focus:ring-2 focus:ring-accent/15 disabled:cursor-not-allowed disabled:opacity-70"
       />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          id={statusId}
+          aria-live="polite"
+          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClassName}`}
+        >
+          {saveState === 'error' ? (
+            <AlertCircle className="h-3.5 w-3.5" />
+          ) : saveState === 'saving' ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <CheckCircle2 className="h-3.5 w-3.5" />
+          )}
+          {statusText}
+        </div>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              void handleSave();
+            }}
+            disabled={isSaveDisabled}
+            className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-border/50 bg-surface px-3 py-2 text-xs font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void handleSave({ closeAfterSave: true });
+            }}
+            disabled={isSaving}
+            className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground transition-colors hover:bg-accent/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-wait disabled:opacity-70"
+          >
+            {hasUnsavedChanges ? 'Save & close' : 'Done'}
+          </button>
+        </div>
+      </div>
+      <p className="text-[11px] text-muted">Tip: press Ctrl/⌘ + Enter to save and close.</p>
     </div>
   );
 };
@@ -228,17 +400,18 @@ export const PublicGalleryPhotoSection = ({
                               </span>
                             )}
                             anchor={{ to: 'bottom end', gap: '10px' }}
-                            panelClassName="w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-border/40 bg-surface/98 p-3 shadow-2xl backdrop-blur dark:bg-surface-dark"
-                            panel={
+                            panelClassName="w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-border/50 bg-surface/98 p-4 shadow-2xl backdrop-blur dark:border-border/30 dark:bg-surface-dark"
+                            panel={(close) => (
                               <PhotoCommentPanel
                                 photoId={photo.photo_id}
                                 accessiblePhotoName={accessiblePhotoName}
                                 photoComment={photoComment}
                                 hasComment={hasComment}
                                 disabled={!canMutateSelection}
+                                onClose={close}
                                 onUpdatePhotoComment={selection?.onUpdatePhotoComment}
                               />
-                            }
+                            )}
                           />
                         ) : null}
                       </div>

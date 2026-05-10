@@ -1,6 +1,6 @@
 import { useTheme } from '../hooks/useTheme';
 import { Sun, Moon } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppSwitch } from './ui';
 
 type ThemeSwitchVariant = 'floating' | 'inline';
@@ -13,12 +13,25 @@ interface ThemeSwitchProps {
 export const ThemeSwitch = ({ className = '', variant = 'floating' }: ThemeSwitchProps) => {
   const { theme, setTheme } = useTheme();
   const [isAnimating, setIsAnimating] = useState(false);
+  const animationTimeoutRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (animationTimeoutRef.current !== null) {
+        window.clearTimeout(animationTimeoutRef.current);
+      }
+    },
+    [],
+  );
 
   const handleToggle = (checked: boolean) => {
     if (isAnimating) return;
     setIsAnimating(true);
     setTheme(checked ? 'dark' : 'light');
-    setTimeout(() => setIsAnimating(false), 400); // Синхронизировано с длительностью анимации темы
+    animationTimeoutRef.current = window.setTimeout(() => {
+      animationTimeoutRef.current = null;
+      setIsAnimating(false);
+    }, 400);
   };
 
   const baseClasses =

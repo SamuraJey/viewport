@@ -3,6 +3,7 @@ import { AnimatePresence } from 'framer-motion';
 import { Camera, Home, LogOut, Share2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { getAvatarInitials, stringToHue } from '../lib/avatar';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { NetworkStatus } from './ErrorDisplay';
 import { ReadabilitySettingsButton } from './ReadabilitySettingsButton';
@@ -10,23 +11,6 @@ import { SkipToContentLink } from './a11y/SkipToContentLink';
 import { ProfileModal } from './ProfileModal';
 import { ThemeSwitch } from './ThemeSwitch';
 import { useAuthStore } from '../stores/authStore';
-
-/** Returns up to 2 uppercase initials for a display name or email. */
-const getUserInitials = (name?: string | null, email?: string): string => {
-  const src = name?.trim() || email || '';
-  const parts = src.split(/[\s@._-]+/).filter(Boolean);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return src.slice(0, 2).toUpperCase();
-};
-
-// TODO - Add user-uploaded avatars and use initials-based ones as fallback
-// And do not duplicate for initials (see same logic in ProfileModal) - maybe move to a shared util function.
-/** Deterministic hue from a string for the avatar background. */
-const stringToHue = (s: string): number => {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffffff;
-  return h % 360;
-};
 
 interface LayoutProps {
   children: ReactNode;
@@ -47,8 +31,14 @@ export const Layout = ({ children }: LayoutProps) => {
   const openProfile = () => setProfileOpen(true);
   const closeProfile = () => setProfileOpen(false);
 
-  const initials = useMemo(() => getUserInitials(user?.display_name, user?.email), [user]);
-  const avatarHue = useMemo(() => stringToHue(user?.email || user?.display_name || 'user'), [user]);
+  const initials = useMemo(
+    () => getAvatarInitials(user?.display_name, user?.email),
+    [user?.display_name, user?.email],
+  );
+  const avatarHue = useMemo(
+    () => stringToHue(user?.email || user?.display_name || 'user'),
+    [user?.email, user?.display_name],
+  );
   const topNavButtonBaseClass =
     'inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold uppercase tracking-wide transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark';
   const topNavButtonInactiveClass =

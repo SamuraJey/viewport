@@ -65,4 +65,18 @@ describe('themeStore', () => {
     expect(useThemeStore.getState().theme).toBe('light');
     expect(document.documentElement.classList.contains('light')).toBe(true);
   });
+
+  it('keeps theme changes working when localStorage persistence throws', () => {
+    vi.mocked(window.localStorage.setItem).mockImplementationOnce(() => {
+      throw new Error('Storage unavailable');
+    });
+
+    act(() => {
+      useThemeStore.getState().setTheme('light');
+    });
+
+    expect(useThemeStore.getState().theme).toBe('light');
+    expect(useThemeStore.getState().preference).toBe('light');
+    expect(document.documentElement.classList.contains('light')).toBe(true);
+  });
 });

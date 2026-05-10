@@ -343,7 +343,6 @@ export const useGalleryActions = ({
       setIsCreatingLink(false);
     }
   };
-  // TODO May be add check of response status code. But later.
   const handleDeleteShareLink = (linkId: string) => {
     openConfirm({
       title: 'Delete Share Link',

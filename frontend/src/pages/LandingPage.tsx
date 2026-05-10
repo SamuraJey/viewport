@@ -580,18 +580,27 @@ export const LandingPage = () => {
           </div>
         </motion.section>
 
-        <section className="mx-auto w-full max-w-7xl px-4 pb-20 sm:px-6">
-          <div className="overflow-hidden rounded-[2rem] border border-accent/30 bg-text p-6 text-surface shadow-xl dark:bg-surface-foreground dark:text-surface-dark sm:p-8 lg:p-10">
-            <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+        <section
+          aria-labelledby="landing-final-cta-title"
+          className="mx-auto w-full max-w-7xl px-4 pb-20 sm:px-6"
+        >
+          <div className="relative overflow-hidden rounded-[2rem] border border-border/60 bg-surface/90 p-6 text-text shadow-xl shadow-accent/10 backdrop-blur dark:border-border/40 dark:bg-surface-dark-1/90 dark:text-accent-foreground sm:p-8 lg:p-10">
+            <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-accent/20 blur-3xl dark:bg-accent/15" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/10 via-transparent to-surface-1/50 dark:to-surface-dark-2/40" />
+
+            <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
-                <p className="inline-flex items-center gap-2 rounded-full bg-surface/10 px-3 py-1 text-sm font-bold text-surface dark:text-surface-dark">
+                <p className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3 py-1 text-sm font-bold text-accent">
                   <Zap className="h-4 w-4" />
                   Ready when your next client gallery is
                 </p>
-                <h2 className="mt-5 max-w-3xl font-oswald text-4xl font-bold uppercase tracking-wide text-surface dark:text-surface-dark sm:text-5xl">
+                <h2
+                  id="landing-final-cta-title"
+                  className="mt-5 max-w-3xl font-oswald text-4xl font-bold uppercase tracking-wide text-text dark:text-accent-foreground sm:text-5xl"
+                >
                   Make every delivery feel intentional.
                 </h2>
-                <p className="mt-4 max-w-2xl text-base leading-7 text-surface/75 dark:text-surface-dark/75">
+                <p className="mt-4 max-w-2xl text-base leading-7 text-muted">
                   Start with the live demo, then move into a workspace designed for modern photo
                   delivery.
                 </p>
@@ -607,7 +616,7 @@ export const LandingPage = () => {
                 <button
                   type="button"
                   onClick={handleOpenDemoCabinet}
-                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-surface/25 bg-surface/10 px-6 py-4 font-bold text-surface transition-all hover:-translate-y-0.5 hover:bg-surface/15 dark:border-surface-dark/25 dark:bg-surface-dark/10 dark:text-surface-dark dark:hover:bg-surface-dark/15"
+                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-border/70 bg-surface-1/80 px-6 py-4 font-bold text-text transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 hover:text-accent dark:border-border/50 dark:bg-surface-dark-2/70 dark:text-accent-foreground dark:hover:bg-surface-dark-2"
                 >
                   Explore demo
                 </button>

@@ -92,4 +92,23 @@ describe('usePagination', () => {
 
     expect(result.current.page).toBe(3);
   });
+
+  it('normalizes invalid URL and local page values to the first page', () => {
+    const syncWrapper = ({ children }: { children: ReactNode }) => (
+      <MemoryRouter initialEntries={['/items?page=not-a-number']}>{children}</MemoryRouter>
+    );
+
+    const { result } = renderHook(() => usePagination({ syncWithUrl: true, pageSize: 0 }), {
+      wrapper: syncWrapper,
+    });
+
+    expect(result.current.page).toBe(1);
+    expect(result.current.pageSize).toBe(20);
+
+    act(() => {
+      result.current.goToPage(Number.NaN);
+    });
+
+    expect(result.current.page).toBe(1);
+  });
 });

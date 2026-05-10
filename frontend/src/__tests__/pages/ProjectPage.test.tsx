@@ -298,6 +298,7 @@ describe('ProjectPage', () => {
     expect(screen.getByLabelText('Change project visibility for 3eds')).toBeInTheDocument();
     expect(screen.getByText('8 photos • 512 Bytes • Apr 18, 2026')).toBeInTheDocument();
     expect(screen.getByText('4 photos • 512 Bytes • Apr 18, 2026')).toBeInTheDocument();
+    expect(screen.getByText('4 photos • 512 Bytes • Apr 18, 2026')).toHaveClass('mt-auto');
   });
 
   it('shows persisted project gallery order on the cards', async () => {
@@ -306,6 +307,20 @@ describe('ProjectPage', () => {
     await screen.findByRole('heading', { name: 'Photos' });
     expect(screen.getByText('Position 1 of 2')).toBeInTheDocument();
     expect(screen.getByText('Position 2 of 2')).toBeInTheDocument();
+  });
+
+  it('shows project share rules from a compact info button', async () => {
+    const user = userEvent.setup();
+
+    renderProjectPage();
+
+    await screen.findByRole('heading', { name: 'Photos' });
+
+    expect(screen.queryByText('Project share logic')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /project share delivery rules/i }));
+
+    expect(await screen.findByText('Project share logic')).toBeInTheDocument();
+    expect(screen.getByText('Listed galleries show')).toBeInTheDocument();
   });
 
   it('warns before deleting a gallery when project proofing sessions already exist', async () => {

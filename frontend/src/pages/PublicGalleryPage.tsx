@@ -741,7 +741,7 @@ export const PublicGalleryPage = () => {
       >
         {projectGalleryTabs ? (
           <section className="mb-6 space-y-4 border-b border-border/40 pb-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
                   Project
@@ -756,7 +756,7 @@ export const PublicGalleryPage = () => {
                 </p>
               </div>
               {!isFavoritesView ? (
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-start gap-2">
                   {activeGalleryId ? (
                     <div className="flex flex-col items-start gap-1">
                       <button
@@ -822,8 +822,8 @@ export const PublicGalleryPage = () => {
           </section>
         ) : null}
 
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-wrap items-start gap-2">
             {isFavoritesView ? (
               <button
                 type="button"
@@ -845,7 +845,7 @@ export const PublicGalleryPage = () => {
             ) : null}
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-start justify-end gap-2">
             {!isFavoritesView && photos.length > 0 && !projectGalleryTabs ? (
               <div className="flex flex-col items-end gap-1">
                 <button
@@ -1034,7 +1034,7 @@ export const PublicGalleryPage = () => {
                     void selection.togglePhoto(photoId);
                   },
                   onUpdatePhotoComment: (photoId: string, comment: string) => {
-                    void selection.updatePhotoComment(photoId, comment);
+                    return selection.updatePhotoComment(photoId, comment);
                   },
                 }
               : undefined
