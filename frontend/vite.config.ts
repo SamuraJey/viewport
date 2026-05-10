@@ -139,6 +139,9 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: './src/setupTests.ts',
       css: true,
+      typecheck: {
+        tsconfig: './tsconfig.vitest.json',
+      },
       coverage: {
         provider: 'v8',
         reporter: ['text', 'lcov', 'html'],

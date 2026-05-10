@@ -12,7 +12,6 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
-    "types": ["vitest/globals", "node"],
     "noEmit": true,
     "jsx": "react-jsx",
 
@@ -24,5 +23,6 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/__tests__/**", "src/setupTests.ts"]
 }

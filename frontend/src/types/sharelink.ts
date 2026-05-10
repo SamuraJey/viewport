@@ -2,11 +2,9 @@
  * Share link and public gallery types
  */
 
-type ShareScopeType = 'gallery' | 'project';
-
 export interface ShareLink {
   id: string;
-  scope_type?: ShareScopeType;
+  scope_type?: 'gallery' | 'project';
   gallery_id?: string | null;
   project_id?: string | null;
   selection_summary?: ShareLinkSelectionSummary | null;
@@ -29,14 +27,6 @@ export interface ShareLinkDashboardItem extends ShareLink {
   cover_photo_thumbnail_url?: string | null;
   latest_activity_at: string;
   selection_summary: ShareLinkSelectionSummary | null;
-}
-
-interface ShareLinkAnalyticsItem extends ShareLink {
-  gallery_id?: string | null;
-  gallery_name?: string | null;
-  project_id?: string | null;
-  project_name?: string | null;
-  cover_photo_thumbnail_url?: string | null;
 }
 
 export interface ShareLinkSelectionSummary {
@@ -75,7 +65,13 @@ export interface ShareLinkDailyPoint {
 }
 
 export interface ShareLinkAnalyticsResponse {
-  share_link: ShareLinkAnalyticsItem;
+  share_link: ShareLink & {
+    gallery_id?: string | null;
+    gallery_name?: string | null;
+    project_id?: string | null;
+    project_name?: string | null;
+    cover_photo_thumbnail_url?: string | null;
+  };
   selection_summary: ShareLinkSelectionSummary | null;
   points: ShareLinkDailyPoint[];
 }
@@ -102,15 +98,6 @@ export interface PublicPhoto {
   filename?: string | null;
   width?: number | null;
   height?: number | null;
-}
-
-interface PublicProjectFolder {
-  folder_id: string;
-  folder_name: string;
-  photo_count: number;
-  cover_thumbnail_url?: string | null;
-  route_path: string;
-  direct_share_path?: string | null;
 }
 
 export interface SharedGalleryQueryOptions {
@@ -147,7 +134,14 @@ export interface SharedProjectShare {
   total_listed_folders?: number;
   total_listed_photos?: number;
   total_size_bytes?: number;
-  folders: PublicProjectFolder[];
+  folders: Array<{
+    folder_id: string;
+    folder_name: string;
+    photo_count: number;
+    cover_thumbnail_url?: string | null;
+    route_path: string;
+    direct_share_path?: string | null;
+  }>;
 }
 
 export type SharedGallery = SharedFolderShare | SharedProjectShare;
@@ -249,38 +243,34 @@ export interface OwnerSelectionRow {
   updated_at: string;
 }
 
-interface OwnerSelectionAggregate {
-  total_sessions: number;
-  submitted_sessions: number;
-  in_progress_sessions: number;
-  closed_sessions: number;
-  selected_count: number;
-  latest_activity_at: string | null;
-}
-
-interface OwnerSelectionSessionListItem {
-  id: string;
-  status: string;
-  client_name: string;
-  client_email: string | null;
-  client_phone: string | null;
-  client_note: string | null;
-  selected_count: number;
-  submitted_at: string | null;
-  last_activity_at: string;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface OwnerSelectionDetail {
   sharelink_id: string;
   sharelink_label: string | null;
-  scope_type?: ShareScopeType | null;
+  scope_type?: 'gallery' | 'project' | null;
   gallery_name?: string | null;
   project_name?: string | null;
   config: SelectionConfig;
-  aggregate: OwnerSelectionAggregate;
-  sessions: OwnerSelectionSessionListItem[];
+  aggregate: {
+    total_sessions: number;
+    submitted_sessions: number;
+    in_progress_sessions: number;
+    closed_sessions: number;
+    selected_count: number;
+    latest_activity_at: string | null;
+  };
+  sessions: Array<{
+    id: string;
+    status: string;
+    client_name: string;
+    client_email: string | null;
+    client_phone: string | null;
+    client_note: string | null;
+    selected_count: number;
+    submitted_at: string | null;
+    last_activity_at: string;
+    created_at: string;
+    updated_at: string;
+  }>;
   session: SelectionSession | null;
 }
 
