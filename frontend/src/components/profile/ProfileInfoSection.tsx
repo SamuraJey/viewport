@@ -46,12 +46,21 @@ export const ProfileInfoSection = ({
   const charsLeft = DISPLAY_NAME_MAX - displayName.length;
   const isNearLimit = charsLeft <= 10;
   const isAtLimit = charsLeft <= 0;
+  const boundedStoragePercent = Math.min(100, Math.max(0, storagePercent));
 
   // Dynamic storage bar color
   const barColor =
-    storagePercent >= 90 ? 'bg-danger' : storagePercent >= 70 ? 'bg-amber-500' : 'bg-accent';
+    boundedStoragePercent >= 90
+      ? 'bg-danger'
+      : boundedStoragePercent >= 70
+        ? 'bg-amber-500'
+        : 'bg-accent';
   const storageLabelColor =
-    storagePercent >= 90 ? 'text-danger' : storagePercent >= 70 ? 'text-amber-500' : 'text-muted';
+    boundedStoragePercent >= 90
+      ? 'text-danger'
+      : boundedStoragePercent >= 70
+        ? 'text-amber-500'
+        : 'text-muted';
 
   return (
     <form
@@ -134,22 +143,22 @@ export const ProfileInfoSection = ({
         <div
           className="mt-3 h-2 w-full overflow-hidden rounded-full bg-border/30 dark:bg-border/20"
           role="progressbar"
-          aria-valuenow={storagePercent}
+          aria-valuenow={boundedStoragePercent}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label={`${storagePercent}% storage used`}
+          aria-label={`${boundedStoragePercent}% storage used`}
         >
           <div
             className={`h-full rounded-full transition-all duration-500 ease-out ${barColor}`}
-            style={{ width: `${Math.min(storagePercent, 100)}%` }}
+            style={{ width: `${boundedStoragePercent}%` }}
           />
         </div>
         <p className={`mt-2 text-xs font-medium ${storageLabelColor}`}>
-          {storagePercent >= 90
-            ? `Critical — ${storagePercent}% used`
-            : storagePercent >= 70
-              ? `Getting full — ${storagePercent}% used`
-              : `${storagePercent}% used`}
+          {boundedStoragePercent >= 90
+            ? `Critical — ${boundedStoragePercent}% used`
+            : boundedStoragePercent >= 70
+              ? `Getting full — ${boundedStoragePercent}% used`
+              : `${boundedStoragePercent}% used`}
         </p>
       </div>
 

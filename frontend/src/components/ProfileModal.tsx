@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { X, User, Lock, ShieldAlert } from 'lucide-react';
 
 import { useProfileActions } from '../hooks';
+import { getAvatarInitials, stringToHue } from '../lib/avatar';
 import { ProfileInfoSection } from './profile/ProfileInfoSection';
 import { ProfilePasswordSection } from './profile/ProfilePasswordSection';
 import { ProfileDangerZoneSection } from './profile/ProfileDangerZoneSection';
@@ -19,21 +20,6 @@ export interface ProfileModalProps {
   onClose: () => void;
 }
 
-// Derive a two-letter uppercase avatar initials string from a display name or email.
-function getInitials(name: string, email: string): string {
-  const src = name.trim() || email;
-  const parts = src.split(/[\s@._-]+/).filter(Boolean);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return src.slice(0, 2).toUpperCase();
-}
-
-// Deterministic hue from a string for the avatar background.
-function stringToHue(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffffff;
-  return h % 360;
-}
-// TODO Refactor later
 export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, onClose }) => {
   const {
     email,
@@ -65,56 +51,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
 
   const [showStorageTooltip, setShowStorageTooltip] = useState(false);
 
-  const initials = getInitials(displayName, email);
+  const initials = getAvatarInitials(displayName, email);
   const avatarHue = stringToHue(email || displayName);
 
   // Reset tab to profile when modal opens
   useEffect(() => {
     if (isOpen) setActiveTab('profile');
-  }, [isOpen]);
-
-  // In-modal two-step delete flow
-  const [deleteStep, setDeleteStep] = useState<'initial' | 'password' | 'confirm'>('initial');
-  const [deletePassword, setDeletePassword] = useState('');
-  const [showDeletePassword, setShowDeletePassword] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [deletingAccount, setDeletingAccount] = useState(false);
-  const startDelete = () => {
-    setDeleteError(null);
-    setDeletePassword('');
-    setDeleteStep('password');
-  };
-  const verifyDeletePassword = () => {
-    if (!deletePassword) {
-      setDeleteError('Please enter your current password');
-      return;
-    }
-    // TODO: verify password via API
-    setDeleteError(null);
-    setDeleteStep('confirm');
-  };
-  const cancelDelete = () => setDeleteStep('initial');
-  const confirmDelete = async () => {
-    setDeletingAccount(true);
-    try {
-      // TODO: call delete endpoint with deletePassword
-      alert('Account deletion is not implemented yet.');
-      onClose();
-    } catch {
-      setDeleteError('Failed to delete account');
-    } finally {
-      setDeletingAccount(false);
-    }
-  };
-
-  // Reset delete flow when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      setDeleteStep('initial');
-      setDeletePassword('');
-      setDeleteError(null);
-      setDeletingAccount(false);
-    }
   }, [isOpen]);
 
   const profilePanel = (
@@ -189,20 +131,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
         </div>
       )}
 
-      <ProfileDangerZoneSection
-        deleteStep={deleteStep}
-        deletePassword={deletePassword}
-        showDeletePassword={showDeletePassword}
-        deleteError={deleteError}
-        deletingAccount={deletingAccount}
-        onLogout={handleLogout}
-        onStartDelete={startDelete}
-        onCancelDelete={cancelDelete}
-        onVerifyDeletePassword={verifyDeletePassword}
-        onConfirmDelete={confirmDelete}
-        setDeletePassword={setDeletePassword}
-        setShowDeletePassword={setShowDeletePassword}
-      />
+      <ProfileDangerZoneSection onLogout={handleLogout} />
     </>
   );
 

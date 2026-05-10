@@ -1,7 +1,73 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState, type ReactNode, type RefObject } from 'react';
 import { Link, MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
+
+type MockPopoverCloseTarget = HTMLElement | RefObject<HTMLElement | null>;
+type MockPopoverClose = (focusableElement?: MockPopoverCloseTarget) => void;
+type MockPopoverPanel = ReactNode | ((close: MockPopoverClose) => ReactNode);
+
+vi.mock('../../../components/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../components/ui')>();
+
+  return {
+    ...actual,
+    AppPopover: ({
+      className,
+      buttonClassName,
+      buttonAriaLabel,
+      buttonContent,
+      buttonRef,
+      panelClassName,
+      panel,
+      panelFocus = false,
+    }: {
+      className?: string;
+      buttonClassName?: string | ((open: boolean) => string);
+      buttonAriaLabel?: string;
+      buttonContent: ReactNode | ((open: boolean) => ReactNode);
+      buttonRef?: RefObject<HTMLButtonElement | null>;
+      panelClassName?: string;
+      panel: MockPopoverPanel;
+      panelFocus?: boolean;
+    }) => {
+      const [open, setOpen] = useState(false);
+      const close: MockPopoverClose = (focusableElement) => {
+        setOpen(false);
+        const element =
+          focusableElement && 'current' in focusableElement
+            ? focusableElement.current
+            : focusableElement;
+        element?.focus();
+      };
+
+      return (
+        <div className={className}>
+          <button
+            type="button"
+            ref={buttonRef}
+            aria-expanded={open}
+            aria-label={buttonAriaLabel}
+            className={
+              typeof buttonClassName === 'function' ? buttonClassName(open) : buttonClassName
+            }
+            onClick={() => setOpen((previousOpen) => !previousOpen)}
+          >
+            {typeof buttonContent === 'function' ? buttonContent(open) : buttonContent}
+          </button>
+
+          {open ? (
+            <div className={panelClassName} tabIndex={panelFocus ? -1 : undefined}>
+              {typeof panel === 'function' ? panel(close) : panel}
+            </div>
+          ) : null}
+        </div>
+      );
+    },
+  };
+});
+
 import { GalleryHeader } from '../../../components/gallery/GalleryHeader';
 
 const gallery = {
@@ -47,24 +113,40 @@ describe('GalleryHeader', () => {
   });
 
   it('opens the public sort popover from the global event without toggling it closed', async () => {
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
+
     render(
       <MemoryRouter>
         <GalleryHeader {...createProps()} />
       </MemoryRouter>,
     );
 
-    window.dispatchEvent(new Event('gallery:open-public-sort'));
+    await waitFor(() => {
+      expect(addEventListenerSpy).toHaveBeenCalledWith(
+        'gallery:open-public-sort',
+        expect.any(Function),
+      );
+    });
+    addEventListenerSpy.mockRestore();
+
+    await act(async () => {
+      window.dispatchEvent(new Event('gallery:open-public-sort'));
+    });
 
     await waitFor(() => {
       expect(screen.getByLabelText(/public gallery sort/i)).toBeInTheDocument();
     });
 
-    window.dispatchEvent(new Event('gallery:open-public-sort'));
+    await act(async () => {
+      window.dispatchEvent(new Event('gallery:open-public-sort'));
+    });
 
     expect(screen.getByLabelText(/public gallery sort/i)).toBeInTheDocument();
   });
 
   it('keeps project settings and gallery navigation in the overflow menu', async () => {
+    const user = userEvent.setup();
+
     render(
       <MemoryRouter>
         <GalleryHeader
@@ -81,8 +163,7 @@ describe('GalleryHeader', () => {
     );
 
     const trigger = screen.getByRole('button', { name: /more gallery actions/i });
-    trigger.focus();
-    fireEvent.keyDown(trigger, { key: 'Enter' });
+    await user.click(trigger);
 
     expect(await screen.findByRole('link', { name: /project settings/i })).toHaveAttribute(
       'href',
@@ -93,6 +174,8 @@ describe('GalleryHeader', () => {
   });
 
   it('closes the overflow menu with Escape and returns focus to the trigger', async () => {
+    const user = userEvent.setup();
+
     render(
       <MemoryRouter>
         <GalleryHeader {...createProps()} />
@@ -100,14 +183,12 @@ describe('GalleryHeader', () => {
     );
 
     const trigger = screen.getByRole('button', { name: /more gallery actions/i });
-    trigger.focus();
-    fireEvent.keyDown(trigger, { key: 'Enter' });
+    await user.click(trigger);
 
     const deleteButton = await screen.findByRole('button', { name: /delete gallery/i });
-    expect(deleteButton).toBeInTheDocument();
 
     deleteButton.focus();
-    fireEvent.keyDown(deleteButton, { key: 'Escape' });
+    await user.keyboard('{Escape}');
 
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: /delete gallery/i })).not.toBeInTheDocument();

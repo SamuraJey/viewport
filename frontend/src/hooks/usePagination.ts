@@ -55,6 +55,23 @@ export interface PaginationActions {
 
 export interface UsePaginationReturn extends PaginationState, PaginationActions {}
 
+const toPositiveInteger = (value: number, fallback: number): number => {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  const normalized = Math.floor(value);
+  return normalized > 0 ? normalized : fallback;
+};
+
+const parsePageParam = (value: string | null, fallback: number): number => {
+  if (!value) {
+    return fallback;
+  }
+
+  return toPositiveInteger(Number.parseInt(value, 10), fallback);
+};
+
 /**
  * Hook for managing pagination state
  *
@@ -84,12 +101,15 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
     urlParam = 'page',
   } = options;
 
+  const normalizedInitialPage = toPositiveInteger(initialPage, 1);
+  const pageSize = toPositiveInteger(initialPageSize, 20);
   const [searchParams, setSearchParams] = useSearchParams();
-  const urlPage = syncWithUrl ? parseInt(searchParams.get(urlParam) || '1', 10) : initialPage;
+  const urlPage = syncWithUrl
+    ? parsePageParam(searchParams.get(urlParam), normalizedInitialPage)
+    : normalizedInitialPage;
 
-  const [localPage, setLocalPage] = useState(initialPage);
+  const [localPage, setLocalPage] = useState(normalizedInitialPage);
   const [total, setTotal] = useState(0);
-  const pageSize = initialPageSize;
 
   const page = syncWithUrl ? urlPage : localPage;
 
@@ -100,7 +120,8 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
 
   const goToPage = useCallback(
     (newPage: number) => {
-      const clampedPage = Math.max(1, Math.min(newPage, totalPages || newPage));
+      const requestedPage = toPositiveInteger(newPage, 1);
+      const clampedPage = Math.max(1, Math.min(requestedPage, totalPages || requestedPage));
 
       if (syncWithUrl) {
         const nextParams = new URLSearchParams(searchParams);
@@ -136,9 +157,9 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
   }, [totalPages, goToPage]);
 
   const reset = useCallback(() => {
-    goToPage(initialPage);
+    goToPage(normalizedInitialPage);
     setTotal(0);
-  }, [initialPage, goToPage]);
+  }, [normalizedInitialPage, goToPage]);
 
   return useMemo(
     () => ({

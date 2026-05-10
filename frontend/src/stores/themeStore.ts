@@ -2,6 +2,12 @@ import { create } from 'zustand';
 
 type Theme = 'light' | 'dark';
 type ThemePreference = Theme | 'system';
+type ViewTransitionResult = {
+  ready?: Promise<unknown>;
+};
+type DocumentWithViewTransitions = Document & {
+  startViewTransition?: (callback: () => void) => ViewTransitionResult;
+};
 
 const THEME_PREFERENCE_KEY = 'theme-preference';
 
@@ -27,7 +33,7 @@ const resolveTheme = (preference: ThemePreference): Theme =>
   preference === 'system' ? getSystemTheme() : preference;
 
 const disableTransitionsDuringThemeChange = () => {
-  if (typeof window === 'undefined') return () => {};
+  if (typeof window === 'undefined' || typeof document === 'undefined') return () => {};
 
   const style = document.createElement('style');
   style.appendChild(
@@ -45,25 +51,51 @@ const disableTransitionsDuringThemeChange = () => {
   return () => {
     void window.getComputedStyle(document.body);
 
-    requestAnimationFrame(() => {
+    const removeStyle = () => {
       style.remove();
-    });
+    };
+
+    if (typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(removeStyle);
+    } else {
+      window.setTimeout(removeStyle, 0);
+    }
   };
+};
+
+const readStoredPreference = (): ThemePreference | null => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const storedPreference = window.localStorage.getItem(THEME_PREFERENCE_KEY);
+    if (
+      storedPreference === 'light' ||
+      storedPreference === 'dark' ||
+      storedPreference === 'system'
+    ) {
+      return storedPreference;
+    }
+  } catch {
+    // Theme storage should never prevent the UI from rendering.
+  }
+
+  return null;
+};
+
+const persistThemePreference = (preference: ThemePreference) => {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(THEME_PREFERENCE_KEY, preference);
+  } catch {
+    // Keep the selected theme in memory when persistent storage is unavailable.
+  }
 };
 
 const getInitialPreference = (): ThemePreference => {
   if (typeof window === 'undefined') return 'system';
 
-  const storedPreference = localStorage.getItem(THEME_PREFERENCE_KEY);
-  if (
-    storedPreference === 'light' ||
-    storedPreference === 'dark' ||
-    storedPreference === 'system'
-  ) {
-    return storedPreference;
-  }
-
-  return 'system';
+  return readStoredPreference() ?? 'system';
 };
 
 const initialPreference = getInitialPreference();
@@ -89,23 +121,19 @@ const applyTheme = (theme: Theme, smooth = true) => {
 
   if (smooth && supportsViewTransitions) {
     try {
-      // TODO fix maybe later
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const doc = document as any;
+      const doc = document as DocumentWithViewTransitions;
       if (typeof doc.startViewTransition === 'function') {
         const transition = doc.startViewTransition(() => {
           updateTheme();
         });
 
         // Wait for the transition to be ready
-        transition.ready
-          .then(() => {})
-          .catch((err: Error) => {
-            // AbortError is expected if another transition starts
-            if (err.name !== 'AbortError') {
-              console.warn('🎨 View transition failed:', err);
-            }
-          });
+        void transition.ready?.catch((err: Error) => {
+          // AbortError is expected if another transition starts
+          if (err.name !== 'AbortError') {
+            console.warn('🎨 View transition failed:', err);
+          }
+        });
       } else {
         updateTheme();
       }
@@ -130,7 +158,7 @@ export const useThemeStore = create<ThemeState>()((set, get) => ({
     if (currentTheme === resolvedTheme && currentPreference === preference && isHydrated) return;
 
     set({ theme: resolvedTheme, preference });
-    localStorage.setItem(THEME_PREFERENCE_KEY, preference);
+    persistThemePreference(preference);
     applyTheme(resolvedTheme, true);
   },
   toggleTheme: () => {

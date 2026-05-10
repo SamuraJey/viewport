@@ -224,12 +224,90 @@ describe('authService', () => {
     });
   });
 
+  describe('updateProfile', () => {
+    it('should make PUT request to /me with profile data', async () => {
+      const mockResponse = {
+        data: {
+          id: '123',
+          email: 'test@example.com',
+          display_name: 'Test User',
+          storage_used: 10,
+          storage_quota: 100,
+        },
+      };
+
+      vi.mocked(api.put).mockResolvedValue(mockResponse);
+
+      const result = await authService.updateProfile({ display_name: 'Test User' });
+
+      expect(api.put).toHaveBeenCalledWith('/me', { display_name: 'Test User' });
+      expect(result).toEqual(mockResponse.data);
+    });
+
+    it('should use demoService updateProfile in demo mode', async () => {
+      const demoUser = {
+        id: 'demo-user-1',
+        email: 'demo@viewport.local',
+        display_name: 'Demo User',
+        storage_used: 0,
+        storage_quota: 1024,
+      };
+
+      vi.mocked(isDemoModeEnabled).mockReturnValue(true);
+      mockDemoService.updateProfile.mockResolvedValue(demoUser);
+
+      const result = await authService.updateProfile({ display_name: 'Demo User' });
+
+      expect(mockDemoService.updateProfile).toHaveBeenCalledWith({ display_name: 'Demo User' });
+      expect(api.put).not.toHaveBeenCalled();
+      expect(result).toEqual(demoUser);
+    });
+  });
+
+  describe('changePassword', () => {
+    it('should make PUT request to /me/password with password data', async () => {
+      const payload = {
+        current_password: 'old-password',
+        new_password: 'new-password',
+        confirm_password: 'new-password',
+      };
+      const mockResponse = { data: { message: 'Password updated successfully' } };
+
+      vi.mocked(api.put).mockResolvedValue(mockResponse);
+
+      const result = await authService.changePassword(payload);
+
+      expect(api.put).toHaveBeenCalledWith('/me/password', payload);
+      expect(result).toEqual(mockResponse.data);
+    });
+
+    it('should use demoService changePassword in demo mode', async () => {
+      const payload = {
+        current_password: 'old-password',
+        new_password: 'new-password',
+        confirm_password: 'new-password',
+      };
+      const demoResponse = { message: 'Password changed in demo mode.' };
+
+      vi.mocked(isDemoModeEnabled).mockReturnValue(true);
+      mockDemoService.changePassword.mockResolvedValue(demoResponse);
+
+      const result = await authService.changePassword(payload);
+
+      expect(mockDemoService.changePassword).toHaveBeenCalledWith(payload);
+      expect(api.put).not.toHaveBeenCalled();
+      expect(result).toEqual(demoResponse);
+    });
+  });
+
   describe('service methods', () => {
     it('should have all required methods', () => {
       expect(typeof authService.login).toBe('function');
       expect(typeof authService.register).toBe('function');
       expect(typeof authService.getCurrentUser).toBe('function');
       expect(typeof authService.refreshToken).toBe('function');
+      expect(typeof authService.updateProfile).toBe('function');
+      expect(typeof authService.changePassword).toBe('function');
     });
   });
 });
