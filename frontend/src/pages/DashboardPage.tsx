@@ -276,7 +276,7 @@ export const DashboardPage = () => {
   };
 
   const renderLoading = () => (
-    <div className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(20rem,1fr))]">
+    <div className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(20rem,1fr))]">
       {Array.from({ length: 8 }).map((_, index) => (
         <div
           key={index}
@@ -338,8 +338,8 @@ export const DashboardPage = () => {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-8">
-      <header className="relative overflow-hidden rounded-[2rem] border border-border/75 bg-surface p-5 shadow-sm dark:border-border/55 dark:bg-surface-dark">
+    <div className="mx-auto flex w-full max-w-295 flex-col gap-8">
+      <header className="relative overflow-hidden rounded-4xl border border-border/75 bg-surface p-5 shadow-sm dark:border-border/55 dark:bg-surface-dark">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(circle_at_16%_0%,rgba(31,144,255,0.12),transparent_34%),radial-gradient(circle_at_82%_8%,rgba(34,197,94,0.09),transparent_28%)]" />
         <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(23rem,34rem)] xl:items-center">
           <div className="max-w-2xl">
@@ -449,7 +449,7 @@ export const DashboardPage = () => {
         ) : (
           <>
             <motion.div
-              className="grid gap-6 [grid-template-columns:repeat(auto-fill,minmax(20rem,1fr))]"
+              className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(20rem,1fr))]"
               variants={containerVariants}
               initial="hidden"
               animate="visible"
@@ -476,7 +476,7 @@ export const DashboardPage = () => {
                           </>
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-linear-to-br from-accent/10 via-surface-2 to-surface dark:from-accent/15 dark:via-surface-dark-2 dark:to-surface-dark">
-                            <div className="absolute inset-0 opacity-45 [background-image:radial-gradient(circle_at_18%_24%,rgba(31,144,255,0.16),transparent_24%),radial-gradient(circle_at_82%_72%,rgba(34,197,94,0.12),transparent_26%)]" />
+                            <div className="absolute inset-0 opacity-45 bg-[radial-gradient(circle_at_18%_24%,rgba(31,144,255,0.16),transparent_24%),radial-gradient(circle_at_82%_72%,rgba(34,197,94,0.12),transparent_26%)]" />
                             <div className="relative text-center">
                               <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-border/45 bg-surface/70 text-accent shadow-xs backdrop-blur dark:border-white/10 dark:bg-surface-dark/70">
                                 <ImageIcon className="h-6 w-6" />

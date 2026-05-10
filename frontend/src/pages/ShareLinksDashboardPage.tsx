@@ -295,7 +295,7 @@ const DashboardMetricCard = ({ metric }: DashboardMetricCardProps) => {
   const Icon = metric.icon;
 
   return (
-    <article className="rounded-2xl border border-border/40 bg-surface-1/80 px-4 py-3 transition-colors duration-200 hover:border-accent/35 hover:bg-surface-2/75 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.055]">
+    <article className="rounded-2xl border border-border/40 bg-surface-1/80 px-4 py-3 transition-colors duration-200 hover:border-accent/35 hover:bg-surface-2/75 dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/5.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-muted">
@@ -355,10 +355,10 @@ const ShareLinkPreview = ({
 }: ShareLinkPreviewProps) => (
   <div
     className={cn(
-      'relative h-20 w-24 shrink-0 overflow-hidden rounded-xl border border-white/12 sm:h-[6.4rem] sm:w-[7.25rem]',
+      'relative h-20 w-24 shrink-0 overflow-hidden rounded-xl border border-white/12 sm:h-[6.4rem] sm:w-29',
       thumbnailUrl
-        ? 'bg-surface-2 dark:bg-white/[0.04]'
-        : cn('bg-gradient-to-br', PREVIEW_STYLES[index % PREVIEW_STYLES.length]),
+        ? 'bg-surface-2 dark:bg-white/4'
+        : cn('bg-linear-to-br', PREVIEW_STYLES[index % PREVIEW_STYLES.length]),
     )}
     aria-label={`Preview for ${title}`}
     role="img"
@@ -894,7 +894,7 @@ export const ShareLinksDashboardPage = () => {
 
   return (
     <div className="relative max-w-full space-y-4 overflow-x-clip">
-      <div className="pointer-events-none absolute inset-x-[-1rem] top-[-2rem] -z-10 h-72 bg-[radial-gradient(circle_at_18%_20%,rgba(31,144,255,0.16),transparent_34%),radial-gradient(circle_at_78%_0%,rgba(59,130,246,0.12),transparent_34%)]" />
+      <div className="pointer-events-none absolute -inset-x-4 -top-8 -z-10 h-72 bg-[radial-gradient(circle_at_18%_20%,rgba(31,144,255,0.16),transparent_34%),radial-gradient(circle_at_78%_0%,rgba(59,130,246,0.12),transparent_34%)]" />
 
       <section className="relative px-1 pt-0 pb-1">
         <div className="pointer-events-none absolute inset-y-0 right-0 -z-10 w-2/3 bg-[radial-gradient(circle_at_top_right,rgba(31,144,255,0.16),transparent_55%)]" />
@@ -1010,7 +1010,7 @@ export const ShareLinksDashboardPage = () => {
                             'ml-2 rounded-full px-2 py-0.5 text-xs',
                             active
                               ? 'bg-accent-foreground/18 text-accent-foreground'
-                              : 'bg-surface text-muted dark:bg-white/[0.06]',
+                              : 'bg-surface text-muted dark:bg-white/6',
                           )}
                         >
                           {numberFormatter.format(visibleStatusCounts[filter.value])}
@@ -1305,7 +1305,7 @@ export const ShareLinksDashboardPage = () => {
                                   <Link
                                     to={`/share-links/${link.id}`}
                                     onClick={() => close()}
-                                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/[0.06]"
+                                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/6"
                                   >
                                     <ExternalLink className="h-4 w-4" />
                                     Details
@@ -1316,7 +1316,7 @@ export const ShareLinksDashboardPage = () => {
                                       close();
                                       setEditingLink(link);
                                     }}
-                                    className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/[0.06]"
+                                    className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/6"
                                   >
                                     <MoreHorizontal className="h-4 w-4" />
                                     Edit label
@@ -1328,7 +1328,7 @@ export const ShareLinksDashboardPage = () => {
                                         close();
                                         void handleToggleLinkActive(link, false);
                                       }}
-                                      className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/[0.06]"
+                                      className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/6"
                                     >
                                       <Lock className="h-4 w-4" />
                                       Pause link
@@ -1341,7 +1341,7 @@ export const ShareLinksDashboardPage = () => {
                                         close();
                                         void handleToggleLinkActive(link, true);
                                       }}
-                                      className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/[0.06]"
+                                      className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/6"
                                     >
                                       <LockOpen className="h-4 w-4" />
                                       Resume link
@@ -1377,7 +1377,7 @@ export const ShareLinksDashboardPage = () => {
                   </div>
 
                   <div className="hidden overflow-x-auto rounded-2xl border border-border/45 bg-surface-1/85 dark:border-white/10 dark:bg-white/[0.035] lg:block">
-                    <div className="grid min-w-[62rem] grid-cols-[minmax(24rem,1fr)_6.5rem_7.5rem_7rem_9.5rem_11rem] gap-3 border-b border-border/45 px-4 py-3 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-muted dark:border-white/10">
+                    <div className="grid min-w-248 grid-cols-[minmax(24rem,1fr)_6.5rem_7.5rem_7rem_9.5rem_11rem] gap-3 border-b border-border/45 px-4 py-3 text-[0.68rem] font-bold uppercase tracking-[0.16em] text-muted dark:border-white/10">
                       <span>Link</span>
                       <span className="text-right">Views</span>
                       <span className="text-right">Downloads</span>
@@ -1412,7 +1412,7 @@ export const ShareLinksDashboardPage = () => {
                           <article
                             key={link.id}
                             className={cn(
-                              'group grid min-w-[62rem] grid-cols-[minmax(24rem,1fr)_6.5rem_7.5rem_7rem_9.5rem_11rem] gap-3 px-4 py-3.5 transition-colors duration-200 hover:bg-surface-2/70 dark:hover:bg-white/[0.055]',
+                              'group grid min-w-248 grid-cols-[minmax(24rem,1fr)_6.5rem_7.5rem_7rem_9.5rem_11rem] gap-3 px-4 py-3.5 transition-colors duration-200 hover:bg-surface-2/70 dark:hover:bg-white/5.5',
                               isSelected ? 'bg-accent/8 ring-1 ring-inset ring-accent/35' : '',
                             )}
                           >
@@ -1442,7 +1442,7 @@ export const ShareLinksDashboardPage = () => {
                                     {linkTitle}
                                   </Link>
                                   <ShareLinkStatusBadge status={linkStatus} />
-                                  <span className="inline-flex rounded-full border border-border/45 bg-surface px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wide text-muted dark:border-white/10 dark:bg-white/[0.04]">
+                                  <span className="inline-flex rounded-full border border-border/45 bg-surface px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wide text-muted dark:border-white/10 dark:bg-white/4">
                                     {projectLink ? 'Project' : 'Gallery'}
                                   </span>
                                   {importantSelectionLabel ? (
@@ -1451,7 +1451,7 @@ export const ShareLinksDashboardPage = () => {
                                     </span>
                                   ) : null}
                                   {link.has_password ? (
-                                    <span className="inline-flex items-center gap-1 rounded-full border border-border/45 bg-surface px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wide text-muted dark:border-white/10 dark:bg-white/[0.04]">
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-border/45 bg-surface px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-wide text-muted dark:border-white/10 dark:bg-white/4">
                                       <Lock className="h-3 w-3" />
                                       Password
                                     </span>
@@ -1539,7 +1539,7 @@ export const ShareLinksDashboardPage = () => {
                                     <Link
                                       to={`/share-links/${link.id}`}
                                       onClick={() => close()}
-                                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/[0.06]"
+                                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/6"
                                     >
                                       <ExternalLink className="h-4 w-4" />
                                       Details
@@ -1550,7 +1550,7 @@ export const ShareLinksDashboardPage = () => {
                                         close();
                                         setEditingLink(link);
                                       }}
-                                      className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/[0.06]"
+                                      className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/6"
                                     >
                                       <MoreHorizontal className="h-4 w-4" />
                                       Edit label
@@ -1562,7 +1562,7 @@ export const ShareLinksDashboardPage = () => {
                                           close();
                                           void handleToggleLinkActive(link, false);
                                         }}
-                                        className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/[0.06]"
+                                        className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/6"
                                       >
                                         <Lock className="h-4 w-4" />
                                         Pause link
@@ -1575,7 +1575,7 @@ export const ShareLinksDashboardPage = () => {
                                           close();
                                           void handleToggleLinkActive(link, true);
                                         }}
-                                        className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/[0.06]"
+                                        className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/6"
                                       >
                                         <LockOpen className="h-4 w-4" />
                                         Resume link

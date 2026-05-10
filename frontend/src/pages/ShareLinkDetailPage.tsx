@@ -1407,7 +1407,7 @@ export const ShareLinkDetailPage = () => {
 
               {hasSelectionSessions ? (
                 filteredSelectionSessions.length > 0 ? (
-                  <div className="max-h-[34rem] overflow-auto p-2">
+                  <div className="max-h-136 overflow-auto p-2">
                     {filteredSelectionSessions.map((session) => {
                       const active = session.id === selectedSessionId;
                       return (
@@ -1589,7 +1589,7 @@ export const ShareLinkDetailPage = () => {
                     ) : null}
                   </div>
 
-                  <div className="max-h-[34rem] space-y-3 overflow-auto pr-1">
+                  <div className="max-h-136 space-y-3 overflow-auto pr-1">
                     {selectedSessionDetail.items.length > 0 ? (
                       (isProjectLink
                         ? selectedSessionItemGroups
@@ -1680,7 +1680,7 @@ export const ShareLinkDetailPage = () => {
 
   return (
     <div className="relative space-y-6">
-      <div className="pointer-events-none absolute inset-x-[-1rem] top-[-2rem] -z-10 h-72 bg-[radial-gradient(circle_at_12%_18%,rgba(31,144,255,0.16),transparent_34%),radial-gradient(circle_at_84%_8%,rgba(34,197,94,0.1),transparent_30%)]" />
+      <div className="pointer-events-none absolute -inset-x-4 -top-8 -z-10 h-72 bg-[radial-gradient(circle_at_12%_18%,rgba(31,144,255,0.16),transparent_34%),radial-gradient(circle_at_84%_8%,rgba(34,197,94,0.1),transparent_30%)]" />
 
       <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-muted">
         <Link
@@ -1696,7 +1696,7 @@ export const ShareLinkDetailPage = () => {
         </span>
       </div>
 
-      <div className="overflow-hidden rounded-[2rem] border border-border/50 bg-surface/95 shadow-xs dark:border-white/10 dark:bg-surface-dark/90">
+      <div className="overflow-hidden rounded-4xl border border-border/50 bg-surface/95 shadow-xs dark:border-white/10 dark:bg-surface-dark/90">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="relative space-y-5 p-5 sm:p-6 lg:p-8">
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(31,144,255,0.10),transparent_38%),radial-gradient(circle_at_88%_12%,rgba(34,197,94,0.10),transparent_30%)]" />
