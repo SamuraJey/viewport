@@ -7,7 +7,6 @@ import type {
   BatchDeletePhotosRequest,
   BatchDeletePhotosResponse,
   PhotoResponse,
-  PhotoUploadIntentRequest,
   PhotoUploadResult,
   PhotoUploadResponse,
   UploadPreparedFile,
@@ -17,9 +16,6 @@ import type {
   BatchConfirmUploadResponse,
 } from '../types';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../constants/upload';
-
-// Re-export types for backward compatibility
-export type { PhotoResponse, PhotoUploadIntentRequest, PhotoUploadResult, PhotoUploadResponse };
 
 const DOWNLOAD_TARGET_NAME = 'viewport-browser-download';
 const DOWNLOAD_TARGET_ID = 'viewport-browser-download-frame';

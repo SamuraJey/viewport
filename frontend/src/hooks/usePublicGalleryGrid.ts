@@ -9,7 +9,7 @@ import {
   type TouchEvent as ReactTouchEvent,
   type TouchList as ReactTouchList,
 } from 'react';
-import type { PublicPhoto } from '../services/shareLinkService';
+import type { PublicPhoto } from '../types';
 import {
   DEFAULT_FALLBACK_RATIO,
   getCachedPhotoAspectRatio,

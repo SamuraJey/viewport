@@ -33,7 +33,7 @@ import { ShareLinkStatusBadge } from '../components/share-links/ShareLinkStatusB
 import { getShareLinkStatus } from '../components/share-links/shareLinkStatus';
 import { ShareLinkTrendChart } from '../components/share-links/ShareLinkTrendChart';
 import { AppSwitch, AppTabs } from '../components/ui';
-import { useConfirmation } from '../hooks';
+import { useConfirmation } from '../hooks/useConfirmation';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { copyTextToClipboard } from '../lib/clipboard';
 import { shareLinkService } from '../services/shareLinkService';

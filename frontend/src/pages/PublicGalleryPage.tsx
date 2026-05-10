@@ -21,8 +21,9 @@ import {
   PublicGalleryExpired,
 } from '../components/public-gallery/PublicGalleryStates';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
-import { usePublicGallery, usePublicSelection } from '../hooks';
+import { usePublicGallery } from '../hooks/usePublicGallery';
 import { usePublicGalleryGrid } from '../hooks/usePublicGalleryGrid';
+import { usePublicSelection } from '../hooks/usePublicSelection';
 import { copyTextToClipboard } from '../lib/clipboard';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { formatFileSize } from '../lib/utils';

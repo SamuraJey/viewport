@@ -30,7 +30,7 @@ export interface PhotoUploadResponse {
 }
 
 // Presigned upload types
-export interface PhotoUploadIntentRequest {
+interface PhotoUploadIntentRequest {
   filename: string;
   file_size: number;
   content_type: string;

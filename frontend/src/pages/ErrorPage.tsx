@@ -10,7 +10,7 @@ import {
   Wifi,
   Clock,
 } from 'lucide-react';
-import { useErrorDetails } from '../hooks';
+import { useErrorDetails } from '../hooks/useErrorDetails';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
 interface ErrorPageProps {

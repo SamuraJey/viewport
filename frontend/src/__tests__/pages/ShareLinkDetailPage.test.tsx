@@ -21,7 +21,7 @@ vi.mock('../../services/shareLinkService', () => ({
   },
 }));
 
-vi.mock('../../hooks', () => ({
+vi.mock('../../hooks/useConfirmation', () => ({
   useConfirmation: () => ({
     openConfirm: vi.fn(),
     ConfirmModal: null,

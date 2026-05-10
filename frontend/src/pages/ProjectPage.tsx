@@ -35,7 +35,7 @@ import { AppDialog, AppDialogDescription, AppDialogTitle, AppPopover } from '../
 import { GALLERY_NAME_MAX_LENGTH } from '../constants/gallery';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
 import { ShareLinkSettingsModal } from '../components/share-links/ShareLinkSettingsModal';
-import { useConfirmation } from '../hooks';
+import { useConfirmation } from '../hooks/useConfirmation';
 import { handleApiError } from '../lib/errorHandling';
 import { formatDateOnly, formatFileSize } from '../lib/utils';
 import { galleryService } from '../services/galleryService';

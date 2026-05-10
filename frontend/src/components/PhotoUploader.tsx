@@ -3,7 +3,7 @@ import { Upload, ImagePlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PhotoUploadConfirmModal } from './PhotoUploadConfirmModal';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../constants/upload';
-import type { PhotoUploadResponse } from '../services/photoService';
+import type { PhotoUploadResponse } from '../types';
 
 interface PhotoUploaderProps {
   galleryId: string;

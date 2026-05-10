@@ -23,21 +23,6 @@ import type {
   SharedGalleryQueryOptions,
 } from '../types';
 
-// Re-export types for backward compatibility
-export type {
-  ShareLink,
-  ShareLinksDashboardResponse,
-  ShareLinkAnalyticsResponse,
-  ShareLinkUpdateRequest,
-  PublicPhoto,
-  SharedGallery,
-  SelectionConfig,
-  SelectionSession,
-  SelectionSubmitResponse,
-  OwnerSelectionDetail,
-  OwnerSelectionRow,
-};
-
 const triggerBlobDownload = (blob: Blob, filename: string): void => {
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
