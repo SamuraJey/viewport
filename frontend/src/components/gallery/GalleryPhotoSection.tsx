@@ -121,11 +121,7 @@ const GalleryPhotoSectionComponent = ({
   }, [pagination.page, state.activeSearchTerm, shouldShowGridSkeleton]);
 
   return (
-    <section
-      className="px-0 py-0"
-      data-photos-section
-      aria-label="Gallery photos"
-    >
+    <section className="px-0 py-0" data-photos-section aria-label="Gallery photos">
       <div className="mb-4">
         <PhotoUploader
           ref={photoUploaderRef}
