@@ -41,8 +41,8 @@ import type {
   SortOrder,
 } from '../types';
 
-const DEFAULT_SORT_BY: GalleryPhotoSortBy = 'uploaded_at';
-const DEFAULT_SORT_ORDER: SortOrder = 'desc';
+const DEFAULT_SORT_BY: GalleryPhotoSortBy = 'original_filename';
+const DEFAULT_SORT_ORDER: SortOrder = 'asc';
 const DEFAULT_PUBLIC_SORT_BY: GalleryPhotoSortBy = 'original_filename';
 const DEFAULT_PUBLIC_SORT_ORDER: SortOrder = 'asc';
 const SEARCH_DEBOUNCE_MS = 400;
@@ -498,12 +498,32 @@ export const GalleryPage = () => {
     [photoUrls],
   );
 
-  const favoritesCount = favoritesTabs.length;
   const favoritesSessionCount = favoritesTabs.reduce((sum, tab) => sum + tab.sessionCount, 0);
+  const isFavoritesTabVisible = useMemo(
+    () => shareLinks.some((shareLink) => shareLink.selection_summary?.is_enabled),
+    [shareLinks],
+  );
+  const favoritesSummarySessionCount = useMemo(
+    () =>
+      shareLinks.reduce(
+        (sum, shareLink) => sum + (shareLink.selection_summary?.total_sessions ?? 0),
+        0,
+      ),
+    [shareLinks],
+  );
+  const favoritesTabSessionCount = hasLoadedFavorites
+    ? favoritesSessionCount
+    : favoritesSummarySessionCount;
   const selectedFavoritesTab = useMemo(
     () => favoritesTabs.find((tab) => tab.key === selectedFavoritesTabKey) ?? null,
     [favoritesTabs, selectedFavoritesTabKey],
   );
+
+  useEffect(() => {
+    if (!isFavoritesTabVisible && activeContentTab === 'favorites') {
+      setActiveContentTab('project');
+    }
+  }, [activeContentTab, isFavoritesTabVisible]);
 
   const fetchSelectionRows = useCallback(async () => {
     if (!galleryId) return;
@@ -676,7 +696,12 @@ export const GalleryPage = () => {
     if (activeContentTab !== 'favorites') {
       return;
     }
-    if (shareLinks.length === 0 || hasLoadedFavorites || isLoadingSelectionRows) {
+    if (
+      !isFavoritesTabVisible ||
+      shareLinks.length === 0 ||
+      hasLoadedFavorites ||
+      isLoadingSelectionRows
+    ) {
       return;
     }
     setHasLoadedFavorites(true);
@@ -685,6 +710,7 @@ export const GalleryPage = () => {
     activeContentTab,
     fetchSelectionRows,
     hasLoadedFavorites,
+    isFavoritesTabVisible,
     isLoadingSelectionRows,
     shareLinks.length,
   ]);
@@ -1063,7 +1089,7 @@ export const GalleryPage = () => {
     {
       key: 'favorites' as const,
       tabClassName: contentTabClassName,
-      tab: `Favorites (${hasLoadedFavorites ? favoritesSessionCount : favoritesCount})`,
+      tab: `Favorites (${favoritesTabSessionCount})`,
       panel: (
         <GallerySelectionSessionsPanel
           userTabs={favoritesTabs}
@@ -1158,7 +1184,11 @@ export const GalleryPage = () => {
         />
 
         <AppTabs
-          items={contentTabItems}
+          items={
+            isFavoritesTabVisible
+              ? contentTabItems
+              : contentTabItems.filter((item) => item.key !== 'favorites')
+          }
           selectedKey={activeContentTab}
           onChange={handleSelectContentTab}
           listClassName="flex items-center gap-2 overflow-x-auto px-1 pt-1"

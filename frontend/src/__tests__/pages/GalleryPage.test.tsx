@@ -621,6 +621,16 @@ describe('GalleryPage', () => {
         {
           ...mockShareLink,
           label: 'Client proofing',
+          selection_summary: {
+            is_enabled: true,
+            status: 'in_progress',
+            total_sessions: 1,
+            submitted_sessions: 0,
+            in_progress_sessions: 1,
+            closed_sessions: 0,
+            selected_count: 1,
+            latest_activity_at: '2026-03-31T22:07:00Z',
+          },
         },
       ]);
       vi.mocked(shareLinkService.getGallerySelections).mockResolvedValue([

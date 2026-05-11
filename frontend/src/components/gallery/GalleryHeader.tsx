@@ -25,7 +25,7 @@ interface SortOption {
 }
 
 const OPEN_PUBLIC_SORT_EVENT = 'gallery:open-public-sort';
-const DEFAULT_PRIVATE_SORT_STATE = { sortBy: 'uploaded_at', sortOrder: 'desc' } as const;
+const DEFAULT_PRIVATE_SORT_STATE = { sortBy: 'original_filename', sortOrder: 'asc' } as const;
 const DEFAULT_PUBLIC_SORT_STATE = { sortBy: 'original_filename', sortOrder: 'asc' } as const;
 const toSortValue = ({ sortBy, sortOrder }: { sortBy: GalleryPhotoSortBy; sortOrder: SortOrder }) =>
   `${sortBy}:${sortOrder}` as SortOption['value'];
