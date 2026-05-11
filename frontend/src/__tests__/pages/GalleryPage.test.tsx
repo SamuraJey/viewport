@@ -280,7 +280,7 @@ describe('GalleryPage', () => {
       expect(screen.getByText('Gallery #1')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /Gallery photos/i })).toBeInTheDocument();
     expect(screen.getByText('Share Links')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /more gallery actions/i })).toBeInTheDocument();
     expect(screen.getAllByRole('img')).toHaveLength(3);
@@ -380,7 +380,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
+        expect(screen.getByRole('region', { name: /Gallery photos/i })).toBeInTheDocument();
       });
 
       // Find photo images and their parent buttons
@@ -412,7 +412,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2, name: /Photos\s*1/i })).toBeInTheDocument();
+        expect(screen.getByRole('region', { name: /Gallery photos/i })).toBeInTheDocument();
       });
 
       // Open lightbox
@@ -452,7 +452,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
+        expect(screen.getByRole('region', { name: /Gallery photos/i })).toBeInTheDocument();
       });
 
       // Find the first photo container and get its delete button
@@ -501,7 +501,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
+        expect(screen.getByRole('region', { name: /Gallery photos/i })).toBeInTheDocument();
       });
 
       const photoImages = screen.getAllByAltText(/photo\d\.jpg/i);
@@ -538,7 +538,7 @@ describe('GalleryPage', () => {
       render(<GalleryPageWrapper />);
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
+        expect(screen.getByRole('region', { name: /Gallery photos/i })).toBeInTheDocument();
       });
 
       const photoImages = screen.getAllByAltText(/photo\d\.jpg/i);
@@ -580,7 +580,7 @@ describe('GalleryPage', () => {
 
       // Wait for initial load to complete
       await waitFor(() => {
-        expect(screen.getByRole('heading', { level: 2, name: /Photos\s*3/i })).toBeInTheDocument();
+        expect(screen.getByRole('region', { name: /Gallery photos/i })).toBeInTheDocument();
       });
 
       const createLinkButton = screen.getByRole('button', { name: /create new share link/i });

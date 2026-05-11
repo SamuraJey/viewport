@@ -1,5 +1,5 @@
 import React from 'react';
-import { Images, Keyboard, Loader2, MousePointer2, SearchX } from 'lucide-react';
+import { Loader2, SearchX } from 'lucide-react';
 import type { MutableRefObject, RefObject } from 'react';
 import { PaginationControls } from '../PaginationControls';
 import { EmptyGalleryState } from './EmptyGalleryState';
@@ -120,18 +120,11 @@ const GalleryPhotoSectionComponent = ({
     }
   }, [pagination.page, state.activeSearchTerm, shouldShowGridSkeleton]);
 
-  const visibleStart =
-    pagination.total === 0
-      ? 0
-      : Math.min((pagination.page - 1) * pagination.pageSize + 1, pagination.total);
-  const visibleEnd =
-    pagination.total === 0 ? 0 : Math.min(pagination.page * pagination.pageSize, pagination.total);
-
   return (
     <section
       className="px-0 py-0"
       data-photos-section
-      aria-labelledby="private-gallery-photos-heading"
+      aria-label="Gallery photos"
     >
       <div className="mb-4">
         <PhotoUploader
@@ -178,56 +171,6 @@ const GalleryPhotoSectionComponent = ({
             </button>
           </div>
         )}
-      </div>
-
-      <div className="mb-4 rounded-[1.75rem] border border-border/45 bg-surface p-4 shadow-xs dark:border-border/30 dark:bg-surface-dark">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
-              <Images className="h-6 w-6" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
-                Photo grid
-              </p>
-              <h2
-                id="private-gallery-photos-heading"
-                className="font-oswald text-2xl font-bold uppercase tracking-wide text-text"
-              >
-                {state.activeSearchTerm ? 'Filtered photos' : 'Private selects'}
-                <span className="sr-only"> Photos {state.photoUrls.length}</span>
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-muted">
-                Showing {visibleStart}-{visibleEnd} of {pagination.total} photos on page{' '}
-                {pagination.page} of {Math.max(pagination.totalPages, 1)}.
-              </p>
-            </div>
-          </div>
-
-          {pagination.totalPages > 1 ? (
-            <div className="shrink-0 rounded-2xl border border-border/35 bg-surface-1/65 p-2 dark:border-border/25 dark:bg-surface-dark-1/65">
-              <PaginationControls pagination={pagination} isLoading={state.isLoadingPhotos} />
-            </div>
-          ) : null}
-        </div>
-
-        <div className="mt-4 grid gap-2 border-t border-border/30 pt-3 text-xs font-semibold text-muted dark:border-border/25 sm:grid-cols-3">
-          <div className="inline-flex items-center gap-2 rounded-2xl bg-surface-1 px-3 py-2 dark:bg-surface-dark-1">
-            <Keyboard className="h-3.5 w-3.5 text-accent" />
-            Press <kbd className="rounded bg-surface px-1.5 py-0.5 dark:bg-surface-dark-2">
-              /
-            </kbd>{' '}
-            to search
-          </div>
-          <div className="inline-flex items-center gap-2 rounded-2xl bg-surface-1 px-3 py-2 dark:bg-surface-dark-1">
-            <MousePointer2 className="h-3.5 w-3.5 text-accent" />
-            Shift-click selects a range
-          </div>
-          <div className="inline-flex items-center gap-2 rounded-2xl bg-surface-1 px-3 py-2 dark:bg-surface-dark-1">
-            <Images className="h-3.5 w-3.5 text-accent" />
-            Drag files anywhere to upload
-          </div>
-        </div>
       </div>
 
       <PhotoSelectionBar

@@ -223,7 +223,7 @@ export const GalleryHeader = ({
 
   return (
     <div className="relative z-20 -mx-1 sm:-mx-2" data-gallery-header>
-      <section className="sticky top-[4.25rem] z-20 rounded-2xl border border-border/45 bg-surface/96 px-4 py-3 shadow-xs backdrop-blur-md dark:border-border/35 dark:bg-surface-dark/94 sm:top-[4.75rem] sm:px-5">
+      <section className="sticky top-17 z-20 rounded-2xl border border-border/45 bg-surface/96 px-4 py-3 shadow-xs backdrop-blur-md dark:border-border/35 dark:bg-surface-dark/94 sm:top-19 sm:px-5">
         <div className="flex min-h-14 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-3">
