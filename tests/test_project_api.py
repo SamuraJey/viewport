@@ -1,4 +1,7 @@
+import io
+import zipfile
 from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -269,6 +272,56 @@ class TestProjectAPI:
         assert direct_hidden_public_resp.status_code == 200
         assert direct_hidden_public_resp.json()["scope_type"] == "gallery"
         assert direct_hidden_public_resp.json()["gallery_name"] == "Backstage"
+
+    def test_download_project_zip_includes_all_owner_galleries(self, authenticated_client: TestClient):
+        project_resp = authenticated_client.post("/projects", json={"name": "Downloadable Project"})
+        assert project_resp.status_code == 201
+        project_id = project_resp.json()["id"]
+
+        listed_resp = authenticated_client.post(
+            f"/projects/{project_id}/galleries",
+            json={"name": "Listed Gallery", "project_visibility": "listed"},
+        )
+        direct_resp = authenticated_client.post(
+            f"/projects/{project_id}/galleries",
+            json={"name": "Direct Gallery", "project_visibility": "direct_only"},
+        )
+        assert listed_resp.status_code == 201
+        assert direct_resp.status_code == 201
+        listed_gallery_id = listed_resp.json()["id"]
+        direct_gallery_id = direct_resp.json()["id"]
+
+        upload_photo_via_presigned(authenticated_client, listed_gallery_id, b"listed", "listed.jpg")
+        upload_photo_via_presigned(authenticated_client, direct_gallery_id, b"direct", "direct.jpg")
+
+        with patch("viewport.api.project.get_s3_settings") as mock_get_settings, patch("viewport.api.project.get_sync_s3_client") as mock_get_s3:
+            mock_settings = MagicMock()
+            mock_settings.bucket = "test-bucket"
+            mock_get_settings.return_value = mock_settings
+
+            mock_client = MagicMock()
+            mock_client.get_object.side_effect = lambda Bucket, Key: {"Body": io.BytesIO(f"payload-{Key}".encode())}
+            mock_get_s3.return_value = mock_client
+
+            response = authenticated_client.get(f"/projects/{project_id}/download/all")
+
+        assert response.status_code == 200
+        assert response.headers.get("Content-Type") == "application/zip"
+        assert response.headers.get("Content-Disposition") == f'attachment; filename="project_{project_id}.zip"'
+
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            names = sorted(archive.namelist())
+
+        assert names == ["Direct Gallery/direct.jpg", "Listed Gallery/listed.jpg"]
+
+    def test_download_project_zip_requires_photos(self, authenticated_client: TestClient):
+        project_resp = authenticated_client.post("/projects", json={"name": "Empty Download"})
+        assert project_resp.status_code == 201
+        project_id = project_resp.json()["id"]
+
+        empty_resp = authenticated_client.get(f"/projects/{project_id}/download/all")
+        assert empty_resp.status_code == 404
+        assert empty_resp.json()["detail"] == "No photos found"
 
     def test_public_project_share_returns_404_when_zero_visible_galleries(self, authenticated_client: TestClient):
         project_resp = authenticated_client.post("/projects", json={"name": "Invisible Project"})

@@ -1,0 +1,67 @@
+// Local Docker stdout log shipper for Viewport -> Loki.
+// Operator TODO: production must validate Docker socket access, retention, tenant labels, and secret redaction.
+discovery.docker "viewport" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "viewport_containers" {
+  targets = discovery.docker.viewport.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex = "/(viewport_.*)"
+    target_label = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label = "service"
+  }
+
+  rule {
+    replacement = "viewport"
+    target_label = "service_namespace"
+  }
+}
+
+loki.source.docker "viewport" {
+  host = "unix:///var/run/docker.sock"
+  targets = discovery.relabel.viewport_containers.output
+  forward_to = [loki.process.viewport.receiver]
+  refresh_interval = "10s"
+}
+
+loki.process "viewport" {
+  stage.json {
+    expressions = {
+      level = "level",
+      logger = "logger",
+      trace_id = "trace_id",
+      span_id = "span_id",
+      request_id = "request_id",
+    }
+  }
+
+  stage.labels {
+    values = {
+      level = "level",
+      logger = "logger",
+      service = "service",
+      container = "container",
+    }
+  }
+
+  stage.static_labels {
+    values = {
+      environment = "local",
+    }
+  }
+
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

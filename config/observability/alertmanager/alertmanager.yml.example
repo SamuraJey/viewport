@@ -1,0 +1,42 @@
+# Example-only Alertmanager route. Operator TODO: replace receivers/secrets outside git.
+global:
+  resolve_timeout: 5m
+  # smtp_smarthost: smtp.example.invalid:587
+  # smtp_from: viewport-alerts@example.invalid
+  # smtp_auth_username: TODO_FROM_SECRET_MANAGER
+  # smtp_auth_password: TODO_FROM_SECRET_MANAGER
+
+templates: []
+
+route:
+  receiver: placeholder-ticket
+  group_by: [alertname, service, severity]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers:
+        - severity="critical"
+      receiver: placeholder-page
+      repeat_interval: 1h
+    - matchers:
+        - severity="warning"
+      receiver: placeholder-ticket
+      repeat_interval: 6h
+
+inhibit_rules:
+  - source_matchers:
+      - severity="critical"
+    target_matchers:
+      - severity="warning"
+    equal: [alertname, service]
+
+receivers:
+  - name: placeholder-page
+    webhook_configs:
+      - url: http://example.invalid/operator-todo-replace-critical-webhook
+        send_resolved: true
+  - name: placeholder-ticket
+    webhook_configs:
+      - url: http://example.invalid/operator-todo-replace-ticket-webhook
+        send_resolved: true

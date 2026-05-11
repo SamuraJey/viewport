@@ -576,6 +576,28 @@ class TestGalleryAPI:
         assert "second.jpg" in names
         assert first_photo_id != second_photo_id
 
+    def test_download_whole_gallery_as_zip_accepts_mobile_get_with_bearer(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"mobile-bytes", "mobile.jpg")
+
+        fake_bucket = "test-bucket"
+
+        with patch("viewport.api.gallery.get_s3_settings") as mock_get_settings, patch("viewport.api.gallery.get_sync_s3_client") as mock_get_s3:
+            mock_settings = MagicMock()
+            mock_settings.bucket = fake_bucket
+            mock_get_settings.return_value = mock_settings
+
+            mock_client = MagicMock()
+            mock_client.get_object.side_effect = lambda Bucket, Key: {"Body": io.BytesIO(f"payload-{Key}".encode())}
+            mock_get_s3.return_value = mock_client
+
+            response = authenticated_client.get(f"/galleries/{gallery_id_fixture}/download/all")
+
+        assert response.status_code == 200
+        assert response.headers.get("Content-Type") == "application/zip"
+
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            assert archive.namelist() == ["mobile.jpg"]
+
     def test_download_single_photo_redirects_to_attachment_presigned_url(self, authenticated_client: TestClient, gallery_id_fixture: str):
         photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"single-bytes", "single.jpg")
 

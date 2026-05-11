@@ -1,7 +1,7 @@
 # Copilot instructions (Viewport)
 
 ## Big picture
-- Monorepo: FastAPI backend in `src/viewport/` + React/Vite frontend in `frontend/`.
+- Monorepo: FastAPI backend in `src/viewport/` + React/Vite frontend in `frontend/` + native Android photographer app in `android/`.
 - Backend layers: routers in `src/viewport/api/` → repository layer in `src/viewport/repositories/` (SQLAlchemy `Session`) → Postgres models in `src/viewport/models/`.
 - Backend database access uses SQLAlchemy `AsyncSession` in app code, repositories, and auth dependencies, while Celery background tasks currently use a sync SQLAlchemy `Session` via `task_db_session()`.
 - Storage/URLs: originals + thumbnails live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them via `PresignedUrlCacheService` (`src/viewport/services/presigned_cache.py`) backed by `RedisService` (`src/viewport/services/redis_service.py`) for cross-worker coherence.
@@ -13,6 +13,7 @@
 - Backend dev server (preferred local dev): `uvicorn viewport.main:app --reload`.
   - Note: Docker commands use `src.viewport.*` module paths (see `Dockerfile.backend`, `docker-compose.yml`).
 - Frontend dev server: `cd frontend && npm install && npm run dev`.
+- Android debug build: `cd android && ./gradlew :app:assembleDebug`.
 
 ## Backend conventions (FastAPI)
 - App entrypoint: `src/viewport/main.py`.
@@ -82,6 +83,16 @@
   - Do not reimplement focus traps, modal scroll lock, manual tab ARIA roles, or click-outside handlers when these wrappers already cover the behavior.
   - Keep native `<select>` and ordinary form checkboxes unless a custom composite widget is required.
 
+## Android conventions (Kotlin)
+- Native app lives in `android/` with package `com.example.viewport`; keep Android documentation in `docs/android_app/`.
+- Scope is photographer/owner workflows only unless explicitly expanded: auth, profile/quota, project/gallery/photo management, uploads/downloads, and owner share-link management. Do not add PublicGallery/public `/s/*` browsing, public selection/favorites, or public deep-link flows without a new plan.
+- Stack: Kotlin, Jetpack Compose + Material 3, ViewModel + `StateFlow`, Retrofit/OkHttp/Gson, Preferences DataStore, WorkManager, Coil, and Android `DownloadManager`.
+- API base URLs are configured through `BuildConfig.API_BASE_URL` in `android/app/build.gradle.kts` (debug uses emulator host `http://10.0.2.2:8000`; release points at the production backend root). Do not use the frontend Vite `/api` proxy from Android.
+- Auth state belongs in `AuthSessionStore`; keep access/refresh tokens in DataStore, refresh 401s via the OkHttp authenticator, and never store passwords or share-link passwords.
+- Uploads must mirror the backend two-step direct-to-S3 flow: `batch-presigned` → direct S3 PUT from a background `PhotoUploadWorker` → `batch-confirm`. Keep Android validation aligned with backend constraints (JPG/JPEG/PNG, 10 MB per file) unless backend limits change.
+- Owner ZIP downloads should use mobile-friendly GET endpoints with Bearer auth through `DownloadManager`: `/galleries/{gallery_id}/download/all` and `/projects/{project_id}/download/all`. Individual photo downloads can use the private presigned photo URL returned by the gallery detail API.
+- Keep Retrofit DTO field names covered by unit tests when adding/changing backend contract fields.
+
 ## Migrations / tests / lint
 - Alembic: config `alembic.ini`, migrations in `src/viewport/alembic/`. Create revisions with `alembic revision --autogenerate -m "..."`.
 - **Migration workflow (required)**:
@@ -107,6 +118,7 @@
     - Preserve isolation by keeping per-test DB cleanup (`TRUNCATE ... CASCADE`) and per-test S3 bucket isolation in place for tests that touch those resources.
     - If adding new integration tests, reuse existing container fixtures first; introduce new testcontainers only when mocking cannot validate required behavior.
 - Frontend checks: `cd frontend && npm run lint -- --fix && npm run test:run`.
+- Android checks: `cd android && ./gradlew :app:assembleDebug :app:testDebugUnitTest` (add `:app:lintDebug` for UI/platform-sensitive changes).
 
 ## Service Architecture
 - **RedisService** (`src/viewport/services/redis_service.py`):
@@ -117,13 +129,19 @@
   - Legacy Redis compatibility shim has been removed; import/use `RedisService` only.
 - **PresignedUrlCacheService** (`src/viewport/services/presigned_cache.py`):
   - Business logic for caching presigned S3 URLs
-  - Cache key format: `presign:{bucket}:{base64_object_key}:{disposition_hash}`
+  - Cache key format: `presign:{bucket_or_endpoint_namespace}:{base64_object_key}:{disposition_hash}`; `AsyncS3Client` uses an endpoint-scoped namespace so changing `S3_PUBLIC_ENDPOINT` bypasses stale mobile-inaccessible URLs.
   - TTL buffer: 10 minutes before actual URL expiry
   - Index sets for efficient invalidation by object key
   - Batch operations for performance
+- **Observability/Monitoring**:
+  - Prometheus-compatible metrics live in `src/viewport/metrics.py`; keep custom labels low-cardinality and never use raw user/share/project/gallery/photo IDs, object keys, filenames, IPs, user agents, URLs, or exception messages as labels.
+  - Production logging uses `LOG_FORMAT=json` via `src/viewport/logging_config.py`; local/default logging remains colored. Structured events should go through `viewport.logger.StructuredLogger` and privacy helpers in `src/viewport/telemetry_safety.py`.
+  - OpenTelemetry setup lives in `src/viewport/observability.py` and must remain safe-disabled by default and non-fatal when collectors/exporters are unavailable. FastAPI/ASGI spans must pass through `PrivacySanitizingSpanProcessor`/collector privacy deletion so raw paths, share IDs, IPs, User-Agents, SQL statements, object keys, and presigned URLs are not exported.
+  - Local monitoring stack config is under `config/observability/` with `docker-compose.observability.yml`; operator-owned production secrets, retention, TLS/auth, alert receivers, scrape access, and SLO thresholds must stay out of repo defaults. Loki labels must remain low-cardinality (no `trace_id`, `span_id`, `request_id`, raw routes, or IDs as labels).
 
 ## Gotchas worth keeping in mind
 - Presigned URL cache is Redis-backed with a TTL buffer (URL TTL minus 10 minutes). Redis outages should degrade gracefully to direct presign generation without failing requests.
+- S3/RustFS can use separate endpoints: `S3_ENDPOINT` is the backend/container-reachable endpoint for S3 operations, while optional `S3_PUBLIC_ENDPOINT` is used when generating presigned URLs for browsers/Android devices. Presigned URL cache keys are endpoint-scoped; restart backend workers after changing `S3_PUBLIC_ENDPOINT` so fresh clients use the new namespace.
 - Shared ZIP filename sanitization/fallback/deduplication helpers live in `src/viewport/zip_utils.py` and are reused by both private (`api/gallery.py`) and public (`api/public.py`) download endpoints.
 - Single-photo downloads must be browser-managed, not `fetch()`ed from S3 presigned URLs in frontend code. Use private `POST /galleries/{gallery_id}/photos/{photo_id}/download` with form `access_token`, and public `GET/HEAD /s/{share_id}/photos/{photo_id}/download`; these endpoints redirect to attachment presigned URLs to avoid storage CORS issues and keep public single-download analytics accurate.
 

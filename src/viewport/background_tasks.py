@@ -9,15 +9,23 @@ from PIL import Image, UnidentifiedImageError
 from sqlalchemy import delete, func, or_, select, update
 
 from viewport.celery_app import celery_app
+from viewport.metrics import record_celery_beat_heartbeat, record_upload_event
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
 from viewport.s3_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client, get_s3_settings
 from viewport.services.redis_service import RedisService
 from viewport.task_utils import BatchTaskResult, task_db_session
+from viewport.telemetry_safety import safe_exception_summary, safe_id, safe_object_key
+from viewport.telemetry_safety import safe_s3_errors as _safe_s3_errors
 from viewport.thumbnail_tasks import ThumbnailTaskItem, ThumbnailTaskPayload, to_thumbnail_task_payloads
 
 logger = logging.getLogger(__name__)
+
+
+def _key_hash(key: str | None) -> str | None:
+    return safe_object_key(key)
+
 
 RETRYABLE_S3_ERROR_CODES = {
     "RequestTimeout",
@@ -116,12 +124,12 @@ def _process_single_photo(
                 s3_client.put_object_tagging(Bucket=bucket, Key=object_key, Tagging={"TagSet": [{"Key": "upload-status", "Value": "confirmed"}]})
             except ClientError as tag_error:
                 if _is_retryable_s3_error(tag_error):
-                    raise ThumbnailTransientError(f"Retryable S3 tag error for {photo_id}") from tag_error
-                logger.warning("Failed to update S3 tag for %s: %s", object_key, tag_error)
+                    raise ThumbnailTransientError("Retryable S3 tag error") from None
+                logger.warning("Failed to update S3 tag for key_hash=%s: %s", _key_hash(object_key), safe_exception_summary(tag_error))
             except Exception as tag_general_error:
                 if _is_retryable_s3_error(tag_general_error):
-                    raise ThumbnailTransientError(f"Retryable S3 tag error for {photo_id}") from tag_general_error
-                logger.warning("Unexpected error updating S3 tag for %s: %s", object_key, tag_general_error)
+                    raise ThumbnailTransientError("Retryable S3 tag error") from None
+                logger.warning("Unexpected error updating S3 tag for key_hash=%s: %s", _key_hash(object_key), safe_exception_summary(tag_general_error))
 
             response = s3_client.get_object(Bucket=bucket, Key=object_key)
             image_bytes = response["Body"].read()
@@ -131,29 +139,29 @@ def _process_single_photo(
             error_code = cast(str, error_response.get("Error", {}).get("Code", ""))
 
             if error_code == "NoSuchKey":
-                logger.warning("File %s not found in S3, marking as failed", object_key)
+                logger.warning("File key_hash=%s not found in S3, marking as failed", _key_hash(object_key))
                 result_tracker.add_error(photo_id, "File not found in S3")
                 return
 
             if _is_retryable_s3_error(s3_error):
-                raise ThumbnailTransientError(f"Retryable S3 read error for {photo_id}") from s3_error
+                raise ThumbnailTransientError("Retryable S3 read error") from None
 
-            logger.error("S3 non-retryable error for photo %s: %s", photo_id, str(s3_error))
+            logger.error("S3 non-retryable error for photo %s: %s", photo_id, safe_exception_summary(s3_error))
             result_tracker.add_error(photo_id, "S3 read failed")
             return
 
         # Validate image magic bytes before processing
         if not _is_valid_image(image_bytes):
             logger.warning(
-                "Object %s for photo %s is not a valid image",
-                object_key,
+                "Object key_hash=%s for photo %s is not a valid image",
+                _key_hash(object_key),
                 photo_id,
             )
 
             try:
                 s3_client.delete_object(Bucket=bucket, Key=object_key)
-            except ClientError as delete_error:  # TODO: consider handling specific error codes if needed. Also save failed deletions to a DB, for later retry
-                logger.warning("Failed to delete invalid S3 object %s: %s", object_key, delete_error)
+            except ClientError as delete_error:
+                logger.warning("Failed to delete invalid S3 object key_hash=%s: %s", _key_hash(object_key), safe_exception_summary(delete_error))
 
             # Previously we preserved the DB record and marked it FAILED, but
             # the intended behavior for invalid uploaded objects is to remove
@@ -198,7 +206,7 @@ def _process_single_photo(
             )
         except Exception as upload_error:
             if _is_retryable_s3_error(upload_error):
-                raise ThumbnailTransientError(f"Retryable S3 upload error for {photo_id}") from upload_error
+                raise ThumbnailTransientError("Retryable S3 upload error") from None
             raise
         del thumbnail_bytes
 
@@ -208,8 +216,8 @@ def _process_single_photo(
     except ThumbnailTransientError:
         raise
     except Exception as e:
-        logger.exception("Failed to create thumbnail for photo %s: %s", photo_id, e)
-        result_tracker.add_error(photo_id, "Processing failed", exception=e)
+        logger.error("Failed to create thumbnail for photo %s: %s", photo_id, safe_exception_summary(e))
+        result_tracker.add_error(photo_id, "Processing failed")
 
 
 def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> dict:
@@ -234,17 +242,23 @@ def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> di
     try:
         s3_client.delete_object(Bucket=bucket, Key=object_key)
     except ClientError as error:
-        logger.warning("Failed to delete photo object %s: %s", object_key, error)
+        logger.warning("Failed to delete photo object key_hash=%s: %s", _key_hash(object_key), safe_exception_summary(error))
         if error.response.get("Error", {}).get("Code") != "NoSuchKey":
-            raise
+            raise ThumbnailTransientError("S3 delete photo object failed") from None
+    except Exception as error:
+        logger.warning("Failed to delete photo object key_hash=%s: %s", _key_hash(object_key), safe_exception_summary(error))
+        raise ThumbnailTransientError("S3 delete photo object failed") from None
 
     if thumbnail_object_key and thumbnail_object_key != object_key:
         try:
             s3_client.delete_object(Bucket=bucket, Key=thumbnail_object_key)
         except ClientError as error:
-            logger.warning("Failed to delete thumbnail %s: %s", thumbnail_object_key, error)
+            logger.warning("Failed to delete thumbnail key_hash=%s: %s", _key_hash(thumbnail_object_key), safe_exception_summary(error))
             if error.response.get("Error", {}).get("Code") != "NoSuchKey":
-                raise
+                raise ThumbnailTransientError("S3 delete thumbnail object failed") from None
+        except Exception as error:
+            logger.warning("Failed to delete thumbnail key_hash=%s: %s", _key_hash(thumbnail_object_key), safe_exception_summary(error))
+            raise ThumbnailTransientError("S3 delete thumbnail object failed") from None
 
     with task_db_session() as db:
         if status in (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING):
@@ -264,8 +278,9 @@ def delete_photo_data_task(self, photo_id: str, gallery_id: str, owner_id: str) 
     try:
         return _delete_photo_data_impl(photo_id, gallery_id, owner_id)
     except Exception as exc:
-        logger.exception("Failed to delete photo %s", photo_id)
-        raise self.retry(exc=exc, countdown=10) from exc
+        logger.error("Failed to delete photo %s: %s", photo_id, safe_exception_summary(exc))
+        retry_exc = exc if isinstance(exc, ThumbnailTransientError) else ThumbnailTransientError("Failed to delete photo data")
+        raise self.retry(exc=retry_exc, countdown=10) from None
 
 
 @celery_app.task(name="delete_photos_batch", bind=True, acks_late=True)
@@ -348,8 +363,8 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
             db.commit()
 
     except Exception as exc:
-        logger.exception("Failed to batch update photo results: %s", exc)
-        raise ThumbnailTransientError("Failed to update photo results") from exc
+        logger.error("Failed to batch update photo results: %s", safe_exception_summary(exc))
+        raise ThumbnailTransientError("Failed to update photo results") from None
 
 
 @celery_app.task(
@@ -366,6 +381,7 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
 def create_thumbnails_batch_task(self, photos: list[ThumbnailTaskPayload]) -> dict:
     """Background task to create thumbnails for multiple photos in one batch"""
     logger.info("Starting batch thumbnail creation for %s photos", len(photos))
+    record_upload_event("thumbnail_enqueue", "success")
 
     s3_client = get_s3_client()
     bucket = get_s3_settings().bucket
@@ -382,6 +398,7 @@ def create_thumbnails_batch_task(self, photos: list[ThumbnailTaskPayload]) -> di
         _batch_update_photo_results(result_tracker.results, result_tracker)
 
     logger.info("Batch completion: %s success, %s skipped, %s failed", result_tracker.successful, result_tracker.skipped, result_tracker.failed)
+    record_upload_event("thumbnail_process", "success" if result_tracker.failed == 0 else "partial")
     return result_tracker.to_dict()
 
 
@@ -399,6 +416,7 @@ def cleanup_orphaned_uploads_task(self) -> dict:
     Remove PENDING photo records older than 30 minutes and cleanup their S3 objects.
     """
 
+    record_celery_beat_heartbeat()
     threshold = datetime.now(UTC) - timedelta(minutes=30)
     logger.info("Starting orphaned uploads cleanup (threshold: %s)", threshold)
 
@@ -443,18 +461,18 @@ def cleanup_orphaned_uploads_task(self) -> dict:
                         response = s3_client.delete_objects(Bucket=bucket, Delete=delete_request)
                         errors = response.get("Errors") or []
                         if errors:
-                            logger.error("Partial delete errors from S3: %s", errors)
+                            logger.error("Partial delete errors from S3: %s", _safe_s3_errors(errors))
                             # Raise retryable error; DB is untouched yet.
-                            raise ThumbnailTransientError(f"S3 partial delete errors: {errors}")
+                            raise ThumbnailTransientError(f"S3 partial delete errors: {_safe_s3_errors(errors)}")
                         logger.info("Deleted %s objects from S3", len(batch))
                     except Exception as e:
                         # Re-raise transient failures to trigger retry; DB is untouched yet.
-                        logger.error("Failed to delete batch from S3: %s", e)
+                        logger.error("Failed to delete batch from S3: %s", safe_exception_summary(e))
                         if _is_retryable_s3_error(e):
-                            raise ThumbnailTransientError("Retryable S3 delete_objects error") from e
+                            raise ThumbnailTransientError("Retryable S3 delete_objects error") from None
                         if isinstance(e, ThumbnailTransientError):
                             raise
-                        raise
+                        raise ThumbnailTransientError("S3 delete_objects failed") from None
 
             # 2. Update DB and release quota only after S3 confirms deletion
             # This is atomic within the transaction block
@@ -496,8 +514,8 @@ def delete_gallery_data_task(self, gallery_id: str) -> dict:
                     delete_response = s3_client.delete_objects(Bucket=bucket, Delete=cast("DeleteTypeDef", {"Objects": batch}))
                     errors = delete_response.get("Errors") or []
                     if errors:
-                        logger.error("Partial delete errors when deleting gallery objects: %s", errors)
-                        raise Exception(f"S3 partial delete errors: {errors}")
+                        logger.error("Partial delete errors when deleting gallery objects: %s", _safe_s3_errors(errors))
+                        raise Exception(f"S3 partial delete errors: {_safe_s3_errors(errors)}")
                     deleted_objects += len(batch)
 
             if not list_response.get("IsTruncated"):
@@ -531,8 +549,9 @@ def delete_gallery_data_task(self, gallery_id: str) -> dict:
         logger.info("Deleted gallery %s: %s S3 objects removed", gallery_id, deleted_objects)
         return {"deleted_objects": deleted_objects}
     except Exception as exc:
-        logger.exception("Failed to delete gallery data for %s", gallery_id)
-        raise self.retry(exc=exc, countdown=30) from exc
+        logger.error("Failed to delete gallery data for %s: %s", gallery_id, safe_exception_summary(exc))
+        retry_exc = exc if isinstance(exc, ThumbnailTransientError) else ThumbnailTransientError("Failed to delete gallery data")
+        raise self.retry(exc=retry_exc, countdown=30) from None
 
 
 @celery_app.task(name="reconcile_storage_quotas")
@@ -542,6 +561,7 @@ def reconcile_storage_quotas_task() -> dict:
     This is a safety task that ensures DB counters match the actual photo records.
     Can be run periodically (e.g., once a day).
     """
+    record_celery_beat_heartbeat()
     reconciled_users = 0
     updated_users = 0
 
@@ -641,6 +661,7 @@ def reconcile_successful_uploads_task() -> dict:
 
     photos = to_thumbnail_task_payloads(ThumbnailTaskItem(row[0], row[1]) for row in rows)
     create_thumbnails_batch_task.delay(photos)
+    record_celery_beat_heartbeat()
     logger.info("Requeued %s successful uploads missing thumbnails/metadata", len(photos))
     return {"requeued_count": len(photos)}
 
@@ -666,7 +687,7 @@ def notify_selection_submitted_task(self, payload: dict[str, Any]) -> dict[str, 
         if redis_service and redis_service.is_available:
             already_seen = run_async(redis_service.get(dedupe_key))
             if already_seen:
-                logger.info("Selection submit notification already sent for session %s", session_id)
+                logger.info("Selection submit notification already sent for session_hash=%s", safe_id(session_id))
                 return {"sent": False, "deduped": True}
             run_async(redis_service.set(dedupe_key, datetime.now(UTC).isoformat(), ex=SELECTION_SUBMIT_NOTIFY_TTL_SECONDS))
     finally:
@@ -676,10 +697,10 @@ def notify_selection_submitted_task(self, payload: dict[str, Any]) -> dict[str, 
     logger.info(
         "Selection submitted notification",
         extra={
-            "sharelink_id": sharelink_id,
-            "session_id": session_id,
-            "client_name": payload.get("client_name"),
-            "client_email": payload.get("client_email"),
+            "sharelink_id_hash": safe_id(sharelink_id),
+            "session_id_hash": safe_id(session_id),
+            "client_name_hash": safe_id(payload.get("client_name")),
+            "client_email_hash": safe_id(str(payload.get("client_email")).lower()) if payload.get("client_email") else None,
             "selected_count": payload.get("selected_count"),
             "submitted_at": payload.get("submitted_at"),
         },

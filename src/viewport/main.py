@@ -18,16 +18,17 @@ from viewport.api.sharelink import router as sharelink_router
 from viewport.api.user import router as user_router
 from viewport.auth_utils import authsettings
 from viewport.dependencies import get_s3_client_instance, set_s3_client_instance
-from viewport.logging_config import configure_logging  # Configure logging early: uvicorn imports this module when starting the app
+from viewport.logging_config import RequestContextMiddleware, configure_logging
 from viewport.metrics import setup_metrics
 from viewport.models.db import get_engine
+from viewport.observability import configure_observability
 from viewport.s3_service import AsyncS3Client
 from viewport.services.presigned_cache import PresignedUrlCacheService, set_presigned_cache_service
 from viewport.services.redis_service import RedisService, set_redis_service
 
 # Configure logging for the whole process (uvicorn imports this module when
 # starting the app, so configure_logging runs early and affects uvicorn loggers)
-configure_logging(level="INFO")
+configure_logging()
 
 # Configure external libraries logging levels to reduce noise
 logging.getLogger("botocore").setLevel(logging.WARNING)
@@ -92,11 +93,12 @@ async def lifespan(app: FastAPI):
 
 
 # Create FastAPI app with lifespan
-app = FastAPI(redoc_url=None, redirect_slashes=False, lifespan=lifespan)  # TODO add env var check for production
+app = FastAPI(redoc_url=None, redirect_slashes=False, lifespan=lifespan)
+
+# Add correlation middleware before other application middleware.
+app.add_middleware(RequestContextMiddleware)
 
 # Add session middleware (required for SQLAdmin authentication)
-
-
 app.add_middleware(
     SessionMiddleware,
     secret_key=authsettings.jwt_secret_key,
@@ -123,6 +125,8 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["Content-Disposition"],
 )
+
+configure_observability(app, service_name="viewport-api")
 
 app.include_router(auth_router)
 app.include_router(gallery_router)

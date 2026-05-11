@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.filename_utils import build_content_disposition
 from viewport.logger import logger
+from viewport.metrics import record_public_share_event
 from viewport.models.db import get_db
 from viewport.models.gallery import Gallery, Photo
 from viewport.models.sharelink import ShareLink, ShareScopeType
@@ -23,6 +24,7 @@ from viewport.s3_utils import get_s3_client, get_s3_settings
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto, PublicProjectFolder, PublicProjectResponse, PublicShareResponse, PublicShareUnlockRequest
 from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_available_public_sharelink, get_valid_public_sharelink, unlock_sharelink_password
+from viewport.telemetry_safety import safe_id
 from viewport.zip_utils import build_zip_fallback_name, make_unique_zip_entry_name, sanitize_zip_entry_name
 
 router = APIRouter(prefix="/s", tags=["public"])
@@ -115,8 +117,8 @@ async def _build_public_gallery_response(
     )
 
     logger.info(
-        "Generating public gallery view for share %s with %s photos (offset=%s, limit=%s, total=%s, sort_by=%s, order=%s)",
-        share_id,
+        "Generating public gallery view for share_hash=%s with %s photos (offset=%s, limit=%s, total=%s, sort_by=%s, order=%s)",
+        safe_id(share_id),
         len(photos_to_process),
         offset,
         limit,
@@ -189,6 +191,7 @@ async def _build_public_gallery_response(
             ip_address=client_ip,
             user_agent=request.headers.get("user-agent"),
         )
+        record_public_share_event("access", "success")
 
     return PublicGalleryResponse(
         photos=photo_list,
@@ -309,6 +312,7 @@ async def _build_public_project_response(
             ip_address=client_ip,
             user_agent=request.headers.get("user-agent"),
         )
+        record_public_share_event("access", "success")
 
     owner = getattr(project, "owner", None)
     photographer = getattr(owner, "display_name", None) or ""
@@ -434,9 +438,10 @@ async def get_project_gallery_by_sharelink(
 
     gallery = await project_repo.get_visible_project_gallery_by_id(sharelink.project.id, gallery_id)
     if gallery is None:
+        record_public_share_event("access", "forbidden")
         logger.warning(
             "Denied hidden or missing gallery access via project share",
-            extra={"scope_type": "project", "share_id": str(share_id), "gallery_id": str(gallery_id)},
+            extra={"scope_type": "project", "share_id_hash": safe_id(share_id), "gallery_id_hash": safe_id(gallery_id)},
         )
         raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
@@ -616,10 +621,11 @@ def download_project_gallery_photos_zip(
         z.add(arcname=filename, data=file_generator())
 
     asyncio_run(repo.record_zip_download(share_id))
+    record_public_share_event("download_zip", "success")
     logger.log_event(
         "download_project_gallery_zip",
-        share_id=str(sharelink.id),
-        extra={"gallery_id": str(gallery.id), "photo_count": len(gallery_photos)},
+        share_id_hash=safe_id(sharelink.id),
+        extra={"gallery_id_hash": safe_id(gallery.id), "photo_count": len(gallery_photos)},
     )
 
     safe_gallery_name = sanitize_zip_entry_name(gallery.name or f"gallery_{gallery_id}", fallback=f"gallery_{gallery_id}")
@@ -690,6 +696,9 @@ def download_all_photos_zip(
                 z.add(arcname=filename, data=file_generator())
 
         asyncio_run(repo.record_zip_download(share_id))
+        record_public_share_event("download_zip", "success")
+        project_photo_count = sum(len(folder_photos) for _, folder_photos in project_zip_entries)
+        logger.log_event("download_project_zip", share_id_hash=safe_id(sharelink.id), extra={"photo_count": project_photo_count})
         headers = {
             "Content-Disposition": f'attachment; filename="project_{share_id}.zip"',
             **PUBLIC_CACHE_CONTROL_HEADERS,
@@ -719,7 +728,8 @@ def download_all_photos_zip(
         z.add(arcname=filename, data=file_generator())
 
     asyncio_run(repo.record_zip_download(share_id))
-    logger.log_event("download_zip", share_id=str(sharelink.id), extra={"photo_count": len(gallery_photos)})
+    record_public_share_event("download_zip", "success")
+    logger.log_event("download_zip", share_id_hash=safe_id(sharelink.id), extra={"photo_count": len(gallery_photos)})
 
     headers = {
         "Content-Disposition": f'attachment; filename="gallery_{share_id}.zip"',

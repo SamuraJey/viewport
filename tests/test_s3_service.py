@@ -24,6 +24,9 @@ def mock_settings():
     settings.bucket = "test-bucket"
     settings.region = "us-east-1"
     settings.endpoint = "localhost:9000"
+    settings.public_endpoint = None
+    settings.use_ssl = False
+    settings.signature_version = "s3v4"
     return settings
 
 
@@ -53,6 +56,34 @@ class TestAsyncS3ClientInit:
         session1 = s3_client.session
         session2 = s3_client.session
         assert session1 is session2  # Shared session for memory efficiency
+
+    def test_presign_client_uses_public_endpoint_when_configured(self, mock_settings):
+        """Test that generated URLs can target a public endpoint while S3 operations keep the internal endpoint."""
+        mock_settings.endpoint = "s3-service:9000"
+        mock_settings.public_endpoint = "192.168.1.50:9000"
+
+        with patch("viewport.s3_service.S3Settings", return_value=mock_settings), patch("viewport.s3_service.boto3.client") as mock_boto_client:
+            client = AsyncS3Client()
+            client._get_presign_client()
+
+        assert client._endpoint_url == "http://s3-service:9000"
+        assert client._presign_endpoint_url == "http://192.168.1.50:9000"
+        assert mock_boto_client.call_args.kwargs["endpoint_url"] == "http://192.168.1.50:9000"
+
+    def test_presign_cache_namespace_changes_with_public_endpoint(self, mock_settings):
+        """Changing the phone-reachable presign endpoint must bypass stale cached URLs."""
+        mock_settings.endpoint = "s3-service:9000"
+        mock_settings.public_endpoint = "localhost:9000"
+        with patch("viewport.s3_service.S3Settings", return_value=mock_settings):
+            localhost_client = AsyncS3Client()
+
+        mock_settings.public_endpoint = "192.168.1.50:9000"
+        with patch("viewport.s3_service.S3Settings", return_value=mock_settings):
+            lan_client = AsyncS3Client()
+
+        assert localhost_client._presigned_cache_bucket != lan_client._presigned_cache_bucket
+        assert localhost_client._presigned_cache_bucket.startswith("test-bucket:endpoint:")
+        assert lan_client._presigned_cache_bucket.startswith("test-bucket:endpoint:")
 
 
 class TestAsyncS3ClientUploadFileobj:
@@ -589,9 +620,9 @@ class TestPresignedURLCaching:
 
             assert exc_info.value == generation_error
             mock_logger.error.assert_any_call(
-                "Failed to generate presigned URL for %s: %s",
-                "test-key.jpg",
-                generation_error,
+                "Failed to generate presigned URL for key_hash=%s: %s",
+                "sha256:cd5ab1e2c1a01f23",
+                "error_type=Exception",
             )
 
     @pytest.mark.asyncio
@@ -690,7 +721,7 @@ class TestPresignedURLCaching:
         with patch("viewport.s3_service.get_presigned_cache_service", return_value=mock_cache):
             await s3_client.clear_presigned_cache_for_object_keys(["key1.jpg", "key2.jpg"])
 
-            mock_cache.clear_urls_for_object_keys.assert_called_once_with(s3_client.settings.bucket, ["key1.jpg", "key2.jpg"])
+            mock_cache.clear_urls_for_object_keys.assert_called_once_with(s3_client._presigned_cache_bucket, ["key1.jpg", "key2.jpg"])
 
     @pytest.mark.asyncio
     async def test_clear_presigned_cache_for_object_keys_no_cache(self, s3_client):

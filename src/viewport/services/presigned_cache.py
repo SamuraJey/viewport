@@ -11,6 +11,9 @@ import logging
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
+from viewport.metrics import record_presigned_cache_event
+from viewport.telemetry_safety import fingerprint_value, safe_exception_summary
+
 if TYPE_CHECKING:
     from viewport.services.redis_service import RedisService
 
@@ -137,9 +140,12 @@ class PresignedUrlCacheService:
     async def get_url_by_key(self, cache_key: str) -> str | None:
         """Get cached presigned URL by pre-computed cache key."""
         try:
-            return await self._redis.get(cache_key)
+            cached = await self._redis.get(cache_key)
+            record_presigned_cache_event("get", "hit" if cached else "miss")
+            return cached
         except Exception as exc:
-            logger.warning("Failed to read presigned URL cache for key %s: %s", cache_key, exc)
+            logger.warning("Failed to read presigned URL cache for key fingerprint %s: %s", fingerprint_value(cache_key), safe_exception_summary(exc))
+            record_presigned_cache_event("get", "error")
             return None
 
     async def set_url(
@@ -165,6 +171,7 @@ class PresignedUrlCacheService:
     async def set_url_by_key(self, cache_key: str, url: str, expires_in: int) -> None:
         """Cache a presigned URL using pre-computed cache key."""
         if not self._redis.is_available:
+            record_presigned_cache_event("set", "unavailable")
             return
 
         ttl = self._effective_cache_ttl(expires_in)
@@ -176,8 +183,10 @@ class PresignedUrlCacheService:
                 pipe.sadd(index_key, cache_key)
                 pipe.expire(index_key, ttl)
                 await pipe.execute()
+            record_presigned_cache_event("set", "success")
         except Exception as exc:
-            logger.warning("Failed to cache presigned URL for key %s: %s", cache_key, exc)
+            logger.warning("Failed to cache presigned URL for key fingerprint %s: %s", fingerprint_value(cache_key), safe_exception_summary(exc))
+            record_presigned_cache_event("set", "error")
 
     # =========================================================================
     # Batch Operations
@@ -217,9 +226,12 @@ class PresignedUrlCacheService:
         if not cache_keys:
             return {}
         try:
-            return await self._redis.mget(cache_keys)
+            cached = await self._redis.mget(cache_keys)
+            record_presigned_cache_event("batch_get", "hit" if cached else "miss")
+            return cached
         except Exception as exc:
-            logger.warning("Failed to read presigned URL batch cache: %s", exc)
+            logger.warning("Failed to read presigned URL batch cache: %s", safe_exception_summary(exc))
+            record_presigned_cache_event("batch_get", "error")
             return {}
 
     async def set_urls_batch(
@@ -234,6 +246,7 @@ class PresignedUrlCacheService:
             expires_in: URL expiration time in seconds
         """
         if not self._redis.is_available or not key_url_pairs:
+            record_presigned_cache_event("batch_set", "unavailable" if key_url_pairs else "miss")
             return
 
         ttl = self._effective_cache_ttl(expires_in)
@@ -246,8 +259,10 @@ class PresignedUrlCacheService:
                     pipe.sadd(index_key, cache_key)
                     pipe.expire(index_key, ttl)
                 await pipe.execute()
+            record_presigned_cache_event("batch_set", "success")
         except Exception as exc:
-            logger.warning("Failed to write presigned URL batch cache: %s", exc)
+            logger.warning("Failed to write presigned URL batch cache: %s", safe_exception_summary(exc))
+            record_presigned_cache_event("batch_set", "error")
 
     # =========================================================================
     # Cache Invalidation
@@ -256,6 +271,7 @@ class PresignedUrlCacheService:
     async def clear_url(self, cache_key: str) -> None:
         """Clear a single cached URL."""
         if not self._redis.is_available:
+            record_presigned_cache_event("clear", "unavailable")
             return
 
         index_key = self._index_key_from_cache_key(cache_key)
@@ -265,12 +281,15 @@ class PresignedUrlCacheService:
                 pipe.delete(cache_key)
                 pipe.srem(index_key, cache_key)
                 await pipe.execute()
+            record_presigned_cache_event("clear", "success")
         except Exception as exc:
-            logger.warning("Failed to clear cached URL for key %s: %s", cache_key, exc)
+            logger.warning("Failed to clear cached URL for key fingerprint %s: %s", fingerprint_value(cache_key), safe_exception_summary(exc))
+            record_presigned_cache_event("clear", "error")
 
     async def clear_urls_batch(self, cache_keys: list[str]) -> None:
         """Clear multiple cached URLs."""
         if not self._redis.is_available or not cache_keys:
+            record_presigned_cache_event("clear", "unavailable" if cache_keys else "miss")
             return
 
         try:
@@ -279,8 +298,10 @@ class PresignedUrlCacheService:
                 for cache_key in cache_keys:
                     pipe.srem(self._index_key_from_cache_key(cache_key), cache_key)
                 await pipe.execute()
+            record_presigned_cache_event("clear", "success")
         except Exception as exc:
-            logger.warning("Failed to clear cached URLs batch: %s", exc)
+            logger.warning("Failed to clear cached URLs batch: %s", safe_exception_summary(exc))
+            record_presigned_cache_event("clear", "error")
 
     async def clear_urls_for_object_keys(
         self,
@@ -297,10 +318,12 @@ class PresignedUrlCacheService:
             object_keys: Object keys to invalidate cache for
         """
         if not self._redis.is_available:
+            record_presigned_cache_event("invalidate", "unavailable")
             return
 
         deduplicated = {key for key in object_keys if key}
         if not deduplicated:
+            record_presigned_cache_event("invalidate", "miss")
             return
 
         index_keys = [self.build_index_key(bucket, key) for key in deduplicated]
@@ -315,9 +338,11 @@ class PresignedUrlCacheService:
 
             if keys_to_delete:
                 await self._redis.delete(*list(keys_to_delete))
+            record_presigned_cache_event("invalidate", "success")
 
         except Exception as exc:
-            logger.warning("Failed to clear presigned URL cache for object keys: %s", exc)
+            logger.warning("Failed to clear presigned URL cache for object keys: %s", safe_exception_summary(exc))
+            record_presigned_cache_event("invalidate", "error")
 
 
 # Module-level instance for singleton access

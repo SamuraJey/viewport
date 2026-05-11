@@ -7,6 +7,7 @@ singleton via dependency injection.
 """
 
 import asyncio
+import hashlib
 import io
 import logging
 from collections.abc import Mapping
@@ -19,10 +20,18 @@ from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
+from viewport.metrics import record_s3_operation
 from viewport.s3_utils import S3Settings
 from viewport.services.presigned_cache import get_presigned_cache_service
+from viewport.telemetry_safety import safe_exception_summary, safe_object_key
+from viewport.telemetry_safety import safe_s3_errors as _safe_s3_errors
 
 logger = logging.getLogger(__name__)
+
+
+def _key_hash(key: str | None) -> str | None:
+    return safe_object_key(key)
+
 
 if TYPE_CHECKING:
     from mypy_boto3_s3 import S3Client
@@ -43,7 +52,10 @@ class AsyncS3Client:
         """Initialize the AsyncS3Client with configuration from environment."""
         self.settings = S3Settings()
         self._session: aioboto3.Session | None = None
-        self._endpoint_url = self._get_endpoint_url()
+        self._endpoint_url = self._get_endpoint_url(self.settings.endpoint)
+        public_endpoint = getattr(self.settings, "public_endpoint", None)
+        self._presign_endpoint_url = self._get_endpoint_url(public_endpoint or self.settings.endpoint)
+        self._presigned_cache_bucket = self._build_presigned_cache_bucket()
         # Use aggressive connection pooling configuration:
         # - Small pool size (15 connections max)
         # - Read timeout forces connections to close after idle period
@@ -72,16 +84,34 @@ class AsyncS3Client:
             multipart_threshold=50 * 1024 * 1024,  # 50MB threshold ensures small files (<5MB) never use multipart, even with overhead
             use_threads=False,
         )
-        logger.info("AsyncS3Client initialized: endpoint=%s, bucket=%s, region=%s", self._endpoint_url, self.settings.bucket, self.settings.region)
+        logger.info(
+            "AsyncS3Client initialized: endpoint=%s, presign_endpoint=%s, bucket=%s, region=%s",
+            self._endpoint_url,
+            self._presign_endpoint_url,
+            self.settings.bucket,
+            self.settings.region,
+        )
 
-    def _get_endpoint_url(self) -> str | None:
+    def _get_endpoint_url(self, endpoint: str) -> str | None:
         """Get the endpoint URL with protocol if needed."""
-        endpoint = cast(str, self.settings.endpoint)
         use_ssl = self.settings.use_ssl
         if not endpoint.startswith(("http://", "https://")):
             protocol = "https" if use_ssl else "http"
             return f"{protocol}://{endpoint}"
         return cast(str, endpoint)
+
+    def _build_presigned_cache_bucket(self) -> str:
+        """Return a cache namespace for presigned URLs.
+
+        Presigned URLs include the public endpoint host in their signature. If a
+        developer switches from a desktop-only endpoint (for example
+        ``localhost:9000``) to a phone-reachable LAN endpoint, Redis may still
+        contain otherwise-valid cached URLs for the old host. Include a stable
+        hash of the presign endpoint in the cache namespace so endpoint changes
+        immediately bypass stale URLs without requiring manual Redis cleanup.
+        """
+        endpoint_hash = hashlib.sha256((self._presign_endpoint_url or "").encode("utf-8")).hexdigest()[:12]
+        return f"{self.settings.bucket}:endpoint:{endpoint_hash}"
 
     @property
     def session(self) -> aioboto3.Session:
@@ -112,7 +142,7 @@ class AsyncS3Client:
         if self._presign_client is None:
             self._presign_client = boto3.client(
                 "s3",
-                endpoint_url=self._endpoint_url,
+                endpoint_url=self._presign_endpoint_url,
                 aws_access_key_id=self.settings.access_key,
                 aws_secret_access_key=self.settings.secret_key,
                 region_name=self.settings.region,
@@ -198,7 +228,8 @@ class AsyncS3Client:
                         ExtraArgs=extra_args if extra_args else None,
                         Config=transfer_config,
                     )
-                logger.debug("Successfully uploaded object: %s", key)
+                logger.debug("Successfully uploaded object: key_hash=%s", _key_hash(key))
+                record_s3_operation("upload", "success")
                 return f"/{self.settings.bucket}/{key}"
             except ClientError as e:
                 error_code = e.response.get("Error", {}).get("Code", "")
@@ -213,17 +244,27 @@ class AsyncS3Client:
 
                 if is_transient and attempt < max_retries - 1:
                     wait_time = 0.5 * (2**attempt)  # Exponential backoff: 0.5s, 1s, 2s
-                    logger.warning("Transient error uploading %s (attempt %s/%s): %s. Retrying in %ss...", key, attempt + 1, max_retries, e, wait_time)
+                    logger.warning(
+                        "Transient error uploading key_hash=%s (attempt %s/%s): %s. Retrying in %ss...",
+                        _key_hash(key),
+                        attempt + 1,
+                        max_retries,
+                        safe_exception_summary(e),
+                        wait_time,
+                    )
+                    record_s3_operation("upload", "error")
                     await asyncio.sleep(wait_time)
                     continue
                 else:
-                    logger.error("Failed to upload object %s: %s", key, e)
+                    logger.error("Failed to upload object key_hash=%s: %s", _key_hash(key), safe_exception_summary(e))
+                    record_s3_operation("upload", "error")
                     raise
             except Exception as e:
-                logger.error("Failed to upload object %s: %s", key, e)
+                logger.error("Failed to upload object key_hash=%s: %s", _key_hash(key), safe_exception_summary(e))
+                record_s3_operation("upload", "error")
                 raise
 
-        raise RuntimeError(f"Failed to upload object {key} after {max_retries} attempts")
+        raise RuntimeError(f"Failed to upload object key_hash={_key_hash(key)} after {max_retries} attempts")
 
     async def upload_bytes(
         self,
@@ -266,10 +307,12 @@ class AsyncS3Client:
                         Body=data,
                         **extra_args,
                     )
-                logger.debug("Successfully uploaded object via put_object: %s", key)
+                logger.debug("Successfully uploaded object via put_object: key_hash=%s", _key_hash(key))
+                record_s3_operation("upload", "success")
                 return f"/{self.settings.bucket}/{key}"
             except Exception as e:
-                logger.error("Failed to upload object %s: %s", key, e)
+                logger.error("Failed to upload object key_hash=%s: %s", _key_hash(key), safe_exception_summary(e))
+                record_s3_operation("upload", "error")
                 raise
 
         # For larger files, use the streaming upload
@@ -293,12 +336,14 @@ class AsyncS3Client:
                 # Read the body stream
                 body = response.get("Body")
                 if body is None:
-                    raise ValueError(f"No body in response for key {key}")
+                    raise ValueError(f"No body in response for key_hash={_key_hash(key)}")
                 content: bytes = await body.read()
-            logger.info("Successfully downloaded object: %s", key)
+            logger.info("Successfully downloaded object: key_hash=%s", _key_hash(key))
+            record_s3_operation("download", "success")
             return content
         except Exception as e:
-            logger.error("Failed to download object %s: %s", key, e)
+            logger.error("Failed to download object key_hash=%s: %s", _key_hash(key), safe_exception_summary(e))
+            record_s3_operation("download", "error")
             raise
 
     async def delete_file(self, key: str) -> None:
@@ -313,9 +358,11 @@ class AsyncS3Client:
         try:
             async with self._get_s3_client() as s3:
                 await s3.delete_object(Bucket=self.settings.bucket, Key=key)
-            logger.info("Successfully deleted object: %s", key)
+            logger.info("Successfully deleted object: key_hash=%s", _key_hash(key))
+            record_s3_operation("delete", "success")
         except Exception as e:
-            logger.error("Failed to delete object %s: %s", key, e)
+            logger.error("Failed to delete object key_hash=%s: %s", _key_hash(key), safe_exception_summary(e))
+            record_s3_operation("delete", "error")
             raise
 
     async def file_exists(self, key: str) -> bool:
@@ -330,13 +377,15 @@ class AsyncS3Client:
         try:
             async with self._get_s3_client() as s3:
                 await s3.head_object(Bucket=self.settings.bucket, Key=key)
+            record_s3_operation("exists", "success")
             return True
         except ClientError as e:
-            # Check if it's a NoSuchKey error by checking the exception code
             error_code = getattr(e.response, "Error", {}).get("Code") if hasattr(e, "response") else None
             if error_code == "404" or "NoSuchKey" in str(type(e).__name__):
+                record_s3_operation("exists", "not_found")
                 return False
-            logger.error("Failed to check if object exists %s: %s", key, e)
+            logger.error("Failed to check if object exists key_hash=%s: %s", _key_hash(key), safe_exception_summary(e))
+            record_s3_operation("exists", "error")
             raise
 
     async def head_object(self, key: str) -> dict:
@@ -354,9 +403,11 @@ class AsyncS3Client:
         try:
             async with self._get_s3_client() as s3:
                 response = await s3.head_object(Bucket=self.settings.bucket, Key=key)
+            record_s3_operation("head", "success")
             return cast(dict[str, Any], response)
         except ClientError as e:
-            logger.error("Failed to head object %s: %s", key, e)
+            logger.error("Failed to head object key_hash=%s: %s", _key_hash(key), safe_exception_summary(e))
+            record_s3_operation("head", "error")
             raise
 
     async def rename_file(self, old_key: str, new_key: str) -> None:
@@ -380,9 +431,11 @@ class AsyncS3Client:
                 )
                 # Delete old object
                 await s3.delete_object(Bucket=self.settings.bucket, Key=old_key)
-            logger.info("Successfully renamed object from %s to %s", old_key, new_key)
+            logger.info("Successfully renamed object from key_hash=%s to key_hash=%s", _key_hash(old_key), _key_hash(new_key))
+            record_s3_operation("rename", "success")
         except Exception as e:
-            logger.error("Failed to rename object from %s to %s: %s", old_key, new_key, e)
+            logger.error("Failed to rename object from key_hash=%s to key_hash=%s: %s", _key_hash(old_key), _key_hash(new_key), safe_exception_summary(e))
+            record_s3_operation("rename", "error")
             raise
 
     async def delete_folder(self, prefix: str) -> None:
@@ -441,16 +494,24 @@ class AsyncS3Client:
                             # Log any errors that occurred during batch delete
                             if "Errors" in response:
                                 for error in response["Errors"]:
-                                    logger.warning("Failed to delete object %s: %s", error["Key"], error["Message"])
-                        except Exception:
-                            logger.exception("Failed to delete batch of objects")
+                                    logger.warning(
+                                        "Failed to delete object key_hash=%s: code=%s",
+                                        _key_hash(str(error.get("Key"))),
+                                        error.get("Code"),
+                                    )
+                                    record_s3_operation("delete_batch", "partial")
+                        except Exception as exc:
+                            logger.error("Failed to delete batch of objects: %s", safe_exception_summary(exc))
                             # Continue with next batch even if one fails
 
-                    logger.info("Successfully deleted %d/%d objects with prefix %s", deleted_count, len(objects_to_delete), prefix)
+                    logger.info("Successfully deleted %d/%d objects with prefix_hash=%s", deleted_count, len(objects_to_delete), _key_hash(prefix))
+                    record_s3_operation("delete_batch", "success")
                 else:
-                    logger.info("No objects found with prefix %s", prefix)
+                    logger.info("No objects found with prefix_hash=%s", _key_hash(prefix))
+                    record_s3_operation("list", "not_found")
         except Exception as e:
-            logger.error("Failed to delete folder with prefix %s: %s", prefix, e)
+            logger.error("Failed to delete folder with prefix_hash=%s: %s", _key_hash(prefix), safe_exception_summary(e))
+            record_s3_operation("delete_batch", "error")
             raise
 
     async def close(self) -> None:
@@ -479,10 +540,11 @@ class AsyncS3Client:
         cache = get_presigned_cache_service()
 
         if cache is not None:
-            cache_key = cache.build_cache_key(self.settings.bucket, key, response_content_disposition)
+            cache_key = cache.build_cache_key(self._presigned_cache_bucket, key, response_content_disposition)
             cached = await cache.get_url_by_key(cache_key)
             if cached:
-                logger.debug("Using cached presigned URL for: %s", key)
+                logger.debug("Using cached presigned URL for key_hash=%s", _key_hash(key))
+                record_s3_operation("presign_get", "cache_hit")
                 return cached
         else:
             cache_key = None
@@ -498,10 +560,12 @@ class AsyncS3Client:
             if cache is not None and cache_key is not None:
                 await cache.set_url_by_key(cache_key, url, expires_in)
 
-            logger.debug("Generated presigned URL for: %s", key)
+            logger.debug("Generated presigned URL for key_hash=%s", _key_hash(key))
+            record_s3_operation("presign_get", "success")
             return url
         except Exception as e:
-            logger.error("Failed to generate presigned URL for %s: %s", key, e)
+            logger.error("Failed to generate presigned URL for key_hash=%s: %s", _key_hash(key), safe_exception_summary(e))
+            record_s3_operation("presign_get", "error")
             raise
 
     async def generate_presigned_url_async(self, key: str, expires_in: int = 7200, response_content_disposition: str | None = None) -> str:
@@ -528,7 +592,8 @@ class AsyncS3Client:
                     response_content_disposition=response_content_disposition,
                 )
             except Exception as exc:
-                logger.warning("Failed to generate presigned URL for %s: %s", key, exc)
+                logger.warning("Failed to generate presigned URL for key_hash=%s: %s", _key_hash(key), safe_exception_summary(exc))
+                record_s3_operation("presign_get", "error")
         return urls
 
     def _generate_presigned_urls_with_dispositions_sync(
@@ -546,7 +611,8 @@ class AsyncS3Client:
                     response_content_disposition=response_content_disposition,
                 )
             except Exception as exc:
-                logger.warning("Failed to generate presigned URL for %s: %s", key, exc)
+                logger.warning("Failed to generate presigned URL for key_hash=%s: %s", _key_hash(key), safe_exception_summary(exc))
+                record_s3_operation("presign_get", "error")
         return urls
 
     async def generate_presigned_urls_batch(
@@ -566,7 +632,7 @@ class AsyncS3Client:
         to_generate: list[str] = []
 
         if cache is not None:
-            cache_keys = [cache.build_cache_key(self.settings.bucket, key, response_content_disposition) for key in unique_keys]
+            cache_keys = [cache.build_cache_key(self._presigned_cache_bucket, key, response_content_disposition) for key in unique_keys]
             cache_key_by_object_key = dict(zip(unique_keys, cache_keys, strict=False))
             cached_by_cache_key = await cache.get_urls_batch_by_keys(cache_keys)
 
@@ -615,7 +681,7 @@ class AsyncS3Client:
         to_generate: list[tuple[str, str | None]] = []
 
         if cache is not None:
-            cache_key_by_object_key: dict[str, str] = {key: cache.build_cache_key(self.settings.bucket, key, disposition) for key, disposition in key_dispositions.items()}
+            cache_key_by_object_key: dict[str, str] = {key: cache.build_cache_key(self._presigned_cache_bucket, key, disposition) for key, disposition in key_dispositions.items()}
             cache_keys = list(cache_key_by_object_key.values())
             cached_by_cache_key = await cache.get_urls_batch_by_keys(cache_keys)
 
@@ -649,7 +715,7 @@ class AsyncS3Client:
         """Clear cached presigned URLs for the given object keys."""
         cache = get_presigned_cache_service()
         if cache is not None:
-            await cache.clear_urls_for_object_keys(self.settings.bucket, object_keys)
+            await cache.clear_urls_for_object_keys(self._presigned_cache_bucket, object_keys)
 
     async def list_object_keys(self, prefix: str) -> list[str]:
         """List all object keys for a prefix."""
@@ -672,6 +738,7 @@ class AsyncS3Client:
                     break
                 continuation_token = response.get("NextContinuationToken")
 
+        record_s3_operation("list", "success")
         return object_keys
 
     async def delete_objects(self, keys: list[str]) -> int:
@@ -687,10 +754,12 @@ class AsyncS3Client:
                 response = await s3.delete_objects(Bucket=self.settings.bucket, Delete=delete_request)
                 errors = response.get("Errors") or []
                 if errors:
-                    logger.error("Partial delete errors from S3: %s", errors)
-                    raise RuntimeError(f"S3 partial delete errors: {errors}")
+                    logger.error("Partial delete errors from S3: %s", _safe_s3_errors(errors))
+                    record_s3_operation("delete_batch", "partial")
+                    raise RuntimeError(f"S3 partial delete errors: {_safe_s3_errors(errors)}")
                 deleted_count += len(response.get("Deleted") or [])
 
+        record_s3_operation("delete_batch", "success")
         return deleted_count
 
     def generate_presigned_put(
@@ -739,10 +808,12 @@ class AsyncS3Client:
                 "Content-Length": str(content_length),
             }
 
-            logger.debug("Generated presigned PUT for: %s", object_key)
+            logger.debug("Generated presigned PUT for key_hash=%s", _key_hash(object_key))
+            record_s3_operation("presign_put", "success")
             return {"url": str(url), "headers": headers}
         except ClientError as e:
-            logger.error("Failed to generate presigned PUT for %s: %s", object_key, e)
+            logger.error("Failed to generate presigned PUT for key_hash=%s: %s", _key_hash(object_key), safe_exception_summary(e))
+            record_s3_operation("presign_put", "error")
             raise
 
     async def put_object_tagging(self, key: str, tags: dict[str, str]) -> None:
@@ -765,9 +836,11 @@ class AsyncS3Client:
                     Key=key,
                     Tagging={"TagSet": tag_set},
                 )
-            logger.debug("Updated tags for: %s", key)
+            logger.debug("Updated tags for key_hash=%s", _key_hash(key))
+            record_s3_operation("tag", "success")
         except Exception as e:
-            logger.error("Failed to update tags for %s: %s", key, e)
+            logger.error("Failed to update tags for key_hash=%s: %s", _key_hash(key), safe_exception_summary(e))
+            record_s3_operation("tag", "error")
             raise
 
     async def delete_object_tagging(self, key: str) -> None:
@@ -785,9 +858,11 @@ class AsyncS3Client:
                     Bucket=self.settings.bucket,
                     Key=key,
                 )
-            logger.debug("Deleted tags for: %s", key)
+            logger.debug("Deleted tags for key_hash=%s", _key_hash(key))
+            record_s3_operation("tag", "success")
         except Exception as e:
-            logger.error("Failed to delete tags for %s: %s", key, e)
+            logger.error("Failed to delete tags for key_hash=%s: %s", _key_hash(key), safe_exception_summary(e))
+            record_s3_operation("tag", "error")
             raise
 
     async def get_object_tagging(self, key: str) -> dict[str, str]:
@@ -810,10 +885,12 @@ class AsyncS3Client:
                 )
             # Convert TagSet to dict
             tags = {tag["Key"]: tag["Value"] for tag in response.get("TagSet", [])}
-            logger.debug("Got tags for %s: %s", key, tags)
+            logger.debug("Got tags for key_hash=%s: %s", _key_hash(key), tags)
+            record_s3_operation("tag", "success")
             return tags
         except Exception as e:
-            logger.error("Failed to get tags for %s: %s", key, e)
+            logger.error("Failed to get tags for key_hash=%s: %s", _key_hash(key), safe_exception_summary(e))
+            record_s3_operation("tag", "error")
             raise
 
     async def copy_object_with_new_tags(self, key: str, new_tags: dict[str, str]) -> None:
@@ -840,9 +917,11 @@ class AsyncS3Client:
                     TaggingDirective="REPLACE",
                     MetadataDirective="COPY",
                 )
-            logger.info("Copied object with new tags for: %s -> %s", key, new_tags)
+            logger.info("Copied object with new tags for key_hash=%s -> %s", _key_hash(key), new_tags)
+            record_s3_operation("copy", "success")
         except Exception as e:
-            logger.error("Failed to copy object with new tags for %s: %s", key, e)
+            logger.error("Failed to copy object with new tags for key_hash=%s: %s", _key_hash(key), safe_exception_summary(e))
+            record_s3_operation("copy", "error")
             raise
 
     async def get_object(self, key: str) -> dict:
@@ -860,8 +939,10 @@ class AsyncS3Client:
         try:
             async with self._get_s3_client() as s3:
                 response = await s3.get_object(Bucket=self.settings.bucket, Key=key)
-            logger.info("Successfully got object: %s", key)
+            logger.info("Successfully got object: key_hash=%s", _key_hash(key))
+            record_s3_operation("get", "success")
             return cast(dict[str, Any], response)
         except Exception as e:
-            logger.error("Failed to get object %s: %s", key, e)
+            logger.error("Failed to get object key_hash=%s: %s", _key_hash(key), safe_exception_summary(e))
+            record_s3_operation("get", "error")
             raise
