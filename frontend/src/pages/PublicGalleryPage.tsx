@@ -446,8 +446,8 @@ export const PublicGalleryPage = () => {
     ? projectGalleryTabs?.photographer || folderShare?.photographer
     : folderShare?.photographer;
   const heroCover = isProjectFolderView ? (projectGalleryTabs?.cover ?? null) : folderShare?.cover;
-  const activeProjectGallery = projectGalleryTabs?.folders.find(
-    (projectGallery) => projectGallery.folder_id === activeGalleryId,
+  const activeProjectGallery = projectGalleryTabs?.galleries.find(
+    (projectGallery) => projectGallery.gallery_id === activeGalleryId,
   );
   const displayedPhotoTotal = isFavoritesView
     ? (selection.session?.selected_count ?? selectedPhotos.length)
@@ -484,11 +484,11 @@ export const PublicGalleryPage = () => {
   }, [isFavoritesView, projectGalleryTabs, selection.session]);
 
   useEffect(() => {
-    if (isFavoritesView || activeGalleryId || !projectShare?.folders.length) {
+    if (isFavoritesView || activeGalleryId || !projectShare?.galleries.length) {
       return;
     }
 
-    navigate(projectShare.folders[0].route_path, {
+    navigate(projectShare.galleries[0].route_path, {
       replace: true,
       state: INTERNAL_PROJECT_NAVIGATION_STATE,
     });
@@ -672,7 +672,7 @@ export const PublicGalleryPage = () => {
   }
 
   if (isProjectShare && !activeGalleryId && !isFavoritesView) {
-    if (projectShare.folders.length === 0) {
+    if (projectShare.galleries.length === 0) {
       return (
         <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
           <SkipToContentLink targetId="main-content" />
@@ -752,7 +752,7 @@ export const PublicGalleryPage = () => {
                 </h2>
                 <p className="mt-1 text-sm text-muted">
                   {projectGalleryTabs.photographer || 'Photographer'} ·{' '}
-                  {projectGalleryTabs.total_listed_folders || 0} galleries ·{' '}
+                  {projectGalleryTabs.total_listed_galleries || 0} galleries ·{' '}
                   {projectGalleryTabs.total_listed_photos || 0} photos
                 </p>
               </div>
@@ -798,13 +798,13 @@ export const PublicGalleryPage = () => {
 
             <div className="mt-4 overflow-x-auto pb-1">
               <div className="flex min-w-max gap-2">
-                {projectGalleryTabs.folders.map((projectGallery, index) => {
+                {projectGalleryTabs.galleries.map((projectGallery, index) => {
                   const isActive =
-                    projectGallery.folder_id === activeGalleryId ||
+                    projectGallery.gallery_id === activeGalleryId ||
                     (!activeGalleryId && index === 0);
                   return (
                     <Link
-                      key={projectGallery.folder_id}
+                      key={projectGallery.gallery_id}
                       to={projectGallery.route_path}
                       state={INTERNAL_PROJECT_NAVIGATION_STATE}
                       preventScrollReset
@@ -814,7 +814,7 @@ export const PublicGalleryPage = () => {
                           : 'border-border/40 bg-surface text-text hover:border-accent/30'
                       }`}
                     >
-                      {projectGallery.folder_name}
+                      {projectGallery.gallery_name}
                     </Link>
                   );
                 })}

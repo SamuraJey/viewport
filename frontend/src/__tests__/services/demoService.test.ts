@@ -223,7 +223,7 @@ describe('demoService', () => {
     expect(firstGallery.total_size_bytes).toBe(project.galleries[0].total_size_bytes);
     expect(firstGallery.project_navigation?.project_name).toBe('Porto Wedding Delivery');
     expect(firstGallery.project_navigation?.total_size_bytes).toBe(projectShare.total_size_bytes);
-    expect(secondGallery.project_navigation?.folders).toHaveLength(2);
+    expect(secondGallery.project_navigation?.galleries).toHaveLength(2);
 
     await service.togglePublicSelectionItem(
       projectShareLink!.id,

@@ -30,10 +30,10 @@ class TestProjectAPI:
             json={"name": "Direct Only", "project_visibility": "direct_only"},
         )
         assert hidden_folder_resp.status_code == 201
-        hidden_folder_id = hidden_folder_resp.json()["id"]
+        hidden_gallery_id = hidden_folder_resp.json()["id"]
 
-        upload_photo_via_presigned(authenticated_client, hidden_folder_id, b"first hidden", "first.jpg")
-        upload_photo_via_presigned(authenticated_client, hidden_folder_id, b"second hidden", "second.jpg")
+        upload_photo_via_presigned(authenticated_client, hidden_gallery_id, b"first hidden", "first.jpg")
+        upload_photo_via_presigned(authenticated_client, hidden_gallery_id, b"second hidden", "second.jpg")
 
         name_resp = authenticated_client.get("/projects?page=1&size=20&sort_by=name&order=asc")
         assert name_resp.status_code == 200
@@ -217,13 +217,13 @@ class TestProjectAPI:
         )
         assert listed_folder_resp.status_code == 201
         assert hidden_folder_resp.status_code == 201
-        listed_folder_id = listed_folder_resp.json()["id"]
-        hidden_folder_id = hidden_folder_resp.json()["id"]
+        listed_gallery_id = listed_folder_resp.json()["id"]
+        hidden_gallery_id = hidden_folder_resp.json()["id"]
 
-        upload_photo_via_presigned(authenticated_client, listed_folder_id, b"listed", "listed.jpg")
-        upload_photo_via_presigned(authenticated_client, hidden_folder_id, b"hidden-hidden", "hidden.jpg")
-        listed_detail_resp = authenticated_client.get(f"/galleries/{listed_folder_id}")
-        hidden_detail_resp = authenticated_client.get(f"/galleries/{hidden_folder_id}")
+        upload_photo_via_presigned(authenticated_client, listed_gallery_id, b"listed", "listed.jpg")
+        upload_photo_via_presigned(authenticated_client, hidden_gallery_id, b"hidden-hidden", "hidden.jpg")
+        listed_detail_resp = authenticated_client.get(f"/galleries/{listed_gallery_id}")
+        hidden_detail_resp = authenticated_client.get(f"/galleries/{hidden_gallery_id}")
         assert listed_detail_resp.status_code == 200
         assert hidden_detail_resp.status_code == 200
         listed_total_size = listed_detail_resp.json()["total_size_bytes"]
@@ -241,13 +241,13 @@ class TestProjectAPI:
         public_project_payload = public_project_resp.json()
         assert public_project_payload["scope_type"] == "project"
         assert public_project_payload["project_name"] == "Wedding B"
-        assert public_project_payload["total_listed_folders"] == 1
+        assert public_project_payload["total_listed_galleries"] == 1
         assert public_project_payload["total_size_bytes"] == listed_total_size
         assert public_project_payload["total_size_bytes"] != listed_total_size + hidden_total_size
-        assert [folder["folder_id"] for folder in public_project_payload["folders"]] == [listed_folder_id]
-        assert public_project_payload["folders"][0]["route_path"] == f"/share/{project_share_id}/galleries/{listed_folder_id}"
+        assert [folder["gallery_id"] for folder in public_project_payload["galleries"]] == [listed_gallery_id]
+        assert public_project_payload["galleries"][0]["route_path"] == f"/share/{project_share_id}/galleries/{listed_gallery_id}"
 
-        visible_folder_resp = authenticated_client.get(f"/s/{project_share_id}/galleries/{listed_folder_id}")
+        visible_folder_resp = authenticated_client.get(f"/s/{project_share_id}/galleries/{listed_gallery_id}")
         assert visible_folder_resp.status_code == 200
         visible_folder_payload = visible_folder_resp.json()
         assert visible_folder_payload["scope_type"] == "gallery"
@@ -255,11 +255,11 @@ class TestProjectAPI:
         assert visible_folder_payload["total_size_bytes"] == listed_total_size
         assert visible_folder_payload["project_navigation"]["total_size_bytes"] == listed_total_size
 
-        hidden_folder_public_resp = authenticated_client.get(f"/s/{project_share_id}/galleries/{hidden_folder_id}")
+        hidden_folder_public_resp = authenticated_client.get(f"/s/{project_share_id}/galleries/{hidden_gallery_id}")
         assert hidden_folder_public_resp.status_code == 404
 
         direct_hidden_share_resp = authenticated_client.post(
-            f"/galleries/{hidden_folder_id}/share-links",
+            f"/galleries/{hidden_gallery_id}/share-links",
             json={"expires_at": (datetime.now(UTC) + timedelta(days=1)).isoformat()},
         )
         assert direct_hidden_share_resp.status_code == 201
@@ -428,13 +428,13 @@ class TestProjectAPI:
         assert second_folder_resp.status_code == 201
         assert hidden_folder_resp.status_code == 201
 
-        first_folder_id = first_folder_resp.json()["id"]
-        second_folder_id = second_folder_resp.json()["id"]
-        hidden_folder_id = hidden_folder_resp.json()["id"]
+        first_gallery_id = first_folder_resp.json()["id"]
+        second_gallery_id = second_folder_resp.json()["id"]
+        hidden_gallery_id = hidden_folder_resp.json()["id"]
 
-        first_photo_id = upload_photo_via_presigned(authenticated_client, first_folder_id, b"one", "one.jpg")
-        second_photo_id = upload_photo_via_presigned(authenticated_client, second_folder_id, b"two", "two.jpg")
-        hidden_photo_id = upload_photo_via_presigned(authenticated_client, hidden_folder_id, b"secret", "secret.jpg")
+        first_photo_id = upload_photo_via_presigned(authenticated_client, first_gallery_id, b"one", "one.jpg")
+        second_photo_id = upload_photo_via_presigned(authenticated_client, second_gallery_id, b"two", "two.jpg")
+        hidden_photo_id = upload_photo_via_presigned(authenticated_client, hidden_gallery_id, b"secret", "secret.jpg")
 
         project_share_resp = authenticated_client.post(
             f"/projects/{project_id}/share-links",
@@ -580,7 +580,7 @@ class TestProjectAPI:
         landing_resp = authenticated_client.get(f"/s/{project_share_id}")
         assert landing_resp.status_code == 200
         assert landing_resp.json()["scope_type"] == "project"
-        assert landing_resp.json()["folders"][0]["route_path"] == f"/share/{project_share_id}/galleries/{gallery_id}"
+        assert landing_resp.json()["galleries"][0]["route_path"] == f"/share/{project_share_id}/galleries/{gallery_id}"
         nested_gallery_resp = authenticated_client.get(
             f"/s/{project_share_id}/galleries/{gallery_id}",
             headers={"X-Viewport-Internal-Navigation": "1"},
@@ -646,12 +646,12 @@ class TestProjectAPI:
         assert first_folder_resp.status_code == 201
         assert second_folder_resp.status_code == 201
         entry_gallery_id = entry_folder_resp.json()["id"]
-        first_folder_id = first_folder_resp.json()["id"]
-        second_folder_id = second_folder_resp.json()["id"]
+        first_gallery_id = first_folder_resp.json()["id"]
+        second_gallery_id = second_folder_resp.json()["id"]
 
         reorder_resp = authenticated_client.put(
             f"/projects/{project_id}/galleries/reorder",
-            json={"gallery_ids": [second_folder_id, entry_gallery_id, first_folder_id]},
+            json={"gallery_ids": [second_gallery_id, entry_gallery_id, first_gallery_id]},
         )
         assert reorder_resp.status_code == 204
 
@@ -659,15 +659,15 @@ class TestProjectAPI:
         assert detail_resp.status_code == 200
         reordered_galleries = detail_resp.json()["galleries"]
         assert [gallery["id"] for gallery in reordered_galleries] == [
-            second_folder_id,
+            second_gallery_id,
             entry_gallery_id,
-            first_folder_id,
+            first_gallery_id,
         ]
         assert [gallery["project_position"] for gallery in reordered_galleries] == [0, 1, 2]
 
         invalid_reorder_resp = authenticated_client.put(
             f"/projects/{project_id}/galleries/reorder",
-            json={"gallery_ids": [second_folder_id, entry_gallery_id]},
+            json={"gallery_ids": [second_gallery_id, entry_gallery_id]},
         )
         assert invalid_reorder_resp.status_code == 400
 
@@ -687,18 +687,18 @@ class TestProjectAPI:
         )
         assert first_folder_resp.status_code == 201
         assert second_folder_resp.status_code == 201
-        first_folder_id = first_folder_resp.json()["id"]
-        second_folder_id = second_folder_resp.json()["id"]
+        first_gallery_id = first_folder_resp.json()["id"]
+        second_gallery_id = second_folder_resp.json()["id"]
 
         first_photo_id = upload_photo_via_presigned(
             authenticated_client,
-            first_folder_id,
+            first_gallery_id,
             b"first",
             "first.jpg",
         )
         second_photo_id = upload_photo_via_presigned(
             authenticated_client,
-            second_folder_id,
+            second_gallery_id,
             b"second",
             "second.jpg",
         )
@@ -712,19 +712,19 @@ class TestProjectAPI:
         initial_payload = initial_public_resp.json()
         assert initial_payload["scope_type"] == "project"
         assert initial_payload["project_name"] == "Ordered Project"
-        assert [folder["folder_id"] for folder in initial_payload["folders"]] == [
-            first_folder_id,
-            second_folder_id,
+        assert [folder["gallery_id"] for folder in initial_payload["galleries"]] == [
+            first_gallery_id,
+            second_gallery_id,
         ]
         assert initial_payload["cover"]["photo_id"] == first_photo_id
-        assert initial_payload["folders"][0]["route_path"] == f"/share/{project_share_id}/galleries/{first_folder_id}"
+        assert initial_payload["galleries"][0]["route_path"] == f"/share/{project_share_id}/galleries/{first_gallery_id}"
 
         move_second_left_resp = authenticated_client.patch(
-            f"/galleries/{second_folder_id}",
+            f"/galleries/{second_gallery_id}",
             json={"project_position": 0},
         )
         move_first_right_resp = authenticated_client.patch(
-            f"/galleries/{first_folder_id}",
+            f"/galleries/{first_gallery_id}",
             json={"project_position": 1},
         )
         assert move_second_left_resp.status_code == 200
@@ -733,8 +733,8 @@ class TestProjectAPI:
         detail_resp = authenticated_client.get(f"/projects/{project_id}")
         assert detail_resp.status_code == 200
         assert [gallery["id"] for gallery in detail_resp.json()["galleries"]] == [
-            second_folder_id,
-            first_folder_id,
+            second_gallery_id,
+            first_gallery_id,
         ]
 
         reordered_public_resp = authenticated_client.get(f"/s/{project_share_id}")
@@ -742,9 +742,9 @@ class TestProjectAPI:
         reordered_payload = reordered_public_resp.json()
         assert reordered_payload["scope_type"] == "project"
         assert reordered_payload["project_name"] == "Ordered Project"
-        assert [folder["folder_id"] for folder in reordered_payload["folders"]] == [
-            second_folder_id,
-            first_folder_id,
+        assert [folder["gallery_id"] for folder in reordered_payload["galleries"]] == [
+            second_gallery_id,
+            first_gallery_id,
         ]
         assert reordered_payload["cover"]["photo_id"] == second_photo_id
-        assert reordered_payload["folders"][0]["route_path"] == f"/share/{project_share_id}/galleries/{second_folder_id}"
+        assert reordered_payload["galleries"][0]["route_path"] == f"/share/{project_share_id}/galleries/{second_gallery_id}"

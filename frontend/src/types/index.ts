@@ -55,7 +55,7 @@ export type {
   ShareLinkCreateRequest,
   ShareLinkUpdateRequest,
   PublicPhoto,
-  PublicProjectFolder,
+  PublicProjectGallery,
   SharedGallery,
   SharedProjectShare,
   SharedGalleryQueryOptions,

@@ -207,6 +207,17 @@ class TestAuthFlow:
         assert response.status_code == 401
         assert "invalid token type" in response.json()["detail"].lower()
 
+    def test_refresh_token_cannot_access_protected_endpoint(self, client: TestClient, test_user_data):
+        """Refresh tokens are not accepted as bearer credentials for protected APIs."""
+        client.post("/auth/register", json=test_user_data)
+        login_response = client.post("/auth/login", json=test_user_data)
+        refresh_token = login_response.json()["tokens"]["refresh_token"]
+
+        response = client.get("/me", headers={"Authorization": f"Bearer {refresh_token}"})
+
+        assert response.status_code == 401
+        assert "invalid token type" in response.json()["detail"].lower()
+
     def test_refresh_token_expired(self, client: TestClient, auth_settings):
         """Test refresh with expired token."""
         # Create expired refresh token
@@ -261,6 +272,33 @@ class TestAuthFlow:
         hashed2 = hash_password(password)
         assert hashed != hashed2
         assert verify_password(password, hashed2) is True
+
+    @pytest.mark.parametrize(
+        "password",
+        [
+            "a" * 73,
+            "é" * 37,
+        ],
+    )
+    def test_passwords_over_bcrypt_byte_limit_are_rejected(self, client: TestClient, password: str):
+        """Register/login reject passwords whose UTF-8 encoding exceeds 72 bytes."""
+        register_payload = {"email": "long-password@example.com", "password": password, "invite_code": "testinvitecode"}
+
+        register_response = client.post("/auth/register", json=register_payload)
+        login_response = client.post("/auth/login", json={"email": "long-password@example.com", "password": password})
+
+        assert register_response.status_code == 422
+        assert login_response.status_code == 422
+
+    def test_password_hashing_rejects_over_bcrypt_byte_limit(self):
+        from viewport.api.auth import hash_password, verify_password
+
+        valid_hash = hash_password("a" * 72)
+
+        with pytest.raises(ValueError, match="72 UTF-8 bytes"):
+            hash_password("a" * 73)
+        with pytest.raises(ValueError, match="72 UTF-8 bytes"):
+            verify_password("a" * 73, valid_hash)
 
     def test_token_contains_correct_user_id(self, client: TestClient, test_user_data, auth_settings):
         """Test that generated tokens contain the correct user ID."""

@@ -12,7 +12,7 @@ from starlette.concurrency import run_in_threadpool
 from viewport.auth_utils import authsettings
 from viewport.models.db import get_db
 from viewport.repositories.user_repository import UserRepository
-from viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair
+from viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair, validate_user_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -45,11 +45,13 @@ def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt with a random salt."""
+    validate_user_password(password)
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)).decode("utf-8")
 
 
 def verify_password(password: str, hashed: str) -> bool:
     """Verify a password against its bcrypt hash."""
+    validate_user_password(password)
     return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 

@@ -43,7 +43,7 @@ class TestJWTAuthentication:
         await db_session.commit()
 
         # Create a valid token
-        payload = {"sub": user_id}
+        payload = {"sub": user_id, "type": "access"}
         token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
         # Mock credentials
@@ -58,7 +58,7 @@ class TestJWTAuthentication:
     async def test_get_current_user_no_user_id_in_token(self, db_session):
         """Test token without user ID."""
         # Create token without 'sub' field
-        payload = {"name": "test"}
+        payload = {"name": "test", "type": "access"}
         token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
@@ -69,10 +69,30 @@ class TestJWTAuthentication:
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail == "Invalid token"
 
+    @pytest.mark.parametrize("token_type", [None, "refresh"])
+    async def test_get_current_user_requires_access_token_type(self, db_session, token_type):
+        """Refresh tokens and legacy untyped tokens are not accepted for API auth."""
+        user_id = str(uuid.uuid4())
+        user = User(id=uuid.UUID(user_id), email="typed@example.com", password_hash="hashed_password")
+        db_session.add(user)
+        await db_session.commit()
+
+        payload = {"sub": user_id}
+        if token_type is not None:
+            payload["type"] = token_type
+        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user(credentials, db_session)
+
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.detail == "Invalid token type"
+
     async def test_get_current_user_user_not_found(self, db_session):
         """Test token with non-existent user ID."""
         non_existent_user_id = str(uuid.uuid4())
-        payload = {"sub": non_existent_user_id}
+        payload = {"sub": non_existent_user_id, "type": "access"}
         token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
@@ -123,7 +143,7 @@ class TestJWTAuthentication:
     async def test_get_current_user_wrong_secret(self, db_session):
         """Test token signed with wrong secret."""
         user_id = str(uuid.uuid4())
-        payload = {"sub": user_id}
+        payload = {"sub": user_id, "type": "access"}
         # Sign with wrong secret
         token = jwt.encode(payload, WRONG_JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -138,7 +158,7 @@ class TestJWTAuthentication:
     async def test_get_current_user_wrong_algorithm(self, db_session):
         """Test token signed with wrong algorithm."""
         user_id = str(uuid.uuid4())
-        payload = {"sub": user_id}
+        payload = {"sub": user_id, "type": "access"}
         # Sign with wrong algorithm
         token = jwt.encode(payload, JWT_SECRET, algorithm="HS512")
 

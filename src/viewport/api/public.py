@@ -1,12 +1,10 @@
 import contextlib
-from asyncio import run as asyncio_run
 from datetime import date, datetime
 from uuid import UUID
 
 import zipstream
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse, StreamingResponse
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from viewport.dependencies import get_s3_client as get_async_s3_client
@@ -21,7 +19,7 @@ from viewport.repositories.sharelink_repository import ShareLinkRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client, get_s3_settings
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
-from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto, PublicProjectFolder, PublicProjectResponse, PublicShareResponse, PublicShareUnlockRequest
+from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto, PublicProjectGallery, PublicProjectResponse, PublicShareResponse, PublicShareUnlockRequest
 from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_available_public_sharelink, get_valid_public_sharelink, unlock_sharelink_password
 from viewport.zip_utils import build_zip_fallback_name, make_unique_zip_entry_name, sanitize_zip_entry_name
 
@@ -154,8 +152,7 @@ async def _build_public_gallery_response(
     if cover_id:
         cover_photo_obj = None
         if gallery.cover_photo_id:
-            stmt = select(Photo).where(Photo.id == gallery.cover_photo_id)
-            cover_photo_obj = (await repo.db.execute(stmt)).scalar_one_or_none()
+            cover_photo_obj = await repo.get_photo_by_id_and_gallery(gallery.cover_photo_id, gallery.id)
 
         cover_filename = None
         cover_url = None
@@ -257,12 +254,12 @@ async def _build_public_project_response(
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
-    folders = await project_repo.get_visible_project_folders(project.id)
-    if not folders:
+    galleries = await project_repo.get_visible_project_folders(project.id)
+    if not galleries:
         raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
-    gallery_ids = [folder.id for folder in folders]
-    cover_photo_ids = [folder.cover_photo_id for folder in folders if folder.cover_photo_id]
+    gallery_ids = [gallery.id for gallery in galleries]
+    cover_photo_ids = [gallery.cover_photo_id for gallery in galleries if gallery.cover_photo_id]
     photo_count_by_gallery, total_size_by_gallery, _, cover_thumbnail_by_photo_id, recent_thumbnail_keys_by_gallery = await gallery_repo.get_gallery_list_enrichment(
         gallery_ids,
         cover_photo_ids,
@@ -274,30 +271,30 @@ async def _build_public_project_response(
     thumbnail_url_map = await s3_client.generate_presigned_urls_batch(list(dict.fromkeys(thumbnail_keys)), expires_in=7200) if thumbnail_keys else {}
 
     project_cover = await _build_project_cover(
-        gallery=folders[0],
+        gallery=galleries[0],
         gallery_repo=gallery_repo,
         s3_client=s3_client,
     )
-    folder_items: list[PublicProjectFolder] = []
+    gallery_items: list[PublicProjectGallery] = []
     total_listed_photos = 0
     total_size_bytes = 0
-    for folder in folders:
-        photo_count = photo_count_by_gallery.get(folder.id, 0)
+    for gallery in galleries:
+        photo_count = photo_count_by_gallery.get(gallery.id, 0)
         total_listed_photos += photo_count
-        total_size_bytes += total_size_by_gallery.get(folder.id, 0)
-        cover_thumbnail_key = cover_thumbnail_by_photo_id.get(folder.cover_photo_id) if folder.cover_photo_id else None
+        total_size_bytes += total_size_by_gallery.get(gallery.id, 0)
+        cover_thumbnail_key = cover_thumbnail_by_photo_id.get(gallery.cover_photo_id) if gallery.cover_photo_id else None
         cover_thumbnail_url = thumbnail_url_map.get(cover_thumbnail_key) if cover_thumbnail_key else None
         if cover_thumbnail_url is None:
-            recent_keys = recent_thumbnail_keys_by_gallery.get(folder.id, [])
+            recent_keys = recent_thumbnail_keys_by_gallery.get(gallery.id, [])
             if recent_keys:
                 cover_thumbnail_url = thumbnail_url_map.get(recent_keys[0])
-        folder_items.append(
-            PublicProjectFolder(
-                folder_id=str(folder.id),
-                folder_name=folder.name,
+        gallery_items.append(
+            PublicProjectGallery(
+                gallery_id=str(gallery.id),
+                gallery_name=gallery.name,
                 photo_count=photo_count,
                 cover_thumbnail_url=cover_thumbnail_url,
-                route_path=f"/share/{share_id}/galleries/{folder.id}",
+                route_path=f"/share/{share_id}/galleries/{gallery.id}",
                 direct_share_path=None,
             )
         )
@@ -319,10 +316,10 @@ async def _build_public_project_response(
         date=_date_str(getattr(project, "shooting_date", None), getattr(project, "created_at", None), getattr(sharelink, "created_at", None)),
         site_url=_site_url(request),
         cover=project_cover,
-        total_listed_folders=len(folder_items),
+        total_listed_galleries=len(gallery_items),
         total_listed_photos=total_listed_photos,
         total_size_bytes=total_size_bytes,
-        folders=folder_items,
+        galleries=gallery_items,
     )
 
 
@@ -332,12 +329,12 @@ async def _load_project_zip_entries(
     project_repo: ProjectRepository,
     repo: ShareLinkRepository,
 ) -> list[tuple[str, list[Photo]]]:
-    folders = await project_repo.get_visible_project_folders(project_id)
-    if not folders:
+    galleries = await project_repo.get_visible_project_folders(project_id)
+    if not galleries:
         return []
 
     photos_by_gallery = await repo.get_photos_by_visible_project(project_id)
-    return [(folder.name, photos_by_gallery.get(folder.id, [])) for folder in folders]
+    return [(gallery.name, photos_by_gallery.get(gallery.id, [])) for gallery in galleries]
 
 
 def _ensure_gallery_share_scope(sharelink: ShareLink) -> None:
@@ -577,9 +574,8 @@ async def check_project_gallery_photos_zip(
     return Response(status_code=204, headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
 
-# intentionally not async
 @router.get("/{share_id}/galleries/{gallery_id}/download/all")
-def download_project_gallery_photos_zip(
+async def download_project_gallery_photos_zip(
     share_id: UUID,
     gallery_id: UUID,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
@@ -590,14 +586,14 @@ def download_project_gallery_photos_zip(
     if sharelink.scope_type != ShareScopeType.PROJECT.value or sharelink.project_id is None:
         raise HTTPException(status_code=404, detail="Project share not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
-    gallery = asyncio_run(project_repo.get_visible_project_gallery_by_id(sharelink.project_id, gallery_id))
+    gallery = await project_repo.get_visible_project_gallery_by_id(sharelink.project_id, gallery_id)
     if gallery is None:
         raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
     settings = get_s3_settings()
     z = zipstream.ZipStream()
     used_names: set[str] = set()
-    gallery_photos = asyncio_run(repo.get_photos_by_gallery_id(gallery.id))
+    gallery_photos = await repo.get_photos_by_gallery_id(gallery.id)
 
     if not gallery_photos:
         raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
@@ -615,7 +611,7 @@ def download_project_gallery_photos_zip(
 
         z.add(arcname=filename, data=file_generator())
 
-    asyncio_run(repo.record_zip_download(share_id))
+    await repo.record_zip_download(share_id)
     logger.log_event(
         "download_project_gallery_zip",
         share_id=str(sharelink.id),
@@ -630,9 +626,8 @@ def download_project_gallery_photos_zip(
     return StreamingResponse(z, media_type="application/zip", headers=headers)
 
 
-# intetionally not async
 @router.head("/{share_id}/download/all")
-def check_download_all_photos_zip(
+async def check_download_all_photos_zip(
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     project_repo: ProjectRepository = Depends(get_project_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
@@ -642,13 +637,13 @@ def check_download_all_photos_zip(
         project_id = sharelink.project_id
         if project_id is None:
             raise HTTPException(status_code=404, detail="Project not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
-        project_zip_entries = asyncio_run(_load_project_zip_entries(project_id, project_repo=project_repo, repo=repo))
-        if not any(folder_photos for _, folder_photos in project_zip_entries):
+        project_zip_entries = await _load_project_zip_entries(project_id, project_repo=project_repo, repo=repo)
+        if not any(gallery_photos for _, gallery_photos in project_zip_entries):
             raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
         return Response(status_code=204, headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
     gallery_id = _require_gallery_share_id(sharelink)
-    gallery_photos = asyncio_run(repo.get_photos_by_gallery_id(gallery_id))
+    gallery_photos = await repo.get_photos_by_gallery_id(gallery_id)
     if not gallery_photos:
         raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
@@ -656,7 +651,7 @@ def check_download_all_photos_zip(
 
 
 @router.get("/{share_id}/download/all")
-def download_all_photos_zip(
+async def download_all_photos_zip(
     share_id: UUID,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     project_repo: ProjectRepository = Depends(get_project_repository),
@@ -671,15 +666,15 @@ def download_all_photos_zip(
         project_id = sharelink.project_id
         if project_id is None:
             raise HTTPException(status_code=404, detail="Project not found")
-        project_zip_entries = asyncio_run(_load_project_zip_entries(project_id, project_repo=project_repo, repo=repo))
-        if not any(folder_photos for _, folder_photos in project_zip_entries):
+        project_zip_entries = await _load_project_zip_entries(project_id, project_repo=project_repo, repo=repo)
+        if not any(gallery_photos for _, gallery_photos in project_zip_entries):
             raise HTTPException(status_code=404, detail="No photos found")
 
-        for folder_name, folder_photos in project_zip_entries:
-            for photo in folder_photos:
+        for gallery_name, gallery_photos in project_zip_entries:
+            for photo in gallery_photos:
                 key = photo.object_key
                 fallback = build_zip_fallback_name(photo.display_name, object_key=key, fallback_stem=f"photo-{photo.id}")
-                filename = sanitize_zip_entry_name(f"{folder_name} - {photo.display_name}", fallback=f"{folder_name} - {fallback}")
+                filename = sanitize_zip_entry_name(f"{gallery_name} - {photo.display_name}", fallback=f"{gallery_name} - {fallback}")
                 filename = make_unique_zip_entry_name(filename, used_names)
 
                 def file_generator(object_key: str = key):
@@ -689,7 +684,7 @@ def download_all_photos_zip(
 
                 z.add(arcname=filename, data=file_generator())
 
-        asyncio_run(repo.record_zip_download(share_id))
+        await repo.record_zip_download(share_id)
         headers = {
             "Content-Disposition": f'attachment; filename="project_{share_id}.zip"',
             **PUBLIC_CACHE_CONTROL_HEADERS,
@@ -697,7 +692,7 @@ def download_all_photos_zip(
         return StreamingResponse(z, media_type="application/zip", headers=headers)
 
     gallery_id = _require_gallery_share_id(sharelink)
-    gallery_photos = asyncio_run(repo.get_photos_by_gallery_id(gallery_id))
+    gallery_photos = await repo.get_photos_by_gallery_id(gallery_id)
 
     with contextlib.suppress(Exception):
         gallery_photos = sorted(gallery_photos, key=lambda p: p.display_name.lower())
@@ -718,7 +713,7 @@ def download_all_photos_zip(
 
         z.add(arcname=filename, data=file_generator())
 
-    asyncio_run(repo.record_zip_download(share_id))
+    await repo.record_zip_download(share_id)
     logger.log_event("download_zip", share_id=str(sharelink.id), extra={"photo_count": len(gallery_photos)})
 
     headers = {

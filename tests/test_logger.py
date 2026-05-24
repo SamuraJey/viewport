@@ -1,4 +1,5 @@
 import json
+import logging
 
 from viewport.logger import logger
 
@@ -14,3 +15,13 @@ def test_structured_logger_format():
     assert "abc123" in out
     assert "user456" in out
     assert "foo" in out
+
+
+def test_structured_logger_timestamp_uses_single_utc_designator(caplog):
+    caplog.set_level(logging.INFO, logger="viewport")
+
+    logger.log_event("timestamp_check")
+
+    payload = json.loads(caplog.records[-1].message)
+    assert payload["timestamp"].endswith("Z")
+    assert "+00:00Z" not in payload["timestamp"]

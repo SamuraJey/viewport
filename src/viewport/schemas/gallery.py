@@ -66,8 +66,8 @@ class GalleryCreateRequest(BaseModel):
     name: str = Field("", max_length=GALLERY_NAME_MAX_LENGTH, description="Custom name for the gallery")
     shooting_date: date | None = Field(None, description="Displayed shooting date (YYYY-MM-DD)")
     project_id: str | None = Field(None, description="Optional parent project id")
-    project_position: int | None = Field(None, ge=0, description="Folder ordering position inside project")
-    project_visibility: ProjectVisibility = Field(ProjectVisibility.LISTED, description="Folder visibility inside project shares")
+    project_position: int | None = Field(None, ge=0, description="Gallery ordering position inside project")
+    project_visibility: ProjectVisibility = Field(ProjectVisibility.LISTED, description="Gallery visibility inside project shares")
     public_sort_by: GalleryPhotoSortBy = Field(
         GalleryPhotoSortBy(PUBLIC_GALLERY_SORT_BY_DEFAULT),
         description="Default sort field for shared/public gallery",
@@ -82,8 +82,8 @@ class GalleryUpdateRequest(BaseModel):
     name: str | None = Field(None, max_length=GALLERY_NAME_MAX_LENGTH, description="New name for the gallery")
     shooting_date: date | None = Field(None, description="Displayed shooting date (YYYY-MM-DD)")
     project_id: str | None = Field(None, description="Optional parent project id")
-    project_position: int | None = Field(None, ge=0, description="Folder ordering position inside project")
-    project_visibility: ProjectVisibility | None = Field(None, description="Folder visibility inside project shares")
+    project_position: int | None = Field(None, ge=0, description="Gallery ordering position inside project")
+    project_visibility: ProjectVisibility | None = Field(None, description="Gallery visibility inside project shares")
     public_sort_by: GalleryPhotoSortBy | None = Field(None, description="Default sort field for shared/public gallery")
     public_sort_order: SortOrder | None = Field(None, description="Default sort direction for shared/public gallery")
 

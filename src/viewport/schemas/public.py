@@ -33,9 +33,9 @@ class PublicCover(BaseModel):
     filename: str | None = None
 
 
-class PublicProjectFolder(BaseModel):
-    folder_id: str
-    folder_name: str = ""
+class PublicProjectGallery(BaseModel):
+    gallery_id: str
+    gallery_name: str = ""
     photo_count: int = 0
     cover_thumbnail_url: str | None = None
     route_path: str
@@ -66,10 +66,10 @@ class PublicProjectResponse(BaseModel):
     date: str = ""
     site_url: str = ""
     cover: PublicCover | None = None
-    total_listed_folders: int = 0
+    total_listed_galleries: int = 0
     total_listed_photos: int = 0
     total_size_bytes: int = 0
-    folders: list[PublicProjectFolder] = Field(default_factory=list)
+    galleries: list[PublicProjectGallery] = Field(default_factory=list)
 
 
 PublicShareResponse = Annotated[
