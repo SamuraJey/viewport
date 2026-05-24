@@ -204,6 +204,9 @@ class TestSharelinkAPI:
         )
         assert data[0]["is_active"] is True
         assert "gallery_id" not in data[0]
+        assert data[0]["selection_summary"]["is_enabled"] is False
+        assert data[0]["selection_summary"]["status"] == "not_started"
+        assert data[0]["selection_summary"]["total_sessions"] == 0
 
     def test_list_sharelinks_gallery_not_found(self, authenticated_client: TestClient):
         """Test listing sharelinks for non-existent gallery."""

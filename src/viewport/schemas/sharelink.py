@@ -124,6 +124,10 @@ class ShareLinkSelectionSummaryResponse(BaseModel):
     latest_activity_at: datetime | None
 
 
+class GalleryShareLinkWithSelectionResponse(GalleryShareLinkResponse):
+    selection_summary: ShareLinkSelectionSummaryResponse | None = None
+
+
 class ShareLinkDashboardListItemResponse(ShareLinkDashboardItemResponse):
     latest_activity_at: datetime
     selection_summary: ShareLinkSelectionSummaryResponse | None = None

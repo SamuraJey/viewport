@@ -20,6 +20,7 @@ from viewport.repositories.sharelink_repository import ShareLinkRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.schemas.sharelink import (
     GalleryShareLinkResponse,
+    GalleryShareLinkWithSelectionResponse,
     ScopedShareLinkResponse,
     ShareLinkAnalyticsResponse,
     ShareLinkCreateRequest,
@@ -175,18 +176,29 @@ def _zero_filled_daily_points(
     return points
 
 
-@gallery_router.get("", response_model=list[GalleryShareLinkResponse])
+@gallery_router.get("", response_model=list[GalleryShareLinkWithSelectionResponse])
 async def list_sharelinks(
     gallery_id: UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
+    selection_repo: SelectionRepository = Depends(get_selection_repository),
     user=Depends(get_current_user),
-) -> list[GalleryShareLinkResponse]:
+) -> list[GalleryShareLinkWithSelectionResponse]:
     gallery = await repo.get_gallery_by_id_and_owner(gallery_id, user.id)
     if not gallery:
         raise HTTPException(status_code=404, detail="Gallery not found")
 
     sharelinks = await repo.get_sharelinks_by_gallery(gallery_id, user.id)
-    return [GalleryShareLinkResponse.model_validate(sharelink) for sharelink in sharelinks]
+    selection_summaries = await selection_repo.get_sharelink_selection_summaries(
+        [sharelink.id for sharelink in sharelinks],
+    )
+    return [
+        GalleryShareLinkWithSelectionResponse.model_validate(sharelink).model_copy(
+            update={
+                "selection_summary": _selection_summary_from_map(selection_summaries, sharelink.id),
+            }
+        )
+        for sharelink in sharelinks
+    ]
 
 
 @gallery_router.post("", response_model=GalleryShareLinkResponse, status_code=status.HTTP_201_CREATED)
