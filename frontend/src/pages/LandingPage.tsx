@@ -160,9 +160,9 @@ const fadeUp = {
 
 const LandingPreview = () => (
   <div className="relative mx-auto w-full max-w-xl">
-    <div className="absolute -inset-6 rounded-4xl bg-accent/20 blur-3xl dark:bg-accent/10" />
-    <div className="relative overflow-hidden rounded-4xl border border-border/60 bg-surface/90 p-3 shadow-2xl backdrop-blur-xl dark:bg-surface-dark/85">
-      <div className="rounded-3xl border border-border/50 bg-surface-1/90 p-4 dark:bg-surface-dark-1/85">
+    <div className="absolute -inset-6 rounded-4xl bg-accent/15 blur-3xl dark:bg-accent/8" />
+    <div className="relative overflow-hidden rounded-4xl border border-border/50 bg-surface/90 p-3 shadow-2xl backdrop-blur-xl dark:bg-surface-dark/85">
+      <div className="rounded-3xl border border-border/40 bg-surface-1/90 p-4 dark:bg-surface-dark-1/85">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <p className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-accent">
@@ -171,41 +171,58 @@ const LandingPreview = () => (
             <h2 className="mt-1 text-lg font-bold text-text">Northern Editorial</h2>
           </div>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-success/25 bg-success/10 px-3 py-1 text-xs font-bold text-success">
-            <span className="h-2 w-2 rounded-full bg-success" />
+            <span className="h-2 w-2 rounded-full bg-success motion-safe:animate-pulse motion-reduce:animate-none" />
             Live link
           </span>
         </div>
 
         <div className="grid grid-cols-[1.2fr_0.8fr] gap-3">
-          <div className="overflow-hidden rounded-2xl border border-border/50 bg-surface shadow-sm">
-            <div className="aspect-4/3 bg-linear-to-br from-slate-950 via-accent/70 to-sky-200" />
+          <div className="overflow-hidden rounded-2xl border border-border/40 bg-surface shadow-sm">
+            <div className="aspect-4/3 bg-linear-to-br from-slate-950 via-accent/60 to-sky-200 relative overflow-hidden">
+              {/* Simulated photo composition */}
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_40%,rgba(255,255,255,0.15),transparent_50%)]" />
+              <div className="absolute bottom-3 left-3 right-3">
+                <div className="h-1.5 w-3/4 rounded-full bg-white/20" />
+                <div className="mt-1.5 h-1.5 w-1/2 rounded-full bg-white/10" />
+              </div>
+            </div>
             <div className="space-y-2 p-3">
-              <div className="h-2 w-2/3 rounded-full bg-text/20" />
-              <div className="h-2 w-1/2 rounded-full bg-muted/20" />
+              <div className="h-2 w-2/3 rounded-full bg-text/15" />
+              <div className="h-2 w-1/2 rounded-full bg-muted/15" />
             </div>
           </div>
           <div className="grid gap-3">
-            {galleryTiles.map((tile) => (
+            {galleryTiles.map((tile, i) => (
               <div
                 key={tile}
-                className={`rounded-2xl border border-border/50 bg-linear-to-br ${tile}`}
-              />
+                className={`rounded-2xl border border-border/40 bg-linear-to-br ${tile} relative overflow-hidden`}
+              >
+                {/* Simulated photo highlights */}
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_30%,rgba(255,255,255,0.12),transparent_60%)]" />
+                {i === 0 && (
+                  <div className="absolute top-2 right-2">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
+                      <span className="text-[8px]">♥</span>
+                    </span>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </div>
 
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-border/50 bg-surface px-3 py-3 dark:bg-surface-dark">
+          <div className="rounded-2xl border border-border/40 bg-surface px-3 py-3 dark:bg-surface-dark">
             <p className="text-[0.68rem] font-bold uppercase tracking-widest text-muted">Views</p>
             <p className="mt-1 text-xl font-bold text-text">1,284</p>
           </div>
-          <div className="rounded-2xl border border-border/50 bg-surface px-3 py-3 dark:bg-surface-dark">
+          <div className="rounded-2xl border border-border/40 bg-surface px-3 py-3 dark:bg-surface-dark">
             <p className="text-[0.68rem] font-bold uppercase tracking-widest text-muted">
               Selected
             </p>
             <p className="mt-1 text-xl font-bold text-text">42</p>
           </div>
-          <div className="rounded-2xl border border-border/50 bg-surface px-3 py-3 dark:bg-surface-dark">
+          <div className="rounded-2xl border border-border/40 bg-surface px-3 py-3 dark:bg-surface-dark">
             <p className="text-[0.68rem] font-bold uppercase tracking-widest text-muted">
               Downloads
             </p>
@@ -214,7 +231,7 @@ const LandingPreview = () => (
         </div>
       </div>
 
-      <div className="absolute bottom-6 right-6 hidden rounded-2xl border border-border/60 bg-surface/95 p-3 shadow-xl backdrop-blur sm:block dark:bg-surface-dark/90">
+      <div className="absolute bottom-6 right-6 hidden rounded-2xl border border-border/50 bg-surface/95 p-3 shadow-xl backdrop-blur sm:block dark:bg-surface-dark/90">
         <div className="flex items-center gap-3">
           <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
             <ImageIcon className="h-5 w-5" />
@@ -256,18 +273,20 @@ export const LandingPage = () => {
     <div className="relative min-h-screen overflow-hidden bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
       <SkipToContentLink />
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-32 top-0 h-112 w-md rounded-full bg-accent/15 blur-3xl dark:bg-accent/10" />
-        <div className="absolute -right-40 top-32 h-128 w-lg rounded-full bg-sky-400/15 blur-3xl dark:bg-sky-400/10" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_10%,rgba(31,144,255,0.10),transparent_35%),linear-gradient(180deg,transparent,rgba(31,144,255,0.04),transparent)]" />
+        <div className="absolute -left-32 top-0 h-112 w-md rounded-full bg-accent/12 blur-3xl dark:bg-accent/8" />
+        <div className="absolute -right-40 top-32 h-128 w-lg rounded-full bg-sky-400/12 blur-3xl dark:bg-sky-400/8" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_10%,rgb(var(--color-accent-rgb)/0.08),transparent_35%),linear-gradient(180deg,transparent,rgb(var(--color-accent-rgb)/0.03),transparent)]" />
+        {/* Subtle grid pattern overlay */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgb(var(--color-accent-rgb)/0.02)_1px,transparent_1px),linear-gradient(90deg,rgb(var(--color-accent-rgb)/0.02)_1px,transparent_1px)] bg-size-[64px_64px] mask-[radial-gradient(ellipse_at_center,black_30%,transparent_70%)]" />
       </div>
 
-      <header className="sticky top-0 z-50 border-b border-border/50 bg-surface/90 backdrop-blur-xl dark:border-border/35 dark:bg-surface-dark/85">
+      <header className="sticky top-0 z-50 border-b border-border/40 bg-surface/90 backdrop-blur-xl dark:border-border/30 dark:bg-surface-dark/85">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <Link
             to="/"
             className="flex items-center gap-2.5 font-oswald text-xl font-bold uppercase tracking-wider text-text transition-opacity hover:opacity-80 dark:text-accent-foreground"
           >
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-accent text-accent-foreground shadow-sm">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/10 text-accent shadow-xs">
               <Camera className="h-5 w-5" />
             </span>
             Viewport
@@ -291,7 +310,7 @@ export const LandingPage = () => {
             <ThemeSwitch variant="inline" />
             <Link
               to="/auth/login"
-              className="hidden rounded-xl border border-border bg-surface-1 px-4 py-2 text-sm font-bold text-text transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 hover:text-accent sm:inline-flex dark:border-border/50 dark:bg-surface-dark-1 dark:text-accent-foreground dark:hover:bg-surface-dark-2"
+              className="hidden rounded-xl border border-border/50 bg-surface-1/80 px-4 py-2 text-sm font-bold text-text transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 hover:text-accent sm:inline-flex dark:border-border/40 dark:bg-surface-dark-1/80 dark:text-accent-foreground dark:hover:bg-surface-dark-2"
             >
               Log in
             </Link>
@@ -307,12 +326,12 @@ export const LandingPage = () => {
             transition={{ duration: 0.55, ease: 'easeOut' }}
             className="space-y-8"
           >
-            <span className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-bold text-accent shadow-sm">
+            <span className="inline-flex items-center gap-2 rounded-full border border-accent/25 bg-accent/8 px-4 py-2 text-sm font-bold text-accent shadow-xs">
               <ShieldCheck className="h-4 w-4" />
               Built for photographers and studios
             </span>
             <div className="space-y-5">
-              <h1 className="max-w-4xl font-oswald text-5xl font-bold uppercase leading-[0.92] tracking-wide sm:text-6xl lg:text-7xl">
+              <h1 className="max-w-4xl font-oswald text-5xl font-bold uppercase leading-[0.92] tracking-wider sm:text-6xl lg:text-7xl">
                 Deliver photo galleries that sell your studio twice.
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-muted sm:text-xl">
@@ -331,7 +350,7 @@ export const LandingPage = () => {
               <button
                 type="button"
                 onClick={handleOpenDemoCabinet}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-border bg-surface-1 px-6 py-4 text-base font-bold text-text transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/50 dark:bg-surface-dark-1 dark:text-accent-foreground dark:hover:bg-surface-dark-2"
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-border/50 bg-surface-1/80 px-6 py-4 text-base font-bold text-text transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1/80 dark:text-accent-foreground dark:hover:bg-surface-dark-2"
               >
                 Open demo dashboard
                 <ChevronRight className="h-5 w-5" />
@@ -342,7 +361,7 @@ export const LandingPage = () => {
               {trustStats.map((stat) => (
                 <div
                   key={stat.label}
-                  className="rounded-3xl border border-border/60 bg-surface/80 p-4 shadow-xs backdrop-blur dark:border-border/40 dark:bg-surface-foreground/8"
+                  className="rounded-3xl border border-border/50 bg-surface/80 p-4 shadow-xs backdrop-blur transition-all duration-200 hover:border-accent/20 hover:shadow-sm dark:border-border/35 dark:bg-surface-foreground/6"
                 >
                   <p className="font-oswald text-3xl font-bold uppercase text-text dark:text-accent-foreground">
                     {stat.value}
@@ -405,9 +424,9 @@ export const LandingPage = () => {
             {featureItems.map(({ icon: Icon, title, description }) => (
               <article
                 key={title}
-                className="group rounded-3xl border border-border/60 bg-surface/80 p-6 shadow-xs transition-all duration-200 hover:-translate-y-1 hover:border-accent/30 hover:shadow-lg dark:border-border/40 dark:bg-surface-foreground/8"
+                className="group rounded-3xl border border-border/50 bg-surface/80 p-6 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:border-accent/25 hover:shadow-lg dark:border-border/35 dark:bg-surface-foreground/6"
               >
-                <span className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10 text-accent transition-transform group-hover:scale-105">
+                <span className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/10 text-accent transition-transform duration-300 group-hover:scale-110 group-hover:bg-accent/15">
                   <Icon className="h-6 w-6" />
                 </span>
                 <h3 className="text-xl font-bold text-text dark:text-accent-foreground">{title}</h3>
@@ -422,10 +441,10 @@ export const LandingPage = () => {
           {...motionProps}
           className="mx-auto w-full max-w-7xl px-4 pb-20 sm:px-6"
         >
-          <div className="grid gap-6 rounded-4xl border border-border/60 bg-surface/85 p-6 shadow-xs backdrop-blur dark:border-border/40 dark:bg-surface-foreground/8 lg:grid-cols-[0.85fr_1.15fr] lg:p-8">
+          <div className="grid gap-6 rounded-4xl border border-border/50 bg-surface/85 p-6 shadow-xs backdrop-blur dark:border-border/35 dark:bg-surface-foreground/6 lg:grid-cols-[0.85fr_1.15fr] lg:p-8">
             <div className="space-y-4">
               <p className="text-sm font-bold uppercase tracking-[0.24em] text-accent">Workflow</p>
-              <h2 className="font-oswald text-4xl font-bold uppercase tracking-wide sm:text-5xl">
+              <h2 className="font-oswald text-4xl font-bold uppercase tracking-wider sm:text-5xl">
                 From final edit to client yes.
               </h2>
               <p className="text-lg leading-8 text-muted">
@@ -437,7 +456,7 @@ export const LandingPage = () => {
               {workflowSteps.map(({ icon: Icon, title, description }, index) => (
                 <article
                   key={title}
-                  className="rounded-3xl border border-border/50 bg-surface p-5 dark:border-border/35 dark:bg-surface-dark"
+                  className="rounded-3xl border border-border/40 bg-surface p-5 transition-all duration-200 hover:border-accent/25 hover:shadow-sm dark:border-border/30 dark:bg-surface-dark"
                 >
                   <div className="mb-5 flex items-center justify-between gap-3">
                     <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-accent text-accent-foreground">
@@ -484,10 +503,10 @@ export const LandingPage = () => {
             {planCards.map((card) => (
               <article
                 key={card.name}
-                className={`relative overflow-hidden rounded-4xl border p-6 shadow-xs transition-all hover:-translate-y-1 hover:shadow-lg ${
+                className={`relative overflow-hidden rounded-4xl border p-6 shadow-xs transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${
                   card.highlighted
-                    ? 'border-accent/45 bg-accent/10'
-                    : 'border-border/60 bg-surface/85 dark:border-border/40 dark:bg-surface-foreground/8'
+                    ? 'border-accent/40 bg-accent/8'
+                    : 'border-border/50 bg-surface/85 dark:border-border/35 dark:bg-surface-foreground/6'
                 }`}
               >
                 {card.highlighted ? (
@@ -584,9 +603,9 @@ export const LandingPage = () => {
           aria-labelledby="landing-final-cta-title"
           className="mx-auto w-full max-w-7xl px-4 pb-20 sm:px-6"
         >
-          <div className="relative overflow-hidden rounded-4xl border border-border/60 bg-surface/90 p-6 text-text shadow-xl shadow-accent/10 backdrop-blur dark:border-border/40 dark:bg-surface-dark-1/90 dark:text-accent-foreground sm:p-8 lg:p-10">
-            <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-accent/20 blur-3xl dark:bg-accent/15" />
-            <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-accent/10 via-transparent to-surface-1/50 dark:to-surface-dark-2/40" />
+          <div className="relative overflow-hidden rounded-4xl border border-border/50 bg-surface/90 p-6 text-text shadow-xl shadow-accent/8 backdrop-blur dark:border-border/35 dark:bg-surface-dark-1/90 dark:text-accent-foreground sm:p-8 lg:p-10">
+            <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-accent/15 blur-3xl dark:bg-accent/10" />
+            <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-accent/8 via-transparent to-surface-1/40 dark:to-surface-dark-2/30" />
 
             <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>

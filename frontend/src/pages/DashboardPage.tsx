@@ -339,11 +339,11 @@ export const DashboardPage = () => {
 
   return (
     <div className="mx-auto flex w-full max-w-295 flex-col gap-8">
-      <header className="relative overflow-hidden rounded-4xl border border-border/75 bg-surface p-5 shadow-sm dark:border-border/55 dark:bg-surface-dark">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(circle_at_16%_0%,rgba(31,144,255,0.12),transparent_34%),radial-gradient(circle_at_82%_8%,rgba(34,197,94,0.09),transparent_28%)]" />
+      <header className="relative overflow-hidden rounded-4xl border border-border/60 bg-surface p-5 shadow-sm dark:border-border/45 dark:bg-surface-dark">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_16%_0%,rgba(31,144,255,0.10),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(34,197,94,0.07),transparent_26%)]" />
         <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(23rem,34rem)] xl:items-center">
           <div className="max-w-2xl">
-            <p className="mb-3 text-sm font-bold uppercase tracking-[0.22em] text-accent/80">
+            <p className="mb-2 text-sm font-bold uppercase tracking-[0.22em] text-accent/70">
               Portfolio command center
             </p>
             <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground sm:text-5xl">
@@ -358,7 +358,7 @@ export const DashboardPage = () => {
           <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
             <label
               htmlFor="dashboard-project-search"
-              className="relative flex h-11 flex-1 items-center rounded-2xl border border-border bg-surface-1 px-3 shadow-sm dark:border-border/60 dark:bg-surface-dark-1"
+              className="relative flex h-11 flex-1 items-center rounded-2xl border border-border/50 bg-surface-1/80 px-3 shadow-xs transition-colors focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/10 dark:border-border/40 dark:bg-surface-dark-1/80"
             >
               <Search className="mr-2 h-4 w-4 text-muted" />
               <input
@@ -521,7 +521,7 @@ export const DashboardPage = () => {
                               </h2>
                             </div>
                           </div>
-                          <p className="mt-auto rounded-full border border-border/55 bg-surface-1 px-3 py-2 text-sm text-muted dark:border-border/45 dark:bg-surface-dark-1">
+                          <p className="mt-auto rounded-full border border-border/40 bg-surface-1/80 px-3 py-1.5 text-sm text-muted dark:border-border/35 dark:bg-surface-dark-1/80">
                             {formatCountLabel(project.gallery_count, 'gallery', 'galleries')} •{' '}
                             {formatCountLabel(project.total_photo_count, 'photo')} •{' '}
                             {formatFileSize(project.total_size_bytes)}

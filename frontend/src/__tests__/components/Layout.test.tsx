@@ -79,7 +79,11 @@ describe('Layout', () => {
       </Layout>,
     );
 
-    expect(screen.getByText('test@example.com')).toBeInTheDocument();
+    // Open the user menu dropdown
+    const menuButton = screen.getByRole('button', { name: 'User menu' });
+    fireEvent.click(menuButton);
+
+    expect(screen.getAllByText('test@example.com').length).toBeGreaterThan(0);
   });
 
   it('should show sign out button when logged in', () => {
@@ -99,7 +103,11 @@ describe('Layout', () => {
       </Layout>,
     );
 
-    expect(screen.getByText('Sign Out')).toBeInTheDocument();
+    // Open the user menu dropdown
+    const menuButton = screen.getByRole('button', { name: 'User menu' });
+    fireEvent.click(menuButton);
+
+    expect(screen.getByText('Sign out')).toBeInTheDocument();
   });
 
   it('should not show user info when not logged in', () => {
@@ -114,7 +122,7 @@ describe('Layout', () => {
       </Layout>,
     );
 
-    expect(screen.queryByText('Sign Out')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'User menu' })).not.toBeInTheDocument();
   });
 
   it('should handle logout when sign out button is clicked', () => {
@@ -134,7 +142,11 @@ describe('Layout', () => {
       </Layout>,
     );
 
-    const signOutButton = screen.getByText('Sign Out');
+    // Open the user menu dropdown
+    const menuButton = screen.getByRole('button', { name: 'User menu' });
+    fireEvent.click(menuButton);
+
+    const signOutButton = screen.getByText('Sign out');
     fireEvent.click(signOutButton);
 
     expect(mockLogout).toHaveBeenCalled();
