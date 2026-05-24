@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Camera, ChevronDown, Home, LogOut, Settings, Share2 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { getAvatarInitials, stringToHue } from '../lib/avatar';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { NetworkStatus } from './ErrorDisplay';
+import { AppPopover } from './ui/AppPopover';
 import { ReadabilitySettingsButton } from './ReadabilitySettingsButton';
 import { SkipToContentLink } from './a11y/SkipToContentLink';
 import { ProfileModal } from './ProfileModal';
@@ -21,48 +22,10 @@ export const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isProfileOpen, setProfileOpen] = useState(false);
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const userMenuRef = useRef<HTMLDivElement>(null);
   const userMenuButtonRef = useRef<HTMLButtonElement>(null);
   const demoModeEnabled = isDemoModeEnabled();
 
-  const handleLogout = () => {
-    setIsUserMenuOpen(false);
-    logout();
-    navigate('/auth/login');
-  };
-
-  const openProfile = () => {
-    setIsUserMenuOpen(false);
-    setProfileOpen(true);
-  };
-
   const closeProfile = () => setProfileOpen(false);
-
-  // Close user menu on outside click
-  useEffect(() => {
-    if (!isUserMenuOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setIsUserMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [isUserMenuOpen]);
-
-  // Close user menu on Escape
-  useEffect(() => {
-    if (!isUserMenuOpen) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsUserMenuOpen(false);
-        userMenuButtonRef.current?.focus();
-      }
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [isUserMenuOpen]);
 
   const initials = useMemo(
     () => getAvatarInitials(user?.display_name, user?.email),
@@ -134,60 +97,61 @@ export const Layout = ({ children }: LayoutProps) => {
             </div>
 
             {user ? (
-              <div ref={userMenuRef} className="relative">
-                <button
-                  ref={userMenuButtonRef}
-                  type="button"
-                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  aria-label="User menu"
-                  aria-expanded={isUserMenuOpen}
-                  aria-haspopup="true"
-                  className="flex items-center gap-2 rounded-xl border border-border/40 bg-surface-1 px-2.5 py-1.5 text-text shadow-sm transition-all duration-200 hover:border-accent/40 hover:bg-surface-2 hover:-translate-y-0.5 hover:shadow-md dark:border-border/60 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
-                >
-                  <span
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white text-xs font-bold select-none"
-                    style={{ background: `hsl(${avatarHue} 55% 50%)` }}
-                  >
-                    {initials}
-                  </span>
-                  <ChevronDown
-                    className={`h-3.5 w-3.5 text-muted transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`}
-                  />
-                </button>
-
-                <AnimatePresence>
-                  {isUserMenuOpen ? (
-                    <div className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-2xl border border-border/50 bg-surface/98 shadow-xl backdrop-blur-xl dark:border-border/40 dark:bg-surface-dark/98">
-                      {/* User info header */}
-                      <div className="border-b border-border/40 px-4 py-3 dark:border-border/30">
-                        <p className="truncate text-sm font-semibold text-text dark:text-accent-foreground">
-                          {user.display_name || user.email}
-                        </p>
-                        <p className="mt-0.5 truncate text-xs text-muted">{user.email}</p>
-                      </div>
-
-                      <div className="p-1.5">
-                        <button
-                          type="button"
-                          onClick={openProfile}
-                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-text transition-colors hover:bg-surface-1 hover:text-accent dark:text-accent-foreground dark:hover:bg-surface-dark-1"
-                        >
-                          <Settings className="h-4 w-4 text-muted" />
-                          Account settings
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleLogout}
-                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-text transition-colors hover:bg-danger/8 hover:text-danger dark:text-accent-foreground dark:hover:text-danger"
-                        >
-                          <LogOut className="h-4 w-4 text-muted" />
-                          Sign out
-                        </button>
-                      </div>
+              <AppPopover
+                className="relative"
+                buttonRef={userMenuButtonRef}
+                buttonAriaLabel="User menu"
+                buttonClassName="flex items-center gap-2 rounded-xl border border-border/40 bg-surface-1 px-2.5 py-1.5 text-text shadow-sm transition-all duration-200 hover:border-accent/40 hover:bg-surface-2 hover:-translate-y-0.5 hover:shadow-md dark:border-border/60 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
+                buttonContent={(open) => (
+                  <>
+                    <span
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white text-xs font-bold select-none"
+                      style={{ background: `hsl(${avatarHue} 55% 50%)` }}
+                    >
+                      {initials}
+                    </span>
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 text-muted transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+                    />
+                  </>
+                )}
+                panelClassName="w-56 overflow-hidden rounded-2xl border border-border/50 bg-surface/98 shadow-xl backdrop-blur-xl dark:border-border/40 dark:bg-surface-dark/98"
+                panel={(close) => (
+                  <>
+                    <div className="border-b border-border/40 px-4 py-3 dark:border-border/30">
+                      <p className="truncate text-sm font-semibold text-text dark:text-accent-foreground">
+                        {user.display_name || user.email}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-muted">{user.email}</p>
                     </div>
-                  ) : null}
-                </AnimatePresence>
-              </div>
+                    <div className="p-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          close();
+                          setProfileOpen(true);
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-text transition-colors hover:bg-surface-1 hover:text-accent dark:text-accent-foreground dark:hover:bg-surface-dark-1"
+                      >
+                        <Settings className="h-4 w-4 text-muted" />
+                        Account settings
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          close();
+                          logout();
+                          navigate('/auth/login');
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-text transition-colors hover:bg-danger/8 hover:text-danger dark:text-accent-foreground dark:hover:text-danger"
+                      >
+                        <LogOut className="h-4 w-4 text-muted" />
+                        Sign out
+                      </button>
+                    </div>
+                  </>
+                )}
+              />
             ) : null}
           </nav>
         </div>
