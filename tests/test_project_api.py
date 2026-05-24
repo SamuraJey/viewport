@@ -270,7 +270,7 @@ class TestProjectAPI:
         assert direct_hidden_public_resp.json()["scope_type"] == "gallery"
         assert direct_hidden_public_resp.json()["gallery_name"] == "Backstage"
 
-    def test_public_project_share_returns_404_when_zero_visible_galleries(self, authenticated_client: TestClient):
+    def test_public_project_share_returns_empty_galleries_when_zero_visible(self, authenticated_client: TestClient):
         project_resp = authenticated_client.post("/projects", json={"name": "Invisible Project"})
         assert project_resp.status_code == 201
         project_payload = project_resp.json()
@@ -286,7 +286,11 @@ class TestProjectAPI:
         project_share_id = project_share_resp.json()["id"]
 
         public_project_resp = authenticated_client.get(f"/s/{project_share_id}")
-        assert public_project_resp.status_code == 404
+        assert public_project_resp.status_code == 200
+        body = public_project_resp.json()
+        assert body["scope_type"] == "project"
+        assert body["galleries"] == []
+        assert body["total_listed_galleries"] == 0
 
     def test_patch_gallery_with_null_project_id_rewraps_into_new_project(self, authenticated_client: TestClient):
         project_resp = authenticated_client.post("/projects", json={"name": "Detach Project"})
