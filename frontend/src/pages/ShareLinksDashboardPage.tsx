@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Activity,
@@ -253,6 +253,7 @@ interface DashboardMetricCardProps {
 }
 
 const MiniSparkline = ({ values }: { values: number[] }) => {
+  const gradientId = useId();
   const chartValues = values.length > 1 ? values : [0, values[0] ?? 0, values[0] ?? 0];
   const width = 120;
   const height = 34;
@@ -283,12 +284,12 @@ const MiniSparkline = ({ values }: { values: number[] }) => {
       preserveAspectRatio="none"
     >
       <defs>
-        <linearGradient id="sparkline-fill" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="currentColor" stopOpacity="0.2" />
           <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={areaPath} fill="url(#sparkline-fill)" />
+      <path d={areaPath} fill={`url(#${gradientId})`} />
       <path
         d={linePath}
         fill="none"
@@ -305,7 +306,7 @@ const DashboardMetricCard = ({ metric }: DashboardMetricCardProps) => {
   const Icon = metric.icon;
 
   return (
-    <article className="rounded-2xl border border-border/35 bg-surface-1/80 px-4 py-3 transition-all duration-200 hover:border-accent/30 hover:bg-surface-2/75 dark:border-white/8 dark:bg-white/[0.03] dark:hover:border-accent/25 dark:hover:bg-white/[0.05]">
+    <article className="rounded-2xl border border-border/35 bg-surface-1/80 px-4 py-3 transition-all duration-200 hover:border-accent/30 hover:bg-surface-2/75 dark:border-white/8 dark:bg-white/3 dark:hover:border-accent/25 dark:hover:bg-white/5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-muted">

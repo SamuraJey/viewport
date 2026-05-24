@@ -171,7 +171,7 @@ const LandingPreview = () => (
             <h2 className="mt-1 text-lg font-bold text-text">Northern Editorial</h2>
           </div>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-success/25 bg-success/10 px-3 py-1 text-xs font-bold text-success">
-            <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
+            <span className="h-2 w-2 rounded-full bg-success motion-safe:animate-pulse motion-reduce:animate-none" />
             Live link
           </span>
         </div>
@@ -275,9 +275,9 @@ export const LandingPage = () => {
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -left-32 top-0 h-112 w-md rounded-full bg-accent/12 blur-3xl dark:bg-accent/8" />
         <div className="absolute -right-40 top-32 h-128 w-lg rounded-full bg-sky-400/12 blur-3xl dark:bg-sky-400/8" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_10%,rgba(31,144,255,0.08),transparent_35%),linear-gradient(180deg,transparent,rgba(31,144,255,0.03),transparent)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_10%,rgb(var(--color-accent-rgb)/0.08),transparent_35%),linear-gradient(180deg,transparent,rgb(var(--color-accent-rgb)/0.03),transparent)]" />
         {/* Subtle grid pattern overlay */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(31,144,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(31,144,255,0.02)_1px,transparent_1px)] bg-[size:64px_64px] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_70%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgb(var(--color-accent-rgb)/0.02)_1px,transparent_1px),linear-gradient(90deg,rgb(var(--color-accent-rgb)/0.02)_1px,transparent_1px)] bg-size-[64px_64px] mask-[radial-gradient(ellipse_at_center,black_30%,transparent_70%)]" />
       </div>
 
       <header className="sticky top-0 z-50 border-b border-border/40 bg-surface/90 backdrop-blur-xl dark:border-border/30 dark:bg-surface-dark/85">

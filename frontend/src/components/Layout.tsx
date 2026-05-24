@@ -23,6 +23,7 @@ export const Layout = ({ children }: LayoutProps) => {
   const [isProfileOpen, setProfileOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const userMenuButtonRef = useRef<HTMLButtonElement>(null);
   const demoModeEnabled = isDemoModeEnabled();
 
   const handleLogout = () => {
@@ -54,7 +55,10 @@ export const Layout = ({ children }: LayoutProps) => {
   useEffect(() => {
     if (!isUserMenuOpen) return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsUserMenuOpen(false);
+      if (e.key === 'Escape') {
+        setIsUserMenuOpen(false);
+        userMenuButtonRef.current?.focus();
+      }
     };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
@@ -132,10 +136,12 @@ export const Layout = ({ children }: LayoutProps) => {
             {user ? (
               <div ref={userMenuRef} className="relative">
                 <button
+                  ref={userMenuButtonRef}
                   type="button"
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                   aria-label="User menu"
                   aria-expanded={isUserMenuOpen}
+                  aria-haspopup="true"
                   className="flex items-center gap-2 rounded-xl border border-border/40 bg-surface-1 px-2.5 py-1.5 text-text shadow-sm transition-all duration-200 hover:border-accent/40 hover:bg-surface-2 hover:-translate-y-0.5 hover:shadow-md dark:border-border/60 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
                 >
                   <span
@@ -151,10 +157,7 @@ export const Layout = ({ children }: LayoutProps) => {
 
                 <AnimatePresence>
                   {isUserMenuOpen ? (
-                    <div
-                      className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-2xl border border-border/50 bg-surface/98 shadow-xl backdrop-blur-xl dark:border-border/40 dark:bg-surface-dark/98"
-                      role="menu"
-                      aria-orientation="vertical"
+                    <div className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-2xl border border-border/50 bg-surface/98 shadow-xl backdrop-blur-xl dark:border-border/40 dark:bg-surface-dark/98"
                     >
                       {/* User info header */}
                       <div className="border-b border-border/40 px-4 py-3 dark:border-border/30">
@@ -169,7 +172,6 @@ export const Layout = ({ children }: LayoutProps) => {
                           type="button"
                           onClick={openProfile}
                           className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-text transition-colors hover:bg-surface-1 hover:text-accent dark:text-accent-foreground dark:hover:bg-surface-dark-1"
-                          role="menuitem"
                         >
                           <Settings className="h-4 w-4 text-muted" />
                           Account settings
@@ -178,7 +180,6 @@ export const Layout = ({ children }: LayoutProps) => {
                           type="button"
                           onClick={handleLogout}
                           className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-text transition-colors hover:bg-danger/8 hover:text-danger dark:text-accent-foreground dark:hover:text-danger"
-                          role="menuitem"
                         >
                           <LogOut className="h-4 w-4 text-muted" />
                           Sign out
