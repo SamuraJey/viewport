@@ -42,6 +42,7 @@ def create_celery_app(settings: CelerySettings | None = None) -> Celery:
         broker_pool_limit=None,
         broker_connection_retry_on_startup=True,
         broker_connection_max_retries=10,
+        beat_schedule_filename="/tmp/celerybeat-schedule",
     )
 
     if os.environ.get("ENVIRONMENT") == "pytest":
