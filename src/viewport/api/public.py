@@ -255,8 +255,6 @@ async def _build_public_project_response(
         raise HTTPException(status_code=404, detail="Project not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
     galleries = await project_repo.get_visible_project_folders(project.id)
-    if not galleries:
-        raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
     gallery_ids = [gallery.id for gallery in galleries]
     cover_photo_ids = [gallery.cover_photo_id for gallery in galleries if gallery.cover_photo_id]
@@ -271,7 +269,7 @@ async def _build_public_project_response(
     thumbnail_url_map = await s3_client.generate_presigned_urls_batch(list(dict.fromkeys(thumbnail_keys)), expires_in=7200) if thumbnail_keys else {}
 
     project_cover = await _build_project_cover(
-        gallery=galleries[0],
+        gallery=galleries[0] if galleries else None,
         gallery_repo=gallery_repo,
         s3_client=s3_client,
     )
