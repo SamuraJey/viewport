@@ -663,10 +663,10 @@ async def download_all_photos_zip(
     if sharelink.scope_type == ShareScopeType.PROJECT.value:
         project_id = sharelink.project_id
         if project_id is None:
-            raise HTTPException(status_code=404, detail="Project not found")
+            raise HTTPException(status_code=404, detail="Project not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
         project_zip_entries = await _load_project_zip_entries(project_id, project_repo=project_repo, repo=repo)
         if not any(gallery_photos for _, gallery_photos in project_zip_entries):
-            raise HTTPException(status_code=404, detail="No photos found")
+            raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
         for gallery_name, gallery_photos in project_zip_entries:
             for photo in gallery_photos:
@@ -696,7 +696,7 @@ async def download_all_photos_zip(
         gallery_photos = sorted(gallery_photos, key=lambda p: p.display_name.lower())
 
     if not gallery_photos:
-        raise HTTPException(status_code=404, detail="No photos found")
+        raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
     for photo in gallery_photos:
         key = photo.object_key
