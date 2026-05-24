@@ -157,8 +157,7 @@ export const Layout = ({ children }: LayoutProps) => {
 
                 <AnimatePresence>
                   {isUserMenuOpen ? (
-                    <div className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-2xl border border-border/50 bg-surface/98 shadow-xl backdrop-blur-xl dark:border-border/40 dark:bg-surface-dark/98"
-                    >
+                    <div className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-2xl border border-border/50 bg-surface/98 shadow-xl backdrop-blur-xl dark:border-border/40 dark:bg-surface-dark/98">
                       {/* User info header */}
                       <div className="border-b border-border/40 px-4 py-3 dark:border-border/30">
                         <p className="truncate text-sm font-semibold text-text dark:text-accent-foreground">
