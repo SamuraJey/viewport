@@ -70,20 +70,20 @@ const mockProjectShare = {
     thumbnail_url: '/thumbs/project-cover.jpg',
     full_url: '/full/project-cover.jpg',
   },
-  total_listed_folders: 2,
+  total_listed_galleries: 2,
   total_listed_photos: 8,
   total_size_bytes: 4096,
-  folders: [
+  galleries: [
     {
-      folder_id: 'gallery-1',
-      folder_name: 'Photos',
+      gallery_id: 'gallery-1',
+      gallery_name: 'Photos',
       photo_count: 5,
       route_path: '/share/abc123/galleries/gallery-1',
       direct_share_path: null,
     },
     {
-      folder_id: 'gallery-2',
-      folder_name: '3eds',
+      gallery_id: 'gallery-2',
+      gallery_name: '3eds',
       photo_count: 3,
       route_path: '/share/abc123/galleries/gallery-2',
       direct_share_path: null,
@@ -538,7 +538,7 @@ describe('PublicGalleryPage', () => {
       gallery_name: '3eds',
       project_navigation: {
         ...mockProjectShare,
-        folders: mockProjectShare.folders,
+        galleries: mockProjectShare.galleries,
       },
     });
 

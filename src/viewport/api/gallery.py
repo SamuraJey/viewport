@@ -1,6 +1,5 @@
 import logging
 import uuid
-from asyncio import run as asyncio_run
 
 import zipstream
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -400,32 +399,32 @@ async def _parse_selected_photos_request(request: Request) -> DownloadSelectedPh
 
 
 @router.post("/{gallery_id}/download/all")
-def download_gallery_zip(
+async def download_gallery_zip(
     gallery_id: uuid.UUID,
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user_for_download),
 ) -> StreamingResponse:
-    gallery = asyncio_run(repo.get_gallery_by_id_and_owner(gallery_id, current_user.id))
+    gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
 
-    photos = asyncio_run(repo.get_photos_by_gallery_id(gallery_id))
+    photos = await repo.get_photos_by_gallery_id(gallery_id)
     return _build_gallery_zip_response(gallery_id, photos, archive_name=f"gallery_{gallery_id}.zip")
 
 
 @router.post("/{gallery_id}/download/selected")
-def download_selected_photos_zip(
+async def download_selected_photos_zip(
     gallery_id: uuid.UUID,
     parsed_request: DownloadSelectedPhotosRequest = Depends(_parse_selected_photos_request),
     repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user_for_download),
 ) -> StreamingResponse:
-    gallery = asyncio_run(repo.get_gallery_by_id_and_owner(gallery_id, current_user.id))
+    gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gallery not found")
 
     ordered_photo_ids = list(dict.fromkeys(parsed_request.photo_ids))
-    photos = asyncio_run(repo.get_photos_by_ids_and_gallery(gallery_id, ordered_photo_ids))
+    photos = await repo.get_photos_by_ids_and_gallery(gallery_id, ordered_photo_ids)
     photo_by_id = {photo.id: photo for photo in photos}
 
     if len(photo_by_id) != len(ordered_photo_ids):

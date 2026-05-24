@@ -64,3 +64,13 @@ def test_change_password_unauthenticated(client: TestClient):
     payload = {"current_password": "any", "new_password": "abc12345", "confirm_password": "abc12345"}
     resp = client.put("/me/password", json=payload)
     assert resp.status_code == 401
+
+
+def test_change_password_rejects_over_bcrypt_byte_limit(authenticated_client: TestClient, test_user_data):
+    payload = {
+        "current_password": test_user_data["password"],
+        "new_password": "é" * 37,
+        "confirm_password": "é" * 37,
+    }
+    resp = authenticated_client.put("/me/password", json=payload)
+    assert resp.status_code == 422

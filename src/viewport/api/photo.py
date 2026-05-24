@@ -1,7 +1,6 @@
 import logging
 from uuid import UUID, uuid4
 
-from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -169,85 +168,91 @@ async def batch_presigned_uploads(
     items: list[BatchPresignedUploadItem] = []
     photos_payload: list[dict] = []
     failed_presign_bytes = 0
-    occupied_display_names = await repo.get_photo_display_names_by_gallery(gallery_id)
+    reserved_bytes_to_release_on_error = bytes_to_reserve
 
-    # 2. Generate Photo records and presigned URLs
-    for file_request in request.files:
-        if file_request.file_size > MAX_FILE_SIZE:
+    try:
+        occupied_display_names = await repo.get_photo_display_names_by_gallery(gallery_id)
+
+        # 2. Generate Photo records and presigned URLs
+        for file_request in request.files:
+            if file_request.file_size > MAX_FILE_SIZE:
+                items.append(
+                    BatchPresignedUploadItem(
+                        filename=file_request.filename,
+                        file_size=file_request.file_size,
+                        success=False,
+                        error=f"File exceeds maximum size of {MAX_FILE_SIZE // (1024 * 1024)}MB",
+                    )
+                )
+                continue
+
+            photo_id = uuid4()
+            display_name = make_unique_display_name(file_request.filename, occupied_display_names)
+            _, extension = split_name_and_ext(display_name)
+            object_key = f"{gallery_id}/{photo_id}{extension.lower()}"
+
+            # Generate presigned PUT signed with exact size and tagging requirements
+            try:
+                presigned = s3_client.generate_presigned_put(
+                    object_key=object_key,
+                    content_type=file_request.content_type,
+                    content_length=file_request.file_size,
+                    expires_in=900,
+                )
+            except Exception as exc:
+                failed_presign_bytes += file_request.file_size
+                logger.warning("Failed to generate presigned PUT for %s: %s", object_key, exc)
+                items.append(
+                    BatchPresignedUploadItem(
+                        filename=file_request.filename,
+                        file_size=file_request.file_size,
+                        success=False,
+                        error="Failed to generate presigned URL",
+                    )
+                )
+                continue
+
+            photos_payload.append(
+                {
+                    "id": photo_id,
+                    "gallery_id": gallery_id,
+                    "object_key": object_key,
+                    "display_name": display_name,
+                    "thumbnail_object_key": object_key,
+                    "file_size": file_request.file_size,
+                    "status": PhotoUploadStatus.PENDING,
+                    "width": None,
+                    "height": None,
+                }
+            )
+
             items.append(
                 BatchPresignedUploadItem(
-                    filename=file_request.filename,
+                    filename=display_name,
                     file_size=file_request.file_size,
-                    success=False,
-                    error=f"File exceeds maximum size of {MAX_FILE_SIZE // (1024 * 1024)}MB",
+                    success=True,
+                    photo_id=photo_id,
+                    presigned_data=PresignedUploadData(
+                        url=presigned["url"],
+                        headers=presigned["headers"],
+                    ),
+                    expires_in=900,
                 )
             )
-            continue
 
-        photo_id = uuid4()
-        display_name = make_unique_display_name(file_request.filename, occupied_display_names)
-        _, extension = split_name_and_ext(display_name)
-        object_key = f"{gallery_id}/{photo_id}{extension.lower()}"
+        if failed_presign_bytes > 0:
+            await user_repo.release_reserved_storage(current_user.id, failed_presign_bytes)
+            reserved_bytes_to_release_on_error -= failed_presign_bytes
 
-        # Generate presigned PUT signed with exact size and tagging requirements
-        try:
-            presigned = s3_client.generate_presigned_put(
-                object_key=object_key,
-                content_type=file_request.content_type,
-                content_length=file_request.file_size,
-                expires_in=900,
-            )
-        except ClientError:
-            failed_presign_bytes += file_request.file_size
-            items.append(
-                BatchPresignedUploadItem(
-                    filename=file_request.filename,
-                    file_size=file_request.file_size,
-                    success=False,
-                    error="Failed to generate presigned URL",
-                )
-            )
-            continue
-
-        photos_payload.append(
-            {
-                "id": photo_id,
-                "gallery_id": gallery_id,
-                "object_key": object_key,
-                "display_name": display_name,
-                "thumbnail_object_key": object_key,
-                "file_size": file_request.file_size,
-                "status": PhotoUploadStatus.PENDING,
-                "width": None,
-                "height": None,
-            }
-        )
-
-        items.append(
-            BatchPresignedUploadItem(
-                filename=display_name,
-                file_size=file_request.file_size,
-                success=True,
-                photo_id=photo_id,
-                presigned_data=PresignedUploadData(
-                    url=presigned["url"],
-                    headers=presigned["headers"],
-                ),
-                expires_in=900,
-            )
-        )
-
-    if failed_presign_bytes > 0:
-        await user_repo.release_reserved_storage(current_user.id, failed_presign_bytes)
-
-    if photos_payload:
-        try:
+        if photos_payload:
             await repo.create_photos_batch(photos_payload)
-        except Exception:
-            reserved_for_created = bytes_to_reserve - failed_presign_bytes
-            if reserved_for_created > 0:
-                await user_repo.release_reserved_storage(current_user.id, reserved_for_created)
-            raise
+            reserved_bytes_to_release_on_error = 0
+        else:
+            reserved_bytes_to_release_on_error = 0
+    except Exception:
+        if reserved_bytes_to_release_on_error > 0:
+            await user_repo.release_reserved_storage(current_user.id, reserved_bytes_to_release_on_error)
+        raise
 
     return BatchPresignedUploadsResponse(items=items)
 

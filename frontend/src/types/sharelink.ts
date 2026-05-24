@@ -104,9 +104,9 @@ export interface PublicPhoto {
   height?: number | null;
 }
 
-export interface PublicProjectFolder {
-  folder_id: string;
-  folder_name: string;
+export interface PublicProjectGallery {
+  gallery_id: string;
+  gallery_name: string;
   photo_count: number;
   cover_thumbnail_url?: string | null;
   route_path: string;
@@ -144,10 +144,10 @@ export interface SharedProjectShare {
   date?: string;
   site_url?: string;
   cover?: { photo_id: string; full_url: string; thumbnail_url: string } | null;
-  total_listed_folders?: number;
+  total_listed_galleries?: number;
   total_listed_photos?: number;
   total_size_bytes?: number;
-  folders: PublicProjectFolder[];
+  galleries: PublicProjectGallery[];
 }
 
 export type SharedGallery = SharedFolderShare | SharedProjectShare;

@@ -17,7 +17,7 @@ class StructuredLogger:
 
         logger.log_event("view_photo", share_id=..., extra={...})
         """
-        payload = {"timestamp": datetime.now(UTC).isoformat() + "Z", "event": event}
+        payload = {"timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"), "event": event}
 
         # Merge kwargs into payload. If `extra` is provided and is a dict,
         # merge its keys at top-level to match existing expectations.

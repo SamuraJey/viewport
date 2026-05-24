@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
-import requests
 
 from tests.helpers import register_and_login, upload_photo_via_presigned
 from viewport.api.photo import MAX_FILE_SIZE, _invalidate_presigned_cache_safely, _photo_needs_thumbnail_processing, get_content_type_from_filename, sanitize_filename
@@ -285,11 +284,6 @@ class TestPhotoAPI:
         item = presigned.json()["items"][0]
         photo_id = item["photo_id"]
 
-        # NEW: Actually upload the file to S3 so head_object succeeds
-
-        upload_resp = requests.put(item["presigned_data"]["url"], headers=item["presigned_data"]["headers"], data=b"x" * 256)
-        assert upload_resp.status_code in {200, 204}
-
         captured: dict[str, list] = {}
 
         def fake_delay(batch: list[dict]):
@@ -430,14 +424,14 @@ class TestPhotoAPI:
         item = presigned.json()["items"][0]
         photo_id = UUID(item["photo_id"])
 
+        me_resp = authenticated_client.get("/me")
+        assert me_resp.status_code == 200
+        user_id = UUID(me_resp.json()["id"])
+
         def fake_delay(batch: list[dict]) -> None:
             return None
 
         monkeypatch.setattr("viewport.api.photo.create_thumbnails_batch_task.delay", fake_delay)
-
-        me_resp = authenticated_client.get("/me")
-        assert me_resp.status_code == 200
-        user_id = UUID(me_resp.json()["id"])
 
         response = authenticated_client.post(
             f"/galleries/{gallery_id_fixture}/photos/batch-confirm",
@@ -489,3 +483,28 @@ class TestPhotoAPI:
         assert user.storage_used == 256
         assert user.storage_reserved == 0
         assert photo.status == PhotoUploadStatus.THUMBNAIL_CREATING
+
+    @pytest.mark.asyncio
+    async def test_batch_presigned_generic_presign_failure_releases_reserved_quota(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession, monkeypatch):
+        payload = {"files": [{"filename": "presign-error.jpg", "file_size": 256, "content_type": "image/jpeg"}]}
+
+        me_resp = authenticated_client.get("/me")
+        assert me_resp.status_code == 200
+        user_id = UUID(me_resp.json()["id"])
+
+        def fail_presign(*args, **kwargs):
+            raise RuntimeError("presign unavailable")
+
+        monkeypatch.setattr("viewport.api.photo.AsyncS3Client.generate_presigned_put", fail_presign)
+
+        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
+
+        assert response.status_code == 200
+        item = response.json()["items"][0]
+        assert item["success"] is False
+        assert item["error"] == "Failed to generate presigned URL"
+
+        db_session.expire_all()
+        user = await db_session.get(User, user_id)
+        assert user is not None
+        assert user.storage_reserved == 0

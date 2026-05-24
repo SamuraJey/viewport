@@ -11,6 +11,7 @@ import io
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from botocore.exceptions import ClientError
 
 from viewport.s3_service import AsyncS3Client
 
@@ -393,6 +394,23 @@ class TestAsyncS3ClientFileExists:
 
         with pytest.raises(Exception, match="Connection error"):  # noqa: B017
             await s3_client.file_exists("test-key.txt")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("error_code", ["404", "NoSuchKey", "NotFound"])
+    async def test_file_exists_returns_false_for_missing_object_client_errors(self, s3_client, error_code: str):
+        """Missing-object ClientError variants return False."""
+        mock_s3_client = AsyncMock()
+        mock_s3_client.head_object.side_effect = ClientError(
+            {"Error": {"Code": error_code, "Message": "missing"}},
+            "HeadObject",
+        )
+        mock_context = AsyncMock()
+        mock_context.__aenter__.return_value = mock_s3_client
+        mock_context.__aexit__.return_value = None
+
+        s3_client._get_s3_client = MagicMock(return_value=mock_context)
+
+        assert await s3_client.file_exists("missing-key.txt") is False
 
 
 class TestAsyncS3ClientRenameFile:

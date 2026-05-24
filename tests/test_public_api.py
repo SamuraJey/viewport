@@ -123,6 +123,7 @@ class TestPublicAPI:
         repo = MagicMock()
         repo.get_photo_stats_by_gallery = AsyncMock(return_value=GalleryPhotoStats(photo_count=1, total_size_bytes=2048))
         repo.get_photos_by_gallery_id = AsyncMock(return_value=[photo])
+        repo.get_photo_by_id_and_gallery = AsyncMock(return_value=photo)
         repo.record_view = AsyncMock()
         repo.db.execute = AsyncMock(return_value=SimpleNamespace(scalar_one_or_none=lambda: photo))
         s3_client = MagicMock()
@@ -181,6 +182,7 @@ class TestPublicAPI:
         repo = MagicMock()
         repo.get_photo_stats_by_gallery = AsyncMock(return_value=GalleryPhotoStats(photo_count=1, total_size_bytes=1024))
         repo.get_photos_by_gallery_id = AsyncMock(return_value=[photo])
+        repo.get_photo_by_id_and_gallery = AsyncMock(return_value=None)
         repo.record_view = AsyncMock()
         repo.db.execute = AsyncMock(return_value=SimpleNamespace(scalar_one_or_none=lambda: None))
         s3_client = MagicMock()
@@ -286,9 +288,10 @@ class TestPublicAPI:
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Project not found"
 
-    def test_download_all_photos_zip_rejects_project_share_without_project_id(self):
+    @pytest.mark.asyncio
+    async def test_download_all_photos_zip_rejects_project_share_without_project_id(self):
         with pytest.raises(HTTPException) as exc_info:
-            download_all_photos_zip(
+            await download_all_photos_zip(
                 share_id=uuid4(),
                 repo=MagicMock(),
                 project_repo=MagicMock(),
@@ -898,7 +901,7 @@ class TestPublicAPI:
         root_resp = authenticated_client.get(f"/s/{project_share_id}")
         assert root_resp.status_code == 200
         payload = root_resp.json()
-        assert payload["folders"][0]["cover_thumbnail_url"].startswith("http")
+        assert payload["galleries"][0]["cover_thumbnail_url"].startswith("http")
 
         gallery_share_resp = authenticated_client.post(f"/galleries/{gallery_id}/share-links", json={})
         assert gallery_share_resp.status_code == 201

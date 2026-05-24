@@ -2004,15 +2004,15 @@ class DemoServiceStore {
             thumbnail_url: leftmostCoverPhoto.thumbnail_url,
           }
         : null,
-      total_listed_folders: listedFolders.length,
+      total_listed_galleries: listedFolders.length,
       total_listed_photos: listedFolders.reduce(
         (sum, folder) => sum + (folder.photo_count || 0),
         0,
       ),
       total_size_bytes: projectTotalSizeBytes,
-      folders: listedFolders.map((folder) => ({
-        folder_id: folder.id,
-        folder_name: folder.name,
+      galleries: listedFolders.map((folder) => ({
+        gallery_id: folder.id,
+        gallery_name: folder.name,
         photo_count: folder.photo_count,
         cover_thumbnail_url: folder.cover_photo_thumbnail_url ?? null,
         route_path: `/share/${shareId}/galleries/${folder.id}`,

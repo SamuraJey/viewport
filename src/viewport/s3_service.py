@@ -333,8 +333,8 @@ class AsyncS3Client:
             return True
         except ClientError as e:
             # Check if it's a NoSuchKey error by checking the exception code
-            error_code = getattr(e.response, "Error", {}).get("Code") if hasattr(e, "response") else None
-            if error_code == "404" or "NoSuchKey" in str(type(e).__name__):
+            error_code = e.response.get("Error", {}).get("Code") if isinstance(getattr(e, "response", None), dict) else None
+            if error_code in {"404", "NoSuchKey", "NotFound"}:
                 return False
             logger.error("Failed to check if object exists %s: %s", key, e)
             raise
