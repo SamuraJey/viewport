@@ -38,8 +38,14 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
     const [showConfirmModal, setShowConfirmModal] = useState(false);
 
     const handleFiles = (fileList: FileList | File[]) => {
-      const fileArray = Array.from(fileList).filter((f) => ACCEPTED_TYPES.includes(f.type));
-      if (fileArray.length === 0) return;
+      const rawFiles = Array.from(fileList);
+      const fileArray = rawFiles.filter((f) => ACCEPTED_TYPES.includes(f.type));
+      if (fileArray.length === 0) {
+        if (rawFiles.length > 0) {
+          setError('Only JPG and PNG files are supported. Please select valid image files.');
+        }
+        return;
+      }
 
       setError('');
       const hasValid = fileArray.some((f) => f.size <= MAX_UPLOAD_FILE_SIZE_BYTES);
