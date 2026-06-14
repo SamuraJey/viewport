@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, useState, useMemo } from 'react';
 import { AlertTriangle, ImageOff, X, Upload, Images } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
+import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../../constants/upload';
 import { formatFileSize } from '../../lib/utils';
 import { getFileUploadErrorText, hasFileUploadError } from './uploadConfirmUtils';
 
@@ -156,6 +156,10 @@ export const UploadSelectionContent = ({
 }: UploadSelectionContentProps) => {
   const readyFilesCount = files.filter((file) => !hasFileUploadError(file)).length;
   const hasIssues = hasLargeFiles || hasInvalidTypes || renameWarnings.length > 0;
+  const largeFilesCount = files.filter((f) => f.size > MAX_UPLOAD_FILE_SIZE_BYTES).length;
+  const invalidTypeCount = files.filter(
+    (f) => !['image/jpeg', 'image/png', 'image/jpg'].includes(f.type),
+  ).length;
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -322,14 +326,48 @@ export const UploadSelectionContent = ({
         </div>
       </div>
 
+      {readyFilesCount === 0 &&
+        files.length > 0 &&
+        (() => {
+          const allLarge = files.every((f) => f.size > MAX_UPLOAD_FILE_SIZE_BYTES);
+          const allInvalidType = files.every(
+            (f) => !['image/jpeg', 'image/png', 'image/jpg'].includes(f.type),
+          );
+
+          if (!allLarge && !allInvalidType) return null;
+
+          return (
+            <div className="p-4 bg-red-50/70 dark:bg-red-500/10 border border-red-200/70 dark:border-red-500/20 rounded-2xl shadow-xs text-sm">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-4.5 h-4.5 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
+                <p className="text-red-800 dark:text-red-300 font-medium">
+                  {allLarge
+                    ? 'All selected files exceed the 10 MB maximum size. Please resize your images or select smaller files.'
+                    : 'Only JPG and PNG formats are supported. Please select valid image files.'}
+                </p>
+              </div>
+            </div>
+          );
+        })()}
+
       {hasIssues && (
         <div className="p-4 bg-yellow-50/70 dark:bg-yellow-500/10 border border-yellow-200/70 dark:border-yellow-500/20 rounded-2xl shadow-xs text-sm">
           <div className="flex items-start gap-3">
             <AlertTriangle className="w-4.5 h-4.5 shrink-0 text-yellow-600 dark:text-yellow-400 mt-0.5" />
             <div>
               <ul className="text-yellow-800 dark:text-yellow-300 space-y-1.5 list-disc ml-4 font-medium">
-                {hasLargeFiles && <li>Files over {MAX_UPLOAD_FILE_SIZE_MB}MB will be rejected</li>}
-                {hasInvalidTypes && <li>Only JPG and PNG formats are supported</li>}
+                {hasLargeFiles && readyFilesCount > 0 && (
+                  <li>
+                    {largeFilesCount} of {files.length} file{largeFilesCount !== 1 ? 's' : ''}{' '}
+                    exceed the 10 MB limit and won't be uploaded
+                  </li>
+                )}
+                {hasInvalidTypes && readyFilesCount > 0 && (
+                  <li>
+                    {invalidTypeCount} file{invalidTypeCount !== 1 ? 's' : ''} use unsupported
+                    formats (JPG/PNG only)
+                  </li>
+                )}
                 {renameWarnings.length > 0 && (
                   <li>
                     Some duplicates will be renamed (e.g., {renameWarnings[0].original} →{' '}

@@ -1,7 +1,8 @@
-import { useState, useRef, memo, useCallback } from 'react';
+import { useState, useRef, memo, useCallback, useMemo } from 'react';
 import { CheckCircle2, Images, Upload, X } from 'lucide-react';
 import type { PhotoUploadResponse } from '../types';
 import { usePhotoUpload } from '../hooks/usePhotoUpload';
+import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../constants/upload';
 import { UploadSelectionContent } from './upload-confirm/UploadSelectionContent';
 import { UploadProgressContent } from './upload-confirm/UploadProgressContent';
 import { UploadResultContent } from './upload-confirm/UploadResultContent';
@@ -51,6 +52,10 @@ export const PhotoUploadConfirmModal = memo(
     const [showCancelWarning, setShowCancelWarning] = useState(false);
     const uploadButtonRef = useRef<HTMLButtonElement>(null);
     const isCancelledRef = useRef(false);
+    const allLargeFiles = useMemo(
+      () => files.length > 0 && files.every((f) => f.size > MAX_UPLOAD_FILE_SIZE_BYTES),
+      [files],
+    );
 
     // Force close modal (used after warning confirmation)
     const handleForceClose = useCallback(() => {
@@ -208,6 +213,7 @@ export const PhotoUploadConfirmModal = memo(
           failedCount={failedFilesRef.current.length}
           validUploadCount={validUploadCount}
           hasValidFiles={hasValidFiles}
+          allLargeFiles={allLargeFiles}
           onRetryFailed={handleRetryFailed}
           onClose={handleClose}
           onCancel={handleClose}

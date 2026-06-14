@@ -18,12 +18,6 @@ export interface PhotoUploaderHandle {
   handleExternalFiles: (fileList: FileList | File[]) => void;
 }
 
-interface FileWithMeta {
-  file: File;
-  error?: string;
-  progress?: number;
-}
-
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
 
 export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>(
@@ -39,38 +33,28 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
   ) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [dragActive, setDragActive] = useState(false);
-    const [files, setFiles] = useState<FileWithMeta[]>([]);
+    const [files, setFiles] = useState<File[]>([]);
     const [error, setError] = useState('');
     const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-    const validateFiles = (fileList: FileList | File[]): FileWithMeta[] => {
-      return Array.from(fileList).map((file) => {
-        let error = '';
-        if (!ACCEPTED_TYPES.includes(file.type)) {
-          error = 'Only JPG and PNG files are allowed.';
-        } else if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
-          error = `File size must be ≤ ${MAX_UPLOAD_FILE_SIZE_MB} MB.`;
-        }
-        return { file, error };
-      });
-    };
-
     const handleFiles = (fileList: FileList | File[]) => {
-      const validated = validateFiles(fileList);
-      setError('');
+      const fileArray = Array.from(fileList).filter((f) => ACCEPTED_TYPES.includes(f.type));
+      if (fileArray.length === 0) return;
 
-      const validFiles = validated.filter((f) => !f.error).map((f) => f.file);
-      if (validFiles.length > 0) {
-        setFiles(validated);
+      setError('');
+      const hasValid = fileArray.some((f) => f.size <= MAX_UPLOAD_FILE_SIZE_BYTES);
+
+      if (hasValid) {
+        setFiles(fileArray);
         setShowConfirmModal(true);
         onModalStateChange?.(true);
       } else {
-        // Show only error files if any
-        const errorFiles = validated.filter((f) => f.error);
-        setFiles(errorFiles);
-        if (errorFiles.length > 0) {
-          setError('Some files have errors and cannot be uploaded');
-        }
+        const allLarge = fileArray.every((f) => f.size > MAX_UPLOAD_FILE_SIZE_BYTES);
+        setError(
+          allLarge
+            ? 'All files exceed the 10 MB maximum. Resize and try again.'
+            : 'Some files have errors and cannot be uploaded',
+        );
       }
     };
 
@@ -120,8 +104,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
     };
 
     const handleFilesChange = (newFiles: File[]) => {
-      const validated = validateFiles(newFiles);
-      setFiles(validated);
+      setFiles(newFiles);
     };
 
     useImperativeHandle(ref, () => ({
@@ -205,7 +188,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
             <PhotoUploadConfirmModal
               isOpen={showConfirmModal}
               onClose={handleCloseConfirmModal}
-              files={files.filter((f) => !f.error).map((f) => f.file)}
+              files={files}
               existingFilenames={existingFilenames}
               galleryId={galleryId}
               onUploadComplete={handleUploadComplete}

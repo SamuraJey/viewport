@@ -49,6 +49,7 @@ interface UploadModalFooterProps {
   failedCount: number;
   validUploadCount: number;
   hasValidFiles: boolean;
+  allLargeFiles?: boolean;
   onRetryFailed: () => void;
   onClose: () => void;
   onCancel: () => void;
@@ -62,6 +63,7 @@ export const UploadModalFooter = ({
   failedCount,
   validUploadCount,
   hasValidFiles,
+  allLargeFiles,
   onRetryFailed,
   onClose,
   onCancel,
@@ -73,7 +75,11 @@ export const UploadModalFooter = ({
     <div className="text-sm font-medium">
       {!result ? (
         <span className={hasValidFiles ? 'text-text' : 'text-muted'}>
-          {hasValidFiles ? `${validUploadCount} ready to upload` : 'No valid files to upload'}
+          {hasValidFiles
+            ? `${validUploadCount} ready to upload`
+            : allLargeFiles
+              ? 'All files exceed 10 MB limit'
+              : 'No valid files — check requirements above'}
         </span>
       ) : (
         <span
