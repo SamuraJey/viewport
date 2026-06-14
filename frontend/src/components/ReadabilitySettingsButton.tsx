@@ -43,7 +43,7 @@ export const ReadabilitySettingsButton = ({
 
   const buttonClassName =
     variant === 'floating'
-      ? 'fixed right-18 top-4 z-50 inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-border/40 bg-surface/80 px-3 text-text shadow-lg backdrop-blur-md transition-all hover:shadow-xl hover:-translate-y-0.5 dark:bg-surface-dark/80'
+      ? 'fixed right-18 top-4 z-50 inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-border/40 bg-surface/80 px-3 text-text shadow-lg backdrop-blur-md transition-all hover:shadow-xl hover:scale-110 dark:bg-surface-dark/80'
       : 'inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-border/40 bg-surface-1 px-3 text-text shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-sm dark:border-border/50 dark:bg-surface-dark-1';
   const controlsDisabled = !enabled;
   const disabledControlClassName =

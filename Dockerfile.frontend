@@ -11,7 +11,7 @@ RUN npm ci --omit=dev
 COPY frontend/ .
 RUN npm run build
 
-FROM nginx:1.31-alpine-slim AS runtime
+FROM nginx:1.31.1-alpine-slim AS runtime
 ENV NODE_ENV=production
 
 # Configure nginx for SPA

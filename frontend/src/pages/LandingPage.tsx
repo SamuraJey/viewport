@@ -8,6 +8,7 @@ import {
   ChevronRight,
   CloudUpload,
   FolderKanban,
+  Heart,
   Image as ImageIcon,
   Link2,
   LockKeyhole,
@@ -202,7 +203,7 @@ const LandingPreview = () => (
                 {i === 0 && (
                   <div className="absolute top-2 right-2">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
-                      <span className="text-[8px]">♥</span>
+                      <Heart className="h-2.5 w-2.5 text-red-300" fill="currentColor" />
                     </span>
                   </div>
                 )}
