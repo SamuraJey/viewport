@@ -1,6 +1,7 @@
 import re
 import unicodedata
 from pathlib import Path
+from urllib.parse import quote
 
 from viewport.filename_utils import split_name_and_ext, truncate_preserving_extension, truncate_utf8
 
@@ -99,3 +100,24 @@ def make_unique_zip_entry_name(filename: str, used_names: set[str]) -> str:
 
     used_names.add(candidate.casefold())
     return candidate
+
+
+def make_content_disposition_header(filename: str) -> str:
+    """Build a Content-Disposition header value safe for HTTP header encoding.
+
+    HTTP headers are latin-1 encoded by Starlette. Non-ASCII characters cause
+    UnicodeEncodeError. This function uses RFC 5987 encoding (filename*=UTF-8'')
+    for non-ASCII filenames with an ASCII-safe fallback.
+    """
+    try:
+        filename.encode("ascii")
+        return f'attachment; filename="{filename}"'
+    except UnicodeEncodeError:
+        safe = unicodedata.normalize("NFKD", filename).encode("ascii", "ignore").decode("ascii").strip()
+        if not safe or safe in {".", ".."}:
+            safe = "download"
+        elif safe.startswith("."):
+            # e.g. ".zip" when original was "フォト.zip"
+            safe = "download"
+        encoded = quote(filename, safe="")
+        return f"attachment; filename=\"{safe}\"; filename*=UTF-8''{encoded}"
