@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, useMemo } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { AlertTriangle, ImageOff, X, Upload, Images, Loader2, Shrink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../../constants/upload';
@@ -222,25 +222,28 @@ export const UploadSelectionContent = ({
     total: number;
   } | null>(null);
 
-  const handleResize = async (index: number) => {
-    const file = files[index];
-    if (!file) return;
+  const handleResize = useCallback(
+    async (index: number) => {
+      const file = files[index];
+      if (!file) return;
 
-    setResizingIndex(index);
-    setResizeError(null);
+      setResizingIndex(index);
+      setResizeError(null);
 
-    try {
-      const resized = await resizeImageForUpload(file);
-      handleReplaceFile(index, resized);
-    } catch (err) {
-      setResizeError(err instanceof Error ? err.message : 'Resize failed');
-      setTimeout(() => setResizeError(null), 5000);
-    } finally {
-      setResizingIndex(null);
-    }
-  };
+      try {
+        const resized = await resizeImageForUpload(file);
+        handleReplaceFile(index, resized);
+      } catch (err) {
+        setResizeError(err instanceof Error ? err.message : 'Resize failed');
+        setTimeout(() => setResizeError(null), 5000);
+      } finally {
+        setResizingIndex(null);
+      }
+    },
+    [files, handleReplaceFile],
+  );
 
-  const handleResizeAll = async () => {
+  const handleResizeAll = useCallback(async () => {
     const oversizedIndices: number[] = [];
     for (let i = 0; i < files.length; i++) {
       if (isResizableFile(files[i])) {
@@ -256,6 +259,7 @@ export const UploadSelectionContent = ({
     // Work on a local mutable copy — avoids intermediate re-renders
     // and the stale-closure overwrite bug from calling handleReplaceFile per iteration.
     const workingFiles = [...files];
+    let failedCount = 0;
     for (let i = 0; i < oversizedIndices.length; i++) {
       const index = oversizedIndices[i];
       if (!workingFiles[index]) continue;
@@ -263,14 +267,21 @@ export const UploadSelectionContent = ({
         workingFiles[index] = await resizeImageForUpload(workingFiles[index]);
       } catch (err) {
         console.error(`Resize failed for file at index ${index}:`, err);
+        failedCount++;
       }
       setResizeAllProgress({ current: i + 1, total: oversizedIndices.length });
     }
 
     onFilesChange?.(workingFiles);
+    if (failedCount > 0) {
+      setResizeError(
+        `${failedCount} of ${oversizedIndices.length} file${failedCount !== 1 ? 's' : ''} failed to resize`,
+      );
+      setTimeout(() => setResizeError(null), 5000);
+    }
     setResizeAllProgress(null);
     setIsResizeAllActive(false);
-  };
+  }, [files, onFilesChange]);
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -280,6 +291,7 @@ export const UploadSelectionContent = ({
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    // Only set false if leaving the container, not child elements
     if (!e.currentTarget.contains(e.relatedTarget as Node)) {
       setIsDragOver(false);
     }
@@ -313,6 +325,7 @@ export const UploadSelectionContent = ({
     );
 
     const existingFiles = new Set(files.map((f) => `${f.name}-${f.size}`));
+    // Filter out duplicates based on name and size
     const newFiles = droppedFiles.filter((file) => !existingFiles.has(`${file.name}-${file.size}`));
 
     if (newFiles.length > 0) {

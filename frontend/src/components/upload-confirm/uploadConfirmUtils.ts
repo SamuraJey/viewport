@@ -33,11 +33,3 @@ export const getFileUploadErrorText = (file: File) => {
 
   return null;
 };
-
-/**
- * Simple linear heuristic for estimated compressed size.
- * The actual output from browser-image-compression is always ≤ maxSizeMB
- * regardless of quality; this estimate is an approximate guide for the UI.
- */
-export const estimateResizedSize = (originalBytes: number, qualityPercent: number): number =>
-  Math.round(originalBytes * (qualityPercent / 100));

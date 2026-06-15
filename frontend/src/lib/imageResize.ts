@@ -1,7 +1,7 @@
-import imageCompression from 'browser-image-compression';
+import imageCompression, { type Options } from 'browser-image-compression';
 import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../constants/upload';
 
-const SUPPORTED_RESIZE_TYPES = ['image/jpeg', 'image/png'];
+const SUPPORTED_RESIZE_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
 
 /**
  * Resizes an image file to fit within the specified byte limit.
@@ -31,7 +31,7 @@ export async function resizeImageForUpload(
   }
 
   try {
-    const options: Record<string, unknown> = {
+    const options: Options = {
       maxSizeMB: maxBytes / (1024 * 1024),
       useWebWorker: true,
       maxWidthOrHeight: 4096,

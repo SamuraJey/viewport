@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   isResizableFile,
   isFileTooLarge,
-  estimateResizedSize,
 } from '../../../components/upload-confirm/uploadConfirmUtils';
 import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../../../constants/upload';
 
@@ -59,23 +58,5 @@ describe('isFileTooLarge', () => {
   it('returns false when file is under MAX_UPLOAD_FILE_SIZE_BYTES', () => {
     const file = createMockFile(MAX_UPLOAD_FILE_SIZE_BYTES - 1, 'image/jpeg');
     expect(isFileTooLarge(file)).toBe(false);
-  });
-});
-
-describe('estimateResizedSize', () => {
-  it('returns correct estimate', () => {
-    expect(estimateResizedSize(10_485_760, 80)).toBe(8_388_608);
-  });
-
-  it('returns 0 for quality 0', () => {
-    expect(estimateResizedSize(1_000_000, 0)).toBe(0);
-  });
-
-  it('returns original size for quality 100', () => {
-    expect(estimateResizedSize(5000, 100)).toBe(5000);
-  });
-
-  it('rounds to nearest integer', () => {
-    expect(estimateResizedSize(1000, 33)).toBe(330);
   });
 });
