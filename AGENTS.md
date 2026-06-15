@@ -128,4 +128,5 @@
 
 ## Important rules
 - When making significant changes in the project, update this file to reflect new conventions or architectural patterns.
+- After changes to business logic or user-facing flows, create or update the corresponding documentation in `docs/`. This includes new features, behavioral changes, removed functionality, and architectural decisions that affect how the system behaves from the user's perspective.
 - Documentations must be put in docs/ folder.
