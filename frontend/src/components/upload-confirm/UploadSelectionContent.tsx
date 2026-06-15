@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../../constants/upload';
 import { formatFileSize } from '../../lib/utils';
 import { resizeImageForUpload } from '../../lib/imageResize';
+import { createImageThumbnail } from '../../lib/imageThumbnail';
 import { getFileUploadErrorText, hasFileUploadError, isResizableFile } from './uploadConfirmUtils';
 
 interface UploadSelectionContentProps {
@@ -17,9 +18,8 @@ interface UploadSelectionContentProps {
   onFilesChange?: (files: File[]) => void;
   handleReplaceFile: (index: number, newFile: File) => void;
 }
-
 const ThumbSkeleton = () => (
-  <div className="w-full h-full animate-pulse bg-surface-1 dark:bg-surface-dark-2">
+  <div className="absolute inset-0 w-full h-full animate-pulse bg-surface-1 dark:bg-surface-dark-2">
     <div className="w-full h-full bg-linear-to-r from-transparent via-white/10 to-transparent" />
   </div>
 );
@@ -61,6 +61,7 @@ const FileCard = memo(
     const fileErrorText = getFileUploadErrorText(file);
     const [shouldLoad, setShouldLoad] = useState(false);
     const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+    const [thumbLoaded, setThumbLoaded] = useState(false);
     const cardRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -78,13 +79,25 @@ const FileCard = memo(
     }, []);
 
     useEffect(() => {
-      if (shouldLoad && file.type.startsWith('image/')) {
-        const url = URL.createObjectURL(file);
-        if (url.startsWith('blob:')) {
-          setThumbUrl(url);
+      if (!shouldLoad) return;
+      let cancelled = false;
+      let cleanup: (() => void) | null = null;
+
+      createImageThumbnail(file).then((result) => {
+        if (cancelled) {
+          result.cleanup();
+          return;
         }
-        return () => URL.revokeObjectURL(url);
-      }
+        if (result.url) {
+          setThumbLoaded(false);
+          setThumbUrl(result.url);
+        }
+        cleanup = result.cleanup;
+      });
+      return () => {
+        cancelled = true;
+        cleanup?.();
+      };
     }, [shouldLoad, file]);
 
     return (
@@ -104,18 +117,24 @@ const FileCard = memo(
         <div className="relative aspect-4/3 w-full shrink-0 overflow-hidden bg-surface-1 dark:bg-surface-dark-2 border-b border-border/30">
           {isResizing && <ResizeSpinner />}
 
-          {(!shouldLoad || (shouldLoad && !thumbUrl && file.type.startsWith('image/'))) &&
-            !isResizing && <ThumbSkeleton />}
+          {/* Skeleton — fades out when image loads */}
+          {!thumbLoaded && !isResizing && <ThumbSkeleton />}
+
+          {/* Thumbnail image — mounts at opacity-0, fades in on load */}
           {shouldLoad && thumbUrl && !isResizing ? (
             <img
               src={thumbUrl}
               alt={`Preview of ${file.name}`}
-              className={`w-full h-full object-cover transition-opacity duration-300 ${
-                hasError ? 'opacity-40 saturate-50' : ''
+              onLoad={() => setThumbLoaded(true)}
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                !thumbLoaded ? 'opacity-0' : hasError ? 'opacity-40 saturate-50' : 'opacity-100'
               }`}
               decoding="async"
             />
-          ) : shouldLoad && !thumbUrl && !file.type.startsWith('image/') && !isResizing ? (
+          ) : null}
+
+          {/* Non-image file fallback */}
+          {shouldLoad && !thumbUrl && !file.type.startsWith('image/') && !isResizing ? (
             <div className="w-full h-full flex items-center justify-center">
               <ImageOff className="w-8 h-8 text-muted/60" />
             </div>
