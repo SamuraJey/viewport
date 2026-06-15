@@ -99,7 +99,9 @@ describe('PhotoUploader', () => {
       // Wait for error message to appear
       await waitFor(() => {
         expect(
-          screen.getByText('Some files have errors and cannot be uploaded'),
+          screen.getByText(
+            'Only JPG and PNG files are supported. Please select valid image files.',
+          ),
         ).toBeInTheDocument();
       });
 
@@ -108,7 +110,7 @@ describe('PhotoUploader', () => {
     }
   });
 
-  it('should reject large files', async () => {
+  it('should open modal with oversized file and show resize option', async () => {
     const user = userEvent.setup();
     // Create a file that's too large (over upload limit)
     const largeFile = new File([new ArrayBuffer(MAX_UPLOAD_FILE_SIZE_BYTES + 1024)], 'large.jpg', {
@@ -122,15 +124,27 @@ describe('PhotoUploader', () => {
     if (fileInput) {
       await user.upload(fileInput as HTMLInputElement, [largeFile]);
 
-      // Wait for error message to appear
+      // Modal should open showing the oversized file
       await waitFor(() => {
-        expect(
-          screen.getByText('Some files have errors and cannot be uploaded'),
-        ).toBeInTheDocument();
+        expect(screen.getByText('large.jpg')).toBeInTheDocument();
       });
 
-      // Modal should not open for oversized files
-      expect(screen.queryByText('Confirm Photo Upload')).not.toBeInTheDocument();
+      // Should show warning about oversized files
+      expect(
+        screen.getByText(/All selected files exceed the 10 MB maximum size/),
+      ).toBeInTheDocument();
+
+      // Resize All button should be visible for oversized resizable files
+      expect(screen.getByLabelText('Resize all oversized images')).toBeInTheDocument();
+
+      // Upper bound should be shown (library guarantees ≤ 10 MB)
+      expect(screen.getByText(/→ ≤ 10 MB/)).toBeInTheDocument();
+
+      // Resize button on the file card should still be visible
+      expect(screen.getByLabelText('Resize large.jpg to fit size limit')).toBeInTheDocument();
+
+      // Upload button should be disabled
+      expect(screen.getByText('Upload').closest('button')).toBeDisabled();
     }
   });
 

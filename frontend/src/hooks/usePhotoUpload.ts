@@ -88,6 +88,15 @@ export const usePhotoUpload = (
     [files, onFilesChange],
   );
 
+  /** Replace a file at the given index with a new file (e.g. after resize). */
+  const handleReplaceFile = useCallback(
+    (index: number, newFile: File) => {
+      const updatedFiles = [...files.slice(0, index), newFile, ...files.slice(index + 1)];
+      onFilesChange?.(updatedFiles);
+    },
+    [files, onFilesChange],
+  );
+
   const handleUpload = useCallback(async () => {
     if (!hasValidFiles) return;
     setIsUploading(true);
@@ -268,6 +277,7 @@ export const usePhotoUpload = (
     hasInvalidTypes,
     renameWarnings,
     handleRemoveFile,
+    handleReplaceFile,
     handleUpload,
     handleRetryFailed,
     cancelUpload,
