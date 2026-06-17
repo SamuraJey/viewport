@@ -80,6 +80,12 @@ const FileCard = memo(
 
     useEffect(() => {
       if (!shouldLoad) return;
+
+      // Reset thumbnail state for new file — prevents stale thumbnail
+      // from previous file in the same card position.
+      setThumbUrl(null);
+      setThumbLoaded(false);
+
       let cancelled = false;
       let cleanup: (() => void) | null = null;
 
@@ -89,7 +95,6 @@ const FileCard = memo(
           return;
         }
         if (result.url) {
-          setThumbLoaded(false);
           setThumbUrl(result.url);
         }
         cleanup = result.cleanup;
