@@ -2,7 +2,7 @@ import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { Upload, ImagePlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PhotoUploadConfirmModal } from './PhotoUploadConfirmModal';
-import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../constants/upload';
+import { MAX_UPLOAD_FILE_SIZE_MB } from '../constants/upload';
 import type { PhotoUploadResponse } from '../types';
 
 interface PhotoUploaderProps {
@@ -48,20 +48,9 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
       }
 
       setError('');
-      const hasValid = fileArray.some((f) => f.size <= MAX_UPLOAD_FILE_SIZE_BYTES);
-
-      if (hasValid) {
-        setFiles(fileArray);
-        setShowConfirmModal(true);
-        onModalStateChange?.(true);
-      } else {
-        const allLarge = fileArray.every((f) => f.size > MAX_UPLOAD_FILE_SIZE_BYTES);
-        setError(
-          allLarge
-            ? 'All files exceed the 10 MB maximum. Resize and try again.'
-            : 'Some files have errors and cannot be uploaded',
-        );
-      }
+      setFiles(fileArray);
+      setShowConfirmModal(true);
+      onModalStateChange?.(true);
     };
 
     const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {

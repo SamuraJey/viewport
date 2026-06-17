@@ -1,10 +1,21 @@
-import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
+import {
+  MAX_UPLOAD_FILE_SIZE_BYTES,
+  MAX_UPLOAD_FILE_SIZE_MB,
+  SUPPORTED_IMAGE_TYPES,
+} from '../../constants/upload';
 
-const supportedUploadTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+const supportedUploadTypes = SUPPORTED_IMAGE_TYPES;
 
-const isFileTooLarge = (file: File) => file.size > MAX_UPLOAD_FILE_SIZE_BYTES;
+export const isFileTooLarge = (file: File): boolean => file.size > MAX_UPLOAD_FILE_SIZE_BYTES;
 
-const isFileTypeInvalid = (file: File) => !supportedUploadTypes.includes(file.type);
+export const isFileTypeInvalid = (file: File): boolean => !supportedUploadTypes.includes(file.type);
+
+/**
+ * Returns true when the file can be resized: it is too large AND has a supported
+ * image type (JPEG or PNG). Only resizable files get the Resize button in the UI.
+ */
+export const isResizableFile = (file: File): boolean =>
+  isFileTooLarge(file) && supportedUploadTypes.includes(file.type);
 
 export const hasFileUploadError = (file: File) => isFileTooLarge(file) || isFileTypeInvalid(file);
 

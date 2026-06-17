@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { photoService } from '../services/photoService';
-import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../constants/upload';
+import { MAX_UPLOAD_FILE_SIZE_BYTES, SUPPORTED_IMAGE_TYPES } from '../constants/upload';
 import { getSafeNameAndExtension } from '../lib/filenameUtils';
 import type {
   PhotoUploadResponse,
@@ -20,7 +20,7 @@ export interface UploadProgress {
   failedCount?: number;
 }
 
-const SUPPORTED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
+const SUPPORTED_TYPES = SUPPORTED_IMAGE_TYPES;
 
 export const usePhotoUpload = (
   galleryId: string,
@@ -83,6 +83,15 @@ export const usePhotoUpload = (
   const handleRemoveFile = useCallback(
     (fileIndex: number) => {
       const updatedFiles = files.filter((_, index) => index !== fileIndex);
+      onFilesChange?.(updatedFiles);
+    },
+    [files, onFilesChange],
+  );
+
+  /** Replace a file at the given index with a new file (e.g. after resize). */
+  const handleReplaceFile = useCallback(
+    (index: number, newFile: File) => {
+      const updatedFiles = [...files.slice(0, index), newFile, ...files.slice(index + 1)];
       onFilesChange?.(updatedFiles);
     },
     [files, onFilesChange],
@@ -268,6 +277,7 @@ export const usePhotoUpload = (
     hasInvalidTypes,
     renameWarnings,
     handleRemoveFile,
+    handleReplaceFile,
     handleUpload,
     handleRetryFailed,
     cancelUpload,

@@ -1,9 +1,11 @@
-import { memo, useEffect, useRef, useState, useMemo } from 'react';
-import { AlertTriangle, ImageOff, X, Upload, Images } from 'lucide-react';
+import { memo, useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { AlertTriangle, ImageOff, X, Upload, Images, Loader2, Shrink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../../constants/upload';
 import { formatFileSize } from '../../lib/utils';
-import { getFileUploadErrorText, hasFileUploadError } from './uploadConfirmUtils';
+import { resizeImageForUpload } from '../../lib/imageResize';
+import { createImageThumbnail } from '../../lib/imageThumbnail';
+import { getFileUploadErrorText, hasFileUploadError, isResizableFile } from './uploadConfirmUtils';
 
 interface UploadSelectionContentProps {
   files: File[];
@@ -14,28 +16,52 @@ interface UploadSelectionContentProps {
   isUploading: boolean;
   onRemoveFile: (fileIndex: number) => void;
   onFilesChange?: (files: File[]) => void;
+  handleReplaceFile: (index: number, newFile: File) => void;
 }
-
 const ThumbSkeleton = () => (
-  <div className="w-full h-full animate-pulse bg-surface-1 dark:bg-surface-dark-2">
+  <div className="absolute inset-0 w-full h-full animate-pulse bg-surface-1 dark:bg-surface-dark-2">
     <div className="w-full h-full bg-linear-to-r from-transparent via-white/10 to-transparent" />
+  </div>
+);
+
+const ResizeSpinner = () => (
+  <div className="absolute inset-0 flex items-center justify-center bg-black/40 dark:bg-black/60 backdrop-blur-[1px] z-10">
+    <div className="flex flex-col items-center gap-2">
+      <Loader2 className="w-8 h-8 text-white animate-spin" />
+      <span className="text-xs text-white font-semibold">Resizing…</span>
+    </div>
   </div>
 );
 
 interface FileCardProps {
   file: File;
   index: number;
-  isUploading: boolean;
   onRemoveFile: (index: number) => void;
   renameWarning?: string;
+  isResizing: boolean;
+  canResize: boolean;
+  onResize: (index: number) => void;
+  isResizingBatch: boolean;
+  isMutating: boolean;
 }
 
 const FileCard = memo(
-  ({ file, index, isUploading, onRemoveFile, renameWarning }: FileCardProps) => {
+  ({
+    file,
+    index,
+    onRemoveFile,
+    renameWarning,
+    isResizing,
+    canResize,
+    onResize,
+    isResizingBatch,
+    isMutating,
+  }: FileCardProps) => {
     const hasError = hasFileUploadError(file);
     const fileErrorText = getFileUploadErrorText(file);
     const [shouldLoad, setShouldLoad] = useState(false);
     const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+    const [thumbLoaded, setThumbLoaded] = useState(false);
     const cardRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -53,19 +79,35 @@ const FileCard = memo(
     }, []);
 
     useEffect(() => {
-      if (shouldLoad && file.type.startsWith('image/')) {
-        const url = URL.createObjectURL(file);
-        // Validate that the URL is a safe blob URL
-        if (url.startsWith('blob:')) {
-          setThumbUrl(url);
+      if (!shouldLoad) return;
+
+      // Reset thumbnail state for new file — prevents stale thumbnail
+      // from previous file in the same card position.
+      setThumbUrl(null);
+      setThumbLoaded(false);
+
+      let cancelled = false;
+      let cleanup: (() => void) | null = null;
+
+      createImageThumbnail(file).then((result) => {
+        if (cancelled) {
+          result.cleanup();
+          return;
         }
-        return () => URL.revokeObjectURL(url);
-      }
+        if (result.url) {
+          setThumbUrl(result.url);
+        }
+        cleanup = result.cleanup;
+      });
+      return () => {
+        cancelled = true;
+        cleanup?.();
+      };
     }, [shouldLoad, file]);
 
     return (
       <motion.div
-        layout
+        layout={!isResizingBatch}
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.8 }}
@@ -78,25 +120,32 @@ const FileCard = memo(
         }`}
       >
         <div className="relative aspect-4/3 w-full shrink-0 overflow-hidden bg-surface-1 dark:bg-surface-dark-2 border-b border-border/30">
-          {(!shouldLoad || (shouldLoad && !thumbUrl && file.type.startsWith('image/'))) && (
-            <ThumbSkeleton />
-          )}
-          {shouldLoad && thumbUrl ? (
+          {isResizing && <ResizeSpinner />}
+
+          {/* Skeleton — fades out when image loads */}
+          {!thumbLoaded && !isResizing && <ThumbSkeleton />}
+
+          {/* Thumbnail image — mounts at opacity-0, fades in on load */}
+          {shouldLoad && thumbUrl && !isResizing ? (
             <img
               src={thumbUrl}
               alt={`Preview of ${file.name}`}
-              className={`w-full h-full object-cover transition-opacity duration-300 ${
-                hasError ? 'opacity-40 saturate-50' : ''
+              onLoad={() => setThumbLoaded(true)}
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+                !thumbLoaded ? 'opacity-0' : hasError ? 'opacity-40 saturate-50' : 'opacity-100'
               }`}
               decoding="async"
             />
-          ) : shouldLoad && !thumbUrl && !file.type.startsWith('image/') ? (
+          ) : null}
+
+          {/* Non-image file fallback */}
+          {shouldLoad && !thumbUrl && !file.type.startsWith('image/') && !isResizing ? (
             <div className="w-full h-full flex items-center justify-center">
               <ImageOff className="w-8 h-8 text-muted/60" />
             </div>
           ) : null}
 
-          {hasError && (
+          {hasError && !isResizing && (
             <div className="absolute inset-0 flex items-center justify-center bg-red-900/10 backdrop-blur-[2px]">
               <AlertTriangle className="w-8 h-8 text-red-500 drop-shadow-md" />
             </div>
@@ -107,12 +156,30 @@ const FileCard = memo(
           <p className="truncate text-sm font-medium text-text" title={file.name}>
             {file.name}
           </p>
-          <span className="text-xs text-muted font-medium mt-0.5">{formatFileSize(file.size)}</span>
+          <span className="text-xs text-muted font-medium mt-0.5">
+            {isResizing
+              ? 'Resizing…'
+              : canResize
+                ? `${formatFileSize(file.size)} → ≤ 10 MB`
+                : formatFileSize(file.size)}
+          </span>
 
           {hasError && fileErrorText && (
             <div className="mt-2 text-xs text-red-600 dark:text-red-400 font-semibold flex items-start gap-1">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <span>Won't upload: {fileErrorText}</span>
+              {canResize && (
+                <button
+                  type="button"
+                  onClick={() => onResize(index)}
+                  disabled={isMutating || isResizing}
+                  className="ml-auto shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-red-300 dark:border-red-700 bg-white/80 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs font-semibold hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label={`Resize ${file.name} to fit size limit`}
+                >
+                  <Shrink className="w-3 h-3" />
+                  Resize
+                </button>
+              )}
             </div>
           )}
 
@@ -130,7 +197,7 @@ const FileCard = memo(
         <button
           type="button"
           onClick={() => onRemoveFile(index)}
-          disabled={isUploading}
+          disabled={isMutating || isResizing}
           aria-label={`Remove ${file.name}`}
           className="absolute top-2 right-2 p-1.5 bg-black/40 text-white hover:bg-red-500 hover:text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-hidden backdrop-blur-md"
         >
@@ -153,6 +220,7 @@ export const UploadSelectionContent = ({
   isUploading,
   onRemoveFile,
   onFilesChange,
+  handleReplaceFile,
 }: UploadSelectionContentProps) => {
   const readyFilesCount = files.filter((file) => !hasFileUploadError(file)).length;
   const hasIssues = hasLargeFiles || hasInvalidTypes || renameWarnings.length > 0;
@@ -167,6 +235,79 @@ export const UploadSelectionContent = ({
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
+  // Resize state
+  const [resizingIndex, setResizingIndex] = useState<number | null>(null);
+  const [resizeError, setResizeError] = useState<string | null>(null);
+
+  // Batch resize state
+  const [isResizeAllActive, setIsResizeAllActive] = useState(false);
+  const [resizeAllProgress, setResizeAllProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
+
+  const isMutating = isUploading || resizingIndex !== null || isResizeAllActive;
+
+  const handleResize = useCallback(
+    async (index: number) => {
+      const file = files[index];
+      if (!file) return;
+
+      setResizingIndex(index);
+      setResizeError(null);
+
+      try {
+        const resized = await resizeImageForUpload(file);
+        handleReplaceFile(index, resized);
+      } catch (err) {
+        setResizeError(err instanceof Error ? err.message : 'Resize failed');
+        setTimeout(() => setResizeError(null), 5000);
+      } finally {
+        setResizingIndex(null);
+      }
+    },
+    [files, handleReplaceFile],
+  );
+
+  const handleResizeAll = useCallback(async () => {
+    const oversizedIndices: number[] = [];
+    for (let i = 0; i < files.length; i++) {
+      if (isResizableFile(files[i])) {
+        oversizedIndices.push(i);
+      }
+    }
+    if (oversizedIndices.length === 0) return;
+
+    setIsResizeAllActive(true);
+    setResizeAllProgress({ current: 0, total: oversizedIndices.length });
+    setResizeError(null);
+
+    // Work on a local mutable copy — avoids intermediate re-renders
+    // and the stale-closure overwrite bug from calling handleReplaceFile per iteration.
+    const workingFiles = [...files];
+    let failedCount = 0;
+    for (let i = 0; i < oversizedIndices.length; i++) {
+      const index = oversizedIndices[i];
+      if (!workingFiles[index]) continue;
+      try {
+        workingFiles[index] = await resizeImageForUpload(workingFiles[index]);
+      } catch (err) {
+        console.error(`Resize failed for file at index ${index}:`, err);
+        failedCount++;
+      }
+      setResizeAllProgress({ current: i + 1, total: oversizedIndices.length });
+    }
+
+    onFilesChange?.(workingFiles);
+    if (failedCount > 0) {
+      setResizeError(
+        `${failedCount} of ${oversizedIndices.length} file${failedCount !== 1 ? 's' : ''} failed to resize`,
+      );
+      setTimeout(() => setResizeError(null), 5000);
+    }
+    setResizeAllProgress(null);
+    setIsResizeAllActive(false);
+  }, [files, onFilesChange]);
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -189,7 +330,6 @@ export const UploadSelectionContent = ({
         onFilesChange([...files, ...newFiles]);
       }
     }
-    // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -204,14 +344,14 @@ export const UploadSelectionContent = ({
     e.stopPropagation();
     setIsDragOver(false);
 
-    if (!onFilesChange) return;
+    if (!onFilesChange || isMutating) return;
 
     const droppedFiles = Array.from(e.dataTransfer.files).filter((file) =>
       file.type.startsWith('image/'),
     );
 
-    // Filter out duplicates based on name and size
     const existingFiles = new Set(files.map((f) => `${f.name}-${f.size}`));
+    // Filter out duplicates based on name and size
     const newFiles = droppedFiles.filter((file) => !existingFiles.has(`${file.name}-${file.size}`));
 
     if (newFiles.length > 0) {
@@ -243,7 +383,6 @@ export const UploadSelectionContent = ({
 
   const visibleFiles = useMemo(() => files.slice(0, visibleCount), [files, visibleCount]);
 
-  // Empty state when no files
   if (files.length === 0) {
     return (
       <div
@@ -294,7 +433,6 @@ export const UploadSelectionContent = ({
           </button>
         </div>
 
-        {/* Hidden file input */}
         <input
           ref={fileInputRef}
           type="file"
@@ -325,6 +463,15 @@ export const UploadSelectionContent = ({
           )}
         </div>
       </div>
+
+      {resizeError && (
+        <div className="p-3 bg-red-50/70 dark:bg-red-500/10 border border-red-200/70 dark:border-red-500/20 rounded-xl text-sm">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
+            <p className="text-red-800 dark:text-red-300 font-medium">{resizeError}</p>
+          </div>
+        </div>
+      )}
 
       {readyFilesCount === 0 && files.length > 0 && (
         <div className="p-4 bg-red-50/70 dark:bg-red-500/10 border border-red-200/70 dark:border-red-500/20 rounded-2xl shadow-xs text-sm">
@@ -379,6 +526,28 @@ export const UploadSelectionContent = ({
         </div>
       )}
 
+      {files.some(isResizableFile) && (
+        <div className="flex items-center justify-end p-3 bg-surface-1 dark:bg-surface-dark-2 border border-border/40 rounded-xl">
+          {isResizeAllActive && resizeAllProgress ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-muted">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Resizing {resizeAllProgress.current} of {resizeAllProgress.total}…
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleResizeAll}
+              disabled={isMutating}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/10 text-accent text-xs font-semibold hover:bg-accent/20 hover:border-accent/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Resize all oversized images"
+            >
+              <Shrink className="w-3.5 h-3.5" />
+              Resize All ({files.filter((f) => isResizableFile(f)).length} files)
+            </button>
+          )}
+        </div>
+      )}
+
       <div
         className={`relative rounded-2xl border-2 border-dashed transition-all duration-200 ${
           isDragOver
@@ -421,12 +590,16 @@ export const UploadSelectionContent = ({
               const renameWarning = renameWarnings.find((w) => w.original === file.name);
               return (
                 <FileCard
-                  key={`${file.name}-${file.size}-${file.lastModified}`}
+                  key={`${file.name}-${file.lastModified}-${file.size}`}
                   file={file}
                   index={index}
-                  isUploading={isUploading}
                   onRemoveFile={onRemoveFile}
                   renameWarning={renameWarning?.unique}
+                  isResizing={resizingIndex === index}
+                  canResize={isResizableFile(file)}
+                  onResize={handleResize}
+                  isResizingBatch={isResizeAllActive}
+                  isMutating={isMutating}
                 />
               );
             })}
@@ -436,7 +609,6 @@ export const UploadSelectionContent = ({
         {visibleCount < files.length && <div ref={loadMoreRef} className="h-4 w-full" />}
       </div>
 
-      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"

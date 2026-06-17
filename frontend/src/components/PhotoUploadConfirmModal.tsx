@@ -43,6 +43,7 @@ export const PhotoUploadConfirmModal = memo(
       hasInvalidTypes,
       renameWarnings,
       handleRemoveFile,
+      handleReplaceFile,
       handleUpload,
       handleRetryFailed,
       cancelUpload,
@@ -195,6 +196,7 @@ export const PhotoUploadConfirmModal = memo(
               renameWarnings={renameWarnings}
               isUploading={isUploading}
               onRemoveFile={handleRemoveFile}
+              handleReplaceFile={handleReplaceFile}
               onFilesChange={onFilesChange}
             />
           )}
