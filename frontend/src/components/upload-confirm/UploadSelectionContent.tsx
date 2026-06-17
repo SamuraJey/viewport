@@ -537,7 +537,7 @@ export const UploadSelectionContent = ({
             <button
               type="button"
               onClick={handleResizeAll}
-              disabled={isUploading || isResizeAllActive}
+              disabled={isMutating}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/10 text-accent text-xs font-semibold hover:bg-accent/20 hover:border-accent/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Resize all oversized images"
             >
