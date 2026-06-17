@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { LazyImage } from '../../components/LazyImage';
 
@@ -76,7 +76,9 @@ describe('LazyImage', () => {
 
     expect(screen.queryByRole('img', { name: 'Loaded' })).not.toBeInTheDocument();
 
-    MockIntersectionObserver.instances.forEach((observer) => observer.triggerAll());
+    act(() => {
+      MockIntersectionObserver.instances.forEach((observer) => observer.triggerAll());
+    });
 
     const image = await screen.findByRole('img', { name: 'Loaded' });
     expect(image).toHaveAttribute('loading', 'eager');

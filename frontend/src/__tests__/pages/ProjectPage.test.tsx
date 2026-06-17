@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('../../components/ui', async (importOriginal) => {
@@ -402,10 +402,14 @@ describe('ProjectPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Photos' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByLabelText('Change project visibility for 3eds'));
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Change project visibility for 3eds'));
+    });
     const visibilityPanel = (await screen.findByText('Project visibility')).parentElement;
     expect(visibilityPanel).not.toBeNull();
-    fireEvent.click(within(visibilityPanel!).getByRole('button', { name: /move earlier/i }));
+    await act(async () => {
+      fireEvent.click(within(visibilityPanel!).getByRole('button', { name: /move earlier/i }));
+    });
 
     expect(projectService.reorderProjectGalleries).toHaveBeenCalledWith('project-1', [
       'gallery-2',

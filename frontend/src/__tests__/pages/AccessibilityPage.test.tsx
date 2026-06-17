@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AccessibilityPage } from '../../pages/AccessibilityPage';
@@ -13,12 +13,14 @@ describe('AccessibilityPage', () => {
     });
   });
 
-  it('renders accessibility guidance and low-vision information', () => {
-    render(
-      <MemoryRouter>
-        <AccessibilityPage />
-      </MemoryRouter>,
-    );
+  it('renders accessibility guidance and low-vision information', async () => {
+    await act(async () => {
+      render(
+        <MemoryRouter>
+          <AccessibilityPage />
+        </MemoryRouter>,
+      );
+    });
 
     expect(screen.getByRole('heading', { name: /accessibility in viewport/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /low-vision mode/i })).toBeInTheDocument();
@@ -27,7 +29,7 @@ describe('AccessibilityPage', () => {
     expect(document.title).toBe('Accessibility · Viewport');
   });
 
-  it('links authenticated users back to the dashboard', () => {
+  it('links authenticated users back to the dashboard', async () => {
     useAuthStore.setState({
       user: {
         id: 'user-1',
@@ -43,11 +45,13 @@ describe('AccessibilityPage', () => {
       isAuthenticated: true,
     });
 
-    render(
-      <MemoryRouter>
-        <AccessibilityPage />
-      </MemoryRouter>,
-    );
+    await act(async () => {
+      render(
+        <MemoryRouter>
+          <AccessibilityPage />
+        </MemoryRouter>,
+      );
+    });
 
     expect(screen.getByRole('link', { name: /back to dashboard/i })).toHaveAttribute(
       'href',
