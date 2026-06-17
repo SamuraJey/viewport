@@ -25,7 +25,7 @@ const ThumbSkeleton = () => (
 );
 
 const ResizeSpinner = () => (
-  <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px] z-10">
+  <div className="absolute inset-0 flex items-center justify-center bg-black/40 dark:bg-black/60 backdrop-blur-[1px] z-10">
     <div className="flex flex-col items-center gap-2">
       <Loader2 className="w-8 h-8 text-white animate-spin" />
       <span className="text-xs text-white font-semibold">Resizing…</span>
@@ -36,26 +36,26 @@ const ResizeSpinner = () => (
 interface FileCardProps {
   file: File;
   index: number;
-  isUploading: boolean;
   onRemoveFile: (index: number) => void;
   renameWarning?: string;
   isResizing: boolean;
   canResize: boolean;
   onResize: (index: number) => void;
   isResizingBatch: boolean;
+  isMutating: boolean;
 }
 
 const FileCard = memo(
   ({
     file,
     index,
-    isUploading,
     onRemoveFile,
     renameWarning,
     isResizing,
     canResize,
     onResize,
     isResizingBatch,
+    isMutating,
   }: FileCardProps) => {
     const hasError = hasFileUploadError(file);
     const fileErrorText = getFileUploadErrorText(file);
@@ -167,7 +167,7 @@ const FileCard = memo(
                 <button
                   type="button"
                   onClick={() => onResize(index)}
-                  disabled={isUploading || isResizing}
+                  disabled={isMutating || isResizing}
                   className="ml-auto shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-red-300 dark:border-red-700 bg-white/80 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs font-semibold hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label={`Resize ${file.name} to fit size limit`}
                 >
@@ -192,7 +192,7 @@ const FileCard = memo(
         <button
           type="button"
           onClick={() => onRemoveFile(index)}
-          disabled={isUploading || isResizing}
+          disabled={isMutating || isResizing}
           aria-label={`Remove ${file.name}`}
           className="absolute top-2 right-2 p-1.5 bg-black/40 text-white hover:bg-red-500 hover:text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-hidden backdrop-blur-md"
         >
@@ -240,6 +240,8 @@ export const UploadSelectionContent = ({
     current: number;
     total: number;
   } | null>(null);
+
+  const isMutating = isUploading || resizingIndex !== null || isResizeAllActive;
 
   const handleResize = useCallback(
     async (index: number) => {
@@ -519,7 +521,7 @@ export const UploadSelectionContent = ({
         </div>
       )}
 
-      {hasLargeFiles && (
+      {files.some(isResizableFile) && (
         <div className="flex items-center justify-end p-3 bg-surface-1 dark:bg-surface-dark-2 border border-border/40 rounded-xl">
           {isResizeAllActive && resizeAllProgress ? (
             <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-muted">
@@ -583,16 +585,16 @@ export const UploadSelectionContent = ({
               const renameWarning = renameWarnings.find((w) => w.original === file.name);
               return (
                 <FileCard
-                  key={`${file.name}-${file.lastModified}`}
+                  key={`${file.name}-${file.lastModified}-${file.size}`}
                   file={file}
                   index={index}
-                  isUploading={isUploading}
                   onRemoveFile={onRemoveFile}
                   renameWarning={renameWarning?.unique}
                   isResizing={resizingIndex === index}
                   canResize={isResizableFile(file)}
                   onResize={handleResize}
                   isResizingBatch={isResizeAllActive}
+                  isMutating={isMutating}
                 />
               );
             })}

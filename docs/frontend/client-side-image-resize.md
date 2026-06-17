@@ -94,7 +94,7 @@ In `frontend/src/components/upload-confirm/uploadConfirmUtils.ts`:
 
 ## Related files
 
-```
+```text
 frontend/src/
 ├── lib/
 │   └── imageResize.ts              # resizeImageForUpload

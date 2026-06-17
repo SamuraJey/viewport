@@ -119,33 +119,31 @@ describe('PhotoUploader', () => {
 
     render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
 
-    const fileInput = screen.getByLabelText(/upload photos/i).querySelector('input[type="file"]');
+    const fileInput = screen.getByLabelText('Choose photos to upload');
 
-    if (fileInput) {
-      await user.upload(fileInput as HTMLInputElement, [largeFile]);
+    await user.upload(fileInput as HTMLInputElement, [largeFile]);
 
-      // Modal should open showing the oversized file
-      await waitFor(() => {
-        expect(screen.getByText('large.jpg')).toBeInTheDocument();
-      });
+    // Modal should open showing the oversized file
+    await waitFor(() => {
+      expect(screen.getByText('large.jpg')).toBeInTheDocument();
+    });
 
-      // Should show warning about oversized files
-      expect(
-        screen.getByText(/All selected files exceed the 10 MB maximum size/),
-      ).toBeInTheDocument();
+    // Should show warning about oversized files
+    expect(
+      screen.getByText(/All selected files exceed the 10 MB maximum size/),
+    ).toBeInTheDocument();
 
-      // Resize All button should be visible for oversized resizable files
-      expect(screen.getByLabelText('Resize all oversized images')).toBeInTheDocument();
+    // Resize All button should be visible for oversized resizable files
+    expect(screen.getByLabelText('Resize all oversized images')).toBeInTheDocument();
 
-      // Upper bound should be shown (library guarantees ≤ 10 MB)
-      expect(screen.getByText(/→ ≤ 10 MB/)).toBeInTheDocument();
+    // Upper bound should be shown (library guarantees ≤ 10 MB)
+    expect(screen.getByText(/→ ≤ 10 MB/)).toBeInTheDocument();
 
-      // Resize button on the file card should still be visible
-      expect(screen.getByLabelText('Resize large.jpg to fit size limit')).toBeInTheDocument();
+    // Resize button on the file card should still be visible
+    expect(screen.getByLabelText('Resize large.jpg to fit size limit')).toBeInTheDocument();
 
-      // Upload button should be disabled
-      expect(screen.getByText('Upload').closest('button')).toBeDisabled();
-    }
+    // Upload button should be disabled
+    expect(screen.getByText('Upload').closest('button')).toBeDisabled();
   });
 
   it('should handle drag and drop events', async () => {
