@@ -344,7 +344,7 @@ export const UploadSelectionContent = ({
     e.stopPropagation();
     setIsDragOver(false);
 
-    if (!onFilesChange) return;
+    if (!onFilesChange || isMutating) return;
 
     const droppedFiles = Array.from(e.dataTransfer.files).filter((file) =>
       file.type.startsWith('image/'),

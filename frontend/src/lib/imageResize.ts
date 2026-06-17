@@ -1,7 +1,7 @@
 import imageCompression, { type Options } from 'browser-image-compression';
-import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../constants/upload';
+import { MAX_UPLOAD_FILE_SIZE_BYTES, SUPPORTED_IMAGE_TYPES } from '../constants/upload';
 
-const SUPPORTED_RESIZE_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
+const SUPPORTED_RESIZE_TYPES = SUPPORTED_IMAGE_TYPES;
 
 /**
  * Resizes an image file to fit within the specified byte limit.

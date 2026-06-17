@@ -30,18 +30,22 @@ fits within `maxSizeMB` (always 10 MB — the upload limit):
 4. If output ≤ maxSizeMB → raise quality if possible, try again.
 5. Converge to the **maximum quality** that stays within the limit.
 
+Resolution is capped at **4096 px** on the long edge (`maxWidthOrHeight: 4096`) —
+important for photographers with high-megapixel source images.
+
 There is **no user-facing quality slider**. The library auto-optimizes — any
 hand-tuned quality would be overridden by the binary search anyway.
 
 ## Supported MIME types
 
-`SUPPORTED_RESIZE_TYPES` in `imageResize.ts`:
+`SUPPORTED_IMAGE_TYPES` in `constants/upload.ts` (single source of truth, imported by
+`uploadConfirmUtils.ts`, `imageResize.ts`, and `usePhotoUpload.ts`):
+
 ```ts
 ['image/jpeg', 'image/png', 'image/jpg']
 ```
 
-Must stay aligned with `supportedUploadTypes` in `uploadConfirmUtils.ts`.
-Mismatch causes the Resize button to appear but throw on click.
+All three modules now import from the same constant — the lists can no longer diverge.
 
 ## UI: upload confirmation modal
 
@@ -79,7 +83,7 @@ estimate is computed.
 | `FileCard` re-renders during batch | `isResizingBatch` prop disables Framer Motion `layout` animation |
 | `handleResize`/`handleResizeAll` recreations | Wrapped in `useCallback` with correct deps |
 | Stale-closure overwrites in batch loop | Local mutable copy, single `onFilesChange` at end |
-| Bundle size (~25 KB gzipped) | Vite code-splits via dynamic import in modal path |
+| Bundle size (~25 KB gzipped) | Code-split via page-level `React.lazy()` on `GalleryPage` in `App.tsx` |
 
 ## Utility functions
 
@@ -97,7 +101,8 @@ In `frontend/src/components/upload-confirm/uploadConfirmUtils.ts`:
 ```text
 frontend/src/
 ├── lib/
-│   └── imageResize.ts              # resizeImageForUpload
+│   ├── imageResize.ts              # resizeImageForUpload
+│   └── imageThumbnail.ts            # createImageThumbnail (thumbnail previews)
 ├── components/
 │   ├── PhotoUploader.tsx           # Entry: file selection → modal
 │   ├── PhotoUploadConfirmModal.tsx # Modal orchestration

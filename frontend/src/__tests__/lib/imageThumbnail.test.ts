@@ -74,5 +74,40 @@ describe('createImageThumbnail', () => {
       result.cleanup();
       expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
     });
+
+    it('falls back to a full-file blob url when canvas.toBlob returns null', async () => {
+      const file = createMockFile('photo.jpg', 1024, 'image/jpeg');
+      const bitmap = createMockBitmap(400, 267);
+      vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(bitmap));
+      const toBlobSpy = vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((cb) => {
+        cb(null);
+      });
+
+      const result = await createImageThumbnail(file);
+
+      expect(result.url).toBe('blob:mock-url');
+      expect(URL.createObjectURL).toHaveBeenCalledWith(file);
+      result.cleanup();
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
+
+      toBlobSpy.mockRestore();
+    });
+
+    it('passes a custom maxDimension through to createImageBitmap', async () => {
+      const file = createMockFile('photo.jpg', 5 * 1024 * 1024, 'image/jpeg');
+      const bitmap = createMockBitmap(200, 133);
+      vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(bitmap));
+
+      const result = await createImageThumbnail(file, 200);
+
+      expect(result.url).toBe('blob:mock-url');
+      expect(createImageBitmap).toHaveBeenCalledWith(file, {
+        resizeWidth: 200,
+        resizeHeight: 200,
+        resizeQuality: 'high',
+        imageOrientation: 'from-image',
+      });
+      result.cleanup();
+    });
   });
 });

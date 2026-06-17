@@ -72,6 +72,22 @@ describe('resizeImageForUpload', () => {
         maxWidthOrHeight: 4096,
       });
     });
+
+    it('compresses an oversized JPG (image/jpg — nonstandard MIME) and returns a file under the limit', async () => {
+      const file = createMockFile('large.jpg', 15 * 1024 * 1024, 'image/jpg');
+      const compressedFile = createMockFile('large.jpg', 8 * 1024 * 1024, 'image/jpg');
+      mockedImageCompression.mockResolvedValue(compressedFile);
+
+      const result = await resizeImageForUpload(file);
+
+      expect(result).not.toBe(file);
+      expect(result.size).toBeLessThanOrEqual(MAX_UPLOAD_FILE_SIZE_BYTES);
+      expect(mockedImageCompression).toHaveBeenCalledWith(file, {
+        maxSizeMB: 10,
+        useWebWorker: true,
+        maxWidthOrHeight: 4096,
+      });
+    });
   });
 
   describe('file identity preservation', () => {

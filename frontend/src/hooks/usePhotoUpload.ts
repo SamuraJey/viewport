@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { photoService } from '../services/photoService';
-import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../constants/upload';
+import { MAX_UPLOAD_FILE_SIZE_BYTES, SUPPORTED_IMAGE_TYPES } from '../constants/upload';
 import { getSafeNameAndExtension } from '../lib/filenameUtils';
 import type {
   PhotoUploadResponse,
@@ -20,7 +20,7 @@ export interface UploadProgress {
   failedCount?: number;
 }
 
-const SUPPORTED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
+const SUPPORTED_TYPES = SUPPORTED_IMAGE_TYPES;
 
 export const usePhotoUpload = (
   galleryId: string,
