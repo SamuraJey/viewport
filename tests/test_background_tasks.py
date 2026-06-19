@@ -15,7 +15,14 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.orm import Session, sessionmaker
 
 from viewport import background_tasks
-from viewport.background_tasks import create_thumbnails_batch_task, delete_gallery_data_task, reconcile_storage_quotas_task, reconcile_successful_uploads_task
+from viewport.background_tasks import (
+    _decrement_used_for_owner_totals,
+    _mark_batch_failed_on_exhausted_retries,
+    create_thumbnails_batch_task,
+    delete_gallery_data_task,
+    reconcile_storage_quotas_task,
+    reconcile_successful_uploads_task,
+)
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ThumbnailOutbox
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
@@ -800,3 +807,69 @@ def test_delete_gallery_data_task_exception_retry(engine: Engine, s3_container, 
 
             # Manually invoke the task function
             delete_gallery_data_task.run(gallery_id_str)
+
+
+def test_aggregate_result_with_none() -> None:
+    """_aggregate_result should handle None result gracefully without crashing."""
+    result_tracker = BatchTaskResult(total=1)
+    # Should not raise
+    background_tasks._aggregate_result(result_tracker, None)
+
+
+def test_decrement_used_for_owner_totals(engine: Engine) -> None:
+    """_decrement_used_for_owner_totals correctly decrements storage_used for owners."""
+    with session_scope(engine) as session:
+        user = User(
+            email=f"decrement-test-{uuid4()}@example.com",
+            password_hash="hashed",
+            display_name="decrement",
+            storage_used=100,
+        )
+        session.add(user)
+        session.flush()
+        user_id = user.id
+
+    try:
+        with session_scope(engine) as session:
+            _decrement_used_for_owner_totals(session, [(user_id, 30)])
+
+        with session_scope(engine) as session:
+            user = session.get(User, user_id)
+            assert user is not None
+            assert user.storage_used == 70
+    finally:
+        with session_scope(engine) as session:
+            session.execute(delete(User).where(User.id == user_id))
+
+
+def test_mark_batch_failed_on_exhausted_retries(engine: Engine, s3_container) -> None:
+    """_mark_batch_failed_on_exhausted_retries marks THUMBNAIL_CREATING photos FAILED and adjusts storage."""
+    with photo_context(engine, "batch-fail-gallery", "fail-photo.jpg") as ctx:
+        with session_scope(engine) as session:
+            photo = session.get(Photo, ctx.photo_id)
+            photo.status = PhotoUploadStatus.THUMBNAIL_CREATING
+            file_size = photo.file_size
+            user = session.get(User, ctx.user_id)
+            user.storage_used = file_size + 100
+            session.flush()
+
+        task_id = str(uuid4())
+        photo_payload: list = [{"photo_id": str(ctx.photo_id), "object_key": ctx.object_key}]
+
+        _mark_batch_failed_on_exhausted_retries(
+            None,  # self (not used in the function body)
+            Exception("test exhausted retries"),
+            task_id,
+            (photo_payload,),
+            {},
+            None,  # einfo
+        )
+
+        with session_scope(engine) as session:
+            photo = session.get(Photo, ctx.photo_id)
+            assert photo is not None
+            assert photo.status == PhotoUploadStatus.FAILED
+
+            user = session.get(User, ctx.user_id)
+            assert user is not None
+            assert user.storage_used == 100

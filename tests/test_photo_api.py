@@ -502,3 +502,57 @@ class TestPhotoAPI:
         user = await db_session.get(User, user_id)
         assert user is not None
         assert user.storage_reserved == 0  # No reservation because presign failed before DB tx
+
+    def test_get_pending_uploads_returns_pending_photos(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """GET /galleries/{id}/photos/pending-uploads returns PENDING photos before confirmation."""
+        # Create a PENDING photo via batch-presigned (do NOT confirm)
+        files_payload = [{"filename": "pending.jpg", "file_size": 100, "content_type": "image/jpeg"}]
+        resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/photos/batch-presigned",
+            json={"files": files_payload},
+        )
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert len(items) == 1
+        assert items[0]["success"] is True
+        photo_id = items[0]["photo_id"]
+
+        # Fetch pending uploads — should include the unconfirmed photo
+        pending_resp = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/pending-uploads")
+        assert pending_resp.status_code == 200
+        pending_photos = pending_resp.json()
+        assert len(pending_photos) >= 1
+        pending_ids = [p["photo_id"] for p in pending_photos]
+        assert photo_id in pending_ids
+        # Verify the pending photo fields
+        match = next(p for p in pending_photos if p["photo_id"] == photo_id)
+        assert match["display_name"] == "pending.jpg"
+        assert match["status"] == 1  # PhotoUploadStatus.PENDING
+
+    @pytest.mark.asyncio
+    async def test_batch_presigned_storage_quota_exceeded_returns_507(self, client: TestClient, db_session: AsyncSession):
+        """Batch-presigned returns 507 when storage quota is exceeded."""
+        from sqlalchemy import update
+
+        # Register a new user with default quota, then shrink it
+        token = register_and_login(client, "quota-test@example.com", "password123", "testinvitecode")
+        client.headers.update({"Authorization": f"Bearer {token}"})
+
+        me_resp = client.get("/me")
+        assert me_resp.status_code == 200
+        user_id = UUID(me_resp.json()["id"])
+
+        # Set storage_quota to 1 byte — any upload will exceed it
+        await db_session.execute(update(User).where(User.id == user_id).values(storage_quota=1))
+        await db_session.commit()
+
+        # Create a gallery for this user
+        gallery_resp = client.post("/galleries", json={})
+        assert gallery_resp.status_code == 201
+        gallery_id = gallery_resp.json()["id"]
+
+        # Try batch-presigned with a file larger than quota
+        payload = {"files": [{"filename": "too-big.jpg", "file_size": 100, "content_type": "image/jpeg"}]}
+        resp = client.post(f"/galleries/{gallery_id}/photos/batch-presigned", json=payload)
+        assert resp.status_code == 507
+        assert "quota" in resp.json()["detail"].lower()

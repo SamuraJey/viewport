@@ -360,7 +360,7 @@ async def get_pending_uploads(
             "photo_id": str(p.id),
             "display_name": p.display_name,
             "file_size": p.file_size,
-            "status": p.status.value,
+            "status": p.status,
             "uploaded_at": p.uploaded_at.isoformat(),
         }
         for p in photos

@@ -574,3 +574,22 @@ async def test_sharelink_management(repo: GalleryRepository, owner_id):
     assert await repo.delete_sharelink(link.id, gallery.id, owner_id)
     assert not await repo.delete_sharelink(link.id, gallery.id, owner_id)
     assert not await repo.delete_sharelink(uuid.uuid4(), gallery.id, uuid.uuid4())
+
+
+@pytest.mark.asyncio
+async def test_get_pending_photos_returns_only_pending(repo: GalleryRepository, owner_id):
+    """get_pending_photos returns only PENDING photos, ordered by uploaded_at desc."""
+    gallery = await repo.create_gallery(owner_id, "Pending Photos")
+
+    # Create photos with different statuses
+    pending1 = await repo.create_photo(gallery.id, f"{gallery.id}/pending1.jpg", f"{gallery.id}/thumb-p1.jpg", 100, width=10, height=10)
+    pending2 = await repo.create_photo(gallery.id, f"{gallery.id}/pending2.jpg", f"{gallery.id}/thumb-p2.jpg", 200, width=10, height=10)
+    success_photo = await repo.create_photo(gallery.id, f"{gallery.id}/success.jpg", f"{gallery.id}/thumb-s.jpg", 300, width=10, height=10)
+    # Default status is PENDING; set one to SUCCESSFUL to verify filtering
+    await repo.set_photo_status(success_photo, PhotoUploadStatus.SUCCESSFUL)
+
+    photos = await repo.get_pending_photos(gallery.id)
+    assert len(photos) == 2
+    assert all(p.status == PhotoUploadStatus.PENDING for p in photos)
+    # Most recently uploaded first
+    assert photos[0].id == pending2.id

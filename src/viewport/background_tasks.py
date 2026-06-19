@@ -64,7 +64,7 @@ def _is_valid_image(image_bytes: bytes) -> bool:
         with Image.open(io.BytesIO(image_bytes)) as img:
             img.verify()
         return True
-    except (UnidentifiedImageError, OSError):
+    except UnidentifiedImageError, OSError:
         return False
 
 
@@ -754,12 +754,16 @@ def reconcile_successful_uploads_task() -> dict:
     # Deduplicate: skip photo_ids that already have unprocessed outbox entries
     photo_ids = [row[0] for row in rows]
     with task_db_session() as db:
-        existing = db.execute(
-            select(ThumbnailOutbox.photo_id).where(
-                ThumbnailOutbox.photo_id.in_(photo_ids),
-                ThumbnailOutbox.processed.is_(False),
+        existing = (
+            db.execute(
+                select(ThumbnailOutbox.photo_id).where(
+                    ThumbnailOutbox.photo_id.in_(photo_ids),
+                    ThumbnailOutbox.processed.is_(False),
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         existing_ids = set(existing)
         new_rows = [row for row in rows if row[0] not in existing_ids]
         if new_rows:
