@@ -304,7 +304,7 @@ class TestPhotoAPI:
         assert row is not None
         assert row.object_key  # object_key should be populated
         # Clean up
-        await db_session.execute(delete(ThumbnailOutbox))
+        await db_session.execute(delete(ThumbnailOutbox).where(ThumbnailOutbox.photo_id == UUID(photo_id)))
         await db_session.commit()
 
     @pytest.mark.skip(reason="FIx later")
@@ -413,6 +413,7 @@ class TestPhotoAPI:
 
         s3_client.clear_presigned_cache_for_object_keys.assert_not_called()
 
+    @pytest.mark.asyncio
     async def test_batch_confirm_missing_s3_object_is_accepted_and_finalized(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession):
         payload = {"files": [{"filename": "missing-object.jpg", "file_size": 256, "content_type": "image/jpeg"}]}
         presigned = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
