@@ -22,6 +22,7 @@ import type {
   LoginResponse,
   PhotoResponse,
   PhotoUploadResponse,
+  PendingUpload,
   RegisterRequest,
   RegisterResponse,
   ShareLink,
@@ -2946,6 +2947,11 @@ class DemoServiceStore {
     }) => void,
   ): Promise<PhotoUploadResponse> {
     return this.uploadPhotosPresigned(galleryId, failedFiles, onProgress);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async getPendingUploads(_galleryId: string): Promise<PendingUpload[]> {
+    return [];
   }
 
   async downloadGalleryZip(galleryId: string): Promise<void> {

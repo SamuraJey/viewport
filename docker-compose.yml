@@ -118,7 +118,7 @@ services:
       dockerfile: Dockerfile.backend
     container_name: viewport_celery_worker
     restart: always
-    command: celery -A src.viewport.celery_app worker --loglevel=info --concurrency=4 --max-tasks-per-child=500 --beat
+    command: celery -A src.viewport.celery_app worker -Q celery --loglevel=info --concurrency=4 --max-tasks-per-child=500 --beat
     env_file:
       - .env.prod
     depends_on:
@@ -144,6 +144,39 @@ services:
         reservations:
           cpus: "0.50"
           memory: 256M
+
+  celery_thumbnail_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: viewport_celery_thumbnail
+    restart: always
+    command: celery -A src.viewport.celery_app worker -Q thumbnails --loglevel=info --concurrency=2 --max-tasks-per-child=100
+    env_file:
+      - .env.prod
+    depends_on:
+      - redis
+      - postgres
+      - s3-service
+    networks:
+      - backend
+    environment:
+      - S3_ENDPOINT=http://s3-service:9000
+      - S3_USE_SSL=false
+      - S3_ACCESS_KEY=rustfsadmin
+      - S3_SECRET_KEY=rustfsadmin
+      - S3_BUCKET=viewport
+    volumes:
+      - ./src:/app/src
+      - ./config:/app/config
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
 
 volumes:
   postgres_data:

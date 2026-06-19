@@ -1,15 +1,16 @@
 import io
 import logging
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 
 from botocore.exceptions import ClientError, ConnectionClosedError, ConnectTimeoutError, EndpointConnectionError, ReadTimeoutError, SSLError
 from PIL import Image, UnidentifiedImageError
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import delete, func, insert, or_, select, update
 
 from viewport.celery_app import celery_app
-from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
+from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ThumbnailOutbox
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
 from viewport.s3_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client, get_s3_settings
@@ -91,24 +92,41 @@ def _decrement_used_for_owner_totals(db, owner_totals: list[tuple[uuid.UUID, int
         db.execute(update(User).where(User.id == owner_id).values(storage_used=func.greatest(User.storage_used - total, 0)))
 
 
+def _log_photo_metric(photo_id: str, status: str, start_time: float) -> None:
+    """Log per-photo processing timing as a structured metric."""
+    duration_ms = int((time.time() - start_time) * 1000)
+    logger.debug(
+        "thumbnail_photo_processed",
+        extra={
+            "metric": "thumbnail_photo",
+            "photo_id": photo_id,
+            "status": status,
+            "duration_ms": duration_ms,
+        },
+    )
+
+
 def _process_single_photo(
     photo_data: ThumbnailTaskPayload,
     s3_client: "S3Client",
     bucket: str,
     existing_ids: set[str],
-    result_tracker: BatchTaskResult,
-) -> None:
-    """Process a single photo: download, resize, and upload thumbnail."""
+) -> dict | None:
+    """Process a single photo: download, resize, and upload thumbnail.
+
+    Returns a result dict, or raises ThumbnailTransientError for retryable failures.
+    """
 
     photo_id = photo_data["photo_id"]
     object_key = photo_data["object_key"]
+    photo_start = time.time()
 
     try:
         # Check if photo was deleted
         if photo_id not in existing_ids:
             logger.info("Photo %s no longer exists in database, skipping", photo_id)
-            result_tracker.add_skipped(photo_id, "Photo deleted")
-            return
+            _log_photo_metric(photo_id, "skipped", photo_start)
+            return {"photo_id": photo_id, "status": "skipped", "message": "Photo deleted"}
 
         # Download original from S3
         try:
@@ -132,15 +150,15 @@ def _process_single_photo(
 
             if error_code == "NoSuchKey":
                 logger.warning("File %s not found in S3, marking as failed", object_key)
-                result_tracker.add_error(photo_id, "File not found in S3")
-                return
+                _log_photo_metric(photo_id, "error", photo_start)
+                return {"photo_id": photo_id, "status": "error", "message": "File not found in S3"}
 
             if _is_retryable_s3_error(s3_error):
                 raise ThumbnailTransientError(f"Retryable S3 read error for {photo_id}") from s3_error
 
             logger.error("S3 non-retryable error for photo %s: %s", photo_id, str(s3_error))
-            result_tracker.add_error(photo_id, "S3 read failed")
-            return
+            _log_photo_metric(photo_id, "error", photo_start)
+            return {"photo_id": photo_id, "status": "error", "message": "S3 read failed"}
 
         # Validate image magic bytes before processing
         if not _is_valid_image(image_bytes):
@@ -152,13 +170,9 @@ def _process_single_photo(
 
             try:
                 s3_client.delete_object(Bucket=bucket, Key=object_key)
-            except ClientError as delete_error:  # TODO: consider handling specific error codes if needed. Also save failed deletions to a DB, for later retry
+            except ClientError as delete_error:
                 logger.warning("Failed to delete invalid S3 object %s: %s", object_key, delete_error)
 
-            # Previously we preserved the DB record and marked it FAILED, but
-            # the intended behavior for invalid uploaded objects is to remove
-            # them entirely (object + DB record). Delete the DB row so orphan
-            # entries aren't left behind.
             with task_db_session() as db_cleanup:
                 photo_row = db_cleanup.execute(select(Photo.file_size, Gallery.owner_id).select_from(Photo).join(Gallery, Photo.gallery_id == Gallery.id).where(Photo.id == photo_id)).one_or_none()
                 if photo_row:
@@ -166,8 +180,8 @@ def _process_single_photo(
                     db_cleanup.execute(update(User).where(User.id == owner_id).values(storage_used=func.greatest(User.storage_used - file_size, 0)))
                 db_cleanup.execute(delete(Photo).where(Photo.id == photo_id))
 
-            result_tracker.add_error(photo_id, "Invalid image file")
-            return
+            _log_photo_metric(photo_id, "error", photo_start)
+            return {"photo_id": photo_id, "status": "error", "message": "Invalid image file"}
 
         # Create thumbnail
         thumbnail_bytes, width, height = create_thumbnail(image_bytes)
@@ -180,9 +194,9 @@ def _process_single_photo(
             photo_check_stmt = select(Photo.id).join(Photo.gallery).where(Photo.id == photo_id, Gallery.is_deleted.is_(False))
             if not db_check.execute(photo_check_stmt).scalar_one_or_none():
                 logger.warning("Photo %s deleted during processing, skipping upload", photo_id)
-                result_tracker.add_skipped(photo_id, "Photo deleted during processing")
+                _log_photo_metric(photo_id, "skipped", photo_start)
                 del thumbnail_bytes
-                return
+                return {"photo_id": photo_id, "status": "skipped", "message": "Photo deleted during processing"}
 
         # Upload thumbnail with aggressive caching (immutable content)
         thumbnail_io = io.BytesIO(thumbnail_bytes)
@@ -203,13 +217,15 @@ def _process_single_photo(
         del thumbnail_bytes
 
         logger.info("Successfully created thumbnail for photo %s", photo_id)
-        result_tracker.add_success(photo_id, thumbnail_object_key=thumbnail_object_key, width=width, height=height)
+        _log_photo_metric(photo_id, "success", photo_start)
+        return {"photo_id": photo_id, "status": "success", "thumbnail_object_key": thumbnail_object_key, "width": width, "height": height}
 
     except ThumbnailTransientError:
         raise
     except Exception as e:
         logger.exception("Failed to create thumbnail for photo %s: %s", photo_id, e)
-        result_tracker.add_error(photo_id, "Processing failed", exception=e)
+        _log_photo_metric(photo_id, "error", photo_start)
+        return {"photo_id": photo_id, "status": "error", "message": "Processing failed", "exception": str(e)}
 
 
 def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> dict:
@@ -295,6 +311,23 @@ def delete_photos_batch_task(self, photo_ids: list[str], gallery_id: str, owner_
     }
 
 
+def _aggregate_result(result_tracker: BatchTaskResult, result: dict | None) -> None:
+    """Feed a _process_single_photo return value into the batch result tracker."""
+    if result is None:
+        return
+    if result["status"] == "success":
+        result_tracker.add_success(
+            result["photo_id"],
+            thumbnail_object_key=result.get("thumbnail_object_key"),
+            width=result.get("width"),
+            height=result.get("height"),
+        )
+    elif result["status"] == "skipped":
+        result_tracker.add_skipped(result["photo_id"], result.get("message", ""))
+    elif result["status"] == "error":
+        result_tracker.add_error(result["photo_id"], result.get("message", ""))
+
+
 def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskResult) -> None:
     """Update database records and clear cache for processed photos."""
 
@@ -352,6 +385,53 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
         raise ThumbnailTransientError("Failed to update photo results") from exc
 
 
+def _mark_batch_failed_on_exhausted_retries(
+    self,
+    exc: Exception,
+    task_id: str,
+    args: tuple,
+    kwargs: dict,
+    einfo: Any,
+) -> None:
+    """When all retries exhausted, mark all photos in the batch as FAILED."""
+    photos: list[ThumbnailTaskPayload] = args[0] if args else []
+    if not photos:
+        return
+    photo_ids = [p["photo_id"] for p in photos]
+    logger.error(
+        "Batch thumbnail task %s exhausted retries; marking %d photos FAILED",
+        task_id,
+        len(photo_ids),
+    )
+    try:
+        with task_db_session() as db:
+            owner_totals = [
+                (owner_id, int(total_size))
+                for owner_id, total_size in db.execute(
+                    select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0))
+                    .select_from(Photo)
+                    .join(Gallery, Photo.gallery_id == Gallery.id)
+                    .where(
+                        Photo.id.in_(photo_ids),
+                        Photo.status == PhotoUploadStatus.THUMBNAIL_CREATING,
+                    )
+                    .group_by(Gallery.owner_id)
+                ).all()
+            ]
+            db.execute(
+                update(Photo)
+                .where(
+                    Photo.id.in_(photo_ids),
+                    Photo.status == PhotoUploadStatus.THUMBNAIL_CREATING,
+                )
+                .values(status=PhotoUploadStatus.FAILED)
+            )
+            _decrement_used_for_owner_totals(db, owner_totals)
+            db.commit()
+    except Exception as db_exc:
+        logger.exception("Failed to mark batch FAILED in on_failure handler: %s", db_exc)
+
+
 @celery_app.task(
     name="create_thumbnails_batch",
     bind=True,
@@ -362,10 +442,12 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
     retry_backoff=True,
     retry_backoff_max=120,
     retry_jitter=True,
+    on_failure=_mark_batch_failed_on_exhausted_retries,
 )
 def create_thumbnails_batch_task(self, photos: list[ThumbnailTaskPayload]) -> dict:
     """Background task to create thumbnails for multiple photos in one batch"""
     logger.info("Starting batch thumbnail creation for %s photos", len(photos))
+    start_time = time.time()
 
     s3_client = get_s3_client()
     bucket = get_s3_settings().bucket
@@ -375,13 +457,41 @@ def create_thumbnails_batch_task(self, photos: list[ThumbnailTaskPayload]) -> di
     photo_ids = [p["photo_id"] for p in photos]
     existing_ids = _get_existing_photo_ids(photo_ids)
 
-    for photo_data in photos:
-        _process_single_photo(photo_data, s3_client, bucket, existing_ids, result_tracker)
+    max_workers = min(4, len(photos))
+    if max_workers <= 1:
+        # Sequential path for single photo
+        for photo_data in photos:
+            result = _process_single_photo(photo_data, s3_client, bucket, existing_ids)
+            _aggregate_result(result_tracker, result)
+    else:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(_process_single_photo, photo_data, s3_client, bucket, existing_ids) for photo_data in photos]
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    _aggregate_result(result_tracker, result)
+                except ThumbnailTransientError:
+                    raise
+                except Exception as e:
+                    logger.exception("Unexpected error in thumbnail worker: %s", e)
 
     if result_tracker.results:
         _batch_update_photo_results(result_tracker.results, result_tracker)
 
-    logger.info("Batch completion: %s success, %s skipped, %s failed", result_tracker.successful, result_tracker.skipped, result_tracker.failed)
+    duration_ms = int((time.time() - start_time) * 1000)
+    logger.info(
+        "thumbnail_batch_complete",
+        extra={
+            "metric": "thumbnail_batch",
+            "photo_count": len(photos),
+            "successful": result_tracker.successful,
+            "skipped": result_tracker.skipped,
+            "failed": result_tracker.failed,
+            "duration_ms": duration_ms,
+        },
+    )
     return result_tracker.to_dict()
 
 
@@ -396,7 +506,7 @@ def create_thumbnails_batch_task(self, photos: list[ThumbnailTaskPayload]) -> di
 )
 def cleanup_orphaned_uploads_task(self) -> dict:
     """
-    Remove PENDING photo records older than 30 minutes and cleanup their S3 objects.
+    Remove PENDING and FAILED photo records older than 30 minutes and cleanup their S3 objects.
     """
 
     threshold = datetime.now(UTC) - timedelta(minutes=30)
@@ -616,6 +726,7 @@ def reconcile_successful_uploads_task() -> dict:
     """Requeue successful uploads missing thumbnails/metadata."""
 
     threshold = datetime.now(UTC) - timedelta(minutes=5)
+    max_age = datetime.now(UTC) - timedelta(hours=1)
     max_batch = 500
 
     with task_db_session() as db:
@@ -626,6 +737,7 @@ def reconcile_successful_uploads_task() -> dict:
                 Photo.status.in_([PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING]),
                 Gallery.is_deleted.is_(False),
                 Photo.uploaded_at < threshold,
+                Photo.uploaded_at > max_age,
                 or_(
                     Photo.width.is_(None),
                     Photo.height.is_(None),
@@ -639,10 +751,53 @@ def reconcile_successful_uploads_task() -> dict:
     if not rows:
         return {"requeued_count": 0}
 
-    photos = to_thumbnail_task_payloads(ThumbnailTaskItem(row[0], row[1]) for row in rows)
-    create_thumbnails_batch_task.delay(photos)
-    logger.info("Requeued %s successful uploads missing thumbnails/metadata", len(photos))
-    return {"requeued_count": len(photos)}
+    # Deduplicate: skip photo_ids that already have unprocessed outbox entries
+    photo_ids = [row[0] for row in rows]
+    with task_db_session() as db:
+        existing = db.execute(
+            select(ThumbnailOutbox.photo_id).where(
+                ThumbnailOutbox.photo_id.in_(photo_ids),
+                ThumbnailOutbox.processed.is_(False),
+            )
+        ).scalars().all()
+        existing_ids = set(existing)
+        new_rows = [row for row in rows if row[0] not in existing_ids]
+        if new_rows:
+            db.execute(
+                insert(ThumbnailOutbox),
+                [{"photo_id": row[0], "object_key": row[1]} for row in new_rows],
+            )
+            db.commit()
+
+    logger.info("Enqueued %s successful uploads to outbox for thumbnail processing", len(new_rows))
+    return {"requeued_count": len(new_rows)}
+
+
+@celery_app.task(name="dispatch_outbox_items")
+def dispatch_outbox_items_task() -> dict:
+    """Pick up unprocessed outbox items and dispatch them to thumbnail workers."""
+    max_batch = 500
+    with task_db_session() as db:
+        rows = db.execute(
+            select(ThumbnailOutbox.id, ThumbnailOutbox.photo_id, ThumbnailOutbox.object_key).where(ThumbnailOutbox.processed.is_(False)).order_by(ThumbnailOutbox.created_at).limit(max_batch)
+        ).all()
+
+    if not rows:
+        return {"dispatched": 0}
+
+    # Mark as processed atomically before dispatching. If a crash occurs
+    # after this commit, reconcile will re-enqueue if thumbnails are still missing.
+    outbox_ids = [row[0] for row in rows]
+    with task_db_session() as db:
+        db.execute(update(ThumbnailOutbox).where(ThumbnailOutbox.id.in_(outbox_ids)).values(processed=True))
+        db.commit()
+
+    items = [ThumbnailTaskItem(row[1], row[2]) for row in rows]
+    payloads = to_thumbnail_task_payloads(items)
+    create_thumbnails_batch_task.delay(payloads)
+
+    logger.info("Dispatched %d outbox items to thumbnail workers", len(rows))
+    return {"dispatched": len(rows)}
 
 
 @celery_app.task(name="notify_selection_submitted", bind=True, max_retries=3, acks_late=True)

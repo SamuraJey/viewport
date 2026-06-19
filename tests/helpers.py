@@ -35,7 +35,7 @@ def _build_valid_image_upload(filename: str, fallback_content: bytes) -> tuple[b
 
 
 def upload_photo_via_presigned(client: TestClient, gallery_id: str, content: bytes, filename: str = "photo.jpg") -> str:
-    """Upload a photo using the presigned upload flow and return its ID."""
+    """Upload a photo using the presigned upload flow, process outbox, and return its ID."""
     upload_content, content_type = _build_valid_image_upload(filename, content)
 
     files_payload = [
@@ -62,5 +62,10 @@ def upload_photo_via_presigned(client: TestClient, gallery_id: str, content: byt
         json={"items": [{"photo_id": item["photo_id"], "success": True}]},
     )
     assert confirm_resp.status_code == 200
+
+    # Process outbox so thumbnails are generated synchronously in test mode
+    from viewport.background_tasks import dispatch_outbox_items_task
+
+    dispatch_outbox_items_task.run()
 
     return item["photo_id"]
