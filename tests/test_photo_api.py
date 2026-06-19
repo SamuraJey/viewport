@@ -1,20 +1,20 @@
 """Tests for photo API endpoints."""
 
-from typing import TYPE_CHECKING, Never
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy import delete, select
 
 from tests.helpers import register_and_login, upload_photo_via_presigned
 from viewport.api.photo import MAX_FILE_SIZE, _invalidate_presigned_cache_safely, _photo_needs_thumbnail_processing, get_content_type_from_filename, sanitize_filename
-from viewport.models.gallery import Photo, PhotoUploadStatus
+from viewport.models.gallery import Photo, PhotoUploadStatus, ThumbnailOutbox
 from viewport.models.user import User
 
 if TYPE_CHECKING:
     from fastapi.testclient import TestClient
     from sqlalchemy.ext.asyncio import AsyncSession
-
 pytestmark = pytest.mark.requires_s3
 
 
@@ -277,19 +277,13 @@ class TestPhotoAPI:
         assert not item["success"]
         assert "File exceeds maximum size" in item["error"]
 
-    def test_batch_confirm_uploads_updates_counts_and_triggers_task(self, authenticated_client: TestClient, gallery_id_fixture: str, monkeypatch):
-        """Confirming uploads updates counts and schedules thumbnail task."""
+    @pytest.mark.asyncio
+    async def test_batch_confirm_uploads_updates_counts_and_triggers_task(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession):
+        """Confirming uploads updates counts and writes to outbox."""
         payload = {"files": [{"filename": "confirm.jpg", "file_size": 256, "content_type": "image/jpeg"}]}
         presigned = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
         item = presigned.json()["items"][0]
         photo_id = item["photo_id"]
-
-        captured: dict[str, list] = {}
-
-        def fake_delay(batch: list[dict]):
-            captured["batch"] = batch
-
-        monkeypatch.setattr("viewport.api.photo.create_thumbnails_batch_task.delay", fake_delay)
 
         confirm_payload = {
             "items": [
@@ -303,12 +297,15 @@ class TestPhotoAPI:
         result = response.json()
         assert result["confirmed_count"] == 1
         assert result["failed_count"] == 1
-        assert isinstance(captured["batch"], list)
-        assert isinstance(captured["batch"][0], dict)
-        assert set(captured["batch"][0]) == {"photo_id", "object_key"}
-        assert isinstance(captured["batch"][0]["photo_id"], str)
-        assert isinstance(captured["batch"][0]["object_key"], str)
-        assert captured["batch"][0]["photo_id"] == photo_id
+
+        # Verify outbox contains the confirmed photo
+        stmt = select(ThumbnailOutbox).where(ThumbnailOutbox.photo_id == UUID(photo_id))
+        row = (await db_session.execute(stmt)).scalar_one_or_none()
+        assert row is not None
+        assert row.object_key  # object_key should be populated
+        # Clean up
+        await db_session.execute(delete(ThumbnailOutbox).where(ThumbnailOutbox.photo_id == UUID(photo_id)))
+        await db_session.commit()
 
     @pytest.mark.skip(reason="FIx later")
     def test_delete_photo_success(self, authenticated_client: TestClient, gallery_id_fixture: str):
@@ -417,7 +414,7 @@ class TestPhotoAPI:
         s3_client.clear_presigned_cache_for_object_keys.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_batch_confirm_missing_s3_object_is_accepted_and_finalized(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession, monkeypatch):
+    async def test_batch_confirm_missing_s3_object_is_accepted_and_finalized(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession):
         payload = {"files": [{"filename": "missing-object.jpg", "file_size": 256, "content_type": "image/jpeg"}]}
         presigned = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
         assert presigned.status_code == 200
@@ -427,11 +424,6 @@ class TestPhotoAPI:
         me_resp = authenticated_client.get("/me")
         assert me_resp.status_code == 200
         user_id = UUID(me_resp.json()["id"])
-
-        def fake_delay(batch: list[dict]) -> None:
-            return None
-
-        monkeypatch.setattr("viewport.api.photo.create_thumbnails_batch_task.delay", fake_delay)
 
         response = authenticated_client.post(
             f"/galleries/{gallery_id_fixture}/photos/batch-confirm",
@@ -453,7 +445,8 @@ class TestPhotoAPI:
         assert photo.status == PhotoUploadStatus.THUMBNAIL_CREATING
 
     @pytest.mark.asyncio
-    async def test_batch_confirm_delay_failure_does_not_rollback_db_state(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession, monkeypatch):
+    async def test_batch_confirm_outbox_is_atomic_with_db_state(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession):
+        """Confirm writes outbox atomically — DB state committed alongside outbox."""
         payload = {"files": [{"filename": "rollback.jpg", "file_size": 256, "content_type": "image/jpeg"}]}
         presigned = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
         assert presigned.status_code == 200
@@ -464,28 +457,29 @@ class TestPhotoAPI:
         assert me_resp.status_code == 200
         user_id = UUID(me_resp.json()["id"])
 
-        def fail_delay(batch: list[dict]) -> Never:
-            raise RuntimeError("broker unavailable")
-
-        monkeypatch.setattr("viewport.api.photo.create_thumbnails_batch_task.delay", fail_delay)
-
         response = authenticated_client.post(
             f"/galleries/{gallery_id_fixture}/photos/batch-confirm",
             json={"items": [{"photo_id": str(photo_id), "success": True}]},
         )
-        assert response.status_code == 503
+        assert response.status_code == 200  # outbox always atomic with DB
 
         db_session.expire_all()
-        user: User = await db_session.get(User, user_id)
-        photo: Photo = await db_session.get(Photo, photo_id)
+        user = await db_session.get(User, user_id)
+        photo = await db_session.get(Photo, photo_id)
         assert user is not None
         assert photo is not None
         assert user.storage_used == 256
         assert user.storage_reserved == 0
         assert photo.status == PhotoUploadStatus.THUMBNAIL_CREATING
 
+        # Verify outbox row exists
+        stmt = select(ThumbnailOutbox).where(ThumbnailOutbox.photo_id == photo_id)
+        outbox_row = (await db_session.execute(stmt)).scalar_one_or_none()
+        assert outbox_row is not None
+
     @pytest.mark.asyncio
-    async def test_batch_presigned_generic_presign_failure_releases_reserved_quota(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession, monkeypatch):
+    async def test_batch_presigned_generic_presign_failure_does_not_reserve_quota(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession, monkeypatch):
+        """Presign failure for a file means no quota reservation is made (reservation happens after presign)."""
         payload = {"files": [{"filename": "presign-error.jpg", "file_size": 256, "content_type": "image/jpeg"}]}
 
         me_resp = authenticated_client.get("/me")
@@ -507,4 +501,58 @@ class TestPhotoAPI:
         db_session.expire_all()
         user = await db_session.get(User, user_id)
         assert user is not None
-        assert user.storage_reserved == 0
+        assert user.storage_reserved == 0  # No reservation because presign failed before DB tx
+
+    def test_get_pending_uploads_returns_pending_photos(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        """GET /galleries/{id}/photos/pending-uploads returns PENDING photos before confirmation."""
+        # Create a PENDING photo via batch-presigned (do NOT confirm)
+        files_payload = [{"filename": "pending.jpg", "file_size": 100, "content_type": "image/jpeg"}]
+        resp = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/photos/batch-presigned",
+            json={"files": files_payload},
+        )
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert len(items) == 1
+        assert items[0]["success"] is True
+        photo_id = items[0]["photo_id"]
+
+        # Fetch pending uploads — should include the unconfirmed photo
+        pending_resp = authenticated_client.get(f"/galleries/{gallery_id_fixture}/photos/pending-uploads")
+        assert pending_resp.status_code == 200
+        pending_photos = pending_resp.json()
+        assert len(pending_photos) >= 1
+        pending_ids = [p["photo_id"] for p in pending_photos]
+        assert photo_id in pending_ids
+        # Verify the pending photo fields
+        match = next(p for p in pending_photos if p["photo_id"] == photo_id)
+        assert match["display_name"] == "pending.jpg"
+        assert match["status"] == 1  # PhotoUploadStatus.PENDING
+
+    @pytest.mark.asyncio
+    async def test_batch_presigned_storage_quota_exceeded_returns_507(self, client: TestClient, db_session: AsyncSession):
+        """Batch-presigned returns 507 when storage quota is exceeded."""
+        from sqlalchemy import update
+
+        # Register a new user with default quota, then shrink it
+        token = register_and_login(client, "quota-test@example.com", "password123", "testinvitecode")
+        client.headers.update({"Authorization": f"Bearer {token}"})
+
+        me_resp = client.get("/me")
+        assert me_resp.status_code == 200
+        user_id = UUID(me_resp.json()["id"])
+
+        # Set storage_quota to 1 byte — any upload will exceed it
+        await db_session.execute(update(User).where(User.id == user_id).values(storage_quota=1))
+        await db_session.commit()
+
+        # Create a gallery for this user
+        gallery_resp = client.post("/galleries", json={})
+        assert gallery_resp.status_code == 201
+        gallery_id = gallery_resp.json()["id"]
+
+        # Try batch-presigned with a file larger than quota
+        payload = {"files": [{"filename": "too-big.jpg", "file_size": 100, "content_type": "image/jpeg"}]}
+        resp = client.post(f"/galleries/{gallery_id}/photos/batch-presigned", json=payload)
+        assert resp.status_code == 507
+        assert "quota" in resp.json()["detail"].lower()

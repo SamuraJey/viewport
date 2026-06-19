@@ -14,6 +14,7 @@ import type {
   BatchPresignedUploadsResponse,
   ConfirmPhotoUploadItem,
   BatchConfirmUploadResponse,
+  PendingUpload,
 } from '../types';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../constants/upload';
 
@@ -365,6 +366,17 @@ const retryFailedUploads = async (
  * Upload multiple photos using presigned URLs (direct to S3)
  * Optimized for parallel uploads with progress tracking
  */
+
+/**
+ * Get PENDING photo records for a gallery (e.g., uploads that were never confirmed).
+ */
+const getPendingUploads = async (galleryId: string): Promise<PendingUpload[]> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getPendingUploads(galleryId);
+  }
+  const response = await api.get(`/galleries/${galleryId}/photos/pending-uploads`);
+  return response.data;
+};
 const uploadPhotosPresigned = async (
   galleryId: string,
   files: UploadPreparedFile[],
@@ -392,8 +404,6 @@ const uploadPhotosPresigned = async (
   }
 
   const BATCH_SIZE = 50; // Request presigned URLs in batches of 50
-  const INTER_UPLOAD_DELAY_MS = 5; // Delay between uploads
-  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   return (async () => {
     const totalSize = files.reduce((sum, item) => sum + item.file.size, 0);
@@ -401,16 +411,13 @@ const uploadPhotosPresigned = async (
     let successfulUploads = 0;
     let failedUploads = 0;
     let completedBytes = 0;
-    const fileProgress = new Map<string, number>();
 
     const emitProgress = (currentFile: string) => {
       if (!onProgress) return;
-
-      const loaded = completedBytes + Array.from(fileProgress.values()).reduce((a, b) => a + b, 0);
-      const percentage = totalSize > 0 ? Math.min(100, Math.round((loaded * 100) / totalSize)) : 0;
-
+      const percentage =
+        totalSize > 0 ? Math.min(100, Math.round((completedBytes * 100) / totalSize)) : 0;
       onProgress({
-        loaded,
+        loaded: completedBytes,
         total: totalSize,
         percentage,
         currentFile,
@@ -487,7 +494,6 @@ const uploadPhotosPresigned = async (
                 ? Date.now() + returnedItem.expires_in * 1000
                 : undefined;
             } else {
-              // Store error to show in UI
               file._presignError = returnedItem?.error || 'File rejected by server';
             }
           }
@@ -497,7 +503,6 @@ const uploadPhotosPresigned = async (
       }
 
       if (presignFailed) {
-        // Batch request failed
         for (const file of filesToPresign) {
           failedUploads++;
           results.push({
@@ -510,76 +515,115 @@ const uploadPhotosPresigned = async (
         }
       }
 
-      // 2. Upload files to S3, skipping rejected entries
+      // 2. Separate uploadable vs skipped files
+      const skipped: UploadPreparedFile[] = [];
+      const uploadable: UploadPreparedFile[] = [];
       for (const file of batch) {
         if (presignFailed && filesToPresign.includes(file)) {
-          continue;
+          continue; // already handled above
         }
-
         if (!file.presigned_data) {
-          failedUploads++;
-          results.push({
-            filename: file.filename,
-            original_filename: file.filename,
-            success: false,
-            error: file._presignError || 'File rejected by server',
-          });
-          completedBytes += file.file.size;
-          emitProgress(file.filename);
-          await wait(INTER_UPLOAD_DELAY_MS);
-          continue;
+          skipped.push(file);
+        } else {
+          uploadable.push(file);
         }
-
-        fileProgress.set(file.filename, 0);
-
-        try {
-          await uploadToS3(
-            file.presigned_data,
-            file.file,
-            (percentage) => {
-              fileProgress.set(file.filename, Math.round((file.file.size * percentage) / 100));
-              emitProgress(file.filename);
-            },
-            signal,
-          );
-
-          fileProgress.delete(file.filename);
-          completedBytes += file.file.size;
-          successfulUploads++;
-          if (file.photo_id) {
-            batchSuccessfulPhotoIds.push(file.photo_id);
-          }
-
-          results.push({
-            filename: file.filename,
-            original_filename: file.filename,
-            success: true,
-          });
-        } catch (error) {
-          fileProgress.delete(file.filename);
-          completedBytes += file.file.size;
-
-          // Don't add cancelled uploads to failed list
-          if (!(error instanceof Error && error.message === 'Upload cancelled')) {
-            failedUploads++;
-            if (file.photo_id) {
-              batchFailedPhotoIds.push(file.photo_id);
-            }
-
-            results.push({
-              filename: file.filename,
-              original_filename: file.filename,
-              success: false,
-              error: error instanceof Error ? error.message : 'Upload failed',
-            });
-          }
-        }
-
-        emitProgress(file.filename);
-        await wait(INTER_UPLOAD_DELAY_MS);
       }
 
-      // 3. Confirm batch uploads immediately after batch is uploaded
+      for (const file of skipped) {
+        failedUploads++;
+        results.push({
+          filename: file.filename,
+          original_filename: file.filename,
+          success: false,
+          error: file._presignError || 'File rejected by server',
+        });
+        completedBytes += file.file.size;
+        emitProgress(file.filename);
+      }
+
+      // 3. Concurrent upload for eligible files
+      if (uploadable.length > 0) {
+        const UPLOAD_CONCURRENCY = 4;
+        const queue = [...uploadable];
+
+        interface WorkerResult {
+          results: PhotoUploadResult[];
+          successfulUploads: number;
+          failedUploads: number;
+          bytesUploaded: number;
+          successfulIds: string[];
+          failedIds: string[];
+        }
+
+        const worker = async (): Promise<WorkerResult> => {
+          const wr: WorkerResult = {
+            results: [],
+            successfulUploads: 0,
+            failedUploads: 0,
+            bytesUploaded: 0,
+            successfulIds: [],
+            failedIds: [],
+          };
+
+          while (queue.length > 0) {
+            const file = queue.shift()!;
+
+            try {
+              await uploadToS3(
+                file.presigned_data!,
+                file.file,
+                undefined, // no per-chunk progress in concurrent mode
+                signal,
+              );
+
+              wr.bytesUploaded += file.file.size;
+              wr.successfulUploads++;
+              if (file.photo_id) {
+                wr.successfulIds.push(file.photo_id);
+              }
+              wr.results.push({
+                filename: file.filename,
+                original_filename: file.filename,
+                success: true,
+              });
+            } catch (error) {
+              wr.bytesUploaded += file.file.size;
+              if (!(error instanceof Error && error.message === 'Upload cancelled')) {
+                wr.failedUploads++;
+                if (file.photo_id) {
+                  wr.failedIds.push(file.photo_id);
+                }
+                wr.results.push({
+                  filename: file.filename,
+                  original_filename: file.filename,
+                  success: false,
+                  error: error instanceof Error ? error.message : 'Upload failed',
+                });
+              }
+            }
+          }
+
+          return wr;
+        };
+
+        const workerResults = await Promise.all(
+          Array.from({ length: UPLOAD_CONCURRENCY }, () => worker()),
+        );
+
+        for (const wr of workerResults) {
+          results.push(...wr.results);
+          successfulUploads += wr.successfulUploads;
+          failedUploads += wr.failedUploads;
+          completedBytes += wr.bytesUploaded;
+          batchSuccessfulPhotoIds.push(...wr.successfulIds);
+          batchFailedPhotoIds.push(...wr.failedIds);
+        }
+
+        // Emit one progress update after the concurrent batch completes
+        emitProgress('batch');
+      }
+
+      // 4. Confirm batch uploads
       if (batchSuccessfulPhotoIds.length > 0 || batchFailedPhotoIds.length > 0) {
         try {
           await batchConfirmUploads(
@@ -590,7 +634,6 @@ const uploadPhotosPresigned = async (
           );
         } catch (error) {
           console.error('Failed to confirm batch uploads:', error);
-          // Non-fatal - uploads are still in S3, just not confirmed
         }
       }
     }
@@ -613,4 +656,5 @@ export const photoService = {
   downloadPhoto,
   uploadPhotosPresigned,
   retryFailedUploads,
+  getPendingUploads,
 };

@@ -90,6 +90,14 @@ export interface UploadPreparedFile {
   _presignError?: string;
 }
 
+export interface PendingUpload {
+  photo_id: string;
+  display_name: string;
+  file_size: number;
+  status: number;
+  uploaded_at: string;
+}
+
 export interface UploadRenameWarning {
   original: string;
   unique: string;

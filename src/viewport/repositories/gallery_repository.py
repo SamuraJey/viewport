@@ -601,6 +601,20 @@ class GalleryRepository(BaseRepository):
         photos = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read(photos)
 
+    async def get_pending_photos(self, gallery_id: uuid.UUID) -> list[Photo]:
+        stmt = (
+            select(Photo)
+            .join(Photo.gallery)
+            .where(
+                Photo.gallery_id == gallery_id,
+                Photo.status == PhotoUploadStatus.PENDING,
+                Gallery.is_deleted.is_(False),
+            )
+            .order_by(Photo.uploaded_at.desc())
+        )
+        photos = list((await self.db.execute(stmt)).scalars().all())
+        return await self._finish_read(photos)
+
     async def set_photo_status(self, photo: Photo, status: PhotoUploadStatus) -> Photo:
         photo.status = status
         await self.db.commit()
@@ -656,6 +670,7 @@ class GalleryRepository(BaseRepository):
     async def create_photos_batch(
         self,
         photos_data: list[dict],
+        commit: bool = True,
     ) -> list[Photo]:
         """Batch create multiple photos efficiently
 
@@ -692,9 +707,12 @@ class GalleryRepository(BaseRepository):
                 insert_duration = time.time() - insert_start
                 logger.info("INSERT completed in %.2fs (attempt %s)", insert_duration, attempt + 1)
 
-                commit_start = time.time()
-                await self.db.commit()
-                commit_duration = time.time() - commit_start
+                if commit:
+                    commit_start = time.time()
+                    await self.db.commit()
+                    commit_duration = time.time() - commit_start
+                else:
+                    commit_duration = 0.0
 
                 total_duration = time.time() - start_time
                 logger.info("Batch INSERT total: %.2fs (INSERT: %.2fs, COMMIT: %.2fs)", total_duration, insert_duration, commit_duration)

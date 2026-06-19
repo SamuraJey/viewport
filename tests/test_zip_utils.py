@@ -39,45 +39,45 @@ class TestMakeContentDispositionHeader:
 
     def test_cyrillic_falls_back_to_rfc5987(self):
         header = make_content_disposition_header("Галерея.zip")
-        assert 'filename*=' in header, f"Expected RFC 5987 (filename*=), got {header}"
-        assert 'UTF-8' in header, f"Expected UTF-8, got {header}"
+        assert "filename*=" in header, f"Expected RFC 5987 (filename*=), got {header}"
+        assert "UTF-8" in header, f"Expected UTF-8, got {header}"
         self._assert_latin1_safe(header)
 
     def test_accented_latin1_but_not_ascii(self):
         """Characters like 'í' are latin-1 compatible but not ASCII."""
         header = make_content_disposition_header("Galería.zip")
-        assert 'filename*=' in header, f"Expected RFC 5987 for non-ASCII, got {header}"
+        assert "filename*=" in header, f"Expected RFC 5987 for non-ASCII, got {header}"
         assert "Galeria.zip" in header  # NFKD strips accent
         self._assert_latin1_safe(header)
 
     def test_pure_cjk_falls_back_to_download(self):
         """CJK chars have no ASCII equivalent → fallback to 'download'."""
         header = make_content_disposition_header("フォト.zip")
-        assert 'filename*=' in header
+        assert "filename*=" in header
         assert 'filename="download"' in header, f"Expected download fallback, got {header}"
         self._assert_latin1_safe(header)
 
     def test_german_umlaut(self):
         header = make_content_disposition_header("München.zip")
-        assert 'filename*=' in header
+        assert "filename*=" in header
         assert "Muenchen.zip" in header or "Munchen.zip" in header  # NFKD → ue or u
         self._assert_latin1_safe(header)
 
     def test_french_accents(self):
         header = make_content_disposition_header("Noël_élève.zip")
-        assert 'filename*=' in header
+        assert "filename*=" in header
         self._assert_latin1_safe(header)
 
     def test_mixed_ascii_and_cyrillic(self):
         header = make_content_disposition_header("2024-Галерея.zip")
-        assert 'filename*=' in header
+        assert "filename*=" in header
         # NFKD keeps ASCII parts
         assert 'filename="2024-' in header
         self._assert_latin1_safe(header)
 
     def test_emoji(self):
         header = make_content_disposition_header("😀.zip")
-        assert 'filename*=' in header
+        assert "filename*=" in header
         assert 'filename="download"' in header  # emoji → no ASCII left
         self._assert_latin1_safe(header)
 
@@ -123,19 +123,19 @@ class TestMakeContentDispositionHeader:
 
         # This is what happens on line 619 of public.py
         gallery_name = "Свадьба"  # Cyrillic gallery name
-        safe = sanitize_zip_entry_name(gallery_name, fallback=f"gallery_default")
+        safe = sanitize_zip_entry_name(gallery_name, fallback="gallery_default")
         filename = f"{safe}.zip"
 
         # The fix ensures this never throws
         header = make_content_disposition_header(filename)
         self._assert_latin1_safe(header)
-        assert 'filename*=' in header
+        assert "filename*=" in header
 
     def test_regression_chinese_gallery_name(self):
         from viewport.zip_utils import sanitize_zip_entry_name
 
         gallery_name = "婚礼照片"  # Chinese
-        safe = sanitize_zip_entry_name(gallery_name, fallback=f"gallery_default")
+        safe = sanitize_zip_entry_name(gallery_name, fallback="gallery_default")
         filename = f"{safe}.zip"
 
         header = make_content_disposition_header(filename)

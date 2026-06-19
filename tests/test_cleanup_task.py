@@ -99,20 +99,20 @@ class TestCleanupTask:
 
         s3_client.put_object(Bucket=bucket, Key=recent_key, Body=b"dummy")
 
-        # 5. Run the cleanup task again
+        # 5. Run the cleanup task again — both PENDING and FAILED are cleaned up
         result = cleanup_orphaned_uploads_task()
-        assert result["deleted_count"] >= 2  # At least orphaned and failed
+        assert result["deleted_count"] == 2  # Both PENDING and FAILED
 
         # 6. Verify results
         with Session(engine) as session:
-            # Orphaned photo should be gone
+            # Orphaned PENDING photo should be gone
             assert session.get(Photo, orphaned_id) is None
-            # Failed photo should be gone
+            # FAILED photo should be cleaned up (S3 objects and DB row removed)
             assert session.get(Photo, failed_id) is None
             # Recent photo should still exist
             assert session.get(Photo, recent_id) is not None
 
-        # Verify S3 cleanup
+        # Verify S3 cleanup — both PENDING and FAILED objects deleted
         for key in [orphaned_key, failed_key, failed_thumb_key]:
             try:
                 s3_client.head_object(Bucket=bucket, Key=key)
@@ -177,10 +177,10 @@ class TestCleanupTask:
         freezer.tick(timedelta(hours=1, minutes=5))
 
         result = cleanup_orphaned_uploads_task()
-        assert result["deleted_count"] == 2
+        assert result["deleted_count"] == 2  # Both PENDING and FAILED cleaned up
 
         with Session(engine) as session:
             refreshed_user = session.get(User, user_id)
             assert refreshed_user is not None
-            assert refreshed_user.storage_reserved == 50
-            assert refreshed_user.storage_used == 120
+            assert refreshed_user.storage_reserved == 50  # 150→50 (released 100 for PENDING)
+            assert refreshed_user.storage_used == 120  # unchanged (FAILED quota handled at transition)

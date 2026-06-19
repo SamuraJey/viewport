@@ -39,6 +39,7 @@ export type {
   BatchDeletePhotosResponse,
   UploadPreparedFile,
   UploadRenameWarning,
+  PendingUpload,
 } from './photo';
 
 // Share link types
