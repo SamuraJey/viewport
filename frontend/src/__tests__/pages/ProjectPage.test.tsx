@@ -272,6 +272,7 @@ describe('ProjectPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Photos' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /add gallery/i }));
+    expect(screen.getByLabelText(/shooting date/i)).toHaveValue('2026-04-18');
     await user.type(screen.getByLabelText(/gallery name/i), 'Highlights{Enter}');
 
     await waitFor(() => {
@@ -279,6 +280,7 @@ describe('ProjectPage', () => {
         'project-1',
         expect.objectContaining({
           name: 'Highlights',
+          shooting_date: '2026-04-18',
           project_visibility: 'listed',
         }),
       );
