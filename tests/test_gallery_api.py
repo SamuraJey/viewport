@@ -752,6 +752,14 @@ class TestGalleryAPI:
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
+    def test_download_selected_photos_rejects_oversized_id_list(self, authenticated_client: TestClient, gallery_id_fixture: str):
+        response = authenticated_client.post(
+            f"/galleries/{gallery_id_fixture}/download/selected",
+            json={"photo_ids": [str(uuid4()) for _ in range(501)]},
+        )
+
+        assert response.status_code == 422
+
     def test_list_galleries_includes_enriched_data(self, authenticated_client: TestClient):
         """Test that gallery list includes photo_count, total_size_bytes, has_active_share_links, and cover_photo_thumbnail_url."""
         # Create a gallery

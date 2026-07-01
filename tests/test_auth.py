@@ -318,3 +318,5 @@ class TestAuthFlow:
         refresh_payload = jwt.decode(tokens["refresh_token"], auth_settings.jwt_secret_key, algorithms=[auth_settings.jwt_algorithm])
         assert refresh_payload["sub"] == user_id
         assert refresh_payload["type"] == "refresh"
+        assert "pwd" in refresh_payload
+        assert refresh_payload["pwd"] != test_user_data["password"]

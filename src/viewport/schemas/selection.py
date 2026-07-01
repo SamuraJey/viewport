@@ -4,6 +4,9 @@ from pydantic import BaseModel, EmailStr, Field, model_validator
 
 from viewport.schemas.sharelink import ShareScopeType
 
+SELECTION_CLIENT_NOTE_MAX_LENGTH = 4096
+SELECTION_PHOTO_COMMENT_MAX_LENGTH = 1024
+
 
 class SelectionConfigUpdateRequest(BaseModel):
     is_enabled: bool | None = None
@@ -42,11 +45,11 @@ class SelectionSessionStartRequest(BaseModel):
     client_name: str = Field(..., min_length=1, max_length=127)
     client_email: EmailStr | None = Field(None, max_length=255)
     client_phone: str | None = Field(None, max_length=32)
-    client_note: str | None = None
+    client_note: str | None = Field(None, max_length=SELECTION_CLIENT_NOTE_MAX_LENGTH)
 
 
 class SelectionSessionUpdateRequest(BaseModel):
-    client_note: str | None = None
+    client_note: str | None = Field(None, max_length=SELECTION_CLIENT_NOTE_MAX_LENGTH)
 
     @model_validator(mode="after")
     def validate_payload(self):
@@ -56,7 +59,7 @@ class SelectionSessionUpdateRequest(BaseModel):
 
 
 class SelectionPhotoCommentRequest(BaseModel):
-    comment: str | None = None
+    comment: str | None = Field(None, max_length=SELECTION_PHOTO_COMMENT_MAX_LENGTH)
 
 
 class SelectionItemResponse(BaseModel):

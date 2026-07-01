@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
-from viewport.auth_utils import authsettings
+from viewport.auth_utils import authsettings, password_token_fingerprint, password_token_fingerprint_matches
 from viewport.models.db import get_db
 from viewport.repositories.user_repository import UserRepository
 from viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair, validate_user_password
@@ -55,7 +55,7 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 
-def create_access_token(user_id: str) -> str:
+def create_access_token(user_id: str, password_hash: str) -> str:
     issued_at = datetime.now(UTC)
     payload = {
         "sub": user_id,
@@ -63,11 +63,12 @@ def create_access_token(user_id: str) -> str:
         "exp": issued_at + timedelta(minutes=authsettings.access_token_expire_minutes),
         "type": "access",
         "jti": str(uuid.uuid4()),
+        "pwd": password_token_fingerprint(password_hash),
     }
     return jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
 
 
-def create_refresh_token(user_id: str) -> str:
+def create_refresh_token(user_id: str, password_hash: str) -> str:
     issued_at = datetime.now(UTC)
     payload = {
         "sub": user_id,
@@ -75,6 +76,7 @@ def create_refresh_token(user_id: str) -> str:
         "exp": issued_at + timedelta(minutes=authsettings.refresh_token_expire_minutes),
         "type": "refresh",
         "jti": str(uuid.uuid4()),
+        "pwd": password_token_fingerprint(password_hash),
     }
     return jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
 
@@ -109,8 +111,8 @@ async def login_user(request: LoginRequest, repo: UserRepository = Depends(get_u
     if not is_valid:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    access_token = create_access_token(str(user.id))
-    refresh_token = create_refresh_token(str(user.id))
+    access_token = create_access_token(str(user.id), user.password_hash)
+    refresh_token = create_refresh_token(str(user.id), user.password_hash)
     return LoginResponse(
         id=str(user.id),
         email=user.email,
@@ -129,6 +131,7 @@ async def refresh_token(request: RefreshRequest, repo: UserRepository = Depends(
         payload = jwt.decode(request.refresh_token, authsettings.jwt_secret_key, algorithms=[authsettings.jwt_algorithm])
         user_id = payload.get("sub")
         token_type = payload.get("type")
+        token_password_fingerprint = payload.get("pwd")
 
         # Check if it's actually a refresh token
         if token_type != "refresh":
@@ -138,13 +141,20 @@ async def refresh_token(request: RefreshRequest, repo: UserRepository = Depends(
             raise HTTPException(status_code=401, detail="Invalid token")
 
         # Check if user exists
-        user = await repo.get_user_by_id(uuid.UUID(user_id))
+        try:
+            parsed_user_id = uuid.UUID(user_id)
+        except ValueError:
+            raise HTTPException(status_code=401, detail="User not found") from None
+
+        user = await repo.get_user_by_id(parsed_user_id)
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
+        if not password_token_fingerprint_matches(token_password_fingerprint, user.password_hash):
+            raise HTTPException(status_code=401, detail="Refresh token revoked")
 
         # Generate new tokens
-        new_access_token = create_access_token(str(user.id))
-        new_refresh_token = create_refresh_token(str(user.id))
+        new_access_token = create_access_token(str(user.id), user.password_hash)
+        new_refresh_token = create_refresh_token(str(user.id), user.password_hash)
 
         return TokenPair(access_token=new_access_token, refresh_token=new_refresh_token, token_type="bearer")
 

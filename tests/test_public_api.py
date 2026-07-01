@@ -939,6 +939,12 @@ class TestPublicAPI:
         assert missing_gallery_photos_resp.status_code == 200
         assert missing_gallery_photos_resp.json() == []
 
+        too_many_photo_ids_resp = authenticated_client.get(
+            f"/s/{gallery_share_id}/photos/by-ids",
+            params=[("photo_ids", str(uuid4())) for _ in range(501)],
+        )
+        assert too_many_photo_ids_resp.status_code == 422
+
         project_resp = authenticated_client.post("/projects", json={"name": "Zip Project"})
         assert project_resp.status_code == 201
         project_id = project_resp.json()["id"]
