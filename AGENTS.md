@@ -17,7 +17,7 @@
 ## Backend conventions (FastAPI)
 - App entrypoint: `src/viewport/main.py`.
   - Initializes singleton services (`AsyncS3Client`, `RedisService`, `PresignedUrlCacheService`) in `lifespan()` and exposes them via DI (`src/viewport/dependencies.py`).
-- Auth: endpoints in `src/viewport/api/auth.py`; request auth uses `get_current_user()` from `src/viewport/auth_utils.py` (HTTP Bearer, consistent 401s).
+- Auth: endpoints in `src/viewport/api/auth.py`; request auth uses `get_current_user()` from `src/viewport/auth_utils.py` (HTTP Bearer, consistent 401s). Access/refresh tokens carry an HMAC fingerprint of the current `users.password_hash`; password changes make existing access and refresh tokens fail without a migration or server-side refresh-token storage.
 - Repositories:
   - Constructed per-request from `db: AsyncSession = Depends(get_db)` (`src/viewport/models/db.py`).
   - Keep business logic close to repository methods when it’s DB/S3 orchestration (e.g. async delete/rename in `GalleryRepository`).

@@ -33,11 +33,23 @@ def test_update_display_name_unauthenticated(client: TestClient):
 
 
 def test_change_password_success(authenticated_client: TestClient, test_user_data):
+    old_login_resp = authenticated_client.post("/auth/login", json={"email": test_user_data["email"], "password": test_user_data["password"]})
+    assert old_login_resp.status_code == 200
+    old_tokens = old_login_resp.json()["tokens"]
+
     # Change password
     payload = {"current_password": test_user_data["password"], "new_password": "newpass123", "confirm_password": "newpass123"}
     resp = authenticated_client.put("/me/password", json=payload)
     assert resp.status_code == 200
     assert "Password updated" in resp.json().get("message", "")
+
+    old_refresh_resp = authenticated_client.post("/auth/refresh", json={"refresh_token": old_tokens["refresh_token"]})
+    assert old_refresh_resp.status_code == 401
+    assert "revoked" in old_refresh_resp.json()["detail"].lower()
+
+    old_access_resp = authenticated_client.get("/me", headers={"Authorization": f"Bearer {old_tokens['access_token']}"})
+    assert old_access_resp.status_code == 401
+    assert "revoked" in old_access_resp.json()["detail"].lower()
 
     # Logout and try login with new password
     # Clear header

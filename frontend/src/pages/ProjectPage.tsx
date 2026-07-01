@@ -590,9 +590,17 @@ export const ProjectPage = () => {
     await loadProject();
   };
 
-  const handleDeleteProjectShareLink = async (shareLinkId: string) => {
-    await shareLinkService.deleteProjectShareLink(projectId, shareLinkId);
-    await loadProject();
+  const handleDeleteProjectShareLink = (shareLinkId: string) => {
+    openConfirm({
+      title: 'Delete share link',
+      message: 'This will permanently remove the share link and its analytics data. Continue?',
+      isDangerous: true,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        await shareLinkService.deleteProjectShareLink(projectId, shareLinkId);
+        await loadProject();
+      },
+    });
   };
 
   const handleCreateGalleryShareLink = async (payload: {

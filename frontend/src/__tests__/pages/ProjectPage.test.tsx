@@ -211,6 +211,28 @@ describe('ProjectPage', () => {
     expect(screen.getByText('Client proofing')).toBeInTheDocument();
   });
 
+  it('requires confirmation before deleting a project share link', async () => {
+    const user = userEvent.setup();
+    const { shareLinkService } = await import('../../services/shareLinkService');
+
+    renderProjectPage();
+
+    await screen.findByText('Client proofing');
+    await user.click(screen.getByRole('button', { name: /delete link/i }));
+
+    expect(await screen.findByText('Delete share link')).toBeInTheDocument();
+    expect(
+      screen.getByText(/permanently remove the share link and its analytics data/i),
+    ).toBeInTheDocument();
+    expect(shareLinkService.deleteProjectShareLink).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: /^delete$/i }));
+
+    await waitFor(() => {
+      expect(shareLinkService.deleteProjectShareLink).toHaveBeenCalledWith('project-1', 'link-1');
+    });
+  });
+
   it('lets project share creation expose selection settings', async () => {
     const user = userEvent.setup();
 
