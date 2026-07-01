@@ -47,3 +47,7 @@ screenshots/
 .lazyweb/
 output/playwright/
 android/
+
+.agents
+.qwen
+skills-lock.json

@@ -57,13 +57,14 @@ describe('ShareLinkSettingsModal', () => {
   it('creates an active no-expiration link by submitting the visible setup', async () => {
     const user = userEvent.setup();
     const onCreate = vi.fn().mockResolvedValue(createdLink);
+    const onClose = vi.fn();
 
     render(
       <ShareLinkSettingsModal
         isOpen
         mode="create"
         galleryName="Client Gallery"
-        onClose={vi.fn()}
+        onClose={onClose}
         onCreate={onCreate}
       />,
     );
@@ -77,20 +78,22 @@ describe('ShareLinkSettingsModal', () => {
         is_active: true,
         expires_at: null,
       });
+      expect(onClose).toHaveBeenCalledTimes(1);
     });
-    expect(await screen.findByText('Share link created')).toBeInTheDocument();
+    expect(screen.queryByText('Share link created')).not.toBeInTheDocument();
   });
 
   it('creates a share link when Enter is pressed in the label field', async () => {
     const user = userEvent.setup();
     const onCreate = vi.fn().mockResolvedValue(createdLink);
+    const onClose = vi.fn();
 
     render(
       <ShareLinkSettingsModal
         isOpen
         mode="create"
         galleryName="Client Gallery"
-        onClose={vi.fn()}
+        onClose={onClose}
         onCreate={onCreate}
       />,
     );
@@ -103,19 +106,21 @@ describe('ShareLinkSettingsModal', () => {
         is_active: true,
         expires_at: null,
       });
+      expect(onClose).toHaveBeenCalledTimes(1);
     });
   });
 
   it('supports creating a paused draft link', async () => {
     const user = userEvent.setup();
     const onCreate = vi.fn().mockResolvedValue({ ...createdLink, is_active: false });
+    const onClose = vi.fn();
 
     render(
       <ShareLinkSettingsModal
         isOpen
         mode="create"
         galleryName="Client Gallery"
-        onClose={vi.fn()}
+        onClose={onClose}
         onCreate={onCreate}
       />,
     );
@@ -129,6 +134,7 @@ describe('ShareLinkSettingsModal', () => {
         is_active: false,
         expires_at: null,
       });
+      expect(onClose).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -136,13 +142,14 @@ describe('ShareLinkSettingsModal', () => {
     const user = userEvent.setup();
     const onCreate = vi.fn().mockResolvedValue(createdLink);
     const onSaveSelectionConfig = vi.fn().mockResolvedValue(undefined);
+    const onClose = vi.fn();
 
     render(
       <ShareLinkSettingsModal
         isOpen
         mode="create"
         galleryName="Client Gallery"
-        onClose={vi.fn()}
+        onClose={onClose}
         onCreate={onCreate}
         onSaveSelectionConfig={onSaveSelectionConfig}
       />,
@@ -163,7 +170,33 @@ describe('ShareLinkSettingsModal', () => {
         require_phone: false,
         require_client_note: false,
       });
+      expect(onClose).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('keeps the created-link recovery state open when selection settings fail to save', async () => {
+    const user = userEvent.setup();
+    const onCreate = vi.fn().mockResolvedValue(createdLink);
+    const onClose = vi.fn();
+
+    render(
+      <ShareLinkSettingsModal
+        isOpen
+        mode="create"
+        galleryName="Client Gallery"
+        onClose={onClose}
+        onCreate={onCreate}
+        onSaveSelectionConfig={vi.fn().mockRejectedValue(new Error('Selection save failed'))}
+      />,
+    );
+
+    await user.click(screen.getByRole('tab', { name: /selection/i }));
+    await user.click(screen.getByRole('switch', { name: /enable client photo selection/i }));
+    await user.click(screen.getByRole('button', { name: /create link/i }));
+
+    expect(await screen.findByText('Share link created')).toBeInTheDocument();
+    expect(screen.getByText('Selection save failed')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it('blocks fractional selection limits', async () => {
