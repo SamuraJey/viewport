@@ -44,15 +44,20 @@ import { shareLinkService } from '../services/shareLinkService';
 import type { Gallery, ProjectDetail, ProjectGallerySummary, ShareLink } from '../types';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
-const emptyGalleryDraft: {
+type GalleryDraft = {
   name: string;
   shooting_date: string;
   project_visibility: 'listed' | 'direct_only';
-} = {
-  name: '',
-  shooting_date: new Date().toISOString().slice(0, 10),
-  project_visibility: 'listed',
 };
+
+const toDateInputValue = (value?: string | null) =>
+  value?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+
+const buildGalleryDraft = (project?: ProjectDetail | null): GalleryDraft => ({
+  name: '',
+  shooting_date: toDateInputValue(project?.shooting_date),
+  project_visibility: 'listed',
+});
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -124,7 +129,7 @@ export const ProjectPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isGalleryDialogOpen, setIsGalleryDialogOpen] = useState(false);
-  const [galleryDraft, setGalleryDraft] = useState(emptyGalleryDraft);
+  const [galleryDraft, setGalleryDraft] = useState<GalleryDraft>(() => buildGalleryDraft());
   const [isCreatingGallery, setIsCreatingGallery] = useState(false);
   const [isCreatingShareLink, setIsCreatingShareLink] = useState(false);
   const [isShareLinkCreateOpen, setIsShareLinkCreateOpen] = useState(false);
@@ -298,7 +303,7 @@ export const ProjectPage = () => {
         shooting_date: galleryDraft.shooting_date,
         project_visibility: galleryDraft.project_visibility,
       });
-      setGalleryDraft(emptyGalleryDraft);
+      setGalleryDraft(buildGalleryDraft(project));
       setIsGalleryDialogOpen(false);
       await loadProject();
     } catch (err) {
@@ -311,6 +316,16 @@ export const ProjectPage = () => {
   const handleCreateGallerySubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void handleCreateGallery();
+  };
+
+  const openGalleryDialog = () => {
+    setGalleryDraft(buildGalleryDraft(project));
+    setIsGalleryDialogOpen(true);
+  };
+
+  const closeGalleryDialog = () => {
+    setIsGalleryDialogOpen(false);
+    setGalleryDraft(buildGalleryDraft(project));
   };
 
   const openProjectRenameDialog = () => {
@@ -669,7 +684,7 @@ export const ProjectPage = () => {
             </button>
             <button
               type="button"
-              onClick={() => setIsGalleryDialogOpen(true)}
+              onClick={openGalleryDialog}
               className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3.5 py-2 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
             >
               <FolderPlus className="h-4 w-4" />
@@ -796,7 +811,7 @@ export const ProjectPage = () => {
               </p>
               <button
                 type="button"
-                onClick={() => setIsGalleryDialogOpen(true)}
+                onClick={openGalleryDialog}
                 className="mt-6 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <FolderPlus className="h-4 w-4" />
@@ -1076,10 +1091,7 @@ export const ProjectPage = () => {
 
       <AppDialog
         open={isGalleryDialogOpen}
-        onClose={() => {
-          setIsGalleryDialogOpen(false);
-          setGalleryDraft(emptyGalleryDraft);
-        }}
+        onClose={closeGalleryDialog}
         size="md"
         initialFocusRef={galleryInputRef as React.RefObject<HTMLElement | null>}
         panelClassName="overflow-hidden rounded-[2rem] border border-border/50 bg-surface shadow-2xl dark:border-border/20 dark:bg-surface-dark"
@@ -1183,10 +1195,7 @@ export const ProjectPage = () => {
           <div className="flex justify-end gap-3 border-t border-border/40 bg-surface-1/55 px-6 py-4 dark:border-border/30 dark:bg-surface-dark-1/55">
             <button
               type="button"
-              onClick={() => {
-                setIsGalleryDialogOpen(false);
-                setGalleryDraft(emptyGalleryDraft);
-              }}
+              onClick={closeGalleryDialog}
               className="rounded-xl border border-border/40 bg-surface px-4 py-2.5 text-sm font-semibold text-text transition-all duration-200 hover:bg-surface-2 dark:bg-surface-dark dark:hover:bg-surface-dark-2"
             >
               Cancel
