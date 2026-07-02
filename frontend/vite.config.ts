@@ -12,9 +12,32 @@ const toNumber = (value: string | undefined, fallback: number) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const assertProductionApiUrl = (mode: string, apiUrl: string | undefined) => {
+  if (mode !== 'production') {
+    return;
+  }
+
+  const configuredUrl = apiUrl?.trim();
+  if (!configuredUrl) {
+    throw new Error('VITE_API_URL is required for production builds.');
+  }
+
+  try {
+    if (new URL(configuredUrl).protocol !== 'https:') {
+      throw new Error('VITE_API_URL must use HTTPS in production.');
+    }
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error('VITE_API_URL must be an absolute HTTPS URL in production.');
+    }
+    throw error;
+  }
+};
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
+  assertProductionApiUrl(mode, env.VITE_API_URL);
 
   const base = env.VITE_APP_BASE ?? '/';
   const devPort = toNumber(env.VITE_DEV_SERVER_PORT, 5173);

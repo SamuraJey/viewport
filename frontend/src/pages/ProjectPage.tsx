@@ -597,8 +597,13 @@ export const ProjectPage = () => {
       isDangerous: true,
       confirmText: 'Delete',
       onConfirm: async () => {
-        await shareLinkService.deleteProjectShareLink(projectId, shareLinkId);
-        await loadProject();
+        try {
+          await shareLinkService.deleteProjectShareLink(projectId, shareLinkId);
+          await loadProject();
+        } catch (err) {
+          setError(handleApiError(err).message || 'Failed to delete share link');
+          throw err;
+        }
       },
     });
   };

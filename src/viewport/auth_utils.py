@@ -65,8 +65,6 @@ async def _get_user_from_token(token: str | None, db: AsyncSession) -> User:
 
         stmt = select(User).where(User.id == parsed_user_id)
         user = (await db.execute(stmt)).scalar_one_or_none()
-        if db.in_transaction():
-            await db.commit()
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
         if not password_token_fingerprint_matches(token_password_fingerprint, user.password_hash):

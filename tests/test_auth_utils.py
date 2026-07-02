@@ -8,7 +8,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 
-from viewport.auth_utils import get_current_user
+from viewport.auth_utils import get_current_user, password_token_fingerprint
 from viewport.models.user import User
 
 JWT_ALGORITHM = "HS256"
@@ -43,7 +43,11 @@ class TestJWTAuthentication:
         await db_session.commit()
 
         # Create a valid token
-        payload = {"sub": user_id, "type": "access"}
+        payload = {
+            "sub": user_id,
+            "type": "access",
+            "pwd": password_token_fingerprint(user.password_hash),
+        }
         token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
         # Mock credentials
@@ -53,7 +57,27 @@ class TestJWTAuthentication:
         result = await get_current_user(credentials, db_session)
         assert result.id == uuid.UUID(user_id)
         assert result.email == "test@example.com"
-        assert db_session.in_transaction() is False
+        await db_session.rollback()
+
+    async def test_get_current_user_does_not_commit_existing_transaction(self, db_session):
+        """Auth lookup must not finalize the caller-owned transaction."""
+        user_id = str(uuid.uuid4())
+        user = User(id=uuid.UUID(user_id), email="transaction@example.com", password_hash="hashed_password")
+        db_session.add(user)
+        await db_session.commit()
+
+        payload = {
+            "sub": user_id,
+            "type": "access",
+            "pwd": password_token_fingerprint(user.password_hash),
+        }
+        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+        async with db_session.begin():
+            result = await get_current_user(credentials, db_session)
+            assert result.id == uuid.UUID(user_id)
+            assert db_session.in_transaction() is True
 
     async def test_get_current_user_no_user_id_in_token(self, db_session):
         """Test token without user ID."""
@@ -102,7 +126,8 @@ class TestJWTAuthentication:
 
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail == "User not found"
-        assert db_session.in_transaction() is False
+        assert db_session.in_transaction() is True
+        await db_session.rollback()
 
     async def test_get_current_user_expired_token(self, db_session):
         """Test expired token."""

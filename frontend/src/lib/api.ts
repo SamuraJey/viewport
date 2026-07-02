@@ -3,8 +3,41 @@ import type { AxiosError } from 'axios';
 import { useAuthStore } from '../stores/authStore';
 import { NetworkError } from './errorHandling';
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:8000');
+type ApiEnvironment = {
+  VITE_API_URL?: string;
+  DEV: boolean;
+  PROD: boolean;
+};
+
+const DEV_API_BASE_URL = '/api';
+
+const isHttpsUrl = (value: string): boolean => {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+export const resolveApiBaseUrl = (env: ApiEnvironment): string => {
+  const configuredUrl = env.VITE_API_URL?.trim();
+
+  if (env.DEV) {
+    return configuredUrl || DEV_API_BASE_URL;
+  }
+
+  if (!configuredUrl) {
+    throw new Error('VITE_API_URL is required for production builds.');
+  }
+
+  if (env.PROD && !isHttpsUrl(configuredUrl)) {
+    throw new Error('VITE_API_URL must use HTTPS in production.');
+  }
+
+  return configuredUrl;
+};
+
+const API_BASE_URL = resolveApiBaseUrl(import.meta.env);
 
 let refreshPromise: Promise<string> | null = null;
 

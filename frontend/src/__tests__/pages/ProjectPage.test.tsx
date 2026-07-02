@@ -233,6 +233,23 @@ describe('ProjectPage', () => {
     });
   });
 
+  it('shows an error banner when deleting a project share link fails', async () => {
+    const user = userEvent.setup();
+    const { shareLinkService } = await import('../../services/shareLinkService');
+
+    vi.mocked(shareLinkService.deleteProjectShareLink).mockRejectedValueOnce(
+      new Error('Delete failed'),
+    );
+
+    renderProjectPage();
+
+    await screen.findByText('Client proofing');
+    await user.click(screen.getByRole('button', { name: /delete link/i }));
+    await user.click(screen.getByRole('button', { name: /^delete$/i }));
+
+    expect(await screen.findByText('Delete failed')).toBeInTheDocument();
+  });
+
   it('lets project share creation expose selection settings', async () => {
     const user = userEvent.setup();
 
