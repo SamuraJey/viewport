@@ -126,6 +126,8 @@ jobs:
         run: npm run lint
       - name: Typecheck and build
         working-directory: frontend
+        env:
+          VITE_API_URL: https://backend.example.test
         run: npm run build
       - name: Run unit tests (vitest)
         working-directory: frontend
