@@ -19,6 +19,7 @@ from viewport.repositories.sharelink_repository import ShareLinkRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client, get_s3_settings
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
+from viewport.schemas.photo import PHOTO_ID_BATCH_MAX
 from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto, PublicProjectGallery, PublicProjectResponse, PublicShareResponse, PublicShareUnlockRequest
 from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_available_public_sharelink, get_valid_public_sharelink, unlock_sharelink_password
 from viewport.zip_utils import build_zip_fallback_name, make_content_disposition_header, make_unique_zip_entry_name, sanitize_zip_entry_name
@@ -467,7 +468,7 @@ async def get_project_gallery_by_sharelink(
 async def get_public_photos_by_ids(
     share_id: UUID,
     response: Response,
-    photo_ids: list[UUID] = Query(..., description="Ordered list of photo ids to resolve"),
+    photo_ids: list[UUID] = Query(..., min_length=1, max_length=PHOTO_ID_BATCH_MAX, description="Ordered list of photo ids to resolve"),
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),

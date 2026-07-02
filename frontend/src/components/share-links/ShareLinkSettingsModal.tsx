@@ -356,7 +356,6 @@ export const ShareLinkSettingsModal = ({
         }
 
         const created = await onCreate(sharePayload);
-        setCreatedLink(created);
 
         if (
           showSelectionSettings &&
@@ -371,8 +370,11 @@ export const ShareLinkSettingsModal = ({
                 ? err.message
                 : 'Link was created, but selection settings were not saved.',
             );
+            setCreatedLink(created);
+            return;
           }
         }
+        onClose();
         return;
       }
 

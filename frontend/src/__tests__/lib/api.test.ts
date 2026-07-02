@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { publicApi } from '../../lib/api';
+import { publicApi, resolveApiBaseUrl } from '../../lib/api';
 
-// Mock environment variables
 const mockEnv = {
   VITE_API_URL: '',
   DEV: true,
+  PROD: false,
 };
 
 describe('api', () => {
@@ -13,6 +13,7 @@ describe('api', () => {
     // Reset env vars
     mockEnv.VITE_API_URL = '';
     mockEnv.DEV = true;
+    mockEnv.PROD = false;
   });
 
   describe('API configuration', () => {
@@ -20,24 +21,40 @@ describe('api', () => {
       expect(publicApi.defaults.headers.common['Content-Type']).toBeUndefined();
     });
 
-    it('should use development API URL when in dev mode', () => {
-      mockEnv.DEV = true;
-      mockEnv.VITE_API_URL = '';
-      const baseUrl = mockEnv.VITE_API_URL || (mockEnv.DEV ? '/api' : 'http://localhost:8000');
-      expect(baseUrl).toBe('/api');
+    it('uses proxy API URL when in dev mode and VITE_API_URL is absent', () => {
+      expect(resolveApiBaseUrl(mockEnv)).toBe('/api');
     });
 
-    it('should use production URL when not in dev mode', () => {
+    it('throws when production VITE_API_URL is absent', () => {
       mockEnv.DEV = false;
+      mockEnv.PROD = true;
       mockEnv.VITE_API_URL = '';
-      const baseUrl = mockEnv.VITE_API_URL || (mockEnv.DEV ? '/api' : 'http://localhost:8000');
-      expect(baseUrl).toBe('http://localhost:8000');
+
+      expect(() => resolveApiBaseUrl(mockEnv)).toThrow('VITE_API_URL is required');
     });
 
-    it('should prioritize custom VITE_API_URL over defaults', () => {
+    it('rejects non-HTTPS production API URLs', () => {
+      mockEnv.DEV = false;
+      mockEnv.PROD = true;
+      mockEnv.VITE_API_URL = 'http://api.example.com';
+
+      expect(() => resolveApiBaseUrl(mockEnv)).toThrow('must use HTTPS');
+    });
+
+    it('rejects non-HTTPS API URLs in non-dev modes', () => {
+      mockEnv.DEV = false;
+      mockEnv.PROD = false;
+      mockEnv.VITE_API_URL = 'http://api.example.com';
+
+      expect(() => resolveApiBaseUrl(mockEnv)).toThrow('must use HTTPS');
+    });
+
+    it('uses HTTPS VITE_API_URL in production', () => {
+      mockEnv.DEV = false;
+      mockEnv.PROD = true;
       mockEnv.VITE_API_URL = 'https://custom-api.com';
-      const baseUrl = mockEnv.VITE_API_URL || (mockEnv.DEV ? '/api' : 'http://localhost:8000');
-      expect(baseUrl).toBe('https://custom-api.com');
+
+      expect(resolveApiBaseUrl(mockEnv)).toBe('https://custom-api.com');
     });
   });
 });

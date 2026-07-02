@@ -4,6 +4,7 @@ import type { ProxyOptions } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { compression } from 'vite-plugin-compression2';
+import { API_URL_VALIDATION_MESSAGES, assertRequiredHttpsApiUrl } from './src/lib/apiUrlValidation';
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -12,9 +13,20 @@ const toNumber = (value: string | undefined, fallback: number) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const assertProductionApiUrl = (mode: string, apiUrl: string | undefined) => {
+  if (mode !== 'production') {
+    return;
+  }
+
+  assertRequiredHttpsApiUrl(apiUrl, {
+    invalidUrlMessage: API_URL_VALIDATION_MESSAGES.absoluteHttps,
+  });
+};
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
+  assertProductionApiUrl(mode, env.VITE_API_URL);
 
   const base = env.VITE_APP_BASE ?? '/';
   const devPort = toNumber(env.VITE_DEV_SERVER_PORT, 5173);

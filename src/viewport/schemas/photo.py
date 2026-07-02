@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from viewport.filename_utils import build_content_disposition, resolve_photo_filename
 
+PHOTO_ID_BATCH_MAX = 500
+
 if TYPE_CHECKING:
     from viewport.models.gallery import Photo
     from viewport.s3_service import AsyncS3Client
@@ -269,7 +271,7 @@ class BatchConfirmUploadResponse(BaseModel):
 
 
 class BatchDeletePhotosRequest(BaseModel):
-    photo_ids: list[UUID] = Field(..., min_length=1, max_length=500)
+    photo_ids: list[UUID] = Field(..., min_length=1, max_length=PHOTO_ID_BATCH_MAX)
 
     @model_validator(mode="after")
     def deduplicate_photo_ids(self) -> "BatchDeletePhotosRequest":
@@ -285,4 +287,4 @@ class BatchDeletePhotosResponse(BaseModel):
 
 
 class DownloadSelectedPhotosRequest(BaseModel):
-    photo_ids: list[UUID] = Field(..., min_length=1)
+    photo_ids: list[UUID] = Field(..., min_length=1, max_length=PHOTO_ID_BATCH_MAX)

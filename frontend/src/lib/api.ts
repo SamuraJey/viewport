@@ -2,9 +2,27 @@ import axios from 'axios';
 import type { AxiosError } from 'axios';
 import { useAuthStore } from '../stores/authStore';
 import { NetworkError } from './errorHandling';
+import { assertRequiredHttpsApiUrl } from './apiUrlValidation';
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '/api' : 'http://localhost:8000');
+type ApiEnvironment = {
+  VITE_API_URL?: string;
+  DEV: boolean;
+  PROD: boolean;
+};
+
+const DEV_API_BASE_URL = '/api';
+
+export const resolveApiBaseUrl = (env: ApiEnvironment): string => {
+  const configuredUrl = env.VITE_API_URL?.trim();
+
+  if (env.DEV) {
+    return configuredUrl || DEV_API_BASE_URL;
+  }
+
+  return assertRequiredHttpsApiUrl(configuredUrl);
+};
+
+const API_BASE_URL = resolveApiBaseUrl(import.meta.env);
 
 let refreshPromise: Promise<string> | null = null;
 

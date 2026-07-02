@@ -725,6 +725,18 @@ class TestSelectionAPI:
         assert note_resp.json()["client_note"] == "Ready to submit"
         assert "set-cookie" in note_resp.headers
 
+        long_comment_resp = authenticated_client.patch(
+            f"/s/{share_id}/selection/session/items/{photo_id}",
+            json={"comment": "x" * 1025},
+        )
+        assert long_comment_resp.status_code == 422
+
+        long_note_resp = authenticated_client.patch(
+            f"/s/{share_id}/selection/session",
+            json={"client_note": "x" * 4097},
+        )
+        assert long_note_resp.status_code == 422
+
         close_resp = authenticated_client.post(f"/share-links/{share_id}/selection/sessions/{session_id}/close")
         assert close_resp.status_code == 200
 
