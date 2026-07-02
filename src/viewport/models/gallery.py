@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 from enum import IntEnum, StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text, event, func
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text, event, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -144,6 +144,26 @@ class Photo(Base):
             "ix_photos_gallery_id_uploaded_at",
             gallery_id,
             uploaded_at,
+        ),
+    )
+
+
+class ThumbnailOutbox(Base):
+    __tablename__ = "thumbnail_outbox"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    photo_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("photos.id", ondelete="CASCADE"), nullable=False, index=True)
+    object_key: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    processed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+
+    __table_args__ = (
+        Index(
+            "ix_thumbnail_outbox_unprocessed_photo_key",
+            photo_id,
+            object_key,
+            unique=True,
+            postgresql_where=text("processed = false"),
         ),
     )
 

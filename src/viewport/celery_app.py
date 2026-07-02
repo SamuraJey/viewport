@@ -43,6 +43,10 @@ def create_celery_app(settings: CelerySettings | None = None) -> Celery:
         broker_connection_retry_on_startup=True,
         broker_connection_max_retries=10,
         beat_schedule_filename="/tmp/celerybeat-schedule",
+        task_routes={
+            "create_thumbnails_batch": {"queue": "thumbnails"},
+            "dispatch_outbox_items": {"queue": "celery"},
+        },
     )
 
     if os.environ.get("ENVIRONMENT") == "pytest":
@@ -66,6 +70,10 @@ def create_celery_app(settings: CelerySettings | None = None) -> Celery:
         "reconcile-storage-quotas-daily": {
             "task": "reconcile_storage_quotas",
             "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 UTC
+        },
+        "dispatch-outbox-items-every-30s": {
+            "task": "dispatch_outbox_items",
+            "schedule": 30.0,
         },
     }
 

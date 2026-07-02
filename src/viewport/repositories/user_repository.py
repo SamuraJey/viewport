@@ -62,7 +62,7 @@ class UserRepository(BaseRepository):
             raise
         return user
 
-    async def reserve_storage(self, user_id: uuid.UUID, bytes_to_reserve: int) -> bool:
+    async def reserve_storage(self, user_id: uuid.UUID, bytes_to_reserve: int, commit: bool = True) -> bool:
         if bytes_to_reserve <= 0:
             return True
 
@@ -80,7 +80,8 @@ class UserRepository(BaseRepository):
             await self.db.rollback()
             return False
 
-        await self.db.commit()
+        if commit:
+            await self.db.commit()
         return True
 
     async def release_reserved_storage(self, user_id: uuid.UUID, bytes_to_release: int, commit: bool = True) -> None:

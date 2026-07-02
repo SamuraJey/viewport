@@ -3,15 +3,16 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
+from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from viewport.auth_utils import get_current_user, get_current_user_for_download
-from viewport.background_tasks import create_thumbnails_batch_task, delete_photos_batch_task
+from viewport.background_tasks import delete_photos_batch_task
 from viewport.dependencies import get_s3_client
 from viewport.filename_utils import build_content_disposition, resolve_photo_filename, sanitize_filename, split_name_and_ext
 from viewport.models.db import get_db
-from viewport.models.gallery import Photo, PhotoUploadStatus
+from viewport.models.gallery import Photo, PhotoUploadStatus, ThumbnailOutbox
 from viewport.models.user import User
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.user_repository import UserRepository
@@ -28,7 +29,7 @@ from viewport.schemas.photo import (
     PhotoResponse,
     PresignedUploadData,
 )
-from viewport.thumbnail_tasks import ThumbnailTaskItem, to_thumbnail_task_payloads
+from viewport.thumbnail_tasks import ThumbnailTaskItem
 
 logger = logging.getLogger(__name__)
 
@@ -148,8 +149,8 @@ async def batch_presigned_uploads(
     """Generate presigned URLs for batch upload (max 100 files)
 
     1. Verify gallery ownership
-    2. Create Photo records for each file
-    3. Generate presigned PUT URLs
+    2. Generate presigned PUT URLs for all valid files
+    3. Atomically reserve storage and create Photo records in a single transaction
     4. Return batch response
 
     """
@@ -158,101 +159,83 @@ async def batch_presigned_uploads(
     if not gallery:
         raise HTTPException(404, "Gallery not found")
 
-    valid_files = [file_request for file_request in request.files if file_request.file_size <= MAX_FILE_SIZE]
-    bytes_to_reserve = sum(file_request.file_size for file_request in valid_files)
-    if bytes_to_reserve > 0:
-        reserved = await user_repo.reserve_storage(current_user.id, bytes_to_reserve)
-        if not reserved:
-            raise HTTPException(status_code=507, detail="Storage quota exceeded")
-
     items: list[BatchPresignedUploadItem] = []
     photos_payload: list[dict] = []
-    failed_presign_bytes = 0
-    reserved_bytes_to_release_on_error = bytes_to_reserve
+    occupied_display_names = await repo.get_photo_display_names_by_gallery(gallery_id)
 
-    try:
-        occupied_display_names = await repo.get_photo_display_names_by_gallery(gallery_id)
-
-        # 2. Generate Photo records and presigned URLs
-        for file_request in request.files:
-            if file_request.file_size > MAX_FILE_SIZE:
-                items.append(
-                    BatchPresignedUploadItem(
-                        filename=file_request.filename,
-                        file_size=file_request.file_size,
-                        success=False,
-                        error=f"File exceeds maximum size of {MAX_FILE_SIZE // (1024 * 1024)}MB",
-                    )
-                )
-                continue
-
-            photo_id = uuid4()
-            display_name = make_unique_display_name(file_request.filename, occupied_display_names)
-            _, extension = split_name_and_ext(display_name)
-            object_key = f"{gallery_id}/{photo_id}{extension.lower()}"
-
-            # Generate presigned PUT signed with exact size and tagging requirements
-            try:
-                presigned = s3_client.generate_presigned_put(
-                    object_key=object_key,
-                    content_type=file_request.content_type,
-                    content_length=file_request.file_size,
-                    expires_in=900,
-                )
-            except Exception as exc:
-                failed_presign_bytes += file_request.file_size
-                logger.warning("Failed to generate presigned PUT for %s: %s", object_key, exc)
-                items.append(
-                    BatchPresignedUploadItem(
-                        filename=file_request.filename,
-                        file_size=file_request.file_size,
-                        success=False,
-                        error="Failed to generate presigned URL",
-                    )
-                )
-                continue
-
-            photos_payload.append(
-                {
-                    "id": photo_id,
-                    "gallery_id": gallery_id,
-                    "object_key": object_key,
-                    "display_name": display_name,
-                    "thumbnail_object_key": object_key,
-                    "file_size": file_request.file_size,
-                    "status": PhotoUploadStatus.PENDING,
-                    "width": None,
-                    "height": None,
-                }
-            )
-
+    # 2. Generate presigned URLs first (no DB interaction yet)
+    for file_request in request.files:
+        if file_request.file_size > MAX_FILE_SIZE:
             items.append(
                 BatchPresignedUploadItem(
-                    filename=display_name,
+                    filename=file_request.filename,
                     file_size=file_request.file_size,
-                    success=True,
-                    photo_id=photo_id,
-                    presigned_data=PresignedUploadData(
-                        url=presigned["url"],
-                        headers=presigned["headers"],
-                    ),
-                    expires_in=900,
+                    success=False,
+                    error=f"File exceeds maximum size of {MAX_FILE_SIZE // (1024 * 1024)}MB",
                 )
             )
+            continue
 
-        if failed_presign_bytes > 0:
-            await user_repo.release_reserved_storage(current_user.id, failed_presign_bytes)
-            reserved_bytes_to_release_on_error -= failed_presign_bytes
+        photo_id = uuid4()
+        display_name = make_unique_display_name(file_request.filename, occupied_display_names)
+        _, extension = split_name_and_ext(display_name)
+        object_key = f"{gallery_id}/{photo_id}{extension.lower()}"
 
-        if photos_payload:
-            await repo.create_photos_batch(photos_payload)
-            reserved_bytes_to_release_on_error = 0
-        else:
-            reserved_bytes_to_release_on_error = 0
-    except Exception:
-        if reserved_bytes_to_release_on_error > 0:
-            await user_repo.release_reserved_storage(current_user.id, reserved_bytes_to_release_on_error)
-        raise
+        try:
+            presigned = s3_client.generate_presigned_put(
+                object_key=object_key,
+                content_type=file_request.content_type,
+                content_length=file_request.file_size,
+                expires_in=900,
+            )
+        except Exception as exc:
+            logger.warning("Failed to generate presigned PUT for %s: %s", object_key, exc)
+            items.append(
+                BatchPresignedUploadItem(
+                    filename=file_request.filename,
+                    file_size=file_request.file_size,
+                    success=False,
+                    error="Failed to generate presigned URL",
+                )
+            )
+            continue
+
+        photos_payload.append(
+            {
+                "id": photo_id,
+                "gallery_id": gallery_id,
+                "object_key": object_key,
+                "display_name": display_name,
+                "thumbnail_object_key": object_key,
+                "file_size": file_request.file_size,
+                "status": PhotoUploadStatus.PENDING,
+                "width": None,
+                "height": None,
+            }
+        )
+
+        items.append(
+            BatchPresignedUploadItem(
+                filename=display_name,
+                file_size=file_request.file_size,
+                success=True,
+                photo_id=photo_id,
+                presigned_data=PresignedUploadData(
+                    url=presigned["url"],
+                    headers=presigned["headers"],
+                ),
+                expires_in=900,
+            )
+        )
+
+    # 3. Atomically reserve storage and create Photo records
+    if photos_payload:
+        bytes_to_reserve = sum(p["file_size"] for p in photos_payload)
+        async with repo.db.begin():
+            reserved = await user_repo.reserve_storage(current_user.id, bytes_to_reserve, commit=False)
+            if not reserved:
+                raise HTTPException(status_code=507, detail="Storage quota exceeded")
+            await repo.create_photos_batch(photos_payload, commit=False)
 
     return BatchPresignedUploadsResponse(items=items)
 
@@ -269,9 +252,10 @@ async def batch_confirm_uploads(
 
     Process multiple photo confirmations in one request.
     Sets status to THUMBNAIL_CREATING for confirmed uploads.
-    Starts thumbnail processing (S3 verification and fallback-to-FAILED happen in background).
+    S3 verification and fallback-to-FAILED happen in background.
 
-    Thumbnail processing is queued to Celery after the DB transaction commits.
+    Thumbnail processing is enqueued via the ThumbnailOutbox table
+    and dispatched asynchronously by the periodic dispatch_outbox_items task.
     """
     # 1. Verify gallery ownership
     gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
@@ -344,27 +328,43 @@ async def batch_confirm_uploads(
         await repo.set_photos_statuses(photo_map, status_updates, commit=False)
         if bytes_to_finalize or bytes_to_release:
             await user_repo.finalize_and_release_reserved_storage(current_user.id, bytes_to_finalize, bytes_to_release, commit=False)
+        # Insert outbox rows for thumbnail processing (atomic with status update)
+        if photos_to_process:
+            outbox_rows = [{"photo_id": item.photo_id, "object_key": item.object_key} for item in photos_to_process]
+            await repo.db.execute(insert(ThumbnailOutbox).values(outbox_rows))
         await repo.db.commit()
     except Exception:
         await repo.db.rollback()
         raise
 
-    # 5. Start batch thumbnail processing (will retry tagging if needed)
-    if photos_to_process:
-        thumbnail_payloads = to_thumbnail_task_payloads(photos_to_process)
-        try:
-            await run_in_threadpool(create_thumbnails_batch_task.delay, thumbnail_payloads)
-        except Exception as exc:
-            logger.warning(
-                "Failed to enqueue thumbnail task",
-                extra={"gallery_id": str(gallery_id), "photo_count": len(photos_to_process)},
-                exc_info=True,
-            )
-            # DB state is already committed; return 503 so client can retry confirm
-            # and re-enqueue idempotently.
-            raise HTTPException(status_code=503, detail="Failed to enqueue thumbnail task") from exc
+    # Thumbnail processing is dispatched asynchronously via the outbox
+    # (consumed by dispatch_outbox_items periodic task).
 
     return BatchConfirmUploadResponse(confirmed_count=confirmed_count, failed_count=failed_count)
+
+
+@router.get("/{gallery_id}/photos/pending-uploads")
+async def get_pending_uploads(
+    gallery_id: UUID,
+    repo: GalleryRepository = Depends(get_gallery_repository),
+    current_user: User = Depends(get_current_user),
+):
+    """Return current PENDING photo records for this gallery."""
+    gallery = await repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
+    if not gallery:
+        raise HTTPException(403, "Access denied")
+
+    photos = await repo.get_pending_photos(gallery_id)
+    return [
+        {
+            "photo_id": str(p.id),
+            "display_name": p.display_name,
+            "file_size": p.file_size,
+            "status": p.status,
+            "uploaded_at": p.uploaded_at.isoformat(),
+        }
+        for p in photos
+    ]
 
 
 # DELETE /galleries/{gallery_id}/photos - Delete photos in batch (enqueue background tasks)
