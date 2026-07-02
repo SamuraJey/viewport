@@ -1011,8 +1011,8 @@ class TestPublicAPI:
         assert download_resp.status_code == 404
 
 
-def test_public_share_route_inventory_is_explicitly_covered():
-    from viewport.main import app
+def test_public_share_route_inventory_is_explicitly_covered(app_client: TestClient):
+    app = app_client.app
 
     expected_routes = {
         ("GET", "/s/{share_id}"),
