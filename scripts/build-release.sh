@@ -142,11 +142,6 @@ if [[ "${LOCAL_TAG_EXISTS}" == "false" ]]; then
   TAG_CREATED_LOCAL=true
 fi
 
-if [[ "${REMOTE_TAG_EXISTS}" == "false" ]]; then
-  echo "==> Pushing tag ${VERSION}..."
-  git push origin "${VERSION}"
-  TAG_PUSHED_REMOTE=true
-fi
 
 # ── Docker build ─────────────────────────────────────────────────────────
 
@@ -178,6 +173,13 @@ echo ""
 echo "==> Pushing ${FRONTEND_IMAGE}..."
 docker push "${FRONTEND_IMAGE}"
 FRONTEND_IMAGE_PUSHED=true
+
+if [[ "${REMOTE_TAG_EXISTS}" == "false" ]]; then
+  echo ""
+  echo "==> Pushing tag ${VERSION}..."
+  git push origin "${VERSION}"
+  TAG_PUSHED_REMOTE=true
+fi
 
 # ── Done ─────────────────────────────────────────────────────────────────
 

@@ -4,6 +4,7 @@ import type { ProxyOptions } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { compression } from 'vite-plugin-compression2';
+import { API_URL_VALIDATION_MESSAGES, assertRequiredHttpsApiUrl } from './src/lib/apiUrlValidation';
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -17,21 +18,9 @@ const assertProductionApiUrl = (mode: string, apiUrl: string | undefined) => {
     return;
   }
 
-  const configuredUrl = apiUrl?.trim();
-  if (!configuredUrl) {
-    throw new Error('VITE_API_URL is required for production builds.');
-  }
-
-  try {
-    if (new URL(configuredUrl).protocol !== 'https:') {
-      throw new Error('VITE_API_URL must use HTTPS in production.');
-    }
-  } catch (error) {
-    if (error instanceof TypeError) {
-      throw new Error('VITE_API_URL must be an absolute HTTPS URL in production.');
-    }
-    throw error;
-  }
+  assertRequiredHttpsApiUrl(apiUrl, {
+    invalidUrlMessage: API_URL_VALIDATION_MESSAGES.absoluteHttps,
+  });
 };
 
 // https://vite.dev/config/

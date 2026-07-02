@@ -41,6 +41,14 @@ describe('api', () => {
       expect(() => resolveApiBaseUrl(mockEnv)).toThrow('must use HTTPS');
     });
 
+    it('rejects non-HTTPS API URLs in non-dev modes', () => {
+      mockEnv.DEV = false;
+      mockEnv.PROD = false;
+      mockEnv.VITE_API_URL = 'http://api.example.com';
+
+      expect(() => resolveApiBaseUrl(mockEnv)).toThrow('must use HTTPS');
+    });
+
     it('uses HTTPS VITE_API_URL in production', () => {
       mockEnv.DEV = false;
       mockEnv.PROD = true;

@@ -15,6 +15,14 @@ JWT_ALGORITHM = "HS256"
 JWT_SECRET = "test-jwt-secret-key-that-is-long-enough-for-hs512-and-hs256-tests"
 WRONG_JWT_SECRET = "wrong-test-jwt-secret-key-that-is-long-enough-for-hs256-tests"
 
+def _make_access_payload(user: User) -> dict:
+    """Build a valid access-token payload for a user, including the correct pwd fingerprint."""
+    return {
+        "sub": str(user.id),
+        "type": "access",
+        "pwd": password_token_fingerprint(user.password_hash),
+    }
+
 
 class TestJWTAuthentication:
     """Test JWT token handling and user authentication."""
@@ -42,12 +50,7 @@ class TestJWTAuthentication:
         db_session.add(user)
         await db_session.commit()
 
-        # Create a valid token
-        payload = {
-            "sub": user_id,
-            "type": "access",
-            "pwd": password_token_fingerprint(user.password_hash),
-        }
+        payload = _make_access_payload(user)
         token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
         # Mock credentials
@@ -66,11 +69,7 @@ class TestJWTAuthentication:
         db_session.add(user)
         await db_session.commit()
 
-        payload = {
-            "sub": user_id,
-            "type": "access",
-            "pwd": password_token_fingerprint(user.password_hash),
-        }
+        payload = _make_access_payload(user)
         token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
         credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
@@ -194,3 +193,21 @@ class TestJWTAuthentication:
 
         assert exc_info.value.status_code == 401
         assert exc_info.value.detail == "Invalid token"
+
+    async def test_get_current_user_stale_password_token(self, db_session):
+        """Access token with mismatched password fingerprint is rejected as revoked."""
+        user_id = str(uuid.uuid4())
+        user = User(id=uuid.UUID(user_id), email="stale@example.com", password_hash="current_hash")
+        db_session.add(user)
+        await db_session.commit()
+
+        payload = _make_access_payload(user)
+        payload["pwd"] = password_token_fingerprint("some_other_hash")
+        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+        credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user(credentials, db_session)
+
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.detail == "Token revoked"

@@ -2,6 +2,7 @@ import axios from 'axios';
 import type { AxiosError } from 'axios';
 import { useAuthStore } from '../stores/authStore';
 import { NetworkError } from './errorHandling';
+import { assertRequiredHttpsApiUrl } from './apiUrlValidation';
 
 type ApiEnvironment = {
   VITE_API_URL?: string;
@@ -11,14 +12,6 @@ type ApiEnvironment = {
 
 const DEV_API_BASE_URL = '/api';
 
-const isHttpsUrl = (value: string): boolean => {
-  try {
-    return new URL(value).protocol === 'https:';
-  } catch {
-    return false;
-  }
-};
-
 export const resolveApiBaseUrl = (env: ApiEnvironment): string => {
   const configuredUrl = env.VITE_API_URL?.trim();
 
@@ -26,15 +19,7 @@ export const resolveApiBaseUrl = (env: ApiEnvironment): string => {
     return configuredUrl || DEV_API_BASE_URL;
   }
 
-  if (!configuredUrl) {
-    throw new Error('VITE_API_URL is required for production builds.');
-  }
-
-  if (env.PROD && !isHttpsUrl(configuredUrl)) {
-    throw new Error('VITE_API_URL must use HTTPS in production.');
-  }
-
-  return configuredUrl;
+  return assertRequiredHttpsApiUrl(configuredUrl);
 };
 
 const API_BASE_URL = resolveApiBaseUrl(import.meta.env);
