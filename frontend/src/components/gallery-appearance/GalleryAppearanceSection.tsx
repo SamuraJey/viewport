@@ -24,7 +24,6 @@ import {
   normalizePublicGalleryAppearance,
   toHeroObjectPosition,
 } from '../public-gallery/galleryAppearance';
-import { PublicGalleryHero } from '../public-gallery/PublicGalleryHero';
 import { PublicGalleryPhotoSection } from '../public-gallery/PublicGalleryPhotoSection';
 import { usePhotoLightbox } from '../../hooks/usePhotoLightbox';
 
@@ -134,67 +133,6 @@ const DISPLAY_OPTION_CONFIG: {
 ];
 
 // ---------------------------------------------------------------------------
-// Segmented button control
-// ---------------------------------------------------------------------------
-
-interface SegmentedOption<T extends string> {
-  value: T;
-  label: string;
-  icon?: React.ReactNode;
-}
-
-function SegmentedControl<T extends string>({
-  value,
-  options,
-  onChange,
-  label,
-}: {
-  value: T;
-  options: SegmentedOption<T>[];
-  onChange: (value: T) => void;
-  label: string;
-}) {
-  return (
-    <div aria-label={label}>
-      <div className="inline-flex overflow-hidden rounded-xl border border-border/40 bg-surface/70">
-        {options.map((option, index) => {
-          const isActive = value === option.value;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => onChange(option.value)}
-              className={`relative flex cursor-pointer items-center gap-2 px-4 py-2 text-sm font-medium transition-all duration-200 hover:bg-surface-2/50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
-                index > 0 ? 'border-l border-border/50' : ''
-              }`}
-              aria-pressed={isActive}
-            >
-              {isActive && <div className="absolute inset-0 bg-accent shadow-sm" />}
-              {option.icon && (
-                <span
-                  className={`relative z-10 ${
-                    isActive ? 'text-accent-foreground' : 'text-text/80'
-                  }`}
-                >
-                  {option.icon}
-                </span>
-              )}
-              <span
-                className={`relative z-10 ${
-                  isActive ? 'font-semibold text-accent-foreground' : 'text-text/80'
-                }`}
-              >
-                {option.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -221,6 +159,7 @@ export const GalleryAppearanceSection = ({
   const [coverPickerTotal, setCoverPickerTotal] = useState(gallery.total_photos ?? photos.length);
   const [isLoadingCoverPickerPhotos, setIsLoadingCoverPickerPhotos] = useState(false);
   const [coverPickerError, setCoverPickerError] = useState('');
+  const [previewTab, setPreviewTab] = useState<'cover' | 'gallery'>('cover');
   const prevGalleryIdRef = useRef(gallery.id);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedDraftRef = useRef<AppearanceDraft>(draft);
@@ -495,6 +434,70 @@ export const GalleryAppearanceSection = ({
     [draft.cover_photo_id, updateDraft],
   );
 
+  const coverObjectPosition = toHeroObjectPosition(
+    normalizePublicGalleryAppearance({
+      cover_focal_x: draft.cover_focal_x,
+      cover_focal_y: draft.cover_focal_y,
+    }),
+  );
+
+  const renderCoverPreviewContent = (variant: 'desktop' | 'mobile' = 'desktop') => {
+    const titleClassName =
+      variant === 'mobile' ? 'text-[10px] leading-tight' : 'text-lg leading-tight sm:text-xl';
+    const dateClassName = variant === 'mobile' ? 'text-[5px]' : 'text-[8px]';
+    const title = gallery.name || 'Untitled Gallery';
+    const date = gallery.shooting_date || undefined;
+    const titlePositionClassName =
+      variant === 'mobile'
+        ? 'inset-x-3 bottom-4 text-left'
+        : draft.cover_display_option === 'centered_title'
+          ? 'inset-x-4 top-1/2 -translate-y-1/2 text-center'
+          : 'inset-x-5 bottom-5 text-left';
+    const titleBlock =
+      draft.cover_display_option === 'text_block' ? (
+        <div className="rounded-md bg-black/45 px-3 py-2 backdrop-blur-sm">
+          {date && (
+            <p
+              className={`${dateClassName} mb-1 font-semibold uppercase tracking-[0.18em] text-white/70`}
+            >
+              {date}
+            </p>
+          )}
+          <p className={`${titleClassName} font-semibold text-white`}>{title}</p>
+        </div>
+      ) : (
+        <>
+          {date && (
+            <p
+              className={`${dateClassName} mb-1 font-semibold uppercase tracking-[0.18em] text-white/70`}
+            >
+              {date}
+            </p>
+          )}
+          <p className={`${titleClassName} font-semibold text-white`}>{title}</p>
+        </>
+      );
+
+    return (
+      <div className="relative h-full w-full overflow-hidden bg-surface-foreground/10">
+        {effectiveCoverPayload ? (
+          <img
+            src={effectiveCoverPayload.thumbnail_url}
+            alt=""
+            className="h-full w-full object-cover"
+            style={{ objectPosition: coverObjectPosition }}
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-surface-1">
+            <ImageOff className="h-8 w-8 text-muted" />
+          </div>
+        )}
+        <div className="absolute inset-0 bg-linear-to-t from-black/75 via-black/25 to-transparent" />
+        <div className={`absolute ${titlePositionClassName}`}>{titleBlock}</div>
+      </div>
+    );
+  };
+
   // -- render ---------------------------------------------------------------
   if (isLoadingPhotos) {
     return (
@@ -520,402 +523,454 @@ export const GalleryAppearanceSection = ({
   }
 
   return (
-    <div className="space-y-10">
-      {/* ---- Save status ---- */}
-      {saveStatus !== 'idle' && (
-        <div
-          aria-live="polite"
-          className={`rounded-xl px-4 py-2.5 text-sm font-medium ${
-            saveStatus === 'saving'
-              ? 'bg-surface-foreground/10 text-muted dark:bg-surface/20'
-              : saveStatus === 'saved'
-                ? 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                : saveStatus === 'error'
-                  ? 'bg-danger/10 text-danger dark:bg-danger/20'
-                  : 'bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
-          }`}
-        >
-          {saveStatus === 'saving' && (
-            <Loader2 className="mr-2 inline-block h-4 w-4 animate-spin align-[-2px]" />
-          )}
-          {SAVE_STATUS_LABELS[saveStatus]}
-        </div>
-      )}
+    <div className="grid min-h-[72vh] overflow-hidden border border-border/30 bg-surface shadow-xs dark:border-border/20 dark:bg-surface-dark lg:grid-cols-[350px_minmax(0,1fr)]">
+      <aside className="space-y-8 bg-surface px-6 py-8 dark:bg-surface-dark lg:max-h-[calc(100vh-9rem)] lg:overflow-y-auto lg:px-8">
+        <h2 className="text-2xl font-semibold tracking-tight text-text">Appearance</h2>
 
-      {/* ---- Cover picker ---- */}
-      <section>
-        <h3 className="mb-3 text-lg font-bold text-text">Cover photo</h3>
-        {photos.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/50 bg-surface-1/20 px-4 py-8 text-center dark:border-border/30 dark:bg-surface-dark-1/20">
-            <ImageOff className="mx-auto mb-2 h-8 w-8 text-muted" />
-            <p className="text-sm font-medium text-muted">Upload photos first to choose a cover</p>
+        {/* ---- Save status ---- */}
+        {saveStatus !== 'idle' && (
+          <div
+            aria-live="polite"
+            className={`rounded-xl px-4 py-2.5 text-sm font-medium ${
+              saveStatus === 'saving'
+                ? 'bg-surface-foreground/10 text-muted dark:bg-surface/20'
+                : saveStatus === 'saved'
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                  : saveStatus === 'error'
+                    ? 'bg-danger/10 text-danger dark:bg-danger/20'
+                    : 'bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+            }`}
+          >
+            {saveStatus === 'saving' && (
+              <Loader2 className="mr-2 inline-block h-4 w-4 animate-spin align-[-2px]" />
+            )}
+            {SAVE_STATUS_LABELS[saveStatus]}
           </div>
-        ) : (
-          <div className="flex flex-col gap-4 rounded-2xl border border-border/40 bg-surface p-4 dark:border-border/30 dark:bg-surface-dark-1 sm:flex-row sm:items-center">
-            <div className="relative w-full overflow-hidden rounded-xl bg-surface-1 sm:w-48">
-              {effectiveCover ? (
-                <>
-                  <img
-                    src={effectiveCover.thumbnail_url}
-                    alt=""
-                    className="aspect-video w-full object-cover"
-                  />
-                  <div className="absolute inset-x-0 bottom-0 bg-black/55 px-3 py-2">
-                    <p
-                      className="truncate text-xs font-semibold text-white"
-                      title={effectiveCoverFilename}
+        )}
+
+        {/* ---- Cover picker ---- */}
+        <section>
+          <h3 className="mb-4 text-[11px] font-black uppercase tracking-[0.18em] text-text">
+            Cover image
+          </h3>
+          {photos.length === 0 ? (
+            <div className="border border-dashed border-border/50 bg-surface-1/20 px-4 py-8 text-center dark:border-border/30 dark:bg-surface-dark-1/20">
+              <ImageOff className="mx-auto mb-2 h-8 w-8 text-muted" />
+              <p className="text-sm font-medium text-muted">
+                Upload photos first to choose a cover
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={handleOpenCoverPicker}
+                className="inline-flex min-h-10 items-center justify-center rounded-full bg-surface-1 px-6 text-[11px] font-black uppercase tracking-[0.14em] text-text transition-all duration-200 hover:bg-surface-2 active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
+              >
+                Select cover image
+              </button>
+              <p className="truncate text-xs font-medium text-muted" title={effectiveCoverFilename}>
+                {selectedCoverLabel}
+              </p>
+            </div>
+          )}
+
+          <AppDialog
+            open={isCoverPickerOpen}
+            onClose={() => setIsCoverPickerOpen(false)}
+            size="5xl"
+            panelProps={{ 'data-lenis-prevent': true }}
+            panelClassName="flex max-h-[min(92vh,56rem)] flex-col overflow-hidden rounded-3xl border border-border/50 bg-surface shadow-2xl dark:border-border/40 dark:bg-surface-dark"
+          >
+            <div className="flex shrink-0 items-center gap-4 border-b border-border/50 bg-surface/95 px-5 py-4 backdrop-blur-md dark:border-border/40 dark:bg-surface-dark/95 sm:px-6">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+                <ImageIcon className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <AppDialogTitle className="truncate text-lg font-bold leading-tight text-text">
+                  Select cover image
+                </AppDialogTitle>
+                <AppDialogDescription className="truncate text-sm text-muted">
+                  {coverPickerTotal} photos · current: {selectedCoverLabel}
+                </AppDialogDescription>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCoverPickerOpen(false)}
+                aria-label="Close cover image picker"
+                className="rounded-xl p-2 text-muted transition-all duration-200 hover:bg-surface-1 hover:text-text active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-surface-dark-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div ref={coverPickerScrollRef} className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+              {coverPickerError && (
+                <div className="mb-4 rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm font-medium text-danger">
+                  {coverPickerError}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => handleSelectCoverPhoto(null)}
+                className={`mb-4 flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
+                  draft.cover_photo_id === null
+                    ? 'border-accent bg-accent/10 text-text'
+                    : 'border-border/40 bg-surface-1/40 text-muted hover:border-border/70 hover:text-text dark:bg-surface-dark-1/60'
+                }`}
+                aria-pressed={draft.cover_photo_id === null}
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-muted dark:bg-surface-dark">
+                  <ImageIcon className="h-5 w-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold">Use first photo automatically</span>
+                  <span className="block truncate text-xs text-muted">
+                    Current fallback:{' '}
+                    {coverPickerPhotos[0]?.filename ??
+                      photos[0]?.filename ??
+                      'first uploaded photo'}
+                  </span>
+                </span>
+                {draft.cover_photo_id === null && (
+                  <Check className="h-5 w-5 shrink-0 text-accent" />
+                )}
+              </button>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {coverPickerPhotos.map((photo, photoIndex) => {
+                  const isSelected = draft.cover_photo_id === photo.id;
+                  const isFallback =
+                    draft.cover_photo_id === null &&
+                    (coverPickerPhotos[0]?.id ?? photos[0]?.id) === photo.id;
+
+                  return (
+                    <div
+                      key={photo.id}
+                      className={`group relative overflow-hidden rounded-2xl border-2 bg-surface-1 text-left transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:bg-surface-dark-1 ${
+                        isSelected
+                          ? 'border-accent ring-2 ring-accent/35'
+                          : 'border-border/30 hover:border-border/70'
+                      }`}
                     >
-                      {effectiveCoverFilename}
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <div className="flex aspect-video items-center justify-center">
-                  <ImageOff className="h-8 w-8 text-muted" />
+                      <button
+                        type="button"
+                        onClick={() => handleSelectCoverPhoto(photo.id)}
+                        className="block w-full text-left focus:outline-hidden"
+                        aria-pressed={isSelected}
+                        aria-label={
+                          photo.filename ? `Select ${photo.filename} as cover` : 'Select as cover'
+                        }
+                      >
+                        <img
+                          src={photo.thumbnail_url}
+                          alt=""
+                          className="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                        />
+                        <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/45 to-transparent p-3 pt-10">
+                          <p
+                            className="truncate text-sm font-semibold text-white"
+                            title={photo.filename}
+                          >
+                            {photo.filename}
+                          </p>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openCoverPreview(photoIndex)}
+                        aria-label={
+                          photo.filename
+                            ? `Preview ${photo.filename} full screen`
+                            : 'Preview photo full screen'
+                        }
+                        className="absolute left-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-black/60 text-white shadow-sm backdrop-blur-sm transition-all duration-200 hover:bg-black/75 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white/80"
+                      >
+                        <Maximize2 className="h-4 w-4" />
+                      </button>
+                      {isFallback && (
+                        <span className="absolute left-3 top-14 rounded-lg bg-amber-500/95 px-2 py-1 text-[11px] font-bold text-white shadow-sm">
+                          Fallback
+                        </span>
+                      )}
+                      {isSelected && (
+                        <span
+                          className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg bg-accent px-2 py-1 text-[11px] font-bold text-accent-foreground shadow-sm ${
+                            isFallback ? 'max-w-[calc(100%-4.75rem)]' : ''
+                          }`}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          Cover
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {isLoadingCoverPickerPhotos && coverPickerPhotos.length === 0 && (
+                <div className="flex justify-center py-10 text-sm font-medium text-muted">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Loading photos…
+                </div>
+              )}
+
+              {hasMoreCoverPickerPhotos && (
+                <div
+                  ref={coverPickerLoadMoreRef}
+                  className="mt-6 flex min-h-14 items-center justify-center text-sm font-medium text-muted"
+                  aria-live="polite"
+                >
+                  {isLoadingCoverPickerPhotos ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading more photos…
+                    </>
+                  ) : (
+                    <span>
+                      {coverPickerPhotos.length}/{coverPickerTotal} loaded
+                    </span>
+                  )}
                 </div>
               )}
             </div>
-            <div className="min-w-0 flex-1 space-y-2">
-              <p className="text-sm font-semibold text-text">{selectedCoverLabel}</p>
-              <p className="text-sm text-muted">
-                Pick a cover in a larger image browser, then fine-tune its focal point below.
+          </AppDialog>
+          {renderCoverPreviewLightbox(coverPreviewSlides, coverPickerTotal)}
+          {photos.length > 0 && draft.cover_photo_id === null && (
+            <p className="mt-2 text-xs text-muted">
+              Current fallback cover:{' '}
+              <span className="font-medium text-text">{photos[0]?.filename ?? '—'}</span>
+            </p>
+          )}
+        </section>
+
+        {/* ---- Focal point ---- */}
+        <section>
+          <h3 className="mb-4 text-[11px] font-black uppercase tracking-[0.18em] text-text">
+            Image center
+          </h3>
+          {effectiveCoverPayload ? (
+            <div className="space-y-3">
+              <button
+                type="button"
+                aria-label="Click to set focal point"
+                className="relative flex h-[11.25rem] w-full cursor-crosshair items-center justify-center overflow-hidden border border-border/50 bg-surface p-0 dark:border-border/30 dark:bg-surface-dark-1"
+                onClick={handleFocalClick}
+              >
+                <img
+                  src={effectiveCoverPayload.thumbnail_url}
+                  alt=""
+                  className="h-full w-auto object-cover"
+                  style={{
+                    objectPosition: toHeroObjectPosition(
+                      normalizePublicGalleryAppearance({
+                        cover_focal_x: draft.cover_focal_x,
+                        cover_focal_y: draft.cover_focal_y,
+                      }),
+                    ),
+                  }}
+                  draggable={false}
+                />
+                {/* Focal point marker */}
+                <div
+                  className="pointer-events-none absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-accent/80 shadow-lg"
+                  style={{
+                    left: `${draft.cover_focal_x}%`,
+                    top: `${draft.cover_focal_y}%`,
+                  }}
+                />
+              </button>
+              <p className="text-xs font-medium text-muted">
+                X {draft.cover_focal_x}% · Y {draft.cover_focal_y}%
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleOpenCoverPicker}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:bg-accent/90 active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-            >
-              <ImageIcon className="h-4 w-4" />
-              Select cover image
-            </button>
-          </div>
-        )}
-
-        <AppDialog
-          open={isCoverPickerOpen}
-          onClose={() => setIsCoverPickerOpen(false)}
-          size="5xl"
-          panelProps={{ 'data-lenis-prevent': true }}
-          panelClassName="flex max-h-[min(92vh,56rem)] flex-col overflow-hidden rounded-3xl border border-border/50 bg-surface shadow-2xl dark:border-border/40 dark:bg-surface-dark"
-        >
-          <div className="flex shrink-0 items-center gap-4 border-b border-border/50 bg-surface/95 px-5 py-4 backdrop-blur-md dark:border-border/40 dark:bg-surface-dark/95 sm:px-6">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
-              <ImageIcon className="h-5 w-5" />
+          ) : (
+            <div className="flex items-center gap-3 border border-dashed border-border/50 bg-surface-1/20 px-4 py-6 text-sm text-muted dark:border-border/30 dark:bg-surface-dark-1/20">
+              <ImageOff className="h-5 w-5 shrink-0" />
+              <span>Add a cover photo to adjust the focal point</span>
             </div>
-            <div className="min-w-0 flex-1">
-              <AppDialogTitle className="truncate text-lg font-bold leading-tight text-text">
-                Select cover image
-              </AppDialogTitle>
-              <AppDialogDescription className="truncate text-sm text-muted">
-                {coverPickerTotal} photos · current: {selectedCoverLabel}
-              </AppDialogDescription>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsCoverPickerOpen(false)}
-              aria-label="Close cover image picker"
-              className="rounded-xl p-2 text-muted transition-all duration-200 hover:bg-surface-1 hover:text-text active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-surface-dark-1"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+          )}
+        </section>
 
-          <div ref={coverPickerScrollRef} className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-            {coverPickerError && (
-              <div className="mb-4 rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm font-medium text-danger">
-                {coverPickerError}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => handleSelectCoverPhoto(null)}
-              className={`mb-4 flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
-                draft.cover_photo_id === null
-                  ? 'border-accent bg-accent/10 text-text'
-                  : 'border-border/40 bg-surface-1/40 text-muted hover:border-border/70 hover:text-text dark:bg-surface-dark-1/60'
-              }`}
-              aria-pressed={draft.cover_photo_id === null}
-            >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-muted dark:bg-surface-dark">
-                <ImageIcon className="h-5 w-5" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold">Use first photo automatically</span>
-                <span className="block truncate text-xs text-muted">
-                  Current fallback:{' '}
-                  {coverPickerPhotos[0]?.filename ?? photos[0]?.filename ?? 'first uploaded photo'}
-                </span>
-              </span>
-              {draft.cover_photo_id === null && <Check className="h-5 w-5 shrink-0 text-accent" />}
-            </button>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {coverPickerPhotos.map((photo, photoIndex) => {
-                const isSelected = draft.cover_photo_id === photo.id;
-                const isFallback =
-                  draft.cover_photo_id === null &&
-                  (coverPickerPhotos[0]?.id ?? photos[0]?.id) === photo.id;
-
-                return (
-                  <div
-                    key={photo.id}
-                    className={`group relative overflow-hidden rounded-2xl border-2 bg-surface-1 text-left transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:bg-surface-dark-1 ${
-                      isSelected
-                        ? 'border-accent ring-2 ring-accent/35'
-                        : 'border-border/30 hover:border-border/70'
+        {/* ---- Cover display option ---- */}
+        <section>
+          <h3 className="mb-4 text-[11px] font-black uppercase tracking-[0.18em] text-text">
+            Cover variants
+          </h3>
+          <div className="grid grid-cols-3 gap-3">
+            {DISPLAY_OPTION_CONFIG.map((option) => {
+              const isSelected = draft.cover_display_option === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() =>
+                    updateDraft({
+                      cover_display_option: option.value,
+                    })
+                  }
+                  className={`flex aspect-square flex-col justify-between border p-2 text-left transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+                    isSelected
+                      ? 'border-text bg-surface ring-1 ring-text dark:border-text dark:bg-surface-dark'
+                      : 'border-border/50 bg-surface hover:border-text/50 dark:border-border/30 dark:bg-surface-dark-1'
+                  }`}
+                  aria-pressed={isSelected}
+                >
+                  <div className="h-[3.25rem] overflow-hidden border border-border/40 bg-linear-to-br from-slate-700 via-slate-600 to-slate-800 dark:border-border/30">
+                    {option.renderMock()}
+                  </div>
+                  <span
+                    className={`text-[8px] font-black uppercase tracking-[0.14em] ${
+                      isSelected ? 'text-text' : 'text-muted'
                     }`}
                   >
-                    <button
-                      type="button"
-                      onClick={() => handleSelectCoverPhoto(photo.id)}
-                      className="block w-full text-left focus:outline-hidden"
-                      aria-pressed={isSelected}
-                      aria-label={
-                        photo.filename ? `Select ${photo.filename} as cover` : 'Select as cover'
-                      }
-                    >
-                      <img
-                        src={photo.thumbnail_url}
-                        alt=""
-                        className="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-                      />
-                      <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/45 to-transparent p-3 pt-10">
-                        <p
-                          className="truncate text-sm font-semibold text-white"
-                          title={photo.filename}
-                        >
-                          {photo.filename}
-                        </p>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openCoverPreview(photoIndex)}
-                      aria-label={
-                        photo.filename
-                          ? `Preview ${photo.filename} full screen`
-                          : 'Preview photo full screen'
-                      }
-                      className="absolute left-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-black/60 text-white shadow-sm backdrop-blur-sm transition-all duration-200 hover:bg-black/75 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white/80"
-                    >
-                      <Maximize2 className="h-4 w-4" />
-                    </button>
-                    {isFallback && (
-                      <span className="absolute left-3 top-14 rounded-lg bg-amber-500/95 px-2 py-1 text-[11px] font-bold text-white shadow-sm">
-                        Fallback
-                      </span>
-                    )}
-                    {isSelected && (
-                      <span
-                        className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg bg-accent px-2 py-1 text-[11px] font-bold text-accent-foreground shadow-sm ${
-                          isFallback ? 'max-w-[calc(100%-4.75rem)]' : ''
-                        }`}
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                        Cover
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {isLoadingCoverPickerPhotos && coverPickerPhotos.length === 0 && (
-              <div className="flex justify-center py-10 text-sm font-medium text-muted">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loading photos…
-              </div>
-            )}
-
-            {hasMoreCoverPickerPhotos && (
-              <div
-                ref={coverPickerLoadMoreRef}
-                className="mt-6 flex min-h-14 items-center justify-center text-sm font-medium text-muted"
-                aria-live="polite"
-              >
-                {isLoadingCoverPickerPhotos ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Loading more photos…
-                  </>
-                ) : (
-                  <span>
-                    {coverPickerPhotos.length}/{coverPickerTotal} loaded
+                    {option.label}
                   </span>
-                )}
-              </div>
-            )}
+                </button>
+              );
+            })}
           </div>
-        </AppDialog>
-        {renderCoverPreviewLightbox(coverPreviewSlides, coverPickerTotal)}
-        {photos.length > 0 && draft.cover_photo_id === null && (
-          <p className="mt-2 text-xs text-muted">
-            Current fallback cover:{' '}
-            <span className="font-medium text-text">{photos[0]?.filename ?? '—'}</span>
-          </p>
-        )}
-      </section>
+        </section>
 
-      {/* ---- Focal point ---- */}
-      <section>
-        <h3 className="mb-3 text-lg font-bold text-text">Focal point</h3>
-        {effectiveCoverPayload ? (
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-            <button
-              type="button"
-              aria-label="Click to set focal point"
-              className="relative w-full max-w-xs cursor-crosshair overflow-hidden rounded-2xl border border-border/40 bg-transparent p-0 dark:border-border/30"
-              onClick={handleFocalClick}
-            >
-              <img
-                src={effectiveCoverPayload.thumbnail_url}
-                alt=""
-                className="aspect-video w-full object-cover"
-                style={{
-                  objectPosition: toHeroObjectPosition(
-                    normalizePublicGalleryAppearance({
-                      cover_focal_x: draft.cover_focal_x,
-                      cover_focal_y: draft.cover_focal_y,
-                    }),
-                  ),
-                }}
-                draggable={false}
-              />
-              {/* Focal point marker */}
-              <div
-                className="pointer-events-none absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-accent/80 shadow-lg"
-                style={{
-                  left: `${draft.cover_focal_x}%`,
-                  top: `${draft.cover_focal_y}%`,
-                }}
-              />
-            </button>
-            <div className="space-y-1 text-sm text-muted">
-              <p>Click on the preview to set where the cover image should be centered.</p>
-              <p>
-                <span className="font-medium text-text">X: {draft.cover_focal_x}%</span>
-                {' · '}
-                <span className="font-medium text-text">Y: {draft.cover_focal_y}%</span>
-              </p>
-            </div>
+        {/* ---- Photo spacing ---- */}
+        <section>
+          <h3 className="mb-4 text-[11px] font-black uppercase tracking-[0.18em] text-text">
+            Photo spacing
+          </h3>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { value: 'large' as PhotoSpacing, label: 'Large', icon: Maximize2 },
+              { value: 'medium' as PhotoSpacing, label: 'Medium', icon: ImageIcon },
+              { value: 'small' as PhotoSpacing, label: 'Small', icon: Minimize2 },
+            ].map(({ value, label, icon: Icon }) => {
+              const isSelected = draft.public_photo_spacing === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => updateDraft({ public_photo_spacing: value })}
+                  className={`flex aspect-square flex-col items-center justify-center gap-2 border text-[8px] font-black uppercase tracking-[0.14em] transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
+                    isSelected
+                      ? 'border-text bg-surface text-text ring-1 ring-text dark:bg-surface-dark'
+                      : 'border-border/50 bg-surface text-muted hover:border-text/50 dark:border-border/30 dark:bg-surface-dark-1'
+                  }`}
+                  aria-pressed={isSelected}
+                >
+                  <Icon className="h-5 w-5" />
+                  {label}
+                </button>
+              );
+            })}
           </div>
-        ) : (
-          <div className="flex items-center gap-3 rounded-2xl border border-dashed border-border/50 bg-surface-1/20 px-4 py-6 text-sm text-muted dark:border-border/30 dark:bg-surface-dark-1/20">
-            <ImageOff className="h-5 w-5 shrink-0" />
-            <span>Add a cover photo to adjust the focal point</span>
-          </div>
-        )}
-      </section>
+        </section>
 
-      {/* ---- Cover display option ---- */}
-      <section>
-        <h3 className="mb-3 text-lg font-bold text-text">Cover display</h3>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {DISPLAY_OPTION_CONFIG.map((option) => {
-            const isSelected = draft.cover_display_option === option.value;
+        {/* ---- Color scheme ---- */}
+        <section>
+          <h3 className="mb-4 text-[11px] font-black uppercase tracking-[0.18em] text-text">
+            Color scheme
+          </h3>
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              { value: 'light' as PublicColorScheme, label: 'Light', icon: Sun },
+              { value: 'dark' as PublicColorScheme, label: 'Dark', icon: Moon },
+            ].map(({ value, label, icon: Icon }) => {
+              const isSelected = draft.public_color_scheme === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => updateDraft({ public_color_scheme: value })}
+                  className={`flex h-[4.75rem] flex-col items-center justify-center gap-2 border text-[8px] font-black uppercase tracking-[0.14em] transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
+                    isSelected
+                      ? 'border-text bg-surface text-text ring-1 ring-text dark:bg-surface-dark'
+                      : 'border-border/50 bg-surface text-muted hover:border-text/50 dark:border-border/30 dark:bg-surface-dark-1'
+                  }`}
+                  aria-pressed={isSelected}
+                >
+                  <Icon className="h-5 w-5" />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      </aside>
+
+      <section className="flex min-h-[42rem] flex-col bg-surface-1 px-6 py-10 dark:bg-surface-dark-1 lg:px-11 lg:py-[4.5rem]">
+        <div className="mx-auto flex w-full max-w-xl border-b border-border/50 dark:border-border/30">
+          {[
+            { key: 'cover' as const, label: 'Cover' },
+            { key: 'gallery' as const, label: 'Gallery' },
+          ].map((tab) => {
+            const isSelected = previewTab === tab.key;
             return (
               <button
-                key={option.value}
+                key={tab.key}
                 type="button"
-                onClick={() =>
-                  updateDraft({
-                    cover_display_option: option.value,
-                  })
-                }
-                className={`flex flex-col gap-3 rounded-2xl border-2 p-4 text-left transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+                onClick={() => setPreviewTab(tab.key)}
+                className={`min-h-12 flex-1 border-b-2 text-sm font-medium transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
                   isSelected
-                    ? 'border-accent bg-accent/5 ring-2 ring-accent/30 dark:bg-accent/10'
-                    : 'border-border/40 bg-surface hover:border-border/70 dark:border-border/30 dark:bg-surface-dark-1'
+                    ? 'border-text text-text'
+                    : 'border-transparent text-muted hover:text-text'
                 }`}
                 aria-pressed={isSelected}
               >
-                <div className="h-20 overflow-hidden rounded-xl bg-linear-to-br from-slate-700 via-slate-600 to-slate-800">
-                  {option.renderMock()}
-                </div>
-                <span
-                  className={`text-sm font-semibold ${isSelected ? 'text-accent' : 'text-text'}`}
-                >
-                  {option.label}
-                </span>
+                {tab.label}
               </button>
             );
           })}
         </div>
-      </section>
 
-      {/* ---- Photo spacing ---- */}
-      <section>
-        <h3 className="mb-3 text-lg font-bold text-text">Photo spacing</h3>
-        <SegmentedControl<PhotoSpacing>
-          label="Photo spacing"
-          value={draft.public_photo_spacing}
-          options={[
-            { value: 'small', label: 'Small', icon: <Minimize2 className="h-4 w-4" /> },
-            { value: 'medium', label: 'Medium' },
-            { value: 'large', label: 'Large', icon: <Maximize2 className="h-4 w-4" /> },
-          ]}
-          onChange={(value) => updateDraft({ public_photo_spacing: value })}
-        />
-      </section>
-
-      {/* ---- Color scheme ---- */}
-      <section>
-        <h3 className="mb-3 text-lg font-bold text-text">Color scheme</h3>
-        <SegmentedControl<PublicColorScheme>
-          label="Color scheme"
-          value={draft.public_color_scheme}
-          options={[
-            {
-              value: 'light',
-              label: 'Light',
-              icon: <Sun className="h-4 w-4" />,
-            },
-            {
-              value: 'dark',
-              label: 'Dark',
-              icon: <Moon className="h-4 w-4" />,
-            },
-          ]}
-          onChange={(value) => updateDraft({ public_color_scheme: value })}
-        />
-      </section>
-
-      {/* ---- Live preview ---- */}
-      <section>
-        <h3 className="mb-3 text-lg font-bold text-text">Preview</h3>
-        <div className="overflow-hidden rounded-2xl border border-border/40 dark:border-border/30">
-          <PublicGalleryHero
-            title={gallery.name}
-            date={gallery.shooting_date || undefined}
-            cover={effectiveCoverPayload}
-            appearance={previewAppearance}
-          />
-          <div className="p-4">
-            <PublicGalleryPhotoSection
-              photos={previewPhotos}
-              totalPhotos={photos.length}
-              displayedPhotos={previewPhotos.length}
-              gridClassNames={previewGridClassNames}
-              showGridControls={false}
-              gridLayout="masonry"
-              gridDensity="large"
-              gridRef={previewGridRef}
-              getAspectRatioHint={() => 1}
-              observerTargetRef={previewObserverRef}
-              isLoadingMore={false}
-              hasMore={false}
-              onLayoutChange={() => {}}
-              onDensityChange={() => {}}
-              onOpenPhoto={() => {}}
-              touchHandlers={{
-                onTouchStart: () => {},
-                onTouchMove: () => {},
-                onTouchEnd: () => {},
-                onTouchCancel: () => {},
-              }}
-            />
-          </div>
+        <div className="flex flex-1 items-start justify-center pt-[4.5rem]">
+          {previewTab === 'cover' ? (
+            <div className="relative w-full max-w-2xl">
+              <div className="mb-2 text-xl font-bold leading-none text-muted/50">...</div>
+              <div className="relative aspect-[16/10] w-full overflow-visible">
+                <div className="absolute inset-x-0 top-0 aspect-[16/9] overflow-hidden shadow-sm">
+                  {renderCoverPreviewContent('desktop')}
+                </div>
+                <div className="absolute bottom-[-2.2rem] right-[10%] h-[76%] w-[25%] min-w-28 overflow-hidden rounded-[1.35rem] border-[3px] border-black bg-black shadow-2xl">
+                  <div className="h-full w-full overflow-hidden rounded-[1rem]">
+                    {renderCoverPreviewContent('mobile')}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="w-full max-w-3xl overflow-hidden bg-surface shadow-sm dark:bg-surface-dark">
+              <div className="border-b border-border/40 px-5 py-4 dark:border-border/30">
+                <p className="text-sm font-semibold text-text">{gallery.name}</p>
+                <p className="text-xs text-muted">
+                  {previewPhotos.length} of {photos.length} photos
+                </p>
+              </div>
+              <div className="p-4">
+                <PublicGalleryPhotoSection
+                  photos={previewPhotos}
+                  totalPhotos={photos.length}
+                  displayedPhotos={previewPhotos.length}
+                  gridClassNames={previewGridClassNames}
+                  showGridControls={false}
+                  gridLayout="masonry"
+                  gridDensity="large"
+                  gridRef={previewGridRef}
+                  getAspectRatioHint={() => 1}
+                  observerTargetRef={previewObserverRef}
+                  isLoadingMore={false}
+                  hasMore={false}
+                  onLayoutChange={() => {}}
+                  onDensityChange={() => {}}
+                  onOpenPhoto={() => {}}
+                  touchHandlers={{
+                    onTouchStart: () => {},
+                    onTouchMove: () => {},
+                    onTouchEnd: () => {},
+                    onTouchCancel: () => {},
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </div>
