@@ -206,6 +206,25 @@ class TestPublicAPI:
         assert payload.cover is not None
         assert payload.cover.photo_id == str(photo.id)
 
+        repo.get_photos_by_gallery_id = AsyncMock(side_effect=[[], [photo]])
+        gallery.cover_photo_id = None
+
+        paginated_payload = await _build_public_gallery_response(
+            share_id=uuid4(),
+            request=request,
+            response=Response(),
+            repo=repo,
+            s3_client=s3_client,
+            sharelink=sharelink,
+            gallery=gallery,
+            limit=20,
+            offset=20,
+        )
+
+        assert paginated_payload.photos == []
+        assert paginated_payload.cover is not None
+        assert paginated_payload.cover.photo_id == str(photo.id)
+
     @pytest.mark.asyncio
     async def test_build_public_project_response_rejects_missing_project(self):
         with pytest.raises(HTTPException) as exc_info:

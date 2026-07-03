@@ -12,6 +12,16 @@ interface PublicGalleryHeroProps {
   appearance: PublicGalleryAppearance;
 }
 
+const getTitleSizeClass = (
+  titleLength: number,
+  classPrefix: string,
+  thresholds: { medium: number; long: number },
+): string => {
+  const size =
+    titleLength > thresholds.long ? 'long' : titleLength > thresholds.medium ? 'medium' : 'short';
+  return `${classPrefix}--${size}`;
+};
+
 export const PublicGalleryHero = ({
   title,
   date,
@@ -27,32 +37,24 @@ export const PublicGalleryHero = ({
   const objectPosition = toHeroObjectPosition(appearance);
   const displayOption = appearance.cover_display_option ?? 'centered_title';
 
-  const emptyTitleSizeClass =
-    titleLength > 80
-      ? 'pg-hero__empty-title--long'
-      : titleLength > 46
-        ? 'pg-hero__empty-title--medium'
-        : 'pg-hero__empty-title--short';
-  const heroTitleSizeClass =
-    titleLength > 90
-      ? 'pg-hero__centered-title--long'
-      : titleLength > 60
-        ? 'pg-hero__centered-title--medium'
-        : 'pg-hero__centered-title--short';
+  const emptyTitleSizeClass = getTitleSizeClass(titleLength, 'pg-hero__empty-title', {
+    medium: 46,
+    long: 80,
+  });
+  const heroTitleSizeClass = getTitleSizeClass(titleLength, 'pg-hero__centered-title', {
+    medium: 60,
+    long: 90,
+  });
 
-  const textBlockTitleSizeClass =
-    titleLength > 60
-      ? 'pg-hero__text-block-title--long'
-      : titleLength > 40
-        ? 'pg-hero__text-block-title--medium'
-        : 'pg-hero__text-block-title--short';
+  const textBlockTitleSizeClass = getTitleSizeClass(titleLength, 'pg-hero__text-block-title', {
+    medium: 40,
+    long: 60,
+  });
 
-  const minimalistTitleSizeClass =
-    titleLength > 60
-      ? 'pg-hero__minimalist-title--long'
-      : titleLength > 40
-        ? 'pg-hero__minimalist-title--medium'
-        : 'pg-hero__minimalist-title--short';
+  const minimalistTitleSizeClass = getTitleSizeClass(titleLength, 'pg-hero__minimalist-title', {
+    medium: 40,
+    long: 60,
+  });
 
   useLayoutEffect(() => {
     if (!heroUrl) {

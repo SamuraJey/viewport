@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Check,
   ImageIcon,
@@ -180,6 +180,7 @@ export const GalleryAppearanceSection = ({
   const prevGalleryIdRef = useRef(gallery.id);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedDraftRef = useRef<AppearanceDraft>(draft);
+  const saveRequestSeqRef = useRef(0);
   const previewGridRef = useRef<HTMLDivElement | null>(null);
   const previewObserverRef = useRef<HTMLDivElement | null>(null);
   const coverPickerScrollRef = useRef<HTMLDivElement | null>(null);
@@ -219,11 +220,14 @@ export const GalleryAppearanceSection = ({
   // -- autosave -------------------------------------------------------------
   const triggerSave = useCallback(
     (nextDraft: AppearanceDraft) => {
-      if (debounceRef.current !== null) clearTimeout(debounceRef.current);
+      clearTimeout(debounceRef.current ?? undefined);
 
+      const requestSeq = saveRequestSeqRef.current + 1;
+      saveRequestSeqRef.current = requestSeq;
       setSaveStatus('dirty');
 
       debounceRef.current = setTimeout(async () => {
+        debounceRef.current = null;
         setSaveStatus('saving');
         try {
           const updated = await onSaveAppearance({
@@ -234,6 +238,9 @@ export const GalleryAppearanceSection = ({
             public_photo_spacing: nextDraft.public_photo_spacing,
             public_color_scheme: nextDraft.public_color_scheme,
           });
+          if (saveRequestSeqRef.current !== requestSeq) {
+            return;
+          }
           // Sync back from server response
           const synced: AppearanceDraft = {
             cover_photo_id: updated.cover_photo_id ?? null,
@@ -247,7 +254,9 @@ export const GalleryAppearanceSection = ({
           lastSavedDraftRef.current = synced;
           setSaveStatus('saved');
         } catch {
-          setSaveStatus('error');
+          if (saveRequestSeqRef.current === requestSeq) {
+            setSaveStatus('error');
+          }
         }
       }, AUTOSAVE_DEBOUNCE_MS);
     },
@@ -373,16 +382,16 @@ export const GalleryAppearanceSection = ({
       isLoadingMore: isLoadingCoverPickerPhotos,
     });
 
-  const knownPhotos = (() => {
+  const knownPhotos = useMemo(() => {
     const byId = new Map<string, GalleryPhoto>();
-    for (const photo of photos) {
-      byId.set(photo.id, photo);
-    }
     for (const photo of coverPickerPhotos) {
       byId.set(photo.id, photo);
     }
+    for (const photo of photos) {
+      byId.set(photo.id, photo);
+    }
     return Array.from(byId.values());
-  })();
+  }, [coverPickerPhotos, photos]);
 
   // -- effective cover ------------------------------------------------------
   const effectiveCover = draft.cover_photo_id
@@ -393,13 +402,17 @@ export const GalleryAppearanceSection = ({
     photo_id: string;
     full_url: string;
     thumbnail_url: string;
-  } | null = effectiveCover
-    ? {
-        photo_id: effectiveCover.id,
-        full_url: effectiveCover.url,
-        thumbnail_url: effectiveCover.thumbnail_url,
-      }
-    : null;
+  } | null = useMemo(
+    () =>
+      effectiveCover
+        ? {
+            photo_id: effectiveCover.id,
+            full_url: effectiveCover.url,
+            thumbnail_url: effectiveCover.thumbnail_url,
+          }
+        : null,
+    [effectiveCover],
+  );
   const effectiveCoverFilename = effectiveCover?.filename ?? 'Automatic cover';
   const selectedCoverLabel =
     draft.cover_photo_id === null
@@ -414,22 +427,36 @@ export const GalleryAppearanceSection = ({
     filename: photo.filename,
   }));
 
-  const previewAppearance = normalizePublicGalleryAppearance({
-    cover_focal_x: draft.cover_focal_x,
-    cover_focal_y: draft.cover_focal_y,
-    cover_display_option: draft.cover_display_option,
-    photo_spacing: draft.public_photo_spacing,
-    color_scheme: draft.public_color_scheme,
-  });
+  const previewAppearance = useMemo(
+    () =>
+      normalizePublicGalleryAppearance({
+        cover_focal_x: draft.cover_focal_x,
+        cover_focal_y: draft.cover_focal_y,
+        cover_display_option: draft.cover_display_option,
+        photo_spacing: draft.public_photo_spacing,
+        color_scheme: draft.public_color_scheme,
+      }),
+    [
+      draft.cover_display_option,
+      draft.cover_focal_x,
+      draft.cover_focal_y,
+      draft.public_color_scheme,
+      draft.public_photo_spacing,
+    ],
+  );
   const previewHeroDate = formatPublicGalleryDate(gallery.shooting_date);
   const previewHeroPhotographer = currentUser?.display_name ?? undefined;
 
-  const previewGridClassNames = [
-    'grid',
-    'grid-cols-[repeat(auto-fill,minmax(180px,1fr))]',
-    'gap-3',
-    getPublicGallerySpacingClassName(previewAppearance.photo_spacing),
-  ].join(' ');
+  const previewGridClassNames = useMemo(
+    () =>
+      [
+        'grid',
+        'grid-cols-[repeat(auto-fill,minmax(180px,1fr))]',
+        'gap-3',
+        getPublicGallerySpacingClassName(previewAppearance.photo_spacing),
+      ].join(' '),
+    [previewAppearance.photo_spacing],
+  );
 
   // -- focal point click handler -------------------------------------------
   const handleFocalClick = useCallback(

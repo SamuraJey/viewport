@@ -90,6 +90,21 @@ const makeDemoId = (): string => {
 
 const nowIso = (): string => new Date().toISOString();
 
+const DEFAULT_GALLERY_APPEARANCE = {
+  cover_focal_x: 50,
+  cover_focal_y: 50,
+  cover_display_option: 'centered_title',
+  public_photo_spacing: 'medium',
+  public_color_scheme: 'light',
+} satisfies Pick<
+  Gallery,
+  | 'cover_focal_x'
+  | 'cover_focal_y'
+  | 'cover_display_option'
+  | 'public_photo_spacing'
+  | 'public_color_scheme'
+>;
+
 const getStoredActiveSelectionSessions = (): Record<string, string> => {
   if (typeof window === 'undefined') return {};
   try {
@@ -288,11 +303,7 @@ const buildSeedProjectContent = (): {
           shooting_date: '2026-04-03T11:00:00Z',
           public_sort_by: 'original_filename',
           public_sort_order: 'asc',
-          cover_focal_x: 50,
-          cover_focal_y: 50,
-          cover_display_option: 'centered_title',
-          public_photo_spacing: 'medium',
-          public_color_scheme: 'light',
+          ...DEFAULT_GALLERY_APPEARANCE,
           cover_photo_id: null,
           photo_count: 0,
           total_size_bytes: 0,
@@ -324,11 +335,7 @@ const buildSeedProjectContent = (): {
           shooting_date: '2026-04-03T11:00:00Z',
           public_sort_by: 'original_filename',
           public_sort_order: 'asc',
-          cover_focal_x: 50,
-          cover_focal_y: 50,
-          cover_display_option: 'centered_title',
-          public_photo_spacing: 'medium',
-          public_color_scheme: 'light',
+          ...DEFAULT_GALLERY_APPEARANCE,
           cover_photo_id: null,
           photo_count: 0,
           total_size_bytes: 0,
@@ -380,11 +387,7 @@ const seedState = (): DemoGalleryState[] => {
       shooting_date: '2026-03-09T08:30:00Z',
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
-      cover_focal_x: 50,
-      cover_focal_y: 50,
-      cover_display_option: 'centered_title',
-      public_photo_spacing: 'medium',
-      public_color_scheme: 'light',
+      ...DEFAULT_GALLERY_APPEARANCE,
       cover_photo_id: null,
       photo_count: 0,
       total_size_bytes: 0,
@@ -399,11 +402,7 @@ const seedState = (): DemoGalleryState[] => {
       shooting_date: '2026-03-04T14:00:00Z',
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
-      cover_focal_x: 50,
-      cover_focal_y: 50,
-      cover_display_option: 'centered_title',
-      public_photo_spacing: 'medium',
-      public_color_scheme: 'light',
+      ...DEFAULT_GALLERY_APPEARANCE,
       cover_photo_id: null,
       photo_count: 0,
       total_size_bytes: 0,
@@ -418,11 +417,7 @@ const seedState = (): DemoGalleryState[] => {
       shooting_date: '2026-02-25T11:00:00Z',
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
-      cover_focal_x: 50,
-      cover_focal_y: 50,
-      cover_display_option: 'centered_title',
-      public_photo_spacing: 'medium',
-      public_color_scheme: 'light',
+      ...DEFAULT_GALLERY_APPEARANCE,
       cover_photo_id: null,
       photo_count: 0,
       total_size_bytes: 0,
@@ -1336,11 +1331,7 @@ class DemoServiceStore {
       shooting_date: payload.shooting_date || createdAt,
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
-      cover_focal_x: 50,
-      cover_focal_y: 50,
-      cover_display_option: 'centered_title',
-      public_photo_spacing: 'medium',
-      public_color_scheme: 'light',
+      ...DEFAULT_GALLERY_APPEARANCE,
       cover_photo_id: null,
       photo_count: 0,
       total_size_bytes: 0,

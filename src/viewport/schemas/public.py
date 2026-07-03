@@ -2,6 +2,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from viewport.schemas.gallery import CoverDisplayOption, PhotoSpacing, PublicColorScheme
 from viewport.schemas.sharelink import PASSWORD_MAX_BYTES, PASSWORD_MIN_LENGTH, validate_sharelink_password
 
 
@@ -42,14 +43,14 @@ class PublicProjectGallery(BaseModel):
     direct_share_path: str | None = None
 
 
-
-
 class PublicGalleryAppearance(BaseModel):
     cover_focal_x: float = 50.0
     cover_focal_y: float = 50.0
-    cover_display_option: Literal["centered_title", "text_block", "minimalist"] = "centered_title"
-    photo_spacing: Literal["small", "medium", "large"] = "medium"
-    color_scheme: Literal["light", "dark"] = "light"
+    cover_display_option: CoverDisplayOption = CoverDisplayOption.CENTERED_TITLE
+    photo_spacing: PhotoSpacing = PhotoSpacing.MEDIUM
+    color_scheme: PublicColorScheme = PublicColorScheme.LIGHT
+
+
 class PublicGalleryResponse(BaseModel):
     scope_type: Literal["gallery"] = "gallery"
     photos: list[PublicPhoto]

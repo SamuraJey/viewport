@@ -909,9 +909,11 @@ body.dark .gallery-create__btn,
   justify-content: center;
   text-align: center;
   container-type: inline-size;
-  /* Make hero fill the full viewport height so cover photos are immersive on load */
+  /* Prefer dynamic viewport units to avoid mobile browser chrome resize jank. */
   height: 100vh;
   min-height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
 }
 
 .pg-hero__content {
@@ -1193,7 +1195,7 @@ html.dark .pg-card:hover {
   --color-surface-dark-2-rgb: 226, 232, 240;
   --color-surface-foreground-rgb: 15, 23, 42;
   --color-accent-rgb: 56, 189, 248;
-  --color-accent-foreground-rgb: 255, 255, 255;
+  --color-accent-foreground-rgb: 15, 23, 42;
 }
 
 .pg-public-page.pg-theme-dark {

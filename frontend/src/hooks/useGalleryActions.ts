@@ -53,10 +53,6 @@ export const useGalleryActions = ({
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
   const [isSavingPublicSortSettings, setIsSavingPublicSortSettings] = useState(false);
-  const [isSavingAppearance, setIsSavingAppearance] = useState(false);
-  const [appearanceSaveStatus, setAppearanceSaveStatus] = useState<
-    'idle' | 'dirty' | 'saving' | 'saved' | 'error'
-  >('idle');
 
   const { error, clearError, handleError } = useErrorHandler();
   const { openConfirm, ConfirmModal } = useConfirmation();
@@ -64,7 +60,10 @@ export const useGalleryActions = ({
 
   const { page, pageSize, setTotal } = pagination;
 
-  const isNotFoundError = (error: unknown): boolean => handleApiError(error).statusCode === 404;
+  const isNotFoundError = useCallback(
+    (error: unknown): boolean => handleApiError(error).statusCode === 404,
+    [],
+  );
 
   const fetchShareLinks = useCallback(
     async (isInitial = true) => {
@@ -252,7 +251,6 @@ export const useGalleryActions = ({
         >
       >,
     ): Promise<GalleryDetail> => {
-      setIsSavingAppearance(true);
       clearError();
       try {
         const updated = await galleryService.updateGallery(galleryId, payload);
@@ -274,14 +272,23 @@ export const useGalleryActions = ({
         if (payload.cover_photo_id && isNotFoundError(err)) {
           removePhotoLocally(payload.cover_photo_id);
           setActionInfo('This photo was already deleted.');
+          return gallery
+            ? ({ ...gallery, ...payload, cover_photo_id: null } as GalleryDetail)
+            : ({ cover_photo_id: null, ...payload } as GalleryDetail);
         }
         handleError(err);
         throw err;
-      } finally {
-        setIsSavingAppearance(false);
       }
     },
-    [galleryId, clearError, handleError, removePhotoLocally, isNotFoundError, setActionInfo],
+    [
+      gallery,
+      galleryId,
+      clearError,
+      handleError,
+      removePhotoLocally,
+      isNotFoundError,
+      setActionInfo,
+    ],
   );
 
   const handleDeleteGallery = () => {
@@ -550,9 +557,6 @@ export const useGalleryActions = ({
     setShootingDateInput,
     isSavingShootingDate,
     isSavingPublicSortSettings,
-    isSavingAppearance,
-    appearanceSaveStatus,
-    setAppearanceSaveStatus,
     error,
     clearError,
     ConfirmModal,
