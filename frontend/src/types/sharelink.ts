@@ -120,6 +120,13 @@ export interface SharedGalleryQueryOptions {
   skipProjectViewCount?: boolean;
 }
 
+export interface PublicGalleryAppearance {
+  cover_focal_x: number;
+  cover_focal_y: number;
+  cover_display_option: 'centered_title' | 'text_block' | 'minimalist';
+  photo_spacing: 'small' | 'medium' | 'large';
+  color_scheme: 'light' | 'dark';
+}
 export interface SharedFolderShare {
   scope_type?: 'gallery';
   photos: PublicPhoto[];
@@ -134,6 +141,7 @@ export interface SharedFolderShare {
   project_name?: string | null;
   parent_share_id?: string | null;
   project_navigation?: SharedProjectShare | null;
+  appearance?: PublicGalleryAppearance;
 }
 
 export interface SharedProjectShare {

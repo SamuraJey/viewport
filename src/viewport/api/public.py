@@ -147,28 +147,41 @@ async def _build_public_gallery_response(
                 )
             )
 
-    cover_id = str(gallery.cover_photo_id) if getattr(gallery, "cover_photo_id", None) else None
+    # --- Effective cover selection with fallback ---
+    cover_photo_obj = None
+    if gallery.cover_photo_id:
+        cover_photo_obj = await repo.get_photo_by_id_and_gallery(gallery.cover_photo_id, gallery.id)
+
+    if cover_photo_obj is None and photos_to_process and offset == 0:
+        cover_photo_obj = photos_to_process[0]
+    elif cover_photo_obj is None:
+        fallback_photos = await repo.get_photos_by_gallery_id(
+            gallery_id=gallery.id,
+            limit=1,
+            offset=0,
+            sort_by=sort_by,
+            order=order,
+        )
+        cover_photo_obj = fallback_photos[0] if fallback_photos else None
+
     cover = None
-
-    if cover_id:
-        cover_photo_obj = None
-        if gallery.cover_photo_id:
-            cover_photo_obj = await repo.get_photo_by_id_and_gallery(gallery.cover_photo_id, gallery.id)
-
-        cover_filename = None
-        cover_url = None
-        if cover_photo_obj:
-            cover_filename = cover_photo_obj.display_name
-            cover_url = full_url_map.get(cover_photo_obj.object_key) or await s3_client.generate_presigned_url_async(
+    if cover_photo_obj and cover_photo_obj.object_key and cover_photo_obj.thumbnail_object_key:
+        cover_full_url = full_url_map.get(cover_photo_obj.object_key)
+        cover_thumb_url = thumb_url_map.get(cover_photo_obj.thumbnail_object_key)
+        if cover_full_url is None:
+            cover_full_url = await s3_client.generate_presigned_url_async(
                 cover_photo_obj.object_key,
                 response_content_disposition=build_content_disposition(cover_photo_obj.display_name, disposition_type="inline"),
             )
-            cover_thumb_url = thumb_url_map.get(cover_photo_obj.thumbnail_object_key, cover_url)
-        else:
-            cover_thumb_url = None
+        if cover_thumb_url is None:
+            cover_thumb_url = await s3_client.generate_presigned_url_async(cover_photo_obj.thumbnail_object_key)
 
-        if cover_url:
-            cover = PublicCover(photo_id=cover_id, full_url=cover_url, thumbnail_url=cover_thumb_url or cover_url, filename=cover_filename)
+        cover = PublicCover(
+            photo_id=str(cover_photo_obj.id),
+            full_url=cover_full_url or "",
+            thumbnail_url=cover_thumb_url or cover_full_url or "",
+            filename=cover_photo_obj.display_name,
+        )
 
     owner = getattr(gallery, "owner", None) or getattr(getattr(sharelink, "project", None), "owner", None)
     photographer = getattr(owner, "display_name", None) or ""
@@ -188,6 +201,8 @@ async def _build_public_gallery_response(
             user_agent=request.headers.get("user-agent"),
         )
 
+    from viewport.schemas.public import PublicGalleryAppearance
+
     return PublicGalleryResponse(
         photos=photo_list,
         cover=cover,
@@ -201,6 +216,13 @@ async def _build_public_gallery_response(
         project_name=project_name,
         parent_share_id=str(parent_share_id) if parent_share_id else None,
         project_navigation=project_navigation,
+        appearance=PublicGalleryAppearance(
+            cover_focal_x=float(getattr(gallery, "cover_focal_x", 50.0)),
+            cover_focal_y=float(getattr(gallery, "cover_focal_y", 50.0)),
+            cover_display_option=getattr(gallery, "cover_display_option", "centered_title"),
+            photo_spacing=getattr(gallery, "public_photo_spacing", "medium"),
+            color_scheme=getattr(gallery, "public_color_scheme", "light"),
+        ),
     )
 
 

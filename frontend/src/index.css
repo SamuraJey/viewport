@@ -1078,6 +1078,54 @@ html.dark .pg-card:hover {
   }
 }
 
+/* --- Gallery appearance spacing overrides --- */
+.pg-spacing-small.pg-grid,
+.pg-spacing-small .pg-grid,
+.pg-grid.pg-spacing-small {
+  gap: 0.5rem;
+}
+.pg-spacing-medium.pg-grid,
+.pg-spacing-medium .pg-grid,
+.pg-grid.pg-spacing-medium {
+  gap: 1rem;
+}
+.pg-spacing-large.pg-grid,
+.pg-spacing-large .pg-grid,
+.pg-grid.pg-spacing-large {
+  gap: 1.75rem;
+}
+
+/* --- Public gallery scoped theme variables --- */
+.pg-public-page.pg-theme-light {
+  --color-border-rgb: 226, 232, 240;
+  --color-text-rgb: 15, 23, 42;
+  --color-muted-rgb: 100, 116, 139;
+  --color-surface-rgb: 248, 250, 252;
+  --color-surface-1-rgb: 241, 245, 249;
+  --color-surface-2-rgb: 226, 232, 240;
+  --color-surface-dark-rgb: 248, 250, 252;
+  --color-surface-dark-1-rgb: 241, 245, 249;
+  --color-surface-dark-2-rgb: 226, 232, 240;
+  --color-surface-foreground-rgb: 15, 23, 42;
+  --color-accent-rgb: 56, 189, 248;
+  --color-accent-foreground-rgb: 255, 255, 255;
+}
+
+.pg-public-page.pg-theme-dark {
+  --color-border-rgb: 51, 65, 85;
+  --color-text-rgb: 248, 250, 252;
+  --color-muted-rgb: 148, 163, 184;
+  --color-surface-rgb: 15, 23, 42;
+  --color-surface-1-rgb: 30, 41, 59;
+  --color-surface-2-rgb: 51, 65, 85;
+  --color-surface-dark-rgb: 15, 23, 42;
+  --color-surface-dark-1-rgb: 30, 41, 59;
+  --color-surface-dark-2-rgb: 51, 65, 85;
+  --color-surface-foreground-rgb: 248, 250, 252;
+  --color-accent-rgb: 56, 189, 248;
+  --color-accent-foreground-rgb: 15, 23, 42;
+}
+
 .pg-gesture-surface {
   touch-action: pan-y;
 }

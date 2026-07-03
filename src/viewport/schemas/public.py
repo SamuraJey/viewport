@@ -42,6 +42,14 @@ class PublicProjectGallery(BaseModel):
     direct_share_path: str | None = None
 
 
+
+
+class PublicGalleryAppearance(BaseModel):
+    cover_focal_x: float = 50.0
+    cover_focal_y: float = 50.0
+    cover_display_option: Literal["centered_title", "text_block", "minimalist"] = "centered_title"
+    photo_spacing: Literal["small", "medium", "large"] = "medium"
+    color_scheme: Literal["light", "dark"] = "light"
 class PublicGalleryResponse(BaseModel):
     scope_type: Literal["gallery"] = "gallery"
     photos: list[PublicPhoto]
@@ -56,6 +64,7 @@ class PublicGalleryResponse(BaseModel):
     project_name: str | None = None
     parent_share_id: str | None = None
     project_navigation: "PublicProjectResponse | None" = None
+    appearance: PublicGalleryAppearance = Field(default_factory=PublicGalleryAppearance)
 
 
 class PublicProjectResponse(BaseModel):

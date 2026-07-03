@@ -15,12 +15,14 @@ import {
   getCachedPhotoAspectRatio,
   setCachedPhotoAspectRatio,
 } from '../lib/photoAspectRatioCache';
+import { getPublicGallerySpacingClassName } from '../components/public-gallery/galleryAppearance';
+import type { PhotoSpacing } from '../types/gallery';
 
 export type PublicGridDensity = 'large' | 'compact';
 export type PublicGridLayout = 'masonry' | 'uniform';
-
 interface UsePublicGalleryGridProps {
   photos: PublicPhoto[];
+  spacing?: PhotoSpacing;
 }
 
 const toValidRatio = (value: number | null | undefined): number | null => {
@@ -46,8 +48,7 @@ const calculateTouchDistance = (touches: ReactTouchList) => {
   if (!first || !second) return 0;
   return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
 };
-
-export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
+export const usePublicGalleryGrid = ({ photos, spacing = 'medium' }: UsePublicGalleryGridProps) => {
   const [gridDensity, setGridDensity] = useState<PublicGridDensity>('large');
   const [gridLayout, setGridLayout] = useState<PublicGridLayout>('masonry');
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -236,9 +237,10 @@ export const usePublicGalleryGrid = ({ photos }: UsePublicGalleryGridProps) => {
           : gridDensity === 'compact'
             ? 'pg-grid-uniform--compact'
             : 'pg-grid-uniform--large',
+        getPublicGallerySpacingClassName(spacing),
         'pg-gesture-surface',
       ].join(' '),
-    [gridDensity, gridLayout],
+    [gridDensity, gridLayout, spacing],
   );
 
   const touchHandlers = useMemo(

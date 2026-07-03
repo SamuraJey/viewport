@@ -18,6 +18,7 @@ import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { GallerySelectionSessionsPanel } from '../components/gallery/GallerySelectionSessionsPanel';
 import { GalleryDragOverlay } from '../components/gallery/GalleryDragOverlay';
 import { GalleryPhotoSection } from '../components/gallery/GalleryPhotoSection';
+import { GalleryAppearanceSection } from '../components/gallery-appearance/GalleryAppearanceSection';
 import { AppTabs } from '../components/ui';
 import {
   GalleryInitialLoadingState,
@@ -117,7 +118,9 @@ export const GalleryPage = () => {
     useState<GalleryPhotoSortBy>(DEFAULT_PUBLIC_SORT_BY);
   const [publicSortOrderInput, setPublicSortOrderInput] =
     useState<SortOrder>(DEFAULT_PUBLIC_SORT_ORDER);
-  const [activeContentTab, setActiveContentTab] = useState<'project' | 'favorites'>('project');
+  const [activeContentTab, setActiveContentTab] = useState<'project' | 'appearance' | 'favorites'>(
+    'project',
+  );
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showInitialLoadingState, setShowInitialLoadingState] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -251,6 +254,7 @@ export const GalleryPage = () => {
     handleRenamePhoto,
     handleRenameConfirm,
     handleDeletePhoto,
+    handleSaveAppearanceSettings,
     handleDeleteMultiplePhotos: handleDeletePhotos, // Renamed to avoid name clash
   } = useGalleryActions({
     galleryId,
@@ -747,7 +751,7 @@ export const GalleryPage = () => {
   }, [activeContentTab, favoritesTabs, fetchSelectionSessionDetail, selectedFavoritesTab]);
 
   const handleSelectContentTab = useCallback(
-    (tab: 'project' | 'favorites') => {
+    (tab: 'project' | 'appearance' | 'favorites') => {
       startTabTransition(() => {
         setActiveContentTab(tab);
       });
@@ -1084,6 +1088,19 @@ export const GalleryPage = () => {
             onDeleteLink={handleDeleteShareLink}
           />
         </div>
+      ),
+    },
+    {
+      key: 'appearance' as const,
+      tabClassName: contentTabClassName,
+      tab: 'Appearance',
+      panel: (
+        <GalleryAppearanceSection
+          gallery={gallery}
+          photos={photoUrls}
+          isLoadingPhotos={isLoadingPhotos}
+          onSaveAppearance={handleSaveAppearanceSettings}
+        />
       ),
     },
     {

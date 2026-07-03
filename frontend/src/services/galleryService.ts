@@ -2,12 +2,15 @@ import { api } from '../lib/api';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { getDemoService } from './demoService';
 import type {
+  CoverDisplayOption,
   Gallery,
   GalleryDetail,
   GalleryListQueryOptions,
   GalleryListResponse,
   GalleryPhotoQueryOptions,
   GalleryPhotoSortBy,
+  PhotoSpacing,
+  PublicColorScheme,
   SortOrder,
 } from '../types';
 
@@ -82,7 +85,6 @@ const deleteGallery = async (id: string): Promise<void> => {
 
   await api.delete(`/galleries/${id}`);
 };
-
 type UpdateGalleryPayload =
   | string
   | {
@@ -93,6 +95,12 @@ type UpdateGalleryPayload =
       project_id?: string | null;
       project_position?: number;
       project_visibility?: 'listed' | 'direct_only';
+      cover_photo_id?: string | null;
+      cover_focal_x?: number;
+      cover_focal_y?: number;
+      cover_display_option?: CoverDisplayOption;
+      public_photo_spacing?: PhotoSpacing;
+      public_color_scheme?: PublicColorScheme;
     };
 
 const updateGallery = async (id: string, payload: UpdateGalleryPayload): Promise<Gallery> => {

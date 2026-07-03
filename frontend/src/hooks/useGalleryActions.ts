@@ -53,6 +53,10 @@ export const useGalleryActions = ({
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
   const [isSavingPublicSortSettings, setIsSavingPublicSortSettings] = useState(false);
+  const [isSavingAppearance, setIsSavingAppearance] = useState(false);
+  const [appearanceSaveStatus, setAppearanceSaveStatus] = useState<
+    'idle' | 'dirty' | 'saving' | 'saved' | 'error'
+  >('idle');
 
   const { error, clearError, handleError } = useErrorHandler();
   const { openConfirm, ConfirmModal } = useConfirmation();
@@ -232,6 +236,52 @@ export const useGalleryActions = ({
       }
     },
     [clearError, galleryId, handleError],
+  );
+
+  const handleSaveAppearanceSettings = useCallback(
+    async (
+      payload: Partial<
+        Pick<
+          GalleryDetail,
+          | 'cover_photo_id'
+          | 'cover_focal_x'
+          | 'cover_focal_y'
+          | 'cover_display_option'
+          | 'public_photo_spacing'
+          | 'public_color_scheme'
+        >
+      >,
+    ): Promise<GalleryDetail> => {
+      setIsSavingAppearance(true);
+      clearError();
+      try {
+        const updated = await galleryService.updateGallery(galleryId, payload);
+        setGallery((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            cover_photo_id: updated.cover_photo_id,
+            cover_focal_x: updated.cover_focal_x,
+            cover_focal_y: updated.cover_focal_y,
+            cover_display_option: updated.cover_display_option,
+            public_photo_spacing: updated.public_photo_spacing,
+            public_color_scheme: updated.public_color_scheme,
+            cover_photo_thumbnail_url: updated.cover_photo_thumbnail_url,
+          };
+        });
+        return updated as unknown as GalleryDetail;
+      } catch (err) {
+        if (payload.cover_photo_id && isNotFoundError(err)) {
+          removePhotoLocally(payload.cover_photo_id);
+          setActionInfo('This photo was already deleted.');
+        }
+        handleError(err);
+        throw err;
+      } finally {
+        setIsSavingAppearance(false);
+      }
+    },
+    [galleryId, clearError, handleError, removePhotoLocally, isNotFoundError, setActionInfo],
   );
 
   const handleDeleteGallery = () => {
@@ -500,6 +550,9 @@ export const useGalleryActions = ({
     setShootingDateInput,
     isSavingShootingDate,
     isSavingPublicSortSettings,
+    isSavingAppearance,
+    appearanceSaveStatus,
+    setAppearanceSaveStatus,
     error,
     clearError,
     ConfirmModal,
@@ -509,6 +562,7 @@ export const useGalleryActions = ({
     handleUploadComplete,
     handleSaveShootingDate,
     handleSavePublicSortSettings,
+    handleSaveAppearanceSettings,
     handleDeleteGallery,
     handleDownloadGallery,
     handleDownloadSelectedPhotos,

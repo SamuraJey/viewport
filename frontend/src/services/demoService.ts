@@ -2,6 +2,7 @@ import type {
   AuthTokens,
   BatchDeletePhotosResponse,
   BulkSelectionActionResponse,
+  CoverDisplayOption,
   Gallery,
   GalleryDetail,
   GalleryListQueryOptions,
@@ -10,11 +11,13 @@ import type {
   GalleryPhotoSortBy,
   GalleryPhoto,
   GalleryListResponse,
+  PhotoSpacing,
   Project,
   ProjectDetail,
   ProjectGallerySummary,
   ProjectListQueryOptions,
   ProjectListResponse,
+  PublicColorScheme,
   OwnerSelectionDetail,
   OwnerSelectionRow,
   ShareLinkCreateRequest,
@@ -285,6 +288,11 @@ const buildSeedProjectContent = (): {
           shooting_date: '2026-04-03T11:00:00Z',
           public_sort_by: 'original_filename',
           public_sort_order: 'asc',
+          cover_focal_x: 50,
+          cover_focal_y: 50,
+          cover_display_option: 'centered_title',
+          public_photo_spacing: 'medium',
+          public_color_scheme: 'light',
           cover_photo_id: null,
           photo_count: 0,
           total_size_bytes: 0,
@@ -316,6 +324,11 @@ const buildSeedProjectContent = (): {
           shooting_date: '2026-04-03T11:00:00Z',
           public_sort_by: 'original_filename',
           public_sort_order: 'asc',
+          cover_focal_x: 50,
+          cover_focal_y: 50,
+          cover_display_option: 'centered_title',
+          public_photo_spacing: 'medium',
+          public_color_scheme: 'light',
           cover_photo_id: null,
           photo_count: 0,
           total_size_bytes: 0,
@@ -367,6 +380,11 @@ const seedState = (): DemoGalleryState[] => {
       shooting_date: '2026-03-09T08:30:00Z',
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
+      cover_focal_x: 50,
+      cover_focal_y: 50,
+      cover_display_option: 'centered_title',
+      public_photo_spacing: 'medium',
+      public_color_scheme: 'light',
       cover_photo_id: null,
       photo_count: 0,
       total_size_bytes: 0,
@@ -381,6 +399,11 @@ const seedState = (): DemoGalleryState[] => {
       shooting_date: '2026-03-04T14:00:00Z',
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
+      cover_focal_x: 50,
+      cover_focal_y: 50,
+      cover_display_option: 'centered_title',
+      public_photo_spacing: 'medium',
+      public_color_scheme: 'light',
       cover_photo_id: null,
       photo_count: 0,
       total_size_bytes: 0,
@@ -395,6 +418,11 @@ const seedState = (): DemoGalleryState[] => {
       shooting_date: '2026-02-25T11:00:00Z',
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
+      cover_focal_x: 50,
+      cover_focal_y: 50,
+      cover_display_option: 'centered_title',
+      public_photo_spacing: 'medium',
+      public_color_scheme: 'light',
       cover_photo_id: null,
       photo_count: 0,
       total_size_bytes: 0,
@@ -1308,6 +1336,11 @@ class DemoServiceStore {
       shooting_date: payload.shooting_date || createdAt,
       public_sort_by: 'original_filename',
       public_sort_order: 'asc',
+      cover_focal_x: 50,
+      cover_focal_y: 50,
+      cover_display_option: 'centered_title',
+      public_photo_spacing: 'medium',
+      public_color_scheme: 'light',
       cover_photo_id: null,
       photo_count: 0,
       total_size_bytes: 0,
@@ -1343,6 +1376,12 @@ class DemoServiceStore {
       project_id?: string | null;
       project_position?: number;
       project_visibility?: 'listed' | 'direct_only';
+      cover_photo_id?: string | null;
+      cover_focal_x?: number;
+      cover_focal_y?: number;
+      cover_display_option?: CoverDisplayOption;
+      public_photo_spacing?: PhotoSpacing;
+      public_color_scheme?: PublicColorScheme;
     },
   ): Promise<Gallery> {
     const state = this.getGalleryState(galleryId);
@@ -1370,6 +1409,17 @@ class DemoServiceStore {
       project_position: payload.project_position ?? state.gallery.project_position ?? 0,
       project_visibility:
         payload.project_visibility ?? state.gallery.project_visibility ?? 'listed',
+      cover_photo_id: Object.prototype.hasOwnProperty.call(payload, 'cover_photo_id')
+        ? (payload.cover_photo_id ?? null)
+        : (state.gallery.cover_photo_id ?? null),
+      cover_focal_x: payload.cover_focal_x ?? state.gallery.cover_focal_x ?? 50,
+      cover_focal_y: payload.cover_focal_y ?? state.gallery.cover_focal_y ?? 50,
+      cover_display_option:
+        payload.cover_display_option ?? state.gallery.cover_display_option ?? 'centered_title',
+      public_photo_spacing:
+        payload.public_photo_spacing ?? state.gallery.public_photo_spacing ?? 'medium',
+      public_color_scheme:
+        payload.public_color_scheme ?? state.gallery.public_color_scheme ?? 'light',
     };
     this.recalculateProjects();
     this.persistState();
@@ -1945,6 +1995,13 @@ class DemoServiceStore {
                 '',
             }
           : null,
+        appearance: {
+          cover_focal_x: galleryState.gallery.cover_focal_x ?? 50,
+          cover_focal_y: galleryState.gallery.cover_focal_y ?? 50,
+          cover_display_option: galleryState.gallery.cover_display_option ?? 'centered_title',
+          photo_spacing: galleryState.gallery.public_photo_spacing ?? 'medium',
+          color_scheme: galleryState.gallery.public_color_scheme ?? 'light',
+        },
         photos: photos.map((photo) => ({
           photo_id: photo.id,
           filename: photo.filename,
@@ -2062,6 +2119,13 @@ class DemoServiceStore {
                 '',
             }
           : null,
+        appearance: {
+          cover_focal_x: folderState.gallery.cover_focal_x ?? 50,
+          cover_focal_y: folderState.gallery.cover_focal_y ?? 50,
+          cover_display_option: folderState.gallery.cover_display_option ?? 'centered_title',
+          photo_spacing: folderState.gallery.public_photo_spacing ?? 'medium',
+          color_scheme: folderState.gallery.public_color_scheme ?? 'light',
+        },
         photos: photos.map((photo) => ({
           photo_id: photo.id,
           filename: photo.filename,
