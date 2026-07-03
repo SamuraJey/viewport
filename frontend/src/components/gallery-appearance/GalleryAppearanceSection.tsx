@@ -903,20 +903,16 @@ export const GalleryAppearanceSection = ({
                     Phone 9:16
                   </p>
                   <div className="rounded-[1.75rem] border-[3px] border-black bg-black p-1 shadow-2xl">
-                    <div className="relative aspect-[9/16] overflow-hidden rounded-[1.35rem] bg-surface">
-                      <div className="absolute left-0 top-0 h-[693px] w-[390px] origin-top-left scale-[0.615]">
-                        <div
-                          className={`pg-public-page ${getPublicGalleryThemeClassName(previewAppearance)} h-full w-full bg-surface text-text [&_.pg-hero]:!h-full [&_.pg-hero]:!min-h-full`}
-                        >
-                          <PublicGalleryHero
-                            title={gallery.name}
-                            date={previewHeroDate}
-                            photographer={previewHeroPhotographer}
-                            cover={effectiveCoverPayload}
-                            appearance={previewAppearance}
-                          />
-                        </div>
-                      </div>
+                    <div
+                      className={`pg-public-page ${getPublicGalleryThemeClassName(previewAppearance)} aspect-[9/16] overflow-hidden rounded-[1.35rem] bg-surface text-text [&_.pg-hero]:!h-full [&_.pg-hero]:!min-h-full`}
+                    >
+                      <PublicGalleryHero
+                        title={gallery.name}
+                        date={previewHeroDate}
+                        photographer={previewHeroPhotographer}
+                        cover={effectiveCoverPayload}
+                        appearance={previewAppearance}
+                      />
                     </div>
                   </div>
                 </div>
