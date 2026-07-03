@@ -31,6 +31,7 @@ import { useGalleryDragAndDrop } from '../hooks/useGalleryDragAndDrop';
 import { usePagination } from '../hooks/usePagination';
 import { useSelection } from '../hooks/useSelection';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { galleryService } from '../services/galleryService';
 import { projectService } from '../services/projectService';
 import { shareLinkService } from '../services/shareLinkService';
 import { handleApiError } from '../lib/errorHandling';
@@ -268,6 +269,23 @@ export const GalleryPage = () => {
   });
 
   const activeProjectId = gallery?.project_id ?? routeProjectId ?? null;
+
+  const loadCoverPickerPhotos = useCallback(
+    async ({ limit, offset }: { limit: number; offset: number }) => {
+      const galleryData = await galleryService.getGallery(galleryId, {
+        limit,
+        offset,
+        sort_by: DEFAULT_SORT_BY,
+        order: DEFAULT_SORT_ORDER,
+      });
+
+      return {
+        photos: galleryData.photos ?? [],
+        total: galleryData.total_photos,
+      };
+    },
+    [galleryId],
+  );
 
   const loadProjectDetail = useCallback(async () => {
     if (!activeProjectId) {
@@ -1099,6 +1117,7 @@ export const GalleryPage = () => {
           gallery={gallery}
           photos={photoUrls}
           isLoadingPhotos={isLoadingPhotos}
+          onLoadCoverPhotos={loadCoverPickerPhotos}
           onSaveAppearance={handleSaveAppearanceSettings}
         />
       ),

@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ImageOff, Loader2, Maximize2, Minimize2, Moon, Sun } from 'lucide-react';
+import {
+  Check,
+  ImageIcon,
+  ImageOff,
+  Loader2,
+  Maximize2,
+  Minimize2,
+  Moon,
+  Sun,
+  X,
+} from 'lucide-react';
 import type { GalleryPhoto } from '../../types/photo';
 import type {
   CoverDisplayOption,
@@ -8,6 +18,7 @@ import type {
   PublicColorScheme,
 } from '../../types/gallery';
 import type { PublicPhoto } from '../../types/sharelink';
+import { AppDialog, AppDialogDescription, AppDialogTitle } from '../ui';
 import {
   getPublicGallerySpacingClassName,
   normalizePublicGalleryAppearance,
@@ -15,6 +26,7 @@ import {
 } from '../public-gallery/galleryAppearance';
 import { PublicGalleryHero } from '../public-gallery/PublicGalleryHero';
 import { PublicGalleryPhotoSection } from '../public-gallery/PublicGalleryPhotoSection';
+import { usePhotoLightbox } from '../../hooks/usePhotoLightbox';
 
 // ---------------------------------------------------------------------------
 // Types & constants
@@ -32,6 +44,7 @@ const SAVE_STATUS_LABELS: Record<SaveStatus, string> = {
 
 const AUTOSAVE_DEBOUNCE_MS = 450;
 const MAX_PREVIEW_PHOTOS = 12;
+const COVER_PICKER_PAGE_SIZE = 100;
 
 interface AppearanceDraft {
   cover_photo_id: string | null;
@@ -46,6 +59,10 @@ interface GalleryAppearanceSectionProps {
   gallery: GalleryDetail;
   photos: GalleryPhoto[];
   isLoadingPhotos: boolean;
+  onLoadCoverPhotos: (options: { limit: number; offset: number }) => Promise<{
+    photos: GalleryPhoto[];
+    total: number;
+  }>;
   onSaveAppearance: (
     payload: Partial<
       Pick<
@@ -185,6 +202,7 @@ export const GalleryAppearanceSection = ({
   gallery,
   photos,
   isLoadingPhotos,
+  onLoadCoverPhotos,
   onSaveAppearance,
 }: GalleryAppearanceSectionProps) => {
   // -- draft state ----------------------------------------------------------
@@ -198,11 +216,18 @@ export const GalleryAppearanceSection = ({
   });
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [isCoverPickerOpen, setIsCoverPickerOpen] = useState(false);
+  const [coverPickerPhotos, setCoverPickerPhotos] = useState<GalleryPhoto[]>(photos);
+  const [coverPickerTotal, setCoverPickerTotal] = useState(gallery.total_photos ?? photos.length);
+  const [isLoadingCoverPickerPhotos, setIsLoadingCoverPickerPhotos] = useState(false);
+  const [coverPickerError, setCoverPickerError] = useState('');
   const prevGalleryIdRef = useRef(gallery.id);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedDraftRef = useRef<AppearanceDraft>(draft);
   const previewGridRef = useRef<HTMLDivElement | null>(null);
   const previewObserverRef = useRef<HTMLDivElement | null>(null);
+  const coverPickerScrollRef = useRef<HTMLDivElement | null>(null);
+  const coverPickerLoadMoreRef = useRef<HTMLDivElement | null>(null);
 
   // Reset draft when switching galleries
   useEffect(() => {
@@ -217,17 +242,22 @@ export const GalleryAppearanceSection = ({
         public_color_scheme: gallery.public_color_scheme ?? 'light',
       };
       setDraft(next);
+      setCoverPickerPhotos(photos);
+      setCoverPickerTotal(gallery.total_photos ?? photos.length);
+      setCoverPickerError('');
       lastSavedDraftRef.current = next;
       setSaveStatus('idle');
     }
   }, [
     gallery.id,
+    gallery.total_photos,
     gallery.cover_photo_id,
     gallery.cover_focal_x,
     gallery.cover_focal_y,
     gallery.cover_display_option,
     gallery.public_photo_spacing,
     gallery.public_color_scheme,
+    photos,
   ]);
 
   // -- autosave -------------------------------------------------------------
@@ -289,10 +319,119 @@ export const GalleryAppearanceSection = ({
     [triggerSave],
   );
 
+  const loadCoverPickerPhotos = useCallback(
+    async ({ offset, replace }: { offset: number; replace: boolean }) => {
+      setIsLoadingCoverPickerPhotos(true);
+      setCoverPickerError('');
+
+      try {
+        const result = await onLoadCoverPhotos({
+          limit: COVER_PICKER_PAGE_SIZE,
+          offset,
+        });
+
+        setCoverPickerTotal(result.total);
+        setCoverPickerPhotos((prev) => {
+          const source = replace ? [] : prev;
+          const byId = new Map(source.map((photo) => [photo.id, photo]));
+          for (const photo of result.photos) {
+            byId.set(photo.id, photo);
+          }
+          return Array.from(byId.values());
+        });
+      } catch {
+        setCoverPickerError('Could not load more photos. Try again.');
+      } finally {
+        setIsLoadingCoverPickerPhotos(false);
+      }
+    },
+    [onLoadCoverPhotos],
+  );
+
+  const handleOpenCoverPicker = useCallback(() => {
+    setIsCoverPickerOpen(true);
+    void loadCoverPickerPhotos({ offset: 0, replace: true });
+  }, [loadCoverPickerPhotos]);
+
+  const hasMoreCoverPickerPhotos = coverPickerPhotos.length < coverPickerTotal;
+
+  const handleLoadMoreCoverPhotos = useCallback(() => {
+    if (!isCoverPickerOpen || isLoadingCoverPickerPhotos || !hasMoreCoverPickerPhotos) {
+      return;
+    }
+
+    void loadCoverPickerPhotos({
+      offset: coverPickerPhotos.length,
+      replace: false,
+    });
+  }, [
+    coverPickerPhotos.length,
+    hasMoreCoverPickerPhotos,
+    isCoverPickerOpen,
+    isLoadingCoverPickerPhotos,
+    loadCoverPickerPhotos,
+  ]);
+
+  useEffect(() => {
+    if (!isCoverPickerOpen || isLoadingCoverPickerPhotos || !hasMoreCoverPickerPhotos) {
+      return;
+    }
+
+    const target = coverPickerLoadMoreRef.current;
+    if (!target) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          handleLoadMoreCoverPhotos();
+        }
+      },
+      {
+        root: coverPickerScrollRef.current,
+        rootMargin: '360px 0px',
+      },
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [
+    handleLoadMoreCoverPhotos,
+    hasMoreCoverPickerPhotos,
+    isCoverPickerOpen,
+    isLoadingCoverPickerPhotos,
+  ]);
+
+  const coverPreviewSlides = coverPickerPhotos.map((photo) => ({
+    src: photo.url,
+    thumbnailSrc: photo.thumbnail_url,
+    alt: photo.filename,
+    download: false,
+  }));
+
+  const { openLightbox: openCoverPreview, renderLightbox: renderCoverPreviewLightbox } =
+    usePhotoLightbox({
+      onLoadMore: handleLoadMoreCoverPhotos,
+      hasMore: hasMoreCoverPickerPhotos,
+      isLoadingMore: isLoadingCoverPickerPhotos,
+    });
+
+  const knownPhotos = (() => {
+    const byId = new Map<string, GalleryPhoto>();
+    for (const photo of photos) {
+      byId.set(photo.id, photo);
+    }
+    for (const photo of coverPickerPhotos) {
+      byId.set(photo.id, photo);
+    }
+    return Array.from(byId.values());
+  })();
+
   // -- effective cover ------------------------------------------------------
   const effectiveCover = draft.cover_photo_id
-    ? (photos.find((p) => p.id === draft.cover_photo_id) ?? null)
-    : (photos[0] ?? null);
+    ? (knownPhotos.find((p) => p.id === draft.cover_photo_id) ?? null)
+    : (coverPickerPhotos[0] ?? photos[0] ?? null);
 
   const effectiveCoverPayload: {
     photo_id: string;
@@ -305,6 +444,11 @@ export const GalleryAppearanceSection = ({
         thumbnail_url: effectiveCover.thumbnail_url,
       }
     : null;
+  const effectiveCoverFilename = effectiveCover?.filename ?? 'Automatic cover';
+  const selectedCoverLabel =
+    draft.cover_photo_id === null
+      ? 'Automatic fallback'
+      : (effectiveCover?.filename ?? 'Selected cover');
 
   // -- preview helpers ------------------------------------------------------
   const previewPhotos: PublicPhoto[] = photos.slice(0, MAX_PREVIEW_PHOTOS).map((photo) => ({
@@ -338,6 +482,17 @@ export const GalleryAppearanceSection = ({
       updateDraft({ cover_focal_x: x, cover_focal_y: y });
     },
     [updateDraft],
+  );
+
+  const handleSelectCoverPhoto = useCallback(
+    (photoId: string | null) => {
+      setIsCoverPickerOpen(false);
+      if (photoId === draft.cover_photo_id) {
+        return;
+      }
+      updateDraft({ cover_photo_id: photoId });
+    },
+    [draft.cover_photo_id, updateDraft],
   );
 
   // -- render ---------------------------------------------------------------
@@ -396,54 +551,204 @@ export const GalleryAppearanceSection = ({
             <p className="text-sm font-medium text-muted">Upload photos first to choose a cover</p>
           </div>
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-3">
-            {photos.map((photo) => {
-              const isSelected = draft.cover_photo_id === photo.id;
-              const isFallback = draft.cover_photo_id === null && photos[0]?.id === photo.id;
-
-              return (
-                <button
-                  key={photo.id}
-                  type="button"
-                  onClick={() => updateDraft({ cover_photo_id: photo.id })}
-                  className={`relative overflow-hidden rounded-xl border-2 transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
-                    isSelected
-                      ? 'border-accent ring-2 ring-accent/40'
-                      : 'border-transparent hover:border-border/60'
-                  }`}
-                  aria-pressed={isSelected}
-                  aria-label={
-                    photo.filename ? `Select ${photo.filename} as cover` : 'Select as cover'
-                  }
-                >
+          <div className="flex flex-col gap-4 rounded-2xl border border-border/40 bg-surface p-4 dark:border-border/30 dark:bg-surface-dark-1 sm:flex-row sm:items-center">
+            <div className="relative w-full overflow-hidden rounded-xl bg-surface-1 sm:w-48">
+              {effectiveCover ? (
+                <>
                   <img
-                    src={photo.thumbnail_url}
+                    src={effectiveCover.thumbnail_url}
                     alt=""
-                    className="aspect-square w-full object-cover"
+                    className="aspect-video w-full object-cover"
                   />
-                  <div className="absolute inset-x-0 bottom-0 bg-black/50 px-1.5 py-0.5">
+                  <div className="absolute inset-x-0 bottom-0 bg-black/55 px-3 py-2">
                     <p
-                      className="truncate text-[10px] font-medium text-white/90"
-                      title={photo.filename}
+                      className="truncate text-xs font-semibold text-white"
+                      title={effectiveCoverFilename}
                     >
-                      {photo.filename}
+                      {effectiveCoverFilename}
                     </p>
                   </div>
-                  {isFallback && (
-                    <span className="absolute left-1 top-1 rounded bg-amber-500/90 px-1 py-0.5 text-[9px] font-bold text-white">
-                      Fallback
-                    </span>
-                  )}
-                  {isSelected && (
-                    <span className="absolute right-1 top-1 rounded bg-accent px-1 py-0.5 text-[9px] font-bold text-accent-foreground">
-                      Cover
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+                </>
+              ) : (
+                <div className="flex aspect-video items-center justify-center">
+                  <ImageOff className="h-8 w-8 text-muted" />
+                </div>
+              )}
+            </div>
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="text-sm font-semibold text-text">{selectedCoverLabel}</p>
+              <p className="text-sm text-muted">
+                Pick a cover in a larger image browser, then fine-tune its focal point below.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenCoverPicker}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:bg-accent/90 active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            >
+              <ImageIcon className="h-4 w-4" />
+              Select cover image
+            </button>
           </div>
         )}
+
+        <AppDialog
+          open={isCoverPickerOpen}
+          onClose={() => setIsCoverPickerOpen(false)}
+          size="5xl"
+          panelProps={{ 'data-lenis-prevent': true }}
+          panelClassName="flex max-h-[min(92vh,56rem)] flex-col overflow-hidden rounded-3xl border border-border/50 bg-surface shadow-2xl dark:border-border/40 dark:bg-surface-dark"
+        >
+          <div className="flex shrink-0 items-center gap-4 border-b border-border/50 bg-surface/95 px-5 py-4 backdrop-blur-md dark:border-border/40 dark:bg-surface-dark/95 sm:px-6">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+              <ImageIcon className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <AppDialogTitle className="truncate text-lg font-bold leading-tight text-text">
+                Select cover image
+              </AppDialogTitle>
+              <AppDialogDescription className="truncate text-sm text-muted">
+                {coverPickerTotal} photos · current: {selectedCoverLabel}
+              </AppDialogDescription>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCoverPickerOpen(false)}
+              aria-label="Close cover image picker"
+              className="rounded-xl p-2 text-muted transition-all duration-200 hover:bg-surface-1 hover:text-text active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-surface-dark-1"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div ref={coverPickerScrollRef} className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+            {coverPickerError && (
+              <div className="mb-4 rounded-xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm font-medium text-danger">
+                {coverPickerError}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => handleSelectCoverPhoto(null)}
+              className={`mb-4 flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
+                draft.cover_photo_id === null
+                  ? 'border-accent bg-accent/10 text-text'
+                  : 'border-border/40 bg-surface-1/40 text-muted hover:border-border/70 hover:text-text dark:bg-surface-dark-1/60'
+              }`}
+              aria-pressed={draft.cover_photo_id === null}
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-muted dark:bg-surface-dark">
+                <ImageIcon className="h-5 w-5" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">Use first photo automatically</span>
+                <span className="block truncate text-xs text-muted">
+                  Current fallback:{' '}
+                  {coverPickerPhotos[0]?.filename ?? photos[0]?.filename ?? 'first uploaded photo'}
+                </span>
+              </span>
+              {draft.cover_photo_id === null && <Check className="h-5 w-5 shrink-0 text-accent" />}
+            </button>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {coverPickerPhotos.map((photo, photoIndex) => {
+                const isSelected = draft.cover_photo_id === photo.id;
+                const isFallback =
+                  draft.cover_photo_id === null &&
+                  (coverPickerPhotos[0]?.id ?? photos[0]?.id) === photo.id;
+
+                return (
+                  <div
+                    key={photo.id}
+                    className={`group relative overflow-hidden rounded-2xl border-2 bg-surface-1 text-left transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:bg-surface-dark-1 ${
+                      isSelected
+                        ? 'border-accent ring-2 ring-accent/35'
+                        : 'border-border/30 hover:border-border/70'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleSelectCoverPhoto(photo.id)}
+                      className="block w-full text-left focus:outline-hidden"
+                      aria-pressed={isSelected}
+                      aria-label={
+                        photo.filename ? `Select ${photo.filename} as cover` : 'Select as cover'
+                      }
+                    >
+                      <img
+                        src={photo.thumbnail_url}
+                        alt=""
+                        className="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+                      />
+                      <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 via-black/45 to-transparent p-3 pt-10">
+                        <p
+                          className="truncate text-sm font-semibold text-white"
+                          title={photo.filename}
+                        >
+                          {photo.filename}
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openCoverPreview(photoIndex)}
+                      aria-label={
+                        photo.filename
+                          ? `Preview ${photo.filename} full screen`
+                          : 'Preview photo full screen'
+                      }
+                      className="absolute left-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-black/60 text-white shadow-sm backdrop-blur-sm transition-all duration-200 hover:bg-black/75 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white/80"
+                    >
+                      <Maximize2 className="h-4 w-4" />
+                    </button>
+                    {isFallback && (
+                      <span className="absolute left-3 top-14 rounded-lg bg-amber-500/95 px-2 py-1 text-[11px] font-bold text-white shadow-sm">
+                        Fallback
+                      </span>
+                    )}
+                    {isSelected && (
+                      <span
+                        className={`absolute right-3 top-3 inline-flex items-center gap-1 rounded-lg bg-accent px-2 py-1 text-[11px] font-bold text-accent-foreground shadow-sm ${
+                          isFallback ? 'max-w-[calc(100%-4.75rem)]' : ''
+                        }`}
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        Cover
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {isLoadingCoverPickerPhotos && coverPickerPhotos.length === 0 && (
+              <div className="flex justify-center py-10 text-sm font-medium text-muted">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading photos…
+              </div>
+            )}
+
+            {hasMoreCoverPickerPhotos && (
+              <div
+                ref={coverPickerLoadMoreRef}
+                className="mt-6 flex min-h-14 items-center justify-center text-sm font-medium text-muted"
+                aria-live="polite"
+              >
+                {isLoadingCoverPickerPhotos ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Loading more photos…
+                  </>
+                ) : (
+                  <span>
+                    {coverPickerPhotos.length}/{coverPickerTotal} loaded
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </AppDialog>
+        {renderCoverPreviewLightbox(coverPreviewSlides, coverPickerTotal)}
         {photos.length > 0 && draft.cover_photo_id === null && (
           <p className="mt-2 text-xs text-muted">
             Current fallback cover:{' '}

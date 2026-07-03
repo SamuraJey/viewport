@@ -28,6 +28,9 @@ Unit tests, integration tests, and test utilities.
 ### 📱 [Responsive Design](./responsive.md)
 Mobile-first approach, breakpoints, and adaptation strategies.
 
+### 🖼️ [Gallery Appearance](./gallery-appearance.md)
+Owner gallery appearance controls, including cover image selection and public preview behavior.
+
 ### 🐛 [Troubleshooting](./troubleshooting.md)
 Common issues and solutions for frontend development.
 
