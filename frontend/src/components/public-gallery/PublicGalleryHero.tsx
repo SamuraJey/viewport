@@ -29,30 +29,30 @@ export const PublicGalleryHero = ({
 
   const emptyTitleSizeClass =
     titleLength > 80
-      ? 'text-2xl sm:text-3xl'
+      ? 'pg-hero__empty-title--long'
       : titleLength > 46
-        ? 'text-3xl sm:text-4xl'
-        : 'text-4xl sm:text-5xl';
+        ? 'pg-hero__empty-title--medium'
+        : 'pg-hero__empty-title--short';
   const heroTitleSizeClass =
     titleLength > 90
-      ? 'text-2xl sm:text-4xl md:text-5xl'
+      ? 'pg-hero__centered-title--long'
       : titleLength > 60
-        ? 'text-3xl sm:text-5xl md:text-6xl'
-        : 'text-4xl sm:text-6xl md:text-7xl';
+        ? 'pg-hero__centered-title--medium'
+        : 'pg-hero__centered-title--short';
 
   const textBlockTitleSizeClass =
     titleLength > 60
-      ? 'text-xl sm:text-2xl md:text-3xl'
+      ? 'pg-hero__text-block-title--long'
       : titleLength > 40
-        ? 'text-2xl sm:text-3xl md:text-4xl'
-        : 'text-3xl sm:text-4xl md:text-5xl';
+        ? 'pg-hero__text-block-title--medium'
+        : 'pg-hero__text-block-title--short';
 
   const minimalistTitleSizeClass =
     titleLength > 60
-      ? 'text-lg sm:text-xl md:text-2xl'
+      ? 'pg-hero__minimalist-title--long'
       : titleLength > 40
-        ? 'text-xl sm:text-2xl md:text-3xl'
-        : 'text-2xl sm:text-3xl md:text-4xl';
+        ? 'pg-hero__minimalist-title--medium'
+        : 'pg-hero__minimalist-title--short';
 
   useLayoutEffect(() => {
     if (!heroUrl) {
@@ -93,7 +93,7 @@ export const PublicGalleryHero = ({
     return (
       <div className="mb-8 rounded-3xl border border-border/50 bg-surface-1/70 px-6 py-24 text-center shadow-xs dark:bg-surface-dark-1/70">
         <h1
-          className={`${emptyTitleSizeClass} mb-4 font-bold tracking-tight text-text wrap-break-word`}
+          className={`pg-hero__empty-title ${emptyTitleSizeClass} mb-4 font-bold text-text wrap-break-word`}
         >
           {galleryTitle}
         </h1>
@@ -108,21 +108,21 @@ export const PublicGalleryHero = ({
     switch (displayOption) {
       case 'text_block':
         return (
-          <div className="relative z-10 p-6 sm:p-8 w-full max-w-5xl mx-auto flex flex-col justify-end h-full pb-20 sm:pb-24">
-            <div className="flex flex-col lg:flex-row lg:justify-start">
-              <div className="rounded-2xl bg-black/60 backdrop-blur-md px-5 py-4 sm:px-7 sm:py-5 max-w-md">
+          <div className="pg-hero__content pg-hero__content--text-block relative z-10 mx-auto flex h-full w-full max-w-5xl flex-col justify-end">
+            <div className="flex flex-col justify-start">
+              <div className="pg-hero__text-block max-w-md rounded-2xl bg-black/60 backdrop-blur-md">
                 {date && (
-                  <p className="text-xs sm:text-sm font-medium text-white/70 tracking-wider uppercase mb-2">
+                  <p className="pg-hero__date mb-2 font-medium uppercase tracking-wider text-white/70">
                     {date}
                   </p>
                 )}
                 <h1
-                  className={`${textBlockTitleSizeClass} font-bold text-white drop-shadow-lg tracking-tight leading-tight wrap-break-word`}
+                  className={`pg-hero__text-block-title ${textBlockTitleSizeClass} font-bold text-white drop-shadow-lg wrap-break-word`}
                 >
                   {galleryTitle}
                 </h1>
                 {photographer && (
-                  <p className="mt-3 text-sm sm:text-base font-medium text-white/80 drop-shadow-md">
+                  <p className="pg-hero__photographer mt-3 font-medium text-white/80 drop-shadow-md">
                     By {photographer}
                   </p>
                 )}
@@ -133,13 +133,13 @@ export const PublicGalleryHero = ({
 
       case 'minimalist':
         return (
-          <div className="relative z-10 p-6 sm:p-8 w-full max-w-5xl mx-auto flex flex-col justify-end h-full pb-14 sm:pb-16">
+          <div className="pg-hero__content pg-hero__content--minimalist relative z-10 mx-auto flex h-full w-full max-w-5xl flex-col justify-end">
             <h1
-              className={`${minimalistTitleSizeClass} font-bold text-white drop-shadow-xl tracking-tight leading-tight wrap-break-word max-w-2xl`}
+              className={`pg-hero__minimalist-title ${minimalistTitleSizeClass} max-w-2xl font-bold text-white drop-shadow-xl wrap-break-word`}
             >
               {galleryTitle}
             </h1>
-            <div className="mt-2 flex items-center gap-3 text-xs sm:text-sm font-medium text-white/70 drop-shadow-md">
+            <div className="pg-hero__meta-row mt-2 flex items-center gap-3 font-medium text-white/70 drop-shadow-md">
               {date && <span className="uppercase tracking-wider">{date}</span>}
               {photographer && (
                 <>
@@ -153,19 +153,19 @@ export const PublicGalleryHero = ({
 
       default: // centered_title
         return (
-          <div className="relative z-10 p-8 w-full max-w-5xl mx-auto flex flex-col justify-end h-full pb-24">
+          <div className="pg-hero__content pg-hero__content--centered relative z-10 mx-auto flex h-full w-full max-w-5xl flex-col justify-end">
             <div className="flex flex-col items-center text-center">
               {date && (
-                <p className="text-sm sm:text-base font-medium text-white/80 tracking-wider uppercase mb-3">
+                <p className="pg-hero__date mb-3 font-medium uppercase tracking-wider text-white/80">
                   {date}
                 </p>
               )}
               <h1
-                className={`${heroTitleSizeClass} font-bold text-white drop-shadow-xl tracking-tight leading-tight wrap-break-word max-w-full`}
+                className={`pg-hero__centered-title ${heroTitleSizeClass} max-w-full font-bold text-white drop-shadow-xl wrap-break-word`}
               >
                 {galleryTitle}
               </h1>
-              <div className="mt-4 sm:mt-6 text-lg sm:text-xl font-medium text-white/90 drop-shadow-md">
+              <div className="pg-hero__byline mt-4 font-medium text-white/90 drop-shadow-md">
                 {photographer && <span>By {photographer}</span>}
               </div>
             </div>

@@ -13,7 +13,10 @@ import {
 import { SkipToContentLink } from '../components/a11y/SkipToContentLink';
 import { ReadabilitySettingsButton } from '../components/ReadabilitySettingsButton';
 import { AppDialog, AppDialogDescription, AppDialogTitle } from '../components/ui';
-import { normalizePublicGalleryAppearance, getPublicGalleryThemeClassName } from '../components/public-gallery/galleryAppearance';
+import {
+  normalizePublicGalleryAppearance,
+  getPublicGalleryThemeClassName,
+} from '../components/public-gallery/galleryAppearance';
 import { PublicGalleryHero } from '../components/public-gallery/PublicGalleryHero';
 import { PublicGalleryPhotoSection } from '../components/public-gallery/PublicGalleryPhotoSection';
 import {
@@ -720,7 +723,9 @@ export const PublicGalleryPage = () => {
     );
   }
   return (
-    <div className={`pg-public-page ${getPublicGalleryThemeClassName(appearance)} min-h-screen bg-surface text-text`}>
+    <div
+      className={`pg-public-page ${getPublicGalleryThemeClassName(appearance)} min-h-screen bg-surface text-text`}
+    >
       <SkipToContentLink targetId="main-content" />
       <div className="fixed top-6 right-6 z-30 flex items-center gap-2">
         <ReadabilitySettingsButton />

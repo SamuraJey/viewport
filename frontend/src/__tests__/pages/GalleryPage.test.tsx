@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { GalleryPage } from '../../pages/GalleryPage';
+import { useAuthStore } from '../../stores/authStore';
 
 const mockNavigate = vi.fn();
 let mockRouteParams: { id?: string; projectId?: string; galleryId?: string } = { id: '1' };
@@ -226,6 +227,20 @@ describe('GalleryPage', () => {
     vi.clearAllMocks();
     mockNavigate.mockReset();
     vi.spyOn(console, 'error').mockImplementation(() => {});
+    useAuthStore.setState({
+      user: {
+        id: 'user1',
+        email: 'test@example.com',
+        display_name: 'Test Shooter',
+        storage_used: 0,
+        storage_quota: 1_000_000,
+      },
+      tokens: {
+        access_token: 'access-token',
+        refresh_token: 'refresh-token',
+      },
+      isAuthenticated: true,
+    });
 
     // Default mock responses
     const { galleryService } = await import('../../services/galleryService');
@@ -430,6 +445,16 @@ describe('GalleryPage', () => {
   });
 
   describe('Photo Actions', () => {
+    it('renders appearance cover preview with public date and photographer labels', async () => {
+      render(<GalleryPageWrapper />);
+
+      await userEvent.click(await screen.findByRole('tab', { name: /appearance/i }));
+
+      expect(await screen.findAllByText('01.01.2024')).not.toHaveLength(0);
+      expect(screen.getAllByText('By Test Shooter')).not.toHaveLength(0);
+      expect(screen.queryByText('2024-01-01')).not.toBeInTheDocument();
+    });
+
     it('selects a cover photo from the appearance picker dialog', async () => {
       const { galleryService } = await import('../../services/galleryService');
       vi.mocked(galleryService.updateGallery).mockResolvedValue({

@@ -21,11 +21,14 @@ import type { PublicPhoto } from '../../types/sharelink';
 import { AppDialog, AppDialogDescription, AppDialogTitle } from '../ui';
 import {
   getPublicGallerySpacingClassName,
+  getPublicGalleryThemeClassName,
   normalizePublicGalleryAppearance,
   toHeroObjectPosition,
 } from '../public-gallery/galleryAppearance';
+import { PublicGalleryHero } from '../public-gallery/PublicGalleryHero';
 import { PublicGalleryPhotoSection } from '../public-gallery/PublicGalleryPhotoSection';
 import { usePhotoLightbox } from '../../hooks/usePhotoLightbox';
+import { useAuthStore } from '../../stores/authStore';
 
 // ---------------------------------------------------------------------------
 // Types & constants
@@ -44,6 +47,19 @@ const SAVE_STATUS_LABELS: Record<SaveStatus, string> = {
 const AUTOSAVE_DEBOUNCE_MS = 450;
 const MAX_PREVIEW_PHOTOS = 12;
 const COVER_PICKER_PAGE_SIZE = 100;
+
+const formatPublicGalleryDate = (value?: string | null): string => {
+  if (!value) return '';
+
+  const datePart = value.slice(0, 10);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+  if (match) {
+    const [, year, month, day] = match;
+    return `${day}.${month}.${year}`;
+  }
+
+  return value;
+};
 
 interface AppearanceDraft {
   cover_photo_id: string | null;
@@ -143,6 +159,7 @@ export const GalleryAppearanceSection = ({
   onLoadCoverPhotos,
   onSaveAppearance,
 }: GalleryAppearanceSectionProps) => {
+  const currentUser = useAuthStore((state) => state.user);
   // -- draft state ----------------------------------------------------------
   const [draft, setDraft] = useState<AppearanceDraft>({
     cover_photo_id: gallery.cover_photo_id ?? null,
@@ -404,6 +421,8 @@ export const GalleryAppearanceSection = ({
     photo_spacing: draft.public_photo_spacing,
     color_scheme: draft.public_color_scheme,
   });
+  const previewHeroDate = formatPublicGalleryDate(gallery.shooting_date);
+  const previewHeroPhotographer = currentUser?.display_name ?? undefined;
 
   const previewGridClassNames = [
     'grid',
@@ -433,70 +452,6 @@ export const GalleryAppearanceSection = ({
     },
     [draft.cover_photo_id, updateDraft],
   );
-
-  const coverObjectPosition = toHeroObjectPosition(
-    normalizePublicGalleryAppearance({
-      cover_focal_x: draft.cover_focal_x,
-      cover_focal_y: draft.cover_focal_y,
-    }),
-  );
-
-  const renderCoverPreviewContent = (variant: 'desktop' | 'mobile' = 'desktop') => {
-    const titleClassName =
-      variant === 'mobile' ? 'text-[10px] leading-tight' : 'text-lg leading-tight sm:text-xl';
-    const dateClassName = variant === 'mobile' ? 'text-[5px]' : 'text-[8px]';
-    const title = gallery.name || 'Untitled Gallery';
-    const date = gallery.shooting_date || undefined;
-    const titlePositionClassName =
-      variant === 'mobile'
-        ? 'inset-x-3 bottom-4 text-left'
-        : draft.cover_display_option === 'centered_title'
-          ? 'inset-x-4 top-1/2 -translate-y-1/2 text-center'
-          : 'inset-x-5 bottom-5 text-left';
-    const titleBlock =
-      draft.cover_display_option === 'text_block' ? (
-        <div className="rounded-md bg-black/45 px-3 py-2 backdrop-blur-sm">
-          {date && (
-            <p
-              className={`${dateClassName} mb-1 font-semibold uppercase tracking-[0.18em] text-white/70`}
-            >
-              {date}
-            </p>
-          )}
-          <p className={`${titleClassName} font-semibold text-white`}>{title}</p>
-        </div>
-      ) : (
-        <>
-          {date && (
-            <p
-              className={`${dateClassName} mb-1 font-semibold uppercase tracking-[0.18em] text-white/70`}
-            >
-              {date}
-            </p>
-          )}
-          <p className={`${titleClassName} font-semibold text-white`}>{title}</p>
-        </>
-      );
-
-    return (
-      <div className="relative h-full w-full overflow-hidden bg-surface-foreground/10">
-        {effectiveCoverPayload ? (
-          <img
-            src={effectiveCoverPayload.thumbnail_url}
-            alt=""
-            className="h-full w-full object-cover"
-            style={{ objectPosition: coverObjectPosition }}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-surface-1">
-            <ImageOff className="h-8 w-8 text-muted" />
-          </div>
-        )}
-        <div className="absolute inset-0 bg-linear-to-t from-black/75 via-black/25 to-transparent" />
-        <div className={`absolute ${titlePositionClassName}`}>{titleBlock}</div>
-      </div>
-    );
-  };
 
   // -- render ---------------------------------------------------------------
   if (isLoadingPhotos) {
@@ -923,21 +878,54 @@ export const GalleryAppearanceSection = ({
 
         <div className="flex flex-1 items-start justify-center pt-[4.5rem]">
           {previewTab === 'cover' ? (
-            <div className="relative w-full max-w-2xl">
+            <div className="relative w-full max-w-6xl">
               <div className="mb-2 text-xl font-bold leading-none text-muted/50">...</div>
-              <div className="relative aspect-[16/10] w-full overflow-visible">
-                <div className="absolute inset-x-0 top-0 aspect-[16/9] overflow-hidden shadow-sm">
-                  {renderCoverPreviewContent('desktop')}
+              <div className="flex flex-col items-center gap-6 xl:flex-row xl:items-end xl:justify-center">
+                <div className="w-full max-w-4xl">
+                  <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+                    Desktop 16:9
+                  </p>
+                  <div
+                    className={`pg-public-page ${getPublicGalleryThemeClassName(previewAppearance)} aspect-video overflow-hidden bg-surface text-text shadow-sm [&_.pg-hero]:!h-full [&_.pg-hero]:!min-h-full`}
+                  >
+                    <PublicGalleryHero
+                      title={gallery.name}
+                      date={previewHeroDate}
+                      photographer={previewHeroPhotographer}
+                      cover={effectiveCoverPayload}
+                      appearance={previewAppearance}
+                    />
+                  </div>
                 </div>
-                <div className="absolute bottom-[-2.2rem] right-[10%] h-[76%] w-[25%] min-w-28 overflow-hidden rounded-[1.35rem] border-[3px] border-black bg-black shadow-2xl">
-                  <div className="h-full w-full overflow-hidden rounded-[1rem]">
-                    {renderCoverPreviewContent('mobile')}
+
+                <div className="w-[15rem] shrink-0">
+                  <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
+                    Phone 9:16
+                  </p>
+                  <div className="rounded-[1.75rem] border-[3px] border-black bg-black p-1 shadow-2xl">
+                    <div className="relative aspect-[9/16] overflow-hidden rounded-[1.35rem] bg-surface">
+                      <div className="absolute left-0 top-0 h-[693px] w-[390px] origin-top-left scale-[0.615]">
+                        <div
+                          className={`pg-public-page ${getPublicGalleryThemeClassName(previewAppearance)} h-full w-full bg-surface text-text [&_.pg-hero]:!h-full [&_.pg-hero]:!min-h-full`}
+                        >
+                          <PublicGalleryHero
+                            title={gallery.name}
+                            date={previewHeroDate}
+                            photographer={previewHeroPhotographer}
+                            cover={effectiveCoverPayload}
+                            appearance={previewAppearance}
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="w-full max-w-3xl overflow-hidden bg-surface shadow-sm dark:bg-surface-dark">
+            <div
+              className={`pg-public-page ${getPublicGalleryThemeClassName(previewAppearance)} w-full max-w-3xl overflow-hidden bg-surface text-text shadow-sm`}
+            >
               <div className="border-b border-border/40 px-5 py-4 dark:border-border/30">
                 <p className="text-sm font-semibold text-text">{gallery.name}</p>
                 <p className="text-xs text-muted">
