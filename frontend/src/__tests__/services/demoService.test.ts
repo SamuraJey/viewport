@@ -151,6 +151,22 @@ describe('demoService', () => {
     expect(detail.galleries.map((folder) => folder.name)).toEqual(['Photos', '3eds']);
   });
 
+  it('refreshes project cover thumbnails after changing a gallery cover in demo mode', async () => {
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    await service.setCoverPhoto('demo-project-porto-photos', 'demo-project-porto-photos-photo-2');
+
+    const projects = await service.getProjects(1, 20);
+    const project = projects.projects.find(
+      (candidate) => candidate.id === 'demo-project-porto-delivery',
+    );
+
+    expect(project?.cover_photo_thumbnail_url).toBe(
+      'https://picsum.photos/seed/demo-project-porto-photos-1/700/500',
+    );
+  });
+
   it('does not surface password protection for demo shares because public demo access is not gated', async () => {
     const { getDemoService } = await import('../../services/demoService');
     const service = getDemoService();

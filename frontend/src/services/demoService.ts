@@ -1424,6 +1424,7 @@ class DemoServiceStore {
       ...state.gallery,
       cover_photo_id: photoId,
     };
+    this.recalculateProjects();
     this.persistState();
     return toGalleryWithComputedFields(state);
   }
@@ -1434,6 +1435,7 @@ class DemoServiceStore {
       ...state.gallery,
       cover_photo_id: null,
     };
+    this.recalculateProjects();
     this.persistState();
   }
 

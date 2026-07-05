@@ -366,9 +366,16 @@ export const useGalleryActions = ({
 
   const handleSetCover = async (photoId: string) => {
     try {
-      await galleryService.setCoverPhoto(galleryId, photoId);
+      const updatedGallery = await galleryService.setCoverPhoto(galleryId, photoId);
       setGallery((prev: GalleryDetail | null) =>
-        prev ? { ...prev, cover_photo_id: photoId } : null,
+        prev
+          ? {
+              ...prev,
+              ...updatedGallery,
+              photos: prev.photos,
+              total_photos: prev.total_photos,
+            }
+          : null,
       );
       setActionInfo('');
     } catch (err) {

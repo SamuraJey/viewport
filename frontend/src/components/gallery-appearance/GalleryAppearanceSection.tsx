@@ -20,7 +20,6 @@ import type {
 import type { PublicPhoto } from '../../types/sharelink';
 import { AppDialog, AppDialogDescription, AppDialogTitle } from '../ui';
 import {
-  getPublicGallerySpacingClassName,
   getPublicGalleryThemeClassName,
   normalizePublicGalleryAppearance,
   toHeroObjectPosition,
@@ -28,6 +27,7 @@ import {
 import { PublicGalleryHero } from '../public-gallery/PublicGalleryHero';
 import { PublicGalleryPhotoSection } from '../public-gallery/PublicGalleryPhotoSection';
 import { usePhotoLightbox } from '../../hooks/usePhotoLightbox';
+import { usePublicGalleryGrid } from '../../hooks/usePublicGalleryGrid';
 import { useAuthStore } from '../../stores/authStore';
 
 // ---------------------------------------------------------------------------
@@ -181,7 +181,6 @@ export const GalleryAppearanceSection = ({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedDraftRef = useRef<AppearanceDraft>(draft);
   const saveRequestSeqRef = useRef(0);
-  const previewGridRef = useRef<HTMLDivElement | null>(null);
   const previewObserverRef = useRef<HTMLDivElement | null>(null);
   const coverPickerScrollRef = useRef<HTMLDivElement | null>(null);
   const coverPickerLoadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -447,16 +446,19 @@ export const GalleryAppearanceSection = ({
   const previewHeroDate = formatPublicGalleryDate(gallery.shooting_date);
   const previewHeroPhotographer = currentUser?.display_name ?? undefined;
 
-  const previewGridClassNames = useMemo(
-    () =>
-      [
-        'grid',
-        'grid-cols-[repeat(auto-fill,minmax(180px,1fr))]',
-        'gap-3',
-        getPublicGallerySpacingClassName(previewAppearance.photo_spacing),
-      ].join(' '),
-    [previewAppearance.photo_spacing],
-  );
+  const {
+    gridDensity: previewGridDensity,
+    gridLayout: previewGridLayout,
+    gridRef: previewGridRef,
+    gridClassNames: previewGridClassNames,
+    getAspectRatioHint: getPreviewAspectRatioHint,
+    setGridMode: setPreviewGridMode,
+    setLayoutMode: setPreviewLayoutMode,
+    touchHandlers: previewTouchHandlers,
+  } = usePublicGalleryGrid({
+    photos: previewPhotos,
+    spacing: previewAppearance.photo_spacing,
+  });
 
   // -- focal point click handler -------------------------------------------
   const handleFocalClick = useCallback(
@@ -962,22 +964,17 @@ export const GalleryAppearanceSection = ({
                   displayedPhotos={previewPhotos.length}
                   gridClassNames={previewGridClassNames}
                   showGridControls={false}
-                  gridLayout="masonry"
-                  gridDensity="large"
+                  gridLayout={previewGridLayout}
+                  gridDensity={previewGridDensity}
                   gridRef={previewGridRef}
-                  getAspectRatioHint={() => 1}
+                  getAspectRatioHint={getPreviewAspectRatioHint}
                   observerTargetRef={previewObserverRef}
                   isLoadingMore={false}
                   hasMore={false}
-                  onLayoutChange={() => {}}
-                  onDensityChange={() => {}}
+                  onLayoutChange={setPreviewLayoutMode}
+                  onDensityChange={setPreviewGridMode}
                   onOpenPhoto={() => {}}
-                  touchHandlers={{
-                    onTouchStart: () => {},
-                    onTouchMove: () => {},
-                    onTouchEnd: () => {},
-                    onTouchCancel: () => {},
-                  }}
+                  touchHandlers={previewTouchHandlers}
                 />
               </div>
             </div>
