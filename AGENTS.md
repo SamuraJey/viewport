@@ -107,6 +107,7 @@
     - Preserve isolation by keeping per-test DB cleanup (`TRUNCATE ... CASCADE`) and per-test S3 bucket isolation in place for tests that touch those resources.
     - If adding new integration tests, reuse existing container fixtures first; introduce new testcontainers only when mocking cannot validate required behavior.
 - Frontend checks: `cd frontend && npm run lint -- --fix && npm run test:run`.
+- Frontend production build requires `VITE_API_URL` in the environment; run it as `VITE_API_URL=https://... npm run build` or the Vite config will fail fast.
 
 ## Service Architecture
 - **RedisService** (`src/viewport/services/redis_service.py`):
