@@ -10,7 +10,7 @@ from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
 from viewport.repositories.gallery_repository import GalleryRepository
-from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
+from viewport.schemas.gallery import CoverDisplayOption, GalleryPhotoSortBy, PhotoSpacing, PublicColorScheme, SortOrder
 
 
 @pytest_asyncio.fixture
@@ -71,6 +71,46 @@ async def test_update_gallery(repo: GalleryRepository, owner_id):
     unchanged = await repo.update_gallery(gallery.id, owner_id)
     assert unchanged is not None
     assert unchanged.name == "Summer Trip"
+
+
+@pytest.mark.asyncio
+async def test_update_gallery_persists_cover_and_appearance_settings(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Styled Gallery")
+    cover_photo = await repo.create_photo(
+        gallery.id,
+        f"{gallery.id}/cover.jpg",
+        f"{gallery.id}/cover-thumb.jpg",
+        2048,
+    )
+
+    updated = await repo.update_gallery(
+        gallery.id,
+        owner_id,
+        cover_photo_id=cover_photo.id,
+        cover_focal_x=25.5,
+        cover_focal_y=74.5,
+        cover_display_option=CoverDisplayOption.TEXT_BLOCK,
+        public_photo_spacing=PhotoSpacing.LARGE,
+        public_color_scheme=PublicColorScheme.DARK,
+        fields_set={"cover_photo_id"},
+    )
+
+    assert updated is not None
+    assert updated.cover_photo_id == cover_photo.id
+    assert updated.cover_focal_x == 25.5
+    assert updated.cover_focal_y == 74.5
+    assert updated.cover_display_option == CoverDisplayOption.TEXT_BLOCK.value
+    assert updated.public_photo_spacing == PhotoSpacing.LARGE.value
+    assert updated.public_color_scheme == PublicColorScheme.DARK.value
+
+    reloaded = await repo.get_gallery_by_id_and_owner(gallery.id, owner_id)
+    assert reloaded is not None
+    assert reloaded.cover_photo_id == cover_photo.id
+    assert reloaded.cover_focal_x == 25.5
+    assert reloaded.cover_focal_y == 74.5
+    assert reloaded.cover_display_option == CoverDisplayOption.TEXT_BLOCK.value
+    assert reloaded.public_photo_spacing == PhotoSpacing.LARGE.value
+    assert reloaded.public_color_scheme == PublicColorScheme.DARK.value
 
 
 @pytest.mark.asyncio
