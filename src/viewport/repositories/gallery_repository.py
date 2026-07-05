@@ -16,7 +16,7 @@ from viewport.repositories.query_utils import LIKE_ESCAPE_CHAR as DEFAULT_LIKE_E
 from viewport.repositories.query_utils import escape_like_term, literal_like_pattern
 from viewport.repositories.user_repository import UserRepository
 from viewport.s3_service import AsyncS3Client
-from viewport.schemas.gallery import GalleryListSortBy, GalleryPhotoSortBy, SortOrder
+from viewport.schemas.gallery import CoverDisplayOption, GalleryListSortBy, GalleryPhotoSortBy, PhotoSpacing, PublicColorScheme, SortOrder
 from viewport.schemas.gallery import ProjectVisibility as ProjectVisibilitySchema
 
 logger = logging.getLogger(__name__)
@@ -243,6 +243,12 @@ class GalleryRepository(BaseRepository):
         project_visibility: ProjectVisibilitySchema | None = None,
         public_sort_by: GalleryPhotoSortBy | None = None,
         public_sort_order: SortOrder | None = None,
+        cover_photo_id: uuid.UUID | None = None,
+        cover_focal_x: float | None = None,
+        cover_focal_y: float | None = None,
+        cover_display_option: CoverDisplayOption | None = None,
+        public_photo_spacing: PhotoSpacing | None = None,
+        public_color_scheme: PublicColorScheme | None = None,
         fields_set: set[str] | None = None,
     ) -> Gallery | None:
         gallery = await self.get_gallery_by_id_and_owner(gallery_id, owner_id)
@@ -297,6 +303,24 @@ class GalleryRepository(BaseRepository):
             updated = True
         if public_sort_order is not None:
             gallery.public_sort_order = public_sort_order.value
+            updated = True
+        if "cover_photo_id" in active_fields:
+            gallery.cover_photo_id = cover_photo_id
+            updated = True
+        if cover_focal_x is not None:
+            gallery.cover_focal_x = cover_focal_x
+            updated = True
+        if cover_focal_y is not None:
+            gallery.cover_focal_y = cover_focal_y
+            updated = True
+        if cover_display_option is not None:
+            gallery.cover_display_option = cover_display_option.value
+            updated = True
+        if public_photo_spacing is not None:
+            gallery.public_photo_spacing = public_photo_spacing.value
+            updated = True
+        if public_color_scheme is not None:
+            gallery.public_color_scheme = public_color_scheme.value
             updated = True
 
         if updated:

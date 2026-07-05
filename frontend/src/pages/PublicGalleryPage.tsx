@@ -12,8 +12,11 @@ import {
 } from 'lucide-react';
 import { SkipToContentLink } from '../components/a11y/SkipToContentLink';
 import { ReadabilitySettingsButton } from '../components/ReadabilitySettingsButton';
-import { ThemeSwitch } from '../components/ThemeSwitch';
 import { AppDialog, AppDialogDescription, AppDialogTitle } from '../components/ui';
+import {
+  normalizePublicGalleryAppearance,
+  getPublicGalleryThemeClassName,
+} from '../components/public-gallery/galleryAppearance';
 import { PublicGalleryHero } from '../components/public-gallery/PublicGalleryHero';
 import { PublicGalleryPhotoSection } from '../components/public-gallery/PublicGalleryPhotoSection';
 import {
@@ -234,6 +237,10 @@ export const PublicGalleryPage = () => {
     [isFavoritesView, photos, selectedPhotos],
   );
 
+  const projectShare = gallery?.scope_type === 'project' ? gallery : null;
+  const folderShare = gallery?.scope_type === 'project' ? null : gallery;
+  const appearance = normalizePublicGalleryAppearance(folderShare?.appearance);
+
   const observerTargetRef = useRef<HTMLDivElement | null>(null);
   const loadMorePhotosRef = useRef<(() => void) | undefined>(undefined);
 
@@ -246,7 +253,7 @@ export const PublicGalleryPage = () => {
     setGridMode,
     setLayoutMode,
     touchHandlers,
-  } = usePublicGalleryGrid({ photos: displayedPhotos });
+  } = usePublicGalleryGrid({ photos: displayedPhotos, spacing: appearance.photo_spacing });
 
   const { openLightbox, renderLightbox } = usePhotoLightbox({
     photoCardSelector: '.pg-card',
@@ -411,8 +418,6 @@ export const PublicGalleryPage = () => {
     navigate(`/share/${shareId}`);
   }, [navigate, shareId]);
 
-  const projectShare = gallery?.scope_type === 'project' ? gallery : null;
-  const folderShare = gallery?.scope_type === 'project' ? null : gallery;
   const isProjectShare = projectShare !== null;
   const projectGalleryTabs = useMemo<SharedProjectShare | null>(() => {
     if (projectShare) {
@@ -717,13 +722,13 @@ export const PublicGalleryPage = () => {
       </div>
     );
   }
-
   return (
-    <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
+    <div
+      className={`pg-public-page ${getPublicGalleryThemeClassName(appearance)} min-h-screen bg-surface text-text`}
+    >
       <SkipToContentLink targetId="main-content" />
       <div className="fixed top-6 right-6 z-30 flex items-center gap-2">
         <ReadabilitySettingsButton />
-        <ThemeSwitch variant="inline" />
       </div>
 
       <div ref={heroBoundaryRef}>
@@ -732,6 +737,7 @@ export const PublicGalleryPage = () => {
           date={heroDate}
           photographer={heroPhotographer}
           cover={heroCover}
+          appearance={appearance}
         />
       </div>
 

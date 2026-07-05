@@ -1,4 +1,4 @@
-# Copilot instructions (Viewport)
+# Agent instructions (Viewport)
 
 ## Big picture
 - Monorepo: FastAPI backend in `src/viewport/` + React/Vite frontend in `frontend/`.
@@ -6,6 +6,7 @@
 - Backend database access uses SQLAlchemy `AsyncSession` in app code, repositories, and auth dependencies, while Celery background tasks currently use a sync SQLAlchemy `Session` via `task_db_session()`.
 - Storage/URLs: originals + thumbnails live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them via `PresignedUrlCacheService` (`src/viewport/services/presigned_cache.py`) backed by `RedisService` (`src/viewport/services/redis_service.py`) for cross-worker coherence.
 - uv is used as package manager.
+- Ask QUESTIONS if you are unsure about any of details of your current task.
 
 ## How to run (preferred workflows)
 - Containers (recommended): `docker-compose up -d` (services: backend, postgres, rustfs, redis, celery_worker).
@@ -120,6 +121,14 @@
   - TTL buffer: 10 minutes before actual URL expiry
   - Index sets for efficient invalidation by object key
   - Batch operations for performance
+
+## Gallery appearance settings
+- Gallery appearance settings are persisted on `galleries` (columns `cover_focal_x`, `cover_focal_y`, `cover_display_option`, `public_photo_spacing`, `public_color_scheme`) with DB-level check constraints.
+- Edited from the Gallery page Appearance tab (`GalleryAppearanceSection` component).
+- Autosaved through `PATCH /galleries/{gallery_id}` with a 450ms debounce on the frontend.
+- Rendered by shared public gallery components (`PublicGalleryHero`, `PublicGalleryPhotoSection`, `usePublicGalleryGrid`) that consume a `PublicGalleryAppearance` object from the public API payload.
+- The public page wrapper applies scoped theme classes (`pg-theme-light` / `pg-theme-dark`) that override semantic CSS variables so the photographer's chosen scheme always wins over the viewer's system preference.
+- Cover fallback: if the explicit `cover_photo_id` doesn't resolve, the first photo under the public sort order is used; an empty gallery returns `null` cover with a placeholder.
 
 ## Gotchas worth keeping in mind
 - Presigned URL cache is Redis-backed with a TTL buffer (URL TTL minus 10 minutes). Redis outages should degrade gracefully to direct presign generation without failing requests.

@@ -95,6 +95,11 @@ const toProjectGalleryCard = (folder: ProjectGallerySummary): Gallery => ({
   total_size_bytes: folder.total_size_bytes,
   has_active_share_links: folder.has_active_share_links,
   cover_photo_thumbnail_url: folder.cover_photo_thumbnail_url,
+  cover_focal_x: 50,
+  cover_focal_y: 50,
+  cover_display_option: 'centered_title',
+  public_photo_spacing: 'medium',
+  public_color_scheme: 'light',
 });
 
 const VISIBILITY_ACTION_BUTTON_CLASS =

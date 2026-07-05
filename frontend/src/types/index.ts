@@ -4,6 +4,9 @@
 
 // Gallery types
 export type {
+  CoverDisplayOption,
+  PhotoSpacing,
+  PublicColorScheme,
   Gallery,
   GalleryDetail,
   GalleryListResponse,

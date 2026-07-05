@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 from enum import IntEnum, StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Integer, SmallInteger, String, Text, event, func
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Float, ForeignKey, Index, Integer, SmallInteger, String, Text, event, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -73,6 +73,12 @@ class Gallery(Base):
         ForeignKey("photos.id", name="galleries_cover_photo_id_fkey", ondelete="SET NULL", use_alter=True),
         nullable=True,
     )
+    # Public gallery appearance settings
+    cover_focal_x: Mapped[float] = mapped_column(Float, nullable=False, default=50.0, server_default="50")
+    cover_focal_y: Mapped[float] = mapped_column(Float, nullable=False, default=50.0, server_default="50")
+    cover_display_option: Mapped[str] = mapped_column(String(32), nullable=False, default="centered_title", server_default="centered_title")
+    public_photo_spacing: Mapped[str] = mapped_column(String(16), nullable=False, default="medium", server_default="medium")
+    public_color_scheme: Mapped[str] = mapped_column(String(16), nullable=False, default="light", server_default="light")
 
     owner = relationship("User", back_populates="galleries")
     project: Mapped["Project | None"] = relationship("Project", back_populates="galleries")
@@ -93,12 +99,16 @@ class Gallery(Base):
         viewonly=True,
     )
     share_links: Mapped[list["ShareLink"]] = relationship("ShareLink", back_populates="gallery", passive_deletes=True)
-
     __table_args__ = (
         CheckConstraint(
             "project_visibility IN ('listed', 'direct_only')",
             name="ck_galleries_project_visibility",
         ),
+        CheckConstraint("cover_focal_x >= 0 AND cover_focal_x <= 100", name="ck_galleries_cover_focal_x_range"),
+        CheckConstraint("cover_focal_y >= 0 AND cover_focal_y <= 100", name="ck_galleries_cover_focal_y_range"),
+        CheckConstraint("cover_display_option IN ('centered_title', 'text_block', 'minimalist')", name="ck_galleries_cover_display_option"),
+        CheckConstraint("public_photo_spacing IN ('small', 'medium', 'large')", name="ck_galleries_public_photo_spacing"),
+        CheckConstraint("public_color_scheme IN ('light', 'dark')", name="ck_galleries_public_color_scheme"),
     )
 
 

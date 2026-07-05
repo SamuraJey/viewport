@@ -3,16 +3,20 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { GalleryPage } from '../../pages/GalleryPage';
+import { useAuthStore } from '../../stores/authStore';
 
 const mockNavigate = vi.fn();
 let mockRouteParams: { id?: string; projectId?: string; galleryId?: string } = { id: '1' };
+const { mockOpenLightbox } = vi.hoisted(() => ({
+  mockOpenLightbox: vi.fn(),
+}));
 
 // Mock usePhotoLightbox hook
 vi.mock('../../hooks/usePhotoLightbox', () => ({
   usePhotoLightbox: () => ({
     lightboxOpen: false,
     lightboxIndex: 0,
-    openLightbox: vi.fn(),
+    openLightbox: mockOpenLightbox,
     closeLightbox: vi.fn(),
     renderLightbox: (slides: any[]) => (
       <div data-testid="lightbox">
@@ -223,6 +227,20 @@ describe('GalleryPage', () => {
     vi.clearAllMocks();
     mockNavigate.mockReset();
     vi.spyOn(console, 'error').mockImplementation(() => {});
+    useAuthStore.setState({
+      user: {
+        id: 'user1',
+        email: 'test@example.com',
+        display_name: 'Test Shooter',
+        storage_used: 0,
+        storage_quota: 1_000_000,
+      },
+      tokens: {
+        access_token: 'access-token',
+        refresh_token: 'refresh-token',
+      },
+      isAuthenticated: true,
+    });
 
     // Default mock responses
     const { galleryService } = await import('../../services/galleryService');
@@ -427,6 +445,101 @@ describe('GalleryPage', () => {
   });
 
   describe('Photo Actions', () => {
+    it('renders appearance cover preview with public date and photographer labels', async () => {
+      render(<GalleryPageWrapper />);
+
+      await userEvent.click(await screen.findByRole('tab', { name: /appearance/i }));
+
+      expect(await screen.findAllByText('01.01.2024')).not.toHaveLength(0);
+      expect(screen.getAllByText('By Test Shooter')).not.toHaveLength(0);
+      expect(screen.queryByText('2024-01-01')).not.toBeInTheDocument();
+    });
+
+    it('selects a cover photo from the appearance picker dialog', async () => {
+      const { galleryService } = await import('../../services/galleryService');
+      vi.mocked(galleryService.updateGallery).mockResolvedValue({
+        ...mockGalleryData,
+        cover_photo_id: 'photo2',
+        cover_focal_x: 50,
+        cover_focal_y: 50,
+        cover_display_option: 'centered_title',
+        public_photo_spacing: 'medium',
+        public_color_scheme: 'light',
+      } as any);
+
+      render(<GalleryPageWrapper />);
+
+      await userEvent.click(await screen.findByRole('tab', { name: /appearance/i }));
+      await userEvent.click(screen.getByRole('button', { name: /^select cover image$/i }));
+
+      const pickerDialog = await screen.findByRole('dialog', { name: /select cover image/i });
+      await userEvent.click(
+        within(pickerDialog).getByRole('button', {
+          name: /preview photo2\.jpg full screen/i,
+        }),
+      );
+
+      expect(mockOpenLightbox).toHaveBeenCalledWith(1);
+      expect(galleryService.updateGallery).not.toHaveBeenCalled();
+
+      await userEvent.click(
+        within(pickerDialog).getByRole('button', { name: /select photo2\.jpg as cover/i }),
+      );
+
+      await waitFor(
+        () => {
+          expect(galleryService.updateGallery).toHaveBeenCalledWith(
+            '1',
+            expect.objectContaining({ cover_photo_id: 'photo2' }),
+          );
+        },
+        { timeout: 1200 },
+      );
+
+      expect(screen.queryByRole('dialog', { name: /select cover image/i })).not.toBeInTheDocument();
+    });
+
+    it('loads more photos automatically near the cover picker edge', async () => {
+      const { galleryService } = await import('../../services/galleryService');
+      const manyPhotos = Array.from({ length: 150 }, (_, index) => {
+        const photoNumber = index + 1;
+        return {
+          id: `photo${photoNumber}`,
+          url: `/api/photos/photo${photoNumber}.jpg`,
+          thumbnail_url: `/api/photos/photo${photoNumber}_thumb.jpg`,
+          filename: `photo${photoNumber}.jpg`,
+          created_at: '2024-01-01T10:00:00Z',
+          file_size: 12345,
+          uploaded_at: '2024-01-01T10:00:00Z',
+        };
+      });
+      vi.mocked(galleryService.getGallery).mockImplementation(async (_galleryId, options) => {
+        const offset = options?.offset ?? 0;
+        const limit = options?.limit ?? 100;
+        return {
+          ...mockGalleryData,
+          photo_count: manyPhotos.length,
+          total_photos: manyPhotos.length,
+          photos: manyPhotos.slice(offset, offset + limit),
+        };
+      });
+
+      render(<GalleryPageWrapper />);
+
+      await userEvent.click(await screen.findByRole('tab', { name: /appearance/i }));
+      await userEvent.click(screen.getByRole('button', { name: /^select cover image$/i }));
+
+      const pickerDialog = await screen.findByRole('dialog', { name: /select cover image/i });
+
+      await waitFor(() => {
+        expect(within(pickerDialog).getByText('photo150.jpg')).toBeInTheDocument();
+      });
+      expect(galleryService.getGallery).toHaveBeenCalledWith(
+        '1',
+        expect.objectContaining({ limit: 100, offset: 100 }),
+      );
+    });
+
     it('should not send update when shooting date is cleared', async () => {
       const { galleryService } = await import('../../services/galleryService');
 

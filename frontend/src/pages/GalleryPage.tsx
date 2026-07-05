@@ -18,6 +18,7 @@ import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { GallerySelectionSessionsPanel } from '../components/gallery/GallerySelectionSessionsPanel';
 import { GalleryDragOverlay } from '../components/gallery/GalleryDragOverlay';
 import { GalleryPhotoSection } from '../components/gallery/GalleryPhotoSection';
+import { GalleryAppearanceSection } from '../components/gallery-appearance/GalleryAppearanceSection';
 import { AppTabs } from '../components/ui';
 import {
   GalleryInitialLoadingState,
@@ -30,6 +31,7 @@ import { useGalleryDragAndDrop } from '../hooks/useGalleryDragAndDrop';
 import { usePagination } from '../hooks/usePagination';
 import { useSelection } from '../hooks/useSelection';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { galleryService } from '../services/galleryService';
 import { projectService } from '../services/projectService';
 import { shareLinkService } from '../services/shareLinkService';
 import { handleApiError } from '../lib/errorHandling';
@@ -117,7 +119,9 @@ export const GalleryPage = () => {
     useState<GalleryPhotoSortBy>(DEFAULT_PUBLIC_SORT_BY);
   const [publicSortOrderInput, setPublicSortOrderInput] =
     useState<SortOrder>(DEFAULT_PUBLIC_SORT_ORDER);
-  const [activeContentTab, setActiveContentTab] = useState<'project' | 'favorites'>('project');
+  const [activeContentTab, setActiveContentTab] = useState<'project' | 'appearance' | 'favorites'>(
+    'project',
+  );
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showInitialLoadingState, setShowInitialLoadingState] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -251,6 +255,7 @@ export const GalleryPage = () => {
     handleRenamePhoto,
     handleRenameConfirm,
     handleDeletePhoto,
+    handleSaveAppearanceSettings,
     handleDeleteMultiplePhotos: handleDeletePhotos, // Renamed to avoid name clash
   } = useGalleryActions({
     galleryId,
@@ -264,6 +269,23 @@ export const GalleryPage = () => {
   });
 
   const activeProjectId = gallery?.project_id ?? routeProjectId ?? null;
+
+  const loadCoverPickerPhotos = useCallback(
+    async ({ limit, offset }: { limit: number; offset: number }) => {
+      const galleryData = await galleryService.getGallery(galleryId, {
+        limit,
+        offset,
+        sort_by: DEFAULT_SORT_BY,
+        order: DEFAULT_SORT_ORDER,
+      });
+
+      return {
+        photos: galleryData.photos ?? [],
+        total: galleryData.total_photos,
+      };
+    },
+    [galleryId],
+  );
 
   const loadProjectDetail = useCallback(async () => {
     if (!activeProjectId) {
@@ -747,7 +769,7 @@ export const GalleryPage = () => {
   }, [activeContentTab, favoritesTabs, fetchSelectionSessionDetail, selectedFavoritesTab]);
 
   const handleSelectContentTab = useCallback(
-    (tab: 'project' | 'favorites') => {
+    (tab: 'project' | 'appearance' | 'favorites') => {
       startTabTransition(() => {
         setActiveContentTab(tab);
       });
@@ -1084,6 +1106,20 @@ export const GalleryPage = () => {
             onDeleteLink={handleDeleteShareLink}
           />
         </div>
+      ),
+    },
+    {
+      key: 'appearance' as const,
+      tabClassName: contentTabClassName,
+      tab: 'Appearance',
+      panel: (
+        <GalleryAppearanceSection
+          gallery={gallery}
+          photos={photoUrls}
+          isLoadingPhotos={isLoadingPhotos}
+          onLoadCoverPhotos={loadCoverPickerPhotos}
+          onSaveAppearance={handleSaveAppearanceSettings}
+        />
       ),
     },
     {

@@ -14,6 +14,18 @@ export type GalleryListSortBy =
   | 'total_size_bytes';
 export type ProjectVisibility = 'listed' | 'direct_only';
 
+export type CoverDisplayOption = 'centered_title' | 'text_block' | 'minimalist';
+export type PhotoSpacing = 'small' | 'medium' | 'large';
+export type PublicColorScheme = 'light' | 'dark';
+
+export interface GalleryAppearanceFields {
+  cover_focal_x: number;
+  cover_focal_y: number;
+  cover_display_option: CoverDisplayOption;
+  public_photo_spacing: PhotoSpacing;
+  public_color_scheme: PublicColorScheme;
+}
+
 export interface GalleryPhotoQueryOptions {
   limit?: number;
   offset?: number;
@@ -30,7 +42,7 @@ export interface GalleryListQueryOptions {
   project_id?: string;
 }
 
-export interface Gallery {
+export interface Gallery extends GalleryAppearanceFields {
   id: string;
   owner_id: string;
   project_id?: string | null;

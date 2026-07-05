@@ -100,6 +100,11 @@ async def _build_gallery_response(
         total_size_bytes=total_size_bytes,
         has_active_share_links=has_active_share_links,
         cover_photo_thumbnail_url=cover_photo_thumbnail_url,
+        cover_focal_x=float(getattr(gallery, "cover_focal_x", 50.0)),
+        cover_focal_y=float(getattr(gallery, "cover_focal_y", 50.0)),
+        cover_display_option=getattr(gallery, "cover_display_option", "centered_title"),
+        public_photo_spacing=getattr(gallery, "public_photo_spacing", "medium"),
+        public_color_scheme=getattr(gallery, "public_color_scheme", "light"),
     )
 
 
@@ -161,6 +166,11 @@ async def _build_gallery_list_responses(
                 total_size_bytes=total_size_by_gallery.get(gallery.id, 0),
                 has_active_share_links=gallery.id in active_share_gallery_ids,
                 cover_photo_thumbnail_url=cover_thumbnail_url,
+                cover_focal_x=float(getattr(gallery, "cover_focal_x", 50.0)),
+                cover_focal_y=float(getattr(gallery, "cover_focal_y", 50.0)),
+                cover_display_option=getattr(gallery, "cover_display_option", "centered_title"),
+                public_photo_spacing=getattr(gallery, "public_photo_spacing", "medium"),
+                public_color_scheme=getattr(gallery, "public_color_scheme", "light"),
             )
         )
 
@@ -352,6 +362,11 @@ async def get_gallery_detail(
         photo_count=photo_count,
         has_active_share_links=has_active_share_links,
         cover_photo_thumbnail_url=cover_photo_thumbnail_url,
+        cover_focal_x=float(getattr(gallery, "cover_focal_x", 50.0)),
+        cover_focal_y=float(getattr(gallery, "cover_focal_y", 50.0)),
+        cover_display_option=getattr(gallery, "cover_display_option", "centered_title"),
+        public_photo_spacing=getattr(gallery, "public_photo_spacing", "medium"),
+        public_color_scheme=getattr(gallery, "public_color_scheme", "light"),
         photos=photo_responses,
         total_photos=filtered_photo_count,
         total_size_bytes=total_size_bytes,
@@ -517,6 +532,19 @@ async def update_gallery(
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
 
+    parsed_cover_photo_id: uuid.UUID | None = None
+    if "cover_photo_id" in request.model_fields_set:
+        if request.cover_photo_id is None:
+            parsed_cover_photo_id = None
+        else:
+            try:
+                parsed_cover_photo_id = uuid.UUID(str(request.cover_photo_id))
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail="Invalid cover_photo_id") from exc
+            photo = await repo.get_photo_by_id_and_gallery(parsed_cover_photo_id, gallery_id)
+            if not photo:
+                raise HTTPException(status_code=404, detail="Gallery or cover photo not found")
+
     gallery = await repo.update_gallery(
         gallery_id,
         current_user.id,
@@ -527,6 +555,12 @@ async def update_gallery(
         project_visibility=request.project_visibility,
         public_sort_by=request.public_sort_by,
         public_sort_order=request.public_sort_order,
+        cover_photo_id=parsed_cover_photo_id,
+        cover_focal_x=request.cover_focal_x,
+        cover_focal_y=request.cover_focal_y,
+        cover_display_option=request.cover_display_option,
+        public_photo_spacing=request.public_photo_spacing,
+        public_color_scheme=request.public_color_scheme,
         fields_set=set(request.model_fields_set),
     )
     if not gallery:

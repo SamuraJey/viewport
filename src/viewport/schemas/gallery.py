@@ -32,6 +32,23 @@ class ProjectVisibility(StrEnum):
     DIRECT_ONLY = "direct_only"
 
 
+class CoverDisplayOption(StrEnum):
+    CENTERED_TITLE = "centered_title"
+    TEXT_BLOCK = "text_block"
+    MINIMALIST = "minimalist"
+
+
+class PhotoSpacing(StrEnum):
+    SMALL = "small"
+    MEDIUM = "medium"
+    LARGE = "large"
+
+
+class PublicColorScheme(StrEnum):
+    LIGHT = "light"
+    DARK = "dark"
+
+
 class GalleryListQueryParams(BaseModel):
     search: str | None = Field(None, max_length=GALLERY_NAME_MAX_LENGTH, description="Case-insensitive partial gallery name search")
     sort_by: GalleryListSortBy = Field(GalleryListSortBy.CREATED_AT, description="Gallery sorting field")
@@ -86,6 +103,12 @@ class GalleryUpdateRequest(BaseModel):
     project_visibility: ProjectVisibility | None = Field(None, description="Gallery visibility inside project shares")
     public_sort_by: GalleryPhotoSortBy | None = Field(None, description="Default sort field for shared/public gallery")
     public_sort_order: SortOrder | None = Field(None, description="Default sort direction for shared/public gallery")
+    cover_photo_id: str | None = Field(None, description="Optional cover photo id from this gallery; null clears the explicit cover")
+    cover_focal_x: float | None = Field(None, ge=0, le=100, description="Cover focal point x percentage")
+    cover_focal_y: float | None = Field(None, ge=0, le=100, description="Cover focal point y percentage")
+    cover_display_option: CoverDisplayOption | None = Field(None, description="Public cover composition")
+    public_photo_spacing: PhotoSpacing | None = Field(None, description="Spacing between public gallery photos")
+    public_color_scheme: PublicColorScheme | None = Field(None, description="Public gallery color scheme")
 
     @model_validator(mode="after")
     def validate_payload(self) -> Self:
@@ -111,6 +134,11 @@ class GalleryResponse(BaseModel):
     total_size_bytes: int = Field(0, ge=0, description="Total size of photos in bytes")
     has_active_share_links: bool = Field(False, description="Whether gallery has any active share links")
     cover_photo_thumbnail_url: str | None = Field(None, description="Presigned URL for cover photo thumbnail")
+    cover_focal_x: float = Field(50.0, ge=0, le=100, description="Cover focal point x percentage")
+    cover_focal_y: float = Field(50.0, ge=0, le=100, description="Cover focal point y percentage")
+    cover_display_option: CoverDisplayOption = Field(CoverDisplayOption.CENTERED_TITLE, description="Public cover composition")
+    public_photo_spacing: PhotoSpacing = Field(PhotoSpacing.MEDIUM, description="Spacing between public gallery photos")
+    public_color_scheme: PublicColorScheme = Field(PublicColorScheme.LIGHT, description="Public gallery color scheme")
 
 
 class GalleryDetailResponse(BaseModel):
@@ -129,6 +157,11 @@ class GalleryDetailResponse(BaseModel):
     photo_count: int = Field(0, ge=0, description="Number of photos in the gallery")
     has_active_share_links: bool = Field(False, description="Whether gallery has any active share links")
     cover_photo_thumbnail_url: str | None = Field(None, description="Presigned URL for cover photo thumbnail")
+    cover_focal_x: float = Field(50.0, ge=0, le=100, description="Cover focal point x percentage")
+    cover_focal_y: float = Field(50.0, ge=0, le=100, description="Cover focal point y percentage")
+    cover_display_option: CoverDisplayOption = Field(CoverDisplayOption.CENTERED_TITLE, description="Public cover composition")
+    public_photo_spacing: PhotoSpacing = Field(PhotoSpacing.MEDIUM, description="Spacing between public gallery photos")
+    public_color_scheme: PublicColorScheme = Field(PublicColorScheme.LIGHT, description="Public gallery color scheme")
     photos: list[GalleryPhotoResponse]
     total_photos: int = Field(..., description="Total number of photos in the gallery")
     total_size_bytes: int = Field(..., description="Total size of photos in bytes")

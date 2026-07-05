@@ -188,6 +188,7 @@ class TestPublicAPI:
         s3_client = MagicMock()
         s3_client.generate_presigned_urls_batch = AsyncMock(return_value={"thumb-key": "https://example.com/thumb"})
         s3_client.generate_presigned_urls_batch_for_dispositions = AsyncMock(return_value={})
+        s3_client.generate_presigned_url_async = AsyncMock(return_value="https://example.com/cover-full")
         request = SimpleNamespace(base_url="https://example.com/", client=None, headers={})
 
         payload = await _build_public_gallery_response(
@@ -202,7 +203,27 @@ class TestPublicAPI:
             offset=0,
         )
 
-        assert payload.cover is None
+        assert payload.cover is not None
+        assert payload.cover.photo_id == str(photo.id)
+
+        repo.get_photos_by_gallery_id = AsyncMock(side_effect=[[], [photo]])
+        gallery.cover_photo_id = None
+
+        paginated_payload = await _build_public_gallery_response(
+            share_id=uuid4(),
+            request=request,
+            response=Response(),
+            repo=repo,
+            s3_client=s3_client,
+            sharelink=sharelink,
+            gallery=gallery,
+            limit=20,
+            offset=20,
+        )
+
+        assert paginated_payload.photos == []
+        assert paginated_payload.cover is not None
+        assert paginated_payload.cover.photo_id == str(photo.id)
 
     @pytest.mark.asyncio
     async def test_build_public_project_response_rejects_missing_project(self):

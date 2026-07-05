@@ -51,8 +51,8 @@ interface PublicGalleryPhotoSectionProps {
     onTogglePhoto: (photoId: string) => void;
     onUpdatePhotoComment: (photoId: string, comment: string) => void | Promise<void>;
   };
+  showGridControls?: boolean;
 }
-
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
 interface PhotoCommentPanelProps {
@@ -293,6 +293,7 @@ export const PublicGalleryPhotoSection = ({
   onOpenPhoto,
   touchHandlers,
   selection,
+  showGridControls = true,
 }: PublicGalleryPhotoSectionProps) => {
   const hasSelectionEnabled = selection?.enabled ?? false;
   const photoCountLabel =
@@ -312,13 +313,14 @@ export const PublicGalleryPhotoSection = ({
         <h2 className="flex items-center gap-2 text-2xl font-bold text-text sm:text-3xl">
           {sectionTitle} <span className="text-lg font-medium text-muted">{photoCountLabel}</span>
         </h2>
-
-        <PublicGalleryGridControls
-          gridLayout={gridLayout}
-          gridDensity={gridDensity}
-          onLayoutChange={onLayoutChange}
-          onDensityChange={onDensityChange}
-        />
+        {showGridControls && (
+          <PublicGalleryGridControls
+            gridLayout={gridLayout}
+            gridDensity={gridDensity}
+            onLayoutChange={onLayoutChange}
+            onDensityChange={onDensityChange}
+          />
+        )}
       </div>
 
       {isLoading ? (
