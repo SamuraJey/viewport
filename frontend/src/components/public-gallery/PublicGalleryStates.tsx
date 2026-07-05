@@ -7,8 +7,8 @@ interface PublicGalleryErrorProps {
 }
 
 export const PublicGalleryError = ({ error }: PublicGalleryErrorProps) => (
-  <div className="flex min-h-screen items-center justify-center bg-surface p-4 text-text dark:bg-surface-dark">
-    <div className="w-full max-w-md rounded-3xl border border-border/50 bg-surface p-8 text-center shadow-2xl dark:border-white/10 dark:bg-surface-dark-1 sm:p-10">
+  <div className="flex min-h-screen items-center justify-center bg-surface p-4 text-text">
+    <div className="w-full max-w-md rounded-3xl border border-border/50 bg-surface p-8 text-center shadow-2xl sm:p-10">
       <div className="w-20 h-20 bg-danger/10 rounded-full flex items-center justify-center mx-auto mb-6">
         <AlertCircle className="w-10 h-10 text-danger" />
       </div>
@@ -19,8 +19,8 @@ export const PublicGalleryError = ({ error }: PublicGalleryErrorProps) => (
 );
 
 export const PublicGalleryExpired = () => (
-  <div className="flex min-h-screen items-center justify-center bg-surface p-4 text-text dark:bg-surface-dark">
-    <div className="w-full max-w-lg rounded-3xl border border-border/50 bg-surface p-8 text-center shadow-2xl dark:border-white/10 dark:bg-surface-dark-1 sm:p-10">
+  <div className="flex min-h-screen items-center justify-center bg-surface p-4 text-text">
+    <div className="w-full max-w-lg rounded-3xl border border-border/50 bg-surface p-8 text-center shadow-2xl sm:p-10">
       <div className="w-20 h-20 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-6">
         <Clock3 className="w-10 h-10 text-accent" />
       </div>

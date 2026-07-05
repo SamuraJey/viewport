@@ -599,7 +599,7 @@ export const PublicGalleryPage = () => {
 
   if (shouldShowPasswordPrompt) {
     return (
-      <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
+      <div className="min-h-screen bg-surface text-text">
         <SkipToContentLink targetId="main-content" />
         <main
           id="main-content"
@@ -608,7 +608,7 @@ export const PublicGalleryPage = () => {
         >
           <form
             onSubmit={(event) => void handleSubmitSharePassword(event)}
-            className="w-full max-w-md rounded-3xl border border-border/50 bg-surface px-6 py-7 shadow-lg dark:border-border/30 dark:bg-surface-dark"
+            className="w-full max-w-md rounded-3xl border border-border/50 bg-surface px-6 py-7 shadow-lg"
           >
             <div className="mb-5 flex items-center gap-3">
               <div className="rounded-2xl bg-accent/10 p-3 text-accent">
@@ -626,7 +626,7 @@ export const PublicGalleryPage = () => {
                 value={sharePasswordDraft}
                 onChange={(event) => setSharePasswordDraft(event.target.value)}
                 autoComplete="current-password"
-                className="w-full rounded-xl border border-border/50 bg-surface-1 px-3 py-2.5 text-text outline-none transition-colors focus:border-accent dark:bg-surface-dark-1"
+                className="w-full rounded-xl border border-border/50 bg-surface-1 px-3 py-2.5 text-text outline-none transition-colors focus:border-accent"
               />
             </label>
             {sharePasswordError || errorStatus === 401 ? (
@@ -649,7 +649,7 @@ export const PublicGalleryPage = () => {
 
   if (isInitialGalleryLoading) {
     return (
-      <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
+      <div className="min-h-screen bg-surface text-text">
         <SkipToContentLink targetId="main-content" />
         <main
           id="main-content"
@@ -679,7 +679,7 @@ export const PublicGalleryPage = () => {
   if (isProjectShare && !activeGalleryId && !isFavoritesView) {
     if (projectShare.galleries.length === 0) {
       return (
-        <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
+        <div className="min-h-screen bg-surface text-text">
           <SkipToContentLink targetId="main-content" />
           <main
             id="main-content"
@@ -703,7 +703,7 @@ export const PublicGalleryPage = () => {
     }
 
     return (
-      <div className="min-h-screen bg-surface text-text dark:bg-surface-foreground/5">
+      <div className="min-h-screen bg-surface text-text">
         <SkipToContentLink targetId="main-content" />
         <main
           id="main-content"
@@ -1073,7 +1073,7 @@ export const PublicGalleryPage = () => {
             }}
             size="sm"
             initialFocusRef={startNameInputRef}
-            panelClassName="rounded-3xl border border-border/50 bg-surface p-5 shadow-xl dark:border-border/20 dark:bg-surface-dark"
+            panelClassName="rounded-3xl border border-border/50 bg-surface p-5 shadow-xl"
           >
             <form onSubmit={handleStartSelectionSubmit}>
               <AppDialogTitle className="text-lg font-semibold text-text">
@@ -1100,7 +1100,7 @@ export const PublicGalleryPage = () => {
                     placeholder="Your name"
                     aria-invalid={startFormError ? 'true' : undefined}
                     aria-describedby={startFormError ? 'selection-start-error' : undefined}
-                    className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent dark:bg-surface-dark-1"
+                    className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
                   />
                 </div>
                 {selection.config?.require_email ? (
@@ -1121,7 +1121,7 @@ export const PublicGalleryPage = () => {
                       placeholder="Email"
                       aria-invalid={startFormError ? 'true' : undefined}
                       aria-describedby={startFormError ? 'selection-start-error' : undefined}
-                      className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent dark:bg-surface-dark-1"
+                      className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
                     />
                   </div>
                 ) : null}
@@ -1142,7 +1142,7 @@ export const PublicGalleryPage = () => {
                       placeholder="Phone"
                       aria-invalid={startFormError ? 'true' : undefined}
                       aria-describedby={startFormError ? 'selection-start-error' : undefined}
-                      className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent dark:bg-surface-dark-1"
+                      className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
                     />
                   </div>
                 ) : null}
@@ -1163,7 +1163,7 @@ export const PublicGalleryPage = () => {
                       placeholder="Note"
                       aria-invalid={startFormError ? 'true' : undefined}
                       aria-describedby={startFormError ? 'selection-start-error' : undefined}
-                      className="w-full min-h-20 rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent dark:bg-surface-dark-1"
+                      className="w-full min-h-20 rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-accent"
                     />
                   </div>
                 ) : null}
@@ -1202,7 +1202,7 @@ export const PublicGalleryPage = () => {
           </AppDialog>
         ) : null}
 
-        <div className="mt-16 flex flex-wrap items-center justify-center gap-3 text-center text-sm font-medium text-muted dark:text-muted-foreground">
+        <div className="mt-16 flex flex-wrap items-center justify-center gap-3 text-center text-sm font-medium text-muted">
           <p>Powered by Viewport - Your Photo Gallery Solution</p>
           <Link to="/accessibility" className="font-semibold text-accent hover:underline">
             Accessibility
@@ -1214,7 +1214,7 @@ export const PublicGalleryPage = () => {
         <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-4 sm:px-6 lg:px-10">
           <section
             data-testid="project-selection-sticky-bar"
-            className="pointer-events-auto mx-auto flex w-full max-w-6xl flex-col gap-3 rounded-3xl border border-border/50 bg-surface/95 px-4 py-4 shadow-xl backdrop-blur-xl dark:bg-surface-dark/95 sm:flex-row sm:items-center sm:justify-between"
+            className="pointer-events-auto mx-auto flex w-full max-w-6xl flex-col gap-3 rounded-3xl border border-border/50 bg-surface/95 px-4 py-4 shadow-xl backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="space-y-1">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
