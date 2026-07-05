@@ -910,10 +910,12 @@ body.dark .gallery-create__btn,
   text-align: center;
   container-type: inline-size;
   /* Prefer dynamic viewport units to avoid mobile browser chrome resize jank. */
+  /* stylelint-disable declaration-block-no-duplicate-properties -- 100vh fallback before 100dvh is intentional. */
   height: 100vh;
   min-height: 100vh;
   height: 100dvh;
   min-height: 100dvh;
+  /* stylelint-enable declaration-block-no-duplicate-properties */
 }
 
 .pg-hero__content {

@@ -1,4 +1,4 @@
-# Copilot instructions (Viewport)
+# Agent instructions (Viewport)
 
 ## Big picture
 - Monorepo: FastAPI backend in `src/viewport/` + React/Vite frontend in `frontend/`.
@@ -6,6 +6,7 @@
 - Backend database access uses SQLAlchemy `AsyncSession` in app code, repositories, and auth dependencies, while Celery background tasks currently use a sync SQLAlchemy `Session` via `task_db_session()`.
 - Storage/URLs: originals + thumbnails live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them via `PresignedUrlCacheService` (`src/viewport/services/presigned_cache.py`) backed by `RedisService` (`src/viewport/services/redis_service.py`) for cross-worker coherence.
 - uv is used as package manager.
+- Ask QUESTIONS if you are unsure about any of details of your current task.
 
 ## How to run (preferred workflows)
 - Containers (recommended): `docker-compose up -d` (services: backend, postgres, rustfs, redis, celery_worker).

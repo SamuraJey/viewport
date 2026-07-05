@@ -180,6 +180,7 @@ export const GalleryAppearanceSection = ({
   const prevGalleryIdRef = useRef(gallery.id);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedDraftRef = useRef<AppearanceDraft>(draft);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const saveRequestSeqRef = useRef(0);
   const previewObserverRef = useRef<HTMLDivElement | null>(null);
   const coverPickerScrollRef = useRef<HTMLDivElement | null>(null);
@@ -225,38 +226,47 @@ export const GalleryAppearanceSection = ({
       saveRequestSeqRef.current = requestSeq;
       setSaveStatus('dirty');
 
-      debounceRef.current = setTimeout(async () => {
+      debounceRef.current = setTimeout(() => {
         debounceRef.current = null;
-        setSaveStatus('saving');
-        try {
-          const updated = await onSaveAppearance({
-            cover_photo_id: nextDraft.cover_photo_id,
-            cover_focal_x: nextDraft.cover_focal_x,
-            cover_focal_y: nextDraft.cover_focal_y,
-            cover_display_option: nextDraft.cover_display_option,
-            public_photo_spacing: nextDraft.public_photo_spacing,
-            public_color_scheme: nextDraft.public_color_scheme,
+
+        saveQueueRef.current = saveQueueRef.current
+          .catch(() => undefined)
+          .then(async () => {
+            if (saveRequestSeqRef.current !== requestSeq) {
+              return;
+            }
+
+            setSaveStatus('saving');
+            try {
+              const updated = await onSaveAppearance({
+                cover_photo_id: nextDraft.cover_photo_id,
+                cover_focal_x: nextDraft.cover_focal_x,
+                cover_focal_y: nextDraft.cover_focal_y,
+                cover_display_option: nextDraft.cover_display_option,
+                public_photo_spacing: nextDraft.public_photo_spacing,
+                public_color_scheme: nextDraft.public_color_scheme,
+              });
+              if (saveRequestSeqRef.current !== requestSeq) {
+                return;
+              }
+              // Sync back from server response
+              const synced: AppearanceDraft = {
+                cover_photo_id: updated.cover_photo_id ?? null,
+                cover_focal_x: updated.cover_focal_x ?? 50,
+                cover_focal_y: updated.cover_focal_y ?? 50,
+                cover_display_option: updated.cover_display_option ?? 'centered_title',
+                public_photo_spacing: updated.public_photo_spacing ?? 'medium',
+                public_color_scheme: updated.public_color_scheme ?? 'light',
+              };
+              setDraft(synced);
+              lastSavedDraftRef.current = synced;
+              setSaveStatus('saved');
+            } catch {
+              if (saveRequestSeqRef.current === requestSeq) {
+                setSaveStatus('error');
+              }
+            }
           });
-          if (saveRequestSeqRef.current !== requestSeq) {
-            return;
-          }
-          // Sync back from server response
-          const synced: AppearanceDraft = {
-            cover_photo_id: updated.cover_photo_id ?? null,
-            cover_focal_x: updated.cover_focal_x ?? 50,
-            cover_focal_y: updated.cover_focal_y ?? 50,
-            cover_display_option: updated.cover_display_option ?? 'centered_title',
-            public_photo_spacing: updated.public_photo_spacing ?? 'medium',
-            public_color_scheme: updated.public_color_scheme ?? 'light',
-          };
-          setDraft(synced);
-          lastSavedDraftRef.current = synced;
-          setSaveStatus('saved');
-        } catch {
-          if (saveRequestSeqRef.current === requestSeq) {
-            setSaveStatus('error');
-          }
-        }
       }, AUTOSAVE_DEBOUNCE_MS);
     },
     [onSaveAppearance],
@@ -419,12 +429,16 @@ export const GalleryAppearanceSection = ({
       : (effectiveCover?.filename ?? 'Selected cover');
 
   // -- preview helpers ------------------------------------------------------
-  const previewPhotos: PublicPhoto[] = photos.slice(0, MAX_PREVIEW_PHOTOS).map((photo) => ({
-    photo_id: photo.id,
-    thumbnail_url: photo.thumbnail_url,
-    full_url: photo.url,
-    filename: photo.filename,
-  }));
+  const previewPhotos: PublicPhoto[] = useMemo(
+    () =>
+      photos.slice(0, MAX_PREVIEW_PHOTOS).map((photo) => ({
+        photo_id: photo.id,
+        thumbnail_url: photo.thumbnail_url,
+        full_url: photo.url,
+        filename: photo.filename,
+      })),
+    [photos],
+  );
 
   const previewAppearance = useMemo(
     () =>

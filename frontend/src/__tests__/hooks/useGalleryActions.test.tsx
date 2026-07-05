@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGalleryActions } from '../../hooks/useGalleryActions';
+import { ApiError } from '../../lib/errorHandling';
 import { galleryService } from '../../services/galleryService';
 import type { Gallery, GalleryDetail } from '../../types';
 
@@ -88,15 +89,8 @@ describe('useGalleryActions', () => {
     vi.mocked(galleryService.getGallery).mockResolvedValue(baseGallery);
   });
 
-  it('keeps the returned cover thumbnail when setting a cover photo', async () => {
-    const updatedGallery: Gallery = {
-      ...baseGallery,
-      cover_photo_id: 'photo-2',
-      cover_photo_thumbnail_url: '/photos/photo-2-thumb-presigned.jpg',
-    };
-    vi.mocked(galleryService.setCoverPhoto).mockResolvedValue(updatedGallery);
-
-    const { result } = renderHook(
+  const renderUseGalleryActions = () =>
+    renderHook(
       () =>
         useGalleryActions({
           galleryId: 'gallery-1',
@@ -116,6 +110,16 @@ describe('useGalleryActions', () => {
       },
     );
 
+  it('keeps the returned cover thumbnail when setting a cover photo', async () => {
+    const updatedGallery: Gallery = {
+      ...baseGallery,
+      cover_photo_id: 'photo-2',
+      cover_photo_thumbnail_url: '/photos/photo-2-thumb-presigned.jpg',
+    };
+    vi.mocked(galleryService.setCoverPhoto).mockResolvedValue(updatedGallery);
+
+    const { result } = renderUseGalleryActions();
+
     await act(async () => {
       await result.current.fetchGalleryDetails(1, true);
     });
@@ -132,5 +136,37 @@ describe('useGalleryActions', () => {
       expect(result.current.gallery?.photos).toEqual(photos);
       expect(result.current.gallery?.total_photos).toBe(2);
     });
+  });
+
+  it('returns a complete fallback gallery when appearance cover save finds a deleted photo', async () => {
+    vi.mocked(galleryService.updateGallery).mockRejectedValue(new ApiError(404, 'Photo not found'));
+
+    const { result } = renderUseGalleryActions();
+
+    await act(async () => {
+      await result.current.fetchGalleryDetails(1, true);
+    });
+
+    let recoveredGallery: GalleryDetail | undefined;
+    await act(async () => {
+      recoveredGallery = await result.current.handleSaveAppearanceSettings({
+        cover_photo_id: 'photo-1',
+        cover_focal_x: 42,
+      });
+    });
+
+    expect(recoveredGallery).toMatchObject({
+      id: 'gallery-1',
+      name: 'Gallery',
+      project_id: 'project-1',
+      cover_photo_id: null,
+      cover_focal_x: 42,
+      cover_photo_thumbnail_url: '/photos/photo-1-thumb.jpg',
+      total_photos: 2,
+    });
+    expect(recoveredGallery?.photos).toEqual(photos);
+    expect(result.current.gallery?.cover_photo_id).toBeNull();
+    expect(result.current.gallery?.cover_photo_thumbnail_url).toBe('/photos/photo-1-thumb.jpg');
+    expect(result.current.actionInfo).toBe('This photo was already deleted.');
   });
 });

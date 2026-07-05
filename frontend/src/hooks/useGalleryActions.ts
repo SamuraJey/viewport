@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { galleryService } from '../services/galleryService';
 import { photoService } from '../services/photoService';
@@ -53,6 +53,7 @@ export const useGalleryActions = ({
   const [shootingDateInput, setShootingDateInput] = useState('');
   const [isSavingShootingDate, setIsSavingShootingDate] = useState(false);
   const [isSavingPublicSortSettings, setIsSavingPublicSortSettings] = useState(false);
+  const latestGalleryRef = useRef<GalleryDetail | null>(null);
 
   const { error, clearError, handleError } = useErrorHandler();
   const { openConfirm, ConfirmModal } = useConfirmation();
@@ -87,9 +88,12 @@ export const useGalleryActions = ({
 
   const removePhotoLocally = useCallback((photoId: string) => {
     setPhotoUrls((prev) => prev.filter((photo) => photo.id !== photoId));
-    setGallery((prev: GalleryDetail | null) =>
-      prev && prev.cover_photo_id === photoId ? { ...prev, cover_photo_id: null } : prev,
-    );
+    setGallery((prev: GalleryDetail | null) => {
+      if (!prev || prev.cover_photo_id !== photoId) return prev;
+      const next = { ...prev, cover_photo_id: null };
+      latestGalleryRef.current = next;
+      return next;
+    });
   }, []);
 
   const fetchGalleryDetails = useCallback(
@@ -109,6 +113,7 @@ export const useGalleryActions = ({
           sort_by: filters.sort_by,
           order: filters.order,
         });
+        latestGalleryRef.current = galleryData;
         const shouldRefreshShareLinks = gallery?.id !== galleryData.id;
         setGallery(galleryData);
         setPhotoUrls(galleryData.photos || []);
@@ -256,7 +261,7 @@ export const useGalleryActions = ({
         const updated = await galleryService.updateGallery(galleryId, payload);
         setGallery((prev) => {
           if (!prev) return prev;
-          return {
+          const next = {
             ...prev,
             cover_photo_id: updated.cover_photo_id,
             cover_focal_x: updated.cover_focal_x,
@@ -266,15 +271,18 @@ export const useGalleryActions = ({
             public_color_scheme: updated.public_color_scheme,
             cover_photo_thumbnail_url: updated.cover_photo_thumbnail_url,
           };
+          latestGalleryRef.current = next;
+          return next;
         });
         return updated as unknown as GalleryDetail;
       } catch (err) {
         if (payload.cover_photo_id && isNotFoundError(err)) {
           removePhotoLocally(payload.cover_photo_id);
           setActionInfo('This photo was already deleted.');
-          return gallery
-            ? ({ ...gallery, ...payload, cover_photo_id: null } as GalleryDetail)
-            : ({ cover_photo_id: null, ...payload } as GalleryDetail);
+          const fallbackGallery = gallery ?? latestGalleryRef.current;
+          return fallbackGallery
+            ? ({ ...fallbackGallery, ...payload, cover_photo_id: null } as GalleryDetail)
+            : ({ ...payload, cover_photo_id: null } as GalleryDetail);
         }
         handleError(err);
         throw err;
@@ -367,16 +375,17 @@ export const useGalleryActions = ({
   const handleSetCover = async (photoId: string) => {
     try {
       const updatedGallery = await galleryService.setCoverPhoto(galleryId, photoId);
-      setGallery((prev: GalleryDetail | null) =>
-        prev
-          ? {
-              ...prev,
-              ...updatedGallery,
-              photos: prev.photos,
-              total_photos: prev.total_photos,
-            }
-          : null,
-      );
+      setGallery((prev: GalleryDetail | null) => {
+        if (!prev) return null;
+        const next = {
+          ...prev,
+          ...updatedGallery,
+          photos: prev.photos,
+          total_photos: prev.total_photos,
+        };
+        latestGalleryRef.current = next;
+        return next;
+      });
       setActionInfo('');
     } catch (err) {
       if (isNotFoundError(err)) {
@@ -391,7 +400,12 @@ export const useGalleryActions = ({
   const handleClearCover = async () => {
     try {
       await galleryService.clearCoverPhoto(galleryId);
-      setGallery((prev: GalleryDetail | null) => (prev ? { ...prev, cover_photo_id: null } : null));
+      setGallery((prev: GalleryDetail | null) => {
+        if (!prev) return null;
+        const next = { ...prev, cover_photo_id: null };
+        latestGalleryRef.current = next;
+        return next;
+      });
     } catch (err) {
       handleError(err);
     }
