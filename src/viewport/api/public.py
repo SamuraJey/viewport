@@ -20,7 +20,7 @@ from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client, get_s3_settings
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 from viewport.schemas.photo import PHOTO_ID_BATCH_MAX
-from viewport.schemas.public import PublicCover, PublicGalleryResponse, PublicPhoto, PublicProjectGallery, PublicProjectResponse, PublicShareResponse, PublicShareUnlockRequest
+from viewport.schemas.public import PublicCover, PublicGalleryAppearance, PublicGalleryResponse, PublicPhoto, PublicProjectGallery, PublicProjectResponse, PublicShareResponse, PublicShareUnlockRequest
 from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_available_public_sharelink, get_valid_public_sharelink, unlock_sharelink_password
 from viewport.zip_utils import build_zip_fallback_name, make_content_disposition_header, make_unique_zip_entry_name, sanitize_zip_entry_name
 
@@ -200,8 +200,6 @@ async def _build_public_gallery_response(
             ip_address=client_ip,
             user_agent=request.headers.get("user-agent"),
         )
-
-    from viewport.schemas.public import PublicGalleryAppearance
 
     return PublicGalleryResponse(
         photos=photo_list,

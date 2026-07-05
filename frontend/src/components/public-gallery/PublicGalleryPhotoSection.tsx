@@ -137,9 +137,9 @@ const PhotoCommentPanel = ({
     if (saveState === 'error') return 'border-danger/30 bg-danger/10 text-danger';
     if (saveState === 'saving') return 'border-accent/30 bg-accent/10 text-accent';
     if (hasUnsavedChanges) {
-      return 'border-amber-400/30 bg-amber-400/10 text-amber-700 dark:text-amber-200';
+      return 'border-amber-400/30 bg-amber-400/10 text-amber-700';
     }
-    return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200';
+    return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700';
   })();
 
   const handleSave = useCallback(
@@ -324,7 +324,7 @@ export const PublicGalleryPhotoSection = ({
       </div>
 
       {isLoading ? (
-        <div className="flex min-h-80 items-center justify-center rounded-3xl border border-border/40 bg-surface-1/25 text-sm font-medium text-muted dark:border-border/20">
+        <div className="flex min-h-80 items-center justify-center rounded-3xl border border-border/40 bg-surface-1/25 text-sm font-medium text-muted">
           <Loader2 className="mr-3 h-6 w-6 animate-spin text-accent" />
           Loading gallery photos...
         </div>
@@ -402,7 +402,7 @@ export const PublicGalleryPhotoSection = ({
                               </span>
                             )}
                             anchor={{ to: 'bottom end', gap: '10px' }}
-                            panelClassName="w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-border/50 bg-surface/98 p-4 shadow-2xl backdrop-blur dark:border-border/30 dark:bg-surface-dark"
+                            panelClassName="w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-border/50 bg-surface/98 p-4 shadow-2xl backdrop-blur"
                             panel={(close) => (
                               <PhotoCommentPanel
                                 photoId={photo.photo_id}
@@ -456,7 +456,7 @@ export const PublicGalleryPhotoSection = ({
           )}
         </>
       ) : (
-        <div className="rounded-3xl border border-dashed border-border/50 bg-surface-1/20 py-20 text-center dark:border-border/10">
+        <div className="rounded-3xl border border-dashed border-border/50 bg-surface-1/20 py-20 text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-surface-foreground/10">
             <ImageOff className="h-8 w-8 text-muted" />
           </div>

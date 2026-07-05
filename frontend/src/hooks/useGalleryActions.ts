@@ -32,6 +32,18 @@ interface UseGalleryActionsProps {
   };
 }
 
+const GALLERY_APPEARANCE_UPDATE_KEYS = [
+  'cover_photo_id',
+  'cover_focal_x',
+  'cover_focal_y',
+  'cover_display_option',
+  'public_photo_spacing',
+  'public_color_scheme',
+] as const;
+
+type GalleryAppearanceUpdateKey = (typeof GALLERY_APPEARANCE_UPDATE_KEYS)[number];
+type GalleryAppearanceUpdatePayload = Partial<Pick<GalleryDetail, GalleryAppearanceUpdateKey>>;
+
 export const useGalleryActions = ({
   galleryId,
   parentProjectId,
@@ -242,39 +254,40 @@ export const useGalleryActions = ({
     [clearError, galleryId, handleError],
   );
 
+  const mergeAppearanceUpdate = useCallback(
+    (base: GalleryDetail, updated: Awaited<ReturnType<typeof galleryService.updateGallery>>) => {
+      const appearanceUpdate =
+        GALLERY_APPEARANCE_UPDATE_KEYS.reduce<GalleryAppearanceUpdatePayload>((acc, key) => {
+          const value = updated[key];
+          return value === undefined ? acc : { ...acc, [key]: value };
+        }, {});
+
+      return {
+        ...base,
+        ...appearanceUpdate,
+        cover_photo_thumbnail_url: updated.cover_photo_thumbnail_url,
+      };
+    },
+    [],
+  );
+
   const handleSaveAppearanceSettings = useCallback(
-    async (
-      payload: Partial<
-        Pick<
-          GalleryDetail,
-          | 'cover_photo_id'
-          | 'cover_focal_x'
-          | 'cover_focal_y'
-          | 'cover_display_option'
-          | 'public_photo_spacing'
-          | 'public_color_scheme'
-        >
-      >,
-    ): Promise<GalleryDetail> => {
+    async (payload: GalleryAppearanceUpdatePayload): Promise<GalleryDetail> => {
       clearError();
       try {
         const updated = await galleryService.updateGallery(galleryId, payload);
-        setGallery((prev) => {
-          if (!prev) return prev;
-          const next = {
-            ...prev,
-            cover_photo_id: updated.cover_photo_id,
-            cover_focal_x: updated.cover_focal_x,
-            cover_focal_y: updated.cover_focal_y,
-            cover_display_option: updated.cover_display_option,
-            public_photo_spacing: updated.public_photo_spacing,
-            public_color_scheme: updated.public_color_scheme,
-            cover_photo_thumbnail_url: updated.cover_photo_thumbnail_url,
-          };
-          latestGalleryRef.current = next;
-          return next;
-        });
-        return updated as unknown as GalleryDetail;
+        const baseGallery = latestGalleryRef.current ?? gallery;
+        if (!baseGallery) {
+          const refreshed = await galleryService.getGallery(galleryId);
+          latestGalleryRef.current = refreshed;
+          setGallery(refreshed);
+          return refreshed;
+        }
+
+        const next = mergeAppearanceUpdate(baseGallery, updated);
+        latestGalleryRef.current = next;
+        setGallery(next);
+        return next;
       } catch (err) {
         if (payload.cover_photo_id && isNotFoundError(err)) {
           removePhotoLocally(payload.cover_photo_id);
@@ -293,6 +306,7 @@ export const useGalleryActions = ({
       galleryId,
       clearError,
       handleError,
+      mergeAppearanceUpdate,
       removePhotoLocally,
       isNotFoundError,
       setActionInfo,

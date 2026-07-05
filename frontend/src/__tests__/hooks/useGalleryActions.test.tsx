@@ -138,6 +138,55 @@ describe('useGalleryActions', () => {
     });
   });
 
+  it('returns the complete gallery detail when saving appearance settings', async () => {
+    const updatedGallery: Gallery = {
+      ...baseGallery,
+      cover_photo_id: 'photo-2',
+      cover_photo_thumbnail_url: '/photos/photo-2-thumb-presigned.jpg',
+      cover_focal_x: 24,
+      cover_focal_y: 76,
+      cover_display_option: 'text_block',
+      public_photo_spacing: 'large',
+      public_color_scheme: 'dark',
+    };
+    delete (updatedGallery as Gallery & Partial<GalleryDetail>).photos;
+    delete (updatedGallery as Gallery & Partial<GalleryDetail>).total_photos;
+    vi.mocked(galleryService.updateGallery).mockResolvedValue(updatedGallery);
+
+    const { result } = renderUseGalleryActions();
+
+    await act(async () => {
+      await result.current.fetchGalleryDetails(1, true);
+    });
+
+    let savedGallery: GalleryDetail | undefined;
+    await act(async () => {
+      savedGallery = await result.current.handleSaveAppearanceSettings({
+        cover_photo_id: 'photo-2',
+        cover_focal_x: 24,
+        cover_focal_y: 76,
+        cover_display_option: 'text_block',
+        public_photo_spacing: 'large',
+        public_color_scheme: 'dark',
+      });
+    });
+
+    expect(savedGallery).toMatchObject({
+      id: 'gallery-1',
+      cover_photo_id: 'photo-2',
+      cover_focal_x: 24,
+      cover_focal_y: 76,
+      cover_display_option: 'text_block',
+      public_photo_spacing: 'large',
+      public_color_scheme: 'dark',
+      cover_photo_thumbnail_url: '/photos/photo-2-thumb-presigned.jpg',
+      total_photos: 2,
+    });
+    expect(savedGallery?.photos).toEqual(photos);
+    expect(result.current.gallery?.photos).toEqual(photos);
+    expect(result.current.gallery?.total_photos).toBe(2);
+  });
+
   it('returns a complete fallback gallery when appearance cover save finds a deleted photo', async () => {
     vi.mocked(galleryService.updateGallery).mockRejectedValue(new ApiError(404, 'Photo not found'));
 

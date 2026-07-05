@@ -93,7 +93,7 @@ export const PublicGalleryHero = ({
 
   if (!cover) {
     return (
-      <div className="mb-8 rounded-3xl border border-border/50 bg-surface-1/70 px-6 py-24 text-center shadow-xs dark:bg-surface-dark-1/70">
+      <div className="mb-8 rounded-3xl border border-border/50 bg-surface-1/70 px-6 py-24 text-center shadow-xs">
         <h1
           className={`pg-hero__empty-title ${emptyTitleSizeClass} mb-4 font-bold text-text wrap-break-word`}
         >
@@ -177,7 +177,7 @@ export const PublicGalleryHero = ({
   };
 
   return (
-    <div className="pg-hero relative w-full text-accent-foreground bg-surface-foreground/15 dark:bg-surface/20 overflow-hidden shadow-md">
+    <div className="pg-hero relative w-full text-accent-foreground bg-surface-foreground/15 overflow-hidden shadow-md">
       <img
         src={cover.thumbnail_url}
         alt=""

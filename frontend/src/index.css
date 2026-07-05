@@ -1065,15 +1065,12 @@ body.dark .gallery-create__btn,
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.553);
 }
 
-/* Dark theme shadows for better visibility */
-.dark .pg-card,
-html.dark .pg-card {
+.pg-public-page.pg-theme-dark .pg-card {
   box-shadow: 0 6px 22px rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.dark .pg-card:hover,
-html.dark .pg-card:hover {
+.pg-public-page.pg-theme-dark .pg-card:hover {
   box-shadow:
     0 6px 22px rgba(255, 255, 255, 0.08),
     0 0 20px rgba(255, 255, 255, 0.05);
@@ -1282,8 +1279,8 @@ html.dark .pg-card:hover {
   background-color: rgb(var(--color-neutral-50-rgb));
 }
 
-.dark .pg-columns > .pg-card img.photo--wide,
-html.dark .pg-columns > .pg-card > button > img.photo--wide {
+.pg-public-page.pg-theme-dark .pg-columns > .pg-card img.photo--wide,
+.pg-public-page.pg-theme-dark .pg-columns > .pg-card > button > img.photo--wide {
   background-color: rgb(24, 24, 27);
 }
 
