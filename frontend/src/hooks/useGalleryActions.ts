@@ -256,13 +256,11 @@ export const useGalleryActions = ({
 
   const mergeAppearanceUpdate = useCallback(
     (base: GalleryDetail, updated: Awaited<ReturnType<typeof galleryService.updateGallery>>) => {
-      const appearanceUpdate = GALLERY_APPEARANCE_UPDATE_KEYS.reduce<GalleryAppearanceUpdatePayload>(
-        (acc, key) => {
+      const appearanceUpdate =
+        GALLERY_APPEARANCE_UPDATE_KEYS.reduce<GalleryAppearanceUpdatePayload>((acc, key) => {
           const value = updated[key];
           return value === undefined ? acc : { ...acc, [key]: value };
-        },
-        {},
-      );
+        }, {});
 
       return {
         ...base,
