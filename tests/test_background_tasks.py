@@ -1,6 +1,6 @@
 import io
 import uuid
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from typing import NamedTuple
@@ -155,13 +155,13 @@ def test_create_thumbnails_batch_task_skips_missing_object(engine: Engine, s3_co
 
 def test_create_thumbnails_batch_task_skips_deleted_during_processing(engine: Engine, s3_container, monkeypatch) -> None:
     with photo_context(engine, "deleted-during", "deleted.jpg") as ctx:
-        original_precheck = background_tasks._get_existing_photo_ids
+        original_precheck: Callable[[list[str]], set[str]] = background_tasks._get_existing_photo_ids
 
         def _delete_after_precheck(photo_ids: list[str]) -> set[str]:
-            ids = original_precheck(photo_ids)
+            existing_ids: set[str] = original_precheck(photo_ids)
             with session_scope(engine) as session:
                 session.query(Photo).filter(Photo.id == ctx.photo_id).delete()
-            return ids
+            return existing_ids
 
         monkeypatch.setattr(background_tasks, "_get_existing_photo_ids", _delete_after_precheck)
 
@@ -179,6 +179,7 @@ def test_create_thumbnails_batch_task_reports_processing_errors(engine: Engine, 
 
         with session_scope(engine) as session:
             updated_photo = session.get(Photo, ctx.photo_id)
+            assert updated_photo is not None
             assert updated_photo.thumbnail_object_key == ctx.object_key
 
 
@@ -341,11 +342,11 @@ def test_reconcile_storage_quotas_includes_users_without_photos(engine: Engine) 
 
 def test_reconcile_successful_uploads_selects_correct_photos(engine: Engine, s3_container, monkeypatch) -> None:
     """Test that reconcile_successful_uploads_task selects processable photos older than threshold with missing metadata."""
-
     with photo_context(engine, "reconcile-test", "photo1.jpg") as ctx1, photo_context(engine, "reconcile-test", "photo2.jpg") as ctx2, photo_context(engine, "reconcile-test", "photo3.jpg") as ctx3:
         with session_scope(engine) as session:
             # Photo 1: THUMBNAIL_CREATING, old, missing width (should match)
             photo1 = session.get(Photo, ctx1.photo_id)
+            assert photo1 is not None
             photo1.status = PhotoUploadStatus.THUMBNAIL_CREATING
             photo1.uploaded_at = datetime.now(UTC) - timedelta(minutes=10)
             photo1.width = None
@@ -354,6 +355,7 @@ def test_reconcile_successful_uploads_selects_correct_photos(engine: Engine, s3_
 
             # Photo 2: SUCCESSFUL, old, but has all metadata (should NOT match)
             photo2 = session.get(Photo, ctx2.photo_id)
+            assert photo2 is not None
             photo2.status = PhotoUploadStatus.SUCCESSFUL
             photo2.uploaded_at = datetime.now(UTC) - timedelta(minutes=10)
             photo2.width = 640
@@ -363,6 +365,7 @@ def test_reconcile_successful_uploads_selects_correct_photos(engine: Engine, s3_
 
             # Photo 3: SUCCESSFUL, but recent (within threshold, should NOT match)
             photo3 = session.get(Photo, ctx3.photo_id)
+            assert photo3 is not None
             photo3.status = PhotoUploadStatus.SUCCESSFUL
             photo3.uploaded_at = datetime.now(UTC) - timedelta(minutes=1)
             photo3.width = None
@@ -397,6 +400,7 @@ def test_reconcile_successful_uploads_filters_deleted_galleries(engine: Engine, 
         with session_scope(engine) as session:
             # Photo 1: SUCCESSFUL, old, missing metadata, from active gallery (should match)
             photo1 = session.get(Photo, ctx1.photo_id)
+            assert photo1 is not None
             photo1.status = 2  # SUCCESSFUL
             photo1.uploaded_at = datetime.now(UTC) - timedelta(minutes=10)
             photo1.width = None
@@ -404,10 +408,12 @@ def test_reconcile_successful_uploads_filters_deleted_galleries(engine: Engine, 
 
             # Photo 2: SUCCESSFUL, old, missing metadata, from deleted gallery (should NOT match)
             photo2 = session.get(Photo, ctx2.photo_id)
+            assert photo2 is not None
             photo2.status = 2  # SUCCESSFUL
             photo2.uploaded_at = datetime.now(UTC) - timedelta(minutes=10)
             photo2.width = None
             gallery = session.get(Gallery, ctx2.gallery_id)
+            assert gallery is not None
             gallery.is_deleted = True
             session.flush()
 
@@ -499,6 +505,7 @@ def test_reconcile_successful_uploads_missing_metadata_criteria(engine: Engine, 
         with session_scope(engine) as session:
             # Photo 1: missing width
             photo1 = session.get(Photo, ctx1.photo_id)
+            assert photo1 is not None
             photo1.status = 2
             photo1.uploaded_at = datetime.now(UTC) - timedelta(minutes=10)
             photo1.width = None
@@ -508,6 +515,7 @@ def test_reconcile_successful_uploads_missing_metadata_criteria(engine: Engine, 
 
             # Photo 2: missing height
             photo2 = session.get(Photo, ctx2.photo_id)
+            assert photo2 is not None
             photo2.status = 2
             photo2.uploaded_at = datetime.now(UTC) - timedelta(minutes=10)
             photo2.width = 640
@@ -517,6 +525,7 @@ def test_reconcile_successful_uploads_missing_metadata_criteria(engine: Engine, 
 
             # Photo 3: thumbnail equals original (not yet processed)
             photo3 = session.get(Photo, ctx3.photo_id)
+            assert photo3 is not None
             photo3.status = 2
             photo3.uploaded_at = datetime.now(UTC) - timedelta(minutes=10)
             photo3.width = 640
@@ -737,6 +746,7 @@ def test_delete_gallery_data_task_deletes_sharelinks(engine: Engine, s3_containe
     with photo_context(engine, "sharelink-gallery", "photo.jpg") as ctx:
         with session_scope(engine) as session:
             gallery = session.get(Gallery, ctx.gallery_id)
+            assert gallery is not None
             sharelink = ShareLink(gallery_id=gallery.id)
             session.add(sharelink)
             session.flush()
