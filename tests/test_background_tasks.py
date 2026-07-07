@@ -36,6 +36,8 @@ from viewport.models.user import User
 from viewport.s3_utils import S3Settings, get_s3_client, get_s3_settings, upload_fileobj
 from viewport.task_utils import BatchTaskResult
 
+pytestmark = pytest.mark.requires_s3
+
 IMAGE_SIZE = (640, 480)
 
 

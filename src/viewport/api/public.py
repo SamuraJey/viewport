@@ -3,6 +3,7 @@ from datetime import date, datetime
 from uuid import UUID
 
 import zipstream
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -267,13 +268,13 @@ async def _build_project_cover(
                 cover_photo.object_key,
                 response_content_disposition=cover_disposition,
             )
-        except Exception as exc:
+        except (ClientError, BotoCoreError) as exc:
             logger.warning("Failed to presign full cover object %s: %s", cover_photo.object_key, exc)
             return None
     if thumbnail_url is None:
         try:
             thumbnail_url = await s3_client.generate_presigned_url_async(cover_photo.thumbnail_object_key)
-        except Exception as exc:
+        except (ClientError, BotoCoreError) as exc:
             logger.warning("Failed to presign thumbnail cover object %s: %s", cover_photo.thumbnail_object_key, exc)
             return None
 
