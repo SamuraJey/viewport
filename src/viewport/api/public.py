@@ -244,11 +244,18 @@ async def _build_project_cover(
     if cover_photo is None or not cover_photo.object_key or not cover_photo.thumbnail_object_key:
         return None
 
-    full_url = await s3_client.generate_presigned_url_async(
-        cover_photo.object_key,
-        response_content_disposition=build_content_disposition(cover_photo.display_name, disposition_type="inline"),
+    # Batch both presigned URLs in one round-trip via the dispositions variant
+    # (full object uses inline disposition; thumbnail uses none). Matches the
+    # pattern already used by _build_public_gallery_response below.
+    cover_disposition = build_content_disposition(cover_photo.display_name, disposition_type="inline")
+    urls = await s3_client.generate_presigned_urls_batch_for_dispositions(
+        {
+            cover_photo.object_key: cover_disposition,
+            cover_photo.thumbnail_object_key: None,
+        }
     )
-    thumbnail_url = await s3_client.generate_presigned_url_async(cover_photo.thumbnail_object_key)
+    full_url = urls.get(cover_photo.object_key)
+    thumbnail_url = urls.get(cover_photo.thumbnail_object_key)
 
     return PublicCover(
         photo_id=str(cover_photo.id),

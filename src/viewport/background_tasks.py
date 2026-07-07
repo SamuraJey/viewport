@@ -63,7 +63,7 @@ def _is_valid_image(image_bytes: bytes) -> bool:
         with Image.open(io.BytesIO(image_bytes)) as img:
             img.verify()
         return True
-    except (UnidentifiedImageError, OSError):
+    except UnidentifiedImageError, OSError:
         return False
 
 
@@ -152,7 +152,9 @@ def _process_single_photo(
 
             try:
                 s3_client.delete_object(Bucket=bucket, Key=object_key)
-            except ClientError as delete_error:  # TODO: consider handling specific error codes if needed. Also save failed deletions to a DB, for later retry
+            except ClientError as delete_error:
+                # Best-effort cleanup of an invalid uploaded object; the hourly
+                # cleanup_orphaned_uploads_task sweeps any S3 objects left behind.
                 logger.warning("Failed to delete invalid S3 object %s: %s", object_key, delete_error)
 
             # Previously we preserved the DB record and marked it FAILED, but
@@ -286,6 +288,7 @@ def delete_photos_batch_task(self, photo_ids: list[str], gallery_id: str, owner_
             else:
                 failed_ids.append(photo_id)
         except Exception:
+            logger.exception("Failed to delete photo %s during batch delete", photo_id)
             failed_ids.append(photo_id)
 
     return {
@@ -658,20 +661,37 @@ def notify_selection_submitted_task(self, payload: dict[str, Any]) -> dict[str, 
     if not sharelink_id or not session_id:
         raise ValueError("sharelink_id and session_id are required")
 
+    # Run all Redis + logging in a single event loop instead of spinning a fresh
+    # asyncio.run() per call (each run_async() is a separate loop + round-trip).
+    result = run_async(_notify_selection_submitted(sharelink_id, session_id, payload))
+    return result if isinstance(result, dict) else {"sent": False, "deduped": False}
+
+
+async def _notify_selection_submitted(sharelink_id: str, session_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Dedupe + emit the selection-submitted notification in one coroutine.
+
+    Marks the submit event in Redis for cross-worker idempotency and logs the
+    payload for downstream routing. Returns ``{"sent": False, "deduped": True}``
+    without emitting the log when the session was already seen.
+    """
     dedupe_key = f"{SELECTION_SUBMIT_NOTIFY_KEY_PREFIX}{session_id}"
 
     redis_service = None
     try:
-        redis_service = run_async(RedisService.create())
+        redis_service = await RedisService.create()
         if redis_service and redis_service.is_available:
-            already_seen = run_async(redis_service.get(dedupe_key))
+            already_seen = await redis_service.get(dedupe_key)
             if already_seen:
                 logger.info("Selection submit notification already sent for session %s", session_id)
                 return {"sent": False, "deduped": True}
-            run_async(redis_service.set(dedupe_key, datetime.now(UTC).isoformat(), ex=SELECTION_SUBMIT_NOTIFY_TTL_SECONDS))
+            await redis_service.set(
+                dedupe_key,
+                datetime.now(UTC).isoformat(),
+                ex=SELECTION_SUBMIT_NOTIFY_TTL_SECONDS,
+            )
     finally:
         if redis_service is not None:
-            run_async(redis_service.close())
+            await redis_service.close()
 
     logger.info(
         "Selection submitted notification",

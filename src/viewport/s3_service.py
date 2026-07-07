@@ -39,7 +39,7 @@ class AsyncS3Client:
     All methods are async-first and do not block the event loop.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the AsyncS3Client with configuration from environment."""
         self.settings = S3Settings()
         self._session: aioboto3.Session | None = None
@@ -56,7 +56,7 @@ class AsyncS3Client:
             read_timeout=10,  # Shorter timeout to close idle connections faster
             s3={"addressing_style": "path"},
         )
-        self._presign_client = None
+        self._presign_client: "S3Client | None" = None
         # Optimized transfer config for faster uploads:
         # - Lower threshold to start multipart sooner (5MB vs 8MB)
         # - Larger chunk size for fewer round trips (8MB)

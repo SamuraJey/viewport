@@ -15,6 +15,7 @@ JWT_ALGORITHM = "HS256"
 JWT_SECRET = "test-jwt-secret-key-that-is-long-enough-for-hs512-and-hs256-tests"
 WRONG_JWT_SECRET = "wrong-test-jwt-secret-key-that-is-long-enough-for-hs256-tests"
 
+
 def _make_access_payload(user: User) -> dict:
     """Build a valid access-token payload for a user, including the correct pwd fingerprint."""
     return {
