@@ -126,8 +126,6 @@ class GalleryRepository(BaseRepository):
         reordered_galleries = [galleries_by_id[gallery_id] for gallery_id in ordered_gallery_ids]
         self._reindex_project_galleries(reordered_galleries)
         await self.db.commit()
-        for gallery in reordered_galleries:
-            await self.db.refresh(gallery)
         return reordered_galleries
 
     async def create_gallery(

@@ -1,3 +1,5 @@
+import logging
+
 from logging.config import fileConfig
 
 from alembic import context
@@ -11,8 +13,10 @@ try:
     import importlib
     importlib.import_module('viewport.models')
 except Exception:
-    # If model import fails, we still set target_metadata; autogenerate will be incomplete
-    pass
+    # Autogenerate relies on a fully populated Base.metadata; if a model module
+    # fails to import, autogenerate silently omits those tables/columns. Log loudly
+    # so the operator notices instead of shipping an incomplete migration revision.
+    logging.exception("viewport.models import failed; alembic autogenerate will be incomplete")
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

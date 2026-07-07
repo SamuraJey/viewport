@@ -92,7 +92,7 @@ async def lifespan(app: FastAPI):
 
 
 # Create FastAPI app with lifespan
-app = FastAPI(redoc_url=None, redirect_slashes=False, lifespan=lifespan)  # TODO add env var check for production
+app = FastAPI(redoc_url=None, redirect_slashes=False, lifespan=lifespan)
 
 # Add session middleware (required for SQLAdmin authentication)
 
