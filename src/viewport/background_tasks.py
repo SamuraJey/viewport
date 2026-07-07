@@ -678,17 +678,31 @@ async def _notify_selection_submitted(sharelink_id: str, session_id: str, payloa
 
     redis_service = None
     try:
-        redis_service = await RedisService.create()
-        if redis_service and redis_service.is_available:
-            already_seen = await redis_service.get(dedupe_key)
+        # Isolate Redis dedupe from the logging path: any unexpected error
+        # while connecting/getting/setting must NOT block the selection-submitted
+        # log below, so the notification still gets emitted downstream.
+        try:
+            redis_service = await RedisService.create()
+        except Exception as redis_create_exc:
+            logger.warning("Redis unavailable for selection dedupe, proceeding without dedupe: %s", redis_create_exc)
+            redis_service = None
+        if redis_service is not None and redis_service.is_available:
+            try:
+                already_seen = await redis_service.get(dedupe_key)
+            except Exception as redis_get_exc:
+                logger.warning("Redis GET failed for selection dedupe, proceeding without dedupe: %s", redis_get_exc)
+                already_seen = None
             if already_seen:
                 logger.info("Selection submit notification already sent for session %s", session_id)
                 return {"sent": False, "deduped": True}
-            await redis_service.set(
-                dedupe_key,
-                datetime.now(UTC).isoformat(),
-                ex=SELECTION_SUBMIT_NOTIFY_TTL_SECONDS,
-            )
+            try:
+                await redis_service.set(
+                    dedupe_key,
+                    datetime.now(UTC).isoformat(),
+                    ex=SELECTION_SUBMIT_NOTIFY_TTL_SECONDS,
+                )
+            except Exception as redis_set_exc:
+                logger.warning("Redis SET failed for selection dedupe, proceeding without dedupe: %s", redis_set_exc)
     finally:
         if redis_service is not None:
             await redis_service.close()

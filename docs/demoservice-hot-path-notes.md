@@ -16,10 +16,12 @@ that always run in production, the entire `DemoServiceStore` class
 `isDemoModeEnabled()` is always `false` for real users.
 
 The plan's fix (Item9(a)):
+
 ```ts
 // getDemoService becomes:
 async () => import('./demoService').then((m) => m.getDemoService())
 ```
+
 and the 5 services call it only inside their `if (isDemoModeEnabled())`
 branches, so the chunk is never loaded unless demo mode is on.
 
@@ -27,19 +29,19 @@ branches, so the chunk is never loaded unless demo mode is on.
 
 Two workspace rules forbid both halves of that change:
 
-1. **`ts-no-dynamic-import`**: "`Use static imports for modules known at
-   author time. Reach for `await import()` only when the module specifier is
-   genuinely runtime-selected.`" The demo module path is a literal, so
+1. **`ts-no-dynamic-import`**: "Use static imports for modules known at author
+   time. Reach for `await import()` only when the module specifier is
+   genuinely runtime-selected." The demo module path is a literal, so
    `await import('./demoService')` is prohibited. Plugin loading / optional
    platform modules are the named exceptions; a demo-mode gate is neither.
 
-2. **`ts-import-type`**: "`Use top-level `import type` declarations for
-   type-only dependencies. NEVER write `import("pkg").Type` inside source
-   annotations.`" A lazy `getDemoService` would return
-   `Promise<DemoServiceStore>` whose type lives in the lazily-imported module;
-   the only way to annotate that without statically importing the type (which
-   re-pulls the module into the graph) is an inline `import('./demoService').DemoServiceStore`,
-   which the rule forbids.
+2. **`ts-import-type`**: "Use top-level `import type` declarations for type-only
+   dependencies. NEVER write `import('pkg').Type` inside source annotations."
+   A lazy `getDemoService` would return `Promise<DemoServiceStore>` whose type
+   lives in the lazily-imported module; the only way to annotate that without
+   statically importing the type (which re-pulls the module into the graph)
+   is an inline `import('./demoService').DemoServiceStore`, which the rule
+   forbids.
 
 ## Why the split-only fallback (Item9(b)) is marginal
 
@@ -65,6 +67,7 @@ thin index, keeping static imports. Considered and **not** pursued because:
 ## Approaches available if the rules change
 
 ### A. Allow the dynamic import (preferred if rules permit)
+
 1. `getDemoService` → `async () => import('./demoService').then((m) => m.getDemoService())`
    with a `// static import cannot work: demoService is demo-only and must
    stay out of the production bundle graph` rule-exception comment (the
@@ -82,19 +85,23 @@ thin index, keeping static imports. Considered and **not** pursued because:
    main vendor bundle.
 
 ### B. Route-level code split (rule-compliant, partial)
+
 Keep `getDemoService` static, but move the demo branches out of the shared
 services and into a **demo-only route** loaded via `React.lazy`:
+
 - Introduce `frontend/src/pages/DemoPage.tsx` (already lazy-loaded) that
   imports `demoService` directly and owns all demo flows.
 - Service modules drop their `if (isDemoModeEnabled())` branches; routing
   dispatches demo mode to `DemoPage` instead.
+
 Since `React.lazy` already uses dynamic import internally (the named exception
 for runtime-selected modules in Vite's bundler), this keeps `demoService` out
-of the main bundle **without** a forbidden import() in source — Vite handles
+of the main bundle **without** a forbidden `import()` in source — Vite handles
 the split at the route boundary. Larger architectural change; the demo branch
 removal from 5 services is the bulk of the work.
 
 ### C. Pure-helper extraction (low-risk, low-value)
+
 Extract only the seed data + pure helpers (`makeDemoId`, `nowIso`,
 `DEFAULT_GALLERY_APPEARANCE`, the ~2900 lines of seeded galleries/projects)
 into `demoServices/seed.ts` and keep `DemoServiceStore` in `demoService.ts`.
@@ -109,11 +116,13 @@ demo split). Until then, `demoService.ts` stays as-is; the static import the
 rules require guarantees it remains in the main bundle by design.
 
 ## Anchors
+
 - `frontend/src/services/demoService.ts:3050` — `getDemoService` export.
 - `frontend/src/services/demoService.ts:590` — `class DemoServiceStore` start.
 - `frontend/src/services/{auth,gallery,photo,project,shareLink}Service.ts` —
   the `if (isDemoModeEnabled()) { return getDemoService()... }` branches.
 - `frontend/src/pages/{Landing,Login,PublicGallery}Page.tsx` — direct
   `getDemoService()` calls inside demo-mode handlers.
-- `frontend/src/__tests__/` — the ~10 `vi.mock('../../services/demoService',
-  () => ({ getDemoService: vi.fn() }))` sites.
+- `frontend/src/__tests__/` — the ~10
+  `vi.mock('../../services/demoService', () => ({ getDemoService: vi.fn() }))`
+  sites.
