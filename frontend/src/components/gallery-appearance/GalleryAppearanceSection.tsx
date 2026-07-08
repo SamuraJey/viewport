@@ -39,17 +39,6 @@ function galleryToAppearanceDraft(gallery: GalleryDetail): AppearanceDraft {
   };
 }
 
-function galleryResponseToDraft(gallery: GalleryDetail): AppearanceDraft {
-  return {
-    cover_photo_id: gallery.cover_photo_id ?? null,
-    cover_focal_x: gallery.cover_focal_x ?? 50,
-    cover_focal_y: gallery.cover_focal_y ?? 50,
-    cover_display_option: gallery.cover_display_option ?? 'centered_title',
-    public_photo_spacing: gallery.public_photo_spacing ?? 'medium',
-    public_color_scheme: gallery.public_color_scheme ?? 'light',
-  };
-}
-
 const GALLERY_INFO_TOOLTIP =
   'These settings apply only when sharing this gallery with its own direct link. Inside a project share, the project Appearance is used instead.';
 
@@ -65,7 +54,7 @@ export const GalleryAppearanceSection = ({
     payload: Partial<AppearanceDraft>,
   ): Promise<AppearanceDraft> => {
     const updated = await onSaveAppearance(payload);
-    return galleryResponseToDraft(updated);
+    return galleryToAppearanceDraft(updated);
   };
 
   return (

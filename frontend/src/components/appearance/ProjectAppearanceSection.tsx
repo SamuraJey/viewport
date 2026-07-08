@@ -38,17 +38,6 @@ function projectToAppearanceDraft(project: ProjectDetail): AppearanceDraft {
   };
 }
 
-function projectResponseToDraft(project: ProjectDetail): AppearanceDraft {
-  return {
-    cover_photo_id: project.cover_photo_id ?? null,
-    cover_focal_x: project.cover_focal_x ?? 50,
-    cover_focal_y: project.cover_focal_y ?? 50,
-    cover_display_option: project.cover_display_option ?? 'centered_title',
-    public_photo_spacing: project.public_photo_spacing ?? 'medium',
-    public_color_scheme: project.public_color_scheme ?? 'light',
-  };
-}
-
 const PROJECT_INFO_TOOLTIP =
   'These settings and hero photo apply to the entire project share link.';
 
@@ -63,7 +52,7 @@ export const ProjectAppearanceSection = ({
     payload: Partial<AppearanceDraft>,
   ): Promise<AppearanceDraft> => {
     const updated = await onSaveAppearance(payload);
-    return projectResponseToDraft(updated);
+    return projectToAppearanceDraft(updated);
   };
 
   return (

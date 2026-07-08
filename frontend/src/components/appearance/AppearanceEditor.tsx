@@ -64,6 +64,7 @@ export const AppearanceEditor = ({
   const previewObserverRef = useRef<HTMLDivElement | null>(null);
   const coverPickerScrollRef = useRef<HTMLDivElement | null>(null);
   const coverPickerLoadMoreRef = useRef<HTMLDivElement | null>(null);
+  const focalImageRef = useRef<HTMLImageElement | null>(null);
 
   // Reset draft when switching entities
   useEffect(() => {
@@ -329,7 +330,9 @@ export const AppearanceEditor = ({
   // -- focal point click handler -------------------------------------------
   const handleFocalClick = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
-      const rect = event.currentTarget.getBoundingClientRect();
+      const img = focalImageRef.current;
+      if (!img) return;
+      const rect = img.getBoundingClientRect();
       const x = clampFocal(((event.clientX - rect.left) / rect.width) * 100);
       const y = clampFocal(((event.clientY - rect.top) / rect.height) * 100);
       updateDraft({ cover_focal_x: x, cover_focal_y: y });
@@ -609,6 +612,7 @@ export const AppearanceEditor = ({
                 onClick={handleFocalClick}
               >
                 <img
+                  ref={focalImageRef}
                   src={effectiveCoverPayload.thumbnail_url}
                   alt=""
                   className="h-full w-auto object-cover"

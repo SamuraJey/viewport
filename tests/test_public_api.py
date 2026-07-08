@@ -242,8 +242,8 @@ class TestPublicAPI:
         assert exc_info.value.detail == "Project not found"
 
     @pytest.mark.asyncio
-    async def test_build_public_project_response_includes_appearance_from_first_gallery(self):
-        """Project share response carries appearance (focal coords) from the first listed gallery."""
+    async def test_build_public_project_response_includes_appearance_from_project(self):
+        """Project share response carries appearance from the project columns (not the first gallery)."""
         gallery = SimpleNamespace(
             id=uuid4(),
             name="First Gallery",
