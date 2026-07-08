@@ -100,6 +100,8 @@ const mockProjectShare = {
 
 const mockProjectGallery = {
   ...mockPublicGallery,
+  cover: mockProjectShare.cover,
+  appearance: mockProjectShare.appearance,
   gallery_name: 'Photos',
   project_id: 'project-1',
   project_name: 'Wedding Weekend',

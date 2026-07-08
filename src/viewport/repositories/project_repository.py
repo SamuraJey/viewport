@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, date, datetime
+from typing import Any
 
 from sqlalchemy import asc, delete, desc, func, or_, select
 
@@ -10,10 +11,12 @@ from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.repositories.base_repository import BaseRepository
 from viewport.repositories.query_utils import LIKE_ESCAPE_CHAR as DEFAULT_LIKE_ESCAPE_CHAR
 from viewport.repositories.query_utils import escape_like_term, literal_like_pattern
-from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
+from viewport.schemas.gallery import CoverDisplayOption, GalleryPhotoSortBy, PhotoSpacing, PublicColorScheme, SortOrder
 from viewport.schemas.gallery import ProjectVisibility as ProjectVisibilitySchema
 from viewport.schemas.project import ProjectListSortBy
 
+_UNSET = object()
+"""Module-level sentinel: kwargs=UNSET → "not provided" (diff from None="clear")."""
 DEFAULT_PUBLIC_SORT_BY = GalleryPhotoSortBy(PUBLIC_GALLERY_SORT_BY_DEFAULT)
 DEFAULT_PUBLIC_SORT_ORDER = SortOrder(PUBLIC_GALLERY_SORT_ORDER_DEFAULT)
 
@@ -231,6 +234,12 @@ class ProjectRepository(BaseRepository):
         *,
         name: str | None = None,
         shooting_date: date | None = None,
+        cover_photo_id: Any = _UNSET,
+        cover_focal_x: float | None = None,
+        cover_focal_y: float | None = None,
+        cover_display_option: CoverDisplayOption | None = None,
+        public_photo_spacing: PhotoSpacing | None = None,
+        public_color_scheme: PublicColorScheme | None = None,
     ) -> Project | None:
         project = await self.get_project_by_id_and_owner(project_id, owner_id)
         if not project:
@@ -243,10 +252,68 @@ class ProjectRepository(BaseRepository):
         if shooting_date is not None:
             project.shooting_date = shooting_date
             updated = True
+        if cover_photo_id is not _UNSET:
+            project.cover_photo_id = cover_photo_id
+            updated = True
+        if cover_focal_x is not None:
+            project.cover_focal_x = cover_focal_x
+            updated = True
+        if cover_focal_y is not None:
+            project.cover_focal_y = cover_focal_y
+            updated = True
+        if cover_display_option is not None:
+            project.cover_display_option = cover_display_option.value
+            updated = True
+        if public_photo_spacing is not None:
+            project.public_photo_spacing = public_photo_spacing.value
+            updated = True
+        if public_color_scheme is not None:
+            project.public_color_scheme = public_color_scheme.value
+            updated = True
+
         if updated:
             await self.db.commit()
             await self.db.refresh(project)
         return project
+
+    async def get_project_photos(
+        self,
+        project_id: uuid.UUID,
+        owner_id: uuid.UUID,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[Photo], int]:
+        """Paginated photos across ALL galleries of a project (listed + direct_only)."""
+        base_filters = [
+            Gallery.project_id == project_id,
+            Gallery.owner_id == owner_id,
+            Gallery.is_deleted.is_(False),
+        ]
+        count_stmt = select(func.count()).select_from(Photo).join(Photo.gallery).where(*base_filters)
+        total = int((await self.db.execute(count_stmt)).scalar() or 0)
+
+        stmt = select(Photo).join(Photo.gallery).where(*base_filters).order_by(Gallery.project_position.asc(), Photo.display_name.asc()).offset(offset).limit(limit)
+        photos = list((await self.db.execute(stmt)).scalars().all())
+        return await self._finish_read((photos, total))
+
+    async def get_photo_by_id_for_project(
+        self,
+        project_id: uuid.UUID,
+        photo_id: uuid.UUID,
+        *,
+        owner_id: uuid.UUID | None = None,
+    ) -> Photo | None:
+        """Fetch a photo belonging to any non-deleted gallery of the given project."""
+        filters = [
+            Gallery.project_id == project_id,
+            Gallery.is_deleted.is_(False),
+            Photo.id == photo_id,
+        ]
+        if owner_id is not None:
+            filters.append(Gallery.owner_id == owner_id)
+        stmt = select(Photo).join(Photo.gallery).where(*filters)
+        photo = (await self.db.execute(stmt)).scalar_one_or_none()
+        return await self._finish_read(photo)
 
     async def delete_project(self, project_id: uuid.UUID, owner_id: uuid.UUID) -> list[uuid.UUID] | None:
         project = await self.get_project_by_id_and_owner(project_id, owner_id)

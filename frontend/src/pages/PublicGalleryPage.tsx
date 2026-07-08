@@ -437,9 +437,7 @@ export const PublicGalleryPage = () => {
       : undefined;
   const isProjectFolderView = Boolean(folderShare?.parent_share_id && !isFavoritesView);
 
-  const heroAppearance = isProjectFolderView
-    ? normalizePublicGalleryAppearance(projectGalleryTabs?.appearance)
-    : appearance;
+  const heroAppearance = appearance;
   const showStickyProjectSelectionBar = Boolean(
     projectGalleryTabs &&
     selection.config?.is_enabled &&
@@ -454,7 +452,7 @@ export const PublicGalleryPage = () => {
   const heroPhotographer = isProjectFolderView
     ? projectGalleryTabs?.photographer || folderShare?.photographer
     : folderShare?.photographer;
-  const heroCover = isProjectFolderView ? (projectGalleryTabs?.cover ?? null) : folderShare?.cover;
+  const heroCover = folderShare?.cover ?? null;
   const activeProjectGallery = projectGalleryTabs?.galleries.find(
     (projectGallery) => projectGallery.gallery_id === activeGalleryId,
   );

@@ -3,13 +3,13 @@ import { isDemoModeEnabled } from '../lib/demoMode';
 import { getDemoService } from './demoService';
 import type {
   CreateProjectRequest,
+  GalleryPhoto,
   Project,
   ProjectDetail,
   ProjectListQueryOptions,
   ProjectListResponse,
   UpdateProjectRequest,
 } from '../types';
-
 const normalizeProjectListOptions = (
   options?: ProjectListQueryOptions | string,
 ): ProjectListQueryOptions => {
@@ -112,6 +112,22 @@ const reorderProjectGalleries = async (projectId: string, galleryIds: string[]):
   });
 };
 
+const getProjectPhotos = async (
+  projectId: string,
+  opts: { limit?: number; offset?: number } = {},
+): Promise<{ photos: GalleryPhoto[]; total: number }> => {
+  if (isDemoModeEnabled()) {
+    return getDemoService().getProjectPhotos(projectId, opts);
+  }
+  const params = new URLSearchParams();
+  if (opts.limit !== undefined) params.set('limit', opts.limit.toString());
+  if (opts.offset !== undefined) params.set('offset', opts.offset.toString());
+  const response = await api.get<{ photos: GalleryPhoto[]; total: number }>(
+    `/projects/${projectId}/photos?${params.toString()}`,
+  );
+  return response.data;
+};
+
 export const projectService = {
   getProjects,
   getProject,
@@ -120,4 +136,5 @@ export const projectService = {
   deleteProject,
   createProjectGallery,
   reorderProjectGalleries,
+  getProjectPhotos,
 };

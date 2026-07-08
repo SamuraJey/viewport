@@ -260,6 +260,12 @@ class TestPublicAPI:
             shooting_date=None,
             created_at=datetime(2026, 7, 8, 12, 0, 0),
             owner=SimpleNamespace(display_name="Alice"),
+            cover_photo_id=None,
+            cover_focal_x=42.0,
+            cover_focal_y=58.0,
+            cover_display_option="text_block",
+            public_photo_spacing="large",
+            public_color_scheme="dark",
         )
         sharelink = SimpleNamespace(
             created_at=datetime(2026, 7, 8, 12, 30, 0),
@@ -268,9 +274,7 @@ class TestPublicAPI:
         project_repo = MagicMock()
         project_repo.get_visible_project_folders = AsyncMock(return_value=[gallery])
         gallery_repo = MagicMock()
-        gallery_repo.get_gallery_list_enrichment = AsyncMock(
-            return_value=({}, {}, 0, {}, {})
-        )
+        gallery_repo.get_gallery_list_enrichment = AsyncMock(return_value=({}, {}, 0, {}, {}))
         gallery_repo.get_photo_by_id_and_gallery = AsyncMock(return_value=None)
         gallery_repo.get_photos_by_gallery_id = AsyncMock(return_value=[])
         s3_client = MagicMock()
@@ -288,8 +292,8 @@ class TestPublicAPI:
             record_view=False,
         )
 
-        assert payload.appearance.cover_focal_x == 25.0
-        assert payload.appearance.cover_focal_y == 75.0
+        assert payload.appearance.cover_focal_x == 42.0
+        assert payload.appearance.cover_focal_y == 58.0
         assert payload.appearance.cover_display_option == "text_block"
         assert payload.appearance.photo_spacing == "large"
         assert payload.appearance.color_scheme == "dark"
@@ -303,6 +307,12 @@ class TestPublicAPI:
             shooting_date=None,
             created_at=datetime(2026, 7, 8, 12, 0, 0),
             owner=SimpleNamespace(display_name="Bob"),
+            cover_photo_id=None,
+            cover_focal_x=50.0,
+            cover_focal_y=50.0,
+            cover_display_option="centered_title",
+            public_photo_spacing="medium",
+            public_color_scheme="light",
         )
         sharelink = SimpleNamespace(
             created_at=datetime(2026, 7, 8, 12, 30, 0),
@@ -311,9 +321,7 @@ class TestPublicAPI:
         project_repo = MagicMock()
         project_repo.get_visible_project_folders = AsyncMock(return_value=[])
         gallery_repo = MagicMock()
-        gallery_repo.get_gallery_list_enrichment = AsyncMock(
-            return_value=({}, {}, 0, {}, {})
-        )
+        gallery_repo.get_gallery_list_enrichment = AsyncMock(return_value=({}, {}, 0, {}, {}))
         gallery_repo.get_photo_by_id_and_gallery = AsyncMock(return_value=None)
         gallery_repo.get_photos_by_gallery_id = AsyncMock(return_value=[])
         s3_client = MagicMock()

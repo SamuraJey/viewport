@@ -1,5 +1,6 @@
 import contextlib
 from datetime import date, datetime
+from typing import Any
 from uuid import UUID
 
 import zipstream
@@ -101,6 +102,8 @@ async def _build_public_gallery_response(
     parent_share_id: UUID | None = None,
     record_view: bool = True,
     project_navigation: PublicProjectResponse | None = None,
+    override_appearance: PublicGalleryAppearance | None = None,
+    override_cover: Any = None,
 ) -> PublicGalleryResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
 
@@ -165,24 +168,28 @@ async def _build_public_gallery_response(
         )
         cover_photo_obj = fallback_photos[0] if fallback_photos else None
 
-    cover = None
-    if cover_photo_obj and cover_photo_obj.object_key and cover_photo_obj.thumbnail_object_key:
-        cover_full_url = full_url_map.get(cover_photo_obj.object_key)
-        cover_thumb_url = thumb_url_map.get(cover_photo_obj.thumbnail_object_key)
-        if cover_full_url is None:
-            cover_full_url = await s3_client.generate_presigned_url_async(
-                cover_photo_obj.object_key,
-                response_content_disposition=build_content_disposition(cover_photo_obj.display_name, disposition_type="inline"),
-            )
-        if cover_thumb_url is None:
-            cover_thumb_url = await s3_client.generate_presigned_url_async(cover_photo_obj.thumbnail_object_key)
+    # Override cover with project-level cover when provided (for project folder views)
+    effective_cover: PublicCover | None = None
+    if override_cover is not None:
+        effective_cover = override_cover
+    else:
+        if cover_photo_obj and cover_photo_obj.object_key and cover_photo_obj.thumbnail_object_key:
+            cover_full_url = full_url_map.get(cover_photo_obj.object_key)
+            cover_thumb_url = thumb_url_map.get(cover_photo_obj.thumbnail_object_key)
+            if cover_full_url is None:
+                cover_full_url = await s3_client.generate_presigned_url_async(
+                    cover_photo_obj.object_key,
+                    response_content_disposition=build_content_disposition(cover_photo_obj.display_name, disposition_type="inline"),
+                )
+            if cover_thumb_url is None:
+                cover_thumb_url = await s3_client.generate_presigned_url_async(cover_photo_obj.thumbnail_object_key)
 
-        cover = PublicCover(
-            photo_id=str(cover_photo_obj.id),
-            full_url=cover_full_url or "",
-            thumbnail_url=cover_thumb_url or cover_full_url or "",
-            filename=cover_photo_obj.display_name,
-        )
+            effective_cover = PublicCover(
+                photo_id=str(cover_photo_obj.id),
+                full_url=cover_full_url or "",
+                thumbnail_url=cover_thumb_url or cover_full_url or "",
+                filename=cover_photo_obj.display_name,
+            )
 
     owner = getattr(gallery, "owner", None) or getattr(getattr(sharelink, "project", None), "owner", None)
     photographer = getattr(owner, "display_name", None) or ""
@@ -204,7 +211,7 @@ async def _build_public_gallery_response(
 
     return PublicGalleryResponse(
         photos=photo_list,
-        cover=cover,
+        cover=effective_cover,
         photographer=photographer,
         gallery_name=gallery_name,
         date=date_str,
@@ -215,7 +222,9 @@ async def _build_public_gallery_response(
         project_name=project_name,
         parent_share_id=str(parent_share_id) if parent_share_id else None,
         project_navigation=project_navigation,
-        appearance=PublicGalleryAppearance(
+        appearance=override_appearance
+        if override_appearance is not None
+        else PublicGalleryAppearance(
             cover_focal_x=float(getattr(gallery, "cover_focal_x", 50.0)),
             cover_focal_y=float(getattr(gallery, "cover_focal_y", 50.0)),
             cover_display_option=getattr(gallery, "cover_display_option", "centered_title"),
@@ -317,11 +326,33 @@ async def _build_public_project_response(
     thumbnail_keys.extend(recent_keys[0] for recent_keys in recent_thumbnail_keys_by_gallery.values() if recent_keys)
     thumbnail_url_map = await s3_client.generate_presigned_urls_batch(list(dict.fromkeys(thumbnail_keys)), expires_in=7200) if thumbnail_keys else {}
 
-    project_cover = await _build_project_cover(
-        gallery=galleries[0] if galleries else None,
-        gallery_repo=gallery_repo,
-        s3_client=s3_client,
-    )
+    # Build project cover from project-level cover_photo_id, fall back to first gallery
+    project_cover = None
+    if project.cover_photo_id:
+        cover_photo = await project_repo.get_photo_by_id_for_project(project.id, project.cover_photo_id)
+        if cover_photo and cover_photo.object_key and cover_photo.thumbnail_object_key:
+            cover_disposition = build_content_disposition(cover_photo.display_name, disposition_type="inline")
+            urls = await s3_client.generate_presigned_urls_batch_for_dispositions(
+                {
+                    cover_photo.object_key: cover_disposition,
+                    cover_photo.thumbnail_object_key: None,
+                }
+            )
+            full_url = urls.get(cover_photo.object_key)
+            thumbnail_url = urls.get(cover_photo.thumbnail_object_key)
+            if full_url and thumbnail_url:
+                project_cover = PublicCover(
+                    photo_id=str(cover_photo.id),
+                    full_url=full_url,
+                    thumbnail_url=thumbnail_url,
+                    filename=cover_photo.display_name,
+                )
+    if project_cover is None:
+        project_cover = await _build_project_cover(
+            gallery=galleries[0] if galleries else None,
+            gallery_repo=gallery_repo,
+            s3_client=s3_client,
+        )
     gallery_items: list[PublicProjectGallery] = []
     total_listed_photos = 0
     total_size_bytes = 0
@@ -368,11 +399,11 @@ async def _build_public_project_response(
         total_size_bytes=total_size_bytes,
         galleries=gallery_items,
         appearance=PublicGalleryAppearance(
-            cover_focal_x=float(getattr(galleries[0], "cover_focal_x", 50.0)) if galleries else 50.0,
-            cover_focal_y=float(getattr(galleries[0], "cover_focal_y", 50.0)) if galleries else 50.0,
-            cover_display_option=getattr(galleries[0], "cover_display_option", "centered_title") if galleries else "centered_title",
-            photo_spacing=getattr(galleries[0], "public_photo_spacing", "medium") if galleries else "medium",
-            color_scheme=getattr(galleries[0], "public_color_scheme", "light") if galleries else "light",
+            cover_focal_x=float(getattr(project, "cover_focal_x", 50.0)),
+            cover_focal_y=float(getattr(project, "cover_focal_y", 50.0)),
+            cover_display_option=getattr(project, "cover_display_option", "centered_title"),
+            photo_spacing=getattr(project, "public_photo_spacing", "medium"),
+            color_scheme=getattr(project, "public_color_scheme", "light"),
         ),
     )
 
@@ -516,6 +547,8 @@ async def get_project_gallery_by_sharelink(
         parent_share_id=share_id,
         record_view=record_project_view,
         project_navigation=project_navigation,
+        override_appearance=project_navigation.appearance,
+        override_cover=project_navigation.cover,
     )
 
 
