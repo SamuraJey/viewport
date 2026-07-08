@@ -25,7 +25,6 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Trash2,
-  type LucideIcon,
 } from 'lucide-react';
 import { MetricCard } from '../components/dashboard/MetricCard';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
@@ -45,169 +44,26 @@ import type {
   ShareLinkAnalyticsResponse,
 } from '../types';
 
-const numberFormatter = new Intl.NumberFormat();
-const DAY_PRESETS = [7, 30, 90] as const;
-const SETTINGS_SWITCH_CLASS =
-  'h-8 w-12 rounded-full bg-muted/40 p-0.5 transition-colors data-checked:bg-accent';
-const SETTINGS_SWITCH_THUMB_CLASS =
-  'size-7 translate-x-0 bg-white shadow-sm group-data-checked:translate-x-4';
+// Reusable symbols extracted to components/share-link-detail/
+import {
+  numberFormatter,
+  formatDay,
+  formatDateTime,
+  formatRelativeDateLabel,
+  resetScrollForBreadcrumbNavigation,
+} from '../components/share-link-detail/utils';
+import {
+  DAY_PRESETS,
+  SETTINGS_SWITCH_CLASS,
+  SETTINGS_SWITCH_THUMB_CLASS,
+} from '../components/share-link-detail/constants';
+import { LinkHealthCard } from '../components/share-link-detail/LinkHealthCard';
+import type { LinkHealthCardProps } from '../components/share-link-detail/LinkHealthCard';
+import { LinkMetaItem } from '../components/share-link-detail/LinkMetaItem';
+import { SelectionMetricCard } from '../components/share-link-detail/SelectionMetricCard';
+import { SessionStatusBadge } from '../components/share-link-detail/SessionStatusBadge';
 
 type DetailTabKey = 'overview' | 'analytics' | 'selection';
-
-const parseIsoDayAsLocalDate = (isoDay: string): Date => {
-  const [year, month, day] = isoDay.split('-').map((part) => Number.parseInt(part, 10));
-  if (!year || !month || !day) {
-    return new Date(isoDay);
-  }
-  return new Date(year, month - 1, day);
-};
-
-const formatDay = (isoDay: string) => parseIsoDayAsLocalDate(isoDay).toLocaleDateString();
-
-const formatDateTime = (value?: string | null, fallback = 'Not set') => {
-  if (!value) {
-    return fallback;
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return fallback;
-  }
-
-  return date.toLocaleString();
-};
-
-const formatRelativeDateLabel = (value?: string | null) => {
-  if (!value) return 'No activity yet';
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'No activity yet';
-
-  const diffMs = Date.now() - date.getTime();
-  const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000));
-
-  if (diffDays === 0) return 'today';
-  if (diffDays === 1) return 'yesterday';
-  return `${numberFormatter.format(diffDays)} days ago`;
-};
-
-type HealthTone = 'success' | 'warning' | 'danger' | 'neutral' | 'accent';
-
-const healthToneClasses: Record<HealthTone, string> = {
-  success: 'border-success/25 bg-success/10 text-success',
-  warning: 'border-accent/25 bg-accent/10 text-accent',
-  danger: 'border-danger/30 bg-danger/10 text-danger',
-  neutral: 'border-border/50 bg-surface-1 text-muted dark:border-white/10 dark:bg-white/[0.035]',
-  accent: 'border-accent/25 bg-accent/10 text-accent',
-};
-
-interface LinkHealthCardProps {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  hint: string;
-  tone: HealthTone;
-}
-
-const LinkHealthCard = ({ icon: Icon, label, value, hint, tone }: LinkHealthCardProps) => (
-  <div
-    className={`group rounded-3xl border p-4 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${healthToneClasses[tone]}`}
-  >
-    <div className="flex items-start gap-3">
-      <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-current/10 transition-transform duration-200 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
-        <Icon className="h-4 w-4" />
-      </span>
-      <div className="min-w-0">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] opacity-75">{label}</p>
-        <p className="mt-1 text-base font-bold leading-5 text-text dark:text-accent-foreground">
-          {value}
-        </p>
-        <p className="mt-1 text-sm leading-5 text-muted">{hint}</p>
-      </div>
-    </div>
-  </div>
-);
-
-interface LinkMetaItemProps {
-  label: string;
-  value: string;
-}
-
-const LinkMetaItem = ({ label, value }: LinkMetaItemProps) => (
-  <div className="min-w-0 rounded-2xl border border-border/50 bg-surface/80 px-4 py-3 dark:border-white/10 dark:bg-surface-dark/60">
-    <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-muted">{label}</p>
-    <p className="mt-1 truncate text-sm font-bold text-text dark:text-accent-foreground">{value}</p>
-  </div>
-);
-
-interface SelectionMetricCardProps {
-  label: string;
-  value: string | number;
-  hint: string;
-  icon: LucideIcon;
-  tone?: HealthTone;
-}
-
-const SelectionMetricCard = ({
-  label,
-  value,
-  hint,
-  icon: Icon,
-  tone = 'neutral',
-}: SelectionMetricCardProps) => (
-  <div
-    className={`rounded-2xl border p-4 shadow-xs transition-colors duration-200 motion-reduce:transition-none ${healthToneClasses[tone]}`}
-  >
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] opacity-75">{label}</p>
-        <p className="mt-2 text-2xl font-black leading-none text-text dark:text-accent-foreground">
-          {typeof value === 'number' ? numberFormatter.format(value) : value}
-        </p>
-        <p className="mt-2 text-sm leading-5 text-muted">{hint}</p>
-      </div>
-      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-current/10">
-        <Icon className="h-5 w-5" />
-      </span>
-    </div>
-  </div>
-);
-
-const selectionStatusLabel = (status?: string | null) => {
-  if (!status) return 'Unknown';
-  return status.replaceAll('_', ' ');
-};
-
-const selectionStatusClasses = (status?: string | null) => {
-  switch (status) {
-    case 'submitted':
-      return 'border-success/30 bg-success/10 text-success';
-    case 'in_progress':
-      return 'border-accent/30 bg-accent/10 text-accent';
-    case 'closed':
-      return 'border-border/60 bg-muted/10 text-muted';
-    default:
-      return 'border-border/50 bg-surface text-muted';
-  }
-};
-
-const SessionStatusBadge = ({ status }: { status?: string | null }) => (
-  <span
-    className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold capitalize ${selectionStatusClasses(status)}`}
-  >
-    {selectionStatusLabel(status)}
-  </span>
-);
-
-const resetScrollForBreadcrumbNavigation = () => {
-  const root = document.documentElement;
-  const previousScrollBehavior = root.style.scrollBehavior;
-  root.style.scrollBehavior = 'auto';
-  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-  window.setTimeout(() => {
-    root.style.scrollBehavior = previousScrollBehavior;
-  }, 0);
-};
 
 export const ShareLinkDetailPage = () => {
   const { shareLinkId } = useParams<{ shareLinkId: string }>();

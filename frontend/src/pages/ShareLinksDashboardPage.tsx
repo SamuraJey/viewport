@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Activity,
@@ -23,7 +23,6 @@ import {
   Search,
   SlidersHorizontal,
   Trash2,
-  type LucideIcon,
 } from 'lucide-react';
 import { PaginationControls } from '../components/PaginationControls';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
@@ -43,384 +42,36 @@ import type {
   ShareLinksDashboardSummary,
 } from '../types';
 
-const numberFormatter = new Intl.NumberFormat();
-const SEARCH_DEBOUNCE_MS = 350;
-const EMPTY_SUMMARY: ShareLinksDashboardSummary = {
-  views: 0,
-  zip_downloads: 0,
-  single_downloads: 0,
-  active_links: 0,
-};
-
-const parseDateLabelValue = (value: string) => {
-  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (dateOnlyMatch) {
-    const [, year, month, day] = dateOnlyMatch;
-    const yearValue = Number(year);
-    const monthValue = Number(month);
-    const dayValue = Number(day);
-    const localDate = new Date(yearValue, monthValue - 1, dayValue);
-    if (
-      localDate.getFullYear() !== yearValue ||
-      localDate.getMonth() !== monthValue - 1 ||
-      localDate.getDate() !== dayValue
-    ) {
-      return new Date(Number.NaN);
-    }
-
-    return localDate;
-  }
-
-  return new Date(value);
-};
-
-const formatDateLabel = (value?: string | null, fallback = 'Not set') => {
-  if (!value) {
-    return fallback;
-  }
-
-  const date = parseDateLabelValue(value);
-  if (Number.isNaN(date.getTime())) {
-    return fallback;
-  }
-
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-};
-
-const formatRelativeDateLabel = (value?: string | null) => {
-  if (!value) {
-    return 'No recent activity';
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return 'No recent activity';
-  }
-
-  const diffMs = Date.now() - date.getTime();
-  const diffDays = Math.max(0, Math.floor(diffMs / 86_400_000));
-
-  if (diffDays === 0) return 'today';
-  if (diffDays === 1) return 'yesterday';
-  return `${numberFormatter.format(diffDays)} days ago`;
-};
-
-const formatSelectionStatusLabel = (status: string | null | undefined) => {
-  switch (status) {
-    case 'submitted':
-      return 'Submitted';
-    case 'in_progress':
-      return 'In progress';
-    case 'closed':
-      return 'Closed';
-    case 'not_started':
-    case null:
-    case undefined:
-      return 'Not started';
-    default:
-      return status.replaceAll('_', ' ');
-  }
-};
-
-type StatusFilter = 'all' | 'active' | 'inactive' | 'expired';
-
-const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Paused' },
-  { value: 'expired', label: 'Expired' },
-];
-
-const compactFormatter = new Intl.NumberFormat(undefined, {
-  notation: 'compact',
-  maximumFractionDigits: 1,
-});
-
-const PREVIEW_STYLES = [
-  'from-sky-500/90 via-slate-700 to-slate-950',
-  'from-zinc-300 via-zinc-600 to-zinc-950',
-  'from-amber-500/90 via-stone-700 to-slate-950',
-  'from-emerald-500/80 via-teal-800 to-slate-950',
-  'from-fuchsia-500/80 via-violet-800 to-slate-950',
-  'from-orange-400/80 via-rose-800 to-slate-950',
-];
-
-const getShareLinkSource = (link: ShareLinkDashboardItem) =>
-  link.scope_type === 'project'
-    ? link.project_name?.trim() || 'Untitled project'
-    : link.gallery_name?.trim() || 'Untitled gallery';
-
-const getShareLinkTitle = (link: ShareLinkDashboardItem) => {
-  const label = link.label?.trim();
-  if (label) return label;
-
-  const source = getShareLinkSource(link);
-  if (source === 'Untitled project') return 'Project share link';
-  if (source === 'Untitled gallery') return 'Gallery share link';
-
-  return `Share link for “${source}”`;
-};
-
-const getLatestActivityDate = (link: ShareLinkDashboardItem) => link.latest_activity_at;
-
-const getPublicLinkLabel = (id: string) =>
-  id.length > 18 ? `vp.fyi/${id.slice(0, 8)}…${id.slice(-4)}` : `vp.fyi/${id}`;
-
-const getTotalDownloads = (
-  link: Pick<ShareLinkDashboardItem, 'zip_downloads' | 'single_downloads'>,
-) => (link.zip_downloads ?? 0) + (link.single_downloads ?? 0);
-
-const getCurrentPageGalleryIds = (links: ShareLinkDashboardItem[]) =>
-  Array.from(
-    new Set(
-      links
-        .filter((link) => link.scope_type !== 'project' && link.gallery_id)
-        .map((link) => link.gallery_id!),
-    ),
-  );
-
-const getClosableSessionCount = (link: ShareLinkDashboardItem) =>
-  link.selection_summary?.in_progress_sessions ?? 0;
-
-const getClosableSelectionLinks = (links: ShareLinkDashboardItem[]) =>
-  links.filter((link) => getClosableSessionCount(link) > 0);
-
-const getReopenableSessionCount = (link: ShareLinkDashboardItem) =>
-  link.selection_summary?.closed_sessions ?? 0;
-
-const getReopenableSelectionLinks = (links: ShareLinkDashboardItem[]) =>
-  links.filter((link) => getReopenableSessionCount(link) > 0);
-
-const getClosableSessionTotal = (links: ShareLinkDashboardItem[]) =>
-  links.reduce((sum, link) => sum + getClosableSessionCount(link), 0);
-
-const getReopenableSessionTotal = (links: ShareLinkDashboardItem[]) =>
-  links.reduce((sum, link) => sum + getReopenableSessionCount(link), 0);
-
-const getInsightLinkLabel = (link: ShareLinkDashboardItem) => getShareLinkTitle(link);
-
-const resetScrollForBreadcrumbNavigation = () => {
-  const root = document.documentElement;
-  const previousScrollBehavior = root.style.scrollBehavior;
-  root.style.scrollBehavior = 'auto';
-  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-  window.setTimeout(() => {
-    root.style.scrollBehavior = previousScrollBehavior;
-  }, 0);
-};
-
-const buildFallbackTrendValues = (links: ShareLinkDashboardItem[], totalViews: number) => {
-  if (links.length === 0) {
-    return [0, 0, 0, 0, 0];
-  }
-
-  const seed = links.reduce((sum, link, index) => sum + (link.views ?? 0) * (index + 3), 0);
-  const baseline = Math.max(1, Math.round(totalViews / 18));
-
-  return Array.from({ length: 18 }, (_, index) => {
-    const wave = Math.sin((index + 1) * 0.95 + seed * 0.01) * baseline * 0.58;
-    const pulse = ((seed + index * 7) % 11) - 5;
-    const slope = baseline * (0.7 + index / 34);
-    return Math.max(0, Math.round(slope + wave + pulse));
-  });
-};
-
-type MetricTone = 'success' | 'danger' | 'neutral' | 'accent';
-
-type SummaryMetric = {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  hint: string;
-  tone: MetricTone;
-  trend?: string;
-  sparklineValues?: number[];
-};
-
-const metricToneClasses: Record<MetricTone, string> = {
-  success: 'text-success bg-success/10',
-  danger: 'text-danger bg-danger/10',
-  neutral: 'text-muted bg-surface-2 dark:bg-surface-dark-2',
-  accent: 'text-accent bg-accent/10',
-};
-
-interface DashboardMetricCardProps {
-  metric: SummaryMetric;
-}
-
-const MiniSparkline = ({ values }: { values: number[] }) => {
-  const gradientId = useId();
-  const chartValues = values.length > 1 ? values : [0, values[0] ?? 0, values[0] ?? 0];
-  const width = 120;
-  const height = 34;
-  const padding = 3;
-  const minValue = Math.min(...chartValues, 0);
-  const maxValue = Math.max(...chartValues, 1);
-  const range = Math.max(maxValue - minValue, 1);
-  const points = chartValues.map((value, index) => {
-    const x =
-      padding +
-      (index / Math.max(chartValues.length - 1, 1)) * Math.max(width - padding * 2, padding);
-    const y = height - padding - ((value - minValue) / range) * (height - padding * 2);
-    return { x, y };
-  });
-  const linePath = points
-    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
-    .join(' ');
-
-  // Area fill path (line + close to bottom)
-  const areaPath = `${linePath} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`;
-
-  return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      className="h-8 w-28 text-accent"
-      role="img"
-      aria-label="Views trend sparkline"
-      preserveAspectRatio="none"
-    >
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="currentColor" stopOpacity="0.2" />
-          <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={areaPath} fill={`url(#${gradientId})`} />
-      <path
-        d={linePath}
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2.5"
-      />
-    </svg>
-  );
-};
-
-const DashboardMetricCard = ({ metric }: DashboardMetricCardProps) => {
-  const Icon = metric.icon;
-
-  return (
-    <article className="rounded-2xl border border-border/35 bg-surface-1/80 px-4 py-3 transition-all duration-200 hover:border-accent/30 hover:bg-surface-2/75 dark:border-white/8 dark:bg-white/3 dark:hover:border-accent/25 dark:hover:bg-white/5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-muted">
-            {metric.label}
-          </p>
-          <p className="mt-1.5 font-sans text-2xl font-bold leading-none text-text [font-variant-numeric:tabular-nums] dark:text-accent-foreground">
-            {metric.value}
-          </p>
-        </div>
-        <span
-          className={cn(
-            'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
-            metricToneClasses[metric.tone],
-          )}
-        >
-          <Icon className="h-4.5 w-4.5" />
-        </span>
-      </div>
-      <div className="mt-2 flex min-h-8 items-end justify-between gap-3 text-xs leading-5 text-muted">
-        <p>
-          {metric.trend ? (
-            <span
-              className={cn(
-                'mr-1 font-bold',
-                metric.tone === 'danger'
-                  ? 'text-danger'
-                  : metric.tone === 'success'
-                    ? 'text-success'
-                    : 'text-accent',
-              )}
-            >
-              {metric.trend}
-            </span>
-          ) : null}
-          {metric.hint}
-        </p>
-        {metric.sparklineValues ? <MiniSparkline values={metric.sparklineValues} /> : null}
-      </div>
-    </article>
-  );
-};
-
-interface ShareLinkPreviewProps {
-  index: number;
-  title: string;
-  source: string;
-  projectLink: boolean;
-  thumbnailUrl?: string | null;
-}
-
-const ShareLinkPreview = ({
-  index,
-  title,
-  source,
-  projectLink,
-  thumbnailUrl,
-}: ShareLinkPreviewProps) => (
-  <div
-    className={cn(
-      'relative h-20 w-24 shrink-0 overflow-hidden rounded-xl border border-white/12 sm:h-[6.4rem] sm:w-29',
-      thumbnailUrl
-        ? 'bg-surface-2 dark:bg-white/4'
-        : cn('bg-linear-to-br', PREVIEW_STYLES[index % PREVIEW_STYLES.length]),
-    )}
-    aria-label={`Preview for ${title}`}
-    role="img"
-  >
-    {thumbnailUrl ? (
-      <>
-        <img
-          src={thumbnailUrl}
-          alt=""
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-          loading="lazy"
-        />
-        <div className="absolute inset-0 bg-linear-to-t from-black/25 via-transparent to-white/5" />
-      </>
-    ) : (
-      <>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.42),transparent_24%),linear-gradient(140deg,transparent_42%,rgba(255,255,255,0.24)_43%,transparent_56%)]" />
-        <div className="absolute inset-x-2 bottom-2 space-y-1 rounded-lg bg-black/28 px-2 py-1.5 text-white backdrop-blur-sm">
-          <p className="truncate text-[0.62rem] font-bold uppercase tracking-[0.14em] opacity-80">
-            {projectLink ? 'Project' : 'Gallery'}
-          </p>
-          <p className="truncate text-xs font-bold leading-none">{source}</p>
-        </div>
-      </>
-    )}
-  </div>
-);
-
-const QuickInsightRow = ({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-}) => (
-  <div className="border-b border-border/35 py-3 last:border-b-0 dark:border-white/10">
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <p className="text-xs text-muted">{label}</p>
-        <p className="mt-1 truncate text-sm font-bold text-text dark:text-accent-foreground">
-          {value}
-        </p>
-      </div>
-      <span className="shrink-0 text-sm font-bold text-text dark:text-accent-foreground">
-        {detail}
-      </span>
-    </div>
-  </div>
-);
+import {
+  SEARCH_DEBOUNCE_MS,
+  EMPTY_SUMMARY,
+  STATUS_FILTERS,
+} from '../components/share-links-dashboard/constants';
+import type { StatusFilter } from '../components/share-links-dashboard/constants';
+import type { SummaryMetric } from '../components/share-links-dashboard/types';
+import {
+  numberFormatter,
+  compactFormatter,
+  formatDateLabel,
+  formatRelativeDateLabel,
+  formatSelectionStatusLabel,
+  getShareLinkSource,
+  getShareLinkTitle,
+  getLatestActivityDate,
+  getPublicLinkLabel,
+  getTotalDownloads,
+  getCurrentPageGalleryIds,
+  getClosableSelectionLinks,
+  getReopenableSelectionLinks,
+  getClosableSessionTotal,
+  getReopenableSessionTotal,
+  getInsightLinkLabel,
+  resetScrollForBreadcrumbNavigation,
+  buildFallbackTrendValues,
+} from '../components/share-links-dashboard/utils';
+import { DashboardMetricCard } from '../components/share-links-dashboard/DashboardMetricCard';
+import { ShareLinkPreview } from '../components/share-links-dashboard/ShareLinkPreview';
+import { QuickInsightRow } from '../components/share-links-dashboard/QuickInsightRow';
 
 export const ShareLinksDashboardPage = () => {
   useDocumentTitle('Share Links · Viewport');
