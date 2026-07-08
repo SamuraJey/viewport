@@ -677,14 +677,20 @@ async def get_owner_selection_detail(
     )
 
 
-@router.post("/share-links/{sharelink_id}/selection/close", response_model=SelectionSessionResponse)
-async def close_owner_selection(
+async def _set_owner_selection_status(
     sharelink_id: uuid.UUID,
-    session_id: uuid.UUID | None = Query(None),
-    repo: SelectionRepository = Depends(get_selection_repository),
-    current_user: User = Depends(get_current_user),
-    s3_client: AsyncS3Client = Depends(get_s3_client),
+    current_user: User,
+    repo: SelectionRepository,
+    s3_client: AsyncS3Client,
+    target_status: SelectionSessionStatus,
+    *,
+    session_id: uuid.UUID | None,
 ) -> SelectionSessionResponse:
+    """Resolve + status-transition an owner selection session, returning the response.
+
+    Shared by the close/reopen routes (optional session_id picks latest) and the
+    session-scoped close/reopen routes (path-param session_id is required).
+    """
     sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
     if not sharelink:
         raise HTTPException(status_code=404, detail="Share link not found")
@@ -696,8 +702,19 @@ async def close_owner_selection(
     if not session:
         raise HTTPException(status_code=404, detail="Selection session not found")
 
-    updated_session = await repo.set_session_status(session, SelectionSessionStatus.CLOSED)
+    updated_session = await repo.set_session_status(session, target_status)
     return await _to_selection_session_response(updated_session, s3_client=s3_client)
+
+
+@router.post("/share-links/{sharelink_id}/selection/close", response_model=SelectionSessionResponse)
+async def close_owner_selection(
+    sharelink_id: uuid.UUID,
+    session_id: uuid.UUID | None = Query(None),
+    repo: SelectionRepository = Depends(get_selection_repository),
+    current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
+) -> SelectionSessionResponse:
+    return await _set_owner_selection_status(sharelink_id, current_user, repo, s3_client, SelectionSessionStatus.CLOSED, session_id=session_id)
 
 
 @router.post("/share-links/{sharelink_id}/selection/reopen", response_model=SelectionSessionResponse)
@@ -708,19 +725,7 @@ async def reopen_owner_selection(
     current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> SelectionSessionResponse:
-    sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
-    if not sharelink:
-        raise HTTPException(status_code=404, detail="Share link not found")
-
-    if session_id is not None:
-        session = await repo.get_session_by_id_for_sharelink(sharelink.id, session_id)
-    else:
-        session = await repo.get_latest_session_for_sharelink(sharelink.id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Selection session not found")
-
-    updated_session = await repo.set_session_status(session, SelectionSessionStatus.IN_PROGRESS)
-    return await _to_selection_session_response(updated_session, s3_client=s3_client)
+    return await _set_owner_selection_status(sharelink_id, current_user, repo, s3_client, SelectionSessionStatus.IN_PROGRESS, session_id=session_id)
 
 
 @router.post("/share-links/{sharelink_id}/selection/actions/close-all", response_model=BulkSelectionActionResponse)
@@ -777,16 +782,7 @@ async def close_owner_selection_session(
     current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> SelectionSessionResponse:
-    sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
-    if not sharelink:
-        raise HTTPException(status_code=404, detail="Share link not found")
-
-    session = await repo.get_session_by_id_for_sharelink(sharelink.id, session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Selection session not found")
-
-    updated_session = await repo.set_session_status(session, SelectionSessionStatus.CLOSED)
-    return await _to_selection_session_response(updated_session, s3_client=s3_client)
+    return await _set_owner_selection_status(sharelink_id, current_user, repo, s3_client, SelectionSessionStatus.CLOSED, session_id=session_id)
 
 
 @router.post("/share-links/{sharelink_id}/selection/sessions/{session_id}/reopen", response_model=SelectionSessionResponse)
@@ -797,16 +793,7 @@ async def reopen_owner_selection_session(
     current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> SelectionSessionResponse:
-    sharelink = await repo.get_owner_sharelink(sharelink_id, current_user.id)
-    if not sharelink:
-        raise HTTPException(status_code=404, detail="Share link not found")
-
-    session = await repo.get_session_by_id_for_sharelink(sharelink.id, session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Selection session not found")
-
-    updated_session = await repo.set_session_status(session, SelectionSessionStatus.IN_PROGRESS)
-    return await _to_selection_session_response(updated_session, s3_client=s3_client)
+    return await _set_owner_selection_status(sharelink_id, current_user, repo, s3_client, SelectionSessionStatus.IN_PROGRESS, session_id=session_id)
 
 
 @router.get("/galleries/{gallery_id}/selections", response_model=list[OwnerSelectionRowResponse])

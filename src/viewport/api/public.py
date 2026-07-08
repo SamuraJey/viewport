@@ -3,6 +3,7 @@ from datetime import date, datetime
 from uuid import UUID
 
 import zipstream
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -244,11 +245,38 @@ async def _build_project_cover(
     if cover_photo is None or not cover_photo.object_key or not cover_photo.thumbnail_object_key:
         return None
 
-    full_url = await s3_client.generate_presigned_url_async(
-        cover_photo.object_key,
-        response_content_disposition=build_content_disposition(cover_photo.display_name, disposition_type="inline"),
+    # Batch both presigned URLs in one round-trip via the dispositions variant
+    # (full object uses inline disposition; thumbnail uses none). Matches the
+    # pattern already used by _build_public_gallery_response below.
+    cover_disposition = build_content_disposition(cover_photo.display_name, disposition_type="inline")
+    urls = await s3_client.generate_presigned_urls_batch_for_dispositions(
+        {
+            cover_photo.object_key: cover_disposition,
+            cover_photo.thumbnail_object_key: None,
+        }
     )
-    thumbnail_url = await s3_client.generate_presigned_url_async(cover_photo.thumbnail_object_key)
+    full_url = urls.get(cover_photo.object_key)
+    thumbnail_url = urls.get(cover_photo.thumbnail_object_key)
+    # Guard: the batch call may omit either key (e.g. transient S3 failure
+    # inside the loop). PublicCover requires both URLs to be non-null strings,
+    # so fall back to per-URL presigning before constructing the response.
+    # If the fallback itself fails, drop the cover rather than constructing
+    # an invalid PublicCover.
+    if full_url is None:
+        try:
+            full_url = await s3_client.generate_presigned_url_async(
+                cover_photo.object_key,
+                response_content_disposition=cover_disposition,
+            )
+        except (ClientError, BotoCoreError) as exc:
+            logger.warning("Failed to presign full cover object %s: %s", cover_photo.object_key, exc)
+            return None
+    if thumbnail_url is None:
+        try:
+            thumbnail_url = await s3_client.generate_presigned_url_async(cover_photo.thumbnail_object_key)
+        except (ClientError, BotoCoreError) as exc:
+            logger.warning("Failed to presign thumbnail cover object %s: %s", cover_photo.thumbnail_object_key, exc)
+            return None
 
     return PublicCover(
         photo_id=str(cover_photo.id),

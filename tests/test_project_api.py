@@ -131,9 +131,7 @@ class TestProjectAPI:
             "cover.jpg",
         )
         upload_photo_via_presigned(authenticated_client, gallery_id, b"newer-project-photo", "newer.jpg")
-        cover_resp = authenticated_client.post(
-            f"/galleries/{gallery_id}/cover/{explicit_cover_photo_id}"
-        )
+        cover_resp = authenticated_client.post(f"/galleries/{gallery_id}/cover/{explicit_cover_photo_id}")
         assert cover_resp.status_code == 200
 
         list_resp = authenticated_client.get("/projects?page=1&size=20")
@@ -145,9 +143,7 @@ class TestProjectAPI:
         assert detail_with_cover_resp.status_code == 200
         detail_gallery = detail_with_cover_resp.json()["galleries"][0]
         assert detail_gallery["cover_photo_id"] == explicit_cover_photo_id
-        assert urlparse(listed_items[project_id]["cover_photo_thumbnail_url"]).path == urlparse(
-            detail_gallery["cover_photo_thumbnail_url"]
-        ).path
+        assert urlparse(listed_items[project_id]["cover_photo_thumbnail_url"]).path == urlparse(detail_gallery["cover_photo_thumbnail_url"]).path
         assert "recent_folder_thumbnail_urls" not in listed_items[project_id]
         assert listed_items[standalone_project_id]["entry_gallery_id"] == standalone_id
 

@@ -74,11 +74,7 @@ def _resolve_project_cover_thumbnail_url(
     thumbnail_url_by_key: dict[str, str],
 ) -> str | None:
     explicit_cover_key = next(
-        (
-            cover_thumbnail_by_photo_id[gallery.cover_photo_id]
-            for gallery in galleries
-            if gallery.cover_photo_id in cover_thumbnail_by_photo_id
-        ),
+        (cover_thumbnail_by_photo_id[gallery.cover_photo_id] for gallery in galleries if gallery.cover_photo_id in cover_thumbnail_by_photo_id),
         None,
     )
     fallback_cover_key = recent_keys[0] if recent_keys else None
@@ -111,9 +107,7 @@ async def _build_project_response(
     )
 
     gallery_count = len(galleries)
-    visible_gallery_count = sum(
-        1 for gallery in galleries if getattr(gallery, "project_visibility", "listed") == "listed"
-    )
+    visible_gallery_count = sum(1 for gallery in galleries if getattr(gallery, "project_visibility", "listed") == "listed")
     entry_gallery = galleries[0] if galleries else None
     total_photo_count = sum(photo_count_by_gallery.get(gallery.id, 0) for gallery in galleries)
     total_size_bytes = sum(total_size_by_gallery.get(gallery.id, 0) for gallery in galleries)
@@ -188,9 +182,7 @@ async def _build_project_responses(
 
     all_thumbnail_keys: list[str] = []
     all_thumbnail_keys.extend(cover_thumbnail_by_photo_id.values())
-    all_thumbnail_keys.extend(
-        key for recent_keys in recent_thumbnail_keys_by_project.values() for key in recent_keys
-    )
+    all_thumbnail_keys.extend(key for recent_keys in recent_thumbnail_keys_by_project.values() for key in recent_keys)
     thumbnail_url_by_key = (
         await s3_client.generate_presigned_urls_batch(
             list(dict.fromkeys(all_thumbnail_keys)),
