@@ -24,7 +24,6 @@ import {
   ListChecks,
   Loader2,
   PencilLine,
-  type LucideIcon,
   Settings2,
   Share2,
 } from 'lucide-react';
@@ -44,84 +43,14 @@ import { shareLinkService } from '../services/shareLinkService';
 import type { Gallery, ProjectDetail, ProjectGallerySummary, ShareLink } from '../types';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 
-type GalleryDraft = {
-  name: string;
-  shooting_date: string;
-  project_visibility: 'listed' | 'direct_only';
-};
-
-const toDateInputValue = (value?: string | null) =>
-  value?.slice(0, 10) || new Date().toISOString().slice(0, 10);
-
-const buildGalleryDraft = (project?: ProjectDetail | null): GalleryDraft => ({
-  name: '',
-  shooting_date: toDateInputValue(project?.shooting_date),
-  project_visibility: 'listed',
-});
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.05, delayChildren: 0.03 },
-  },
-};
-
-const cardVariants = {
-  hidden: { opacity: 0, y: 20, scale: 0.98 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { type: 'spring' as const, stiffness: 320, damping: 26 },
-  },
-  exit: { opacity: 0, scale: 0.95, y: -6, transition: { duration: 0.14 } },
-};
-
-const toProjectGalleryCard = (folder: ProjectGallerySummary): Gallery => ({
-  id: folder.id,
-  owner_id: folder.owner_id,
-  project_id: folder.project_id,
-  project_name: folder.project_name,
-  project_position: folder.project_position,
-  project_visibility: folder.project_visibility,
-  name: folder.name,
-  created_at: folder.created_at,
-  shooting_date: folder.shooting_date,
-  public_sort_by: 'original_filename',
-  public_sort_order: 'asc',
-  cover_photo_id: folder.cover_photo_id,
-  photo_count: folder.photo_count,
-  total_size_bytes: folder.total_size_bytes,
-  has_active_share_links: folder.has_active_share_links,
-  cover_photo_thumbnail_url: folder.cover_photo_thumbnail_url,
-  cover_focal_x: 50,
-  cover_focal_y: 50,
-  cover_display_option: 'centered_title',
-  public_photo_spacing: 'medium',
-  public_color_scheme: 'light',
-});
-
-const VISIBILITY_ACTION_BUTTON_CLASS =
-  'flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-accent';
-
-interface ProjectGuidanceItemProps {
-  icon: LucideIcon;
-  title: string;
-  description: string;
-}
-
-const ProjectGuidanceItem = ({ icon: Icon, title, description }: ProjectGuidanceItemProps) => (
-  <div className="flex gap-2.5 rounded-xl border border-border/30 bg-surface-1/65 px-3 py-2.5 dark:border-border/20 dark:bg-white/[0.035]">
-    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
-      <Icon className="h-4 w-4" />
-    </span>
-    <div>
-      <p className="text-[13px] font-bold text-text">{title}</p>
-      <p className="mt-0.5 text-xs leading-4 text-muted">{description}</p>
-    </div>
-  </div>
-);
+import type { GalleryDraft } from '../components/project-page/types';
+import {
+  VISIBILITY_ACTION_BUTTON_CLASS,
+  containerVariants,
+  cardVariants,
+} from '../components/project-page/constants';
+import { buildGalleryDraft, toProjectGalleryCard } from '../components/project-page/utils';
+import { ProjectGuidanceItem } from '../components/project-page/ProjectGuidanceItem';
 
 export const ProjectPage = () => {
   const { id } = useParams<{ id: string }>();
