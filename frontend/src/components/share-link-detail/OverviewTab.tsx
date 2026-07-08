@@ -8,13 +8,7 @@ import {
 import { MetricCard } from '../dashboard/MetricCard';
 import { ShareLinkTrendChart } from '../share-links/ShareLinkTrendChart';
 
-interface Point {
-  day: string;
-  views_total: number;
-  views_unique: number;
-  zip_downloads: number;
-  single_downloads: number;
-}
+import type { AnalyticsPoint } from './types';
 
 export interface OverviewTabProps {
   totals: {
@@ -32,10 +26,10 @@ export interface OverviewTabProps {
     in_progress_sessions: number;
     is_enabled: boolean;
   };
-  recentPoints: Point[];
-  analyticsPoints: Point[];
+  recentPoints: AnalyticsPoint[];
+  analyticsPoints: AnalyticsPoint[];
   isProjectLink: boolean;
-  latestPoint: Point | null;
+  latestPoint: AnalyticsPoint | null;
   onNavigateToAnalytics: () => void;
   onNavigateToSelection: () => void;
   numberFormatter: Intl.NumberFormat;
