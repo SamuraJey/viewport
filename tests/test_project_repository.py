@@ -13,7 +13,7 @@ from viewport.models.sharelink_analytics import ShareLinkDailyStat, ShareLinkDai
 from viewport.models.sharelink_selection import ShareLinkSelectionConfig, ShareLinkSelectionSession
 from viewport.models.user import User
 from viewport.repositories.project_repository import ProjectRepository
-from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
+from viewport.schemas.gallery import CoverDisplayOption, GalleryPhotoSortBy, PhotoSpacing, PublicColorScheme, SortOrder
 from viewport.schemas.project import ProjectListSortBy
 
 
@@ -562,3 +562,162 @@ async def test_delete_project_removes_project_sharelinks_and_cascaded_selection_
     assert await db_session.get(ShareLinkSelectionSession, selection_session_id) is None
     assert await db_session.get(ShareLinkDailyStat, (sharelink.id, analytics_day)) is None
     assert await db_session.get(ShareLinkDailyVisitor, (sharelink.id, visitor_day, visitor_hash)) is None
+
+
+@pytest.mark.asyncio
+async def test_update_project_appearance_fields(repo: ProjectRepository, db_session):
+    """Covers update_project appearance branches (cover_photo_id, focal, display, spacing, color)."""
+    user = await _create_user(db_session, "project-appearance")
+    project, gallery = await repo.create_project_with_initial_gallery(user.id, "Appearance Project")
+    photo = await _create_photo(
+        db_session,
+        gallery_id=gallery.id,
+        display_name="test.jpg",
+        thumbnail_object_key="thumb-key",
+        file_size=1024,
+        uploaded_at=datetime.now(UTC),
+    )
+
+    updated = await repo.update_project(
+        project.id,
+        user.id,
+        cover_photo_id=photo.id,
+        cover_focal_x=25.0,
+        cover_focal_y=75.0,
+        cover_display_option=CoverDisplayOption.MINIMALIST,
+        public_photo_spacing=PhotoSpacing.SMALL,
+        public_color_scheme=PublicColorScheme.DARK,
+    )
+    assert updated is not None
+    assert updated.cover_photo_id == photo.id
+    assert updated.cover_focal_x == 25.0
+    assert updated.cover_focal_y == 75.0
+    assert updated.cover_display_option == CoverDisplayOption.MINIMALIST.value
+    assert updated.public_photo_spacing == PhotoSpacing.SMALL.value
+    assert updated.public_color_scheme == PublicColorScheme.DARK.value
+
+    # Clear cover_photo_id
+    cleared = await repo.update_project(project.id, user.id, cover_photo_id=None)
+    assert cleared is not None
+    assert cleared.cover_photo_id is None
+
+    # Partial update (only focal) — other fields unchanged
+    focal_update = await repo.update_project(project.id, user.id, cover_focal_x=60.0, cover_focal_y=40.0)
+    assert focal_update is not None
+    assert focal_update.cover_focal_x == 60.0
+    assert focal_update.cover_focal_y == 40.0
+    assert focal_update.cover_photo_id is None
+    assert focal_update.cover_display_option == CoverDisplayOption.MINIMALIST.value
+
+    # No-op update (UNSET default) — verify no change
+    noop = await repo.update_project(project.id, user.id)
+    assert noop is not None
+    assert noop.cover_focal_x == 60.0
+    assert noop.cover_display_option == CoverDisplayOption.MINIMALIST.value
+
+
+@pytest.mark.asyncio
+async def test_get_project_photos_pagination(repo: ProjectRepository, db_session):
+    """Covers get_project_photos — pagination across all galleries (listed + direct_only)."""
+
+    user = await _create_user(db_session, "project-photos")
+    project, first_gallery = await repo.create_project_with_initial_gallery(user.id, "Photo Project")
+
+    # Create a second gallery (direct_only)
+    second_gallery = await _create_project_gallery(
+        db_session,
+        user.id,
+        project.id,
+        name="Hidden Gallery",
+        position=1,
+        visibility=ProjectVisibility.DIRECT_ONLY,
+    )
+
+    now = datetime.now(UTC)
+    await _create_photo(
+        db_session,
+        first_gallery.id,
+        display_name="photo-A.jpg",
+        thumbnail_object_key="t-A",
+        file_size=100,
+        uploaded_at=now,
+    )
+    await _create_photo(
+        db_session,
+        first_gallery.id,
+        display_name="photo-B.jpg",
+        thumbnail_object_key="t-B",
+        file_size=200,
+        uploaded_at=now,
+    )
+    await _create_photo(
+        db_session,
+        second_gallery.id,
+        display_name="hidden-photo.jpg",
+        thumbnail_object_key="t-H",
+        file_size=300,
+        uploaded_at=now,
+    )
+
+    # Full listing — all 3 photos across both galleries
+    photos, total = await repo.get_project_photos(project.id, user.id, limit=10, offset=0)
+    assert total == 3
+    assert len(photos) == 3
+    names = [p.display_name for p in photos]
+    assert names == ["photo-A.jpg", "photo-B.jpg", "hidden-photo.jpg"]
+
+    # Pagination: limit=1, offset=0
+    p1, t1 = await repo.get_project_photos(project.id, user.id, limit=1, offset=0)
+    assert t1 == 3
+    assert len(p1) == 1
+    assert p1[0].display_name == "photo-A.jpg"
+
+    # Pagination: offset=1, limit=2
+    p2, t2 = await repo.get_project_photos(project.id, user.id, limit=2, offset=1)
+    assert t2 == 3
+    assert [p.display_name for p in p2] == ["photo-B.jpg", "hidden-photo.jpg"]
+
+    # Empty project
+    empty_project = await repo.create_project(user.id, "Empty Photos")
+    empty_photos, empty_total = await repo.get_project_photos(empty_project.id, user.id, limit=10, offset=0)
+    assert empty_total == 0
+    assert empty_photos == []
+
+
+@pytest.mark.asyncio
+async def test_get_photo_by_id_for_project(repo: ProjectRepository, db_session):
+    """Covers get_photo_by_id_for_project with and without owner_id filter."""
+    user = await _create_user(db_session, "project-photo-lookup")
+    project, gallery = await repo.create_project_with_initial_gallery(user.id, "Lookup Project")
+
+    photo = await _create_photo(
+        db_session,
+        gallery.id,
+        display_name="lookup-photo.jpg",
+        thumbnail_object_key="t-lookup",
+        file_size=500,
+        uploaded_at=datetime.now(UTC),
+    )
+
+    # With owner_id filter
+    found = await repo.get_photo_by_id_for_project(project.id, photo.id, owner_id=user.id)
+    assert found is not None
+    assert found.id == photo.id
+    assert found.display_name == "lookup-photo.jpg"
+
+    # Without owner_id filter (public share path)
+    found_no_owner = await repo.get_photo_by_id_for_project(project.id, photo.id)
+    assert found_no_owner is not None
+    assert found_no_owner.id == photo.id
+
+    # Wrong photo_id — not found
+    missing = await repo.get_photo_by_id_for_project(project.id, uuid.uuid4())
+    assert missing is None
+
+    # Wrong project_id — not found
+    wrong_project = await repo.get_photo_by_id_for_project(uuid.uuid4(), photo.id)
+    assert wrong_project is None
+
+    # Wrong owner_id filter — not found (photo belongs to user, filter by another)
+    wrong_owner = await repo.get_photo_by_id_for_project(project.id, photo.id, owner_id=uuid.uuid4())
+    assert wrong_owner is None
