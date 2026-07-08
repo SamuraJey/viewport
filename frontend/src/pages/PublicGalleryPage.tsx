@@ -241,7 +241,6 @@ export const PublicGalleryPage = () => {
   const folderShare = gallery?.scope_type === 'project' ? null : gallery;
   const appearance = normalizePublicGalleryAppearance(folderShare?.appearance);
 
-
   const observerTargetRef = useRef<HTMLDivElement | null>(null);
   const loadMorePhotosRef = useRef<(() => void) | undefined>(undefined);
 

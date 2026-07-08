@@ -464,7 +464,9 @@ describe('PublicGalleryPage', () => {
     const { container } = render(wrapper());
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 1, name: 'Wedding Weekend' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { level: 1, name: 'Wedding Weekend' }),
+      ).toBeInTheDocument();
     });
 
     // Hero images should use project-level cover and focal coords
