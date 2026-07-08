@@ -367,6 +367,13 @@ async def _build_public_project_response(
         total_listed_photos=total_listed_photos,
         total_size_bytes=total_size_bytes,
         galleries=gallery_items,
+        appearance=PublicGalleryAppearance(
+            cover_focal_x=float(getattr(galleries[0], "cover_focal_x", 50.0)) if galleries else 50.0,
+            cover_focal_y=float(getattr(galleries[0], "cover_focal_y", 50.0)) if galleries else 50.0,
+            cover_display_option=getattr(galleries[0], "cover_display_option", "centered_title") if galleries else "centered_title",
+            photo_spacing=getattr(galleries[0], "public_photo_spacing", "medium") if galleries else "medium",
+            color_scheme=getattr(galleries[0], "public_color_scheme", "light") if galleries else "light",
+        ),
     )
 
 

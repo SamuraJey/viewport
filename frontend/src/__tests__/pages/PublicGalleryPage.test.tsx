@@ -73,6 +73,13 @@ const mockProjectShare = {
   total_listed_galleries: 2,
   total_listed_photos: 8,
   total_size_bytes: 4096,
+  appearance: {
+    cover_focal_x: 20,
+    cover_focal_y: 80,
+    cover_display_option: 'centered_title',
+    photo_spacing: 'medium',
+    color_scheme: 'light',
+  },
   galleries: [
     {
       gallery_id: 'gallery-1',
@@ -442,6 +449,30 @@ describe('PublicGalleryPage', () => {
     expect(projectDownloadButton).toHaveAttribute('aria-describedby', projectSizeLabel.id);
     expect(screen.queryByText('Download visible folders')).not.toBeInTheDocument();
     expect(container.querySelector('img[src="/full/project-cover.jpg"]')).not.toBeNull();
+  });
+
+  it('uses project-level appearance for hero focal point in project folder view', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-2' };
+    vi.mocked(shareLinkService.getSharedGallery).mockImplementation(async (_shareId, options) => {
+      if (options?.galleryId) {
+        return mockProjectGallery as unknown as Record<string, unknown>;
+      }
+      return mockProjectShare as unknown as Record<string, unknown>;
+    });
+
+    const { container } = render(wrapper());
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: 'Wedding Weekend' })).toBeInTheDocument();
+    });
+
+    // Hero images should use project-level cover and focal coords
+    const heroImages = container.querySelectorAll<HTMLImageElement>('.pg-hero img');
+    expect(heroImages.length).toBeGreaterThanOrEqual(1);
+    for (const img of heroImages) {
+      expect(img.style.objectPosition).toBe('20% 80%');
+    }
   });
 
   it('downloads only the active gallery from project share navigation', async () => {

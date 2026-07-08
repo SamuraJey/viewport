@@ -80,6 +80,7 @@ class PublicProjectResponse(BaseModel):
     total_listed_photos: int = 0
     total_size_bytes: int = 0
     galleries: list[PublicProjectGallery] = Field(default_factory=list)
+    appearance: PublicGalleryAppearance = Field(default_factory=PublicGalleryAppearance)
 
 
 PublicShareResponse = Annotated[
