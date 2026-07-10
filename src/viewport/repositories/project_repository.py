@@ -317,7 +317,7 @@ class ProjectRepository(BaseRepository):
         if owner_id is not None:
             filters.append(Gallery.owner_id == owner_id)
         if listed_only:
-            filters.append(Gallery.project_visibility == "listed")
+            filters.append(Gallery.project_visibility == ProjectVisibility.LISTED.value)
         stmt = select(Photo).join(Photo.gallery).where(*filters)
         photo = (await self.db.execute(stmt)).scalar_one_or_none()
         return await self._finish_read(photo)

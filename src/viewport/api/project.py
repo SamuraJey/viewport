@@ -192,11 +192,7 @@ async def _build_project_responses(
         if gallery.cover_photo_id:
             cover_photo_ids.append(gallery.cover_photo_id)
 
-    # Collect project-level cover photo ids for thumbnail resolution
-    project_cover_id_by_project: dict[uuid.UUID, uuid.UUID | None] = {}
-    for project in projects:
-        project_cover_id_by_project[project.id] = project.cover_photo_id
-    project_cover_photo_ids = [cid for cid in project_cover_id_by_project.values() if cid is not None]
+    project_cover_photo_ids = [p.cover_photo_id for p in projects if p.cover_photo_id is not None]
     cover_photo_ids.extend(project_cover_photo_ids)
 
     (
@@ -234,7 +230,7 @@ async def _build_project_responses(
         recent_keys = recent_thumbnail_keys_by_project.get(project.id, [])
 
         # Prefer project-level cover thumbnail, fall back to gallery-derived
-        project_cid = project_cover_id_by_project.get(project.id)
+        project_cid = project.cover_photo_id
         project_cover_key = cover_thumbnail_by_photo_id.get(project_cid) if project_cid else None
         cover_thumbnail_url: str | None = None
         if project_cover_key:

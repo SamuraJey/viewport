@@ -77,8 +77,6 @@ export const AppearanceEditor = ({
       setCoverPickerError('');
       setSaveStatus('idle');
     }
-    // totalPhotoCount is a prop that may change with entity data; reset
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appearanceKey, initialDraft, photos, totalPhotoCount]);
 
   // -- autosave -------------------------------------------------------------
