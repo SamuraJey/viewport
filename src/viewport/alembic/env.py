@@ -75,7 +75,7 @@ def run_migrations_online() -> None:
     )
 
     def _is_spurious_fk(operation: ops.MigrateOperation) -> bool:
-        spurious_names = {"photos_gallery_id_fkey"}
+        spurious_names = {"photos_gallery_id_fkey", "projects_cover_photo_id_fkey"}
         if isinstance(operation, ops.CreateForeignKeyOp):
             return operation.constraint_name in spurious_names
         if isinstance(operation, ops.DropConstraintOp):
