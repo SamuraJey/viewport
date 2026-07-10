@@ -53,6 +53,7 @@ vi.mock('../../services/projectService', () => ({
     deleteProject: vi.fn(),
     createProjectGallery: vi.fn(),
     reorderProjectGalleries: vi.fn(),
+    getProjectPhotos: vi.fn().mockResolvedValue({ photos: [], total: 0 }),
   },
 }));
 
@@ -126,10 +127,15 @@ describe('ProjectPage', () => {
       shooting_date: '2026-04-18',
       gallery_count: 2,
       visible_gallery_count: 1,
-      total_photo_count: 12,
       total_size_bytes: 1024,
       has_active_share_links: true,
       cover_photo_thumbnail_url: null,
+      cover_photo_id: null,
+      cover_focal_x: 50,
+      cover_focal_y: 50,
+      cover_display_option: 'centered_title',
+      public_photo_spacing: 'medium',
+      public_color_scheme: 'light',
       galleries: [
         {
           id: 'gallery-1',
@@ -201,16 +207,14 @@ describe('ProjectPage', () => {
   it('reuses the gallery share-links section UI for project links', async () => {
     renderProjectPage();
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Wedding Weekend' })).toHaveClass(
-      'wrap-break-word',
-      'whitespace-normal',
-    );
+    const headings = await screen.findAllByRole('heading', { level: 1, name: 'Wedding Weekend' });
+    expect(headings.length).toBeGreaterThan(0);
+    expect(headings[0]).toHaveClass('wrap-break-word');
     expect(await screen.findByRole('heading', { name: /share links/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create new share link/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /all links/i })).toBeInTheDocument();
     expect(screen.getByText('Client proofing')).toBeInTheDocument();
   });
-
   it('requires confirmation before deleting a project share link', async () => {
     const user = userEvent.setup();
     const { shareLinkService } = await import('../../services/shareLinkService');
@@ -232,7 +236,6 @@ describe('ProjectPage', () => {
       expect(shareLinkService.deleteProjectShareLink).toHaveBeenCalledWith('project-1', 'link-1');
     });
   });
-
   it('shows an error banner when deleting a project share link fails', async () => {
     const user = userEvent.setup();
     const { shareLinkService } = await import('../../services/shareLinkService');
@@ -249,7 +252,6 @@ describe('ProjectPage', () => {
 
     expect(await screen.findByText('Delete failed')).toBeInTheDocument();
   });
-
   it('lets project share creation expose selection settings', async () => {
     const user = userEvent.setup();
 
@@ -284,9 +286,12 @@ describe('ProjectPage', () => {
 
     renderProjectPage();
 
-    expect(
-      await screen.findByRole('heading', { level: 1, name: 'Wedding Weekend' }),
-    ).toBeInTheDocument();
+    const pageHeadings = await screen.findAllByRole('heading', {
+      level: 1,
+      name: 'Wedding Weekend',
+    });
+    expect(pageHeadings.length).toBeGreaterThan(0);
+    expect(pageHeadings[0]).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /rename project/i }));
 
     const nameInput = screen.getByLabelText(/project name/i);

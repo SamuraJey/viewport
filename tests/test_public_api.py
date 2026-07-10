@@ -242,6 +242,110 @@ class TestPublicAPI:
         assert exc_info.value.detail == "Project not found"
 
     @pytest.mark.asyncio
+    async def test_build_public_project_response_includes_appearance_from_project(self):
+        """Project share response carries appearance from the project columns (not the first gallery)."""
+        gallery = SimpleNamespace(
+            id=uuid4(),
+            name="First Gallery",
+            cover_photo_id=None,
+            cover_focal_x=25.0,
+            cover_focal_y=75.0,
+            cover_display_option="text_block",
+            public_photo_spacing="large",
+            public_color_scheme="dark",
+        )
+        project = SimpleNamespace(
+            id=uuid4(),
+            name="Test Project",
+            shooting_date=None,
+            created_at=datetime(2026, 7, 8, 12, 0, 0),
+            owner=SimpleNamespace(display_name="Alice"),
+            cover_photo_id=None,
+            cover_focal_x=42.0,
+            cover_focal_y=58.0,
+            cover_display_option="text_block",
+            public_photo_spacing="large",
+            public_color_scheme="dark",
+        )
+        sharelink = SimpleNamespace(
+            created_at=datetime(2026, 7, 8, 12, 30, 0),
+            project=project,
+        )
+        project_repo = MagicMock()
+        project_repo.get_visible_project_folders = AsyncMock(return_value=[gallery])
+        gallery_repo = MagicMock()
+        gallery_repo.get_gallery_list_enrichment = AsyncMock(return_value=({}, {}, 0, {}, {}))
+        gallery_repo.get_photo_by_id_and_gallery = AsyncMock(return_value=None)
+        gallery_repo.get_photos_by_gallery_id = AsyncMock(return_value=[])
+        s3_client = MagicMock()
+        s3_client.generate_presigned_urls_batch = AsyncMock(return_value={})
+        s3_client.generate_presigned_url_async = AsyncMock(return_value="https://example.com/cover")
+
+        payload = await _build_public_project_response(
+            share_id=uuid4(),
+            request=SimpleNamespace(client=None, headers={}, base_url="https://example.com/"),
+            response=Response(),
+            project_repo=project_repo,
+            gallery_repo=gallery_repo,
+            s3_client=s3_client,
+            sharelink=sharelink,
+            record_view=False,
+        )
+
+        assert payload.appearance.cover_focal_x == 42.0
+        assert payload.appearance.cover_focal_y == 58.0
+        assert payload.appearance.cover_display_option == "text_block"
+        assert payload.appearance.photo_spacing == "large"
+        assert payload.appearance.color_scheme == "dark"
+
+    @pytest.mark.asyncio
+    async def test_build_public_project_response_uses_default_appearance_when_no_galleries(self):
+        """When project has zero visible galleries, appearance falls back to defaults."""
+        project = SimpleNamespace(
+            id=uuid4(),
+            name="Empty Project",
+            shooting_date=None,
+            created_at=datetime(2026, 7, 8, 12, 0, 0),
+            owner=SimpleNamespace(display_name="Bob"),
+            cover_photo_id=None,
+            cover_focal_x=50.0,
+            cover_focal_y=50.0,
+            cover_display_option="centered_title",
+            public_photo_spacing="medium",
+            public_color_scheme="light",
+        )
+        sharelink = SimpleNamespace(
+            created_at=datetime(2026, 7, 8, 12, 30, 0),
+            project=project,
+        )
+        project_repo = MagicMock()
+        project_repo.get_visible_project_folders = AsyncMock(return_value=[])
+        gallery_repo = MagicMock()
+        gallery_repo.get_gallery_list_enrichment = AsyncMock(return_value=({}, {}, 0, {}, {}))
+        gallery_repo.get_photo_by_id_and_gallery = AsyncMock(return_value=None)
+        gallery_repo.get_photos_by_gallery_id = AsyncMock(return_value=[])
+        s3_client = MagicMock()
+        s3_client.generate_presigned_urls_batch = AsyncMock(return_value={})
+        s3_client.generate_presigned_url_async = AsyncMock(return_value="https://example.com/cover")
+
+        payload = await _build_public_project_response(
+            share_id=uuid4(),
+            request=SimpleNamespace(client=None, headers={}, base_url="https://example.com/"),
+            response=Response(),
+            project_repo=project_repo,
+            gallery_repo=gallery_repo,
+            s3_client=s3_client,
+            sharelink=sharelink,
+            record_view=False,
+        )
+
+        assert payload.appearance.cover_focal_x == 50.0
+        assert payload.appearance.cover_focal_y == 50.0
+        assert payload.appearance.cover_display_option == "centered_title"
+        assert payload.appearance.photo_spacing == "medium"
+        assert payload.appearance.color_scheme == "light"
+
+    @pytest.mark.asyncio
     async def test_load_project_zip_entries_batches_visible_project_photo_lookup(self):
         project_id = uuid4()
         first_folder = SimpleNamespace(id=uuid4(), name="First")

@@ -5,7 +5,7 @@ from typing import Self
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from viewport.gallery_constants import GALLERY_NAME_MAX_LENGTH
-from viewport.schemas.gallery import ProjectVisibility, SortOrder
+from viewport.schemas.gallery import CoverDisplayOption, GalleryPhotoResponse, PhotoSpacing, ProjectVisibility, PublicColorScheme, SortOrder
 
 
 class ProjectListSortBy(StrEnum):
@@ -38,10 +38,16 @@ class ProjectCreateRequest(BaseModel):
 class ProjectUpdateRequest(BaseModel):
     name: str | None = Field(None, max_length=GALLERY_NAME_MAX_LENGTH, description="Updated project name")
     shooting_date: date | None = Field(None, description="Updated project date (YYYY-MM-DD)")
+    cover_photo_id: str | None = Field(None, description="Optional cover photo id from any gallery of this project; null clears the explicit cover")
+    cover_focal_x: float | None = Field(None, ge=0, le=100, description="Cover focal point x percentage")
+    cover_focal_y: float | None = Field(None, ge=0, le=100, description="Cover focal point y percentage")
+    cover_display_option: CoverDisplayOption | None = Field(None, description="Public cover composition")
+    public_photo_spacing: PhotoSpacing | None = Field(None, description="Spacing between public gallery photos")
+    public_color_scheme: PublicColorScheme | None = Field(None, description="Public gallery color scheme")
 
     @model_validator(mode="after")
     def validate_payload(self) -> Self:
-        if self.name is None and self.shooting_date is None:
+        if not self.model_fields_set:
             raise ValueError("At least one field must be provided for update")
         return self
 
@@ -92,6 +98,17 @@ class ProjectResponse(BaseModel):
     total_size_bytes: int = 0
     has_active_share_links: bool = False
     cover_photo_thumbnail_url: str | None = None
+    cover_photo_id: str | None = None
+    cover_focal_x: float = Field(50.0, ge=0, le=100)
+    cover_focal_y: float = Field(50.0, ge=0, le=100)
+    cover_display_option: CoverDisplayOption = Field(CoverDisplayOption.CENTERED_TITLE)
+    public_photo_spacing: PhotoSpacing = Field(PhotoSpacing.MEDIUM)
+    public_color_scheme: PublicColorScheme = Field(PublicColorScheme.LIGHT)
+
+
+class ProjectPhotosResponse(BaseModel):
+    photos: list[GalleryPhotoResponse]
+    total: int
 
 
 class ProjectDetailResponse(ProjectResponse):

@@ -436,6 +436,8 @@ export const PublicGalleryPage = () => {
       ? `Estimated ZIP size: ${formatFileSize(folderShare.total_size_bytes)}`
       : undefined;
   const isProjectFolderView = Boolean(folderShare?.parent_share_id && !isFavoritesView);
+
+  const heroAppearance = appearance;
   const showStickyProjectSelectionBar = Boolean(
     projectGalleryTabs &&
     selection.config?.is_enabled &&
@@ -450,7 +452,7 @@ export const PublicGalleryPage = () => {
   const heroPhotographer = isProjectFolderView
     ? projectGalleryTabs?.photographer || folderShare?.photographer
     : folderShare?.photographer;
-  const heroCover = isProjectFolderView ? (projectGalleryTabs?.cover ?? null) : folderShare?.cover;
+  const heroCover = folderShare?.cover ?? null;
   const activeProjectGallery = projectGalleryTabs?.galleries.find(
     (projectGallery) => projectGallery.gallery_id === activeGalleryId,
   );
@@ -737,7 +739,7 @@ export const PublicGalleryPage = () => {
           date={heroDate}
           photographer={heroPhotographer}
           cover={heroCover}
-          appearance={appearance}
+          appearance={heroAppearance}
         />
       </div>
 

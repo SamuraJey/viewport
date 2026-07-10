@@ -74,17 +74,15 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
 
-    def _is_spurious_photos_fk(operation: ops.MigrateOperation) -> bool:
+    def _is_spurious_fk(operation: ops.MigrateOperation) -> bool:
+        spurious_names = {"photos_gallery_id_fkey", "projects_cover_photo_id_fkey"}
         if isinstance(operation, ops.CreateForeignKeyOp):
             return (
-                operation.constraint_name == "photos_gallery_id_fkey"
-                and operation.source_table == "photos"
-                and operation.referent_table == "galleries"
+                operation.constraint_name in spurious_names
             )
         if isinstance(operation, ops.DropConstraintOp):
             return (
-                operation.constraint_name == "photos_gallery_id_fkey"
-                and operation.table_name == "photos"
+                operation.constraint_name in spurious_names
                 and operation.constraint_type == "foreignkey"
             )
         return False
@@ -97,7 +95,7 @@ def run_migrations_online() -> None:
                 if operation.ops:
                     filtered_ops.append(operation)
                 continue
-            if _is_spurious_photos_fk(operation):
+            if _is_spurious_fk(operation):
                 continue
             filtered_ops.append(operation)
         container.ops = filtered_ops

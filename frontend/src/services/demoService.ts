@@ -105,6 +105,23 @@ const DEFAULT_GALLERY_APPEARANCE = {
   | 'public_color_scheme'
 >;
 
+const DEFAULT_PROJECT_APPEARANCE = {
+  cover_photo_id: null as string | null,
+  cover_focal_x: 50,
+  cover_focal_y: 50,
+  cover_display_option: 'centered_title',
+  public_photo_spacing: 'medium',
+  public_color_scheme: 'light',
+} satisfies Pick<
+  Project,
+  | 'cover_photo_id'
+  | 'cover_focal_x'
+  | 'cover_focal_y'
+  | 'cover_display_option'
+  | 'public_photo_spacing'
+  | 'public_color_scheme'
+>;
+
 const getStoredActiveSelectionSessions = (): Record<string, string> => {
   if (typeof window === 'undefined') return {};
   try {
@@ -360,6 +377,7 @@ const buildSeedProjectContent = (): {
           total_size_bytes: 0,
           has_active_share_links: false,
           cover_photo_thumbnail_url: null,
+          ...DEFAULT_PROJECT_APPEARANCE,
         },
         shareLinks: [projectShareLink],
         selectionConfigs: {
@@ -485,6 +503,7 @@ const buildProjectsFromGalleryState = (galleries: DemoGalleryState[]): DemoProje
           total_size_bytes: 0,
           has_active_share_links: false,
           cover_photo_thumbnail_url: null,
+          ...DEFAULT_PROJECT_APPEARANCE,
         },
         shareLinks: [],
       });
@@ -866,7 +885,19 @@ class DemoServiceStore {
         galleries.find((gallery) => gallery.cover_photo_thumbnail_url)?.cover_photo_thumbnail_url ??
         null;
       const hasActiveShareLinks = entry.shareLinks.some((link) => link.is_active !== false);
-      const { id, owner_id, name, created_at, shooting_date } = entry.project;
+      const {
+        id,
+        owner_id,
+        name,
+        created_at,
+        shooting_date,
+        cover_photo_id,
+        cover_focal_x,
+        cover_focal_y,
+        cover_display_option,
+        public_photo_spacing,
+        public_color_scheme,
+      } = entry.project;
       return {
         ...entry,
         project: {
@@ -884,6 +915,12 @@ class DemoServiceStore {
           total_size_bytes: totalSizeBytes,
           has_active_share_links: hasActiveShareLinks,
           cover_photo_thumbnail_url: coverPhotoThumbnailUrl,
+          cover_photo_id: cover_photo_id ?? null,
+          cover_focal_x: cover_focal_x ?? 50,
+          cover_focal_y: cover_focal_y ?? 50,
+          cover_display_option: cover_display_option ?? 'centered_title',
+          public_photo_spacing: public_photo_spacing ?? 'medium',
+          public_color_scheme: public_color_scheme ?? 'light',
         },
       };
     });
@@ -1188,6 +1225,7 @@ class DemoServiceStore {
       total_size_bytes: 0,
       has_active_share_links: false,
       cover_photo_thumbnail_url: null,
+      ...DEFAULT_PROJECT_APPEARANCE,
     };
     this.projects.unshift({ project, shareLinks: [] });
     this.recalculateProjects();
@@ -1199,7 +1237,16 @@ class DemoServiceStore {
 
   async updateProject(
     projectId: string,
-    payload: { name?: string; shooting_date?: string | null },
+    payload: {
+      name?: string;
+      shooting_date?: string | null;
+      cover_photo_id?: string | null;
+      cover_focal_x?: number;
+      cover_focal_y?: number;
+      cover_display_option?: CoverDisplayOption;
+      public_photo_spacing?: PhotoSpacing;
+      public_color_scheme?: PublicColorScheme;
+    },
   ): Promise<Project> {
     const state = this.projects.find((entry) => entry.project.id === projectId);
     if (!state) {
@@ -1209,6 +1256,15 @@ class DemoServiceStore {
       ...state.project,
       name: payload.name?.trim() || state.project.name,
       shooting_date: payload.shooting_date ?? state.project.shooting_date,
+      cover_photo_id:
+        'cover_photo_id' in payload
+          ? (payload.cover_photo_id ?? null)
+          : state.project.cover_photo_id,
+      cover_focal_x: payload.cover_focal_x ?? state.project.cover_focal_x,
+      cover_focal_y: payload.cover_focal_y ?? state.project.cover_focal_y,
+      cover_display_option: payload.cover_display_option ?? state.project.cover_display_option,
+      public_photo_spacing: payload.public_photo_spacing ?? state.project.public_photo_spacing,
+      public_color_scheme: payload.public_color_scheme ?? state.project.public_color_scheme,
     };
     this.galleries.forEach((entry) => {
       if (entry.gallery.project_id === projectId) {
@@ -1241,6 +1297,33 @@ class DemoServiceStore {
     this.recalculateStorageUsed();
     this.recalculateProjects();
     this.persistState();
+  }
+
+  async getProjectPhotos(
+    projectId: string,
+    opts: { limit?: number; offset?: number } = {},
+  ): Promise<{ photos: GalleryPhoto[]; total: number }> {
+    const projectGalleries = this.galleries
+      .filter((entry) => entry.gallery.project_id === projectId)
+      .sort(
+        (left, right) =>
+          (left.gallery.project_position ?? 0) - (right.gallery.project_position ?? 0),
+      );
+
+    const allPhotos: GalleryPhoto[] = [];
+    for (const galleryState of projectGalleries) {
+      const sortedPhotos = [...galleryState.photos].sort((left, right) =>
+        left.filename.localeCompare(right.filename),
+      );
+      allPhotos.push(...sortedPhotos);
+    }
+
+    const total = allPhotos.length;
+    const limit = opts.limit ?? total;
+    const offset = Math.max(0, opts.offset ?? 0);
+    const photos = allPhotos.slice(offset, offset + limit);
+
+    return { photos, total };
   }
 
   async createProjectGallery(
@@ -2030,16 +2113,14 @@ class DemoServiceStore {
         sum + entry.photos.reduce((photoSum, photo) => photoSum + (photo.file_size || 0), 0),
       0,
     );
-    const leftmostFolderState = [...listedFolderStates].sort(
-      (left, right) => (left.gallery.project_position ?? 0) - (right.gallery.project_position ?? 0),
-    )[0];
-    const leftmostCoverPhoto = leftmostFolderState
-      ? leftmostFolderState.gallery.cover_photo_id
-        ? (leftmostFolderState.photos.find(
-            (photo) => photo.id === leftmostFolderState.gallery.cover_photo_id,
-          ) ?? leftmostFolderState.photos[0])
-        : leftmostFolderState.photos[0]
+    const projectCoverPhotoId = projectState.project.cover_photo_id;
+    const projectCoverPhoto = projectCoverPhotoId
+      ? listedFolderStates
+          .flatMap((entry) => entry.photos)
+          .find((photo) => photo.id === projectCoverPhotoId)
       : null;
+    const leftmostPhoto = listedFolderStates[0]?.photos[0] ?? null;
+    const effectiveCoverPhoto = projectCoverPhoto ?? leftmostPhoto;
     const projectNavigation = {
       scope_type: 'project' as const,
       project_id: projectState.project.id,
@@ -2047,11 +2128,11 @@ class DemoServiceStore {
       photographer: this.user.display_name || this.user.email,
       date: projectState.project.shooting_date,
       site_url: window.location.origin,
-      cover: leftmostCoverPhoto
+      cover: effectiveCoverPhoto
         ? {
-            photo_id: leftmostCoverPhoto.id,
-            full_url: leftmostCoverPhoto.url,
-            thumbnail_url: leftmostCoverPhoto.thumbnail_url,
+            photo_id: effectiveCoverPhoto.id,
+            full_url: effectiveCoverPhoto.url,
+            thumbnail_url: effectiveCoverPhoto.thumbnail_url,
           }
         : null,
       total_listed_galleries: listedFolders.length,
@@ -2060,6 +2141,13 @@ class DemoServiceStore {
         0,
       ),
       total_size_bytes: projectTotalSizeBytes,
+      appearance: {
+        cover_focal_x: projectState.project.cover_focal_x ?? 50,
+        cover_focal_y: projectState.project.cover_focal_y ?? 50,
+        cover_display_option: projectState.project.cover_display_option ?? 'centered_title',
+        photo_spacing: projectState.project.public_photo_spacing ?? 'medium',
+        color_scheme: projectState.project.public_color_scheme ?? 'light',
+      },
       galleries: listedFolders.map((folder) => ({
         gallery_id: folder.id,
         gallery_name: folder.name,
@@ -2097,27 +2185,19 @@ class DemoServiceStore {
         project_name: folderState.gallery.project_name ?? null,
         parent_share_id: shareId,
         project_navigation: projectNavigation,
-        cover: folderState.gallery.cover_photo_id
+        cover: effectiveCoverPhoto
           ? {
-              photo_id: folderState.gallery.cover_photo_id,
-              full_url:
-                folderState.photos.find((photo) => photo.id === folderState.gallery.cover_photo_id)
-                  ?.url ||
-                folderState.photos[0]?.url ||
-                '',
-              thumbnail_url:
-                folderState.photos.find((photo) => photo.id === folderState.gallery.cover_photo_id)
-                  ?.thumbnail_url ||
-                folderState.photos[0]?.thumbnail_url ||
-                '',
+              photo_id: effectiveCoverPhoto.id,
+              full_url: effectiveCoverPhoto.url,
+              thumbnail_url: effectiveCoverPhoto.thumbnail_url,
             }
           : null,
         appearance: {
-          cover_focal_x: folderState.gallery.cover_focal_x ?? 50,
-          cover_focal_y: folderState.gallery.cover_focal_y ?? 50,
-          cover_display_option: folderState.gallery.cover_display_option ?? 'centered_title',
-          photo_spacing: folderState.gallery.public_photo_spacing ?? 'medium',
-          color_scheme: folderState.gallery.public_color_scheme ?? 'light',
+          cover_focal_x: projectState.project.cover_focal_x ?? 50,
+          cover_focal_y: projectState.project.cover_focal_y ?? 50,
+          cover_display_option: projectState.project.cover_display_option ?? 'centered_title',
+          photo_spacing: projectState.project.public_photo_spacing ?? 'medium',
+          color_scheme: projectState.project.public_color_scheme ?? 'light',
         },
         photos: photos.map((photo) => ({
           photo_id: photo.id,

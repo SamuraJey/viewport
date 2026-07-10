@@ -156,6 +156,7 @@ export interface SharedProjectShare {
   total_listed_photos?: number;
   total_size_bytes?: number;
   galleries: PublicProjectGallery[];
+  appearance?: PublicGalleryAppearance;
 }
 
 export type SharedGallery = SharedFolderShare | SharedProjectShare;

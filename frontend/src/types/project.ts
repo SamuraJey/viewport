@@ -1,4 +1,10 @@
-import type { ProjectVisibility, SortOrder } from './gallery';
+import type {
+  CoverDisplayOption,
+  PhotoSpacing,
+  ProjectVisibility,
+  PublicColorScheme,
+  SortOrder,
+} from './gallery';
 
 export type ProjectListSortBy =
   | 'created_at'
@@ -28,6 +34,12 @@ export interface Project {
   total_size_bytes: number;
   has_active_share_links: boolean;
   cover_photo_thumbnail_url: string | null;
+  cover_photo_id: string | null;
+  cover_focal_x: number;
+  cover_focal_y: number;
+  cover_display_option: CoverDisplayOption;
+  public_photo_spacing: PhotoSpacing;
+  public_color_scheme: PublicColorScheme;
 }
 
 export interface ProjectGallerySummary {
@@ -57,7 +69,6 @@ export interface ProjectListResponse {
   page: number;
   size: number;
 }
-
 export interface CreateProjectRequest {
   name?: string;
   shooting_date?: string | null;
@@ -66,4 +77,10 @@ export interface CreateProjectRequest {
 export interface UpdateProjectRequest {
   name?: string;
   shooting_date?: string | null;
+  cover_photo_id?: string | null;
+  cover_focal_x?: number;
+  cover_focal_y?: number;
+  cover_display_option?: CoverDisplayOption;
+  public_photo_spacing?: PhotoSpacing;
+  public_color_scheme?: PublicColorScheme;
 }

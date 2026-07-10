@@ -7,14 +7,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from viewport.auth_utils import get_current_user
 from viewport.background_tasks import delete_gallery_data_task
 from viewport.dependencies import get_s3_client as get_async_s3_client
+from viewport.filename_utils import build_content_disposition
 from viewport.models.db import get_db
 from viewport.models.gallery import ProjectVisibility as GalleryProjectVisibility
 from viewport.models.project import Project
 from viewport.models.user import User
 from viewport.repositories.gallery_repository import GalleryRepository
-from viewport.repositories.project_repository import ProjectRepository
+from viewport.repositories.project_repository import _UNSET, ProjectRepository
 from viewport.s3_service import AsyncS3Client
-from viewport.schemas.gallery import GalleryCreateRequest
+from viewport.schemas.gallery import GalleryCreateRequest, GalleryPhotoResponse
 from viewport.schemas.project import (
     ProjectCreateRequest,
     ProjectDetailResponse,
@@ -22,6 +23,7 @@ from viewport.schemas.project import (
     ProjectGallerySummaryResponse,
     ProjectListQueryParams,
     ProjectListResponse,
+    ProjectPhotosResponse,
     ProjectResponse,
     ProjectUpdateRequest,
 )
@@ -64,6 +66,12 @@ def _serialize_project_response(
         total_size_bytes=total_size_bytes,
         has_active_share_links=has_active_share_links,
         cover_photo_thumbnail_url=cover_photo_thumbnail_url,
+        cover_photo_id=str(project.cover_photo_id) if project.cover_photo_id else None,
+        cover_focal_x=float(project.cover_focal_x),
+        cover_focal_y=float(project.cover_focal_y),
+        cover_display_option=project.cover_display_option,
+        public_photo_spacing=project.public_photo_spacing,
+        public_color_scheme=project.public_color_scheme,
     )
 
 
@@ -113,9 +121,19 @@ async def _build_project_response(
     total_size_bytes = sum(total_size_by_gallery.get(gallery.id, 0) for gallery in galleries)
     has_active_share_links = await repo.has_active_share_links(project.id)
     recent_keys = await repo.get_recent_project_thumbnail_keys(project.id, listed_only=False, limit=1)
+
+    # Prefer project-level cover photo for dashboard thumbnail
+    project_cover_thumbnail_key: str | None = None
+    if project.cover_photo_id:
+        project_cover_photo = await repo.get_photo_by_id_for_project(project.id, project.cover_photo_id)
+        if project_cover_photo and project_cover_photo.thumbnail_object_key:
+            project_cover_thumbnail_key = project_cover_photo.thumbnail_object_key
+
     all_thumbnail_keys: list[str] = []
     all_thumbnail_keys.extend(cover_thumbnail_by_photo_id.values())
     all_thumbnail_keys.extend(recent_keys)
+    if project_cover_thumbnail_key:
+        all_thumbnail_keys.append(project_cover_thumbnail_key)
     thumbnail_url_by_key = (
         await s3_client.generate_presigned_urls_batch(
             list(dict.fromkeys(all_thumbnail_keys)),
@@ -124,6 +142,17 @@ async def _build_project_response(
         if all_thumbnail_keys
         else {}
     )
+
+    cover_thumbnail_url: str | None = None
+    if project_cover_thumbnail_key:
+        cover_thumbnail_url = thumbnail_url_by_key.get(project_cover_thumbnail_key)
+    if cover_thumbnail_url is None:
+        cover_thumbnail_url = _resolve_project_cover_thumbnail_url(
+            galleries,
+            cover_thumbnail_by_photo_id,
+            recent_keys,
+            thumbnail_url_by_key,
+        )
 
     return _serialize_project_response(
         project,
@@ -134,12 +163,7 @@ async def _build_project_response(
         total_photo_count=total_photo_count,
         total_size_bytes=total_size_bytes,
         has_active_share_links=has_active_share_links,
-        cover_photo_thumbnail_url=_resolve_project_cover_thumbnail_url(
-            galleries,
-            cover_thumbnail_by_photo_id,
-            recent_keys,
-            thumbnail_url_by_key,
-        ),
+        cover_photo_thumbnail_url=cover_thumbnail_url,
     )
 
 
@@ -343,10 +367,73 @@ async def update_project(
     current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
 ) -> ProjectResponse:
-    project = await repo.update_project(project_id, current_user.id, name=request.name, shooting_date=request.shooting_date)
+    # Parse cover_photo_id (mirror gallery endpoint logic)
+    cover_photo_id: object = _UNSET
+    if "cover_photo_id" in request.model_fields_set:
+        if request.cover_photo_id is None:
+            cover_photo_id = None  # explicit clear
+        else:
+            try:
+                parsed = uuid.UUID(str(request.cover_photo_id))
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail="Invalid cover_photo_id") from exc
+            cover_photo_id = parsed
+            photo = await repo.get_photo_by_id_for_project(project_id, parsed, owner_id=current_user.id)
+            if not photo:
+                raise HTTPException(status_code=404, detail="Project or cover photo not found")
+
+    project = await repo.update_project(
+        project_id,
+        current_user.id,
+        name=request.name,
+        shooting_date=request.shooting_date,
+        cover_photo_id=cover_photo_id,
+        cover_focal_x=request.cover_focal_x,
+        cover_focal_y=request.cover_focal_y,
+        cover_display_option=request.cover_display_option,
+        public_photo_spacing=request.public_photo_spacing,
+        public_color_scheme=request.public_color_scheme,
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return await _build_project_response(project, repo, gallery_repo, s3_client)
+
+
+@router.get("/{project_id}/photos", response_model=ProjectPhotosResponse)
+async def get_project_photos(
+    project_id: uuid.UUID,
+    repo: ProjectRepository = Depends(get_project_repository),
+    current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_async_s3_client),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+) -> ProjectPhotosResponse:
+    project = await repo.get_project_by_id_and_owner(project_id, current_user.id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    photos, total = await repo.get_project_photos(project_id, current_user.id, limit=limit, offset=offset)
+
+    items: list[GalleryPhotoResponse] = []
+    if photos:
+        thumbnail_keys = [p.thumbnail_object_key for p in photos]
+        thumb_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys)
+        full_url_map = await s3_client.generate_presigned_urls_batch_for_dispositions({p.object_key: build_content_disposition(p.display_name, disposition_type="inline") for p in photos})
+        for photo in photos:
+            thumb = thumb_url_map.get(photo.thumbnail_object_key, "")
+            full = full_url_map.get(photo.object_key, "")
+            if thumb and full:
+                items.append(
+                    GalleryPhotoResponse(
+                        id=photo.id,
+                        url=full,
+                        thumbnail_url=thumb,
+                        filename=photo.display_name,
+                        file_size=photo.file_size,
+                        uploaded_at=photo.uploaded_at,
+                    )
+                )
+    return ProjectPhotosResponse(photos=items, total=total)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
