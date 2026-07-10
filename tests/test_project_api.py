@@ -1,16 +1,47 @@
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 from urllib.parse import urlparse
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from tests.helpers import upload_photo_via_presigned
+from viewport.api.project import update_project
+from viewport.schemas.project import ProjectUpdateRequest
 
 pytestmark = pytest.mark.requires_s3
 
 
 class TestProjectAPI:
+    @pytest.mark.asyncio
+    async def test_update_project_rejects_cover_from_direct_only_gallery(self):
+        project_id = uuid4()
+        cover_photo_id = uuid4()
+        user_id = uuid4()
+        repo = MagicMock()
+        repo.get_photo_by_id_for_project = AsyncMock(return_value=None)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await update_project(
+                project_id=project_id,
+                request=ProjectUpdateRequest(cover_photo_id=str(cover_photo_id)),
+                repo=repo,
+                gallery_repo=MagicMock(),
+                current_user=SimpleNamespace(id=user_id),
+                s3_client=MagicMock(),
+            )
+
+        assert exc_info.value.status_code == 404
+        repo.get_photo_by_id_for_project.assert_awaited_once_with(
+            project_id,
+            cover_photo_id,
+            owner_id=user_id,
+            listed_only=True,
+        )
+
     def test_list_projects_supports_sorting_fields_and_order(self, authenticated_client: TestClient):
         empty_project_resp = authenticated_client.post(
             "/projects",

@@ -49,6 +49,7 @@ export const AppearanceEditor = ({
   infoTooltip,
 }: AppearanceEditorProps) => {
   const [draft, setDraft] = useState<AppearanceDraft>(initialDraft);
+  const draftRef = useRef<AppearanceDraft>(initialDraft);
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [isCoverPickerOpen, setIsCoverPickerOpen] = useState(false);
@@ -72,7 +73,9 @@ export const AppearanceEditor = ({
     if (appearanceKey !== prevAppearanceKeyRef.current) {
       prevAppearanceKeyRef.current = appearanceKey;
       coverPickerSeqRef.current += 1;
-      setDraft({ ...initialDraft });
+      const nextDraft = { ...initialDraft };
+      draftRef.current = nextDraft;
+      setDraft(nextDraft);
       setCoverPickerPhotos(photos);
       setCoverPickerTotal(totalPhotoCount);
       setCoverPickerError('');
@@ -112,6 +115,7 @@ export const AppearanceEditor = ({
               if (saveRequestSeqRef.current !== requestSeq) {
                 return;
               }
+              draftRef.current = synced;
               setDraft(synced);
               setSaveStatus('saved');
             } catch {
@@ -137,11 +141,10 @@ export const AppearanceEditor = ({
   // -- draft helpers --------------------------------------------------------
   const updateDraft = useCallback(
     (patch: Partial<AppearanceDraft>) => {
-      setDraft((prev) => {
-        const next = { ...prev, ...patch };
-        triggerSave(next);
-        return next;
-      });
+      const next = { ...draftRef.current, ...patch };
+      draftRef.current = next;
+      triggerSave(next);
+      setDraft(next);
     },
     [triggerSave],
   );
@@ -357,13 +360,13 @@ export const AppearanceEditor = ({
 
   const handleSelectCoverPhoto = useCallback(
     (photoId: string | null) => {
-      handleCloseCoverPicker();
+      setIsCoverPickerOpen(false);
       if (photoId === draft.cover_photo_id) {
         return;
       }
       updateDraft({ cover_photo_id: photoId });
     },
-    [draft.cover_photo_id, handleCloseCoverPicker, updateDraft],
+    [draft.cover_photo_id, updateDraft],
   );
 
   // -- render ---------------------------------------------------------------

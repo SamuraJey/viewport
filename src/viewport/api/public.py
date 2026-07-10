@@ -1,6 +1,5 @@
 import contextlib
 from datetime import date, datetime
-from typing import Any
 from uuid import UUID
 
 import zipstream
@@ -103,7 +102,7 @@ async def _build_public_gallery_response(
     record_view: bool = True,
     project_navigation: PublicProjectResponse | None = None,
     override_appearance: PublicGalleryAppearance | None = None,
-    override_cover: Any = None,
+    override_cover: PublicCover | None = None,
 ) -> PublicGalleryResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
 
@@ -177,19 +176,28 @@ async def _build_public_gallery_response(
             cover_full_url = full_url_map.get(cover_photo_obj.object_key)
             cover_thumb_url = thumb_url_map.get(cover_photo_obj.thumbnail_object_key)
             if cover_full_url is None:
-                cover_full_url = await s3_client.generate_presigned_url_async(
-                    cover_photo_obj.object_key,
-                    response_content_disposition=build_content_disposition(cover_photo_obj.display_name, disposition_type="inline"),
-                )
+                try:
+                    cover_full_url = await s3_client.generate_presigned_url_async(
+                        cover_photo_obj.object_key,
+                        response_content_disposition=build_content_disposition(cover_photo_obj.display_name, disposition_type="inline"),
+                    )
+                except Exception as exc:  # noqa: BLE001 - public responses degrade gracefully on presign failures
+                    logger.warning("Failed to presign gallery cover full object %s: %s", cover_photo_obj.object_key, exc)
+                    cover_full_url = None
             if cover_thumb_url is None:
-                cover_thumb_url = await s3_client.generate_presigned_url_async(cover_photo_obj.thumbnail_object_key)
+                try:
+                    cover_thumb_url = await s3_client.generate_presigned_url_async(cover_photo_obj.thumbnail_object_key)
+                except Exception as exc:  # noqa: BLE001 - public responses degrade gracefully on presign failures
+                    logger.warning("Failed to presign gallery cover thumbnail %s: %s", cover_photo_obj.thumbnail_object_key, exc)
+                    cover_thumb_url = None
 
-            effective_cover = PublicCover(
-                photo_id=str(cover_photo_obj.id),
-                full_url=cover_full_url or "",
-                thumbnail_url=cover_thumb_url or cover_full_url or "",
-                filename=cover_photo_obj.display_name,
-            )
+            if cover_full_url and cover_thumb_url:
+                effective_cover = PublicCover(
+                    photo_id=str(cover_photo_obj.id),
+                    full_url=cover_full_url,
+                    thumbnail_url=cover_thumb_url,
+                    filename=cover_photo_obj.display_name,
+                )
 
     owner = getattr(gallery, "owner", None) or getattr(getattr(sharelink, "project", None), "owner", None)
     photographer = getattr(owner, "display_name", None) or ""

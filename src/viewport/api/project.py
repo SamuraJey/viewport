@@ -390,7 +390,12 @@ async def update_project(
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail="Invalid cover_photo_id") from exc
             cover_photo_id = parsed
-            photo = await repo.get_photo_by_id_for_project(project_id, parsed, owner_id=current_user.id)
+            photo = await repo.get_photo_by_id_for_project(
+                project_id,
+                parsed,
+                owner_id=current_user.id,
+                listed_only=True,
+            )
             if not photo:
                 raise HTTPException(status_code=404, detail="Project or cover photo not found")
 
