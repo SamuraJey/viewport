@@ -71,6 +71,7 @@ export const AppearanceEditor = ({
   useEffect(() => {
     if (appearanceKey !== prevAppearanceKeyRef.current) {
       prevAppearanceKeyRef.current = appearanceKey;
+      coverPickerSeqRef.current += 1;
       setDraft({ ...initialDraft });
       setCoverPickerPhotos(photos);
       setCoverPickerTotal(totalPhotoCount);
