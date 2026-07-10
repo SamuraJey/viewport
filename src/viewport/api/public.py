@@ -329,7 +329,11 @@ async def _build_public_project_response(
     # Build project cover from project-level cover_photo_id, fall back to first gallery
     project_cover = None
     if project.cover_photo_id:
-        cover_photo = await project_repo.get_photo_by_id_for_project(project.id, project.cover_photo_id)
+        cover_photo = await project_repo.get_photo_by_id_for_project(
+            project.id,
+            project.cover_photo_id,
+            listed_only=True,
+        )
         if cover_photo and cover_photo.object_key and cover_photo.thumbnail_object_key:
             cover_disposition = build_content_disposition(cover_photo.display_name, disposition_type="inline")
             urls = await s3_client.generate_presigned_urls_batch_for_dispositions(
@@ -340,6 +344,21 @@ async def _build_public_project_response(
             )
             full_url = urls.get(cover_photo.object_key)
             thumbnail_url = urls.get(cover_photo.thumbnail_object_key)
+            # Per-key fallback when the batch call omits a key (transient S3
+            # failure).  Matches the pattern in _build_project_cover below.
+            if full_url is None:
+                try:
+                    full_url = await s3_client.generate_presigned_url_async(
+                        cover_photo.object_key,
+                        response_content_disposition=cover_disposition,
+                    )
+                except (ClientError, BotoCoreError) as exc:
+                    logger.warning("Failed to presign project cover full object %s: %s", cover_photo.object_key, exc)
+            if thumbnail_url is None:
+                try:
+                    thumbnail_url = await s3_client.generate_presigned_url_async(cover_photo.thumbnail_object_key)
+                except (ClientError, BotoCoreError) as exc:
+                    logger.warning("Failed to presign project cover thumbnail %s: %s", cover_photo.thumbnail_object_key, exc)
             if full_url and thumbnail_url:
                 project_cover = PublicCover(
                     photo_id=str(cover_photo.id),

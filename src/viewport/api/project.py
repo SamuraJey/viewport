@@ -192,6 +192,13 @@ async def _build_project_responses(
         if gallery.cover_photo_id:
             cover_photo_ids.append(gallery.cover_photo_id)
 
+    # Collect project-level cover photo ids for thumbnail resolution
+    project_cover_id_by_project: dict[uuid.UUID, uuid.UUID | None] = {}
+    for project in projects:
+        project_cover_id_by_project[project.id] = project.cover_photo_id
+    project_cover_photo_ids = [cid for cid in project_cover_id_by_project.values() if cid is not None]
+    cover_photo_ids.extend(project_cover_photo_ids)
+
     (
         photo_count_by_gallery,
         total_size_by_gallery,
@@ -226,6 +233,20 @@ async def _build_project_responses(
         entry_gallery = galleries[0] if galleries else None
         recent_keys = recent_thumbnail_keys_by_project.get(project.id, [])
 
+        # Prefer project-level cover thumbnail, fall back to gallery-derived
+        project_cid = project_cover_id_by_project.get(project.id)
+        project_cover_key = cover_thumbnail_by_photo_id.get(project_cid) if project_cid else None
+        cover_thumbnail_url: str | None = None
+        if project_cover_key:
+            cover_thumbnail_url = thumbnail_url_by_key.get(project_cover_key)
+        if cover_thumbnail_url is None:
+            cover_thumbnail_url = _resolve_project_cover_thumbnail_url(
+                galleries,
+                cover_thumbnail_by_photo_id,
+                recent_keys,
+                thumbnail_url_by_key,
+            )
+
         responses.append(
             _serialize_project_response(
                 project,
@@ -236,12 +257,7 @@ async def _build_project_responses(
                 total_photo_count=total_photo_count,
                 total_size_bytes=total_size_bytes,
                 has_active_share_links=project.id in active_share_project_ids,
-                cover_photo_thumbnail_url=_resolve_project_cover_thumbnail_url(
-                    galleries,
-                    cover_thumbnail_by_photo_id,
-                    recent_keys,
-                    thumbnail_url_by_key,
-                ),
+                cover_photo_thumbnail_url=cover_thumbnail_url,
             )
         )
 

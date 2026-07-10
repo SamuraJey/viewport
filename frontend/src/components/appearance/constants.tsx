@@ -30,6 +30,7 @@ export interface AppearanceEditorProps {
   initialDraft: AppearanceDraft;
   photos: GalleryPhoto[];
   isLoadingPhotos: boolean;
+  totalPhotoCount: number;
   onLoadCoverPhotos: (opts: { limit: number; offset: number }) => Promise<{
     photos: GalleryPhoto[];
     total: number;
