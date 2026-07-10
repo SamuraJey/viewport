@@ -17,7 +17,7 @@ pytestmark = pytest.mark.requires_s3
 
 class TestProjectAPI:
     @pytest.mark.asyncio
-    async def test_update_project_rejects_cover_from_direct_only_gallery(self):
+    async def test_update_project_searches_cover_across_all_project_galleries(self):
         project_id = uuid4()
         cover_photo_id = uuid4()
         user_id = uuid4()
@@ -39,7 +39,7 @@ class TestProjectAPI:
             project_id,
             cover_photo_id,
             owner_id=user_id,
-            listed_only=True,
+            listed_only=False,
         )
 
     def test_list_projects_supports_sorting_fields_and_order(self, authenticated_client: TestClient):

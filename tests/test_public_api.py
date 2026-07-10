@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from botocore.exceptions import ClientError
 from fastapi import HTTPException, Response
 from fastapi.testclient import TestClient
 
@@ -267,7 +268,7 @@ class TestPublicAPI:
         s3_client = MagicMock()
         s3_client.generate_presigned_urls_batch = AsyncMock(return_value=thumbnail_urls)
         s3_client.generate_presigned_urls_batch_for_dispositions = AsyncMock(return_value=full_urls)
-        s3_client.generate_presigned_url_async = AsyncMock(side_effect=RuntimeError("presign failed"))
+        s3_client.generate_presigned_url_async = AsyncMock(side_effect=ClientError({"Error": {"Code": "NoSuchKey", "Message": "not found"}}, "GetObject"))
 
         payload = await _build_public_gallery_response(
             share_id=uuid4(),

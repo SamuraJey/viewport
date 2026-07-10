@@ -394,7 +394,7 @@ async def update_project(
                 project_id,
                 parsed,
                 owner_id=current_user.id,
-                listed_only=True,
+                listed_only=False,
             )
             if not photo:
                 raise HTTPException(status_code=404, detail="Project or cover photo not found")

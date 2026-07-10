@@ -155,17 +155,18 @@ async def _build_public_gallery_response(
     if gallery.cover_photo_id:
         cover_photo_obj = await repo.get_photo_by_id_and_gallery(gallery.cover_photo_id, gallery.id)
 
-    if cover_photo_obj is None and photos_to_process and offset == 0:
-        cover_photo_obj = photos_to_process[0]
-    elif cover_photo_obj is None:
-        fallback_photos = await repo.get_photos_by_gallery_id(
-            gallery_id=gallery.id,
-            limit=1,
-            offset=0,
-            sort_by=sort_by,
-            order=order,
-        )
-        cover_photo_obj = fallback_photos[0] if fallback_photos else None
+    if cover_photo_obj is None or not cover_photo_obj.object_key or not cover_photo_obj.thumbnail_object_key:
+        if photos_to_process and offset == 0:
+            cover_photo_obj = photos_to_process[0]
+        else:
+            fallback_photos = await repo.get_photos_by_gallery_id(
+                gallery_id=gallery.id,
+                limit=1,
+                offset=0,
+                sort_by=sort_by,
+                order=order,
+            )
+            cover_photo_obj = fallback_photos[0] if fallback_photos else None
 
     # Override cover with project-level cover when provided (for project folder views)
     effective_cover: PublicCover | None = None
@@ -181,13 +182,13 @@ async def _build_public_gallery_response(
                         cover_photo_obj.object_key,
                         response_content_disposition=build_content_disposition(cover_photo_obj.display_name, disposition_type="inline"),
                     )
-                except Exception as exc:  # noqa: BLE001 - public responses degrade gracefully on presign failures
+                except (ClientError, BotoCoreError) as exc:
                     logger.warning("Failed to presign gallery cover full object %s: %s", cover_photo_obj.object_key, exc)
                     cover_full_url = None
             if cover_thumb_url is None:
                 try:
                     cover_thumb_url = await s3_client.generate_presigned_url_async(cover_photo_obj.thumbnail_object_key)
-                except Exception as exc:  # noqa: BLE001 - public responses degrade gracefully on presign failures
+                except (ClientError, BotoCoreError) as exc:
                     logger.warning("Failed to presign gallery cover thumbnail %s: %s", cover_photo_obj.thumbnail_object_key, exc)
                     cover_thumb_url = None
 
