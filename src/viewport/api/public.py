@@ -1,6 +1,5 @@
 import contextlib
 from datetime import date, datetime
-from typing import Any
 from uuid import UUID
 
 import zipstream
@@ -103,7 +102,7 @@ async def _build_public_gallery_response(
     record_view: bool = True,
     project_navigation: PublicProjectResponse | None = None,
     override_appearance: PublicGalleryAppearance | None = None,
-    override_cover: Any = None,
+    override_cover: PublicCover | None = None,
 ) -> PublicGalleryResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
 
@@ -156,17 +155,18 @@ async def _build_public_gallery_response(
     if gallery.cover_photo_id:
         cover_photo_obj = await repo.get_photo_by_id_and_gallery(gallery.cover_photo_id, gallery.id)
 
-    if cover_photo_obj is None and photos_to_process and offset == 0:
-        cover_photo_obj = photos_to_process[0]
-    elif cover_photo_obj is None:
-        fallback_photos = await repo.get_photos_by_gallery_id(
-            gallery_id=gallery.id,
-            limit=1,
-            offset=0,
-            sort_by=sort_by,
-            order=order,
-        )
-        cover_photo_obj = fallback_photos[0] if fallback_photos else None
+    if cover_photo_obj is None or not cover_photo_obj.object_key or not cover_photo_obj.thumbnail_object_key:
+        if photos_to_process and offset == 0:
+            cover_photo_obj = photos_to_process[0]
+        else:
+            fallback_photos = await repo.get_photos_by_gallery_id(
+                gallery_id=gallery.id,
+                limit=1,
+                offset=0,
+                sort_by=sort_by,
+                order=order,
+            )
+            cover_photo_obj = fallback_photos[0] if fallback_photos else None
 
     # Override cover with project-level cover when provided (for project folder views)
     effective_cover: PublicCover | None = None
@@ -177,19 +177,28 @@ async def _build_public_gallery_response(
             cover_full_url = full_url_map.get(cover_photo_obj.object_key)
             cover_thumb_url = thumb_url_map.get(cover_photo_obj.thumbnail_object_key)
             if cover_full_url is None:
-                cover_full_url = await s3_client.generate_presigned_url_async(
-                    cover_photo_obj.object_key,
-                    response_content_disposition=build_content_disposition(cover_photo_obj.display_name, disposition_type="inline"),
-                )
+                try:
+                    cover_full_url = await s3_client.generate_presigned_url_async(
+                        cover_photo_obj.object_key,
+                        response_content_disposition=build_content_disposition(cover_photo_obj.display_name, disposition_type="inline"),
+                    )
+                except (ClientError, BotoCoreError) as exc:
+                    logger.warning("Failed to presign gallery cover full object %s: %s", cover_photo_obj.object_key, exc)
+                    cover_full_url = None
             if cover_thumb_url is None:
-                cover_thumb_url = await s3_client.generate_presigned_url_async(cover_photo_obj.thumbnail_object_key)
+                try:
+                    cover_thumb_url = await s3_client.generate_presigned_url_async(cover_photo_obj.thumbnail_object_key)
+                except (ClientError, BotoCoreError) as exc:
+                    logger.warning("Failed to presign gallery cover thumbnail %s: %s", cover_photo_obj.thumbnail_object_key, exc)
+                    cover_thumb_url = None
 
-            effective_cover = PublicCover(
-                photo_id=str(cover_photo_obj.id),
-                full_url=cover_full_url or "",
-                thumbnail_url=cover_thumb_url or cover_full_url or "",
-                filename=cover_photo_obj.display_name,
-            )
+            if cover_full_url and cover_thumb_url:
+                effective_cover = PublicCover(
+                    photo_id=str(cover_photo_obj.id),
+                    full_url=cover_full_url,
+                    thumbnail_url=cover_thumb_url,
+                    filename=cover_photo_obj.display_name,
+                )
 
     owner = getattr(gallery, "owner", None) or getattr(getattr(sharelink, "project", None), "owner", None)
     photographer = getattr(owner, "display_name", None) or ""
@@ -329,7 +338,11 @@ async def _build_public_project_response(
     # Build project cover from project-level cover_photo_id, fall back to first gallery
     project_cover = None
     if project.cover_photo_id:
-        cover_photo = await project_repo.get_photo_by_id_for_project(project.id, project.cover_photo_id)
+        cover_photo = await project_repo.get_photo_by_id_for_project(
+            project.id,
+            project.cover_photo_id,
+            listed_only=True,
+        )
         if cover_photo and cover_photo.object_key and cover_photo.thumbnail_object_key:
             cover_disposition = build_content_disposition(cover_photo.display_name, disposition_type="inline")
             urls = await s3_client.generate_presigned_urls_batch_for_dispositions(
@@ -340,6 +353,21 @@ async def _build_public_project_response(
             )
             full_url = urls.get(cover_photo.object_key)
             thumbnail_url = urls.get(cover_photo.thumbnail_object_key)
+            # Per-key fallback when the batch call omits a key (transient S3
+            # failure).  Matches the pattern in _build_project_cover below.
+            if full_url is None:
+                try:
+                    full_url = await s3_client.generate_presigned_url_async(
+                        cover_photo.object_key,
+                        response_content_disposition=cover_disposition,
+                    )
+                except (ClientError, BotoCoreError) as exc:
+                    logger.warning("Failed to presign project cover full object %s: %s", cover_photo.object_key, exc)
+            if thumbnail_url is None:
+                try:
+                    thumbnail_url = await s3_client.generate_presigned_url_async(cover_photo.thumbnail_object_key)
+                except (ClientError, BotoCoreError) as exc:
+                    logger.warning("Failed to presign project cover thumbnail %s: %s", cover_photo.thumbnail_object_key, exc)
             if full_url and thumbnail_url:
                 project_cover = PublicCover(
                     photo_id=str(cover_photo.id),

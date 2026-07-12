@@ -65,6 +65,7 @@ Shared project UX is gallery-tab based:
 
 - opening `/share/{share_id}` for a project automatically opens the first listed gallery
 - the public hero stays project-scoped: it keeps the project title and uses the cover from the leftmost listed gallery
+- project cover photos must belong to a `listed` gallery; if a cover URL cannot be generated, the public response omits the cover instead of failing
 - the public page renders a horizontal list of gallery names
 - no preview cards are shown for project navigation
 

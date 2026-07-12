@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes } from 'react-router-dom';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -41,6 +41,25 @@ vi.mock('../../components/ui', async (importOriginal) => {
     },
   };
 });
+
+vi.mock('../../components/appearance/ProjectAppearanceSection', () => ({
+  ProjectAppearanceSection: ({
+    project,
+    photos,
+    isLoadingPhotos,
+  }: {
+    project: { id: string };
+    photos: Array<{ id: string }>;
+    isLoadingPhotos: boolean;
+  }) => (
+    <div
+      data-testid="project-appearance"
+      data-project-id={project.id}
+      data-photo-ids={photos.map((photo) => photo.id).join(',')}
+      data-loading={String(isLoadingPhotos)}
+    />
+  ),
+}));
 
 import { ProjectPage } from '../../pages/ProjectPage';
 
@@ -85,6 +104,14 @@ const renderProjectPage = () =>
     </MemoryRouter>,
   );
 
+const renderRoutedProjectPage = () => {
+  const router = createMemoryRouter([{ path: '/projects/:id', element: <ProjectPage /> }], {
+    initialEntries: ['/projects/project-1'],
+  });
+
+  return { router, ...render(<RouterProvider router={router} />) };
+};
+
 const projectSelectionSummary = {
   is_enabled: true,
   status: 'in_progress',
@@ -127,6 +154,7 @@ describe('ProjectPage', () => {
       shooting_date: '2026-04-18',
       gallery_count: 2,
       visible_gallery_count: 1,
+      total_photo_count: 12,
       total_size_bytes: 1024,
       has_active_share_links: true,
       cover_photo_thumbnail_url: null,
@@ -170,7 +198,7 @@ describe('ProjectPage', () => {
           cover_photo_thumbnail_url: null,
         },
       ],
-    } as any);
+    });
 
     vi.mocked(shareLinkService.getProjectShareLinks).mockResolvedValue([
       {
@@ -345,6 +373,81 @@ describe('ProjectPage', () => {
     expect(screen.getByText('8 photos • 512 Bytes • Apr 18, 2026')).toBeInTheDocument();
     expect(screen.getByText('4 photos • 512 Bytes • Apr 18, 2026')).toBeInTheDocument();
     expect(screen.getByText('4 photos • 512 Bytes • Apr 18, 2026')).toHaveClass('mt-auto');
+  });
+
+  it('keeps appearance mounted and ignores stale photos after project navigation', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+    const defaultGetProject = vi.mocked(projectService.getProject).getMockImplementation();
+    const oldPhoto = {
+      id: 'old-photo',
+      url: '/old-photo.jpg',
+      thumbnail_url: '/old-photo-thumb.jpg',
+      filename: 'old-photo.jpg',
+      file_size: 100,
+      uploaded_at: '2026-04-18T00:00:00Z',
+    };
+    const currentPhoto = {
+      ...oldPhoto,
+      id: 'current-photo',
+      filename: 'current-photo.jpg',
+    };
+    let resolveOldPhotos!: (value: { photos: (typeof oldPhoto)[]; total: number }) => void;
+    const oldPhotosRequest = new Promise<{ photos: (typeof oldPhoto)[]; total: number }>(
+      (resolve) => {
+        resolveOldPhotos = resolve;
+      },
+    );
+
+    vi.mocked(projectService.getProject).mockImplementation(async (requestedProjectId) => {
+      const response = await defaultGetProject!(requestedProjectId);
+      const projectName = requestedProjectId === 'project-2' ? 'Second Project' : 'Wedding Weekend';
+      return {
+        ...response,
+        id: requestedProjectId,
+        name: projectName,
+        galleries: response.galleries.map((gallery) => ({
+          ...gallery,
+          project_id: requestedProjectId,
+          project_name: projectName,
+        })),
+      };
+    });
+    vi.mocked(projectService.getProjectPhotos)
+      .mockImplementationOnce(() => oldPhotosRequest)
+      .mockResolvedValueOnce({ photos: [currentPhoto], total: 1 });
+
+    const { router } = renderRoutedProjectPage();
+
+    await screen.findByText('Wedding Weekend');
+    await act(async () => {
+      await router.navigate('/projects/project-2');
+    });
+    await screen.findByText('Second Project');
+    await waitFor(() => {
+      expect(projectService.getProjectPhotos).toHaveBeenCalledWith('project-2', {
+        limit: 100,
+        offset: 0,
+      });
+    });
+
+    await user.click(screen.getByRole('tab', { name: 'Appearance' }));
+    const appearance = screen.getByTestId('project-appearance');
+    expect(appearance).toHaveAttribute('data-project-id', 'project-2');
+    expect(appearance).toHaveAttribute('data-photo-ids', 'current-photo');
+    expect(appearance).toHaveAttribute('data-loading', 'false');
+
+    await user.click(screen.getByRole('tab', { name: 'Galleries' }));
+    expect(screen.getByTestId('project-appearance')).toBeInTheDocument();
+
+    await act(async () => {
+      resolveOldPhotos({ photos: [oldPhoto], total: 1 });
+      await oldPhotosRequest;
+    });
+    expect(screen.getByTestId('project-appearance')).toHaveAttribute(
+      'data-photo-ids',
+      'current-photo',
+    );
   });
 
   it('shows persisted project gallery order on the cards', async () => {

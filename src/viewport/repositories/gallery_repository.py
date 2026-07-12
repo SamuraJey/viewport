@@ -558,7 +558,16 @@ class GalleryRepository(BaseRepository):
 
         cover_thumbnail_by_photo_id: dict[uuid.UUID, str] = {}
         if cover_photo_ids:
-            cover_stmt = select(Photo.id, Photo.thumbnail_object_key).where(Photo.id.in_(cover_photo_ids), Photo.thumbnail_object_key.is_not(None))
+            cover_stmt = (
+                select(Photo.id, Photo.thumbnail_object_key)
+                .join(Photo.gallery)
+                .where(
+                    Photo.id.in_(cover_photo_ids),
+                    Photo.thumbnail_object_key.is_not(None),
+                    Gallery.is_deleted.is_(False),
+                    Photo.gallery_id.in_(gallery_ids),
+                )
+            )
             cover_thumbnail_by_photo_id = {photo_id: thumbnail_key for photo_id, thumbnail_key in (await self.db.execute(cover_stmt)).all() if thumbnail_key}
 
         ranked_thumbnails = (

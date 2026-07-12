@@ -61,6 +61,7 @@ export const ProjectAppearanceSection = ({
       initialDraft={projectToAppearanceDraft(project)}
       photos={photos}
       isLoadingPhotos={isLoadingPhotos}
+      totalPhotoCount={project.total_photo_count}
       onLoadCoverPhotos={onLoadCoverPhotos}
       onSaveAppearance={handleSaveAppearance}
       previewTitle={project.name}

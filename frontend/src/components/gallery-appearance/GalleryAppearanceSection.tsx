@@ -63,6 +63,7 @@ export const GalleryAppearanceSection = ({
       initialDraft={galleryToAppearanceDraft(gallery)}
       photos={photos}
       isLoadingPhotos={isLoadingPhotos}
+      totalPhotoCount={gallery.total_photos}
       onLoadCoverPhotos={onLoadCoverPhotos}
       onSaveAppearance={handleSaveAppearance}
       previewTitle={gallery.name}

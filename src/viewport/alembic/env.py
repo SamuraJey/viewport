@@ -77,9 +77,7 @@ def run_migrations_online() -> None:
     def _is_spurious_fk(operation: ops.MigrateOperation) -> bool:
         spurious_names = {"photos_gallery_id_fkey", "projects_cover_photo_id_fkey"}
         if isinstance(operation, ops.CreateForeignKeyOp):
-            return (
-                operation.constraint_name in spurious_names
-            )
+            return operation.constraint_name in spurious_names
         if isinstance(operation, ops.DropConstraintOp):
             return (
                 operation.constraint_name in spurious_names
@@ -125,6 +123,8 @@ def run_migrations_online() -> None:
                 referent_table = getattr(referent_table, "name", None)
 
             if object_name == "photos_gallery_id_fkey" and table_name == "photos" and referent_table == "galleries":
+                return False
+            if object_name == "projects_cover_photo_id_fkey" and table_name == "projects" and referent_table == "photos":
                 return False
 
         # If alembic tries to drop a table (object exists in DB but not in models), don't auto-drop

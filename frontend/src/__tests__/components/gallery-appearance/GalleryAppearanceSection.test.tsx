@@ -167,4 +167,40 @@ describe('GalleryAppearanceSection', () => {
       await Promise.resolve();
     });
   });
+
+  it('retains a selected picker photo outside the preview photo subset', async () => {
+    vi.useRealTimers();
+
+    const pickerPhoto = {
+      id: 'photo-3',
+      url: '/photos/photo-3.jpg',
+      thumbnail_url: '/photos/photo-3-thumb.jpg',
+      filename: 'photo-3.jpg',
+      file_size: 100,
+      uploaded_at: '2026-01-01T00:02:00Z',
+    };
+    const onSaveAppearance = vi.fn().mockImplementation((payload) =>
+      Promise.resolve({
+        ...gallery,
+        ...payload,
+      }),
+    );
+
+    render(
+      <GalleryAppearanceSection
+        gallery={{ ...gallery, total_photos: 3 }}
+        photos={photos}
+        isLoadingPhotos={false}
+        onLoadCoverPhotos={vi.fn().mockResolvedValue({ photos: [pickerPhoto], total: 1 })}
+        onSaveAppearance={onSaveAppearance}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select cover image' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select photo-3.jpg as cover' }));
+
+    expect(screen.getByText('photo-3.jpg')).toBeInTheDocument();
+    const focalPointButton = screen.getByRole('button', { name: 'Click to set focal point' });
+    expect(focalPointButton.querySelector('img')).toHaveAttribute('src', pickerPhoto.thumbnail_url);
+  });
 });

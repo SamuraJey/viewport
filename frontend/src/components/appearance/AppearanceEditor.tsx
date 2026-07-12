@@ -40,6 +40,7 @@ export const AppearanceEditor = ({
   initialDraft,
   photos,
   isLoadingPhotos,
+  totalPhotoCount,
   onLoadCoverPhotos,
   onSaveAppearance,
   previewTitle,
@@ -48,19 +49,20 @@ export const AppearanceEditor = ({
   infoTooltip,
 }: AppearanceEditorProps) => {
   const [draft, setDraft] = useState<AppearanceDraft>(initialDraft);
+  const draftRef = useRef<AppearanceDraft>(initialDraft);
 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [isCoverPickerOpen, setIsCoverPickerOpen] = useState(false);
   const [coverPickerPhotos, setCoverPickerPhotos] = useState<GalleryPhoto[]>(photos);
-  const [coverPickerTotal, setCoverPickerTotal] = useState(photos.length);
+  const [coverPickerTotal, setCoverPickerTotal] = useState(totalPhotoCount);
   const [isLoadingCoverPickerPhotos, setIsLoadingCoverPickerPhotos] = useState(false);
   const [coverPickerError, setCoverPickerError] = useState('');
   const [previewTab, setPreviewTab] = useState<'cover' | 'gallery'>('cover');
   const prevAppearanceKeyRef = useRef(appearanceKey);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSavedDraftRef = useRef<AppearanceDraft>(draft);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const saveRequestSeqRef = useRef(0);
+  const coverPickerSeqRef = useRef(0);
   const previewObserverRef = useRef<HTMLDivElement | null>(null);
   const coverPickerScrollRef = useRef<HTMLDivElement | null>(null);
   const coverPickerLoadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -70,15 +72,16 @@ export const AppearanceEditor = ({
   useEffect(() => {
     if (appearanceKey !== prevAppearanceKeyRef.current) {
       prevAppearanceKeyRef.current = appearanceKey;
-      const next: AppearanceDraft = { ...initialDraft };
-      setDraft(next);
+      coverPickerSeqRef.current += 1;
+      const nextDraft = { ...initialDraft };
+      draftRef.current = nextDraft;
+      setDraft(nextDraft);
       setCoverPickerPhotos(photos);
-      setCoverPickerTotal(photos.length);
+      setCoverPickerTotal(totalPhotoCount);
       setCoverPickerError('');
-      lastSavedDraftRef.current = next;
       setSaveStatus('idle');
     }
-  }, [appearanceKey, initialDraft, photos]);
+  }, [appearanceKey, initialDraft, photos, totalPhotoCount]);
 
   // -- autosave -------------------------------------------------------------
   const triggerSave = useCallback(
@@ -112,8 +115,8 @@ export const AppearanceEditor = ({
               if (saveRequestSeqRef.current !== requestSeq) {
                 return;
               }
+              draftRef.current = synced;
               setDraft(synced);
-              lastSavedDraftRef.current = synced;
               setSaveStatus('saved');
             } catch {
               if (saveRequestSeqRef.current === requestSeq) {
@@ -138,17 +141,18 @@ export const AppearanceEditor = ({
   // -- draft helpers --------------------------------------------------------
   const updateDraft = useCallback(
     (patch: Partial<AppearanceDraft>) => {
-      setDraft((prev) => {
-        const next = { ...prev, ...patch };
-        triggerSave(next);
-        return next;
-      });
+      const next = { ...draftRef.current, ...patch };
+      draftRef.current = next;
+      triggerSave(next);
+      setDraft(next);
     },
     [triggerSave],
   );
 
   const loadCoverPickerPhotos = useCallback(
     async ({ offset, replace }: { offset: number; replace: boolean }) => {
+      const seq = coverPickerSeqRef.current + 1;
+      coverPickerSeqRef.current = seq;
       setIsLoadingCoverPickerPhotos(true);
       setCoverPickerError('');
 
@@ -158,6 +162,7 @@ export const AppearanceEditor = ({
           offset,
         });
 
+        if (coverPickerSeqRef.current !== seq) return;
         setCoverPickerTotal(result.total);
         setCoverPickerPhotos((prev) => {
           const source = replace ? [] : prev;
@@ -168,16 +173,29 @@ export const AppearanceEditor = ({
           return Array.from(byId.values());
         });
       } catch {
+        if (coverPickerSeqRef.current !== seq) return;
         setCoverPickerError('Could not load more photos. Try again.');
       } finally {
-        setIsLoadingCoverPickerPhotos(false);
+        if (coverPickerSeqRef.current === seq) {
+          setIsLoadingCoverPickerPhotos(false);
+        }
       }
     },
     [onLoadCoverPhotos],
   );
 
+  const handleCloseCoverPicker = useCallback(() => {
+    setIsCoverPickerOpen(false);
+    setCoverPickerPhotos([]);
+    setCoverPickerTotal(0);
+    setCoverPickerError('');
+  }, []);
+
   const handleOpenCoverPicker = useCallback(() => {
     setIsCoverPickerOpen(true);
+    setCoverPickerPhotos([]);
+    setCoverPickerTotal(0);
+    setCoverPickerError('');
     void loadCoverPickerPhotos({ offset: 0, replace: true });
   }, [loadCoverPickerPhotos]);
 
@@ -431,7 +449,7 @@ export const AppearanceEditor = ({
 
           <AppDialog
             open={isCoverPickerOpen}
-            onClose={() => setIsCoverPickerOpen(false)}
+            onClose={handleCloseCoverPicker}
             size="5xl"
             panelProps={{ 'data-lenis-prevent': true }}
             panelClassName="flex max-h-[min(92vh,56rem)] flex-col overflow-hidden rounded-3xl border border-border/50 bg-surface shadow-2xl dark:border-border/40 dark:bg-surface-dark"
@@ -450,7 +468,7 @@ export const AppearanceEditor = ({
               </div>
               <button
                 type="button"
-                onClick={() => setIsCoverPickerOpen(false)}
+                onClick={handleCloseCoverPicker}
                 aria-label="Close cover image picker"
                 className="rounded-xl p-2 text-muted transition-all duration-200 hover:bg-surface-1 hover:text-text active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-surface-dark-1"
               >

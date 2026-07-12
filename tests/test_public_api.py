@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from botocore.exceptions import ClientError
 from fastapi import HTTPException, Response
 from fastapi.testclient import TestClient
 
@@ -224,6 +225,64 @@ class TestPublicAPI:
         assert paginated_payload.photos == []
         assert paginated_payload.cover is not None
         assert paginated_payload.cover.photo_id == str(photo.id)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("thumbnail_urls", "full_urls"),
+        [
+            ({"thumb-key": "https://example.com/thumb"}, {}),
+            ({}, {"full-key": "https://example.com/full"}),
+        ],
+    )
+    async def test_build_public_gallery_response_omits_cover_when_fallback_presign_fails(
+        self,
+        thumbnail_urls,
+        full_urls,
+    ):
+        photo_id = uuid4()
+        photo = SimpleNamespace(
+            id=photo_id,
+            thumbnail_object_key="thumb-key",
+            object_key="full-key",
+            display_name="hero.jpg",
+            width=1200,
+            height=800,
+        )
+        gallery = SimpleNamespace(
+            id=uuid4(),
+            owner_id=uuid4(),
+            owner=SimpleNamespace(display_name="Jane Doe"),
+            project_id=None,
+            cover_photo_id=photo_id,
+            name="Proof",
+            shooting_date=None,
+            created_at=datetime(2026, 4, 19, 12, 0, 0),
+            public_sort_by="original_filename",
+            public_sort_order="asc",
+        )
+        repo = MagicMock()
+        repo.get_photo_stats_by_gallery = AsyncMock(return_value=GalleryPhotoStats(photo_count=1, total_size_bytes=1024))
+        repo.get_photos_by_gallery_id = AsyncMock(return_value=[photo])
+        repo.get_photo_by_id_and_gallery = AsyncMock(return_value=photo)
+        repo.record_view = AsyncMock()
+        s3_client = MagicMock()
+        s3_client.generate_presigned_urls_batch = AsyncMock(return_value=thumbnail_urls)
+        s3_client.generate_presigned_urls_batch_for_dispositions = AsyncMock(return_value=full_urls)
+        s3_client.generate_presigned_url_async = AsyncMock(side_effect=ClientError({"Error": {"Code": "NoSuchKey", "Message": "not found"}}, "GetObject"))
+
+        payload = await _build_public_gallery_response(
+            share_id=uuid4(),
+            request=SimpleNamespace(base_url="https://example.com/", client=None, headers={}),
+            response=Response(),
+            repo=repo,
+            s3_client=s3_client,
+            sharelink=SimpleNamespace(created_at=datetime(2026, 4, 19, 12, 30, 0), project=None),
+            gallery=gallery,
+            limit=None,
+            offset=0,
+        )
+
+        assert payload.cover is None
 
     @pytest.mark.asyncio
     async def test_build_public_project_response_rejects_missing_project(self):
