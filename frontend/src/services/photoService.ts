@@ -437,7 +437,16 @@ const uploadMultipartToS3 = async (
       };
       const handleLoad = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          settle(undefined, xhr.getResponseHeader('ETag') || xhr.getResponseHeader('etag') || '');
+          const etag = xhr.getResponseHeader('ETag') || xhr.getResponseHeader('etag');
+          if (etag) {
+            settle(undefined, etag);
+          } else {
+            settle(
+              new Error(
+                'Part upload succeeded but ETag header was missing (check S3 CORS ExposeHeaders)',
+              ),
+            );
+          }
         } else {
           settle(new Error(`Part upload failed: ${xhr.status}`));
         }

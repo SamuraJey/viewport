@@ -59,6 +59,9 @@ async def lifespan(app: FastAPI):
         logger.error("Failed to initialize S3 client: %s", e)
         raise
 
+    # Expose ETag header via bucket CORS so browsers can read it from multipart PUT responses
+    await s3_client.configure_bucket_cors()
+
     # Initialize Redis service (graceful degradation if unavailable)
     redis_service = await RedisService.create()
     set_redis_service(redis_service)

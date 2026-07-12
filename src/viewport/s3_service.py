@@ -120,6 +120,30 @@ class AsyncS3Client:
             )
         return cast("S3Client", self._presign_client)
 
+    async def configure_bucket_cors(self) -> None:
+        """Ensure bucket CORS exposes ETag for multipart PUT responses.
+
+        Without ExposeHeaders=['ETag'], browsers cannot read the ETag from
+        cross-origin PUT responses, breaking multipart upload completion.
+        """
+        cors_config = {
+            "CORSRules": [
+                {
+                    "AllowedOrigins": ["*"],
+                    "AllowedMethods": ["GET", "PUT", "POST", "HEAD", "DELETE"],
+                    "AllowedHeaders": ["*"],
+                    "ExposeHeaders": ["ETag"],
+                    "MaxAgeSeconds": 3600,
+                }
+            ]
+        }
+        try:
+            async with self._get_s3_client() as s3:
+                await s3.put_bucket_cors(Bucket=self.settings.bucket, CORSConfiguration=cors_config)
+            logger.info("Bucket CORS configured with ETag exposure")
+        except Exception as e:
+            logger.warning("Failed to configure bucket CORS (ETag exposure): %s", e)
+
     def _generate_presigned_url_sync(
         self,
         key: str,

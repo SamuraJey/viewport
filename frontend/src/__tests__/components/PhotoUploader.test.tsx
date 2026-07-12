@@ -102,7 +102,7 @@ describe('PhotoUploader', () => {
       await waitFor(() => {
         expect(
           screen.getByText(
-            'Only JPG and PNG files are supported. Please select valid image files.',
+            'Only JPG, PNG and supported video files are allowed. Please select valid files.',
           ),
         ).toBeInTheDocument();
       });
