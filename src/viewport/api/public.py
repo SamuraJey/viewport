@@ -188,8 +188,12 @@ async def _build_public_gallery_response(
     if gallery.cover_photo_id:
         cover_photo_obj = await repo.get_photo_by_id_and_gallery(gallery.cover_photo_id, gallery.id)
 
-    # Only SUCCESSFUL media with a non-null thumbnail_object_key can be a cover
-    if cover_photo_obj and (cover_photo_obj.status != PhotoUploadStatus.SUCCESSFUL or not cover_photo_obj.thumbnail_object_key):
+    # Only SUCCESSFUL media with valid object/thumbnail keys can be a cover
+    if cover_photo_obj and (
+        cover_photo_obj.status != PhotoUploadStatus.SUCCESSFUL
+        or not cover_photo_obj.object_key
+        or not cover_photo_obj.thumbnail_object_key
+    ):
         cover_photo_obj = None
 
     if cover_photo_obj is None:
@@ -406,7 +410,6 @@ async def _build_public_project_response(
             else:
                 full_key = cover_photo.object_key
                 is_video = False
-
             cover_disposition = build_content_disposition(cover_photo.display_name, disposition_type="inline")
             urls = await s3_client.generate_presigned_urls_batch_for_dispositions(
                 {
