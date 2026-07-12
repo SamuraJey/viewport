@@ -96,6 +96,7 @@ class TestPublicAPI:
             project_id,
             [photo_id],
             listed_only=True,
+            status=PhotoUploadStatus.SUCCESSFUL,
         )
 
     @pytest.mark.asyncio
@@ -441,7 +442,10 @@ class TestPublicAPI:
 
         assert entries == [("First", [first_photo]), ("Second", [second_photo])]
         project_repo.get_visible_project_folders.assert_awaited_once_with(project_id)
-        repo.get_photos_by_visible_project.assert_awaited_once_with(project_id)
+        repo.get_photos_by_visible_project.assert_awaited_once_with(
+            project_id,
+            status=PhotoUploadStatus.SUCCESSFUL,
+        )
 
     def test_gallery_scope_helpers_reject_wrong_sharelink_shapes(self):
         with pytest.raises(HTTPException) as scope_exc:

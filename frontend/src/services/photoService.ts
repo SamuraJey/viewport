@@ -30,6 +30,7 @@ const DOWNLOAD_TARGET_NAME = 'viewport-browser-download';
 const DOWNLOAD_TARGET_ID = 'viewport-browser-download-frame';
 const MULTIPART_UPLOAD_CONCURRENCY = 4;
 const MULTIPART_PART_TIMEOUT_MS = 120_000;
+const MULTIPART_COMPLETE_MAX_RETRIES = 3;
 
 const EMPTY_BATCH_DELETE_RESULT: BatchDeletePhotosResponse = {
   requested_count: 0,
@@ -255,11 +256,23 @@ const completeMultipartUpload = async (
   parts: { ETag: string; PartNumber: number }[],
   signal?: AbortSignal,
 ): Promise<void> => {
-  await api.post(
-    `/galleries/${galleryId}/photos/${photoId}/multipart/complete`,
-    { upload_id: uploadId, parts },
-    { signal },
-  );
+  for (let attempt = 0; attempt < MULTIPART_COMPLETE_MAX_RETRIES; attempt += 1) {
+    try {
+      await api.post(
+        `/galleries/${galleryId}/photos/${photoId}/multipart/complete`,
+        { upload_id: uploadId, parts },
+        { signal },
+      );
+      return;
+    } catch (error) {
+      const status = (error as { response?: { status?: number } }).response?.status;
+      const isTransient = status === undefined || status >= 500;
+      if (signal?.aborted || !isTransient || attempt === MULTIPART_COMPLETE_MAX_RETRIES - 1) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
+    }
+  }
 };
 
 const abortMultipartUpload = async (

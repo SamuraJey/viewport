@@ -297,7 +297,7 @@ class ShareLinkRepository(BaseRepository):
             Photo.status == PhotoUploadStatus.SUCCESSFUL,
             and_(
                 Photo.media_type == MediaType.IMAGE.value,
-                Photo.status == PhotoUploadStatus.THUMBNAIL_CREATING,
+                Photo.status == PhotoUploadStatus.PROCESSING,
             ),
         )
 
@@ -445,15 +445,20 @@ class ShareLinkRepository(BaseRepository):
         project_id: uuid.UUID,
         sort_by: GalleryPhotoSortBy = GalleryPhotoSortBy.ORIGINAL_FILENAME,
         order: SortOrder = SortOrder.ASC,
+        *,
+        status: PhotoUploadStatus | None = None,
     ) -> dict[uuid.UUID, list[Photo]]:
+        filters = [
+            Gallery.project_id == project_id,
+            Gallery.is_deleted.is_(False),
+            Gallery.project_visibility == ProjectVisibility.LISTED.value,
+        ]
+        if status is not None:
+            filters.append(Photo.status == status)
         stmt = (
             select(Gallery.id, Photo)
             .join(Photo.gallery)
-            .where(
-                Gallery.project_id == project_id,
-                Gallery.is_deleted.is_(False),
-                Gallery.project_visibility == ProjectVisibility.LISTED.value,
-            )
+            .where(*filters)
             .order_by(
                 Gallery.project_position.asc(),
                 Gallery.created_at.asc(),
@@ -472,18 +477,27 @@ class ShareLinkRepository(BaseRepository):
         photo = (await self.db.execute(stmt)).scalar_one_or_none()
         return await self._finish_read(photo)
 
-    async def get_photos_by_ids_and_gallery(self, gallery_id: uuid.UUID, photo_ids: list[uuid.UUID]) -> list[Photo]:
+    async def get_photos_by_ids_and_gallery(
+        self,
+        gallery_id: uuid.UUID,
+        photo_ids: list[uuid.UUID],
+        *,
+        status: PhotoUploadStatus | None = None,
+    ) -> list[Photo]:
         if not photo_ids:
             return await self._finish_read([])
 
+        filters = [
+            Photo.gallery_id == gallery_id,
+            Photo.id.in_(photo_ids),
+            Gallery.is_deleted.is_(False),
+        ]
+        if status is not None:
+            filters.append(Photo.status == status)
         stmt = (
             select(Photo)
             .join(Photo.gallery)
-            .where(
-                Photo.gallery_id == gallery_id,
-                Photo.id.in_(photo_ids),
-                Gallery.is_deleted.is_(False),
-            )
+            .where(*filters)
         )
         photos = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read(photos)
@@ -494,6 +508,7 @@ class ShareLinkRepository(BaseRepository):
         photo_ids: list[uuid.UUID],
         *,
         listed_only: bool = True,
+        status: PhotoUploadStatus | None = None,
     ) -> list[Photo]:
         if not photo_ids:
             return await self._finish_read([])
@@ -505,6 +520,8 @@ class ShareLinkRepository(BaseRepository):
         ]
         if listed_only:
             filters.append(Gallery.project_visibility == "listed")
+        if status is not None:
+            filters.append(Photo.status == status)
 
         stmt = select(Photo).join(Photo.gallery).where(*filters)
         photos = list((await self.db.execute(stmt)).scalars().all())

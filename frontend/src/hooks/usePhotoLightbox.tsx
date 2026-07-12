@@ -178,7 +178,9 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
                   ? dl.download
                   : typeof dl.src === 'string'
                     ? dl.src
-                    : '';
+                    : Array.isArray(dl.sources) && typeof dl.sources[0]?.src === 'string'
+                      ? dl.sources[0].src
+                      : '';
             const downloadFilename =
               typeof dl.downloadFilename === 'string'
                 ? dl.downloadFilename

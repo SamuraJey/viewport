@@ -313,7 +313,7 @@ export const PublicGalleryHero = ({
               playsInline
               preload="metadata"
               aria-hidden="true"
-              onLoadedData={handleVideoLoaded}
+              onCanPlay={handleVideoLoaded}
               onError={handleVideoError}
               className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${isHeroFullLoaded && !videoAutoplayFailed ? 'opacity-100' : 'opacity-0'}`}
               style={{ objectPosition }}

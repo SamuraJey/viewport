@@ -16,8 +16,12 @@ describe('PhotoUploader', () => {
   it('should render drop zone with file input', () => {
     render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
 
-    expect(screen.getByLabelText(/upload photos/i)).toBeInTheDocument();
-    expect(screen.getByText('Drag & drop photos here')).toBeInTheDocument();
+    expect(screen.getByLabelText(/upload photos or videos/i)).toBeInTheDocument();
+    expect(screen.getByText('Drag & drop photos or videos here')).toBeInTheDocument();
+    expect(screen.getByLabelText(/choose photos or videos/i)).toHaveAttribute(
+      'accept',
+      expect.stringContaining('video/mp4'),
+    );
     expect(
       screen.getByText(/JPG \/ PNG \/ MP4 \/ MOV.*10 MB \(images\).*500 MB \(video\)/i),
     ).toBeInTheDocument();
@@ -87,7 +91,7 @@ describe('PhotoUploader', () => {
     }
   });
 
-  it('should reject non-image files', async () => {
+  it('should reject unsupported files', async () => {
     const onUploadComplete = vi.fn().mockResolvedValue(undefined);
     render(<PhotoUploader galleryId="test-gallery" onUploadComplete={onUploadComplete} />);
 
@@ -121,7 +125,7 @@ describe('PhotoUploader', () => {
 
     render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
 
-    const fileInput = screen.getByLabelText('Choose photos to upload');
+    const fileInput = screen.getByLabelText('Choose photos or videos to upload');
 
     await user.upload(fileInput as HTMLInputElement, [largeFile]);
 

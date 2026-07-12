@@ -51,6 +51,7 @@ class MediaCover(BaseModel):
     thumbnail_url: str
     full_url: str
     playback_url: str | None = None
+    filename: str | None = None
 
 
 # Backward-compatible alias

@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -25,6 +26,15 @@ def _image_file(filename: str = "photo.jpg", file_size: int = 1024 * 1024) -> di
         "file_size": file_size,
         "content_type": "image/jpeg",
     }
+
+
+def _storage_snapshot(sync_engine, email: str) -> tuple[int, int]:
+    with sync_engine.connect() as connection:
+        row = connection.execute(
+            text("SELECT storage_used, storage_reserved FROM users WHERE email = :email"),
+            {"email": email},
+        ).one()
+    return int(row.storage_used), int(row.storage_reserved)
 
 
 def _make_mock_s3_client(
@@ -181,7 +191,7 @@ class TestMultipartComplete:
         )
         assert resp.status_code == 404
 
-    def test_valid_finalizes_and_enqueues(self, authenticated_client: TestClient, video_gallery: tuple[str, MagicMock]):
+    def test_valid_finalizes_and_enqueues(self, authenticated_client: TestClient, video_gallery: tuple[str, MagicMock], sync_engine, test_user_data: dict[str, str]):
         """Complete with valid ETags -> photo PROCESSING, multipart_upload_id NULL, quota finalized."""
         gallery_id, mock_s3 = video_gallery
 
@@ -189,9 +199,12 @@ class TestMultipartComplete:
         mock_s3.generate_presigned_upload_parts = AsyncMock(return_value=["http://s3.example.com/p1", "http://s3.example.com/p2"])
 
         # Create the photo via batch-presigned (video)
-        payload = {"files": [_video_file("final.mp4", 32 * 1024 * 1024)]}
+        file_size = 32 * 1024 * 1024
+        initial_used, initial_reserved = _storage_snapshot(sync_engine, test_user_data["email"])
+        payload = {"files": [_video_file("final.mp4", file_size)]}
         resp = authenticated_client.post(f"/galleries/{gallery_id}/photos/batch-presigned", json=payload)
         assert resp.status_code == 200, resp.text
+        assert _storage_snapshot(sync_engine, test_user_data["email"]) == (initial_used, initial_reserved + file_size)
         item = resp.json()["items"][0]
         photo_id = item["photo_id"]
         upload_id = item["upload_id"]
@@ -216,6 +229,8 @@ class TestMultipartComplete:
             mock_s3.complete_multipart_upload.assert_awaited_once()
             mock_task.delay.assert_called_once()
 
+        assert _storage_snapshot(sync_engine, test_user_data["email"]) == (initial_used + file_size, initial_reserved)
+
         # Verify photo record is PROCESSING
         detail_resp = authenticated_client.get(f"/galleries/{gallery_id}")
         assert detail_resp.status_code == 200
@@ -223,6 +238,31 @@ class TestMultipartComplete:
         match = [p for p in photos if p["id"] == photo_id]
         assert len(match) == 1
         assert match[0]["status"] == "processing"
+
+    def test_enqueue_failure_keeps_completed_upload_retryable(self, authenticated_client: TestClient, video_gallery: tuple[str, MagicMock]):
+        """A post-commit enqueue failure leaves PROCESSING state that retries can re-enqueue."""
+        gallery_id, mock_s3 = video_gallery
+        response = authenticated_client.post(
+            f"/galleries/{gallery_id}/photos/batch-presigned",
+            json={"files": [_video_file("retry.mp4", 16 * 1024 * 1024)]},
+        )
+        item = response.json()["items"][0]
+        complete_url = f"/galleries/{gallery_id}/photos/{item['photo_id']}/multipart/complete"
+        body = {"upload_id": item["upload_id"], "parts": [{"ETag": '"etag"', "PartNumber": 1}]}
+
+        with patch("viewport.api.photo.process_videos_batch_task") as mock_task:
+            mock_task.delay.side_effect = RuntimeError("broker unavailable")
+            failed = authenticated_client.post(complete_url, json=body)
+            assert failed.status_code == 503, failed.text
+            mock_s3.complete_multipart_upload.assert_awaited_once()
+
+            detail = authenticated_client.get(f"/galleries/{gallery_id}")
+            assert next(photo for photo in detail.json()["photos"] if photo["id"] == item["photo_id"])["status"] == "processing"
+
+            mock_task.delay.side_effect = None
+            retried = authenticated_client.post(complete_url, json=body)
+            assert retried.status_code == 200, retried.text
+            mock_task.delay.assert_called()
 
     def test_invalid_etag_returns_502_and_photo_stays_pending(self, authenticated_client: TestClient, video_gallery: tuple[str, MagicMock]):
         """When S3.complete_multipart_upload raises, return 502; photo remains PENDING."""
@@ -263,7 +303,7 @@ class TestMultipartComplete:
 
 
 class TestMultipartAbort:
-    def test_releases_quota_and_deletes_photo(self, authenticated_client: TestClient, video_gallery: tuple[str, MagicMock]):
+    def test_releases_quota_and_deletes_photo(self, authenticated_client: TestClient, video_gallery: tuple[str, MagicMock], sync_engine, test_user_data: dict[str, str]):
         """Abort deletes the photo record and releases reserved storage."""
         gallery_id, mock_s3 = video_gallery
 
@@ -271,12 +311,15 @@ class TestMultipartAbort:
         mock_s3.generate_presigned_upload_parts = AsyncMock(return_value=["http://s3.example.com/p1"])
 
         # Create photo (16 MB → 1 part)
-        payload = {"files": [_video_file("forget.mp4", 16 * 1024 * 1024)]}
+        file_size = 16 * 1024 * 1024
+        initial_storage = _storage_snapshot(sync_engine, test_user_data["email"])
+        payload = {"files": [_video_file("forget.mp4", file_size)]}
         resp = authenticated_client.post(f"/galleries/{gallery_id}/photos/batch-presigned", json=payload)
         assert resp.status_code == 200, resp.text
         item = resp.json()["items"][0]
         photo_id = item["photo_id"]
         upload_id = item["upload_id"]
+        assert _storage_snapshot(sync_engine, test_user_data["email"]) == (initial_storage[0], initial_storage[1] + file_size)
 
         # Abort
         abort_resp = authenticated_client.post(
@@ -285,6 +328,7 @@ class TestMultipartAbort:
         )
         assert abort_resp.status_code == 200, abort_resp.json()
         mock_s3.abort_multipart_upload.assert_awaited_once()
+        assert _storage_snapshot(sync_engine, test_user_data["email"]) == initial_storage
 
         # Photo is gone
         detail_resp = authenticated_client.get(f"/galleries/{gallery_id}")

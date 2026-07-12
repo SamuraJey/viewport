@@ -633,7 +633,7 @@ def _process_single_video(
             try:
                 num, den = r_frame_rate.split("/")
                 source_fps = float(num) / float(den) if float(den) != 0 else 30.0
-            except ValueError, ZeroDivisionError:
+            except (ValueError, ZeroDivisionError):
                 source_fps = 30.0
             target_fps = min(60.0, source_fps)
 
@@ -762,7 +762,7 @@ def _process_single_video(
             ]
             try:
                 subprocess.run(poster_cmd, capture_output=True, text=True, timeout=30, check=True)
-            except subprocess.CalledProcessError, subprocess.TimeoutExpired:
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
                 # Fall back to first frame
                 logger.warning("Poster extraction at %.1fs failed for %s, falling back to first frame", poster_ts, photo_id)
                 poster_cmd = [
@@ -833,7 +833,16 @@ def _process_single_video(
             except Exception as upload_error:
                 if _is_retryable_s3_error(upload_error):
                     raise VideoTransientError(f"Retryable S3 upload error for poster {photo_id}") from upload_error
-                raise
+                _cleanup_video_failure(
+                    photo_id,
+                    object_key,
+                    s3_client,
+                    bucket,
+                    "Poster upload failed",
+                    derivative_keys=[playback_key],
+                )
+                result_tracker.add_error(photo_id, "Poster upload failed")
+                return
             logger.info("Successfully processed video %s", photo_id)
             report_transcode_duration((datetime.now(UTC) - transcode_start).total_seconds())
             try:
@@ -859,7 +868,7 @@ def _process_single_video(
                     with contextlib.suppress(OSError):
                         os.unlink(tmp_path)
 
-    except VideoTransientError, SoftTimeLimitExceeded:
+    except (VideoTransientError, SoftTimeLimitExceeded):
         raise
     except Exception as e:
         logger.exception("Failed to process video %s: %s", photo_id, e)
@@ -942,8 +951,9 @@ def _batch_update_video_results(results: list[dict], result_tracker: BatchTaskRe
 )
 def process_videos_batch_task(self, videos: list[VideoTaskPayload]) -> dict:
     """Background task to process videos: validate, transcode, and generate posters."""
-    VIDEO_QUEUE_DEPTH.dec(len(videos))
-    if self.request.retries > 0:
+    if self.request.retries == 0:
+        VIDEO_QUEUE_DEPTH.dec(len(videos))
+    else:
         report_retry()
     logger.info("Starting batch video processing for %s videos", len(videos))
 

@@ -78,7 +78,7 @@ export const UploadModalFooter = ({
           {hasValidFiles
             ? `${validUploadCount} ready to upload`
             : allLargeFiles
-              ? 'All files exceed 10 MB limit'
+              ? 'All files exceed the applicable upload limit'
               : 'No valid files — check requirements above'}
         </span>
       ) : (

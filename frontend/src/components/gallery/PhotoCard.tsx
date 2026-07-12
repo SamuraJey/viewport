@@ -125,7 +125,11 @@ const PhotoCardComponent = ({
         )}
         {photo.status === 'failed' && (
           <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/90 text-white text-xs font-semibold backdrop-blur-md shadow-lg">
-            <VideoOff className="h-3 w-3" />
+            {photo.media_type === 'video' ? (
+              <VideoOff className="h-3 w-3" />
+            ) : (
+              <ImageOff className="h-3 w-3" />
+            )}
             Failed
           </div>
         )}

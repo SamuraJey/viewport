@@ -134,7 +134,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
           onChange={handleFileInput}
           multiple
           accept={ACCEPTED_TYPES.join(',')}
-          aria-label="Choose photos to upload"
+          aria-label="Choose photos or videos to upload"
           className="hidden"
         />
 
@@ -157,7 +157,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
             }}
             tabIndex={0}
             role="button"
-            aria-label="Upload photos"
+            aria-label="Upload photos or videos"
           >
             <motion.div
               animate={dragActive ? { scale: 1.2, rotate: -8 } : { scale: 1, rotate: 0 }}
@@ -174,8 +174,8 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
               {files.length > 0
                 ? `${files.length} file${files.length > 1 ? 's' : ''} ready`
                 : dragActive
-                  ? 'Drop photos here'
-                  : 'Drag & drop photos here'}
+                  ? 'Drop files here'
+                  : 'Drag & drop photos or videos here'}
             </p>
             <p className="text-sm font-medium text-muted">
               {files.length > 0

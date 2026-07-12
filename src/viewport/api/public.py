@@ -252,6 +252,7 @@ async def _build_public_gallery_response(
                     full_url=cover_full_url,
                     thumbnail_url=cover_thumb_url,
                     playback_url=cover_full_url if is_video else None,
+                    filename=cover_photo_obj.display_name,
                 )
 
     owner = getattr(gallery, "owner", None) or getattr(getattr(sharelink, "project", None), "owner", None)
@@ -364,6 +365,7 @@ async def _build_project_cover(
         full_url=full_url,
         thumbnail_url=thumbnail_url,
         playback_url=full_url if is_video else None,
+        filename=cover_photo.display_name,
     )
 
 
@@ -444,6 +446,7 @@ async def _build_public_project_response(
                     full_url=full_url,
                     thumbnail_url=thumbnail_url,
                     playback_url=full_url if is_video else None,
+                    filename=cover_photo.display_name,
                 )
     if project_cover is None:
         project_cover = await _build_project_cover(
@@ -516,7 +519,7 @@ async def _load_project_zip_entries(
     if not galleries:
         return []
 
-    photos_by_gallery = await repo.get_photos_by_visible_project(project_id)
+    photos_by_gallery = await repo.get_photos_by_visible_project(project_id, status=PhotoUploadStatus.SUCCESSFUL)
     return [(gallery.name, photos_by_gallery.get(gallery.id, [])) for gallery in galleries]
 
 
@@ -545,10 +548,11 @@ async def _get_downloadable_public_photo(
             sharelink.project_id,
             [photo_id],
             listed_only=True,
+            status=PhotoUploadStatus.SUCCESSFUL,
         )
     else:
         gallery_id = _require_gallery_share_id(sharelink)
-        photos = await repo.get_photos_by_ids_and_gallery(gallery_id, [photo_id])
+        photos = await repo.get_photos_by_ids_and_gallery(gallery_id, [photo_id], status=PhotoUploadStatus.SUCCESSFUL)
 
     if not photos:
         raise HTTPException(status_code=404, detail="Photo not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
@@ -778,7 +782,7 @@ async def check_project_gallery_photos_zip(
     if gallery is None:
         raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
-    gallery_photos = await repo.get_photos_by_gallery_id(gallery.id)
+    gallery_photos = await repo.get_photos_by_gallery_id(gallery.id, status=PhotoUploadStatus.SUCCESSFUL)
     if not gallery_photos:
         raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
@@ -804,7 +808,7 @@ async def download_project_gallery_photos_zip(
     settings = get_s3_settings()
     z = zipstream.ZipStream()
     used_names: set[str] = set()
-    gallery_photos = await repo.get_photos_by_gallery_id(gallery.id)
+    gallery_photos = await repo.get_photos_by_gallery_id(gallery.id, status=PhotoUploadStatus.SUCCESSFUL)
 
     if not gallery_photos:
         raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
@@ -854,7 +858,7 @@ async def check_download_all_photos_zip(
         return Response(status_code=204, headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
     gallery_id = _require_gallery_share_id(sharelink)
-    gallery_photos = await repo.get_photos_by_gallery_id(gallery_id)
+    gallery_photos = await repo.get_photos_by_gallery_id(gallery_id, status=PhotoUploadStatus.SUCCESSFUL)
     if not gallery_photos:
         raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
@@ -903,7 +907,7 @@ async def download_all_photos_zip(
         return StreamingResponse(z, media_type="application/zip", headers=headers)
 
     gallery_id = _require_gallery_share_id(sharelink)
-    gallery_photos = await repo.get_photos_by_gallery_id(gallery_id)
+    gallery_photos = await repo.get_photos_by_gallery_id(gallery_id, status=PhotoUploadStatus.SUCCESSFUL)
 
     with contextlib.suppress(Exception):
         gallery_photos = sorted(gallery_photos, key=lambda p: p.display_name.lower())

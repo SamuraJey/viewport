@@ -50,6 +50,7 @@ async def _generate_url_maps(
             disposition_type="inline",
         )
         for photo in photos
+        if photo.media_type != "video" or not photo.playback_object_key
     }
     playback_keys = [photo.playback_object_key for photo in photos if photo.playback_object_key]
 
@@ -130,32 +131,30 @@ class PhotoResponse(BaseModel):
         filename = cls._resolve_filename(photo)
         media_type: MediaType = cast(MediaType, photo.media_type)
 
-        tasks: list = [
-            s3_client.generate_presigned_url_async(
-                photo.object_key,
-                expires_in=7200,
-                response_content_disposition=cls._build_content_disposition(
-                    filename,
-                    disposition_type="inline",
-                ),
-            ),
-            s3_client.generate_presigned_url_async(photo.thumbnail_object_key, expires_in=7200),
-        ]
-
         if media_type == "video" and photo.playback_object_key:
-            tasks.append(
+            tasks: list = [
+                s3_client.generate_presigned_url_async(photo.thumbnail_object_key, expires_in=7200),
                 s3_client.generate_presigned_url_async(photo.playback_object_key, expires_in=7200),
-            )
+            ]
+        else:
+            tasks = [
+                s3_client.generate_presigned_url_async(
+                    photo.object_key,
+                    expires_in=7200,
+                    response_content_disposition=cls._build_content_disposition(filename, disposition_type="inline"),
+                ),
+                s3_client.generate_presigned_url_async(photo.thumbnail_object_key, expires_in=7200),
+            ]
 
         results = await asyncio.gather(*tasks)
-        presigned_url = results[0]
-        thumbnail_url = results[1]
 
         if media_type == "video" and photo.playback_object_key:
-            url: str = results[2]
-            playback_url: str | None = results[2]
+            thumbnail_url = results[0]
+            url: str = results[1]
+            playback_url: str | None = results[1]
         else:
-            url = presigned_url
+            url = results[0]
+            thumbnail_url = results[1]
             playback_url = None
 
         return cls(

@@ -2,6 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
+from viewport.schemas.photo import MediaType
 from viewport.schemas.sharelink import ShareScopeType
 
 SELECTION_CLIENT_NOTE_MAX_LENGTH = 4096
@@ -69,7 +70,7 @@ class SelectionItemResponse(BaseModel):
     gallery_id: str | None = None
     gallery_name: str | None = None
     comment: str | None
-    media_type: str | None = None
+    media_type: MediaType | None = None
     playback_url: str | None = None
     duration_ms: int | None = None
     selected_at: datetime

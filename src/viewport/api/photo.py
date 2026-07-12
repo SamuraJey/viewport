@@ -1,7 +1,6 @@
 import logging
 from uuid import UUID, uuid4
 
-from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -487,7 +486,8 @@ async def batch_confirm_uploads(
 
         # Videos must use multipart/complete, not this endpoint
         if photo.media_type == MediaType.VIDEO.value:
-            status_updates[photo.id] = PhotoUploadStatus.FAILED
+            if photo.status == PhotoUploadStatus.PENDING:
+                status_updates[photo.id] = PhotoUploadStatus.FAILED
             failed_count += 1
             continue
 
@@ -643,6 +643,16 @@ async def complete_multipart_upload(
     if photo.media_type != MediaType.VIDEO.value:
         raise HTTPException(status_code=400, detail="Multipart complete is only applicable to video uploads")
 
+    if photo.status == PhotoUploadStatus.PROCESSING:
+        # The object and quota state were committed before a previous enqueue
+        # attempt failed. Retrying this request only needs to re-enqueue it.
+        try:
+            await run_in_threadpool(_enqueue_media_processing, photo)
+        except Exception as exc:
+            logger.warning("Failed to re-enqueue video processing task for %s: %s", photo.id, exc, exc_info=True)
+            raise HTTPException(status_code=503, detail="Failed to enqueue video processing task") from exc
+        return BatchConfirmUploadResponse(confirmed_count=1, failed_count=0)
+
     if photo.status != PhotoUploadStatus.PENDING:
         raise HTTPException(status_code=409, detail="Photo is not in pending state")
 
@@ -654,29 +664,36 @@ async def complete_multipart_upload(
     except Exception as exc:
         logger.warning("Failed to complete multipart upload for %s: %s", photo.object_key, exc)
         raise HTTPException(status_code=502, detail="Failed to complete multipart upload on S3") from exc
-    # 4. Update photo status and clear multipart state (in memory, not yet committed)
+    # 4. Commit photo state and quota before enqueueing. S3 completion cannot
+    # share a transaction with Postgres, so remove the completed object if the
+    # database transaction fails.
     photo.status = PhotoUploadStatus.PROCESSING
     photo.multipart_upload_id = None
-
-    # 5. Finalize quota (move reserved -> used) — in memory, not yet committed
     await user_repo.finalize_reserved_storage(current_user.id, photo.file_size, commit=False)
-
-    # 6. Enqueue video processing before committing — if enqueue fails the
-    #    transaction rolls back and the photo stays PENDING for retry.
     try:
-        await run_in_threadpool(_enqueue_media_processing, photo)
+        await repo.db.commit()
     except Exception as exc:
         await repo.db.rollback()
+        try:
+            await s3_client.delete_file(photo.object_key)
+        except Exception:
+            logger.warning("Failed to remove completed multipart object after DB failure: %s", photo.object_key, exc_info=True)
         logger.warning(
-            "Failed to enqueue video processing task for %s: %s",
+            "Failed to persist completed multipart upload for %s: %s",
             photo.id,
             exc,
             extra={"photo_id": str(photo.id)},
             exc_info=True,
         )
-        raise HTTPException(status_code=503, detail="Failed to enqueue video processing task") from exc
+        raise HTTPException(status_code=503, detail="Failed to finalize video upload") from exc
 
-    await repo.db.commit()
+    # A failed enqueue leaves a committed PROCESSING photo. The client can
+    # retry this endpoint, which re-enqueues without re-completing the S3 upload.
+    try:
+        await run_in_threadpool(_enqueue_media_processing, photo)
+    except Exception as exc:
+        logger.warning("Failed to enqueue video processing task for %s: %s", photo.id, exc, exc_info=True)
+        raise HTTPException(status_code=503, detail="Failed to enqueue video processing task") from exc
 
     return BatchConfirmUploadResponse(confirmed_count=1, failed_count=0)
 
@@ -711,7 +728,7 @@ async def abort_multipart_upload(
     # 3. Abort the multipart upload on S3
     try:
         await s3_client.abort_multipart_upload(photo.object_key, request.upload_id)
-    except (ClientError, BotoCoreError) as exc:
+    except Exception as exc:
         logger.warning("Failed to abort multipart upload for %s: %s", photo.object_key, exc)
         raise HTTPException(status_code=502, detail="Failed to abort multipart upload on S3") from exc
 

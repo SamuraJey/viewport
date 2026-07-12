@@ -2,6 +2,7 @@ import csv
 import io
 import uuid
 from datetime import UTC, datetime
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.exc import IntegrityError
@@ -17,6 +18,7 @@ from viewport.models.sharelink_selection import SelectionSessionStatus, ShareLin
 from viewport.models.user import User
 from viewport.repositories.selection_repository import SelectionRepository
 from viewport.s3_service import AsyncS3Client
+from viewport.schemas.photo import MediaType
 from viewport.schemas.selection import (
     BulkSelectionActionResponse,
     OwnerSelectionAggregateResponse,
@@ -134,7 +136,7 @@ def _to_selection_item_response(item: ShareLinkSelectionItem, thumbnail_url_map:
     photo_thumbnail_url: str | None = None
     gallery_id: str | None = None
     gallery_name: str | None = None
-    media_type: str | None = None
+    media_type: MediaType | None = None
     playback_url: str | None = None
     duration_ms: int | None = None
     if "photo" in item.__dict__ and item.photo is not None:
@@ -143,7 +145,7 @@ def _to_selection_item_response(item: ShareLinkSelectionItem, thumbnail_url_map:
         thumbnail_object_key = photo.thumbnail_object_key
         if thumbnail_url_map is not None:
             photo_thumbnail_url = thumbnail_url_map.get(thumbnail_object_key)
-        media_type = getattr(photo, "media_type", None)
+        media_type = cast(MediaType | None, getattr(photo, "media_type", None))
         duration_ms = getattr(photo, "duration_ms", None)
         playback_object_key = getattr(photo, "playback_object_key", None)
         if playback_url_map is not None and playback_object_key:

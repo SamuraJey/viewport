@@ -39,8 +39,13 @@ def _ffprobe_json(streams=None, fmt=None):
     return data
 
 
-def _video_stream(width=1920, height=1080, duration="30.0", codec_type="video"):
-    return {"codec_type": codec_type, "width": width, "height": height, "duration": duration}
+def _video_stream(width=1920, height=1080, duration="30.0", codec_type="video", codec_name=None, pix_fmt=None):
+    stream = {"codec_type": codec_type, "width": width, "height": height, "duration": duration}
+    if codec_name is not None:
+        stream["codec_name"] = codec_name
+    if pix_fmt is not None:
+        stream["pix_fmt"] = pix_fmt
+    return stream
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +123,7 @@ def test_video_processing_success(monkeypatch, mock_s3, tracker, payload, patch_
     """Full happy-path: ffprobe returns valid stream; ffmpeg succeeds; S3 works."""
     # -- ffprobe ---------------------------------------------------------
     probe_data = _ffprobe_json(
-        streams=[_video_stream(1920, 1080, "30.5")],
+        streams=[_video_stream(1280, 720, "30.5", codec_name="h264", pix_fmt="yuv420p")],
         fmt={"nb_streams": 2},
     )
 
@@ -178,13 +183,16 @@ def test_video_processing_success(monkeypatch, mock_s3, tracker, payload, patch_
     assert res["playback_object_key"] == "gal-1/vid_playback.mp4"
     assert res["thumbnail_object_key"] == "gal-1/vid_thumbnail.avif"
     assert res["duration_ms"] == 30500
-    assert res["width"] == 1920
-    assert res["height"] == 1080
+    assert res["width"] == 1280
+    assert res["height"] == 720
 
     # S3: head, download, tag, upload×2
     mock_s3.head_object.assert_called_once_with(Bucket="test-bucket", Key="gal-1/vid.mp4")
     mock_s3.download_fileobj.assert_called_once_with("test-bucket", "gal-1/vid.mp4", ANY)
     assert mock_s3.upload_fileobj.call_count == 2
+
+    ffmpeg_commands = [call.args[0] for call in subprocess.run.call_args_list if call.args[0][0] == "ffmpeg"]
+    assert "copy" in ffmpeg_commands[0]
 
     # cleanup must NOT have been called
     viewport_bg = __import__("viewport.background_tasks", fromlist=["_cleanup_video_failure"])
@@ -304,6 +312,45 @@ def test_video_processing_ffprobe_failure_fails(monkeypatch, mock_s3, tracker, p
         "test-bucket",
         "ffprobe validation failed",
     )
+
+
+def test_video_processing_ffprobe_timeout_fails(monkeypatch, mock_s3, tracker, payload, patch_all) -> None:
+    """An ffprobe timeout is recorded as a validation failure and cleaned up."""
+    mock_s3.head_object.return_value = {"ContentLength": 5_000_000}
+    mock_tmp = MagicMock()
+    mock_tmp.name = "/tmp/fake_in.mp4"
+    mock_tmp.__enter__.return_value = mock_tmp
+    monkeypatch.setattr(tempfile, "NamedTemporaryFile", MagicMock(return_value=mock_tmp))
+    monkeypatch.setattr(subprocess, "run", MagicMock(side_effect=subprocess.TimeoutExpired("ffprobe", 30)))
+    monkeypatch.setattr(os.path, "isfile", MagicMock(return_value=True))
+    monkeypatch.setattr(os, "unlink", MagicMock())
+
+    _process_single_video(payload, mock_s3, "test-bucket", {payload["photo_id"]}, tracker)
+
+    assert tracker.failed == 1
+    assert tracker.results[0]["message"] == "ffprobe validation failed"
+
+
+def test_video_processing_ffmpeg_timeout_retries(monkeypatch, mock_s3, tracker, payload, patch_all) -> None:
+    """An ffmpeg transcode timeout raises VideoTransientError for Celery retry."""
+    probe_data = _ffprobe_json(streams=[_video_stream(1920, 1080, "30.0")], fmt={"nb_streams": 1})
+
+    def _subprocess_side_effect(cmd, **_kw):
+        if cmd[0] == "ffprobe":
+            return _make_subprocess_result(json.dumps(probe_data))
+        raise subprocess.TimeoutExpired(cmd, 1800)
+
+    monkeypatch.setattr(subprocess, "run", MagicMock(side_effect=_subprocess_side_effect))
+    monkeypatch.setattr("viewport.background_tasks._ffprobe_has_audio", MagicMock(return_value=True))
+    mock_tmp = MagicMock()
+    mock_tmp.name = "/tmp/fake.mp4"
+    mock_tmp.__enter__.return_value = mock_tmp
+    monkeypatch.setattr(tempfile, "NamedTemporaryFile", MagicMock(return_value=mock_tmp))
+    monkeypatch.setattr(os.path, "isfile", MagicMock(return_value=True))
+    monkeypatch.setattr(os, "unlink", MagicMock())
+
+    with pytest.raises(VideoTransientError, match="ffmpeg transcode timed out"):
+        _process_single_video(payload, mock_s3, "test-bucket", {payload["photo_id"]}, tracker)
 
 
 # ---------------------------------------------------------------------------

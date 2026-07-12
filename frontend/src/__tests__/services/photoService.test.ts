@@ -593,6 +593,26 @@ describe('photoService', () => {
     });
   });
 
+  it('retries transient multipart completion failures without re-uploading parts', async () => {
+    vi.useFakeTimers();
+    vi.mocked(api.post)
+      .mockRejectedValueOnce({ response: { status: 503 } })
+      .mockResolvedValueOnce({ data: {} } as any);
+
+    const completion = photoService.completeMultipartUpload(
+      'gallery-1',
+      'video-photo',
+      'video-upload',
+      [{ ETag: '"etag-1"', PartNumber: 1 }],
+    );
+
+    await vi.runAllTimersAsync();
+    await completion;
+
+    expect(api.post).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
   it('times out and retries a stalled multipart part', async () => {
     vi.useFakeTimers();
     const file = createFile('retry-clip.mp4', 1, 'video/mp4');

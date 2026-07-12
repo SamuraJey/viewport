@@ -268,7 +268,7 @@ const buildPhoto = (
       : undefined,
     duration_ms: isVideo ? 15000 : undefined,
     file_size: isVideo ? 45_000_000 : 2_100_000 + index * 110_000,
-    status: isVideo ? 'successful' : 'successful',
+    status: 'successful',
     uploaded_at: nowIso(),
     ...overrides,
   };
