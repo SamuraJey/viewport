@@ -60,13 +60,17 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
       const oversizedVideos = fileArray.filter(
         (f) => f.type.startsWith('video/') && f.size > MAX_VIDEO_UPLOAD_FILE_SIZE_MB * 1024 * 1024,
       );
+      const acceptedFiles = fileArray.filter((file) => !oversizedVideos.includes(file));
       if (oversizedVideos.length > 0) {
         setError(`Video files must be under ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB.`);
+      } else {
+        setError('');
+      }
+      if (acceptedFiles.length === 0) {
         return;
       }
 
-      setError('');
-      setFiles(fileArray);
+      setFiles(acceptedFiles);
       setShowConfirmModal(true);
       onModalStateChange?.(true);
     };

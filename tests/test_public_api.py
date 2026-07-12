@@ -375,6 +375,53 @@ class TestPublicAPI:
         assert payload.appearance.color_scheme == "dark"
 
     @pytest.mark.asyncio
+    async def test_build_public_project_response_excludes_video_cover_without_playback(self):
+        """A project video cover must have a playable derivative before it is exposed."""
+        cover_photo_id = uuid4()
+        project = SimpleNamespace(
+            id=uuid4(),
+            name="Test Project",
+            shooting_date=None,
+            created_at=datetime(2026, 7, 8, 12, 0, 0),
+            owner=SimpleNamespace(display_name="Alice"),
+            cover_photo_id=cover_photo_id,
+            cover_focal_x=50.0,
+            cover_focal_y=50.0,
+            cover_display_option="centered_title",
+            public_photo_spacing="medium",
+            public_color_scheme="light",
+        )
+        cover_photo = SimpleNamespace(
+            id=cover_photo_id,
+            status=PhotoUploadStatus.SUCCESSFUL,
+            media_type=MediaType.VIDEO.value,
+            thumbnail_object_key="poster-key",
+            playback_object_key=None,
+            object_key="original.mov",
+        )
+        project_repo = MagicMock()
+        project_repo.get_visible_project_folders = AsyncMock(return_value=[])
+        project_repo.get_photo_by_id_for_project = AsyncMock(return_value=cover_photo)
+        gallery_repo = MagicMock()
+        gallery_repo.get_gallery_list_enrichment = AsyncMock(return_value=({}, {}, 0, {}, {}))
+        s3_client = MagicMock()
+        s3_client.generate_presigned_urls_batch_for_dispositions = AsyncMock()
+
+        payload = await _build_public_project_response(
+            share_id=uuid4(),
+            request=SimpleNamespace(client=None, headers={}, base_url="https://example.com/"),
+            response=Response(),
+            project_repo=project_repo,
+            gallery_repo=gallery_repo,
+            s3_client=s3_client,
+            sharelink=SimpleNamespace(created_at=datetime(2026, 7, 8, 12, 30, 0), project=project),
+            record_view=False,
+        )
+
+        assert payload.cover is None
+        s3_client.generate_presigned_urls_batch_for_dispositions.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_build_public_project_response_uses_default_appearance_when_no_galleries(self):
         """When project has zero visible galleries, appearance falls back to defaults."""
         project = SimpleNamespace(

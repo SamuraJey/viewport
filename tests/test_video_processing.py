@@ -408,6 +408,58 @@ def test_video_processing_ffmpeg_failure_cleans_up(monkeypatch, mock_s3, tracker
 
 
 # ---------------------------------------------------------------------------
+# poster fallback failure
+# ---------------------------------------------------------------------------
+
+
+def test_video_processing_poster_fallback_failure_cleans_up(monkeypatch, mock_s3, tracker, payload, patch_all) -> None:
+    """A failed first-frame fallback cleans up the original before the error propagates."""
+    probe_data = _ffprobe_json(
+        streams=[_video_stream(1920, 1080, "30.0")],
+        fmt={"nb_streams": 1},
+    )
+    ffmpeg_calls = 0
+
+    def _subprocess_side_effect(cmd, **_kw):
+        nonlocal ffmpeg_calls
+        if cmd[0] == "ffprobe":
+            return _make_subprocess_result(json.dumps(probe_data))
+        ffmpeg_calls += 1
+        if ffmpeg_calls >= 2:
+            raise subprocess.CalledProcessError(1, cmd, stderr="poster error")
+        return _make_subprocess_result()
+
+    monkeypatch.setattr(subprocess, "run", MagicMock(side_effect=_subprocess_side_effect))
+    monkeypatch.setattr("viewport.background_tasks._ffprobe_has_audio", MagicMock(return_value=True))
+    mock_s3.head_object.return_value = {"ContentLength": 5_000_000}
+
+    temp_files = []
+
+    def _tempfile_factory(suffix="", delete=False, **__):
+        temp_file = MagicMock()
+        temp_file.name = f"/tmp/fake_{len(temp_files)}{suffix}"
+        temp_file.__enter__.return_value = temp_file
+        temp_files.append(temp_file)
+        return temp_file
+
+    monkeypatch.setattr(tempfile, "NamedTemporaryFile", _tempfile_factory)
+    monkeypatch.setattr(os.path, "isfile", MagicMock(return_value=True))
+    monkeypatch.setattr(os, "unlink", MagicMock())
+
+    _process_single_video(payload, mock_s3, "test-bucket", {payload["photo_id"]}, tracker)
+
+    assert tracker.failed == 1
+    viewport_bg = __import__("viewport.background_tasks", fromlist=["_cleanup_video_failure"])
+    viewport_bg._cleanup_video_failure.assert_called_once_with(
+        payload["photo_id"],
+        payload["object_key"],
+        mock_s3,
+        "test-bucket",
+        "Poster frame generation failed",
+    )
+
+
+# ---------------------------------------------------------------------------
 # portrait / rotated dimensions
 # ---------------------------------------------------------------------------
 

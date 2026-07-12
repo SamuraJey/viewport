@@ -264,7 +264,13 @@ class TestMultipartComplete:
             assert retried.status_code == 200, retried.text
             mock_task.delay.assert_called()
 
-    def test_invalid_etag_returns_502_and_photo_stays_pending(self, authenticated_client: TestClient, video_gallery: tuple[str, MagicMock]):
+    def test_invalid_etag_returns_502_and_photo_stays_pending(
+        self,
+        authenticated_client: TestClient,
+        video_gallery: tuple[str, MagicMock],
+        sync_engine,
+        test_user_data: dict[str, str],
+    ):
         """When S3.complete_multipart_upload raises, return 502; photo remains PENDING."""
         gallery_id, mock_s3 = video_gallery
 
@@ -277,6 +283,7 @@ class TestMultipartComplete:
         item = resp.json()["items"][0]
         photo_id = item["photo_id"]
         upload_id = item["upload_id"]
+        storage_after_reservation = _storage_snapshot(sync_engine, test_user_data["email"])
 
         # Complete with bad ETag
         complete_resp = authenticated_client.post(
@@ -288,6 +295,7 @@ class TestMultipartComplete:
         )
         assert complete_resp.status_code == 502, complete_resp.json()
         assert "Failed to complete multipart upload" in complete_resp.json()["detail"]
+        assert _storage_snapshot(sync_engine, test_user_data["email"]) == storage_after_reservation
 
         # Photo still in pending state
         detail_resp = authenticated_client.get(f"/galleries/{gallery_id}")

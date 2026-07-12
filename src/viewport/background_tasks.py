@@ -633,7 +633,7 @@ def _process_single_video(
             try:
                 num, den = r_frame_rate.split("/")
                 source_fps = float(num) / float(den) if float(den) != 0 else 30.0
-            except (ValueError, ZeroDivisionError):
+            except ValueError, ZeroDivisionError:
                 source_fps = 30.0
             target_fps = min(60.0, source_fps)
 
@@ -762,7 +762,7 @@ def _process_single_video(
             ]
             try:
                 subprocess.run(poster_cmd, capture_output=True, text=True, timeout=30, check=True)
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            except subprocess.CalledProcessError, subprocess.TimeoutExpired:
                 # Fall back to first frame
                 logger.warning("Poster extraction at %.1fs failed for %s, falling back to first frame", poster_ts, photo_id)
                 poster_cmd = [
@@ -778,7 +778,11 @@ def _process_single_video(
                     "2",
                     tmp_poster_path,
                 ]
-                subprocess.run(poster_cmd, capture_output=True, text=True, timeout=30, check=True)
+                try:
+                    subprocess.run(poster_cmd, capture_output=True, text=True, timeout=30, check=True)
+                except subprocess.CalledProcessError, subprocess.TimeoutExpired:
+                    _cleanup_video_failure(photo_id, object_key, s3_client, bucket, "Poster frame generation failed")
+                    raise
 
             # Convert poster PNG to AVIF via create_thumbnail
             try:
@@ -868,7 +872,7 @@ def _process_single_video(
                     with contextlib.suppress(OSError):
                         os.unlink(tmp_path)
 
-    except (VideoTransientError, SoftTimeLimitExceeded):
+    except VideoTransientError, SoftTimeLimitExceeded:
         raise
     except Exception as e:
         logger.exception("Failed to process video %s: %s", photo_id, e)

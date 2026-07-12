@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PhotoUploader } from '../../components/PhotoUploader';
-import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../../constants/upload';
+import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_VIDEO_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 
 describe('PhotoUploader', () => {
   const mockOnUploadComplete = vi.fn();
@@ -148,6 +148,30 @@ describe('PhotoUploader', () => {
 
     // Upload button should be disabled
     expect(screen.getByText('Upload').closest('button')).toBeDisabled();
+  });
+
+  it('should exclude oversized videos while continuing with valid files', async () => {
+    const user = userEvent.setup();
+    const image = new File(['image'], 'valid.jpg', { type: 'image/jpeg' });
+    const oversizedVideo = new File(['video'], 'too-large.mp4', { type: 'video/mp4' });
+    Object.defineProperty(oversizedVideo, 'size', {
+      value: (MAX_VIDEO_UPLOAD_FILE_SIZE_MB + 1) * 1024 * 1024,
+    });
+
+    render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
+
+    await user.upload(screen.getByLabelText('Choose photos or videos to upload'), [
+      image,
+      oversizedVideo,
+    ]);
+
+    await waitFor(() => {
+      expect(screen.getByText('valid.jpg')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('too-large.mp4')).not.toBeInTheDocument();
+    expect(
+      screen.getByText(`Video files must be under ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB.`),
+    ).toBeInTheDocument();
   });
 
   it('should handle drag and drop events', async () => {

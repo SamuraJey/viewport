@@ -494,11 +494,7 @@ class ShareLinkRepository(BaseRepository):
         ]
         if status is not None:
             filters.append(Photo.status == status)
-        stmt = (
-            select(Photo)
-            .join(Photo.gallery)
-            .where(*filters)
-        )
+        stmt = select(Photo).join(Photo.gallery).where(*filters)
         photos = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read(photos)
 

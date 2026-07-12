@@ -409,7 +409,7 @@ async def _build_public_project_response(
             project.cover_photo_id,
             listed_only=True,
         )
-        if cover_photo and cover_photo.status == PhotoUploadStatus.SUCCESSFUL and cover_photo.thumbnail_object_key:
+        if cover_photo and _is_public_media_ready(cover_photo):
             # Determine full key based on media type
             if cover_photo.media_type == MediaType.VIDEO.value and cover_photo.playback_object_key:
                 full_key = cover_photo.playback_object_key
