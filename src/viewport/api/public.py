@@ -99,6 +99,10 @@ def _date_str(*candidates: date | datetime | None) -> str:
     return ""
 
 
+def _is_public_media_ready(photo: Photo) -> bool:
+    return bool(photo.status == PhotoUploadStatus.SUCCESSFUL and photo.thumbnail_object_key and (photo.media_type != MediaType.VIDEO.value or photo.playback_object_key))
+
+
 async def _build_public_gallery_response(
     *,
     share_id: UUID,
@@ -128,6 +132,7 @@ async def _build_public_gallery_response(
         order=order,
         status=PhotoUploadStatus.SUCCESSFUL,
     )
+    photos_to_process = [photo for photo in photos_to_process if _is_public_media_ready(photo)]
 
     logger.info(
         "Generating public gallery view for share %s with %s photos (offset=%s, limit=%s, total=%s, sort_by=%s, order=%s)",
@@ -189,11 +194,7 @@ async def _build_public_gallery_response(
         cover_photo_obj = await repo.get_photo_by_id_and_gallery(gallery.cover_photo_id, gallery.id)
 
     # Only SUCCESSFUL media with valid object/thumbnail keys can be a cover
-    if cover_photo_obj and (
-        cover_photo_obj.status != PhotoUploadStatus.SUCCESSFUL
-        or not cover_photo_obj.object_key
-        or not cover_photo_obj.thumbnail_object_key
-    ):
+    if cover_photo_obj and not _is_public_media_ready(cover_photo_obj):
         cover_photo_obj = None
 
     if cover_photo_obj is None:
@@ -208,7 +209,10 @@ async def _build_public_gallery_response(
                 order=order,
                 status=PhotoUploadStatus.SUCCESSFUL,
             )
-            cover_photo_obj = fallback_photos[0] if fallback_photos else None
+            cover_photo_obj = next(
+                (photo for photo in fallback_photos if _is_public_media_ready(photo)),
+                None,
+            )
 
     # Override cover with project-level cover when provided (for project folder views)
     effective_cover: MediaCover | None = None
@@ -306,15 +310,15 @@ async def _build_project_cover(
     if gallery.cover_photo_id:
         cover_photo = await gallery_repo.get_photo_by_id_and_gallery(gallery.cover_photo_id, gallery.id)
 
-    # Exclude non-successful cover photos
-    if cover_photo and cover_photo.status != PhotoUploadStatus.SUCCESSFUL:
+    # Exclude incomplete media, including videos without a web-playable derivative.
+    if cover_photo and not _is_public_media_ready(cover_photo):
         cover_photo = None
 
     if cover_photo is None:
         recent_photos = await gallery_repo.get_photos_by_gallery_id(gallery.id)
-        # Pick first SUCCESSFUL photo
+        # Pick first complete, publicly playable media item.
         cover_photo = next(
-            (p for p in recent_photos if p.status == PhotoUploadStatus.SUCCESSFUL),
+            (photo for photo in recent_photos if _is_public_media_ready(photo)),
             None,
         )
 
@@ -669,8 +673,8 @@ async def get_public_photos_by_ids(
         gallery_id = _require_gallery_share_id(sharelink)
         photos = await repo.get_photos_by_ids_and_gallery(gallery_id, unique_photo_ids)
     photo_map = {photo.id: photo for photo in photos}
-    # Filter to successful media only
-    successful = [photo_map[photo_id] for photo_id in unique_photo_ids if photo_id in photo_map and photo_map[photo_id].status == PhotoUploadStatus.SUCCESSFUL]
+    # Filter to complete media only; a video is public only after its playback derivative exists.
+    successful = [photo_map[photo_id] for photo_id in unique_photo_ids if photo_id in photo_map and _is_public_media_ready(photo_map[photo_id])]
 
     if not successful:
         return []

@@ -117,6 +117,7 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
             return {
               type: 'video',
               sources: [{ src: slide.playback_url, type: 'video/mp4' }],
+              poster: slide.thumbnailSrc,
               width: slide.width,
               height: slide.height,
               alt: slide.alt,

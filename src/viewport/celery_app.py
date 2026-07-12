@@ -47,6 +47,7 @@ def create_celery_app(settings: CelerySettings | None = None) -> Celery:
         task_routes={
             "create_thumbnails_batch": {"queue": "celery"},
             "process_videos_batch": {"queue": "video"},
+            "cleanup_video_temp_files": {"queue": "video"},
         },
     )
 
@@ -63,6 +64,10 @@ def create_celery_app(settings: CelerySettings | None = None) -> Celery:
         "cleanup-orphaned-uploads-every-hour": {
             "task": "cleanup_orphaned_uploads",
             "schedule": crontab(minute=0),  # Every hour at minute 0
+        },
+        "cleanup-video-temp-files-every-hour": {
+            "task": "cleanup_video_temp_files",
+            "schedule": crontab(minute=15),
         },
         "reconcile-successful-uploads-every-10-min": {
             "task": "reconcile_successful_uploads",

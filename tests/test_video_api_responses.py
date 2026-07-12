@@ -356,8 +356,7 @@ class TestCoverRejectsPending:
         db_session: AsyncSession,
         authenticated_client: TestClient,
     ):
-        """PATCH /galleries/{id} with a PENDING photo as cover_photo_id is
-        rejected with 400 (or the cover remains unchanged)."""
+        """PATCH rejects a PENDING photo as the gallery cover."""
         # -- gallery --
         resp = authenticated_client.post("/galleries", json={})
         assert resp.status_code == 201
@@ -379,15 +378,9 @@ class TestCoverRejectsPending:
             json={"cover_photo_id": str(pending.id)},
         )
 
-        # API currently accepts PENDING cover assignment (returns 200) but
-        # the thumbnail URL is null since no SUCCESSFUL photos exist.
-        # TODO: enforce 400 rejection for non-SUCCESSFUL cover candidates.
-        if patch_resp.status_code == 400:
-            return  # rejected — expected future behavior
+        assert patch_resp.status_code == 400
+        assert patch_resp.json()["detail"] == "Cover photo must be a successfully processed media item"
 
-        assert patch_resp.status_code == 200
-        data = patch_resp.json()
-        assert data.get("cover_photo_thumbnail_url") is None, "PENDING photo should not produce a cover thumbnail URL"
 
 # ===================================================================
 # Test 6: zip download uses original extension for video

@@ -22,7 +22,9 @@ vi.mock('../../lib/api', () => ({
 
 type XhrBehavior =
   | { type: 'load'; status?: number; statusText?: string; progress?: number }
-  | { type: 'error' };
+  | { type: 'error' }
+  | { type: 'timeout' }
+  | { type: 'manual'; status?: number };
 
 class MockXMLHttpRequest {
   static sendQueue: XhrBehavior[] = [];
@@ -36,6 +38,9 @@ class MockXMLHttpRequest {
   uploadProgress?: (event: ProgressEvent) => void;
   listeners: Record<string, Array<() => void>> = {};
   sentFile?: File;
+  timeout = 0;
+  aborted = false;
+  pendingBehavior?: Extract<XhrBehavior, { type: 'manual' }>;
 
   upload = {
     addEventListener: (event: string, cb: (event: ProgressEvent) => void) => {
@@ -69,6 +74,19 @@ class MockXMLHttpRequest {
     this.listeners[type] = (this.listeners[type] ?? []).filter((fn) => fn !== cb);
   }
 
+  getResponseHeader(name: string) {
+    return name.toLowerCase() === 'etag'
+      ? `"etag-${MockXMLHttpRequest.instances.indexOf(this) + 1}"`
+      : null;
+  }
+
+  respond() {
+    if (!this.pendingBehavior) return;
+    this.status = this.pendingBehavior.status ?? 200;
+    this.pendingBehavior = undefined;
+    (this.listeners.load ?? []).forEach((cb) => cb());
+  }
+
   send(file: File) {
     this.sentFile = file;
     const behavior = MockXMLHttpRequest.sendQueue.shift() ?? { type: 'load', status: 200 };
@@ -88,10 +106,21 @@ class MockXMLHttpRequest {
       return;
     }
 
+    if (behavior.type === 'timeout') {
+      (this.listeners.timeout ?? []).forEach((cb) => cb());
+      return;
+    }
+
+    if (behavior.type === 'manual') {
+      this.pendingBehavior = behavior;
+      return;
+    }
+
     (this.listeners.error ?? []).forEach((cb) => cb());
   }
 
   abort() {
+    this.aborted = true;
     (this.listeners.abort ?? []).forEach((cb) => cb());
   }
 }
@@ -100,6 +129,37 @@ const createFile = (name: string, size: number, type = 'image/jpeg'): UploadPrep
   const data = new Uint8Array(size);
   const file = new File([data], name, { type });
   return { file, filename: name };
+};
+
+const mockMultipartUploadApi = (filename: string, partCount: number, partSize = 1) => {
+  vi.mocked(api.post).mockImplementation((url) => {
+    if (url === '/galleries/gallery-1/photos/batch-presigned') {
+      return Promise.resolve({
+        data: {
+          items: [
+            {
+              filename,
+              success: true,
+              photo_id: 'video-photo',
+              upload_mode: 'multipart',
+              upload_id: 'video-upload',
+              part_size: partSize,
+              presigned_urls: Array.from(
+                { length: partCount },
+                (_, index) => `https://s3/upload-part-${index + 1}`,
+              ),
+            },
+          ],
+        },
+      } as any);
+    }
+
+    if (url.includes('/multipart/complete') || url.includes('/multipart/abort')) {
+      return Promise.resolve({ data: {} } as any);
+    }
+
+    return Promise.reject(new Error(`Unexpected url: ${url}`));
+  });
 };
 
 describe('photoService', () => {
@@ -122,6 +182,7 @@ describe('photoService', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     useAuthStore.setState({
       user: null,
       tokens: null,
@@ -501,6 +562,52 @@ describe('photoService', () => {
 
     expect(result.successful_uploads).toBe(1);
     expect(MockXMLHttpRequest.instances.length).toBe(2);
+
+    vi.useRealTimers();
+  });
+
+  it('uploads multipart parts in bounded concurrent batches', async () => {
+    const file = createFile('clip.mp4', 5, 'video/mp4');
+    mockMultipartUploadApi(file.filename, 5);
+    MockXMLHttpRequest.sendQueue = Array.from({ length: 5 }, () => ({ type: 'manual' }));
+
+    const uploadPromise = photoService.uploadPhotosPresigned('gallery-1', [file]);
+
+    await vi.waitFor(() => expect(MockXMLHttpRequest.instances).toHaveLength(4));
+    MockXMLHttpRequest.instances.slice(0, 4).forEach((xhr) => xhr.respond());
+    await vi.waitFor(() => expect(MockXMLHttpRequest.instances).toHaveLength(5));
+    MockXMLHttpRequest.instances[4].respond();
+
+    const result = await uploadPromise;
+
+    expect(result.successful_uploads).toBe(1);
+    const completeCall = vi
+      .mocked(api.post)
+      .mock.calls.find(([url]) => String(url).includes('/multipart/complete'));
+    expect(completeCall?.[1]).toEqual({
+      upload_id: 'video-upload',
+      parts: [1, 2, 3, 4, 5].map((partNumber) => ({
+        ETag: `"etag-${partNumber}"`,
+        PartNumber: partNumber,
+      })),
+    });
+  });
+
+  it('times out and retries a stalled multipart part', async () => {
+    vi.useFakeTimers();
+    const file = createFile('retry-clip.mp4', 1, 'video/mp4');
+    mockMultipartUploadApi(file.filename, 1);
+    MockXMLHttpRequest.sendQueue = [{ type: 'timeout' }, { type: 'load', status: 200 }];
+
+    const uploadPromise = photoService.uploadPhotosPresigned('gallery-1', [file]);
+
+    await vi.runAllTimersAsync();
+    const result = await uploadPromise;
+
+    expect(result.successful_uploads).toBe(1);
+    expect(MockXMLHttpRequest.instances).toHaveLength(2);
+    expect(MockXMLHttpRequest.instances[0].timeout).toBe(120_000);
+    expect(MockXMLHttpRequest.instances[0].aborted).toBe(true);
 
     vi.useRealTimers();
   });

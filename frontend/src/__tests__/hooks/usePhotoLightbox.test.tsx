@@ -103,6 +103,25 @@ describe('usePhotoLightbox', () => {
     expect(lightbox.props.open).toBe(false);
   });
 
+  it('uses the thumbnail as the poster for video slides', () => {
+    const { result } = renderHook(() => usePhotoLightbox());
+
+    const lightbox = result.current.renderLightbox([
+      {
+        src: '/video-poster.jpg',
+        thumbnailSrc: '/video-poster.jpg',
+        media_type: 'video',
+        playback_url: '/video.mp4',
+      },
+    ]);
+
+    expect(lightbox.props.slides[0]).toMatchObject({
+      type: 'video',
+      poster: '/video-poster.jpg',
+      sources: [{ src: '/video.mp4', type: 'video/mp4' }],
+    });
+  });
+
   it('handles thumbnails visibility on mobile', () => {
     const { result, rerender } = renderHook(() => usePhotoLightbox());
 

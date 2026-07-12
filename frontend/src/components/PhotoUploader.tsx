@@ -6,6 +6,7 @@ import {
   MAX_UPLOAD_FILE_SIZE_MB,
   MAX_VIDEO_UPLOAD_FILE_SIZE_MB,
   SUPPORTED_UPLOAD_TYPES,
+  VIDEO_EXTENSIONS,
 } from '../constants/upload';
 import type { PhotoUploadResponse } from '../types';
 
@@ -23,6 +24,9 @@ export interface PhotoUploaderHandle {
 }
 
 const ACCEPTED_TYPES = SUPPORTED_UPLOAD_TYPES;
+const PRIMARY_VIDEO_FORMATS = VIDEO_EXTENSIONS.slice(0, 2)
+  .map((extension) => extension.slice(1).toUpperCase())
+  .join(' / ');
 
 export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>(
   (
@@ -176,7 +180,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
             <p className="text-sm font-medium text-muted">
               {files.length > 0
                 ? 'Opening upload confirmation...'
-                : `or click to select files · JPG / PNG · up to ${MAX_UPLOAD_FILE_SIZE_MB} MB`}
+                : `or click to select files · JPG / PNG / ${PRIMARY_VIDEO_FORMATS} · up to ${MAX_UPLOAD_FILE_SIZE_MB} MB (images) / ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB (video)`}
             </p>
           </div>
         )}

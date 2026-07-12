@@ -18,7 +18,9 @@ describe('PhotoUploader', () => {
 
     expect(screen.getByLabelText(/upload photos/i)).toBeInTheDocument();
     expect(screen.getByText('Drag & drop photos here')).toBeInTheDocument();
-    expect(screen.getByText(/or click to select files/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/JPG \/ PNG \/ MP4 \/ MOV.*10 MB \(images\).*500 MB \(video\)/i),
+    ).toBeInTheDocument();
   });
 
   it('should show uploading state when isUploading is true', () => {

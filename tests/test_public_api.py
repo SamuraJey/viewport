@@ -63,6 +63,7 @@ class TestPublicAPI:
         gallery_repo.get_photo_by_id_and_gallery = AsyncMock(
             return_value=SimpleNamespace(object_key=None, thumbnail_object_key=None, status=PhotoUploadStatus.SUCCESSFUL, media_type=MediaType.IMAGE.value),
         )
+        gallery_repo.get_photos_by_gallery_id = AsyncMock(return_value=[])
 
         assert await _build_project_cover(gallery=gallery, gallery_repo=gallery_repo, s3_client=s3_client) is None
 
@@ -486,6 +487,92 @@ class TestPublicAPI:
 
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Project not found"
+
+    @pytest.mark.asyncio
+    async def test_get_public_photos_by_ids_excludes_video_without_playback(self):
+        photo_id = uuid4()
+        photo = SimpleNamespace(
+            id=photo_id,
+            status=PhotoUploadStatus.SUCCESSFUL,
+            media_type=MediaType.VIDEO.value,
+            thumbnail_object_key="poster-key",
+            playback_object_key=None,
+            object_key="original.mov",
+        )
+        repo = MagicMock()
+        repo.get_photos_by_ids_and_gallery = AsyncMock(return_value=[photo])
+        s3_client = MagicMock()
+        s3_client.generate_presigned_urls_batch = AsyncMock()
+        s3_client.generate_presigned_urls_batch_for_dispositions = AsyncMock()
+
+        result = await get_public_photos_by_ids(
+            share_id=uuid4(),
+            response=Response(),
+            photo_ids=[photo_id],
+            repo=repo,
+            sharelink=SimpleNamespace(
+                scope_type=ShareScopeType.GALLERY.value,
+                gallery_id=uuid4(),
+            ),
+            s3_client=s3_client,
+        )
+
+        assert result == []
+        s3_client.generate_presigned_urls_batch.assert_not_awaited()
+        s3_client.generate_presigned_urls_batch_for_dispositions.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_public_gallery_excludes_video_without_playback(self):
+        video = SimpleNamespace(
+            id=uuid4(),
+            status=PhotoUploadStatus.SUCCESSFUL,
+            media_type=MediaType.VIDEO.value,
+            thumbnail_object_key="poster-key",
+            playback_object_key=None,
+            object_key="original.mov",
+            display_name="original.mov",
+            duration_ms=1000,
+            width=1920,
+            height=1080,
+            processing_error=None,
+        )
+        gallery = SimpleNamespace(
+            id=uuid4(),
+            owner=SimpleNamespace(display_name="Jane Doe"),
+            project_id=None,
+            cover_photo_id=None,
+            name="Proof",
+            shooting_date=None,
+            created_at=datetime(2026, 7, 12, 12, 0, 0),
+            public_sort_by="original_filename",
+            public_sort_order="asc",
+        )
+        repo = MagicMock()
+        repo.get_photo_stats_by_gallery = AsyncMock(return_value=GalleryPhotoStats(photo_count=1, total_size_bytes=1024))
+        repo.get_photos_by_gallery_id = AsyncMock(return_value=[video])
+        repo.record_view = AsyncMock()
+        s3_client = MagicMock()
+        s3_client.generate_presigned_urls_batch = AsyncMock(return_value={})
+        s3_client.generate_presigned_urls_batch_for_dispositions = AsyncMock(return_value={})
+
+        payload = await _build_public_gallery_response(
+            share_id=uuid4(),
+            request=SimpleNamespace(base_url="https://example.com/", client=None, headers={}),
+            response=Response(),
+            repo=repo,
+            s3_client=s3_client,
+            sharelink=SimpleNamespace(
+                created_at=datetime(2026, 7, 12, 12, 30, 0),
+                project=None,
+            ),
+            gallery=gallery,
+            limit=None,
+            offset=0,
+        )
+
+        assert payload.photos == []
+        assert payload.cover is None
+        s3_client.generate_presigned_urls_batch_for_dispositions.assert_awaited_once_with({})
 
     @pytest.mark.asyncio
     async def test_download_all_photos_zip_rejects_project_share_without_project_id(self):

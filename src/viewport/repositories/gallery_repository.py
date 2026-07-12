@@ -38,6 +38,19 @@ class GalleryRepository(BaseRepository):
         return filters
 
     @staticmethod
+    def _build_cover_photo_filters(gallery_id: uuid.UUID, photo_id: uuid.UUID):
+        return (
+            Photo.id == photo_id,
+            Photo.gallery_id == gallery_id,
+            Photo.status == PhotoUploadStatus.SUCCESSFUL,
+            Photo.thumbnail_object_key.is_not(None),
+            or_(
+                Photo.media_type != MediaType.VIDEO.value,
+                Photo.playback_object_key.is_not(None),
+            ),
+        )
+
+    @staticmethod
     def _build_gallery_order_clauses(
         sort_by: GalleryListSortBy,
         order: SortOrder,
@@ -253,11 +266,16 @@ class GalleryRepository(BaseRepository):
         if not gallery:
             return None
 
+        active_fields = fields_set or set()
+        if "cover_photo_id" in active_fields and cover_photo_id is not None:
+            valid_cover_photo_id = (await self.db.execute(select(Photo.id).where(*self._build_cover_photo_filters(gallery_id, cover_photo_id)))).scalar_one_or_none()
+            if valid_cover_photo_id is None:
+                return await self._finish_read(None)
+
         updated = False
         if name is not None:
             gallery.name = name
             updated = True
-        active_fields = fields_set or set()
         if shooting_date is not None:
             gallery.shooting_date = shooting_date
             updated = True
@@ -421,21 +439,7 @@ class GalleryRepository(BaseRepository):
                 Gallery.owner_id == owner_id,
                 Gallery.is_deleted.is_(False),
             )
-            .where(
-                select(1)
-                .select_from(Photo)
-                .where(
-                    Photo.id == photo_id,
-                    Photo.gallery_id == gallery_id,
-                    Photo.status == PhotoUploadStatus.SUCCESSFUL,
-                    Photo.thumbnail_object_key.is_not(None),
-                    or_(
-                        Photo.media_type != MediaType.VIDEO.value,
-                        Photo.playback_object_key.is_not(None),
-                    ),
-                )
-                .exists()
-            )
+            .where(select(1).select_from(Photo).where(*self._build_cover_photo_filters(gallery_id, photo_id)).exists())
             .values(cover_photo_id=photo_id)
             .returning(Gallery)
         )
@@ -520,6 +524,7 @@ class GalleryRepository(BaseRepository):
         )
         keys = [key for key in (await self.db.execute(stmt)).scalars().all() if key]
         return await self._finish_read(keys)
+
     async def get_gallery_list_enrichment(
         self,
         gallery_ids: list[uuid.UUID],

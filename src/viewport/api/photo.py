@@ -132,6 +132,7 @@ def _enqueue_media_processing(photo: Photo) -> None:
     else:
         create_thumbnails_batch_task.delay([{"photo_id": str(photo.id), "object_key": photo.object_key}])
 
+
 @router.post("/{gallery_id}/photos/{photo_id}/download")
 async def download_photo(
     gallery_id: UUID,

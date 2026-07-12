@@ -38,6 +38,8 @@ RETRYABLE_S3_ERROR_CODES = {
 
 SELECTION_SUBMIT_NOTIFY_KEY_PREFIX = "selection:submit:notify:"
 SELECTION_SUBMIT_NOTIFY_TTL_SECONDS = 60 * 60 * 24 * 30
+VIDEO_TEMP_DIR = os.environ.get("VIDEO_TEMP_DIR", "/tmp/video_processing")
+VIDEO_TEMP_MAX_AGE_SECONDS = 2 * 60 * 60
 
 
 class ThumbnailTransientError(Exception):
@@ -570,6 +572,7 @@ def _process_single_video(
             logger.warning("Unexpected error updating S3 tag for %s: %s", object_key, tag_general_error)
 
         # --- Download original to temp file ---
+        os.makedirs(VIDEO_TEMP_DIR, exist_ok=True)
         tmp_input_path: str | None = None
         tmp_output_path: str | None = None
         tmp_poster_path: str | None = None
@@ -584,7 +587,7 @@ def _process_single_video(
         transcode_start = datetime.now(UTC)
 
         try:
-            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_input:
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False, dir=VIDEO_TEMP_DIR) as tmp_input:
                 tmp_input_path = tmp_input.name
                 try:
                     s3_client.download_fileobj(bucket, object_key, tmp_input)
@@ -668,7 +671,7 @@ def _process_single_video(
             source_pix_fmt = (video_stream.get("pix_fmt") or "").lower()
             can_remux = source_codec == "h264" and width <= 1280 and source_pix_fmt == "yuv420p" and source_fps <= 60.0
             # --- Transcode with ffmpeg ---
-            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_out:
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False, dir=VIDEO_TEMP_DIR) as tmp_out:
                 tmp_output_path = tmp_out.name
 
             if can_remux:
@@ -740,7 +743,7 @@ def _process_single_video(
 
             # --- Generate poster frame ---
             poster_ts = min(5.0, duration * 0.1)
-            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_poster_file:
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False, dir=VIDEO_TEMP_DIR) as tmp_poster_file:
                 tmp_poster_path = tmp_poster_file.name
 
             poster_cmd = [
@@ -963,6 +966,42 @@ def process_videos_batch_task(self, videos: list[VideoTaskPayload]) -> dict:
         result_tracker.failed,
     )
     return result_tracker.to_dict()
+
+
+@celery_app.task(name="cleanup_video_temp_files")
+def cleanup_video_temp_files_task() -> dict[str, int]:
+    """Delete stale files left by interrupted video-processing workers."""
+    threshold = datetime.now(UTC).timestamp() - VIDEO_TEMP_MAX_AGE_SECONDS
+    deleted_count = 0
+    failed_count = 0
+
+    try:
+        entries = os.scandir(VIDEO_TEMP_DIR)
+    except FileNotFoundError:
+        return {"deleted_count": 0, "failed_count": 0}
+    except OSError as error:
+        logger.warning("Failed to scan video temp directory %s: %s", VIDEO_TEMP_DIR, error)
+        return {"deleted_count": 0, "failed_count": 1}
+
+    with entries:
+        for entry in entries:
+            try:
+                if not entry.is_file(follow_symlinks=False):
+                    continue
+                if entry.stat(follow_symlinks=False).st_mtime >= threshold:
+                    continue
+                os.unlink(entry.path)
+                deleted_count += 1
+            except OSError as error:
+                failed_count += 1
+                logger.warning("Failed to delete stale video temp file %s: %s", entry.path, error)
+
+    logger.info(
+        "Video temp cleanup removed %s stale files (%s failures)",
+        deleted_count,
+        failed_count,
+    )
+    return {"deleted_count": deleted_count, "failed_count": failed_count}
 
 
 @celery_app.task(

@@ -28,6 +28,8 @@ import {
 
 const DOWNLOAD_TARGET_NAME = 'viewport-browser-download';
 const DOWNLOAD_TARGET_ID = 'viewport-browser-download-frame';
+const MULTIPART_UPLOAD_CONCURRENCY = 4;
+const MULTIPART_PART_TIMEOUT_MS = 120_000;
 
 const EMPTY_BATCH_DELETE_RESULT: BatchDeletePhotosResponse = {
   requested_count: 0,
@@ -410,47 +412,59 @@ const uploadMultipartToS3 = async (
   let uploadedBytes = 0;
   const MAX_RETRIES = 5;
 
-  const uploadSinglePart = (url: string, blob: Blob, partSignal?: AbortSignal): Promise<string> => {
-    let resolve!: (value: string | PromiseLike<string>) => void;
-    let reject!: (reason?: unknown) => void;
-    const promise = new Promise<string>((res, rej) => {
-      resolve = res;
-      reject = rej;
-    });
-    const xhr = new XMLHttpRequest();
+  const uploadSinglePart = (url: string, blob: Blob, partSignal?: AbortSignal): Promise<string> =>
+    new Promise<string>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      let settled = false;
 
-    const handleAbort = () => {
-      xhr.abort();
-      reject(new Error('Upload cancelled'));
-    };
+      const cleanup = () => {
+        partSignal?.removeEventListener('abort', handleSignalAbort);
+        xhr.removeEventListener('load', handleLoad);
+        xhr.removeEventListener('error', handleError);
+        xhr.removeEventListener('timeout', handleTimeout);
+        xhr.removeEventListener('abort', handleXhrAbort);
+      };
+      const settle = (error?: Error, etag?: string) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (error) reject(error);
+        else resolve(etag ?? '');
+      };
+      const handleSignalAbort = () => {
+        settle(new Error('Upload cancelled'));
+        xhr.abort();
+      };
+      const handleLoad = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          settle(undefined, xhr.getResponseHeader('ETag') || xhr.getResponseHeader('etag') || '');
+        } else {
+          settle(new Error(`Part upload failed: ${xhr.status}`));
+        }
+      };
+      const handleError = () => settle(new Error('Part upload network error'));
+      const handleTimeout = () => {
+        settle(new Error('Part upload timed out'));
+        xhr.abort();
+      };
+      const handleXhrAbort = () => settle(new Error('Upload cancelled'));
 
-    if (partSignal) {
-      partSignal.addEventListener('abort', handleAbort);
-    }
+      xhr.addEventListener('load', handleLoad);
+      xhr.addEventListener('error', handleError);
+      xhr.addEventListener('timeout', handleTimeout);
+      xhr.addEventListener('abort', handleXhrAbort);
+      partSignal?.addEventListener('abort', handleSignalAbort);
+      xhr.open('PUT', url);
+      xhr.timeout = MULTIPART_PART_TIMEOUT_MS;
 
-    xhr.addEventListener('load', () => {
-      if (partSignal) partSignal.removeEventListener('abort', handleAbort);
-      if (xhr.status >= 200 && xhr.status < 300) {
-        const etag = xhr.getResponseHeader('ETag') || xhr.getResponseHeader('etag') || '';
-        resolve(etag);
-      } else {
-        reject(new Error(`Part upload failed: ${xhr.status}`));
+      if (partSignal?.aborted) {
+        handleSignalAbort();
+        return;
       }
+      xhr.send(blob);
     });
 
-    xhr.addEventListener('error', () => {
-      if (partSignal) partSignal.removeEventListener('abort', handleAbort);
-      reject(new Error('Part upload network error'));
-    });
-
-    xhr.open('PUT', url);
-    xhr.send(blob);
-    return promise;
-  };
-
-  for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
-    if (signal?.aborted) throw new Error('Upload cancelled');
-
+  const uploadPart = async (partNumber: number) => {
     const start = (partNumber - 1) * partSize;
     const end = Math.min(start + partSize, file.size);
     const blob = file.slice(start, end);
@@ -463,12 +477,11 @@ const uploadMultipartToS3 = async (
 
       try {
         const etag = await uploadSinglePart(url, blob, signal);
-        parts.push({ ETag: etag, PartNumber: partNumber });
         uploadedBytes += blob.size;
         if (onProgress) {
           onProgress((uploadedBytes / file.size) * 100);
         }
-        break;
+        return { ETag: etag, PartNumber: partNumber };
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         if (lastError.message === 'Upload cancelled') throw lastError;
@@ -480,9 +493,27 @@ const uploadMultipartToS3 = async (
         throw lastError;
       }
     }
+    throw lastError ?? new Error(`Part upload failed: ${partNumber}`);
+  };
+
+  for (let batchStart = 1; batchStart <= totalParts; batchStart += MULTIPART_UPLOAD_CONCURRENCY) {
+    if (signal?.aborted) throw new Error('Upload cancelled');
+    const batchEnd = Math.min(batchStart + MULTIPART_UPLOAD_CONCURRENCY, totalParts + 1);
+    const batchPartNumbers = Array.from(
+      { length: batchEnd - batchStart },
+      (_, index) => batchStart + index,
+    );
+    const batchResults = await Promise.allSettled(batchPartNumbers.map(uploadPart));
+    const failedPart = batchResults.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    if (failedPart) throw failedPart.reason;
+    parts.push(
+      ...batchResults.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : [])),
+    );
   }
 
-  return parts;
+  return parts.sort((left, right) => left.PartNumber - right.PartNumber);
 };
 
 /**
