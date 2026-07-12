@@ -1,10 +1,6 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { photoService } from '../services/photoService';
-import {
-  MAX_UPLOAD_FILE_SIZE_BYTES,
-  MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES,
-  SUPPORTED_UPLOAD_TYPES,
-} from '../constants/upload';
+import { SUPPORTED_UPLOAD_TYPES, getMaxUploadSizeBytes } from '../constants/upload';
 import { getSafeNameAndExtension } from '../lib/filenameUtils';
 import type {
   PhotoUploadResponse,
@@ -73,15 +69,10 @@ export const usePhotoUpload = (
 
   const { totalSize, hasLargeFiles, validUploadCount, hasValidFiles, hasInvalidTypes } =
     useMemo(() => {
-      const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-      const hasLargeFiles = files.some((file) => {
-        if (file.type.startsWith('video/')) return file.size > MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES;
-        return file.size > MAX_UPLOAD_FILE_SIZE_BYTES;
-      });
+      const hasLargeFiles = files.some((file) => file.size > getMaxUploadSizeBytes(file));
       const validFiles = files.filter((file) => {
         if (!SUPPORTED_TYPES.includes(file.type)) return false;
-        if (file.type.startsWith('video/')) return file.size <= MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES;
-        return file.size <= MAX_UPLOAD_FILE_SIZE_BYTES;
+        return file.size <= getMaxUploadSizeBytes(file);
       });
       const validUploadCount = validFiles.length;
       const hasValidFiles = validUploadCount > 0;

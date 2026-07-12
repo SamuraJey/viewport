@@ -289,7 +289,7 @@ class ShareLinkRepository(BaseRepository):
             ),
             else_=Photo.object_key,
         ).label("cover_image_key")
-        coverable_statuses = (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.PROCESSING)
+        coverable_statuses = (PhotoUploadStatus.SUCCESSFUL,)
 
         gallery_ranked = (
             select(

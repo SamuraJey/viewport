@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { PublicGridDensity, PublicGridLayout } from '../../hooks/usePublicGalleryGrid';
 import { getAccessiblePhotoName } from '../../lib/accessibility';
+import { formatDuration } from '../../lib/utils';
 import type { PublicPhoto, SelectionSession } from '../../types';
 import { LazyImage } from '../LazyImage';
 import { AppPopover } from '../ui';
@@ -55,16 +56,6 @@ interface PublicGalleryPhotoSectionProps {
   showGridControls?: boolean;
 }
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
-
-const formatDuration = (ms: number): string => {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  if (minutes > 0) {
-    return `${minutes}:${String(seconds).padStart(2, '0')}`;
-  }
-  return `0:${String(seconds).padStart(2, '0')}`;
-};
 
 interface PhotoCommentPanelProps {
   photoId: string;

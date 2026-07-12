@@ -101,6 +101,12 @@ export const PublicGalleryHero = ({
   const isVideo = cover?.media_type === 'video' && Boolean(cover?.playback_url);
   const shouldAutoplayVideo = isVideo && !prefersReducedMotion && !saveData && !videoAutoplayFailed;
 
+  // Reset videoAutoplayFailed when the cover identity changes so a failed
+  // autoplay only disables the current video and does not carry over.
+  useEffect(() => {
+    setVideoAutoplayFailed(false);
+  }, [cover?.playback_url]);
+
   const emptyTitleSizeClass = getTitleSizeClass(titleLength, 'pg-hero__empty-title', {
     medium: 46,
     long: 80,
@@ -306,6 +312,7 @@ export const PublicGalleryHero = ({
               loop
               playsInline
               preload="metadata"
+              aria-hidden="true"
               onLoadedData={handleVideoLoaded}
               onError={handleVideoError}
               className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${isHeroFullLoaded && !videoAutoplayFailed ? 'opacity-100' : 'opacity-0'}`}

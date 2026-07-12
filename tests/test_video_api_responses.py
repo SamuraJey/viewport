@@ -156,8 +156,8 @@ class TestProjectPhotosVideo:
 
         # -- create gallery inside project --
         gal_resp = authenticated_client.post(
-            "/galleries",
-            json={"name": "Vid Gallery", "project_id": project_id},
+            f"/projects/{project_id}/galleries",
+            json={"name": "Vid Gallery"},
         )
         assert gal_resp.status_code == 201
         gallery_id = uuid.UUID(gal_resp.json()["id"])
@@ -379,16 +379,15 @@ class TestCoverRejectsPending:
             json={"cover_photo_id": str(pending.id)},
         )
 
-        # Either the API rejects it outright, or the effective cover
-        # falls back (thumbnail URL is None since no SUCCESSFUL photos exist).
+        # API currently accepts PENDING cover assignment (returns 200) but
+        # the thumbnail URL is null since no SUCCESSFUL photos exist.
+        # TODO: enforce 400 rejection for non-SUCCESSFUL cover candidates.
         if patch_resp.status_code == 400:
-            return  # rejected — expected
+            return  # rejected — expected future behavior
 
         assert patch_resp.status_code == 200
         data = patch_resp.json()
-        # PENDING photos should never serve as effective covers.
         assert data.get("cover_photo_thumbnail_url") is None, "PENDING photo should not produce a cover thumbnail URL"
-
 
 # ===================================================================
 # Test 6: zip download uses original extension for video

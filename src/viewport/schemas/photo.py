@@ -71,10 +71,9 @@ def _build_photo_response_payload(
     include_gallery_id: bool,
 ) -> dict[str, Any]:
     media_type: MediaType = cast(MediaType, photo.media_type)
-
     if media_type == "video":
         playback_key = photo.playback_object_key
-        url = playback_url_map.get(playback_key) if playback_key else full_url_map.get(photo.object_key, "")
+        url = playback_url_map.get(playback_key, "") if playback_key else full_url_map.get(photo.object_key, "")
         playback_url = url if playback_key else None
     else:
         url = full_url_map.get(photo.object_key, "")

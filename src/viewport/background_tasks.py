@@ -254,6 +254,7 @@ def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> di
                 Photo.playback_object_key,
                 Photo.file_size,
                 Photo.status,
+                Photo.media_type,
             ).where(Photo.id == photo_uuid, Photo.gallery_id == gallery_uuid),
         ).one_or_none()
 
@@ -261,7 +262,7 @@ def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> di
             logger.warning("Photo %s not found in gallery %s", photo_id, gallery_id)
             return {"deleted": False, "reason": "Photo not found"}
 
-        object_key, thumbnail_object_key, playback_object_key, file_size, status = photo
+        object_key, thumbnail_object_key, playback_object_key, file_size, status, media_type = photo
 
     s3_client = get_s3_client()
     bucket = get_s3_settings().bucket
@@ -271,7 +272,7 @@ def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> di
     except ClientError as error:
         logger.warning("Failed to delete photo object %s: %s", object_key, error)
         if error.response.get("Error", {}).get("Code") != "NoSuchKey":
-            report_cleanup_failure("image" if status != PhotoUploadStatus.SUCCESSFUL else "video")
+            report_cleanup_failure(media_type)
             raise
 
     if thumbnail_object_key and thumbnail_object_key != object_key:
@@ -453,7 +454,7 @@ def _ffprobe_streams(filepath: str) -> dict[str, Any]:
             "-select_streams",
             "v:0",
             "-show_entries",
-            "stream=codec_type,codec_name,width,height,duration,nb_streams,r_frame_rate,pix_fmt",
+            "stream=codec_type,codec_name,width,height,duration,r_frame_rate,pix_fmt:format=nb_streams",
             "-of",
             "json",
             filepath,
@@ -932,6 +933,7 @@ def _batch_update_video_results(results: list[dict], result_tracker: BatchTaskRe
     retry_backoff=True,
     retry_backoff_max=120,
     retry_jitter=True,
+    soft_time_limit=2400,  # 40 min — ffmpeg timeout is 1800s, leaves 600s cleanup headroom
 )
 def process_videos_batch_task(self, videos: list[VideoTaskPayload]) -> dict:
     """Background task to process videos: validate, transcode, and generate posters."""

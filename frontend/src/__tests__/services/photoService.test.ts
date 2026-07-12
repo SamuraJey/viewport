@@ -455,11 +455,10 @@ describe('photoService', () => {
     });
 
     // Empty files are rejected client-side before any S3 upload or backend confirm.
-    expect(api.post).not.toHaveBeenCalledWith(
-      '/galleries/gallery-1/photos/batch-confirm',
-      expect.anything(),
-      expect.anything(),
-    );
+    const confirmCalls = vi
+      .mocked(api.post)
+      .mock.calls.filter((call) => call[0] === '/galleries/gallery-1/photos/batch-confirm');
+    expect(confirmCalls).toHaveLength(0);
   });
 
   it('retries transient network errors before succeeding', async () => {

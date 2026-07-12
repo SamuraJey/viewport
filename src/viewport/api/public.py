@@ -388,6 +388,7 @@ async def _build_public_project_response(
         gallery_ids,
         cover_photo_ids,
         recent_limit=1,
+        status=PhotoUploadStatus.SUCCESSFUL,
     )
 
     thumbnail_keys: list[str] = list(cover_thumbnail_by_photo_id.values())

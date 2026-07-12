@@ -2,7 +2,7 @@ import { useState, useRef, memo, useCallback, useMemo } from 'react';
 import { CheckCircle2, Images, Upload, X } from 'lucide-react';
 import type { PhotoUploadResponse } from '../types';
 import { usePhotoUpload } from '../hooks/usePhotoUpload';
-import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES } from '../constants/upload';
+import { getMaxUploadSizeBytes } from '../constants/upload';
 import { UploadSelectionContent } from './upload-confirm/UploadSelectionContent';
 import { UploadProgressContent } from './upload-confirm/UploadProgressContent';
 import { UploadResultContent } from './upload-confirm/UploadResultContent';
@@ -54,12 +54,7 @@ export const PhotoUploadConfirmModal = memo(
     const uploadButtonRef = useRef<HTMLButtonElement>(null);
     const isCancelledRef = useRef(false);
     const allLargeFiles = useMemo(
-      () =>
-        files.length > 0 &&
-        files.every((f) => {
-          if (f.type.startsWith('video/')) return f.size > MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES;
-          return f.size > MAX_UPLOAD_FILE_SIZE_BYTES;
-        }),
+      () => files.length > 0 && files.every((f) => f.size > getMaxUploadSizeBytes(f)),
       [files],
     );
 

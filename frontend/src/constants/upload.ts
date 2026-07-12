@@ -27,3 +27,7 @@ export const VIDEO_EXTENSIONS = [
   '.3gp',
 ];
 export const SUPPORTED_UPLOAD_TYPES = [...SUPPORTED_IMAGE_TYPES, ...SUPPORTED_VIDEO_TYPES];
+
+/** Return the maximum upload size in bytes for a given file based on its type. */
+export const getMaxUploadSizeBytes = (file: { type: string }): number =>
+  file.type.startsWith('video/') ? MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES : MAX_UPLOAD_FILE_SIZE_BYTES;

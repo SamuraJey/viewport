@@ -37,11 +37,11 @@
   - Public share access dispatches by scope: gallery links return gallery photos, project links return a project payload whose first listed gallery becomes the default entry tab, inactive links must remain non-disclosing (`404`), and expired links return `410` so frontend can render a dedicated expiration state.
 - Media upload performance pattern:
   - **Two-step upload** for images and multipart upload for videos:
-    1. `/batch-presigned`: Creates `PENDING` DB records. Images receive a single presigned PUT URL; videos receive `upload_mode: multipart`, `upload_id`, `part_size`, and presigned URLs per part.
+    1. `/batch-presigned`: Creates `PENDING` DB records. Images receive a single presigned PUT URL; videos receive `upload_mode: multipart`, `upload_id`, `part_size`, and presigned part PUT URLs.
     2. Images are confirmed via `/batch-confirm`, which applies the `upload-status: confirmed` S3 tag and transitions records to `PROCESSING`.
     3. Videos are completed via `/galleries/{gallery_id}/photos/{photo_id}/multipart/complete` with collected ETags; abort via `/multipart/abort`.
   - **Confirmation logic**: confirmed uploads transition from `PENDING` to `PROCESSING`, finalize reserved quota, and enqueue the appropriate background task (`create_thumbnails_batch` for images, `process_videos_batch` for videos). Workers move records to `SUCCESSFUL` on success or to `FAILED` on permanent errors, releasing quota and removing invalid/partial S3 objects.
-  - **Presigned URLs**: Avoid generating presigned URLs during batch upload; fetch URLs separately via `/photos/urls` endpoints.
+  - **Download URLs**: Presigned download URLs are generated on-demand by the listing endpoints (gallery detail, public share, project photos) and the single-photo download endpoints (`POST /galleries/{gallery_id}/photos/{photo_id}/download` for private, `GET /s/{share_id}/photos/{photo_id}/download` for public). Avoid generating download presigned URLs at upload time — fetch them from listing endpoints when needed.
   - **Garbage collection**: A Celery scheduled task (`cleanup_orphaned_uploads`) runs hourly to delete `PENDING` photo records older than 30 minutes and their corresponding S3 objects to prevent storage leaks from unconfirmed uploads.
   - **Gallery deletion**: `galleries.is_deleted` is a soft-delete flag. Deleting a gallery hides it from queries and enqueues a background task to purge S3 objects and hard-delete DB rows.
   - **Storage quotas**: User storage is tracked on `users` (`storage_quota`, `storage_used`, `storage_reserved`). Reserve bytes on `/batch-presigned`, finalize on confirm, and release on failures/orphan cleanup; only admins edit quota via SQLAdmin.

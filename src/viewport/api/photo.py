@@ -1,6 +1,7 @@
 import logging
 from uuid import UUID, uuid4
 
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -126,11 +127,10 @@ def _photo_needs_thumbnail_processing(photo: Photo) -> bool:
 def _enqueue_media_processing(photo: Photo) -> None:
     """Enqueue the appropriate background task based on media type."""
     if photo.media_type == MediaType.VIDEO.value:
-        VIDEO_QUEUE_DEPTH.inc()
         process_videos_batch_task.delay([{"photo_id": str(photo.id), "object_key": photo.object_key}])
+        VIDEO_QUEUE_DEPTH.inc()
     else:
         create_thumbnails_batch_task.delay([{"photo_id": str(photo.id), "object_key": photo.object_key}])
-
 
 @router.post("/{gallery_id}/photos/{photo_id}/download")
 async def download_photo(
@@ -275,8 +275,7 @@ async def batch_presigned_uploads(
                         content_length=file_size,
                         expires_in=900,
                     )
-                except Exception as exc:
-                    failed_presign_bytes += file_size
+                except (ClientError, BotoCoreError) as exc:
                     logger.warning("Failed to generate presigned PUT for %s: %s", object_key, exc)
                     items.append(
                         BatchPresignedUploadItem(
@@ -322,7 +321,7 @@ async def batch_presigned_uploads(
                 # --- Video: multipart upload ---
                 try:
                     upload_id: str = await s3_client.create_multipart_upload(object_key, content_type)
-                except Exception as exc:
+                except (ClientError, BotoCoreError) as exc:
                     failed_presign_bytes += file_size
                     logger.warning("Failed to create multipart upload for %s: %s", object_key, exc)
                     items.append(
@@ -349,7 +348,7 @@ async def batch_presigned_uploads(
                             expires_in=900,
                         )
                         presigned_urls.append(url)
-                    except Exception as exc:
+                    except (ClientError, BotoCoreError) as exc:
                         failed_presign_bytes += file_size
                         logger.warning(
                             "Failed to generate presigned upload_part URL for %s part %s: %s",
@@ -418,6 +417,13 @@ async def batch_presigned_uploads(
         else:
             reserved_bytes_to_release_on_error = 0
     except Exception:
+        # Abort any created multipart uploads before re-raising
+        for payload in photos_payload:
+            if (mp_upload_id := payload.get("multipart_upload_id")) and (mp_object_key := payload.get("object_key")):
+                try:
+                    await s3_client.abort_multipart_upload(mp_object_key, mp_upload_id)
+                except Exception:
+                    logger.warning("Failed to abort multipart upload %s for %s during batch insert cleanup", mp_upload_id, mp_object_key)
         if reserved_bytes_to_release_on_error > 0:
             await user_repo.release_reserved_storage(current_user.id, reserved_bytes_to_release_on_error)
         raise
@@ -642,26 +648,25 @@ async def complete_multipart_upload(
 
     if not photo.multipart_upload_id or photo.multipart_upload_id != request.upload_id:
         raise HTTPException(status_code=400, detail="Upload ID mismatch")
-
     # 3. Complete the multipart upload on S3
     try:
         await s3_client.complete_multipart_upload(photo.object_key, request.upload_id, request.parts)
     except Exception as exc:
         logger.warning("Failed to complete multipart upload for %s: %s", photo.object_key, exc)
         raise HTTPException(status_code=502, detail="Failed to complete multipart upload on S3") from exc
-
-    # 4. Update photo status and clear multipart state
+    # 4. Update photo status and clear multipart state (in memory, not yet committed)
     photo.status = PhotoUploadStatus.PROCESSING
     photo.multipart_upload_id = None
 
-    # 5. Finalize quota (move reserved -> used)
+    # 5. Finalize quota (move reserved -> used) — in memory, not yet committed
     await user_repo.finalize_reserved_storage(current_user.id, photo.file_size, commit=False)
-    await repo.db.commit()
 
-    # 6. Enqueue video processing
+    # 6. Enqueue video processing before committing — if enqueue fails the
+    #    transaction rolls back and the photo stays PENDING for retry.
     try:
         await run_in_threadpool(_enqueue_media_processing, photo)
     except Exception as exc:
+        await repo.db.rollback()
         logger.warning(
             "Failed to enqueue video processing task for %s: %s",
             photo.id,
@@ -670,6 +675,8 @@ async def complete_multipart_upload(
             exc_info=True,
         )
         raise HTTPException(status_code=503, detail="Failed to enqueue video processing task") from exc
+
+    await repo.db.commit()
 
     return BatchConfirmUploadResponse(confirmed_count=1, failed_count=0)
 
@@ -704,7 +711,7 @@ async def abort_multipart_upload(
     # 3. Abort the multipart upload on S3
     try:
         await s3_client.abort_multipart_upload(photo.object_key, request.upload_id)
-    except Exception as exc:
+    except (ClientError, BotoCoreError) as exc:
         logger.warning("Failed to abort multipart upload for %s: %s", photo.object_key, exc)
         raise HTTPException(status_code=502, detail="Failed to abort multipart upload on S3") from exc
 

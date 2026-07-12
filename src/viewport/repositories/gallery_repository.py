@@ -7,7 +7,7 @@ from sqlalchemy import asc, desc, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from viewport.filename_utils import sanitize_filename, split_name_and_ext
-from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
+from viewport.models.gallery import Gallery, MediaType, Photo, PhotoUploadStatus, ProjectVisibility
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.repositories.base_repository import BaseRepository
 from viewport.repositories.gallery_stats import GalleryPhotoStats, gallery_photo_stats_stmt, gallery_photo_total_size_stmt
@@ -413,7 +413,7 @@ class GalleryRepository(BaseRepository):
 
     async def set_cover_photo(self, gallery_id: uuid.UUID, photo_id: uuid.UUID, owner_id: uuid.UUID) -> Gallery | None:
         # Perform single UPDATE with RETURNING to avoid loading objects into memory.
-        # Only successful media with a thumbnail can be set as cover.
+        # Only successful media with a valid thumbnail and (for videos) playback key can be set as cover.
         stmt = (
             update(Gallery)
             .where(
@@ -429,6 +429,10 @@ class GalleryRepository(BaseRepository):
                     Photo.gallery_id == gallery_id,
                     Photo.status == PhotoUploadStatus.SUCCESSFUL,
                     Photo.thumbnail_object_key.is_not(None),
+                    or_(
+                        Photo.media_type != MediaType.VIDEO.value,
+                        Photo.playback_object_key.is_not(None),
+                    ),
                 )
                 .exists()
             )
@@ -516,12 +520,13 @@ class GalleryRepository(BaseRepository):
         )
         keys = [key for key in (await self.db.execute(stmt)).scalars().all() if key]
         return await self._finish_read(keys)
-
     async def get_gallery_list_enrichment(
         self,
         gallery_ids: list[uuid.UUID],
         cover_photo_ids: list[uuid.UUID],
         recent_limit: int = 3,
+        *,
+        status: PhotoUploadStatus | None = None,
     ) -> tuple[
         dict[uuid.UUID, int],
         dict[uuid.UUID, int],
@@ -529,9 +534,21 @@ class GalleryRepository(BaseRepository):
         dict[uuid.UUID, str],
         dict[uuid.UUID, list[str]],
     ]:
-        """Return batched enrichment data used by gallery list responses."""
+        """Return batched enrichment data used by gallery list responses.
+
+        When `status` is provided, photo counts and total sizes are filtered
+        to that status (e.g. SUCCESSFUL for public project views). Owner
+        statistics should omit the filter.
+        """
         if not gallery_ids:
             return await self._finish_read(({}, {}, set(), {}, {}))
+
+        photo_stats_conditions: list = [
+            Photo.gallery_id.in_(gallery_ids),
+            Gallery.is_deleted.is_(False),
+        ]
+        if status is not None:
+            photo_stats_conditions.append(Photo.status == status)
 
         photo_stats_stmt = (
             select(
@@ -540,10 +557,7 @@ class GalleryRepository(BaseRepository):
                 func.coalesce(func.sum(Photo.file_size), 0),
             )
             .join(Photo.gallery)
-            .where(
-                Photo.gallery_id.in_(gallery_ids),
-                Gallery.is_deleted.is_(False),
-            )
+            .where(*photo_stats_conditions)
             .group_by(Photo.gallery_id)
         )
         photo_stats_rows = (await self.db.execute(photo_stats_stmt)).all()

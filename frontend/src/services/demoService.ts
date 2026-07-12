@@ -3026,6 +3026,8 @@ class DemoServiceStore {
       filename: existing.filename,
       url: existing.url,
       thumbnail_url: existing.thumbnail_url,
+      playback_url: existing.playback_url,
+      duration_ms: existing.duration_ms,
       file_size: existing.file_size,
       status: existing.status,
       uploaded_at: existing.uploaded_at,
@@ -3055,12 +3057,20 @@ class DemoServiceStore {
       await delay(130);
       loaded += item.file.size;
 
+      const isVideo = item.file.type.startsWith('video/');
+      const seed = `${item.filename}-${makeDemoId()}`;
       const created: GalleryPhoto = {
         id: makeDemoId(),
-        media_type: 'image',
+        media_type: isVideo ? 'video' : 'image',
         filename: item.filename,
-        url: `https://picsum.photos/seed/${encodeURIComponent(`${item.filename}-${makeDemoId()}`)}/1600/1100`,
-        thumbnail_url: `https://picsum.photos/seed/${encodeURIComponent(`${item.filename}-${makeDemoId()}`)}/700/500`,
+        url: isVideo
+          ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+          : `https://picsum.photos/seed/${encodeURIComponent(seed)}/1600/1100`,
+        thumbnail_url: `https://picsum.photos/seed/${encodeURIComponent(seed)}/700/500`,
+        playback_url: isVideo
+          ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+          : undefined,
+        duration_ms: isVideo ? 15000 : undefined,
         file_size: item.file.size,
         status: 'successful',
         uploaded_at: nowIso(),
