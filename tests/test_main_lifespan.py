@@ -62,6 +62,7 @@ async def test_lifespan_logs_s3_shutdown_error(main_module):
     s3_close_error = RuntimeError("s3 close failed")
     mock_s3_client = MagicMock()
     mock_s3_client.close = AsyncMock(side_effect=s3_close_error)
+    mock_s3_client.configure_bucket_cors = AsyncMock()
 
     mock_redis_service = MagicMock()
     mock_redis_service.is_available = True
@@ -87,6 +88,7 @@ async def test_lifespan_logs_redis_shutdown_error(main_module):
     redis_close_error = RuntimeError("redis close failed")
     mock_s3_client = MagicMock()
     mock_s3_client.close = AsyncMock()
+    mock_s3_client.configure_bucket_cors = AsyncMock()
 
     mock_redis_service = MagicMock()
     mock_redis_service.is_available = True

@@ -69,6 +69,7 @@ export const usePhotoUpload = (
 
   const { totalSize, hasLargeFiles, validUploadCount, hasValidFiles, hasInvalidTypes } =
     useMemo(() => {
+      const totalSize = files.reduce((sum, file) => sum + file.size, 0);
       const hasLargeFiles = files.some((file) => file.size > getMaxUploadSizeBytes(file));
       const validFiles = files.filter((file) => {
         if (!SUPPORTED_TYPES.includes(file.type)) return false;

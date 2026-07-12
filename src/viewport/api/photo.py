@@ -276,7 +276,8 @@ async def batch_presigned_uploads(
                         content_length=file_size,
                         expires_in=900,
                     )
-                except (ClientError, BotoCoreError) as exc:
+                except Exception as exc:
+                    failed_presign_bytes += file_size
                     logger.warning("Failed to generate presigned PUT for %s: %s", object_key, exc)
                     items.append(
                         BatchPresignedUploadItem(
@@ -322,7 +323,7 @@ async def batch_presigned_uploads(
                 # --- Video: multipart upload ---
                 try:
                     upload_id: str = await s3_client.create_multipart_upload(object_key, content_type)
-                except (ClientError, BotoCoreError) as exc:
+                except Exception as exc:
                     failed_presign_bytes += file_size
                     logger.warning("Failed to create multipart upload for %s: %s", object_key, exc)
                     items.append(
@@ -349,7 +350,7 @@ async def batch_presigned_uploads(
                             expires_in=900,
                         )
                         presigned_urls.append(url)
-                    except (ClientError, BotoCoreError) as exc:
+                    except Exception as exc:
                         failed_presign_bytes += file_size
                         logger.warning(
                             "Failed to generate presigned upload_part URL for %s part %s: %s",
