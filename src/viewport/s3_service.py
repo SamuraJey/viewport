@@ -971,6 +971,53 @@ class AsyncS3Client:
             )
             raise RuntimeError(f"Failed to generate presigned upload_part URL for {object_key} part {part_number}") from e
 
+    def _generate_presigned_upload_parts_sync(
+        self,
+        object_key: str,
+        upload_id: str,
+        part_sizes: list[int],
+        expires_in: int = 900,
+    ) -> list[str]:
+        """Generate presigned upload_part URLs for all parts in one sync batch.
+
+        Runs on a worker thread via generate_presigned_upload_parts().
+        Returns list of presigned URLs in part-number order.
+        Raises RuntimeError if any part URL generation fails.
+        """
+        urls: list[str] = []
+        for part_number, part_size in enumerate(part_sizes, start=1):
+            urls.append(
+                self.generate_presigned_upload_part(
+                    object_key=object_key,
+                    upload_id=upload_id,
+                    part_number=part_number,
+                    part_size=part_size,
+                    expires_in=expires_in,
+                )
+            )
+        return urls
+
+    async def generate_presigned_upload_parts(
+        self,
+        object_key: str,
+        upload_id: str,
+        part_sizes: list[int],
+        expires_in: int = 900,
+    ) -> list[str]:
+        """Offload part URL signing to a thread to avoid blocking the async event loop.
+
+        Matches the batching pattern used by generate_presigned_urls_batch().
+        """
+        if not part_sizes:
+            return []
+        return await asyncio.to_thread(
+            self._generate_presigned_upload_parts_sync,
+            object_key,
+            upload_id,
+            part_sizes,
+            expires_in,
+        )
+
     async def complete_multipart_upload(self, object_key: str, upload_id: str, parts: list[dict[str, Any]]) -> dict[str, Any]:
         """Complete a multipart upload by assembling uploaded parts.
 

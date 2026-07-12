@@ -38,7 +38,7 @@ def _make_mock_s3_client(
     mock.create_multipart_upload = AsyncMock(return_value=upload_id)
     if part_urls is None:
         part_urls = [f"https://s3.example.com/part/{i}" for i in range(4)]
-    mock.generate_presigned_upload_part = MagicMock(side_effect=part_urls)
+    mock.generate_presigned_upload_parts = AsyncMock(return_value=part_urls)
 
     if presigned_put is None:
         presigned_put = {"url": "https://s3.example.com/put/photo.jpg", "headers": {}}
@@ -91,10 +91,7 @@ class TestBatchPresignedVideo:
         """Posting a video returns upload_mode='multipart' with upload_id, part_size, and presigned_urls."""
         gallery_id, mock_s3 = video_gallery
         mock_s3.create_multipart_upload.return_value = "vid-up-1"
-        mock_s3.generate_presigned_upload_part.side_effect = [
-            "http://s3.example.com/part/1",
-            "http://s3.example.com/part/2",
-        ]
+        mock_s3.generate_presigned_upload_parts = AsyncMock(return_value=["http://s3.example.com/part/1", "http://s3.example.com/part/2"])
 
         payload = {"files": [_video_file("clip.mp4", 32 * 1024 * 1024)]}
         resp = authenticated_client.post(f"/galleries/{gallery_id}/photos/batch-presigned", json=payload)
@@ -126,8 +123,7 @@ class TestBatchPresignedVideo:
         """Image goes single, video goes multipart in the same batch."""
         gallery_id, mock_s3 = video_gallery
         mock_s3.create_multipart_upload.return_value = "mix-upload"
-        mock_s3.generate_presigned_upload_part.side_effect = ["http://s3.example.com/part/1"]
-
+        mock_s3.generate_presigned_upload_parts = AsyncMock(return_value=["http://s3.example.com/part/1"])
         payload = {
             "files": [
                 _image_file("still.jpg", 2 * 1024 * 1024),
@@ -190,10 +186,7 @@ class TestMultipartComplete:
         gallery_id, mock_s3 = video_gallery
 
         mock_s3.create_multipart_upload.return_value = "complete-up"
-        mock_s3.generate_presigned_upload_part.side_effect = [
-            "http://s3.example.com/p1",
-            "http://s3.example.com/p2",
-        ]
+        mock_s3.generate_presigned_upload_parts = AsyncMock(return_value=["http://s3.example.com/p1", "http://s3.example.com/p2"])
 
         # Create the photo via batch-presigned (video)
         payload = {"files": [_video_file("final.mp4", 32 * 1024 * 1024)]}
@@ -237,8 +230,7 @@ class TestMultipartComplete:
 
         mock_s3.complete_multipart_upload = AsyncMock(side_effect=Exception("ETag mismatch"))
         mock_s3.create_multipart_upload.return_value = "bad-etag-up"
-        mock_s3.generate_presigned_upload_part.side_effect = ["http://s3.example.com/p1"]
-
+        mock_s3.generate_presigned_upload_parts = AsyncMock(return_value=["http://s3.example.com/p1"])
         # Create photo
         payload = {"files": [_video_file("bad.mp4", 16 * 1024 * 1024)]}
         resp = authenticated_client.post(f"/galleries/{gallery_id}/photos/batch-presigned", json=payload)
@@ -276,7 +268,7 @@ class TestMultipartAbort:
         gallery_id, mock_s3 = video_gallery
 
         mock_s3.create_multipart_upload.return_value = "abort-up"
-        mock_s3.generate_presigned_upload_part.side_effect = ["http://s3.example.com/p1"]
+        mock_s3.generate_presigned_upload_parts = AsyncMock(return_value=["http://s3.example.com/p1"])
 
         # Create photo (16 MB → 1 part)
         payload = {"files": [_video_file("forget.mp4", 16 * 1024 * 1024)]}
@@ -303,7 +295,7 @@ class TestMultipartAbort:
         """Abort with wrong upload_id returns 400 Upload ID mismatch."""
         gallery_id, mock_s3 = video_gallery
 
-        mock_s3.generate_presigned_upload_part.side_effect = ["http://s3.example.com/p1"]
+        mock_s3.generate_presigned_upload_parts = AsyncMock(return_value=["http://s3.example.com/p1"])
 
         payload = {"files": [_video_file("keep.mp4", 16 * 1024 * 1024)]}
         resp = authenticated_client.post(f"/galleries/{gallery_id}/photos/batch-presigned", json=payload)
@@ -329,10 +321,7 @@ class TestBatchConfirmRejectsVideos:
         """Confirming a video via batch-confirm marks it FAILED and returns failed_count=1."""
         gallery_id, mock_s3 = video_gallery
 
-        mock_s3.generate_presigned_upload_part.side_effect = [
-            "http://s3.example.com/p1",
-            "http://s3.example.com/p2",
-        ]
+        mock_s3.generate_presigned_upload_parts = AsyncMock(return_value=["http://s3.example.com/p1", "http://s3.example.com/p2"])
 
         # Create a video photo
         payload = {"files": [_video_file("nope.mp4", 32 * 1024 * 1024)]}

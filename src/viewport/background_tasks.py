@@ -959,11 +959,34 @@ def process_videos_batch_task(self, videos: list[VideoTaskPayload]) -> dict:
         for video_data in videos:
             _process_single_video(video_data, s3_client, bucket, existing_ids, result_tracker)
     except SoftTimeLimitExceeded:
-        logger.warning("Video batch soft time limit exceeded; marking unprocessed videos as FAILED")
-        processed_ids = {r["photo_id"] for r in result_tracker.results}
-        for video_data in videos:
-            if video_data["photo_id"] not in processed_ids:
-                result_tracker.add_error(video_data["photo_id"], "Video processing timed out")
+        logger.warning("Video batch soft time limit exceeded; persisting completed, requeuing remainder")
+
+        # Persist results for videos that completed before the limit hit
+        completed_results = list(result_tracker.results)
+        if completed_results:
+            _batch_update_video_results(completed_results, result_tracker)
+
+        # Identify unfinished payloads (not tracked as success/error/skipped)
+        processed_ids = {r["photo_id"] for r in completed_results}
+        unfinished = [v for v in videos if v["photo_id"] not in processed_ids]
+
+        if unfinished and self.request.retries < self.max_retries:
+            logger.info(
+                "Requeuing %d unfinished videos (retry %d/%d)",
+                len(unfinished),
+                self.request.retries + 1,
+                self.max_retries,
+            )
+            raise self.retry(args=[unfinished]) from None
+
+        if unfinished:
+            logger.warning(
+                "Max retries (%d) exhausted; marking %d videos as FAILED",
+                self.max_retries,
+                len(unfinished),
+            )
+            for v in unfinished:
+                result_tracker.add_error(v["photo_id"], "Video processing timed out after max retries")
 
     if result_tracker.results:
         _batch_update_video_results(result_tracker.results, result_tracker)

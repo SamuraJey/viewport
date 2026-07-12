@@ -7,7 +7,7 @@ from sqlalchemy import String, and_, case, cast, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload
 
-from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
+from viewport.models.gallery import Gallery, MediaType, Photo, PhotoUploadStatus, ProjectVisibility
 from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_analytics import ShareLinkDailyStat, ShareLinkDailyVisitor
@@ -282,14 +282,24 @@ class ShareLinkRepository(BaseRepository):
         cover_image_key = case(
             (
                 and_(
-                    Photo.status == PhotoUploadStatus.SUCCESSFUL,
+                    Photo.thumbnail_object_key.isnot(None),
                     Photo.thumbnail_object_key != Photo.object_key,
                 ),
                 Photo.thumbnail_object_key,
             ),
-            else_=Photo.object_key,
+            (
+                Photo.media_type == MediaType.IMAGE.value,
+                Photo.object_key,
+            ),
+            else_=None,
         ).label("cover_image_key")
-        coverable_statuses = (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING)
+        coverable_status_filter = or_(
+            Photo.status == PhotoUploadStatus.SUCCESSFUL,
+            and_(
+                Photo.media_type == MediaType.IMAGE.value,
+                Photo.status == PhotoUploadStatus.THUMBNAIL_CREATING,
+            ),
+        )
 
         gallery_ranked = (
             select(
@@ -314,7 +324,7 @@ class ShareLinkRepository(BaseRepository):
                 ShareLink.scope_type == ShareScopeType.GALLERY.value,
                 Gallery.owner_id == owner_id,
                 Gallery.is_deleted.is_(False),
-                Photo.status.in_(coverable_statuses),
+                coverable_status_filter,
             )
             .subquery()
         )
@@ -353,7 +363,7 @@ class ShareLinkRepository(BaseRepository):
                 Project.is_deleted.is_(False),
                 Gallery.is_deleted.is_(False),
                 Gallery.project_visibility == ProjectVisibility.LISTED.value,
-                Photo.status.in_(coverable_statuses),
+                coverable_status_filter,
             )
             .subquery()
         )

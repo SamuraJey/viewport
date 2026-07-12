@@ -337,42 +337,40 @@ async def batch_presigned_uploads(
                     continue
 
                 part_count = _part_count(file_size, VIDEO_PART_SIZE)
+                part_sizes = [min(VIDEO_PART_SIZE, file_size - i * VIDEO_PART_SIZE) for i in range(part_count)]
                 presigned_urls: list[str] = []
                 part_gen_failed = False
-                for part_number in range(1, part_count + 1):
-                    part_actual_size = min(VIDEO_PART_SIZE, file_size - (part_number - 1) * VIDEO_PART_SIZE)
+                try:
+                    presigned_urls = await s3_client.generate_presigned_upload_parts(
+                        object_key=object_key,
+                        upload_id=upload_id,
+                        part_sizes=part_sizes,
+                        expires_in=900,
+                    )
+                except Exception as exc:
+                    failed_presign_bytes += file_size
+                    logger.warning(
+                        "Failed to generate presigned upload_part URLs for %s: %s",
+                        object_key,
+                        exc,
+                    )
+                    # Abort the multipart upload to avoid orphaned S3 state
                     try:
-                        url = s3_client.generate_presigned_upload_part(
-                            object_key=object_key,
-                            upload_id=upload_id,
-                            part_number=part_number,
-                            part_size=part_actual_size,
-                            expires_in=900,
-                        )
-                        presigned_urls.append(url)
-                    except Exception as exc:
-                        failed_presign_bytes += file_size
+                        await s3_client.abort_multipart_upload(object_key, upload_id)
+                    except Exception:
                         logger.warning(
-                            "Failed to generate presigned upload_part URL for %s part %s: %s",
+                            "Failed to abort multipart upload for %s after part URL generation failure",
                             object_key,
-                            part_number,
-                            exc,
                         )
-                        # Abort the multipart upload to avoid orphaned S3 state
-                        try:
-                            await s3_client.abort_multipart_upload(object_key, upload_id)
-                        except Exception:
-                            logger.warning("Failed to abort multipart upload for %s after part URL generation failure", object_key)
-                        items.append(
-                            BatchPresignedUploadItem(
-                                filename=filename,
-                                file_size=file_size,
-                                success=False,
-                                error="Failed to generate presigned part URLs",
-                            )
+                    items.append(
+                        BatchPresignedUploadItem(
+                            filename=filename,
+                            file_size=file_size,
+                            success=False,
+                            error="Failed to generate presigned part URLs",
                         )
-                        part_gen_failed = True
-                        break
+                    )
+                    part_gen_failed = True
 
                 if part_gen_failed:
                     continue
