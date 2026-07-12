@@ -1,6 +1,7 @@
 import uuid
 from pathlib import Path
 
+import pytest
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
@@ -230,6 +231,326 @@ def test_project_only_backfill_migrates_orphan_galleries_into_projects(postgres_
             )
             assert surviving_share_link["gallery_id"] == gallery_id
             assert surviving_share_link["project_id"] is None
+    finally:
+        migration_engine.dispose()
+        _drop_database(admin_url, db_name)
+
+
+def test_media_fields_backfill_existing_photos_as_image(postgres_container) -> None:
+    """After upgrading through the media-fields migration, every pre-existing
+    photo row MUST have media_type='image' and NULL playback/duration fields."""
+    admin_url = postgres_container.get_connection_url(driver="psycopg")
+    db_name = f"alembic_media_backfill_{uuid.uuid4().hex}"
+
+    _create_database(admin_url, db_name)
+
+    migration_url = make_url(admin_url).set(database=db_name)
+    migration_url_str = migration_url.render_as_string(hide_password=False)
+    config = _make_alembic_config(migration_url_str)
+
+    migration_engine = create_engine(migration_url_str)
+    try:
+        with migration_engine.connect() as connection:
+            config.attributes["connection"] = connection
+            # Upgrade to the revision just before media fields are added
+            command.upgrade(config, "703516a7aa97")
+
+            user_id = uuid.uuid4()
+            gallery_id = uuid.uuid4()
+
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO users (
+                        id, email, password_hash, created_at, is_admin, storage_quota, storage_used, storage_reserved
+                    ) VALUES (
+                        :id, :email, :password_hash, NOW(), false, 10737418240, 0, 0
+                    )
+                    """
+                ),
+                {
+                    "id": user_id,
+                    "email": f"media-backfill-{user_id.hex}@example.com",
+                    "password_hash": "hashed",
+                },
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO galleries (
+                        id, owner_id, project_id, name, created_at, is_deleted, project_position,
+                        project_visibility, shooting_date, public_sort_by, public_sort_order, cover_photo_id
+                    ) VALUES (
+                        :id, :owner_id, NULL, :name, :created_at, false, 0,
+                        'direct_only', :shooting_date, 'uploaded_at', 'desc', NULL
+                    )
+                    """
+                ),
+                {
+                    "id": gallery_id,
+                    "owner_id": user_id,
+                    "name": "Media Backfill Gallery",
+                    "created_at": "2026-07-10 12:00:00",
+                    "shooting_date": "2026-07-09",
+                },
+            )
+
+            # Insert several photos that existed before media fields were added
+            photo_ids = [uuid.uuid4() for _ in range(3)]
+            for photo_id in photo_ids:
+                connection.execute(
+                    text(
+                        """
+                        INSERT INTO photos (
+                            id, gallery_id, object_key, file_size, uploaded_at,
+                            thumbnail_object_key, display_name, status
+                        ) VALUES (
+                            :id, :gallery_id, :object_key, :file_size, NOW(),
+                            :thumbnail_object_key, :display_name, 1
+                        )
+                        """
+                    ),
+                    {
+                        "id": photo_id,
+                        "gallery_id": gallery_id,
+                        "object_key": f"photos/{photo_id}.jpg",
+                        "file_size": 1024,
+                        "thumbnail_object_key": f"thumbs/{photo_id}.jpg",
+                        "display_name": f"photo-{photo_id.hex[:8]}.jpg",
+                    },
+                )
+
+            connection.commit()
+
+            # Now upgrade through the media-fields migration to head
+            command.upgrade(config, "head")
+
+            # Assert every pre-existing photo was backfilled correctly
+            result = (
+                connection.execute(
+                    text(
+                        """
+                    SELECT id, media_type, playback_object_key, duration_ms
+                    FROM photos
+                    WHERE id = ANY(:photo_ids)
+                    """
+                    ),
+                    {"photo_ids": photo_ids},
+                )
+                .mappings()
+                .all()
+            )
+
+            assert len(result) == 3
+            for row in result:
+                assert row["media_type"] == "image", f"Expected media_type='image', got {row['media_type']}"
+                assert row["playback_object_key"] is None, f"Expected playback_object_key IS NULL, got {row['playback_object_key']}"
+                assert row["duration_ms"] is None, f"Expected duration_ms IS NULL, got {row['duration_ms']}"
+
+    finally:
+        migration_engine.dispose()
+        _drop_database(admin_url, db_name)
+
+
+def test_media_type_check_constraint_rejects_invalid(postgres_container) -> None:
+    """The CHECK constraint ck_photos_media_type MUST reject any media_type
+    that is not 'image' or 'video'."""
+    admin_url = postgres_container.get_connection_url(driver="psycopg")
+    db_name = f"alembic_media_ck_{uuid.uuid4().hex}"
+
+    _create_database(admin_url, db_name)
+
+    migration_url = make_url(admin_url).set(database=db_name)
+    migration_url_str = migration_url.render_as_string(hide_password=False)
+    config = _make_alembic_config(migration_url_str)
+
+    migration_engine = create_engine(migration_url_str)
+    try:
+        with migration_engine.connect() as connection:
+            config.attributes["connection"] = connection
+            command.upgrade(config, "head")
+
+            user_id = uuid.uuid4()
+            gallery_id = uuid.uuid4()
+
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO users (
+                        id, email, password_hash, created_at, is_admin, storage_quota, storage_used, storage_reserved
+                    ) VALUES (
+                        :id, :email, :password_hash, NOW(), false, 10737418240, 0, 0
+                    )
+                    """
+                ),
+                {"id": user_id, "email": f"media-ck-{user_id.hex}@example.com", "password_hash": "hashed"},
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO galleries (
+                        id, owner_id, project_id, name, created_at, is_deleted, project_position,
+                        project_visibility, shooting_date, public_sort_by, public_sort_order, cover_photo_id
+                    ) VALUES (
+                        :id, :owner_id, NULL, :name, :created_at, false, 0,
+                        'direct_only', :shooting_date, 'uploaded_at', 'desc', NULL
+                    )
+                    """
+                ),
+                {
+                    "id": gallery_id,
+                    "owner_id": user_id,
+                    "name": "Constraint Test Gallery",
+                    "created_at": "2026-07-10 12:00:00",
+                    "shooting_date": "2026-07-09",
+                },
+            )
+            connection.commit()
+
+            from sqlalchemy.exc import IntegrityError
+
+            with pytest.raises(IntegrityError):
+                connection.execute(
+                    text(
+                        """
+                        INSERT INTO photos (
+                            id, gallery_id, object_key, file_size, uploaded_at,
+                            thumbnail_object_key, display_name, status, media_type
+                        ) VALUES (
+                            :id, :gallery_id, :object_key, :file_size, NOW(),
+                            :thumbnail_object_key, :display_name, 1, :media_type
+                        )
+                        """
+                    ),
+                    {
+                        "id": uuid.uuid4(),
+                        "gallery_id": gallery_id,
+                        "object_key": f"photos/audio-{uuid.uuid4().hex}.mp3",
+                        "file_size": 2048,
+                        "thumbnail_object_key": "thumbs/audio-thumb.jpg",
+                        "display_name": "audio.mp3",
+                        "media_type": "audio",
+                    },
+                )
+                connection.rollback()
+
+    finally:
+        migration_engine.dispose()
+        _drop_database(admin_url, db_name)
+
+
+def test_duration_ms_check_constraint_rejects_negative(postgres_container) -> None:
+    """The CHECK constraint ck_photos_duration_ms_nonnegative MUST reject
+    negative duration_ms values."""
+    admin_url = postgres_container.get_connection_url(driver="psycopg")
+    db_name = f"alembic_duration_ck_{uuid.uuid4().hex}"
+
+    _create_database(admin_url, db_name)
+
+    migration_url = make_url(admin_url).set(database=db_name)
+    migration_url_str = migration_url.render_as_string(hide_password=False)
+    config = _make_alembic_config(migration_url_str)
+
+    migration_engine = create_engine(migration_url_str)
+    try:
+        with migration_engine.connect() as connection:
+            config.attributes["connection"] = connection
+            command.upgrade(config, "head")
+
+            user_id = uuid.uuid4()
+            gallery_id = uuid.uuid4()
+
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO users (
+                        id, email, password_hash, created_at, is_admin, storage_quota, storage_used, storage_reserved
+                    ) VALUES (
+                        :id, :email, :password_hash, NOW(), false, 10737418240, 0, 0
+                    )
+                    """
+                ),
+                {"id": user_id, "email": f"dur-ck-{user_id.hex}@example.com", "password_hash": "hashed"},
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO galleries (
+                        id, owner_id, project_id, name, created_at, is_deleted, project_position,
+                        project_visibility, shooting_date, public_sort_by, public_sort_order, cover_photo_id
+                    ) VALUES (
+                        :id, :owner_id, NULL, :name, :created_at, false, 0,
+                        'direct_only', :shooting_date, 'uploaded_at', 'desc', NULL
+                    )
+                    """
+                ),
+                {
+                    "id": gallery_id,
+                    "owner_id": user_id,
+                    "name": "Duration Constraint Gallery",
+                    "created_at": "2026-07-10 12:00:00",
+                    "shooting_date": "2026-07-09",
+                },
+            )
+            connection.commit()
+
+            from sqlalchemy.exc import IntegrityError
+
+            with pytest.raises(IntegrityError):
+                connection.execute(
+                    text(
+                        """
+                        INSERT INTO photos (
+                            id, gallery_id, object_key, file_size, uploaded_at,
+                            thumbnail_object_key, display_name, status, media_type, duration_ms
+                        ) VALUES (
+                            :id, :gallery_id, :object_key, :file_size, NOW(),
+                            :thumbnail_object_key, :display_name, 1, :media_type, :duration_ms
+                        )
+                        """
+                    ),
+                    {
+                        "id": uuid.uuid4(),
+                        "gallery_id": gallery_id,
+                        "object_key": f"photos/negative-dur-{uuid.uuid4().hex}.mp4",
+                        "file_size": 4096,
+                        "thumbnail_object_key": "thumbs/neg-dur-thumb.jpg",
+                        "display_name": "negative-dur.mp4",
+                        "media_type": "video",
+                        "duration_ms": -1,
+                    },
+                )
+                connection.rollback()
+
+    finally:
+        migration_engine.dispose()
+        _drop_database(admin_url, db_name)
+
+
+def test_multipart_upload_id_column_added(postgres_container) -> None:
+    """After upgrading to head, the photos table MUST include the
+    multipart_upload_id column as nullable."""
+    admin_url = postgres_container.get_connection_url(driver="psycopg")
+    db_name = f"alembic_multipart_{uuid.uuid4().hex}"
+
+    _create_database(admin_url, db_name)
+
+    migration_url = make_url(admin_url).set(database=db_name)
+    migration_url_str = migration_url.render_as_string(hide_password=False)
+    config = _make_alembic_config(migration_url_str)
+
+    migration_engine = create_engine(migration_url_str)
+    try:
+        with migration_engine.connect() as connection:
+            config.attributes["connection"] = connection
+            command.upgrade(config, "head")
+
+            inspector = inspect(connection)
+            photo_columns = {col["name"]: col for col in inspector.get_columns("photos")}
+
+            assert "multipart_upload_id" in photo_columns, f"multipart_upload_id column missing; columns: {sorted(photo_columns.keys())}"
+            assert photo_columns["multipart_upload_id"]["nullable"] is True, "multipart_upload_id must be nullable"
+
     finally:
         migration_engine.dispose()
         _drop_database(admin_url, db_name)

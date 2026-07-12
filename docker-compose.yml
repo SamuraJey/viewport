@@ -145,9 +145,44 @@ services:
           cpus: "0.50"
           memory: 256M
 
+
+  celery_video_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: viewport_celery_video_worker
+    restart: always
+    command: celery -A src.viewport.celery_app worker -Q video --loglevel=info --concurrency=1 --max-tasks-per-child=50 --pool=prefork
+    env_file:
+      - .env.prod
+    depends_on:
+      - redis
+      - postgres
+      - s3-service
+    networks:
+      - backend
+    environment:
+      - S3_ENDPOINT=http://s3-service:9000
+      - S3_USE_SSL=false
+      - S3_ACCESS_KEY=rustfsadmin
+      - S3_SECRET_KEY=rustfsadmin
+      - S3_BUCKET=viewport
+    volumes:
+      - ./src:/app/src
+      - ./config:/app/config
+      - video_tmp:/tmp/video_processing
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
 volumes:
   postgres_data:
   s3_data:
+  video_tmp:
 
 networks:
   backend:

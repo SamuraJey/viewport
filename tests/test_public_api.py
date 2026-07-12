@@ -25,6 +25,7 @@ from viewport.api.public import (
     get_public_photos_by_ids,
     get_valid_sharelink,
 )
+from viewport.models.gallery import MediaType, PhotoUploadStatus
 from viewport.models.sharelink import ShareScopeType
 from viewport.repositories.gallery_stats import GalleryPhotoStats
 from viewport.zip_utils import build_zip_fallback_name, make_unique_zip_entry_name, sanitize_zip_entry_name
@@ -57,10 +58,10 @@ class TestPublicAPI:
         s3_client = MagicMock()
 
         assert await _build_project_cover(gallery=None, gallery_repo=gallery_repo, s3_client=s3_client) is None
-
         gallery = SimpleNamespace(id=uuid4(), cover_photo_id=uuid4())
+
         gallery_repo.get_photo_by_id_and_gallery = AsyncMock(
-            return_value=SimpleNamespace(object_key=None, thumbnail_object_key=None),
+            return_value=SimpleNamespace(object_key=None, thumbnail_object_key=None, status=PhotoUploadStatus.SUCCESSFUL, media_type=MediaType.IMAGE.value),
         )
 
         assert await _build_project_cover(gallery=gallery, gallery_repo=gallery_repo, s3_client=s3_client) is None
@@ -107,6 +108,11 @@ class TestPublicAPI:
             display_name="hero.jpg",
             width=1200,
             height=800,
+            media_type=MediaType.IMAGE.value,
+            status=PhotoUploadStatus.SUCCESSFUL,
+            playback_object_key=None,
+            duration_ms=None,
+            processing_error=None,
         )
         gallery = SimpleNamespace(
             id=uuid4(),
@@ -145,10 +151,9 @@ class TestPublicAPI:
             limit=None,
             offset=0,
         )
-
         assert payload.cover is not None
         assert payload.cover.photo_id == str(photo_id)
-        assert payload.cover.filename == "hero.jpg"
+        assert payload.cover.media_type == MediaType.IMAGE
         assert payload.site_url == "https://example.com"
         assert payload.total_size_bytes == 2048
         assert payload.photos[0].width == 1200
@@ -179,6 +184,11 @@ class TestPublicAPI:
             display_name="hero.jpg",
             width=1200,
             height=800,
+            media_type=MediaType.IMAGE.value,
+            status=PhotoUploadStatus.SUCCESSFUL,
+            playback_object_key=None,
+            duration_ms=None,
+            processing_error=None,
         )
         repo = MagicMock()
         repo.get_photo_stats_by_gallery = AsyncMock(return_value=GalleryPhotoStats(photo_count=1, total_size_bytes=1024))
@@ -247,6 +257,11 @@ class TestPublicAPI:
             display_name="hero.jpg",
             width=1200,
             height=800,
+            media_type=MediaType.IMAGE.value,
+            status=PhotoUploadStatus.SUCCESSFUL,
+            playback_object_key=None,
+            duration_ms=None,
+            processing_error=None,
         )
         gallery = SimpleNamespace(
             id=uuid4(),
@@ -847,7 +862,7 @@ class TestPublicAPI:
         public_resp = authenticated_client.get(f"/s/{share_resp.json()['id']}")
         assert public_resp.status_code == 200
         assert public_resp.json()["cover"]["photo_id"] == photo_id
-        assert public_resp.json()["cover"]["filename"] == "cover.jpg"
+        assert public_resp.json()["cover"]["media_type"] == "image"
 
     def test_stream_photo_and_downloads(self, authenticated_client: TestClient, gallery_id_fixture: str):
         # Upload photo and create sharelink

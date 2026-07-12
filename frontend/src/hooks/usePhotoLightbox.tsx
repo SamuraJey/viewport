@@ -4,6 +4,7 @@ import Lightbox from 'yet-another-react-lightbox';
 import Thumbnails from 'yet-another-react-lightbox/plugins/thumbnails';
 import Fullscreen from 'yet-another-react-lightbox/plugins/fullscreen';
 import LightboxDownload from 'yet-another-react-lightbox/plugins/download';
+import Video from 'yet-another-react-lightbox/plugins/video';
 import Zoom from 'yet-another-react-lightbox/plugins/zoom';
 import 'yet-another-react-lightbox/styles.css';
 import 'yet-another-react-lightbox/plugins/thumbnails.css';
@@ -20,6 +21,12 @@ export interface PhotoSlide {
   downloadFilename?: string;
   onDownload?: () => void | Promise<void>;
   imageProps?: ImgHTMLAttributes<HTMLImageElement>;
+  /** Media type: 'image' or 'video'. Videos render a video player in the lightbox. */
+  media_type?: 'image' | 'video';
+  /** Playback URL for video slides. Required when media_type is 'video'. */
+  playback_url?: string;
+  /** Duration in milliseconds for video slides. */
+  duration_ms?: number;
 }
 
 interface UsePhotoLightboxOptions {
@@ -104,14 +111,29 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
         open={lightboxOpen}
         close={closeLightbox}
         index={lightboxIndex}
-        slides={slides.map((slide) => ({
-          ...slide,
-          imageProps: {
-            ...slide.imageProps,
-            crossOrigin: 'anonymous',
-          },
-        }))}
-        plugins={[Thumbnails, Fullscreen, LightboxDownload, Zoom]}
+        slides={slides.map((slide) => {
+          if (slide.media_type === 'video' && slide.playback_url) {
+            // Build a YARL video slide, preserving download metadata
+            return {
+              type: 'video',
+              sources: [{ src: slide.playback_url, type: 'video/mp4' }],
+              width: slide.width,
+              height: slide.height,
+              alt: slide.alt,
+              download: slide.download,
+              downloadFilename: slide.downloadFilename || slide.alt || 'video.mp4',
+              onDownload: slide.onDownload,
+            };
+          }
+          return {
+            ...slide,
+            imageProps: {
+              ...slide.imageProps,
+              crossOrigin: 'anonymous',
+            },
+          };
+        })}
+        plugins={[Thumbnails, Fullscreen, LightboxDownload, Video, Zoom]}
         render={{ slideContainer: ProgressiveSlide }}
         controller={{
           closeOnPullDown: true,
@@ -143,22 +165,27 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
         }}
         download={{
           download: ({ slide, saveAs }) => {
-            const photoSlide = slide as PhotoSlide;
-            if (photoSlide.onDownload) {
-              void photoSlide.onDownload();
+            if ('onDownload' in slide && typeof slide.onDownload === 'function') {
+              void slide.onDownload();
               return;
             }
+            const dl = slide as unknown as Record<string, unknown>;
             const downloadSource =
-              typeof photoSlide.download === 'object'
-                ? photoSlide.download.url
-                : typeof photoSlide.download === 'string'
-                  ? photoSlide.download
-                  : photoSlide.src;
+              typeof dl.download === 'object' && dl.download !== null
+                ? (dl.download as { url: string }).url
+                : typeof dl.download === 'string'
+                  ? dl.download
+                  : typeof dl.src === 'string'
+                    ? dl.src
+                    : '';
+            const downloadFilename =
+              typeof dl.downloadFilename === 'string'
+                ? dl.downloadFilename
+                : typeof dl.download === 'object' && dl.download !== null
+                  ? (dl.download as { filename?: string }).filename
+                  : null;
             const filename =
-              photoSlide.downloadFilename ||
-              (typeof photoSlide.download === 'object' ? photoSlide.download.filename : null) ||
-              photoSlide.alt ||
-              'photo.jpg';
+              downloadFilename || (typeof dl.alt === 'string' ? dl.alt : 'photo.jpg');
             saveAs(downloadSource, filename);
           },
         }}

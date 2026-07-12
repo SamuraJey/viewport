@@ -5,7 +5,7 @@ from urllib.parse import quote
 
 from viewport.filename_utils import split_name_and_ext, truncate_preserving_extension, truncate_utf8
 
-_ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+_ALLOWED_MEDIA_EXTENSIONS = {".jpg", ".jpeg", ".png", ".mp4", ".mov", ".webm"}
 _WINDOWS_RESERVED_NAMES = {
     "con",
     "prn",
@@ -35,7 +35,7 @@ _FORBIDDEN_ZIP_CHARS_RE = re.compile(r'[<>:"|?*\x00-\x1F]')
 _WHITESPACE_RE = re.compile(r"\s+")
 _WINDOWS_DRIVE_PREFIX_RE = re.compile(r"^[A-Za-z]:")
 _MAX_ZIP_ENTRY_NAME_BYTES = 255
-_EXTENSION_ONLY_TOKENS = {ext.lstrip(".") for ext in _ALLOWED_IMAGE_EXTENSIONS}
+_EXTENSION_ONLY_TOKENS = {ext.lstrip(".") for ext in _ALLOWED_MEDIA_EXTENSIONS}
 
 
 def sanitize_zip_entry_name(filename: str, fallback: str) -> str:
@@ -74,11 +74,11 @@ def build_zip_fallback_name(filename: str, object_key: str, fallback_stem: str) 
     normalized = unicodedata.normalize("NFKC", filename or "")
     leaf = normalized.replace("\\", "/").rsplit("/", 1)[-1]
     extension = Path(leaf).suffix.lower()
-    if extension in _ALLOWED_IMAGE_EXTENSIONS:
+    if extension in _ALLOWED_MEDIA_EXTENSIONS:
         return f"{fallback_stem}{extension}"
 
     object_key_extension = Path(object_key).suffix.lower()
-    if object_key_extension in _ALLOWED_IMAGE_EXTENSIONS:
+    if object_key_extension in _ALLOWED_MEDIA_EXTENSIONS:
         return f"{fallback_stem}{object_key_extension}"
 
     return f"{fallback_stem}.jpg"

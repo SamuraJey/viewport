@@ -1,9 +1,22 @@
+from enum import StrEnum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 from viewport.schemas.gallery import CoverDisplayOption, PhotoSpacing, PublicColorScheme
 from viewport.schemas.sharelink import PASSWORD_MAX_BYTES, PASSWORD_MIN_LENGTH, validate_sharelink_password
+
+
+class MediaType(StrEnum):
+    IMAGE = "image"
+    VIDEO = "video"
+
+
+class MediaStatus(StrEnum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    SUCCESSFUL = "successful"
+    FAILED = "failed"
 
 
 class PublicShareUnlockRequest(BaseModel):
@@ -20,18 +33,28 @@ class PublicShareUnlockRequest(BaseModel):
 
 class PublicPhoto(BaseModel):
     photo_id: str
+    media_type: MediaType
     thumbnail_url: str
     full_url: str
+    playback_url: str | None = None
     filename: str | None = None
+    duration_ms: int | None = None
     width: int | None = None
     height: int | None = None
+    status: MediaStatus
+    processing_error: str | None = None
 
 
-class PublicCover(BaseModel):
+class MediaCover(BaseModel):
     photo_id: str
+    media_type: MediaType
     thumbnail_url: str
     full_url: str
-    filename: str | None = None
+    playback_url: str | None = None
+
+
+# Backward-compatible alias
+PublicCover = MediaCover
 
 
 class PublicProjectGallery(BaseModel):
@@ -54,7 +77,7 @@ class PublicGalleryAppearance(BaseModel):
 class PublicGalleryResponse(BaseModel):
     scope_type: Literal["gallery"] = "gallery"
     photos: list[PublicPhoto]
-    cover: PublicCover | None = None
+    cover: MediaCover | None = None
     photographer: str = ""
     gallery_name: str = ""
     date: str = ""
@@ -75,7 +98,7 @@ class PublicProjectResponse(BaseModel):
     photographer: str = ""
     date: str = ""
     site_url: str = ""
-    cover: PublicCover | None = None
+    cover: MediaCover | None = None
     total_listed_galleries: int = 0
     total_listed_photos: int = 0
     total_size_bytes: int = 0

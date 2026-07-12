@@ -288,8 +288,11 @@ async def test_delete_photo_uses_single_transaction_for_quota_updates(repo: Gall
     assert not any(c[0] == "reserved" for c in calls)
 
 
-async def _create_photo(repo: GalleryRepository, gallery_id: uuid.UUID, filename: str, owner_id: uuid.UUID) -> uuid.UUID:
+async def _create_photo(repo: GalleryRepository, gallery_id: uuid.UUID, filename: str, owner_id: uuid.UUID, *, status: int = 2) -> uuid.UUID:
     photo = await repo.create_photo(gallery_id, f"{gallery_id}/{filename}", f"{gallery_id}/thumb-{filename}", 1024, width=10, height=10)
+    if status != 1:  # default is PENDING, only update if different
+        photo.status = PhotoUploadStatus(status)
+        await repo.db.commit()
     return photo.id
 
 

@@ -1,11 +1,21 @@
 import { memo, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { AlertTriangle, ImageOff, X, Upload, Images, Loader2, Shrink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../../constants/upload';
+import {
+  MAX_UPLOAD_FILE_SIZE_BYTES,
+  MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES,
+  SUPPORTED_UPLOAD_TYPES,
+} from '../../constants/upload';
 import { formatFileSize } from '../../lib/utils';
 import { resizeImageForUpload } from '../../lib/imageResize';
 import { createImageThumbnail } from '../../lib/imageThumbnail';
-import { getFileUploadErrorText, hasFileUploadError, isResizableFile } from './uploadConfirmUtils';
+import {
+  getFileUploadErrorText,
+  hasFileUploadError,
+  isFileTooLarge,
+  isFileTypeInvalid,
+  isResizableFile,
+} from './uploadConfirmUtils';
 
 interface UploadSelectionContentProps {
   files: File[];
@@ -224,10 +234,8 @@ export const UploadSelectionContent = ({
 }: UploadSelectionContentProps) => {
   const readyFilesCount = files.filter((file) => !hasFileUploadError(file)).length;
   const hasIssues = hasLargeFiles || hasInvalidTypes || renameWarnings.length > 0;
-  const largeFilesCount = files.filter((f) => f.size > MAX_UPLOAD_FILE_SIZE_BYTES).length;
-  const invalidTypeCount = files.filter(
-    (f) => !['image/jpeg', 'image/png', 'image/jpg'].includes(f.type),
-  ).length;
+  const largeFilesCount = files.filter((f) => isFileTooLarge(f)).length;
+  const invalidTypeCount = files.filter((f) => isFileTypeInvalid(f)).length;
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -479,17 +487,19 @@ export const UploadSelectionContent = ({
             <AlertTriangle className="w-4.5 h-4.5 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
             <p className="text-red-800 dark:text-red-300 font-medium">
               {(() => {
-                const allLarge = files.every((f) => f.size > MAX_UPLOAD_FILE_SIZE_BYTES);
-                const allInvalidType = files.every(
-                  (f) => !['image/jpeg', 'image/png', 'image/jpg'].includes(f.type),
+                const allLarge = files.every((f) =>
+                  f.type.startsWith('video/')
+                    ? f.size > MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES
+                    : f.size > MAX_UPLOAD_FILE_SIZE_BYTES,
                 );
+                const allInvalidType = files.every((f) => !SUPPORTED_UPLOAD_TYPES.includes(f.type));
                 if (allLarge) {
-                  return 'All selected files exceed the 10 MB maximum size. Please resize your images or select smaller files.';
+                  return 'All selected files exceed the maximum size. Images are limited to 10 MB and videos to 500 MB.';
                 }
                 if (allInvalidType) {
-                  return 'Only JPG and PNG formats are supported. Please select valid image files.';
+                  return 'Only JPG, PNG and supported video formats are allowed. Please select valid files.';
                 }
-                return `${files.length} files can't be uploaded. Some exceed the 10 MB limit and others use unsupported formats.`;
+                return `${files.length} files can't be uploaded. Some exceed size limits or use unsupported formats.`;
               })()}
             </p>
           </div>
@@ -505,13 +515,13 @@ export const UploadSelectionContent = ({
                 {hasLargeFiles && readyFilesCount > 0 && (
                   <li>
                     {largeFilesCount} of {files.length} file{largeFilesCount !== 1 ? 's' : ''}{' '}
-                    exceed the 10 MB limit and won't be uploaded
+                    exceed the size limit and won't be uploaded
                   </li>
                 )}
                 {hasInvalidTypes && readyFilesCount > 0 && (
                   <li>
                     {invalidTypeCount} file{invalidTypeCount !== 1 ? 's' : ''} use unsupported
-                    formats (JPG/PNG only)
+                    formats
                   </li>
                 )}
                 {renameWarnings.length > 0 && (

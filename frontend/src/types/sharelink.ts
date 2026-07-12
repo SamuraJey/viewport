@@ -99,6 +99,9 @@ export interface PublicPhoto {
   photo_id: string;
   thumbnail_url: string;
   full_url: string;
+  media_type?: 'image' | 'video';
+  playback_url?: string | null;
+  duration_ms?: number | null;
   filename?: string | null;
   width?: number | null;
   height?: number | null;
@@ -130,7 +133,13 @@ export interface PublicGalleryAppearance {
 export interface SharedFolderShare {
   scope_type?: 'gallery';
   photos: PublicPhoto[];
-  cover?: { photo_id: string; full_url: string; thumbnail_url: string } | null;
+  cover?: {
+    photo_id: string;
+    full_url: string;
+    thumbnail_url: string;
+    media_type?: 'image' | 'video';
+    playback_url?: string | null;
+  } | null;
   photographer?: string;
   gallery_name?: string;
   date?: string;
@@ -151,7 +160,13 @@ export interface SharedProjectShare {
   photographer?: string;
   date?: string;
   site_url?: string;
-  cover?: { photo_id: string; full_url: string; thumbnail_url: string } | null;
+  cover?: {
+    photo_id: string;
+    full_url: string;
+    thumbnail_url: string;
+    media_type?: 'image' | 'video';
+    playback_url?: string | null;
+  } | null;
   total_listed_galleries?: number;
   total_listed_photos?: number;
   total_size_bytes?: number;

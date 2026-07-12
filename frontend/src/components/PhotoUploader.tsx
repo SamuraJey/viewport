@@ -2,7 +2,11 @@ import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { Upload, ImagePlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PhotoUploadConfirmModal } from './PhotoUploadConfirmModal';
-import { MAX_UPLOAD_FILE_SIZE_MB } from '../constants/upload';
+import {
+  MAX_UPLOAD_FILE_SIZE_MB,
+  MAX_VIDEO_UPLOAD_FILE_SIZE_MB,
+  SUPPORTED_UPLOAD_TYPES,
+} from '../constants/upload';
 import type { PhotoUploadResponse } from '../types';
 
 interface PhotoUploaderProps {
@@ -18,7 +22,7 @@ export interface PhotoUploaderHandle {
   handleExternalFiles: (fileList: FileList | File[]) => void;
 }
 
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
+const ACCEPTED_TYPES = SUPPORTED_UPLOAD_TYPES;
 
 export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>(
   (
@@ -42,8 +46,18 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
       const fileArray = rawFiles.filter((f) => ACCEPTED_TYPES.includes(f.type));
       if (fileArray.length === 0) {
         if (rawFiles.length > 0) {
-          setError('Only JPG and PNG files are supported. Please select valid image files.');
+          setError(
+            'Only JPG, PNG and supported video files are allowed. Please select valid files.',
+          );
         }
+        return;
+      }
+
+      const oversizedVideos = fileArray.filter(
+        (f) => f.type.startsWith('video/') && f.size > MAX_VIDEO_UPLOAD_FILE_SIZE_MB * 1024 * 1024,
+      );
+      if (oversizedVideos.length > 0) {
+        setError(`Video files must be under ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB.`);
         return;
       }
 

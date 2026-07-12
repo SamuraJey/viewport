@@ -865,3 +865,178 @@ class AsyncS3Client:
         except Exception as e:
             logger.error("Failed to get object %s: %s", key, e)
             raise
+
+    # ── Multipart upload support ──────────────────────────────────────────
+
+    async def create_multipart_upload(self, object_key: str, content_type: str) -> str:
+        """Create a new multipart upload and return its UploadId.
+
+        Args:
+            object_key: S3 object key
+            content_type: Content-Type for the object (e.g. 'video/mp4')
+
+        Returns:
+            The S3 UploadId string
+
+        Raises:
+            RuntimeError: If S3 call fails
+        """
+        try:
+            async with self._get_s3_client() as s3:
+                response = await s3.create_multipart_upload(
+                    Bucket=self.settings.bucket,
+                    Key=object_key,
+                    ContentType=content_type,
+                )
+            upload_id = response["UploadId"]
+            logger.info("Created multipart upload: key=%s, upload_id=%s", object_key, upload_id)
+            return cast(str, upload_id)
+        except Exception as e:
+            logger.error("Failed to create multipart upload for %s: %s", object_key, e)
+            raise RuntimeError(f"Failed to create multipart upload for {object_key}") from e
+
+    def generate_presigned_upload_part(
+        self,
+        object_key: str,
+        upload_id: str,
+        part_number: int,
+        part_size: int,
+        expires_in: int = 900,
+    ) -> str:
+        """Generate a presigned URL for uploading a single part.
+
+        Args:
+            object_key: S3 object key
+            upload_id: The multipart upload ID
+            part_number: 1-based part number
+            part_size: Size of this part in bytes
+            expires_in: URL lifetime in seconds (default 15 minutes)
+
+        Returns:
+            Presigned URL string
+
+        Raises:
+            RuntimeError: If URL generation fails
+        """
+        try:
+            s3_client = self._get_presign_client()
+            url = s3_client.generate_presigned_url(
+                "upload_part",
+                Params={
+                    "Bucket": self.settings.bucket,
+                    "Key": object_key,
+                    "UploadId": upload_id,
+                    "PartNumber": part_number,
+                    "ContentLength": part_size,
+                },
+                ExpiresIn=expires_in,
+            )
+            logger.debug(
+                "Generated presigned upload_part URL: key=%s, upload_id=%s, part=%s",
+                object_key,
+                upload_id,
+                part_number,
+            )
+            return str(url)
+        except Exception as e:
+            logger.error(
+                "Failed to generate presigned upload_part URL for %s part %s: %s",
+                object_key,
+                part_number,
+                e,
+            )
+            raise RuntimeError(f"Failed to generate presigned upload_part URL for {object_key} part {part_number}") from e
+
+    async def complete_multipart_upload(self, object_key: str, upload_id: str, parts: list[dict[str, Any]]) -> dict[str, Any]:
+        """Complete a multipart upload by assembling uploaded parts.
+
+        Args:
+            object_key: S3 object key
+            upload_id: The multipart upload ID
+            parts: List of dicts with 'ETag' and 'PartNumber' keys
+
+        Returns:
+            S3 complete_multipart_upload response dict
+
+        Raises:
+            RuntimeError: If S3 call fails
+        """
+        try:
+            async with self._get_s3_client() as s3:
+                response = await s3.complete_multipart_upload(
+                    Bucket=self.settings.bucket,
+                    Key=object_key,
+                    UploadId=upload_id,
+                    MultipartUpload={"Parts": parts},
+                )
+            logger.info("Completed multipart upload: key=%s, upload_id=%s", object_key, upload_id)
+            return cast(dict[str, Any], response)
+        except Exception as e:
+            logger.error(
+                "Failed to complete multipart upload for %s (upload_id=%s): %s",
+                object_key,
+                upload_id,
+                e,
+            )
+            raise RuntimeError(f"Failed to complete multipart upload for {object_key}") from e
+
+    async def abort_multipart_upload(self, object_key: str, upload_id: str) -> None:
+        """Abort a multipart upload, discarding all uploaded parts.
+
+        Args:
+            object_key: S3 object key
+            upload_id: The multipart upload ID
+
+        Raises:
+            RuntimeError: If S3 call fails
+        """
+        try:
+            async with self._get_s3_client() as s3:
+                await s3.abort_multipart_upload(
+                    Bucket=self.settings.bucket,
+                    Key=object_key,
+                    UploadId=upload_id,
+                )
+            logger.info("Aborted multipart upload: key=%s, upload_id=%s", object_key, upload_id)
+        except Exception as e:
+            logger.error(
+                "Failed to abort multipart upload for %s (upload_id=%s): %s",
+                object_key,
+                upload_id,
+                e,
+            )
+            raise RuntimeError(f"Failed to abort multipart upload for {object_key}") from e
+
+    async def list_multipart_uploads(self, prefix: str = "") -> list[dict[str, Any]]:
+        """List in-progress multipart uploads, optionally filtered by prefix.
+
+        Args:
+            prefix: Optional key prefix filter
+
+        Returns:
+            List of upload dicts with 'UploadId', 'Key', and 'Initiated' keys
+
+        Raises:
+            RuntimeError: If S3 call fails
+        """
+        try:
+            async with self._get_s3_client() as s3:
+                uploads: list[dict[str, Any]] = []
+                paginator = s3.get_paginator("list_multipart_uploads")
+                async for page in paginator.paginate(
+                    Bucket=self.settings.bucket,
+                    Prefix=prefix,
+                ):
+                    uploads.extend(
+                        {
+                            "UploadId": upload["UploadId"],
+                            "Key": upload["Key"],
+                            "Initiated": upload["Initiated"],
+                        }
+                        for upload in page.get("Uploads", [])
+                    )
+            logger.info("Listed %s multipart uploads (prefix=%r)", len(uploads), prefix)
+            return uploads
+        except Exception as e:
+            logger.error("Failed to list multipart uploads (prefix=%r): %s", prefix, e)
+            raise RuntimeError("Failed to list multipart uploads") from e

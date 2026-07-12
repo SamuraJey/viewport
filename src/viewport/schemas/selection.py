@@ -69,6 +69,9 @@ class SelectionItemResponse(BaseModel):
     gallery_id: str | None = None
     gallery_name: str | None = None
     comment: str | None
+    media_type: str | None = None
+    playback_url: str | None = None
+    duration_ms: int | None = None
     selected_at: datetime
     updated_at: datetime
 

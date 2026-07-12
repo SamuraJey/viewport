@@ -129,17 +129,26 @@ def _validate_submit_requirements(config: ShareLinkSelectionConfig, session: Sha
         raise HTTPException(status_code=422, detail="At least one photo must be selected before submit")
 
 
-def _to_selection_item_response(item: ShareLinkSelectionItem, thumbnail_url_map: dict[str, str] | None = None) -> SelectionItemResponse:
+def _to_selection_item_response(item: ShareLinkSelectionItem, thumbnail_url_map: dict[str, str] | None = None, playback_url_map: dict[str, str] | None = None) -> SelectionItemResponse:
     photo_display_name: str | None = None
     photo_thumbnail_url: str | None = None
     gallery_id: str | None = None
     gallery_name: str | None = None
+    media_type: str | None = None
+    playback_url: str | None = None
+    duration_ms: int | None = None
     if "photo" in item.__dict__ and item.photo is not None:
-        photo_display_name = item.photo.display_name
-        thumbnail_object_key = item.photo.thumbnail_object_key
+        photo = item.photo
+        photo_display_name = photo.display_name
+        thumbnail_object_key = photo.thumbnail_object_key
         if thumbnail_url_map is not None:
             photo_thumbnail_url = thumbnail_url_map.get(thumbnail_object_key)
-        photo_gallery = item.photo.gallery if "gallery" in item.photo.__dict__ else None
+        media_type = getattr(photo, "media_type", None)
+        duration_ms = getattr(photo, "duration_ms", None)
+        playback_object_key = getattr(photo, "playback_object_key", None)
+        if playback_url_map is not None and playback_object_key:
+            playback_url = playback_url_map.get(playback_object_key)
+        photo_gallery = photo.gallery if "gallery" in photo.__dict__ else None
         if photo_gallery is not None:
             gallery_id = str(photo_gallery.id)
             gallery_name = photo_gallery.name
@@ -151,6 +160,9 @@ def _to_selection_item_response(item: ShareLinkSelectionItem, thumbnail_url_map:
         gallery_id=gallery_id,
         gallery_name=gallery_name,
         comment=item.comment,
+        media_type=media_type,
+        playback_url=playback_url,
+        duration_ms=duration_ms,
         selected_at=item.selected_at,
         updated_at=item.updated_at,
     )
@@ -180,12 +192,21 @@ async def _to_selection_session_response(
 ) -> SelectionSessionResponse:
     ordered_items = sorted(session.items, key=lambda item: (item.selected_at, item.photo_id))
     thumbnail_url_map: dict[str, str] | None = None
+    playback_url_map: dict[str, str] | None = None
     if s3_client is not None:
         thumbnail_keys = [item.photo.thumbnail_object_key for item in ordered_items if "photo" in item.__dict__ and item.photo is not None and item.photo.thumbnail_object_key]
         if thumbnail_keys:
             unique_thumbnail_keys = list(dict.fromkeys(thumbnail_keys))
             thumbnail_url_map = await s3_client.generate_presigned_urls_batch(
                 unique_thumbnail_keys,
+                expires_in=7200,
+            )
+
+        playback_keys = [item.photo.playback_object_key for item in ordered_items if "photo" in item.__dict__ and item.photo is not None and item.photo.playback_object_key]
+        if playback_keys:
+            unique_playback_keys = list(dict.fromkeys(playback_keys))
+            playback_url_map = await s3_client.generate_presigned_urls_batch(
+                unique_playback_keys,
                 expires_in=7200,
             )
 
@@ -203,7 +224,7 @@ async def _to_selection_session_response(
         created_at=session.created_at,
         updated_at=session.updated_at,
         resume_token=resume_token,
-        items=[_to_selection_item_response(item, thumbnail_url_map) for item in ordered_items],
+        items=[_to_selection_item_response(item, thumbnail_url_map, playback_url_map) for item in ordered_items],
     )
 
 

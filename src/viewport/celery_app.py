@@ -43,6 +43,11 @@ def create_celery_app(settings: CelerySettings | None = None) -> Celery:
         broker_connection_retry_on_startup=True,
         broker_connection_max_retries=10,
         beat_schedule_filename="/tmp/celerybeat-schedule",
+        task_default_queue="celery",
+        task_routes={
+            "create_thumbnails_batch": {"queue": "celery"},
+            "process_videos_batch": {"queue": "video"},
+        },
     )
 
     if os.environ.get("ENVIRONMENT") == "pytest":

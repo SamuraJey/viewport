@@ -6,11 +6,13 @@ import type { GalleryPhoto } from '../../../types';
 
 const createPhoto = (overrides: Partial<GalleryPhoto> = {}): GalleryPhoto => ({
   id: 'photo-1',
+  media_type: 'image',
   url: 'https://example.com/photo.jpg',
   thumbnail_url: 'https://example.com/photo-thumb.jpg',
   filename: 'photo.jpg',
   file_size: 1024,
   uploaded_at: '2026-01-01T00:00:00Z',
+  status: 'successful',
   ...overrides,
 });
 

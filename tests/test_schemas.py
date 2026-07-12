@@ -259,20 +259,24 @@ class TestPhotoSchemas:
         data = {
             "id": photo_id,
             "gallery_id": gallery_id,
+            "media_type": "image",
             "url": "/photos/test.jpg",
             "thumbnail_url": "/photos/thumbnails/test.avif",
             "filename": "test.jpg",
             "file_size": 2048,
             "uploaded_at": uploaded_at,
+            "status": "successful",
         }
         response = PhotoResponse(**data)
 
         assert response.id == photo_id
         assert response.gallery_id == gallery_id
+        assert response.media_type == "image"
         assert response.url == "/photos/test.jpg"
         assert response.filename == "test.jpg"
         assert response.file_size == 2048
         assert response.uploaded_at == uploaded_at
+        assert response.status == "successful"
 
     def test_gallery_photo_response_valid(self):
         """Test valid gallery-scoped photo response."""
@@ -281,19 +285,23 @@ class TestPhotoSchemas:
 
         data = {
             "id": photo_id,
+            "media_type": "image",
             "url": "/photos/test.jpg",
             "thumbnail_url": "/photos/thumbnails/test.avif",
             "filename": "test.jpg",
             "file_size": 2048,
             "uploaded_at": uploaded_at,
+            "status": "successful",
         }
         response = GalleryPhotoResponse(**data)
 
         assert response.id == photo_id
+        assert response.media_type == "image"
         assert response.url == "/photos/test.jpg"
         assert response.filename == "test.jpg"
         assert response.file_size == 2048
         assert response.uploaded_at == uploaded_at
+        assert response.status == "successful"
 
     @pytest.mark.asyncio
     async def test_photo_response_from_db_photo(self):
@@ -305,8 +313,13 @@ class TestPhotoSchemas:
         mock_photo.uploaded_at = datetime.now(UTC)
         mock_photo.object_key = f"{mock_photo.gallery_id}/test.jpg"
         mock_photo.thumbnail_object_key = f"{mock_photo.gallery_id}/thumbnails/test.avif"
+        mock_photo.media_type = "image"
+        mock_photo.status = 2  # SUCCESSFUL
         mock_photo.width = 800
         mock_photo.height = 600
+        mock_photo.duration_ms = None
+        mock_photo.processing_error = None
+        mock_photo.playback_object_key = None
 
         # Mock s3_client
         mock_s3_client = MagicMock()
@@ -318,12 +331,14 @@ class TestPhotoSchemas:
 
         assert response.id == mock_photo.id
         assert response.gallery_id == mock_photo.gallery_id
+        assert response.media_type == "image"
         assert response.file_size == mock_photo.file_size
         assert response.uploaded_at == mock_photo.uploaded_at
         assert response.url == expected_url
         assert response.thumbnail_url == expected_thumbnail_url
-        assert "width" not in response.model_dump()
-        assert "height" not in response.model_dump()
+        assert response.width == 800
+        assert response.height == 600
+        assert response.status == "successful"
 
     def test_photo_list_response_valid(self):
         """Test valid photo list response."""
@@ -335,11 +350,13 @@ class TestPhotoSchemas:
             {
                 "id": photo_id,
                 "gallery_id": gallery_id,
+                "media_type": "image",
                 "url": "/photos/test.jpg",
                 "thumbnail_url": "/photos/thumbnails/test.avif",
                 "filename": "test.jpg",
                 "file_size": 1024,
                 "uploaded_at": uploaded_at,
+                "status": "successful",
             }
         ]
 

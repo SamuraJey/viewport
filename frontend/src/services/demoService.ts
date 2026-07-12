@@ -207,8 +207,11 @@ const buildSeedGalleryState = (
   photoCount: number,
   shareLinks: ShareLink[],
   selectionConfigFactory?: (link: ShareLink, index: number) => Partial<SelectionConfig>,
+  photoOverrides?: Record<number, Partial<GalleryPhoto>>,
 ): DemoGalleryState => {
-  const photos = Array.from({ length: photoCount }, (_, index) => buildPhoto(gallery.id, index));
+  const photos = Array.from({ length: photoCount }, (_, index) =>
+    buildPhoto(gallery.id, index, photoOverrides?.[index]),
+  );
   const coverPhoto = photos[0]?.id ?? null;
 
   const selectionConfigs: Record<string, SelectionConfig> = Object.fromEntries(
@@ -240,16 +243,34 @@ const buildSeedGalleryState = (
   };
 };
 
-const buildPhoto = (galleryId: string, index: number): GalleryPhoto => {
+const buildPhoto = (
+  galleryId: string,
+  index: number,
+  overrides?: Partial<GalleryPhoto>,
+): GalleryPhoto => {
   const seed = `${galleryId}-${index}`;
+  const isVideo = overrides?.media_type === 'video';
 
   return {
     id: `${galleryId}-photo-${index + 1}`,
-    filename: `shot_${String(index + 1).padStart(3, '0')}.jpg`,
-    url: `https://picsum.photos/seed/${seed}/1600/1100`,
-    thumbnail_url: `https://picsum.photos/seed/${seed}/700/500`,
-    file_size: 2_100_000 + index * 110_000,
+    media_type: isVideo ? 'video' : 'image',
+    filename: isVideo
+      ? `clip_${String(index + 1).padStart(3, '0')}.mp4`
+      : `shot_${String(index + 1).padStart(3, '0')}.jpg`,
+    url: isVideo
+      ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+      : `https://picsum.photos/seed/${seed}/1600/1100`,
+    thumbnail_url: isVideo
+      ? `https://picsum.photos/seed/${seed}/700/500`
+      : `https://picsum.photos/seed/${seed}/700/500`,
+    playback_url: isVideo
+      ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+      : undefined,
+    duration_ms: isVideo ? 15000 : undefined,
+    file_size: isVideo ? 45_000_000 : 2_100_000 + index * 110_000,
+    status: isVideo ? 'successful' : 'successful',
     uploaded_at: nowIso(),
+    ...overrides,
   };
 };
 
@@ -338,6 +359,7 @@ const buildSeedProjectContent = (): {
                 limit_value: 15,
               }
             : {},
+        { 0: { media_type: 'video' } },
       ),
       buildSeedGalleryState(
         {
@@ -472,6 +494,7 @@ const seedState = (): DemoGalleryState[] => {
         limit_enabled: galleryIndex === 0,
         limit_value: galleryIndex === 0 ? 10 : null,
       }),
+      galleryIndex === 0 ? { 0: { media_type: 'video' } } : undefined,
     );
   });
 
@@ -2054,23 +2077,19 @@ class DemoServiceStore {
         project_id: galleryState.gallery.project_id ?? null,
         project_name: galleryState.gallery.project_name ?? null,
         parent_share_id: null,
-        cover: galleryState.gallery.cover_photo_id
-          ? {
-              photo_id: galleryState.gallery.cover_photo_id,
-              full_url:
-                galleryState.photos.find(
-                  (photo) => photo.id === galleryState.gallery.cover_photo_id,
-                )?.url ||
-                galleryState.photos[0]?.url ||
-                '',
-              thumbnail_url:
-                galleryState.photos.find(
-                  (photo) => photo.id === galleryState.gallery.cover_photo_id,
-                )?.thumbnail_url ||
-                galleryState.photos[0]?.thumbnail_url ||
-                '',
-            }
-          : null,
+        cover: (() => {
+          const coverPhoto =
+            galleryState.photos.find((photo) => photo.id === galleryState.gallery.cover_photo_id) ||
+            galleryState.photos[0];
+          if (!coverPhoto) return null;
+          return {
+            photo_id: coverPhoto.id,
+            full_url: coverPhoto.url || '',
+            thumbnail_url: coverPhoto.thumbnail_url || '',
+            media_type: coverPhoto.media_type as 'image' | 'video' | undefined,
+            playback_url: coverPhoto.playback_url ?? null,
+          };
+        })(),
         appearance: {
           cover_focal_x: galleryState.gallery.cover_focal_x ?? 50,
           cover_focal_y: galleryState.gallery.cover_focal_y ?? 50,
@@ -2083,6 +2102,9 @@ class DemoServiceStore {
           filename: photo.filename,
           full_url: photo.url,
           thumbnail_url: photo.thumbnail_url,
+          media_type: photo.media_type,
+          playback_url: photo.playback_url ?? null,
+          duration_ms: photo.duration_ms ?? null,
         })),
       };
     }
@@ -2133,6 +2155,8 @@ class DemoServiceStore {
             photo_id: effectiveCoverPhoto.id,
             full_url: effectiveCoverPhoto.url,
             thumbnail_url: effectiveCoverPhoto.thumbnail_url,
+            media_type: effectiveCoverPhoto.media_type as 'image' | 'video' | undefined,
+            playback_url: effectiveCoverPhoto.playback_url ?? null,
           }
         : null,
       total_listed_galleries: listedFolders.length,
@@ -2190,6 +2214,8 @@ class DemoServiceStore {
               photo_id: effectiveCoverPhoto.id,
               full_url: effectiveCoverPhoto.url,
               thumbnail_url: effectiveCoverPhoto.thumbnail_url,
+              media_type: effectiveCoverPhoto.media_type as 'image' | 'video' | undefined,
+              playback_url: effectiveCoverPhoto.playback_url ?? null,
             }
           : null,
         appearance: {
@@ -2204,6 +2230,9 @@ class DemoServiceStore {
           filename: photo.filename,
           full_url: photo.url,
           thumbnail_url: photo.thumbnail_url,
+          media_type: photo.media_type,
+          playback_url: photo.playback_url ?? null,
+          duration_ms: photo.duration_ms ?? null,
         })),
       };
     }
@@ -2993,10 +3022,12 @@ class DemoServiceStore {
     return {
       id: existing.id,
       gallery_id: galleryId,
+      media_type: existing.media_type,
       filename: existing.filename,
       url: existing.url,
       thumbnail_url: existing.thumbnail_url,
       file_size: existing.file_size,
+      status: existing.status,
       uploaded_at: existing.uploaded_at,
     };
   }
@@ -3026,10 +3057,12 @@ class DemoServiceStore {
 
       const created: GalleryPhoto = {
         id: makeDemoId(),
+        media_type: 'image',
         filename: item.filename,
         url: `https://picsum.photos/seed/${encodeURIComponent(`${item.filename}-${makeDemoId()}`)}/1600/1100`,
         thumbnail_url: `https://picsum.photos/seed/${encodeURIComponent(`${item.filename}-${makeDemoId()}`)}/700/500`,
         file_size: item.file.size,
+        status: 'successful',
         uploaded_at: nowIso(),
       };
 

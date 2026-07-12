@@ -13,6 +13,7 @@ from viewport.auth_utils import get_current_user, get_current_user_for_download
 from viewport.background_tasks import delete_gallery_data_task
 from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.models.db import get_db
+from viewport.models.gallery import PhotoUploadStatus
 from viewport.models.gallery import ProjectVisibility as GalleryProjectVisibility
 from viewport.models.project import Project
 from viewport.models.user import User
@@ -68,7 +69,7 @@ async def _build_gallery_response(
     cover_photo_thumbnail_url: str | None = None
     if gallery.cover_photo_id:
         cover_photo = await repo.get_photo_by_id_and_gallery(gallery.cover_photo_id, gallery.id)
-        if cover_photo and cover_photo.thumbnail_object_key:
+        if cover_photo and cover_photo.thumbnail_object_key and cover_photo.status == PhotoUploadStatus.SUCCESSFUL:
             cover_photo_thumbnail_url = await s3_client.generate_presigned_url(
                 cover_photo.thumbnail_object_key,
                 expires_in=7200,

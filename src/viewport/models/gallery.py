@@ -21,7 +21,13 @@ class PhotoUploadStatus(IntEnum):
     PENDING = 1  # Presigned URL issued, awaiting upload
     SUCCESSFUL = 2  # File successfully uploaded to S3
     FAILED = 3  # Upload failed
-    THUMBNAIL_CREATING = 4  # Upload confirmed, thumbnail generation in progress
+    PROCESSING = 4  # Upload confirmed, media processing in progress
+    THUMBNAIL_CREATING = 4  # Backward-compatible alias for PROCESSING
+
+
+class MediaType(StrEnum):
+    IMAGE = "image"
+    VIDEO = "video"
 
 
 class ProjectVisibility(StrEnum):
@@ -122,7 +128,7 @@ class Photo(Base):
         index=True,
         nullable=False,
     )
-    # Upload status (pending, successful, failed)
+    # Upload / processing status
     status: Mapped[PhotoUploadStatus] = mapped_column(
         SmallInteger,
         nullable=False,
@@ -139,11 +145,26 @@ class Photo(Base):
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+    # Media type discriminator: 'image' or 'video'
+    media_type: Mapped[str] = mapped_column(String(16), nullable=False, default=MediaType.IMAGE.value, server_default=MediaType.IMAGE.value)
+    # MIME type supplied by the client at presigned-URL request time
+    source_content_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # S3 key for the transcoded playback asset (video), null for images
+    playback_object_key: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Video duration in milliseconds, null for images
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Last processing error (null when last processing attempt succeeded)
+    processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # S3 multipart upload ID when status is PENDING (video uploads)
+    multipart_upload_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Disambiguate relationship via this model's gallery_id
     gallery: Mapped["Gallery"] = relationship("Gallery", back_populates="photos", foreign_keys=[gallery_id])
 
     __table_args__ = (
+        CheckConstraint("media_type IN ('image', 'video')", name="ck_photos_media_type"),
+        CheckConstraint("duration_ms >= 0", name="ck_photos_duration_ms_nonnegative"),
         Index(
             "ix_photos_gallery_id_display_name_lower",
             gallery_id,

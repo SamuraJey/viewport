@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy import asc, delete, desc, func, or_, select
 
 from viewport.gallery_constants import PUBLIC_GALLERY_SORT_BY_DEFAULT, PUBLIC_GALLERY_SORT_ORDER_DEFAULT
-from viewport.models.gallery import Gallery, Photo, ProjectVisibility
+from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
 from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.repositories.base_repository import BaseRepository
@@ -414,7 +414,7 @@ class ProjectRepository(BaseRepository):
         return await self._finish_read(count > 0)
 
     async def get_recent_project_thumbnail_keys(self, project_id: uuid.UUID, *, listed_only: bool, limit: int = 3) -> list[str]:
-        filters = [Gallery.project_id == project_id, Gallery.is_deleted.is_(False), Photo.thumbnail_object_key.is_not(None)]
+        filters = [Gallery.project_id == project_id, Gallery.is_deleted.is_(False), Photo.thumbnail_object_key.is_not(None), Photo.status == PhotoUploadStatus.SUCCESSFUL]
         if listed_only:
             filters.append(Gallery.project_visibility == ProjectVisibility.LISTED.value)
         stmt = select(Photo.thumbnail_object_key).join(Photo.gallery).where(*filters).order_by(Gallery.project_position.asc(), Photo.uploaded_at.desc(), Photo.id.desc()).limit(limit)
@@ -506,6 +506,7 @@ class ProjectRepository(BaseRepository):
                 Gallery.project_id.in_(project_ids),
                 Gallery.is_deleted.is_(False),
                 Photo.thumbnail_object_key.is_not(None),
+                Photo.status == PhotoUploadStatus.SUCCESSFUL,
             )
             .subquery()
         )

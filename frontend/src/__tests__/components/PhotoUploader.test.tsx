@@ -129,9 +129,7 @@ describe('PhotoUploader', () => {
     });
 
     // Should show warning about oversized files
-    expect(
-      screen.getByText(/All selected files exceed the 10 MB maximum size/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/All selected files exceed the maximum size/)).toBeInTheDocument();
 
     // Resize All button should be visible for oversized resizable files
     expect(screen.getByLabelText('Resize all oversized images')).toBeInTheDocument();

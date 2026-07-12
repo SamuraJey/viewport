@@ -8,10 +8,11 @@ import {
 } from 'yet-another-react-lightbox';
 import type { RenderSlideContainerProps, Slide } from 'yet-another-react-lightbox';
 
-interface PhotoSlideWithThumbnail extends Slide {
+type PhotoSlideWithThumbnail = Slide & {
   src: string;
   thumbnailSrc?: string;
-}
+  media_type?: 'image' | 'video';
+};
 
 /**
  * Progressive thumbnail overlay for yet-another-react-lightbox.
@@ -93,6 +94,16 @@ export function ProgressiveSlide({ slide, children }: RenderSlideContainerProps)
   };
 
   const cover = isImageSlide(slide) && isImageFitCover(slide, imageFit);
+  const isVideoSlide = typedSlide.media_type === 'video';
+
+  // Video slides: render children directly (video player handles its own poster/loading)
+  if (isVideoSlide) {
+    return (
+      <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
+        {children}
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%' }}>

@@ -451,14 +451,14 @@ describe('photoService', () => {
       original_filename: 'empty.jpg',
       success: false,
       error: 'Cannot upload empty file',
+      retryable: false,
     });
 
-    expect(api.post).toHaveBeenCalledWith(
+    // Empty files are rejected client-side before any S3 upload or backend confirm.
+    expect(api.post).not.toHaveBeenCalledWith(
       '/galleries/gallery-1/photos/batch-confirm',
-      {
-        items: [{ photo_id: 'photo-empty', success: false }],
-      },
-      { signal: undefined },
+      expect.anything(),
+      expect.anything(),
     );
   });
 

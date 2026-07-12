@@ -33,6 +33,11 @@ describe('isResizableFile', () => {
     expect(isResizableFile(file)).toBe(false);
   });
 
+  it('returns false for oversized video files', () => {
+    const file = createMockFile(MAX_UPLOAD_FILE_SIZE_BYTES + 1024, 'video/mp4');
+    expect(isResizableFile(file)).toBe(false);
+  });
+
   it('returns false for small image files (under limit)', () => {
     const file = createMockFile(1024, 'image/jpeg');
     expect(isResizableFile(file)).toBe(false);

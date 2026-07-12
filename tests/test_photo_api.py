@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from tests.helpers import register_and_login, upload_photo_via_presigned
-from viewport.api.photo import MAX_FILE_SIZE, _invalidate_presigned_cache_safely, _photo_needs_thumbnail_processing, get_content_type_from_filename, sanitize_filename
+from viewport.api.photo import MAX_IMAGE_FILE_SIZE, _invalidate_presigned_cache_safely, _photo_needs_thumbnail_processing, get_content_type_from_filename, sanitize_filename
 from viewport.models.gallery import Photo, PhotoUploadStatus
 from viewport.models.user import User
 
@@ -269,13 +269,13 @@ class TestPhotoAPI:
 
     def test_batch_presigned_uploads_size_limit(self, authenticated_client: TestClient, gallery_id_fixture: str):
         """Files that exceed MAX_FILE_SIZE are rejected."""
-        payload = {"files": [{"filename": "huge.jpg", "file_size": MAX_FILE_SIZE + 1, "content_type": "image/jpeg"}]}
+        payload = {"files": [{"filename": "huge.jpg", "file_size": MAX_IMAGE_FILE_SIZE + 1, "content_type": "image/jpeg"}]}
 
         response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
         assert response.status_code == 200
         item = response.json()["items"][0]
         assert not item["success"]
-        assert "File exceeds maximum size" in item["error"]
+        assert "exceeds maximum size" in item["error"]
 
     def test_batch_confirm_uploads_updates_counts_and_triggers_task(self, authenticated_client: TestClient, gallery_id_fixture: str, monkeypatch):
         """Confirming uploads updates counts and schedules thumbnail task."""
@@ -342,8 +342,8 @@ class TestPhotoAPI:
         data = response.json()
         assert data["id"] == photo_id
         assert data["filename"] == "new-name.jpg"
-        assert "width" not in data
-        assert "height" not in data
+        assert "width" in data
+        assert "height" in data
 
     def test_rename_photo_succeeds_when_cache_invalidation_fails(self, authenticated_client: TestClient, gallery_id_fixture: str, monkeypatch):
         photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"rename", "rename.jpg")
@@ -361,8 +361,8 @@ class TestPhotoAPI:
         data = response.json()
         assert data["id"] == photo_id
         assert data["filename"] == "new-name.jpg"
-        assert "width" not in data
-        assert "height" not in data
+        assert "width" in data
+        assert "height" in data
 
     @pytest.mark.asyncio
     async def test_rename_photo_updates_display_name_without_changing_object_key(self, authenticated_client: TestClient, gallery_id_fixture: str, db_session: AsyncSession):
@@ -399,7 +399,7 @@ class TestPhotoAPI:
         filenames = {item["id"]: item["filename"] for item in list_response.json()["photos"]}
         assert filenames[first_photo_id] == "1.JPG"
         assert filenames[second_photo_id] == "1 (1).JPG"
-        assert all("width" not in item and "height" not in item for item in list_response.json()["photos"])
+        assert all("width" in item and "height" in item for item in list_response.json()["photos"])
 
     def test_filename_utilities(self):
         """sanitize_filename and content-type helper behave predictably."""

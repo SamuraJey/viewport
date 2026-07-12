@@ -28,6 +28,10 @@ vi.mock('yet-another-react-lightbox/plugins/zoom', () => ({
   default: 'Zoom',
 }));
 
+vi.mock('yet-another-react-lightbox/plugins/video', () => ({
+  default: 'Video',
+}));
+
 vi.mock('../../components/ProgressiveSlide', () => ({
   ProgressiveSlide: 'ProgressiveSlide',
 }));
@@ -354,11 +358,11 @@ describe('usePhotoLightbox', () => {
 
     const slides = [{ src: '/photo1.jpg', alt: 'Photo 1' }];
     const lightbox = result.current.renderLightbox(slides);
-
     expect(lightbox.props.plugins).toEqual([
       'Thumbnails',
       'Fullscreen',
       'LightboxDownload',
+      'Video',
       'Zoom',
     ]);
     expect(lightbox.props.controller.closeOnPullDown).toBe(true);

@@ -289,7 +289,7 @@ class ShareLinkRepository(BaseRepository):
             ),
             else_=Photo.object_key,
         ).label("cover_image_key")
-        coverable_statuses = (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING)
+        coverable_statuses = (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.PROCESSING)
 
         gallery_ranked = (
             select(
@@ -401,8 +401,8 @@ class ShareLinkRepository(BaseRepository):
         count = int((await self.db.execute(stmt)).scalar() or 0)
         return await self._finish_read(count)
 
-    async def get_photo_stats_by_gallery(self, gallery_id: uuid.UUID) -> GalleryPhotoStats:
-        count, total_size = (await self.db.execute(gallery_photo_stats_stmt(gallery_id))).one()
+    async def get_photo_stats_by_gallery(self, gallery_id: uuid.UUID, *, status: PhotoUploadStatus | None = None) -> GalleryPhotoStats:
+        count, total_size = (await self.db.execute(gallery_photo_stats_stmt(gallery_id, status=status))).one()
         return await self._finish_read(GalleryPhotoStats(photo_count=int(count or 0), total_size_bytes=int(total_size or 0)))
 
     async def get_photo_total_size_by_gallery(self, gallery_id: uuid.UUID) -> int:
@@ -417,14 +417,13 @@ class ShareLinkRepository(BaseRepository):
         offset: int = 0,
         sort_by: GalleryPhotoSortBy = GalleryPhotoSortBy.ORIGINAL_FILENAME,
         order: SortOrder = SortOrder.ASC,
+        *,
+        status: PhotoUploadStatus | None = None,
     ) -> list[Photo]:
-        stmt = (
-            select(Photo)
-            .join(Photo.gallery)
-            .where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
-            .order_by(*build_photo_order_clauses(sort_by, order, include_uploaded_at_tiebreaker=False))
-            .offset(offset)
-        )
+        conditions = [Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)]
+        if status is not None:
+            conditions.append(Photo.status == status)
+        stmt = select(Photo).join(Photo.gallery).where(*conditions).order_by(*build_photo_order_clauses(sort_by, order, include_uploaded_at_tiebreaker=False)).offset(offset)
         if limit is not None:
             stmt = stmt.limit(limit)
 

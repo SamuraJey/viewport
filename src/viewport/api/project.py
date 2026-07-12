@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from viewport.auth_utils import get_current_user
 from viewport.background_tasks import delete_gallery_data_task
 from viewport.dependencies import get_s3_client as get_async_s3_client
-from viewport.filename_utils import build_content_disposition
 from viewport.models.db import get_db
+from viewport.models.gallery import PhotoUploadStatus
 from viewport.models.gallery import ProjectVisibility as GalleryProjectVisibility
 from viewport.models.project import Project
 from viewport.models.user import User
@@ -126,7 +126,7 @@ async def _build_project_response(
     project_cover_thumbnail_key: str | None = None
     if project.cover_photo_id:
         project_cover_photo = await repo.get_photo_by_id_for_project(project.id, project.cover_photo_id)
-        if project_cover_photo and project_cover_photo.thumbnail_object_key:
+        if project_cover_photo and project_cover_photo.thumbnail_object_key and project_cover_photo.status == PhotoUploadStatus.SUCCESSFUL:
             project_cover_thumbnail_key = project_cover_photo.thumbnail_object_key
 
     all_thumbnail_keys: list[str] = []
@@ -431,25 +431,7 @@ async def get_project_photos(
 
     photos, total = await repo.get_project_photos(project_id, current_user.id, limit=limit, offset=offset)
 
-    items: list[GalleryPhotoResponse] = []
-    if photos:
-        thumbnail_keys = [p.thumbnail_object_key for p in photos]
-        thumb_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys)
-        full_url_map = await s3_client.generate_presigned_urls_batch_for_dispositions({p.object_key: build_content_disposition(p.display_name, disposition_type="inline") for p in photos})
-        for photo in photos:
-            thumb = thumb_url_map.get(photo.thumbnail_object_key, "")
-            full = full_url_map.get(photo.object_key, "")
-            if thumb and full:
-                items.append(
-                    GalleryPhotoResponse(
-                        id=photo.id,
-                        url=full,
-                        thumbnail_url=thumb,
-                        filename=photo.display_name,
-                        file_size=photo.file_size,
-                        uploaded_at=photo.uploaded_at,
-                    )
-                )
+    items = await GalleryPhotoResponse.from_db_photos_batch(photos, s3_client)
     return ProjectPhotosResponse(photos=items, total=total)
 
 

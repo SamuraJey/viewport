@@ -15,7 +15,16 @@ import type {
   ConfirmPhotoUploadItem,
   BatchConfirmUploadResponse,
 } from '../types';
-import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_UPLOAD_FILE_SIZE_MB } from '../constants/upload';
+import {
+  MAX_UPLOAD_FILE_SIZE_BYTES,
+  MAX_UPLOAD_FILE_SIZE_MB,
+  MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES,
+  MAX_VIDEO_UPLOAD_FILE_SIZE_MB,
+  VIDEO_PART_SIZE,
+  SUPPORTED_IMAGE_TYPES,
+  SUPPORTED_VIDEO_TYPES,
+  VIDEO_EXTENSIONS,
+} from '../constants/upload';
 
 const DOWNLOAD_TARGET_NAME = 'viewport-browser-download';
 const DOWNLOAD_TARGET_ID = 'viewport-browser-download-frame';
@@ -168,6 +177,33 @@ const downloadPhoto = async (galleryId: string, photoId: string): Promise<void> 
   });
 };
 
+// File type detection helpers
+const isVideoFile = (file: File): boolean => {
+  if (SUPPORTED_VIDEO_TYPES.includes(file.type)) return true;
+  const name = file.name.toLowerCase();
+  return VIDEO_EXTENSIONS.some((ext) => name.endsWith(ext));
+};
+
+const isImageFile = (file: File): boolean => {
+  return SUPPORTED_IMAGE_TYPES.includes(file.type);
+};
+
+const validateUploadFile = (file: File): string | null => {
+  if (file.size === 0) return 'Cannot upload empty file';
+  if (isVideoFile(file)) {
+    if (file.size > MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES) {
+      return `File exceeds maximum size of ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB}MB`;
+    }
+    return null;
+  }
+  if (isImageFile(file)) {
+    if (file.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
+      return `File exceeds maximum size of ${MAX_UPLOAD_FILE_SIZE_MB}MB`;
+    }
+    return null;
+  }
+  return 'Unsupported file type';
+};
 // Batch presigned upload methods
 const batchCreateUploadIntents = async (
   galleryId: string,
@@ -209,6 +245,33 @@ const batchConfirmUploads = async (
   return response.data;
 };
 
+// Multipart upload lifecycle calls
+const completeMultipartUpload = async (
+  galleryId: string,
+  photoId: string,
+  uploadId: string,
+  parts: { ETag: string; PartNumber: number }[],
+  signal?: AbortSignal,
+): Promise<void> => {
+  await api.post(
+    `/galleries/${galleryId}/photos/${photoId}/multipart/complete`,
+    { upload_id: uploadId, parts },
+    { signal },
+  );
+};
+
+const abortMultipartUpload = async (
+  galleryId: string,
+  photoId: string,
+  uploadId: string,
+  signal?: AbortSignal,
+): Promise<void> => {
+  await api.post(
+    `/galleries/${galleryId}/photos/${photoId}/multipart/abort`,
+    { upload_id: uploadId },
+    { signal },
+  );
+};
 const uploadToS3 = async (
   presignedData: { url: string; headers: Record<string, string> },
   file: File,
@@ -328,6 +391,101 @@ const uploadToS3 = async (
 };
 
 /**
+ * Upload a file to S3 using multipart upload with multiple presigned URLs.
+ * Each part is uploaded independently with retry support.
+ * Returns collected ETags for completion.
+ */
+const uploadMultipartToS3 = async (
+  presignedUrls: string[],
+  file: File,
+  partSize: number,
+  onProgress?: (percentage: number) => void,
+  signal?: AbortSignal,
+): Promise<{ ETag: string; PartNumber: number }[]> => {
+  if (file.size === 0) throw new Error('Cannot upload empty file');
+  if (signal?.aborted) throw new Error('Upload cancelled');
+
+  const totalParts = Math.ceil(file.size / partSize);
+  const parts: { ETag: string; PartNumber: number }[] = [];
+  let uploadedBytes = 0;
+  const MAX_RETRIES = 5;
+
+  const uploadSinglePart = (url: string, blob: Blob, partSignal?: AbortSignal): Promise<string> => {
+    let resolve!: (value: string | PromiseLike<string>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<string>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    const xhr = new XMLHttpRequest();
+
+    const handleAbort = () => {
+      xhr.abort();
+      reject(new Error('Upload cancelled'));
+    };
+
+    if (partSignal) {
+      partSignal.addEventListener('abort', handleAbort);
+    }
+
+    xhr.addEventListener('load', () => {
+      if (partSignal) partSignal.removeEventListener('abort', handleAbort);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const etag = xhr.getResponseHeader('ETag') || xhr.getResponseHeader('etag') || '';
+        resolve(etag);
+      } else {
+        reject(new Error(`Part upload failed: ${xhr.status}`));
+      }
+    });
+
+    xhr.addEventListener('error', () => {
+      if (partSignal) partSignal.removeEventListener('abort', handleAbort);
+      reject(new Error('Part upload network error'));
+    });
+
+    xhr.open('PUT', url);
+    xhr.send(blob);
+    return promise;
+  };
+
+  for (let partNumber = 1; partNumber <= totalParts; partNumber++) {
+    if (signal?.aborted) throw new Error('Upload cancelled');
+
+    const start = (partNumber - 1) * partSize;
+    const end = Math.min(start + partSize, file.size);
+    const blob = file.slice(start, end);
+    const url = presignedUrls[partNumber - 1];
+    if (!url) throw new Error(`Missing presigned URL for part ${partNumber}`);
+
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      if (signal?.aborted) throw new Error('Upload cancelled');
+
+      try {
+        const etag = await uploadSinglePart(url, blob, signal);
+        parts.push({ ETag: etag, PartNumber: partNumber });
+        uploadedBytes += blob.size;
+        if (onProgress) {
+          onProgress((uploadedBytes / file.size) * 100);
+        }
+        break;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (lastError.message === 'Upload cancelled') throw lastError;
+        if (attempt < MAX_RETRIES) {
+          const delay = Math.min(100 * Math.pow(2, attempt - 1), 5000);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+        throw lastError;
+      }
+    }
+  }
+
+  return parts;
+};
+
+/**
  * Retry failed photo uploads
  * Takes failed files and re-uploads them
  */
@@ -419,24 +577,24 @@ const uploadPhotosPresigned = async (
       });
     };
 
-    const oversizeMessage = `File exceeds maximum size of ${MAX_UPLOAD_FILE_SIZE_MB}MB`;
     const validFiles: UploadPreparedFile[] = [];
-    const oversizedFiles: UploadPreparedFile[] = [];
+    const rejectedFiles: { item: UploadPreparedFile; error: string }[] = [];
     for (const item of files) {
-      if (item.file.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
-        oversizedFiles.push(item);
+      const validationError = validateUploadFile(item.file);
+      if (validationError) {
+        rejectedFiles.push({ item, error: validationError });
       } else {
         validFiles.push(item);
       }
     }
 
-    for (const item of oversizedFiles) {
+    for (const { item, error } of rejectedFiles) {
       failedUploads++;
       results.push({
         filename: item.filename,
         original_filename: item.filename,
         success: false,
-        error: oversizeMessage,
+        error,
         retryable: false,
       });
       completedBytes += item.file.size;
@@ -459,12 +617,21 @@ const uploadPhotosPresigned = async (
       const batchFailedPhotoIds: string[] = [];
 
       // 1. Get presigned URLs for batch
-      const filesToPresign = batch.filter(
-        (f) =>
-          !f.presigned_data ||
-          !f.presigned_expires_at ||
-          f.presigned_expires_at < Date.now() + 60000,
-      );
+      const filesToPresign = batch.filter((f) => {
+        // Multipart files: skip re-presign if we already have URLs
+        if (f.upload_mode === 'multipart' && f.presigned_urls && f.presigned_urls.length > 0) {
+          return false;
+        }
+        // Single-upload files: skip if presigned data is fresh
+        if (
+          f.presigned_data &&
+          f.presigned_expires_at &&
+          f.presigned_expires_at >= Date.now() + 60000
+        ) {
+          return false;
+        }
+        return true;
+      });
 
       let presignFailed = false;
       if (filesToPresign.length > 0) {
@@ -474,18 +641,33 @@ const uploadPhotosPresigned = async (
           if (response.items.length !== filesToPresign.length) {
             console.warn('Batch presigned response length mismatch.');
           }
-
           for (let k = 0; k < maxPresignLen; k++) {
             const returnedItem = response.items[k];
             const file = filesToPresign[k];
             if (!file) continue;
 
-            if (returnedItem && returnedItem.success && returnedItem.presigned_data) {
-              file.presigned_data = returnedItem.presigned_data;
-              file.photo_id = returnedItem.photo_id;
-              file.presigned_expires_at = returnedItem.expires_in
-                ? Date.now() + returnedItem.expires_in * 1000
-                : undefined;
+            if (returnedItem && returnedItem.success) {
+              if (
+                returnedItem.upload_mode === 'multipart' &&
+                returnedItem.presigned_urls &&
+                returnedItem.presigned_urls.length > 0
+              ) {
+                file.upload_mode = 'multipart';
+                file.upload_id = returnedItem.upload_id;
+                file.part_size = returnedItem.part_size;
+                file.presigned_urls = returnedItem.presigned_urls;
+                file.expected_total_size = returnedItem.expected_total_size;
+                file.photo_id = returnedItem.photo_id;
+              } else if (returnedItem.presigned_data) {
+                file.upload_mode = 'single';
+                file.presigned_data = returnedItem.presigned_data;
+                file.photo_id = returnedItem.photo_id;
+                file.presigned_expires_at = returnedItem.expires_in
+                  ? Date.now() + returnedItem.expires_in * 1000
+                  : undefined;
+              } else {
+                file._presignError = 'Server returned no upload data';
+              }
             } else {
               // Store error to show in UI
               file._presignError = returnedItem?.error || 'File rejected by server';
@@ -516,7 +698,11 @@ const uploadPhotosPresigned = async (
           continue;
         }
 
-        if (!file.presigned_data) {
+        const isMultipart =
+          file.upload_mode === 'multipart' && file.presigned_urls && file.presigned_urls.length > 0;
+        const hasSinglePresign = file.presigned_data != null;
+
+        if (!isMultipart && !hasSinglePresign) {
           failedUploads++;
           results.push({
             filename: file.filename,
@@ -533,20 +719,47 @@ const uploadPhotosPresigned = async (
         fileProgress.set(file.filename, 0);
 
         try {
-          await uploadToS3(
-            file.presigned_data,
-            file.file,
-            (percentage) => {
-              fileProgress.set(file.filename, Math.round((file.file.size * percentage) / 100));
-              emitProgress(file.filename);
-            },
-            signal,
-          );
+          if (isMultipart) {
+            const partSize = file.part_size || VIDEO_PART_SIZE;
+            const parts = await uploadMultipartToS3(
+              file.presigned_urls!,
+              file.file,
+              partSize,
+              (percentage) => {
+                fileProgress.set(file.filename, Math.round((file.file.size * percentage) / 100));
+                emitProgress(file.filename);
+              },
+              signal,
+            );
+            file.parts_etags = parts;
+
+            // Complete the multipart upload server-side
+            if (file.photo_id && file.upload_id) {
+              await completeMultipartUpload(
+                galleryId,
+                file.photo_id,
+                file.upload_id,
+                parts,
+                signal,
+              );
+            }
+          } else {
+            await uploadToS3(
+              file.presigned_data!,
+              file.file,
+              (percentage) => {
+                fileProgress.set(file.filename, Math.round((file.file.size * percentage) / 100));
+                emitProgress(file.filename);
+              },
+              signal,
+            );
+          }
 
           fileProgress.delete(file.filename);
           completedBytes += file.file.size;
           successfulUploads++;
-          if (file.photo_id) {
+          // Only single-upload items use batchConfirmUploads
+          if (file.photo_id && !isMultipart) {
             batchSuccessfulPhotoIds.push(file.photo_id);
           }
 
@@ -563,7 +776,16 @@ const uploadPhotosPresigned = async (
           if (!(error instanceof Error && error.message === 'Upload cancelled')) {
             failedUploads++;
             if (file.photo_id) {
-              batchFailedPhotoIds.push(file.photo_id);
+              if (isMultipart && file.upload_id) {
+                // Abort multipart upload on failure (best effort)
+                try {
+                  await abortMultipartUpload(galleryId, file.photo_id, file.upload_id, signal);
+                } catch {
+                  // Best effort — ignore abort errors
+                }
+              } else {
+                batchFailedPhotoIds.push(file.photo_id);
+              }
             }
 
             results.push({
@@ -613,4 +835,9 @@ export const photoService = {
   downloadPhoto,
   uploadPhotosPresigned,
   retryFailedUploads,
+  completeMultipartUpload,
+  abortMultipartUpload,
+  isVideoFile,
+  isImageFile,
+  validateUploadFile,
 };

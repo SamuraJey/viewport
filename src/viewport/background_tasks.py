@@ -1,21 +1,27 @@
+import contextlib
 import io
+import json
 import logging
+import os
+import subprocess
+import tempfile
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 from botocore.exceptions import ClientError, ConnectionClosedError, ConnectTimeoutError, EndpointConnectionError, ReadTimeoutError, SSLError
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy import delete, func, or_, select, update
 
 from viewport.celery_app import celery_app
-from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
+from viewport.models.gallery import Gallery, MediaType, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
-from viewport.s3_utils import create_thumbnail, generate_thumbnail_object_key, get_s3_client, get_s3_settings
+from viewport.s3_utils import create_thumbnail, generate_playback_object_key, generate_thumbnail_object_key, get_s3_client, get_s3_settings
 from viewport.services.redis_service import RedisService
 from viewport.task_utils import BatchTaskResult, task_db_session
 from viewport.thumbnail_tasks import ThumbnailTaskItem, ThumbnailTaskPayload, to_thumbnail_task_payloads
+from viewport.video_metrics import VIDEO_QUEUE_DEPTH, report_cleanup_failure, report_derivative_sizes, report_original_size, report_processing_error, report_retry, report_transcode_duration
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +42,17 @@ SELECTION_SUBMIT_NOTIFY_TTL_SECONDS = 60 * 60 * 24 * 30
 
 class ThumbnailTransientError(Exception):
     """Retryable transient thumbnail processing error."""
+
+
+class VideoTransientError(Exception):
+    """Retryable transient video processing error."""
+
+
+class VideoTaskPayload(TypedDict):
+    """JSON-serializable wire payload consumed by the video processing Celery task."""
+
+    photo_id: str
+    object_key: str
 
 
 def _is_retryable_s3_error(error: Exception) -> bool:
@@ -109,6 +126,14 @@ def _process_single_photo(
             logger.info("Photo %s no longer exists in database, skipping", photo_id)
             result_tracker.add_skipped(photo_id, "Photo deleted")
             return
+
+        # Check media_type — videos are processed by the video task, not here
+        with task_db_session() as db:
+            media_type_val = db.execute(select(Photo.media_type).where(Photo.id == uuid.UUID(photo_id))).scalar_one_or_none()
+            if media_type_val == MediaType.VIDEO.value:
+                logger.warning("Photo %s is a video, dispatched to thumbnail task in error; skipping", photo_id)
+                result_tracker.add_skipped(photo_id, "Video dispatched to thumbnail task")
+                return
 
         # Download original from S3
         try:
@@ -222,13 +247,21 @@ def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> di
     owner_uuid = uuid.UUID(owner_id)
 
     with task_db_session() as db:
-        photo = db.execute(select(Photo.object_key, Photo.thumbnail_object_key, Photo.file_size, Photo.status).where(Photo.id == photo_uuid, Photo.gallery_id == gallery_uuid)).one_or_none()
+        photo = db.execute(
+            select(
+                Photo.object_key,
+                Photo.thumbnail_object_key,
+                Photo.playback_object_key,
+                Photo.file_size,
+                Photo.status,
+            ).where(Photo.id == photo_uuid, Photo.gallery_id == gallery_uuid),
+        ).one_or_none()
 
         if not photo:
             logger.warning("Photo %s not found in gallery %s", photo_id, gallery_id)
             return {"deleted": False, "reason": "Photo not found"}
 
-        object_key, thumbnail_object_key, file_size, status = photo
+        object_key, thumbnail_object_key, playback_object_key, file_size, status = photo
 
     s3_client = get_s3_client()
     bucket = get_s3_settings().bucket
@@ -238,6 +271,7 @@ def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> di
     except ClientError as error:
         logger.warning("Failed to delete photo object %s: %s", object_key, error)
         if error.response.get("Error", {}).get("Code") != "NoSuchKey":
+            report_cleanup_failure("image" if status != PhotoUploadStatus.SUCCESSFUL else "video")
             raise
 
     if thumbnail_object_key and thumbnail_object_key != object_key:
@@ -246,6 +280,16 @@ def _delete_photo_data_impl(photo_id: str, gallery_id: str, owner_id: str) -> di
         except ClientError as error:
             logger.warning("Failed to delete thumbnail %s: %s", thumbnail_object_key, error)
             if error.response.get("Error", {}).get("Code") != "NoSuchKey":
+                report_cleanup_failure("image")
+                raise
+
+    if playback_object_key and playback_object_key != object_key:
+        try:
+            s3_client.delete_object(Bucket=bucket, Key=playback_object_key)
+        except ClientError as error:
+            logger.warning("Failed to delete playback %s: %s", playback_object_key, error)
+            if error.response.get("Error", {}).get("Code") != "NoSuchKey":
+                report_cleanup_failure("video")
                 raise
 
     with task_db_session() as db:
@@ -300,6 +344,9 @@ def delete_photos_batch_task(self, photo_ids: list[str], gallery_id: str, owner_
 
 def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskResult) -> None:
     """Update database records and clear cache for processed photos."""
+
+    # Exclude skipped items — they stay in their current DB status
+    results = [r for r in results if r.get("status") != "skipped"]
 
     successful_results = [r for r in results if r["status"] == "success"]
     failed_results = [r for r in results if r["status"] == "error"]
@@ -388,6 +435,534 @@ def create_thumbnails_batch_task(self, photos: list[ThumbnailTaskPayload]) -> di
     return result_tracker.to_dict()
 
 
+# --- Video processing ---------------------------------------------------------
+
+MAX_VIDEO_DURATION_SECONDS = 1800
+
+
+def _ffprobe_streams(filepath: str) -> dict[str, Any]:
+    """Run ffprobe and return parsed JSON stream metadata.
+
+    Raises subprocess.CalledProcessError on ffprobe failure.
+    """
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=codec_type,codec_name,width,height,duration,nb_streams,r_frame_rate,pix_fmt",
+            "-of",
+            "json",
+            filepath,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    result.check_returncode()
+    return cast(dict[str, Any], json.loads(result.stdout))
+
+
+def _ffprobe_has_audio(filepath: str) -> bool:
+    """Check whether the file has at least one audio stream."""
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=codec_type",
+            "-of",
+            "json",
+            filepath,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        return False
+    data = json.loads(result.stdout)
+    streams = data.get("streams", [])
+    return len(streams) > 0
+
+
+def _cleanup_video_failure(
+    photo_id: str,
+    object_key: str,
+    s3_client: "S3Client",
+    bucket: str,
+    error_message: str,
+    derivative_keys: list[str] | None = None,
+) -> None:
+    """Delete original S3 object + derivatives and mark photo as FAILED with decremented quota.
+
+    This is a best-effort cleanup. The hourly cleanup_orphaned_uploads_task
+    sweeps any S3 objects left behind.
+    """
+    try:
+        s3_client.delete_object(Bucket=bucket, Key=object_key)
+    except ClientError as delete_error:
+        logger.warning("Failed to delete invalid video S3 object %s: %s", object_key, delete_error)
+
+    if derivative_keys:
+        for dkey in derivative_keys:
+            try:
+                s3_client.delete_object(Bucket=bucket, Key=dkey)
+            except ClientError as delete_error:
+                logger.warning("Failed to delete derivative S3 object %s: %s", dkey, delete_error)
+
+    with task_db_session() as db_cleanup:
+        photo_row = db_cleanup.execute(select(Photo.file_size, Gallery.owner_id).select_from(Photo).join(Gallery, Photo.gallery_id == Gallery.id).where(Photo.id == photo_id)).one_or_none()
+        if photo_row:
+            file_size, owner_id = photo_row
+            db_cleanup.execute(update(User).where(User.id == owner_id).values(storage_used=func.greatest(User.storage_used - file_size, 0)))
+        db_cleanup.execute(update(Photo).where(Photo.id == photo_id).values(status=PhotoUploadStatus.FAILED, processing_error=error_message))
+
+
+def _process_single_video(
+    video_data: VideoTaskPayload,
+    s3_client: "S3Client",
+    bucket: str,
+    existing_ids: set[str],
+    result_tracker: BatchTaskResult,
+) -> None:
+    """Process a single video: validate, transcode, generate poster, and upload."""
+
+    photo_id = video_data["photo_id"]
+    object_key = video_data["object_key"]
+
+    try:
+        # Check if photo was deleted
+        if photo_id not in existing_ids:
+            logger.info("Video %s no longer exists in database, skipping", photo_id)
+            result_tracker.add_skipped(photo_id, "Photo deleted")
+            return
+
+        # Verify media type
+        with task_db_session() as db_check:
+            media_row = db_check.execute(select(Photo.media_type).where(Photo.id == photo_id)).one_or_none()
+            if not media_row or media_row[0] != MediaType.VIDEO.value:
+                logger.warning("Photo %s is not a video, skipping", photo_id)
+                result_tracker.add_skipped(photo_id, "Not a video")
+                return
+
+        # Tag upload confirmed
+        try:
+            s3_client.put_object_tagging(
+                Bucket=bucket,
+                Key=object_key,
+                Tagging={"TagSet": [{"Key": "upload-status", "Value": "confirmed"}]},
+            )
+        except ClientError as tag_error:
+            if _is_retryable_s3_error(tag_error):
+                raise VideoTransientError(f"Retryable S3 tag error for {photo_id}") from tag_error
+            logger.warning("Failed to update S3 tag for %s: %s", object_key, tag_error)
+        except Exception as tag_general_error:
+            if _is_retryable_s3_error(tag_general_error):
+                raise VideoTransientError(f"Retryable S3 tag error for {photo_id}") from tag_general_error
+            logger.warning("Unexpected error updating S3 tag for %s: %s", object_key, tag_general_error)
+
+        # --- Download original to temp file ---
+        tmp_input_path: str | None = None
+        tmp_output_path: str | None = None
+        tmp_poster_path: str | None = None
+
+        # Report original size for telemetry.
+        try:
+            head_response = s3_client.head_object(Bucket=bucket, Key=object_key)
+            report_original_size(int(head_response.get("ContentLength", 0) or 0))
+        except Exception:
+            pass
+
+        transcode_start = datetime.now(UTC)
+
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_input:
+                tmp_input_path = tmp_input.name
+                try:
+                    s3_client.download_fileobj(bucket, object_key, tmp_input)
+                except ClientError as s3_error:
+                    error_code = cast(dict[str, Any], getattr(s3_error, "response", {}) or {}).get("Error", {}).get("Code", "")
+                    if error_code == "NoSuchKey":
+                        logger.warning("Video file %s not found in S3, marking as failed", object_key)
+                        result_tracker.add_error(photo_id, "File not found in S3")
+                        return
+                    if _is_retryable_s3_error(s3_error):
+                        raise VideoTransientError(f"Retryable S3 download error for {photo_id}") from s3_error
+                    logger.error("S3 non-retryable error for video %s: %s", photo_id, str(s3_error))
+                    result_tracker.add_error(photo_id, "S3 download failed")
+                    return
+
+            # --- ffprobe validation ---
+            try:
+                probe_data = _ffprobe_streams(tmp_input_path)
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as probe_error:
+                logger.error("ffprobe failed for video %s: %s", photo_id, probe_error)
+                report_processing_error("ffprobe_validation_failed", object_key)
+                _cleanup_video_failure(photo_id, object_key, s3_client, bucket, "ffprobe validation failed")
+                result_tracker.add_error(photo_id, "ffprobe validation failed")
+                return
+
+            streams = probe_data.get("streams", [])
+            if not streams:
+                logger.error("No video stream found in %s", photo_id)
+                report_processing_error("no_video_stream", object_key)
+                _cleanup_video_failure(photo_id, object_key, s3_client, bucket, "No video stream found")
+                result_tracker.add_error(photo_id, "No video stream found")
+                return
+
+            video_stream = streams[0]
+            duration = float(video_stream.get("duration", 0) or 0)
+            width = int(video_stream.get("width", 0) or 0)
+            height = int(video_stream.get("height", 0) or 0)
+            nb_streams = int(probe_data.get("format", {}).get("nb_streams", video_stream.get("nb_streams", 1)) or 1)
+
+            # Parse source FPS from r_frame_rate (format: "30000/1001" or "30/1")
+            r_frame_rate = video_stream.get("r_frame_rate", "30/1") or "30/1"
+            try:
+                num, den = r_frame_rate.split("/")
+                source_fps = float(num) / float(den) if float(den) != 0 else 30.0
+            except ValueError, ZeroDivisionError:
+                source_fps = 30.0
+            target_fps = min(60.0, source_fps)
+
+            if duration <= 0:
+                logger.error("Video %s has zero or negative duration", photo_id)
+                report_processing_error("invalid_duration", object_key)
+                _cleanup_video_failure(photo_id, object_key, s3_client, bucket, "Invalid video duration")
+                result_tracker.add_error(photo_id, "Invalid video duration")
+                return
+
+            if duration > MAX_VIDEO_DURATION_SECONDS:
+                logger.error("Video %s duration %.1fs exceeds maximum %ds", photo_id, duration, MAX_VIDEO_DURATION_SECONDS)
+                report_processing_error("duration_exceeded", object_key)
+                _cleanup_video_failure(
+                    photo_id,
+                    object_key,
+                    s3_client,
+                    bucket,
+                    f"Video duration {duration:.1f}s exceeds maximum {MAX_VIDEO_DURATION_SECONDS}s",
+                )
+                result_tracker.add_error(photo_id, "Video too long")
+                return
+
+            if nb_streams > 20:
+                logger.error("Video %s has %d streams (too many)", photo_id, nb_streams)
+                report_processing_error("too_many_streams", object_key)
+                _cleanup_video_failure(photo_id, object_key, s3_client, bucket, "Too many streams")
+                result_tracker.add_error(photo_id, "Too many streams")
+                return
+
+            duration_ms = int(duration * 1000)
+            has_audio = _ffprobe_has_audio(tmp_input_path)
+
+            # Fast path: remux video when already web-compatible H.264
+            source_codec = (video_stream.get("codec_name") or "").lower()
+            source_pix_fmt = (video_stream.get("pix_fmt") or "").lower()
+            can_remux = source_codec == "h264" and width <= 1280 and source_pix_fmt == "yuv420p" and source_fps <= 60.0
+            # --- Transcode with ffmpeg ---
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_out:
+                tmp_output_path = tmp_out.name
+
+            if can_remux:
+                # Video already web-compatible — copy stream, only re-encode audio
+                ffmpeg_cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    tmp_input_path,
+                    "-c:v",
+                    "copy",
+                ]
+                if has_audio:
+                    ffmpeg_cmd += ["-c:a", "aac", "-b:a", "128k"]
+                else:
+                    ffmpeg_cmd += ["-an"]
+                ffmpeg_cmd += ["-f", "mp4", "-movflags", "+faststart", tmp_output_path]
+            else:
+                # Build filter chain only for what actually needs changing
+                filters: list[str] = []
+                if width > 1280:
+                    filters.append("scale='min(1280,iw)':-2,format=yuv420p")
+                elif source_pix_fmt not in ("yuv420p", ""):
+                    filters.append("format=yuv420p")
+                if abs(target_fps - source_fps) > 0.01:
+                    filters.append(f"fps=fps={target_fps}")
+
+                ffmpeg_cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    tmp_input_path,
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "veryfast",
+                    "-crf",
+                    "26",
+                    "-maxrate",
+                    "2M",
+                    "-bufsize",
+                    "4M",
+                ]
+                if filters:
+                    ffmpeg_cmd += ["-vf", ",".join(filters)]
+                if has_audio:
+                    ffmpeg_cmd += ["-c:a", "aac", "-b:a", "128k"]
+                else:
+                    ffmpeg_cmd += ["-an"]
+                ffmpeg_cmd += ["-f", "mp4", tmp_output_path]
+
+            try:
+                subprocess.run(
+                    ffmpeg_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=1800,  # 30 min for long transcodes
+                    check=True,
+                )
+            except subprocess.CalledProcessError as ffmpeg_error:
+                logger.error("ffmpeg transcode failed for video %s: %s", photo_id, ffmpeg_error.stderr[-2000:] if ffmpeg_error.stderr else str(ffmpeg_error))
+                report_processing_error("transcode_failed", object_key)
+                _cleanup_video_failure(photo_id, object_key, s3_client, bucket, "Video transcoding failed")
+                result_tracker.add_error(photo_id, "Video transcoding failed")
+                return
+            except subprocess.TimeoutExpired as timeout_err:
+                logger.error("ffmpeg transcode timed out for video %s", photo_id)
+                raise VideoTransientError(f"ffmpeg transcode timed out for {photo_id}") from timeout_err
+
+            # --- Generate poster frame ---
+            poster_ts = min(5.0, duration * 0.1)
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_poster_file:
+                tmp_poster_path = tmp_poster_file.name
+
+            poster_cmd = [
+                "ffmpeg",
+                "-y",
+                "-ss",
+                str(poster_ts),
+                "-i",
+                tmp_input_path,
+                "-frames:v",
+                "1",
+                "-q:v",
+                "2",
+                tmp_poster_path,
+            ]
+            try:
+                subprocess.run(poster_cmd, capture_output=True, text=True, timeout=30, check=True)
+            except subprocess.CalledProcessError, subprocess.TimeoutExpired:
+                # Fall back to first frame
+                logger.warning("Poster extraction at %.1fs failed for %s, falling back to first frame", poster_ts, photo_id)
+                poster_cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-ss",
+                    "0",
+                    "-i",
+                    tmp_input_path,
+                    "-frames:v",
+                    "1",
+                    "-q:v",
+                    "2",
+                    tmp_poster_path,
+                ]
+                subprocess.run(poster_cmd, capture_output=True, text=True, timeout=30, check=True)
+
+            # Convert poster PNG to AVIF via create_thumbnail
+            try:
+                with open(tmp_poster_path, "rb") as pf:
+                    poster_png_bytes = pf.read()
+                poster_avif_bytes, poster_w, poster_h = create_thumbnail(poster_png_bytes)
+            except Exception as poster_error:
+                logger.error("Poster AVIF creation failed for %s: %s", photo_id, poster_error)
+                _cleanup_video_failure(photo_id, object_key, s3_client, bucket, "Poster frame generation failed")
+                result_tracker.add_error(photo_id, "Poster generation failed")
+                return
+
+            # --- Check photo still exists before uploading derivatives ---
+            with task_db_session() as db_check:
+                photo_exists = db_check.execute(select(Photo.id).join(Photo.gallery).where(Photo.id == photo_id, Gallery.is_deleted.is_(False))).scalar_one_or_none()
+                if not photo_exists:
+                    logger.warning("Video %s deleted during processing, skipping upload", photo_id)
+                    result_tracker.add_skipped(photo_id, "Photo deleted during processing")
+                    return
+
+            # --- Upload playback MP4 ---
+            playback_key = generate_playback_object_key(object_key)
+            try:
+                with open(tmp_output_path, "rb") as mp4_file:
+                    s3_client.upload_fileobj(
+                        mp4_file,
+                        bucket,
+                        playback_key,
+                        ExtraArgs={
+                            "ContentType": "video/mp4",
+                            "CacheControl": "public, max-age=31536000, immutable",
+                        },
+                    )
+            except Exception as upload_error:
+                if _is_retryable_s3_error(upload_error):
+                    raise VideoTransientError(f"Retryable S3 upload error for playback {photo_id}") from upload_error
+                raise
+
+            # --- Upload poster AVIF ---
+            poster_key = generate_thumbnail_object_key(object_key)
+            poster_io = io.BytesIO(poster_avif_bytes)
+            try:
+                s3_client.upload_fileobj(
+                    poster_io,
+                    bucket,
+                    poster_key,
+                    ExtraArgs={
+                        "ContentType": "image/avif",
+                        "CacheControl": "public, max-age=31536000, immutable",
+                    },
+                )
+            except Exception as upload_error:
+                if _is_retryable_s3_error(upload_error):
+                    raise VideoTransientError(f"Retryable S3 upload error for poster {photo_id}") from upload_error
+                raise
+            logger.info("Successfully processed video %s", photo_id)
+            report_transcode_duration((datetime.now(UTC) - transcode_start).total_seconds())
+            try:
+                playback_size = os.path.getsize(tmp_output_path) if tmp_output_path else 0
+                poster_size = len(poster_avif_bytes)
+                report_derivative_sizes(playback_size, poster_size)
+            except Exception:
+                pass
+            del poster_avif_bytes
+            result_tracker.add_success(
+                photo_id,
+                playback_object_key=playback_key,
+                thumbnail_object_key=poster_key,
+                duration_ms=duration_ms,
+                width=width,
+                height=height,
+            )
+
+        finally:
+            # Clean up temp files
+            for tmp_path in (tmp_input_path, tmp_output_path, tmp_poster_path):
+                if tmp_path and os.path.isfile(tmp_path):
+                    with contextlib.suppress(OSError):
+                        os.unlink(tmp_path)
+
+    except VideoTransientError:
+        raise
+    except Exception as e:
+        logger.exception("Failed to process video %s: %s", photo_id, e)
+        result_tracker.add_error(photo_id, "Video processing failed", exception=e)
+
+
+def _batch_update_video_results(results: list[dict], result_tracker: BatchTaskResult) -> None:
+    """Update database records for processed videos."""
+
+    successful_results = [r for r in results if r["status"] == "success"]
+    failed_results = [r for r in results if r["status"] == "error"]
+
+    try:
+        with task_db_session() as db:
+            if successful_results:
+                update_mappings = [
+                    {
+                        "id": r["photo_id"],
+                        "playback_object_key": r["playback_object_key"],
+                        "thumbnail_object_key": r["thumbnail_object_key"],
+                        "duration_ms": r["duration_ms"],
+                        "width": r["width"],
+                        "height": r["height"],
+                        "status": PhotoUploadStatus.SUCCESSFUL,
+                        "processing_error": None,
+                    }
+                    for r in successful_results
+                ]
+                logger.info("Batch updating %s videos with metadata in DB", len(update_mappings))
+                db.execute(update(Photo), update_mappings)
+
+            if failed_results:
+                failed_ids = [r["photo_id"] for r in failed_results]
+                logger.info("Batch marking %s videos as FAILED in DB", len(failed_ids))
+
+                owner_totals = [
+                    (owner_id, int(total_size))
+                    for owner_id, total_size in db.execute(
+                        select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0))
+                        .select_from(Photo)
+                        .join(Gallery, Photo.gallery_id == Gallery.id)
+                        .where(
+                            Photo.id.in_(failed_ids),
+                            Photo.status.in_([PhotoUploadStatus.PROCESSING, PhotoUploadStatus.SUCCESSFUL]),
+                        )
+                        .group_by(Gallery.owner_id)
+                    ).all()
+                ]
+
+                db.execute(
+                    update(Photo)
+                    .where(
+                        Photo.id.in_(failed_ids),
+                        Photo.status.in_([PhotoUploadStatus.PROCESSING, PhotoUploadStatus.SUCCESSFUL]),
+                    )
+                    .values(status=PhotoUploadStatus.FAILED)
+                )
+                _decrement_used_for_owner_totals(db, owner_totals)
+
+            db.commit()
+
+    except Exception as exc:
+        logger.exception("Failed to batch update video results: %s", exc)
+        raise VideoTransientError("Failed to update video results") from exc
+
+
+@celery_app.task(
+    name="process_videos_batch",
+    bind=True,
+    max_retries=5,
+    queue="video",
+    rate_limit="10/s",
+    acks_late=True,
+    autoretry_for=(VideoTransientError,),
+    retry_backoff=True,
+    retry_backoff_max=120,
+    retry_jitter=True,
+)
+def process_videos_batch_task(self, videos: list[VideoTaskPayload]) -> dict:
+    """Background task to process videos: validate, transcode, and generate posters."""
+    VIDEO_QUEUE_DEPTH.dec(len(videos))
+    if self.request.retries > 0:
+        report_retry()
+    logger.info("Starting batch video processing for %s videos", len(videos))
+
+    s3_client = get_s3_client()
+    bucket = get_s3_settings().bucket
+
+    result_tracker = BatchTaskResult(len(videos))
+
+    photo_ids = [v["photo_id"] for v in videos]
+    existing_ids = _get_existing_photo_ids(photo_ids)
+
+    for video_data in videos:
+        _process_single_video(video_data, s3_client, bucket, existing_ids, result_tracker)
+
+    if result_tracker.results:
+        _batch_update_video_results(result_tracker.results, result_tracker)
+
+    logger.info(
+        "Video batch completion: %s success, %s skipped, %s failed",
+        result_tracker.successful,
+        result_tracker.skipped,
+        result_tracker.failed,
+    )
+    return result_tracker.to_dict()
+
+
 @celery_app.task(
     name="cleanup_orphaned_uploads",
     bind=True,
@@ -433,8 +1008,38 @@ def cleanup_orphaned_uploads_task(self) -> dict:
                 object_keys.append(p.object_key)
                 if p.thumbnail_object_key and p.thumbnail_object_key != p.object_key:
                     object_keys.append(p.thumbnail_object_key)
+                if p.playback_object_key and p.playback_object_key != p.object_key:
+                    object_keys.append(p.playback_object_key)
 
             pending_ids = [str(p.id) for p in chunk if p.status == PhotoUploadStatus.PENDING]
+
+            # Abort any in-progress multipart uploads for PENDING videos before
+            # deleting objects — avoids leaked S3 multipart parts.
+            for p in chunk:
+                if p.status == PhotoUploadStatus.PENDING and p.multipart_upload_id:
+                    try:
+                        s3_client.abort_multipart_upload(
+                            Bucket=bucket,
+                            Key=p.object_key,
+                            UploadId=p.multipart_upload_id,
+                        )
+                        logger.info("Aborted multipart upload %s for key %s", p.multipart_upload_id, p.object_key)
+                    except ClientError as abort_error:
+                        error_code = abort_error.response.get("Error", {}).get("Code", "")
+                        if error_code in ("NoSuchKey", "NoSuchUpload"):
+                            logger.info(
+                                "Multipart upload %s for key %s already gone (code=%s)",
+                                p.multipart_upload_id,
+                                p.object_key,
+                                error_code,
+                            )
+                        else:
+                            logger.warning(
+                                "Failed to abort multipart upload %s for key %s: %s",
+                                p.multipart_upload_id,
+                                p.object_key,
+                                abort_error,
+                            )
 
             # 1. Delete from S3 first to avoid orphans if DB deletion fails but task isn't retried
             # If S3 delete fails, the task will fail and retry (processing the same chunk)

@@ -412,17 +412,26 @@ class GalleryRepository(BaseRepository):
         return await self._finish_read(photo)
 
     async def set_cover_photo(self, gallery_id: uuid.UUID, photo_id: uuid.UUID, owner_id: uuid.UUID) -> Gallery | None:
-        # Perform single UPDATE with RETURNING to avoid loading objects into memory
-        # Ensure the photo belongs to the gallery and the gallery belongs to owner
+        # Perform single UPDATE with RETURNING to avoid loading objects into memory.
+        # Only successful media with a thumbnail can be set as cover.
         stmt = (
             update(Gallery)
             .where(
                 Gallery.id == gallery_id,
                 Gallery.owner_id == owner_id,
-                # only set if the photo exists and belongs to the gallery
                 Gallery.is_deleted.is_(False),
             )
-            .where(select(1).select_from(Photo).where(Photo.id == photo_id, Photo.gallery_id == gallery_id).exists())
+            .where(
+                select(1)
+                .select_from(Photo)
+                .where(
+                    Photo.id == photo_id,
+                    Photo.gallery_id == gallery_id,
+                    Photo.status == PhotoUploadStatus.SUCCESSFUL,
+                    Photo.thumbnail_object_key.is_not(None),
+                )
+                .exists()
+            )
             .values(cover_photo_id=photo_id)
             .returning(Gallery)
         )
@@ -500,6 +509,7 @@ class GalleryRepository(BaseRepository):
                 Photo.gallery_id == gallery_id,
                 Gallery.is_deleted.is_(False),
                 Photo.thumbnail_object_key.is_not(None),
+                Photo.status == PhotoUploadStatus.SUCCESSFUL,
             )
             .order_by(Photo.uploaded_at.desc(), Photo.id.desc())
             .limit(limit)
@@ -564,6 +574,7 @@ class GalleryRepository(BaseRepository):
                 .where(
                     Photo.id.in_(cover_photo_ids),
                     Photo.thumbnail_object_key.is_not(None),
+                    Photo.status == PhotoUploadStatus.SUCCESSFUL,
                     Gallery.is_deleted.is_(False),
                     Photo.gallery_id.in_(gallery_ids),
                 )
@@ -586,6 +597,7 @@ class GalleryRepository(BaseRepository):
                 Photo.gallery_id.in_(gallery_ids),
                 Gallery.is_deleted.is_(False),
                 Photo.thumbnail_object_key.is_not(None),
+                Photo.status == PhotoUploadStatus.SUCCESSFUL,
             )
             .subquery()
         )
