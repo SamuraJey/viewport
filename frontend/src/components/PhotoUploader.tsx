@@ -45,9 +45,18 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
     const [error, setError] = useState('');
     const [showConfirmModal, setShowConfirmModal] = useState(false);
 
+    const isVideo = (file: File): boolean => {
+      const name = file.name.toLowerCase();
+      return file.type.startsWith('video/') || VIDEO_EXTENSIONS.some((ext) => name.endsWith(ext));
+    };
+
     const handleFiles = (fileList: FileList | File[]) => {
       const rawFiles = Array.from(fileList);
-      const fileArray = rawFiles.filter((f) => ACCEPTED_TYPES.includes(f.type));
+      const fileArray = rawFiles.filter(
+        (f) =>
+          ACCEPTED_TYPES.includes(f.type) ||
+          VIDEO_EXTENSIONS.some((ext) => f.name.toLowerCase().endsWith(ext)),
+      );
       if (fileArray.length === 0) {
         if (rawFiles.length > 0) {
           setError(
@@ -58,7 +67,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
       }
 
       const oversizedVideos = fileArray.filter(
-        (f) => f.type.startsWith('video/') && f.size > MAX_VIDEO_UPLOAD_FILE_SIZE_MB * 1024 * 1024,
+        (f) => isVideo(f) && f.size > MAX_VIDEO_UPLOAD_FILE_SIZE_MB * 1024 * 1024,
       );
       const acceptedFiles = fileArray.filter((file) => !oversizedVideos.includes(file));
       if (oversizedVideos.length > 0) {
