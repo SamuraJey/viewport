@@ -182,6 +182,7 @@ def generate_thumbnail_object_key(original_object_key: str) -> str:
     """Generate thumbnail object key from original object key.
 
     Converts photo key to `{gallery_id}/{photo_id}_thumbnail.avif` format.
+    Serves as both image thumbnail and video poster frame.
 
     Args:
         original_object_key: Original object key (e.g., 'gallery_id/photo_id.jpg')
@@ -197,3 +198,53 @@ def generate_thumbnail_object_key(original_object_key: str) -> str:
         # Fallback if no gallery_id prefix
         photo_id = original_object_key.rsplit(".", 1)[0] if "." in original_object_key else original_object_key
         return f"{photo_id}_thumbnail.avif"
+
+
+def generate_playback_object_key(original_object_key: str) -> str:
+    """Generate playback object key from original object key.
+
+    Converts video key to `{gallery_id}/{photo_id}_playback.mp4` format.
+
+    Args:
+        original_object_key: Original object key (e.g., 'gallery_id/video.mov')
+
+    Returns:
+        Playback object key in MP4 format (e.g., 'gallery_id/photo_id_playback.mp4')
+    """
+    if "/" in original_object_key:
+        gallery_id, filename = original_object_key.split("/", 1)
+        photo_id = filename.rsplit(".", 1)[0] if "." in filename else filename
+        return f"{gallery_id}/{photo_id}_playback.mp4"
+    else:
+        photo_id = original_object_key.rsplit(".", 1)[0] if "." in original_object_key else original_object_key
+        return f"{photo_id}_playback.mp4"
+
+
+def generate_poster_object_key(original_object_key: str) -> str:
+    """Generate poster object key from original object key.
+
+    For v1 the poster is stored at the same key as the thumbnail.
+
+    Args:
+        original_object_key: Original object key (e.g., 'gallery_id/photo_id.jpg')
+
+    Returns:
+        Poster object key in AVIF format — currently the thumbnail key.
+    """
+    return generate_thumbnail_object_key(original_object_key)
+
+
+def get_derivative_object_keys(original_object_key: str) -> dict[str, str]:
+    """Return all derivative object keys for the given original object key.
+
+    Args:
+        original_object_key: Original object key (e.g., 'gallery_id/photo_id.jpg')
+
+    Returns:
+        Dict with keys "thumbnail", "playback", "poster" and their object key values.
+    """
+    return {
+        "thumbnail": generate_thumbnail_object_key(original_object_key),
+        "playback": generate_playback_object_key(original_object_key),
+        "poster": generate_poster_object_key(original_object_key),
+    }

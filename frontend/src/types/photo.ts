@@ -1,11 +1,22 @@
 /**
  * Photo-related types
  */
+
+export type MediaType = 'image' | 'video';
+export type MediaStatus = 'pending' | 'processing' | 'successful' | 'failed';
+
 export interface PhotoResponse {
   id: string;
   gallery_id: string;
+  media_type: MediaType;
   url: string;
   thumbnail_url: string;
+  playback_url?: string;
+  duration_ms?: number;
+  width?: number;
+  height?: number;
+  status: MediaStatus;
+  processing_error?: string;
   filename: string;
   file_size: number;
   uploaded_at: string;
@@ -48,6 +59,11 @@ interface BatchPresignedUploadItem {
   success: boolean;
   error?: string;
   photo_id?: string;
+  upload_mode?: 'single' | 'multipart';
+  upload_id?: string;
+  part_size?: number;
+  presigned_urls?: string[];
+  expected_total_size?: number;
   presigned_data?: PresignedUploadData;
   expires_in?: number;
 }
@@ -86,6 +102,12 @@ export interface UploadPreparedFile {
   filename: string;
   presigned_data?: PresignedUploadData;
   photo_id?: string;
+  upload_mode?: 'single' | 'multipart';
+  upload_id?: string;
+  part_size?: number;
+  presigned_urls?: string[];
+  expected_total_size?: number;
+  parts_etags?: { ETag: string; PartNumber: number }[];
   presigned_expires_at?: number;
   _presignError?: string;
 }

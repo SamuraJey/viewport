@@ -3,15 +3,19 @@ import {
   CheckSquare,
   Download,
   ImageOff,
+  Loader2,
   Pencil,
+  Play,
   Search,
   Square,
   Star,
   StarOff,
   Trash2,
+  VideoOff,
 } from 'lucide-react';
 import type { GalleryPhoto } from '../../types';
 import { getAccessiblePhotoName } from '../../lib/accessibility';
+import { formatDuration } from '../../lib/utils';
 
 interface PhotoCardProps {
   photo: GalleryPhoto;
@@ -106,6 +110,48 @@ const PhotoCardComponent = ({
 
       {/* Image area */}
       <div className="relative h-64 sm:h-72 md:h-80 bg-surface-1 dark:bg-surface-dark-1 overflow-hidden">
+        {/* Status badge — shown for non-successful media */}
+        {photo.status === 'processing' && (
+          <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/90 text-white text-xs font-semibold backdrop-blur-md shadow-lg">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Processing
+          </div>
+        )}
+        {photo.status === 'pending' && (
+          <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/90 text-white text-xs font-semibold backdrop-blur-md shadow-lg">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Pending
+          </div>
+        )}
+        {photo.status === 'failed' && (
+          <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/90 text-white text-xs font-semibold backdrop-blur-md shadow-lg">
+            {photo.media_type === 'video' ? (
+              <VideoOff className="h-3 w-3" />
+            ) : (
+              <ImageOff className="h-3 w-3" />
+            )}
+            Failed
+          </div>
+        )}
+
+        {/* Video play badge — shown only for successful videos */}
+        {photo.media_type === 'video' && photo.status === 'successful' && (
+          <div className="absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+            <div className="flex items-center justify-center h-14 w-14 rounded-full bg-black/60 text-white backdrop-blur-md shadow-lg">
+              <Play className="h-6 w-6 fill-current ml-0.5" />
+            </div>
+          </div>
+        )}
+
+        {/* Duration badge — shown for successful videos with duration */}
+        {photo.media_type === 'video' &&
+          photo.status === 'successful' &&
+          photo.duration_ms != null && (
+            <div className="absolute bottom-3 right-3 z-10 px-2 py-0.5 rounded-md bg-black/70 text-white text-xs font-medium backdrop-blur-md shadow">
+              {formatDuration(photo.duration_ms)}
+            </div>
+          )}
+
         {/* Action Panel - overlay at the bottom */}
         <div className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/80 via-black/40 to-transparent transition-all duration-200 z-20 flex items-center justify-center gap-2 opacity-0 pointer-events-none translate-y-4 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0">
           <button
@@ -207,14 +253,18 @@ const PhotoCardComponent = ({
               : 'Click to view, double-click to rename'
           }
         >
-          {imageState === 'error' ? (
+          {imageState === 'error' || photo.status === 'failed' ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-linear-to-br from-surface-1 via-surface to-surface-1/80 p-6 text-center dark:from-surface-dark-2 dark:via-surface-dark-1 dark:to-surface-dark-2">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border/50 bg-surface/80 text-muted shadow-inner dark:border-border/40 dark:bg-surface-dark-2/80">
-                <ImageOff className="h-6 w-6" />
+                {photo.media_type === 'video' ? (
+                  <VideoOff className="h-6 w-6" />
+                ) : (
+                  <ImageOff className="h-6 w-6" />
+                )}
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-text">Preview unavailable</p>
-                <p className="text-xs font-medium text-muted">Tap to open original photo</p>
+                <p className="text-xs font-medium text-muted">Tap to open original</p>
               </div>
             </div>
           ) : (

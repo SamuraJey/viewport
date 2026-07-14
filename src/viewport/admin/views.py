@@ -111,25 +111,33 @@ class PhotoAdmin(ModelView, model=Photo):
     column_list = [
         Photo.id,
         Photo.gallery_id,
+        Photo.media_type,
         Photo.object_key,
         Photo.file_size,
         Photo.width,
         Photo.height,
+        Photo.duration_ms,
         Photo.uploaded_at,
     ]
     column_searchable_list = [Photo.object_key]
-    column_sortable_list = [Photo.uploaded_at, Photo.file_size]
+    column_sortable_list = [Photo.uploaded_at, Photo.file_size, Photo.duration_ms, Photo.media_type]
     column_default_sort = [(Photo.uploaded_at, True)]
 
     # Details page configuration
     column_details_list = [
         Photo.id,
         Photo.gallery,
+        Photo.media_type,
         Photo.object_key,
         Photo.thumbnail_object_key,
+        Photo.playback_object_key,
+        Photo.source_content_type,
         Photo.file_size,
         Photo.width,
         Photo.height,
+        Photo.duration_ms,
+        Photo.processing_error,
+        Photo.multipart_upload_id,
         Photo.uploaded_at,
     ]
 

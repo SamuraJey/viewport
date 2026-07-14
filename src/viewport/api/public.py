@@ -12,7 +12,7 @@ from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.filename_utils import build_content_disposition
 from viewport.logger import logger
 from viewport.models.db import get_db
-from viewport.models.gallery import Gallery, Photo
+from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.project_repository import ProjectRepository
@@ -21,7 +21,19 @@ from viewport.s3_service import AsyncS3Client
 from viewport.s3_utils import get_s3_client, get_s3_settings
 from viewport.schemas.gallery import GalleryPhotoSortBy, SortOrder
 from viewport.schemas.photo import PHOTO_ID_BATCH_MAX
-from viewport.schemas.public import PublicCover, PublicGalleryAppearance, PublicGalleryResponse, PublicPhoto, PublicProjectGallery, PublicProjectResponse, PublicShareResponse, PublicShareUnlockRequest
+from viewport.schemas.public import (
+    MediaCover,
+    MediaStatus,
+    MediaType,
+    PublicCover,
+    PublicGalleryAppearance,
+    PublicGalleryResponse,
+    PublicPhoto,
+    PublicProjectGallery,
+    PublicProjectResponse,
+    PublicShareResponse,
+    PublicShareUnlockRequest,
+)
 from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_available_public_sharelink, get_valid_public_sharelink, unlock_sharelink_password
 from viewport.zip_utils import build_zip_fallback_name, make_content_disposition_header, make_unique_zip_entry_name, sanitize_zip_entry_name
 
@@ -87,6 +99,10 @@ def _date_str(*candidates: date | datetime | None) -> str:
     return ""
 
 
+def _is_public_media_ready(photo: Photo) -> bool:
+    return bool(photo.status == PhotoUploadStatus.SUCCESSFUL and photo.thumbnail_object_key and (photo.media_type != MediaType.VIDEO.value or photo.playback_object_key))
+
+
 async def _build_public_gallery_response(
     *,
     share_id: UUID,
@@ -107,14 +123,16 @@ async def _build_public_gallery_response(
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
 
     sort_by, order = _resolve_public_sorting(gallery)
-    photo_stats = await repo.get_photo_stats_by_gallery(gallery.id)
+    photo_stats = await repo.get_photo_stats_by_gallery(gallery.id, status=PhotoUploadStatus.SUCCESSFUL)
     photos_to_process = await repo.get_photos_by_gallery_id(
         gallery_id=gallery.id,
         limit=limit,
         offset=offset,
         sort_by=sort_by,
         order=order,
+        status=PhotoUploadStatus.SUCCESSFUL,
     )
+    photos_to_process = [photo for photo in photos_to_process if _is_public_media_ready(photo)]
 
     logger.info(
         "Generating public gallery view for share %s with %s photos (offset=%s, limit=%s, total=%s, sort_by=%s, order=%s)",
@@ -127,26 +145,46 @@ async def _build_public_gallery_response(
         order.value,
     )
 
+    # Collect keys for batch presigning
     thumbnail_keys = [photo.thumbnail_object_key for photo in photos_to_process]
+
+    # Build disposition map: for videos use playback key, for images use object key
+    full_dispositions: dict[str, str] = {}
+    for photo in photos_to_process:
+        if photo.media_type == MediaType.VIDEO.value and photo.playback_object_key:
+            full_key = photo.playback_object_key
+        else:
+            full_key = photo.object_key
+        full_dispositions[full_key] = build_content_disposition(photo.display_name, disposition_type="inline")
+
     thumb_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys)
-    full_url_map = await s3_client.generate_presigned_urls_batch_for_dispositions(
-        {photo.object_key: build_content_disposition(photo.display_name, disposition_type="inline") for photo in photos_to_process}
-    )
+    full_url_map = await s3_client.generate_presigned_urls_batch_for_dispositions(full_dispositions)
 
     photo_list = []
     for photo in photos_to_process:
-        presigned_url = full_url_map.get(photo.object_key, "")
-        presigned_url_thumb = thumb_url_map.get(photo.thumbnail_object_key, "")
+        thumb_url = thumb_url_map.get(photo.thumbnail_object_key, "")
 
-        if presigned_url and presigned_url_thumb:
+        if photo.media_type == MediaType.VIDEO.value and photo.playback_object_key:
+            presigned_url = full_url_map.get(photo.playback_object_key, "")
+            playback_url = presigned_url
+        else:
+            presigned_url = full_url_map.get(photo.object_key, "")
+            playback_url = None
+
+        if presigned_url and thumb_url:
             photo_list.append(
                 PublicPhoto(
                     photo_id=str(photo.id),
-                    thumbnail_url=presigned_url_thumb,
+                    media_type=MediaType(photo.media_type),
+                    thumbnail_url=thumb_url,
                     full_url=presigned_url,
+                    playback_url=playback_url,
                     filename=photo.display_name,
+                    duration_ms=photo.duration_ms,
                     width=photo.width,
                     height=photo.height,
+                    status=MediaStatus.SUCCESSFUL,
+                    processing_error=photo.processing_error,
                 )
             )
 
@@ -155,7 +193,11 @@ async def _build_public_gallery_response(
     if gallery.cover_photo_id:
         cover_photo_obj = await repo.get_photo_by_id_and_gallery(gallery.cover_photo_id, gallery.id)
 
-    if cover_photo_obj is None or not cover_photo_obj.object_key or not cover_photo_obj.thumbnail_object_key:
+    # Only SUCCESSFUL media with valid object/thumbnail keys can be a cover
+    if cover_photo_obj and not _is_public_media_ready(cover_photo_obj):
+        cover_photo_obj = None
+
+    if cover_photo_obj is None:
         if photos_to_process and offset == 0:
             cover_photo_obj = photos_to_process[0]
         else:
@@ -165,25 +207,35 @@ async def _build_public_gallery_response(
                 offset=0,
                 sort_by=sort_by,
                 order=order,
+                status=PhotoUploadStatus.SUCCESSFUL,
             )
-            cover_photo_obj = fallback_photos[0] if fallback_photos else None
+            cover_photo_obj = next(
+                (photo for photo in fallback_photos if _is_public_media_ready(photo)),
+                None,
+            )
 
     # Override cover with project-level cover when provided (for project folder views)
-    effective_cover: PublicCover | None = None
+    effective_cover: MediaCover | None = None
     if override_cover is not None:
         effective_cover = override_cover
     else:
-        if cover_photo_obj and cover_photo_obj.object_key and cover_photo_obj.thumbnail_object_key:
-            cover_full_url = full_url_map.get(cover_photo_obj.object_key)
+        if cover_photo_obj and cover_photo_obj.thumbnail_object_key:
+            # Determine cover full key (playback for video, object for image)
+            if cover_photo_obj.media_type == MediaType.VIDEO.value and cover_photo_obj.playback_object_key:
+                cover_full_key = cover_photo_obj.playback_object_key
+            else:
+                cover_full_key = cover_photo_obj.object_key
+
+            cover_full_url = full_url_map.get(cover_full_key)
             cover_thumb_url = thumb_url_map.get(cover_photo_obj.thumbnail_object_key)
             if cover_full_url is None:
                 try:
                     cover_full_url = await s3_client.generate_presigned_url_async(
-                        cover_photo_obj.object_key,
+                        cover_full_key,
                         response_content_disposition=build_content_disposition(cover_photo_obj.display_name, disposition_type="inline"),
                     )
                 except (ClientError, BotoCoreError) as exc:
-                    logger.warning("Failed to presign gallery cover full object %s: %s", cover_photo_obj.object_key, exc)
+                    logger.warning("Failed to presign gallery cover full object %s: %s", cover_full_key, exc)
                     cover_full_url = None
             if cover_thumb_url is None:
                 try:
@@ -193,10 +245,13 @@ async def _build_public_gallery_response(
                     cover_thumb_url = None
 
             if cover_full_url and cover_thumb_url:
-                effective_cover = PublicCover(
+                is_video = cover_photo_obj.media_type == MediaType.VIDEO.value and cover_photo_obj.playback_object_key
+                effective_cover = MediaCover(
                     photo_id=str(cover_photo_obj.id),
+                    media_type=MediaType(cover_photo_obj.media_type),
                     full_url=cover_full_url,
                     thumbnail_url=cover_thumb_url,
+                    playback_url=cover_full_url if is_video else None,
                     filename=cover_photo_obj.display_name,
                 )
 
@@ -248,7 +303,7 @@ async def _build_project_cover(
     gallery: Gallery | None,
     gallery_repo: GalleryRepository,
     s3_client: AsyncS3Client,
-) -> PublicCover | None:
+) -> MediaCover | None:
     if gallery is None:
         return None
 
@@ -256,38 +311,46 @@ async def _build_project_cover(
     if gallery.cover_photo_id:
         cover_photo = await gallery_repo.get_photo_by_id_and_gallery(gallery.cover_photo_id, gallery.id)
 
+    # Exclude incomplete media, including videos without a web-playable derivative.
+    if cover_photo and not _is_public_media_ready(cover_photo):
+        cover_photo = None
+
     if cover_photo is None:
         recent_photos = await gallery_repo.get_photos_by_gallery_id(gallery.id)
-        cover_photo = recent_photos[0] if recent_photos else None
+        # Pick first complete, publicly playable media item.
+        cover_photo = next(
+            (photo for photo in recent_photos if _is_public_media_ready(photo)),
+            None,
+        )
 
-    if cover_photo is None or not cover_photo.object_key or not cover_photo.thumbnail_object_key:
+    if cover_photo is None or not cover_photo.thumbnail_object_key:
         return None
 
-    # Batch both presigned URLs in one round-trip via the dispositions variant
-    # (full object uses inline disposition; thumbnail uses none). Matches the
-    # pattern already used by _build_public_gallery_response below.
+    # For videos, use playback key as full url; for images, use object key
+    if cover_photo.media_type == MediaType.VIDEO.value and cover_photo.playback_object_key:
+        full_key = cover_photo.playback_object_key
+        is_video = True
+    else:
+        full_key = cover_photo.object_key
+        is_video = False
+
     cover_disposition = build_content_disposition(cover_photo.display_name, disposition_type="inline")
     urls = await s3_client.generate_presigned_urls_batch_for_dispositions(
         {
-            cover_photo.object_key: cover_disposition,
+            full_key: cover_disposition,
             cover_photo.thumbnail_object_key: None,
         }
     )
-    full_url = urls.get(cover_photo.object_key)
+    full_url = urls.get(full_key)
     thumbnail_url = urls.get(cover_photo.thumbnail_object_key)
-    # Guard: the batch call may omit either key (e.g. transient S3 failure
-    # inside the loop). PublicCover requires both URLs to be non-null strings,
-    # so fall back to per-URL presigning before constructing the response.
-    # If the fallback itself fails, drop the cover rather than constructing
-    # an invalid PublicCover.
     if full_url is None:
         try:
             full_url = await s3_client.generate_presigned_url_async(
-                cover_photo.object_key,
+                full_key,
                 response_content_disposition=cover_disposition,
             )
         except (ClientError, BotoCoreError) as exc:
-            logger.warning("Failed to presign full cover object %s: %s", cover_photo.object_key, exc)
+            logger.warning("Failed to presign full cover object %s: %s", full_key, exc)
             return None
     if thumbnail_url is None:
         try:
@@ -296,10 +359,12 @@ async def _build_project_cover(
             logger.warning("Failed to presign thumbnail cover object %s: %s", cover_photo.thumbnail_object_key, exc)
             return None
 
-    return PublicCover(
+    return MediaCover(
         photo_id=str(cover_photo.id),
+        media_type=MediaType(cover_photo.media_type),
         full_url=full_url,
         thumbnail_url=thumbnail_url,
+        playback_url=full_url if is_video else None,
         filename=cover_photo.display_name,
     )
 
@@ -329,6 +394,7 @@ async def _build_public_project_response(
         gallery_ids,
         cover_photo_ids,
         recent_limit=1,
+        status=PhotoUploadStatus.SUCCESSFUL,
     )
 
     thumbnail_keys: list[str] = list(cover_thumbnail_by_photo_id.values())
@@ -336,43 +402,50 @@ async def _build_public_project_response(
     thumbnail_url_map = await s3_client.generate_presigned_urls_batch(list(dict.fromkeys(thumbnail_keys)), expires_in=7200) if thumbnail_keys else {}
 
     # Build project cover from project-level cover_photo_id, fall back to first gallery
-    project_cover = None
+    project_cover: MediaCover | None = None
     if project.cover_photo_id:
         cover_photo = await project_repo.get_photo_by_id_for_project(
             project.id,
             project.cover_photo_id,
             listed_only=True,
         )
-        if cover_photo and cover_photo.object_key and cover_photo.thumbnail_object_key:
+        if cover_photo and _is_public_media_ready(cover_photo):
+            # Determine full key based on media type
+            if cover_photo.media_type == MediaType.VIDEO.value and cover_photo.playback_object_key:
+                full_key = cover_photo.playback_object_key
+                is_video = True
+            else:
+                full_key = cover_photo.object_key
+                is_video = False
             cover_disposition = build_content_disposition(cover_photo.display_name, disposition_type="inline")
             urls = await s3_client.generate_presigned_urls_batch_for_dispositions(
                 {
-                    cover_photo.object_key: cover_disposition,
+                    full_key: cover_disposition,
                     cover_photo.thumbnail_object_key: None,
                 }
             )
-            full_url = urls.get(cover_photo.object_key)
+            full_url = urls.get(full_key)
             thumbnail_url = urls.get(cover_photo.thumbnail_object_key)
-            # Per-key fallback when the batch call omits a key (transient S3
-            # failure).  Matches the pattern in _build_project_cover below.
             if full_url is None:
                 try:
                     full_url = await s3_client.generate_presigned_url_async(
-                        cover_photo.object_key,
+                        full_key,
                         response_content_disposition=cover_disposition,
                     )
                 except (ClientError, BotoCoreError) as exc:
-                    logger.warning("Failed to presign project cover full object %s: %s", cover_photo.object_key, exc)
+                    logger.warning("Failed to presign project cover full object %s: %s", full_key, exc)
             if thumbnail_url is None:
                 try:
                     thumbnail_url = await s3_client.generate_presigned_url_async(cover_photo.thumbnail_object_key)
                 except (ClientError, BotoCoreError) as exc:
                     logger.warning("Failed to presign project cover thumbnail %s: %s", cover_photo.thumbnail_object_key, exc)
             if full_url and thumbnail_url:
-                project_cover = PublicCover(
+                project_cover = MediaCover(
                     photo_id=str(cover_photo.id),
+                    media_type=MediaType(cover_photo.media_type),
                     full_url=full_url,
                     thumbnail_url=thumbnail_url,
+                    playback_url=full_url if is_video else None,
                     filename=cover_photo.display_name,
                 )
     if project_cover is None:
@@ -446,7 +519,7 @@ async def _load_project_zip_entries(
     if not galleries:
         return []
 
-    photos_by_gallery = await repo.get_photos_by_visible_project(project_id)
+    photos_by_gallery = await repo.get_photos_by_visible_project(project_id, status=PhotoUploadStatus.SUCCESSFUL)
     return [(gallery.name, photos_by_gallery.get(gallery.id, [])) for gallery in galleries]
 
 
@@ -475,10 +548,11 @@ async def _get_downloadable_public_photo(
             sharelink.project_id,
             [photo_id],
             listed_only=True,
+            status=PhotoUploadStatus.SUCCESSFUL,
         )
     else:
         gallery_id = _require_gallery_share_id(sharelink)
-        photos = await repo.get_photos_by_ids_and_gallery(gallery_id, [photo_id])
+        photos = await repo.get_photos_by_ids_and_gallery(gallery_id, [photo_id], status=PhotoUploadStatus.SUCCESSFUL)
 
     if not photos:
         raise HTTPException(status_code=404, detail="Photo not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
@@ -603,29 +677,55 @@ async def get_public_photos_by_ids(
         gallery_id = _require_gallery_share_id(sharelink)
         photos = await repo.get_photos_by_ids_and_gallery(gallery_id, unique_photo_ids)
     photo_map = {photo.id: photo for photo in photos}
-    ordered_photos = [photo_map[photo_id] for photo_id in unique_photo_ids if photo_id in photo_map]
+    # Filter to complete media only; a video is public only after its playback derivative exists.
+    successful = [photo_map[photo_id] for photo_id in unique_photo_ids if photo_id in photo_map and _is_public_media_ready(photo_map[photo_id])]
 
-    if not ordered_photos:
+    if not successful:
         return []
 
-    thumbnail_keys = [photo.thumbnail_object_key for photo in ordered_photos]
-    thumb_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys)
-    full_url_map = await s3_client.generate_presigned_urls_batch_for_dispositions(
-        {photo.object_key: build_content_disposition(photo.display_name, disposition_type="inline") for photo in ordered_photos}
-    )
+    thumbnail_keys = [photo.thumbnail_object_key for photo in successful]
 
-    return [
-        PublicPhoto(
-            photo_id=str(photo.id),
-            thumbnail_url=thumb_url_map.get(photo.thumbnail_object_key, ""),
-            full_url=full_url_map.get(photo.object_key, ""),
-            filename=photo.display_name,
-            width=photo.width,
-            height=photo.height,
-        )
-        for photo in ordered_photos
-        if thumb_url_map.get(photo.thumbnail_object_key) and full_url_map.get(photo.object_key)
-    ]
+    # Build disposition map: for videos use playback key, for images use object key
+    full_dispositions: dict[str, str] = {}
+    for photo in successful:
+        if photo.media_type == MediaType.VIDEO.value and photo.playback_object_key:
+            full_key = photo.playback_object_key
+        else:
+            full_key = photo.object_key
+        full_dispositions[full_key] = build_content_disposition(photo.display_name, disposition_type="inline")
+
+    thumb_url_map = await s3_client.generate_presigned_urls_batch(thumbnail_keys)
+    full_url_map = await s3_client.generate_presigned_urls_batch_for_dispositions(full_dispositions)
+
+    result: list[PublicPhoto] = []
+    for photo in successful:
+        thumb_url = thumb_url_map.get(photo.thumbnail_object_key, "")
+
+        if photo.media_type == MediaType.VIDEO.value and photo.playback_object_key:
+            presigned_url = full_url_map.get(photo.playback_object_key, "")
+            playback_url = presigned_url
+        else:
+            presigned_url = full_url_map.get(photo.object_key, "")
+            playback_url = None
+
+        if presigned_url and thumb_url:
+            result.append(
+                PublicPhoto(
+                    photo_id=str(photo.id),
+                    media_type=MediaType(photo.media_type),
+                    thumbnail_url=thumb_url,
+                    full_url=presigned_url,
+                    playback_url=playback_url,
+                    filename=photo.display_name,
+                    duration_ms=photo.duration_ms,
+                    width=photo.width,
+                    height=photo.height,
+                    status=MediaStatus.SUCCESSFUL,
+                    processing_error=photo.processing_error,
+                )
+            )
+
+    return result
 
 
 @router.head("/{share_id}/photos/{photo_id}/download")
@@ -682,7 +782,7 @@ async def check_project_gallery_photos_zip(
     if gallery is None:
         raise HTTPException(status_code=404, detail="Gallery not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
-    gallery_photos = await repo.get_photos_by_gallery_id(gallery.id)
+    gallery_photos = await repo.get_photos_by_gallery_id(gallery.id, status=PhotoUploadStatus.SUCCESSFUL)
     if not gallery_photos:
         raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
@@ -708,7 +808,7 @@ async def download_project_gallery_photos_zip(
     settings = get_s3_settings()
     z = zipstream.ZipStream()
     used_names: set[str] = set()
-    gallery_photos = await repo.get_photos_by_gallery_id(gallery.id)
+    gallery_photos = await repo.get_photos_by_gallery_id(gallery.id, status=PhotoUploadStatus.SUCCESSFUL)
 
     if not gallery_photos:
         raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
@@ -758,7 +858,7 @@ async def check_download_all_photos_zip(
         return Response(status_code=204, headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
     gallery_id = _require_gallery_share_id(sharelink)
-    gallery_photos = await repo.get_photos_by_gallery_id(gallery_id)
+    gallery_photos = await repo.get_photos_by_gallery_id(gallery_id, status=PhotoUploadStatus.SUCCESSFUL)
     if not gallery_photos:
         raise HTTPException(status_code=404, detail="No photos found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
 
@@ -807,7 +907,7 @@ async def download_all_photos_zip(
         return StreamingResponse(z, media_type="application/zip", headers=headers)
 
     gallery_id = _require_gallery_share_id(sharelink)
-    gallery_photos = await repo.get_photos_by_gallery_id(gallery_id)
+    gallery_photos = await repo.get_photos_by_gallery_id(gallery_id, status=PhotoUploadStatus.SUCCESSFUL)
 
     with contextlib.suppress(Exception):
         gallery_photos = sorted(gallery_photos, key=lambda p: p.display_name.lower())

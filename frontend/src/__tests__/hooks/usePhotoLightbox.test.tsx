@@ -28,6 +28,10 @@ vi.mock('yet-another-react-lightbox/plugins/zoom', () => ({
   default: 'Zoom',
 }));
 
+vi.mock('yet-another-react-lightbox/plugins/video', () => ({
+  default: 'Video',
+}));
+
 vi.mock('../../components/ProgressiveSlide', () => ({
   ProgressiveSlide: 'ProgressiveSlide',
 }));
@@ -97,6 +101,25 @@ describe('usePhotoLightbox', () => {
     expect(lightbox).toBeDefined();
     expect(lightbox.props.slides).toStrictEqual(slides);
     expect(lightbox.props.open).toBe(false);
+  });
+
+  it('uses the thumbnail as the poster for video slides', () => {
+    const { result } = renderHook(() => usePhotoLightbox());
+
+    const lightbox = result.current.renderLightbox([
+      {
+        src: '/video-poster.jpg',
+        thumbnailSrc: '/video-poster.jpg',
+        media_type: 'video',
+        playback_url: '/video.mp4',
+      },
+    ]);
+
+    expect(lightbox.props.slides[0]).toMatchObject({
+      type: 'video',
+      poster: '/video-poster.jpg',
+      sources: [{ src: '/video.mp4', type: 'video/mp4' }],
+    });
   });
 
   it('handles thumbnails visibility on mobile', () => {
@@ -354,11 +377,11 @@ describe('usePhotoLightbox', () => {
 
     const slides = [{ src: '/photo1.jpg', alt: 'Photo 1' }];
     const lightbox = result.current.renderLightbox(slides);
-
     expect(lightbox.props.plugins).toEqual([
       'Thumbnails',
       'Fullscreen',
       'LightboxDownload',
+      'Video',
       'Zoom',
     ]);
     expect(lightbox.props.controller.closeOnPullDown).toBe(true);

@@ -7,7 +7,7 @@ from sqlalchemy import asc, desc, func, insert, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from viewport.filename_utils import sanitize_filename, split_name_and_ext
-from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
+from viewport.models.gallery import Gallery, MediaType, Photo, PhotoUploadStatus, ProjectVisibility
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.repositories.base_repository import BaseRepository
 from viewport.repositories.gallery_stats import GalleryPhotoStats, gallery_photo_stats_stmt, gallery_photo_total_size_stmt
@@ -36,6 +36,19 @@ class GalleryRepository(BaseRepository):
         if search:
             filters.append(Photo.display_name.ilike(literal_like_pattern(search, GalleryRepository.LIKE_ESCAPE_CHAR), escape=GalleryRepository.LIKE_ESCAPE_CHAR))
         return filters
+
+    @staticmethod
+    def _build_cover_photo_filters(gallery_id: uuid.UUID, photo_id: uuid.UUID):
+        return (
+            Photo.id == photo_id,
+            Photo.gallery_id == gallery_id,
+            Photo.status == PhotoUploadStatus.SUCCESSFUL,
+            Photo.thumbnail_object_key.is_not(None),
+            or_(
+                Photo.media_type != MediaType.VIDEO.value,
+                Photo.playback_object_key.is_not(None),
+            ),
+        )
 
     @staticmethod
     def _build_gallery_order_clauses(
@@ -253,11 +266,16 @@ class GalleryRepository(BaseRepository):
         if not gallery:
             return None
 
+        active_fields = fields_set or set()
+        if "cover_photo_id" in active_fields and cover_photo_id is not None:
+            valid_cover_photo_id = (await self.db.execute(select(Photo.id).where(*self._build_cover_photo_filters(gallery_id, cover_photo_id)))).scalar_one_or_none()
+            if valid_cover_photo_id is None:
+                return await self._finish_read(None)
+
         updated = False
         if name is not None:
             gallery.name = name
             updated = True
-        active_fields = fields_set or set()
         if shooting_date is not None:
             gallery.shooting_date = shooting_date
             updated = True
@@ -335,7 +353,7 @@ class GalleryRepository(BaseRepository):
             await self.db.execute(
                 select(func.coalesce(func.sum(Photo.file_size), 0)).where(
                     Photo.gallery_id == gallery_id,
-                    Photo.status.in_([PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING]),
+                    Photo.status.in_([PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.PROCESSING]),
                 )
             )
         ).scalar_one()
@@ -366,7 +384,7 @@ class GalleryRepository(BaseRepository):
             await self.db.execute(
                 select(func.coalesce(func.sum(Photo.file_size), 0)).where(
                     Photo.gallery_id == gallery_id,
-                    Photo.status.in_([PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING]),
+                    Photo.status.in_([PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.PROCESSING]),
                 )
             )
         ).scalar_one()
@@ -412,17 +430,16 @@ class GalleryRepository(BaseRepository):
         return await self._finish_read(photo)
 
     async def set_cover_photo(self, gallery_id: uuid.UUID, photo_id: uuid.UUID, owner_id: uuid.UUID) -> Gallery | None:
-        # Perform single UPDATE with RETURNING to avoid loading objects into memory
-        # Ensure the photo belongs to the gallery and the gallery belongs to owner
+        # Perform single UPDATE with RETURNING to avoid loading objects into memory.
+        # Only successful media with a valid thumbnail and (for videos) playback key can be set as cover.
         stmt = (
             update(Gallery)
             .where(
                 Gallery.id == gallery_id,
                 Gallery.owner_id == owner_id,
-                # only set if the photo exists and belongs to the gallery
                 Gallery.is_deleted.is_(False),
             )
-            .where(select(1).select_from(Photo).where(Photo.id == photo_id, Photo.gallery_id == gallery_id).exists())
+            .where(select(1).select_from(Photo).where(*self._build_cover_photo_filters(gallery_id, photo_id)).exists())
             .values(cover_photo_id=photo_id)
             .returning(Gallery)
         )
@@ -500,6 +517,7 @@ class GalleryRepository(BaseRepository):
                 Photo.gallery_id == gallery_id,
                 Gallery.is_deleted.is_(False),
                 Photo.thumbnail_object_key.is_not(None),
+                Photo.status == PhotoUploadStatus.SUCCESSFUL,
             )
             .order_by(Photo.uploaded_at.desc(), Photo.id.desc())
             .limit(limit)
@@ -512,6 +530,8 @@ class GalleryRepository(BaseRepository):
         gallery_ids: list[uuid.UUID],
         cover_photo_ids: list[uuid.UUID],
         recent_limit: int = 3,
+        *,
+        status: PhotoUploadStatus | None = None,
     ) -> tuple[
         dict[uuid.UUID, int],
         dict[uuid.UUID, int],
@@ -519,9 +539,21 @@ class GalleryRepository(BaseRepository):
         dict[uuid.UUID, str],
         dict[uuid.UUID, list[str]],
     ]:
-        """Return batched enrichment data used by gallery list responses."""
+        """Return batched enrichment data used by gallery list responses.
+
+        When `status` is provided, photo counts and total sizes are filtered
+        to that status (e.g. SUCCESSFUL for public project views). Owner
+        statistics should omit the filter.
+        """
         if not gallery_ids:
             return await self._finish_read(({}, {}, set(), {}, {}))
+
+        photo_stats_conditions: list = [
+            Photo.gallery_id.in_(gallery_ids),
+            Gallery.is_deleted.is_(False),
+        ]
+        if status is not None:
+            photo_stats_conditions.append(Photo.status == status)
 
         photo_stats_stmt = (
             select(
@@ -530,10 +562,7 @@ class GalleryRepository(BaseRepository):
                 func.coalesce(func.sum(Photo.file_size), 0),
             )
             .join(Photo.gallery)
-            .where(
-                Photo.gallery_id.in_(gallery_ids),
-                Gallery.is_deleted.is_(False),
-            )
+            .where(*photo_stats_conditions)
             .group_by(Photo.gallery_id)
         )
         photo_stats_rows = (await self.db.execute(photo_stats_stmt)).all()
@@ -564,6 +593,7 @@ class GalleryRepository(BaseRepository):
                 .where(
                     Photo.id.in_(cover_photo_ids),
                     Photo.thumbnail_object_key.is_not(None),
+                    Photo.status == PhotoUploadStatus.SUCCESSFUL,
                     Gallery.is_deleted.is_(False),
                     Photo.gallery_id.in_(gallery_ids),
                 )
@@ -586,6 +616,7 @@ class GalleryRepository(BaseRepository):
                 Photo.gallery_id.in_(gallery_ids),
                 Gallery.is_deleted.is_(False),
                 Photo.thumbnail_object_key.is_not(None),
+                Photo.status == PhotoUploadStatus.SUCCESSFUL,
             )
             .subquery()
         )
@@ -774,7 +805,7 @@ class GalleryRepository(BaseRepository):
             return False
 
         user_repo = UserRepository(self.db)
-        if photo.status in (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING):
+        if photo.status in (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.PROCESSING):
             await user_repo.decrement_storage_used(owner_id, photo.file_size, commit=False)
         elif photo.status == PhotoUploadStatus.PENDING:
             await user_repo.release_reserved_storage(owner_id, photo.file_size, commit=False)

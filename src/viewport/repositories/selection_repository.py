@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from viewport.models.gallery import Gallery, Photo, ProjectVisibility
+from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
 from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_selection import SelectionSessionStatus, ShareLinkSelectionConfig, ShareLinkSelectionItem, ShareLinkSelectionSession
@@ -801,6 +801,7 @@ class SelectionRepository(BaseRepository):
                 .where(
                     Photo.id == photo_id,
                     Photo.gallery_id == sharelink.gallery_id,
+                    Photo.status == PhotoUploadStatus.SUCCESSFUL,
                     Gallery.is_deleted.is_(False),
                 )
             )
@@ -816,6 +817,7 @@ class SelectionRepository(BaseRepository):
             .join(Photo.gallery)
             .where(
                 Photo.id == photo_id,
+                Photo.status == PhotoUploadStatus.SUCCESSFUL,
                 Gallery.project_id == sharelink.project_id,
                 Gallery.project_visibility == ProjectVisibility.LISTED.value,
                 Gallery.is_deleted.is_(False),

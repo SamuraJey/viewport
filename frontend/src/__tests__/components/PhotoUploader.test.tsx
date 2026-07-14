@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PhotoUploader } from '../../components/PhotoUploader';
-import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../../constants/upload';
+import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_VIDEO_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 
 describe('PhotoUploader', () => {
   const mockOnUploadComplete = vi.fn();
@@ -16,9 +16,15 @@ describe('PhotoUploader', () => {
   it('should render drop zone with file input', () => {
     render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
 
-    expect(screen.getByLabelText(/upload photos/i)).toBeInTheDocument();
-    expect(screen.getByText('Drag & drop photos here')).toBeInTheDocument();
-    expect(screen.getByText(/or click to select files/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/upload photos or videos/i)).toBeInTheDocument();
+    expect(screen.getByText('Drag & drop photos or videos here')).toBeInTheDocument();
+    expect(screen.getByLabelText(/choose photos or videos/i)).toHaveAttribute(
+      'accept',
+      expect.stringContaining('video/mp4'),
+    );
+    expect(
+      screen.getByText(/JPG \/ PNG \/ MP4 \/ MOV.*10 MB \(images\).*500 MB \(video\)/i),
+    ).toBeInTheDocument();
   });
 
   it('should show uploading state when isUploading is true', () => {
@@ -85,7 +91,7 @@ describe('PhotoUploader', () => {
     }
   });
 
-  it('should reject non-image files', async () => {
+  it('should reject unsupported files', async () => {
     const onUploadComplete = vi.fn().mockResolvedValue(undefined);
     render(<PhotoUploader galleryId="test-gallery" onUploadComplete={onUploadComplete} />);
 
@@ -100,7 +106,7 @@ describe('PhotoUploader', () => {
       await waitFor(() => {
         expect(
           screen.getByText(
-            'Only JPG and PNG files are supported. Please select valid image files.',
+            'Only JPG, PNG and supported video files are allowed. Please select valid files.',
           ),
         ).toBeInTheDocument();
       });
@@ -119,7 +125,7 @@ describe('PhotoUploader', () => {
 
     render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
 
-    const fileInput = screen.getByLabelText('Choose photos to upload');
+    const fileInput = screen.getByLabelText('Choose photos or videos to upload');
 
     await user.upload(fileInput as HTMLInputElement, [largeFile]);
 
@@ -129,9 +135,7 @@ describe('PhotoUploader', () => {
     });
 
     // Should show warning about oversized files
-    expect(
-      screen.getByText(/All selected files exceed the 10 MB maximum size/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/All selected files exceed the maximum size/)).toBeInTheDocument();
 
     // Resize All button should be visible for oversized resizable files
     expect(screen.getByLabelText('Resize all oversized images')).toBeInTheDocument();
@@ -144,6 +148,30 @@ describe('PhotoUploader', () => {
 
     // Upload button should be disabled
     expect(screen.getByText('Upload').closest('button')).toBeDisabled();
+  });
+
+  it('should exclude oversized videos while continuing with valid files', async () => {
+    const user = userEvent.setup();
+    const image = new File(['image'], 'valid.jpg', { type: 'image/jpeg' });
+    const oversizedVideo = new File(['video'], 'too-large.mp4', { type: 'video/mp4' });
+    Object.defineProperty(oversizedVideo, 'size', {
+      value: (MAX_VIDEO_UPLOAD_FILE_SIZE_MB + 1) * 1024 * 1024,
+    });
+
+    render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
+
+    await user.upload(screen.getByLabelText('Choose photos or videos to upload'), [
+      image,
+      oversizedVideo,
+    ]);
+
+    await waitFor(() => {
+      expect(screen.getByText('valid.jpg')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('too-large.mp4')).not.toBeInTheDocument();
+    expect(
+      screen.getByText(`Video files must be under ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB.`),
+    ).toBeInTheDocument();
   });
 
   it('should handle drag and drop events', async () => {

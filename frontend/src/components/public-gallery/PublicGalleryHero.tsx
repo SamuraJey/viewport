@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { SharedFolderShare, SharedProjectShare } from '../../types/sharelink';
 import type { PublicGalleryAppearance } from '../../types/sharelink';
@@ -22,6 +22,62 @@ const getTitleSizeClass = (
   return `${classPrefix}--${size}`;
 };
 
+/**
+ * Check whether the user prefers reduced motion.
+ * Reads once on mount and listens for changes.
+ */
+const usePrefersReducedMotion = (): boolean => {
+  const [prefersReduced, setPrefersReduced] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handler = (event: MediaQueryListEvent) => setPrefersReduced(event.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  return prefersReduced;
+};
+
+/**
+ * Check whether Save-Data header is present.
+ * Reads once on mount and listens for changes.
+ */
+const useSaveData = (): boolean => {
+  const [saveData, setSaveData] = useState(() => {
+    if (typeof navigator === 'undefined') return false;
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } })
+      .connection;
+    return connection?.saveData === true;
+  });
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined') return;
+    const connection = (
+      navigator as Navigator & {
+        connection?: {
+          saveData?: boolean;
+          addEventListener?: (type: string, listener: () => void) => void;
+          removeEventListener?: (type: string, listener: () => void) => void;
+        };
+      }
+    ).connection;
+    if (!connection || typeof connection.addEventListener !== 'function') return;
+    const handler = () => setSaveData(Boolean(connection.saveData));
+    connection.addEventListener('change', handler);
+    return () => {
+      if (typeof connection.removeEventListener !== 'function') return;
+      connection.removeEventListener('change', handler);
+    };
+  }, []);
+
+  return saveData;
+};
+
 export const PublicGalleryHero = ({
   title,
   date,
@@ -30,12 +86,26 @@ export const PublicGalleryHero = ({
   appearance,
 }: PublicGalleryHeroProps) => {
   const [isHeroFullLoaded, setIsHeroFullLoaded] = useState(false);
+  const [videoAutoplayFailed, setVideoAutoplayFailed] = useState(false);
   const heroImgRef = useRef<HTMLImageElement>(null);
+  const heroVideoRef = useRef<HTMLVideoElement>(null);
+  const heroContainerRef = useRef<HTMLDivElement>(null);
   const heroUrl = cover?.full_url;
   const galleryTitle = title || 'Shared Gallery';
   const titleLength = galleryTitle.length;
   const objectPosition = toHeroObjectPosition(appearance);
   const displayOption = appearance.cover_display_option ?? 'centered_title';
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const saveData = useSaveData();
+
+  const isVideo = cover?.media_type === 'video' && Boolean(cover?.playback_url);
+  const shouldAutoplayVideo = isVideo && !prefersReducedMotion && !saveData && !videoAutoplayFailed;
+
+  // Reset videoAutoplayFailed when the cover identity changes so a failed
+  // autoplay only disables the current video and does not carry over.
+  useEffect(() => {
+    setVideoAutoplayFailed(false);
+  }, [cover?.playback_url]);
 
   const emptyTitleSizeClass = getTitleSizeClass(titleLength, 'pg-hero__empty-title', {
     medium: 46,
@@ -56,8 +126,9 @@ export const PublicGalleryHero = ({
     long: 60,
   });
 
+  // For image covers: preload and track load state
   useLayoutEffect(() => {
-    if (!heroUrl) {
+    if (!heroUrl || isVideo) {
       setIsHeroFullLoaded(false);
       return;
     }
@@ -67,10 +138,10 @@ export const PublicGalleryHero = ({
     } else {
       setIsHeroFullLoaded(false);
     }
-  }, [heroUrl]);
+  }, [heroUrl, isVideo]);
 
   useEffect(() => {
-    if (!heroUrl) return;
+    if (!heroUrl || isVideo) return;
 
     const preload = new Image();
     preload.src = heroUrl;
@@ -89,7 +160,43 @@ export const PublicGalleryHero = ({
     return () => {
       preload.removeEventListener('load', handlePreload);
     };
-  }, [heroUrl]);
+  }, [heroUrl, isVideo]);
+
+  // IntersectionObserver: pause video when out of viewport
+  useEffect(() => {
+    const video = heroVideoRef.current;
+    const container = heroContainerRef.current;
+    if (!video || !container || !shouldAutoplayVideo) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            video.play().catch(() => {
+              // Play may fail if still loading; no need to mark as failed
+            });
+          } else {
+            video.pause();
+          }
+        }
+      },
+      { threshold: 0.1 },
+    );
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [shouldAutoplayVideo]);
+
+  // Handle video autoplay error
+  const handleVideoError = useCallback(() => {
+    setVideoAutoplayFailed(true);
+  }, []);
+
+  // For video: poster is loaded (thumbnail shown), then video starts playing on top
+  // We use the poster as the base, video fades in on successful play
+  const handleVideoLoaded = useCallback(() => {
+    setIsHeroFullLoaded(true);
+  }, []);
 
   if (!cover) {
     return (
@@ -177,7 +284,11 @@ export const PublicGalleryHero = ({
   };
 
   return (
-    <div className="pg-hero relative w-full text-accent-foreground bg-surface-foreground/15 overflow-hidden shadow-md">
+    <div
+      ref={heroContainerRef}
+      className="pg-hero relative w-full text-accent-foreground bg-surface-foreground/15 overflow-hidden shadow-md"
+    >
+      {/* Thumbnail / poster layer — always visible as base */}
       <img
         src={cover.thumbnail_url}
         alt=""
@@ -188,18 +299,42 @@ export const PublicGalleryHero = ({
         style={{ objectPosition }}
       />
 
-      <img
-        ref={heroImgRef}
-        src={cover.full_url}
-        alt=""
-        aria-hidden="true"
-        loading="eager"
-        fetchPriority="high"
-        decoding="async"
-        onLoad={() => setIsHeroFullLoaded(true)}
-        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${isHeroFullLoaded ? 'opacity-100' : 'opacity-0'}`}
-        style={{ objectPosition }}
-      />
+      {isVideo ? (
+        <>
+          {/* Video layer — fades in when autoplay succeeds */}
+          {shouldAutoplayVideo && (
+            <video
+              ref={heroVideoRef}
+              src={cover.playback_url!}
+              poster={cover.thumbnail_url}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              aria-hidden="true"
+              onCanPlay={handleVideoLoaded}
+              onError={handleVideoError}
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${isHeroFullLoaded && !videoAutoplayFailed ? 'opacity-100' : 'opacity-0'}`}
+              style={{ objectPosition }}
+            />
+          )}
+        </>
+      ) : (
+        /* Image layer — progressive full-res load */
+        <img
+          ref={heroImgRef}
+          src={cover.full_url}
+          alt=""
+          aria-hidden="true"
+          loading="eager"
+          fetchPriority="high"
+          decoding="async"
+          onLoad={() => setIsHeroFullLoaded(true)}
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${isHeroFullLoaded ? 'opacity-100' : 'opacity-0'}`}
+          style={{ objectPosition }}
+        />
+      )}
 
       <div className="pg-hero__overlay bg-linear-to-t from-black/80 via-black/40 to-black/10" />
 

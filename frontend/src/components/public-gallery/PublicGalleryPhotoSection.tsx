@@ -7,10 +7,12 @@ import {
   ImageOff,
   Loader2,
   MessageSquare,
+  Play,
   X,
 } from 'lucide-react';
 import type { PublicGridDensity, PublicGridLayout } from '../../hooks/usePublicGalleryGrid';
 import { getAccessiblePhotoName } from '../../lib/accessibility';
+import { formatDuration } from '../../lib/utils';
 import type { PublicPhoto, SelectionSession } from '../../types';
 import { LazyImage } from '../LazyImage';
 import { AppPopover } from '../ui';
@@ -418,7 +420,18 @@ export const PublicGalleryPhotoSection = ({
                         ) : null}
                       </div>
                     ) : null}
-
+                    {photo.media_type === 'video' && (
+                      <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm">
+                          <Play className="h-6 w-6 text-white fill-white" />
+                        </div>
+                        {typeof photo.duration_ms === 'number' && photo.duration_ms > 0 && (
+                          <div className="absolute bottom-3 right-3 rounded-md bg-black/70 px-2 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                            {formatDuration(photo.duration_ms)}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => onOpenPhoto(index)}

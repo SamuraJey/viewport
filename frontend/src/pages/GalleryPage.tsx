@@ -1240,6 +1240,9 @@ export const GalleryPage = () => {
           alt: photo.filename,
           download: photo.url,
           downloadFilename: photo.filename,
+          media_type: photo.media_type,
+          playback_url: photo.playback_url,
+          duration_ms: photo.duration_ms,
           onDownload: () => {
             void handleDownloadPhoto(photo.id);
           },

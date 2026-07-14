@@ -2,7 +2,12 @@ import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { Upload, ImagePlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PhotoUploadConfirmModal } from './PhotoUploadConfirmModal';
-import { MAX_UPLOAD_FILE_SIZE_MB } from '../constants/upload';
+import {
+  MAX_UPLOAD_FILE_SIZE_MB,
+  MAX_VIDEO_UPLOAD_FILE_SIZE_MB,
+  SUPPORTED_UPLOAD_TYPES,
+  VIDEO_EXTENSIONS,
+} from '../constants/upload';
 import type { PhotoUploadResponse } from '../types';
 
 interface PhotoUploaderProps {
@@ -18,7 +23,10 @@ export interface PhotoUploaderHandle {
   handleExternalFiles: (fileList: FileList | File[]) => void;
 }
 
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
+const ACCEPTED_TYPES = SUPPORTED_UPLOAD_TYPES;
+const PRIMARY_VIDEO_FORMATS = VIDEO_EXTENSIONS.slice(0, 2)
+  .map((extension) => extension.slice(1).toUpperCase())
+  .join(' / ');
 
 export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>(
   (
@@ -37,18 +45,41 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
     const [error, setError] = useState('');
     const [showConfirmModal, setShowConfirmModal] = useState(false);
 
+    const isVideo = (file: File): boolean => {
+      const name = file.name.toLowerCase();
+      return file.type.startsWith('video/') || VIDEO_EXTENSIONS.some((ext) => name.endsWith(ext));
+    };
+
     const handleFiles = (fileList: FileList | File[]) => {
       const rawFiles = Array.from(fileList);
-      const fileArray = rawFiles.filter((f) => ACCEPTED_TYPES.includes(f.type));
+      const fileArray = rawFiles.filter(
+        (f) =>
+          ACCEPTED_TYPES.includes(f.type) ||
+          VIDEO_EXTENSIONS.some((ext) => f.name.toLowerCase().endsWith(ext)),
+      );
       if (fileArray.length === 0) {
         if (rawFiles.length > 0) {
-          setError('Only JPG and PNG files are supported. Please select valid image files.');
+          setError(
+            'Only JPG, PNG and supported video files are allowed. Please select valid files.',
+          );
         }
         return;
       }
 
-      setError('');
-      setFiles(fileArray);
+      const oversizedVideos = fileArray.filter(
+        (f) => isVideo(f) && f.size > MAX_VIDEO_UPLOAD_FILE_SIZE_MB * 1024 * 1024,
+      );
+      const acceptedFiles = fileArray.filter((file) => !oversizedVideos.includes(file));
+      if (oversizedVideos.length > 0) {
+        setError(`Video files must be under ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB.`);
+      } else {
+        setError('');
+      }
+      if (acceptedFiles.length === 0) {
+        return;
+      }
+
+      setFiles(acceptedFiles);
       setShowConfirmModal(true);
       onModalStateChange?.(true);
     };
@@ -115,8 +146,8 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
           ref={fileInputRef}
           onChange={handleFileInput}
           multiple
-          accept="image/jpeg,image/png,image/jpg"
-          aria-label="Choose photos to upload"
+          accept={ACCEPTED_TYPES.join(',')}
+          aria-label="Choose photos or videos to upload"
           className="hidden"
         />
 
@@ -139,7 +170,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
             }}
             tabIndex={0}
             role="button"
-            aria-label="Upload photos"
+            aria-label="Upload photos or videos"
           >
             <motion.div
               animate={dragActive ? { scale: 1.2, rotate: -8 } : { scale: 1, rotate: 0 }}
@@ -156,13 +187,13 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
               {files.length > 0
                 ? `${files.length} file${files.length > 1 ? 's' : ''} ready`
                 : dragActive
-                  ? 'Drop photos here'
-                  : 'Drag & drop photos here'}
+                  ? 'Drop files here'
+                  : 'Drag & drop photos or videos here'}
             </p>
             <p className="text-sm font-medium text-muted">
               {files.length > 0
                 ? 'Opening upload confirmation...'
-                : `or click to select files · JPG / PNG · up to ${MAX_UPLOAD_FILE_SIZE_MB} MB`}
+                : `or click to select files · JPG / PNG / ${PRIMARY_VIDEO_FORMATS} · up to ${MAX_UPLOAD_FILE_SIZE_MB} MB (images) / ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB (video)`}
             </p>
           </div>
         )}

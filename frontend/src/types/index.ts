@@ -30,6 +30,8 @@ export type {
 
 // Photo types
 export type {
+  MediaType,
+  MediaStatus,
   PhotoResponse,
   GalleryPhoto,
   PhotoUploadResult,

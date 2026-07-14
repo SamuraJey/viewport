@@ -30,6 +30,7 @@ ARG APP_GID
 
 RUN groupadd --system --gid "${APP_GID}" appgroup && \
     useradd --system --uid "${APP_UID}" --gid appgroup --home-dir /app --shell /bin/false appuser
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libx264-164 && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH" \

@@ -7,7 +7,7 @@ from sqlalchemy import String, and_, case, cast, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload
 
-from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
+from viewport.models.gallery import Gallery, MediaType, Photo, PhotoUploadStatus, ProjectVisibility
 from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.models.sharelink_analytics import ShareLinkDailyStat, ShareLinkDailyVisitor
@@ -282,14 +282,24 @@ class ShareLinkRepository(BaseRepository):
         cover_image_key = case(
             (
                 and_(
-                    Photo.status == PhotoUploadStatus.SUCCESSFUL,
+                    Photo.thumbnail_object_key.isnot(None),
                     Photo.thumbnail_object_key != Photo.object_key,
                 ),
                 Photo.thumbnail_object_key,
             ),
-            else_=Photo.object_key,
+            (
+                Photo.media_type == MediaType.IMAGE.value,
+                Photo.object_key,
+            ),
+            else_=None,
         ).label("cover_image_key")
-        coverable_statuses = (PhotoUploadStatus.SUCCESSFUL, PhotoUploadStatus.THUMBNAIL_CREATING)
+        coverable_status_filter = or_(
+            Photo.status == PhotoUploadStatus.SUCCESSFUL,
+            and_(
+                Photo.media_type == MediaType.IMAGE.value,
+                Photo.status == PhotoUploadStatus.PROCESSING,
+            ),
+        )
 
         gallery_ranked = (
             select(
@@ -314,7 +324,7 @@ class ShareLinkRepository(BaseRepository):
                 ShareLink.scope_type == ShareScopeType.GALLERY.value,
                 Gallery.owner_id == owner_id,
                 Gallery.is_deleted.is_(False),
-                Photo.status.in_(coverable_statuses),
+                coverable_status_filter,
             )
             .subquery()
         )
@@ -353,7 +363,7 @@ class ShareLinkRepository(BaseRepository):
                 Project.is_deleted.is_(False),
                 Gallery.is_deleted.is_(False),
                 Gallery.project_visibility == ProjectVisibility.LISTED.value,
-                Photo.status.in_(coverable_statuses),
+                coverable_status_filter,
             )
             .subquery()
         )
@@ -401,8 +411,8 @@ class ShareLinkRepository(BaseRepository):
         count = int((await self.db.execute(stmt)).scalar() or 0)
         return await self._finish_read(count)
 
-    async def get_photo_stats_by_gallery(self, gallery_id: uuid.UUID) -> GalleryPhotoStats:
-        count, total_size = (await self.db.execute(gallery_photo_stats_stmt(gallery_id))).one()
+    async def get_photo_stats_by_gallery(self, gallery_id: uuid.UUID, *, status: PhotoUploadStatus | None = None) -> GalleryPhotoStats:
+        count, total_size = (await self.db.execute(gallery_photo_stats_stmt(gallery_id, status=status))).one()
         return await self._finish_read(GalleryPhotoStats(photo_count=int(count or 0), total_size_bytes=int(total_size or 0)))
 
     async def get_photo_total_size_by_gallery(self, gallery_id: uuid.UUID) -> int:
@@ -417,14 +427,13 @@ class ShareLinkRepository(BaseRepository):
         offset: int = 0,
         sort_by: GalleryPhotoSortBy = GalleryPhotoSortBy.ORIGINAL_FILENAME,
         order: SortOrder = SortOrder.ASC,
+        *,
+        status: PhotoUploadStatus | None = None,
     ) -> list[Photo]:
-        stmt = (
-            select(Photo)
-            .join(Photo.gallery)
-            .where(Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False))
-            .order_by(*build_photo_order_clauses(sort_by, order, include_uploaded_at_tiebreaker=False))
-            .offset(offset)
-        )
+        conditions = [Photo.gallery_id == gallery_id, Gallery.is_deleted.is_(False)]
+        if status is not None:
+            conditions.append(Photo.status == status)
+        stmt = select(Photo).join(Photo.gallery).where(*conditions).order_by(*build_photo_order_clauses(sort_by, order, include_uploaded_at_tiebreaker=False)).offset(offset)
         if limit is not None:
             stmt = stmt.limit(limit)
 
@@ -436,15 +445,20 @@ class ShareLinkRepository(BaseRepository):
         project_id: uuid.UUID,
         sort_by: GalleryPhotoSortBy = GalleryPhotoSortBy.ORIGINAL_FILENAME,
         order: SortOrder = SortOrder.ASC,
+        *,
+        status: PhotoUploadStatus | None = None,
     ) -> dict[uuid.UUID, list[Photo]]:
+        filters = [
+            Gallery.project_id == project_id,
+            Gallery.is_deleted.is_(False),
+            Gallery.project_visibility == ProjectVisibility.LISTED.value,
+        ]
+        if status is not None:
+            filters.append(Photo.status == status)
         stmt = (
             select(Gallery.id, Photo)
             .join(Photo.gallery)
-            .where(
-                Gallery.project_id == project_id,
-                Gallery.is_deleted.is_(False),
-                Gallery.project_visibility == ProjectVisibility.LISTED.value,
-            )
+            .where(*filters)
             .order_by(
                 Gallery.project_position.asc(),
                 Gallery.created_at.asc(),
@@ -463,19 +477,24 @@ class ShareLinkRepository(BaseRepository):
         photo = (await self.db.execute(stmt)).scalar_one_or_none()
         return await self._finish_read(photo)
 
-    async def get_photos_by_ids_and_gallery(self, gallery_id: uuid.UUID, photo_ids: list[uuid.UUID]) -> list[Photo]:
+    async def get_photos_by_ids_and_gallery(
+        self,
+        gallery_id: uuid.UUID,
+        photo_ids: list[uuid.UUID],
+        *,
+        status: PhotoUploadStatus | None = None,
+    ) -> list[Photo]:
         if not photo_ids:
             return await self._finish_read([])
 
-        stmt = (
-            select(Photo)
-            .join(Photo.gallery)
-            .where(
-                Photo.gallery_id == gallery_id,
-                Photo.id.in_(photo_ids),
-                Gallery.is_deleted.is_(False),
-            )
-        )
+        filters = [
+            Photo.gallery_id == gallery_id,
+            Photo.id.in_(photo_ids),
+            Gallery.is_deleted.is_(False),
+        ]
+        if status is not None:
+            filters.append(Photo.status == status)
+        stmt = select(Photo).join(Photo.gallery).where(*filters)
         photos = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read(photos)
 
@@ -485,6 +504,7 @@ class ShareLinkRepository(BaseRepository):
         photo_ids: list[uuid.UUID],
         *,
         listed_only: bool = True,
+        status: PhotoUploadStatus | None = None,
     ) -> list[Photo]:
         if not photo_ids:
             return await self._finish_read([])
@@ -496,6 +516,8 @@ class ShareLinkRepository(BaseRepository):
         ]
         if listed_only:
             filters.append(Gallery.project_visibility == "listed")
+        if status is not None:
+            filters.append(Photo.status == status)
 
         stmt = select(Photo).join(Photo.gallery).where(*filters)
         photos = list((await self.db.execute(stmt)).scalars().all())

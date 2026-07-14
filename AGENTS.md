@@ -4,7 +4,8 @@
 - Monorepo: FastAPI backend in `src/viewport/` + React/Vite frontend in `frontend/`.
 - Backend layers: routers in `src/viewport/api/` → repository layer in `src/viewport/repositories/` (SQLAlchemy `Session`) → Postgres models in `src/viewport/models/`.
 - Backend database access uses SQLAlchemy `AsyncSession` in app code, repositories, and auth dependencies, while Celery background tasks currently use a sync SQLAlchemy `Session` via `task_db_session()`.
-- Storage/URLs: originals + thumbnails live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them via `PresignedUrlCacheService` (`src/viewport/services/presigned_cache.py`) backed by `RedisService` (`src/viewport/services/redis_service.py`) for cross-worker coherence.
+- Storage/URLs: originals + thumbnails/posters/playback live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them via `PresignedUrlCacheService` (`src/viewport/services/presigned_cache.py`) backed by `RedisService` (`src/viewport/services/redis_service.py`) for cross-worker coherence.
+- Media pipeline: the `photos` table stores both images and videos. `Photo.media_type` is `'image'` or `'video'`; `Photo.thumbnail_object_key` is the image thumbnail or video poster; `Photo.playback_object_key` is the transcoded MP4 for videos. Original files count toward storage quota; derivatives do not. See `docs/video-support.md` for formats, limits, upload flow, and processing details.
 - uv is used as package manager.
 - Ask QUESTIONS if you are unsure about any of details of your current task.
 
@@ -34,13 +35,14 @@
   - Selection/favorites is sharelink-scoped: gallery links still select within one gallery, while project links can run one shared selection flow across all currently `listed` galleries in that project. Project selection must reject `direct_only` galleries and owner/export responses must preserve gallery context.
   - Share-link analytics are stored as daily aggregates in `share_link_daily_stats` with dedup support via `share_link_daily_visitors` (hash of IP+User-Agent); do not add raw per-open event logs unless explicitly required.
   - Public share access dispatches by scope: gallery links return gallery photos, project links return a project payload whose first listed gallery becomes the default entry tab, inactive links must remain non-disclosing (`404`), and expired links return `410` so frontend can render a dedicated expiration state.
-- Photo upload performance pattern:
-  - **Two-step upload**:
-    1. `/batch-presigned`: Creates `PENDING` DB records and returns presigned PUT URLs. Client uploads directly to S3.
-    2. `/batch-confirm`: Verifies upload by applying `upload-status: confirmed` tag to S3 objects.
-  - **Confirmation logic**: `/batch-confirm` transitions photos from `PENDING` to `THUMBNAIL_CREATING`, finalizes reserved quota, and enqueues thumbnail generation. Thumbnail workers move records to `SUCCESSFUL` on metadata/thumbnail success or to `FAILED` on permanent errors.
-  - **Presigned URLs**: Avoid generating presigned URLs during batch upload; fetch URLs separately via `/photos/urls` endpoints.
-  - **Garbage collection**: A Celery scheduled task (`cleanup_orphaned_uploads`) runs hourly to delete `PENDING` photo records older than 30 minutes and their corresponding S3 objects to prevent storage leaks from unconfirmed uploads.
+- Media upload performance pattern:
+  - **Two-step upload** for images and multipart upload for videos:
+    1. `/batch-presigned`: Creates `PENDING` DB records. Images receive a single presigned PUT URL; videos receive `upload_mode: multipart`, `upload_id`, `part_size`, and presigned part PUT URLs. The frontend uploads up to four video parts concurrently, applies a 120-second timeout per attempt, and retains bounded per-part retries.
+    2. Images are confirmed via `/batch-confirm`, which applies the `upload-status: confirmed` S3 tag and transitions records to `PROCESSING`.
+    3. Videos are completed via `/galleries/{gallery_id}/photos/{photo_id}/multipart/complete` with collected ETags; abort via `/multipart/abort`.
+  - **Confirmation logic**: confirmed uploads transition from `PENDING` to `PROCESSING`, finalize reserved quota, and enqueue the appropriate background task (`create_thumbnails_batch` for images, `process_videos_batch` for videos). Workers move records to `SUCCESSFUL` on success or to `FAILED` on permanent errors, releasing quota and removing invalid/partial S3 objects.
+  - **Download URLs**: Presigned download URLs are generated on-demand by the listing endpoints (gallery detail, public share, project photos) and the single-photo download endpoints (`POST /galleries/{gallery_id}/photos/{photo_id}/download` for private, `GET /s/{share_id}/photos/{photo_id}/download` for public). Avoid generating download presigned URLs at upload time — fetch them from listing endpoints when needed.
+  - **Garbage collection**: A Celery scheduled task (`cleanup_orphaned_uploads`) runs hourly to delete `PENDING` photo records older than 30 minutes and their corresponding S3 objects to prevent storage leaks from unconfirmed uploads. Video processing uses `/tmp/video_processing`; `cleanup_video_temp_files` runs hourly on the `video` queue and deletes files older than two hours so hard-killed workers do not leak temp disk indefinitely.
   - **Gallery deletion**: `galleries.is_deleted` is a soft-delete flag. Deleting a gallery hides it from queries and enqueues a background task to purge S3 objects and hard-delete DB rows.
   - **Storage quotas**: User storage is tracked on `users` (`storage_quota`, `storage_used`, `storage_reserved`). Reserve bytes on `/batch-presigned`, finalize on confirm, and release on failures/orphan cleanup; only admins edit quota via SQLAdmin.
 
@@ -106,7 +108,7 @@
     - Prefer dynamic DB/session overrides via existing `app_client`/`client` fixtures; avoid creating new container-per-test fixtures.
     - Preserve isolation by keeping per-test DB cleanup (`TRUNCATE ... CASCADE`) and per-test S3 bucket isolation in place for tests that touch those resources.
     - If adding new integration tests, reuse existing container fixtures first; introduce new testcontainers only when mocking cannot validate required behavior.
-- Frontend checks: `cd frontend && npm run lint -- --fix && npm run test:run`.
+- Frontend checks: `cd frontend && npm run lint -- --fix && npm run test:run`. **ALWAYS use `--fix`** — never run lint without it; unfixed warnings break CI and waste time.
 - Frontend production build requires `VITE_API_URL` in the environment; run it as `VITE_API_URL=https://... npm run build` or the Vite config will fail fast.
 
 ## Service Architecture

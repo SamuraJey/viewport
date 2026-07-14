@@ -82,6 +82,8 @@ async def test_update_gallery_persists_cover_and_appearance_settings(repo: Galle
         f"{gallery.id}/cover-thumb.jpg",
         2048,
     )
+    cover_photo.status = PhotoUploadStatus.SUCCESSFUL
+    await repo.db.commit()
 
     updated = await repo.update_gallery(
         gallery.id,
@@ -111,6 +113,32 @@ async def test_update_gallery_persists_cover_and_appearance_settings(repo: Galle
     assert reloaded.cover_display_option == CoverDisplayOption.TEXT_BLOCK.value
     assert reloaded.public_photo_spacing == PhotoSpacing.LARGE.value
     assert reloaded.public_color_scheme == PublicColorScheme.DARK.value
+
+
+@pytest.mark.asyncio
+async def test_update_gallery_rejects_incomplete_cover(repo: GalleryRepository, owner_id):
+    gallery = await repo.create_gallery(owner_id, "Incomplete Cover")
+    pending_photo = await repo.create_photo(
+        gallery.id,
+        f"{gallery.id}/pending.jpg",
+        f"{gallery.id}/pending-thumb.jpg",
+        1024,
+    )
+
+    updated = await repo.update_gallery(
+        gallery.id,
+        owner_id,
+        name="Should Not Persist",
+        cover_photo_id=pending_photo.id,
+        fields_set={"cover_photo_id"},
+    )
+
+    assert updated is None
+    assert repo.db.in_transaction() is False
+    reloaded = await repo.get_gallery_by_id_and_owner(gallery.id, owner_id)
+    assert reloaded is not None
+    assert reloaded.name == "Incomplete Cover"
+    assert reloaded.cover_photo_id is None
 
 
 @pytest.mark.asyncio
@@ -288,8 +316,11 @@ async def test_delete_photo_uses_single_transaction_for_quota_updates(repo: Gall
     assert not any(c[0] == "reserved" for c in calls)
 
 
-async def _create_photo(repo: GalleryRepository, gallery_id: uuid.UUID, filename: str, owner_id: uuid.UUID) -> uuid.UUID:
+async def _create_photo(repo: GalleryRepository, gallery_id: uuid.UUID, filename: str, owner_id: uuid.UUID, *, status: int = 2) -> uuid.UUID:
     photo = await repo.create_photo(gallery_id, f"{gallery_id}/{filename}", f"{gallery_id}/thumb-{filename}", 1024, width=10, height=10)
+    if status != 1:  # default is PENDING, only update if different
+        photo.status = PhotoUploadStatus(status)
+        await repo.db.commit()
     return photo.id
 
 
