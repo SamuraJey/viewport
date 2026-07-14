@@ -825,20 +825,29 @@ const uploadPhotosPresigned = async (
           fileProgress.delete(file.filename);
           completedBytes += file.file.size;
 
+          const isCancelled = error instanceof Error && error.message === 'Upload cancelled';
+
+          // Always abort multipart uploads to avoid leaked S3 parts and reserved quota.
+          // On cancellation the original signal is already aborted, so pass undefined
+          // to let the abort API call through on a fresh request.
+          if (file.photo_id && isMultipart && file.upload_id) {
+            try {
+              await abortMultipartUpload(
+                galleryId,
+                file.photo_id,
+                file.upload_id,
+                isCancelled ? undefined : signal,
+              );
+            } catch {
+              // Best effort — ignore abort errors
+            }
+          }
+
           // Don't add cancelled uploads to failed list
-          if (!(error instanceof Error && error.message === 'Upload cancelled')) {
+          if (!isCancelled) {
             failedUploads++;
-            if (file.photo_id) {
-              if (isMultipart && file.upload_id) {
-                // Abort multipart upload on failure (best effort)
-                try {
-                  await abortMultipartUpload(galleryId, file.photo_id, file.upload_id, signal);
-                } catch {
-                  // Best effort — ignore abort errors
-                }
-              } else {
-                batchFailedPhotoIds.push(file.photo_id);
-              }
+            if (file.photo_id && !isMultipart) {
+              batchFailedPhotoIds.push(file.photo_id);
             }
 
             results.push({

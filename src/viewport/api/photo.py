@@ -36,6 +36,7 @@ from viewport.video_metrics import VIDEO_QUEUE_DEPTH
 MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 MAX_VIDEO_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
 VIDEO_PART_SIZE = 16 * 1024 * 1024  # 16 MiB
+VIDEO_PART_PRESIGN_EXPIRY = 3600  # 1 hour — must cover slow uploads of all parts
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi", ".mpeg", ".mpg", ".3gp"}
 IMAGE_CONTENT_TYPES = {"image/jpeg", "image/jpg", "image/png"}
 
@@ -187,11 +188,11 @@ async def batch_presigned_uploads(
 
     # 2. Classify files and compute total storage to reserve
     bytes_to_reserve = 0
-    items: list[BatchPresignedUploadItem] = []
+    items: dict[int, BatchPresignedUploadItem] = {}
     photos_payload: list[dict] = []
     failed_presign_bytes = 0
 
-    for file_request in request.files:
+    for i, file_request in enumerate(request.files):
         content_type = file_request.content_type.lower()
         filename = file_request.filename
         file_size = file_request.file_size
@@ -203,33 +204,27 @@ async def batch_presigned_uploads(
         elif is_video and file_size <= MAX_VIDEO_FILE_SIZE:
             media_type = MediaType.VIDEO
         elif content_type in IMAGE_CONTENT_TYPES and file_size > MAX_IMAGE_FILE_SIZE:
-            items.append(
-                BatchPresignedUploadItem(
-                    filename=filename,
-                    file_size=file_size,
-                    success=False,
-                    error=f"Image exceeds maximum size of {MAX_IMAGE_FILE_SIZE // (1024 * 1024)} MB",
-                )
+            items[i] = BatchPresignedUploadItem(
+                filename=filename,
+                file_size=file_size,
+                success=False,
+                error=f"Image exceeds maximum size of {MAX_IMAGE_FILE_SIZE // (1024 * 1024)} MB",
             )
             continue
         elif is_video and file_size > MAX_VIDEO_FILE_SIZE:
-            items.append(
-                BatchPresignedUploadItem(
-                    filename=filename,
-                    file_size=file_size,
-                    success=False,
-                    error=f"Video exceeds maximum size of {MAX_VIDEO_FILE_SIZE // (1024 * 1024)} MB",
-                )
+            items[i] = BatchPresignedUploadItem(
+                filename=filename,
+                file_size=file_size,
+                success=False,
+                error=f"Video exceeds maximum size of {MAX_VIDEO_FILE_SIZE // (1024 * 1024)} MB",
             )
             continue
         else:
-            items.append(
-                BatchPresignedUploadItem(
-                    filename=filename,
-                    file_size=file_size,
-                    success=False,
-                    error="Unsupported file type or content type",
-                )
+            items[i] = BatchPresignedUploadItem(
+                filename=filename,
+                file_size=file_size,
+                success=False,
+                error="Unsupported file type or content type",
             )
             continue
 
@@ -246,19 +241,15 @@ async def batch_presigned_uploads(
         occupied_display_names = await repo.get_photo_display_names_by_gallery(gallery_id)
 
         # 3. Generate Photo records and presigned URLs
-        for file_request in request.files:
+        for i, file_request in enumerate(request.files):
+            # Skip files already handled in first pass
+            if i in items:
+                continue
+
             content_type = file_request.content_type.lower()
             filename = file_request.filename
             file_size = file_request.file_size
             is_video = _is_video(filename, content_type)
-
-            # Skip files already marked as failures
-            if content_type in IMAGE_CONTENT_TYPES and file_size > MAX_IMAGE_FILE_SIZE:
-                continue
-            if is_video and file_size > MAX_VIDEO_FILE_SIZE:
-                continue
-            if not (content_type in IMAGE_CONTENT_TYPES or is_video):
-                continue
 
             photo_id = uuid4()
             display_name = make_unique_display_name(filename, occupied_display_names)
@@ -278,13 +269,11 @@ async def batch_presigned_uploads(
                 except Exception as exc:
                     failed_presign_bytes += file_size
                     logger.warning("Failed to generate presigned PUT for %s: %s", object_key, exc)
-                    items.append(
-                        BatchPresignedUploadItem(
-                            filename=filename,
-                            file_size=file_size,
-                            success=False,
-                            error="Failed to generate presigned URL",
-                        )
+                    items[i] = BatchPresignedUploadItem(
+                        filename=filename,
+                        file_size=file_size,
+                        success=False,
+                        error="Failed to generate presigned URL",
                     )
                     continue
 
@@ -304,19 +293,17 @@ async def batch_presigned_uploads(
                     }
                 )
 
-                items.append(
-                    BatchPresignedUploadItem(
-                        filename=display_name,
-                        file_size=file_size,
-                        success=True,
-                        photo_id=photo_id,
-                        upload_mode="single",
-                        presigned_data=PresignedUploadData(
-                            url=presigned["url"],
-                            headers=presigned["headers"],
-                        ),
-                        expires_in=900,
-                    )
+                items[i] = BatchPresignedUploadItem(
+                    filename=display_name,
+                    file_size=file_size,
+                    success=True,
+                    photo_id=photo_id,
+                    upload_mode="single",
+                    presigned_data=PresignedUploadData(
+                        url=presigned["url"],
+                        headers=presigned["headers"],
+                    ),
+                    expires_in=900,
                 )
             else:
                 # --- Video: multipart upload ---
@@ -325,13 +312,11 @@ async def batch_presigned_uploads(
                 except Exception as exc:
                     failed_presign_bytes += file_size
                     logger.warning("Failed to create multipart upload for %s: %s", object_key, exc)
-                    items.append(
-                        BatchPresignedUploadItem(
-                            filename=filename,
-                            file_size=file_size,
-                            success=False,
-                            error="Failed to initiate multipart upload",
-                        )
+                    items[i] = BatchPresignedUploadItem(
+                        filename=filename,
+                        file_size=file_size,
+                        success=False,
+                        error="Failed to initiate multipart upload",
                     )
                     continue
 
@@ -344,7 +329,7 @@ async def batch_presigned_uploads(
                         object_key=object_key,
                         upload_id=upload_id,
                         part_sizes=part_sizes,
-                        expires_in=900,
+                        expires_in=VIDEO_PART_PRESIGN_EXPIRY,
                     )
                 except Exception as exc:
                     failed_presign_bytes += file_size
@@ -361,16 +346,13 @@ async def batch_presigned_uploads(
                             "Failed to abort multipart upload for %s after part URL generation failure",
                             object_key,
                         )
-                    items.append(
-                        BatchPresignedUploadItem(
-                            filename=filename,
-                            file_size=file_size,
-                            success=False,
-                            error="Failed to generate presigned part URLs",
-                        )
+                    items[i] = BatchPresignedUploadItem(
+                        filename=filename,
+                        file_size=file_size,
+                        success=False,
+                        error="Failed to generate presigned part URLs",
                     )
                     part_gen_failed = True
-
                 if part_gen_failed:
                     continue
 
@@ -391,19 +373,17 @@ async def batch_presigned_uploads(
                     }
                 )
 
-                items.append(
-                    BatchPresignedUploadItem(
-                        filename=display_name,
-                        file_size=file_size,
-                        success=True,
-                        photo_id=photo_id,
-                        upload_mode="multipart",
-                        upload_id=upload_id,
-                        part_size=VIDEO_PART_SIZE,
-                        presigned_urls=presigned_urls,
-                        expected_total_size=file_size,
-                        expires_in=900,
-                    )
+                items[i] = BatchPresignedUploadItem(
+                    filename=display_name,
+                    file_size=file_size,
+                    success=True,
+                    photo_id=photo_id,
+                    upload_mode="multipart",
+                    upload_id=upload_id,
+                    part_size=VIDEO_PART_SIZE,
+                    presigned_urls=presigned_urls,
+                    expected_total_size=file_size,
+                    expires_in=VIDEO_PART_PRESIGN_EXPIRY,
                 )
 
         if failed_presign_bytes > 0:
@@ -427,7 +407,7 @@ async def batch_presigned_uploads(
             await user_repo.release_reserved_storage(current_user.id, reserved_bytes_to_release_on_error)
         raise
 
-    return BatchPresignedUploadsResponse(items=items)
+    return BatchPresignedUploadsResponse(items=[items[i] for i in sorted(items)])
 
 
 @router.post("/{gallery_id}/photos/batch-confirm", response_model=BatchConfirmUploadResponse)
@@ -437,6 +417,7 @@ async def batch_confirm_uploads(
     repo: GalleryRepository = Depends(get_gallery_repository),
     user_repo: UserRepository = Depends(get_user_repository),
     current_user: User = Depends(get_current_user),
+    s3_client: AsyncS3Client = Depends(get_s3_client),
 ) -> BatchConfirmUploadResponse:
     """Confirm batch photo uploads to S3
 
@@ -460,6 +441,7 @@ async def batch_confirm_uploads(
     failed_count = 0
     photos_to_process: list[ThumbnailTaskItem] = []
     status_updates: dict[UUID, PhotoUploadStatus] = {}
+    multipart_uploads_to_abort: list[tuple[str, str]] = []
 
     # 3. Process each photo (S3 verification deferred to background task)
     seen_photo_ids: set[UUID] = set()
@@ -488,6 +470,8 @@ async def batch_confirm_uploads(
         if photo.media_type == MediaType.VIDEO.value:
             if photo.status == PhotoUploadStatus.PENDING:
                 status_updates[photo.id] = PhotoUploadStatus.FAILED
+                if photo.multipart_upload_id:
+                    multipart_uploads_to_abort.append((photo.object_key, photo.multipart_upload_id))
             failed_count += 1
             continue
 
@@ -519,6 +503,17 @@ async def batch_confirm_uploads(
         elif photo_status == PhotoUploadStatus.FAILED and previous_status == PhotoUploadStatus.PENDING:
             bytes_to_release += photo.file_size
 
+    # Abort multipart uploads for videos rejected from this endpoint.
+    # Best-effort: failures are logged but don't block the request.
+    for object_key, upload_id in multipart_uploads_to_abort:
+        try:
+            await s3_client.abort_multipart_upload(object_key, upload_id)
+        except Exception:
+            logger.warning(
+                "Failed to abort multipart upload %s for %s during batch-confirm rejection",
+                upload_id,
+                object_key,
+            )
     # 4. Commit statuses and quota updates atomically
     try:
         await repo.set_photos_statuses(photo_map, status_updates, commit=False)

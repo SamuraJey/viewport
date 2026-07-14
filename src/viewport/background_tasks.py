@@ -1100,10 +1100,10 @@ def cleanup_orphaned_uploads_task(self) -> dict:
 
             pending_ids = [str(p.id) for p in chunk if p.status == PhotoUploadStatus.PENDING]
 
-            # Abort any in-progress multipart uploads for PENDING videos before
+            # Abort any in-progress multipart uploads (PENDING or FAILED) before
             # deleting objects — avoids leaked S3 multipart parts.
             for p in chunk:
-                if p.status == PhotoUploadStatus.PENDING and p.multipart_upload_id:
+                if p.multipart_upload_id:
                     try:
                         s3_client.abort_multipart_upload(
                             Bucket=bucket,
