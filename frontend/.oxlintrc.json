@@ -1,0 +1,40 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "jsx-a11y"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "oxc/no-async-await": "off",
+    "oxc/no-optional-chaining": "off",
+    "oxc/no-rest-spread-properties": "off",
+    "react/react-in-jsx-scope": "off",
+    "jsx-a11y/prefer-tag-over-role": "off",
+    "jsx-a11y/control-has-associated-label": "off",
+    "jsx-a11y/no-redundant-roles": "off",
+    "jsx-a11y/anchor-ambiguous-text": "off",
+    "jsx-a11y/anchor-is-valid": "off",
+    "jsx-a11y/aria-activedescendant-has-tabindex": "off",
+    "jsx-a11y/click-events-have-key-events": "off",
+    "jsx-a11y/no-static-element-interactions": "off",
+    "jsx-a11y/no-noninteractive-element-interactions": "off",
+    "jsx-a11y/no-interactive-element-to-noninteractive-role": "off",
+    "no-constant-binary-expression": "off",
+    "no-shadow": "off"
+  },
+  "overrides": [
+    {
+      "files": ["**/__tests__/**", "**/*.test.{ts,tsx}"],
+      "rules": {
+        "no-constant-binary-expression": "off"
+      }
+    },
+    {
+      "files": ["src/contexts/**", "src/stores/**", "src/lib/**", "src/hooks/**"],
+      "rules": {
+        "react/only-export-components": "off"
+      }
+    }
+  ],
+  "ignorePatterns": ["dist", "coverage", "node_modules"]
+}
