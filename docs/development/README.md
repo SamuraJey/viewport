@@ -78,7 +78,7 @@ Python and JavaScript/TypeScript code style guidelines.
 - **VS Code:**
   - Python (Microsoft)
   - Pylance
-  - ESLint
+  - oxc (oxlint)
   - Prettier
   - Thunder Client or REST Client (for API testing)
 
@@ -159,8 +159,9 @@ npm test
 # Build for production
 npm run build
 
-# Format code
-npm run lint -- --fix
+# Lint code (oxlint)
+npm run lint
+npm run lint:fix  # auto-fix
 ```
 
 ## Debugging
@@ -200,6 +201,8 @@ debugpy.wait_for_client()
 - [SQLAlchemy ORM](https://docs.sqlalchemy.org/)
 - [Zustand Documentation](https://github.com/pmndrs/zustand)
 - [Tailwind CSS](https://tailwindcss.com/)
+- [oxlint](https://oxc.rs/docs/guide/usage/linter)
+- [TypeScript 7](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)
 
 ---
 
