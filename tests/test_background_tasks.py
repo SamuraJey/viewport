@@ -1144,15 +1144,15 @@ def test_process_single_photo_thumbnail_transient_error_propagates(engine: Engin
 # ── _process_single_photo: invalid image cleanup ClientError ─────────────
 
 
-def test_process_single_photo_invalid_image_delete_client_error_swallowed(engine: Engine, s3_container, monkeypatch) -> None:
-    """ClientError from delete_object during invalid-image cleanup is swallowed."""
+def test_process_single_photo_invalid_image_delete_non_retryable_retains_row(engine: Engine, s3_container, monkeypatch) -> None:
+    """Non-retryable ClientError from delete_object retains the photo row and quota."""
     from unittest.mock import MagicMock
 
     with photo_context(engine, "inv-cleanup", "bad.jpg", content=b"not-an-image") as ctx:
         s3_client = get_s3_client()
         monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock())
 
-        # s3_client.delete_object raises ClientError
+        # s3_client.delete_object raises a non-retryable ClientError
         delete_error = ClientError(
             {"Error": {"Code": "AccessDenied"}, "ResponseMetadata": {"RequestId": "", "HTTPHeaders": {}, "HostId": "", "RetryAttempts": 0, "HTTPStatusCode": 403}},
             "DeleteObject",
@@ -1167,9 +1167,15 @@ def test_process_single_photo_invalid_image_delete_client_error_swallowed(engine
             existing_ids={str(ctx.photo_id)},
             result_tracker=tracker,
         )
-        # The photo is marked as error, processing does not crash
-        assert tracker.failed == 1
-        assert tracker.results[0]["message"] == "Invalid image file"
+        # No result tracked — the photo row is retained for durable purge,
+        # not marked failed, so quota is not released.
+        assert tracker.failed == 0
+        assert tracker.successful == 0
+        assert tracker.skipped == 0
+
+        # Photo row is retained in the DB
+        with session_scope(engine) as session:
+            assert session.get(Photo, ctx.photo_id) is not None
 
 
 # ── _delete_photo_data_impl ──────────────────────────────────────────────

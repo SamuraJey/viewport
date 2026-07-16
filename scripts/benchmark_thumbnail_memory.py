@@ -93,10 +93,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--sample-interval-ms",
         type=float,
         default=5.0,
-        help=(
-            "RSS sampling interval inside each child; spikes shorter than the interval may be missed, "
-            "so use cgroup memory.peak for aggregate acceptance (default: 5)"
-        ),
+        help=("RSS sampling interval inside each child; spikes shorter than the interval may be missed, so use cgroup memory.peak for aggregate acceptance (default: 5)"),
     )
     parser.add_argument("--indent", type=_non_negative_int, default=None, help="pretty-print JSON with this indent")
     args = parser.parse_args(argv)
@@ -122,7 +119,7 @@ def _current_rss_bytes(pid: int | None = None) -> int:
         for line in status_path.read_text(encoding="utf-8").splitlines():
             if line.startswith("VmRSS:"):
                 return int(line.split()[1]) * 1024
-    except (FileNotFoundError, PermissionError, ValueError):
+    except FileNotFoundError, PermissionError, ValueError:
         pass
     return _lifetime_peak_rss_bytes()
 
@@ -141,14 +138,8 @@ def _cgroup_memory() -> dict[str, Any] | None:
     try:
         current = int((root / "memory.current").read_text(encoding="utf-8").strip())
         peak = int((root / "memory.peak").read_text(encoding="utf-8").strip())
-        events = {
-            key: int(value)
-            for key, value in (
-                line.split(maxsplit=1)
-                for line in (root / "memory.events").read_text(encoding="utf-8").splitlines()
-            )
-        }
-    except (FileNotFoundError, PermissionError, ValueError):
+        events = {key: int(value) for key, value in (line.split(maxsplit=1) for line in (root / "memory.events").read_text(encoding="utf-8").splitlines())}
+    except FileNotFoundError, PermissionError, ValueError:
         return None
     return {"current_bytes": current, "peak_bytes": peak, "events": events}
 
@@ -193,6 +184,7 @@ def _measure_case(job: dict[str, Any]) -> dict[str, Any]:
             output_height=height,
             output_bytes=len(thumbnail),
         )
+        del thumbnail
     except Exception as error:  # Emit failures as data so long runs remain machine-readable.
         result.update(
             status="error",
@@ -348,9 +340,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         summary = _summarize(results)
         summary.update(
             measured_wall_seconds=measured_wall_seconds,
-            successful_images_per_second=(
-                summary["successful_iterations"] / measured_wall_seconds if measured_wall_seconds else 0
-            ),
+            successful_images_per_second=(summary["successful_iterations"] / measured_wall_seconds if measured_wall_seconds else 0),
             cgroup_memory=_cgroup_memory(),
         )
 
@@ -375,7 +365,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "summary": summary,
         }
         sys.stdout.write(json.dumps(payload, indent=args.indent, sort_keys=True) + "\n")
-        return 1 if payload["summary"]["failed_iterations"] else 0
+        return 1 if summary["failed_iterations"] else 0
 
 
 if __name__ == "__main__":

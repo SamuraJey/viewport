@@ -311,12 +311,7 @@ class TestPhotoAPI:
         assert captured["batch"][0]["photo_id"] == photo_id
 
     def test_batch_confirm_uploads_enqueues_thumbnail_microbatches(self, authenticated_client: TestClient, gallery_id_fixture: str, monkeypatch):
-        payload = {
-            "files": [
-                {"filename": f"confirm-{index}.jpg", "file_size": 256, "content_type": "image/jpeg"}
-                for index in range(21)
-            ]
-        }
+        payload = {"files": [{"filename": f"confirm-{index}.jpg", "file_size": 256, "content_type": "image/jpeg"} for index in range(21)]}
         presigned = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
         assert presigned.status_code == 200
         photo_ids = [item["photo_id"] for item in presigned.json()["items"]]
@@ -338,12 +333,7 @@ class TestPhotoAPI:
         assert [item["photo_id"] for batch in captured_batches for item in batch] == photo_ids
 
     def test_batch_confirm_partial_publish_can_be_retried_in_bounded_batches(self, authenticated_client: TestClient, gallery_id_fixture: str, monkeypatch):
-        payload = {
-            "files": [
-                {"filename": f"partial-{index}.jpg", "file_size": 256, "content_type": "image/jpeg"}
-                for index in range(21)
-            ]
-        }
+        payload = {"files": [{"filename": f"partial-{index}.jpg", "file_size": 256, "content_type": "image/jpeg"} for index in range(21)]}
         presigned = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-presigned", json=payload)
         assert presigned.status_code == 200
         photo_ids = [item["photo_id"] for item in presigned.json()["items"]]
@@ -369,6 +359,7 @@ class TestPhotoAPI:
 
         assert retry_response.status_code == 200
         assert [len(batch) for batch in retry_batches] == [10, 10, 1]
+        assert [item["photo_id"] for batch in retry_batches for item in batch] == photo_ids
 
     @pytest.mark.skip(reason="FIx later")
     def test_delete_photo_success(self, authenticated_client: TestClient, gallery_id_fixture: str):

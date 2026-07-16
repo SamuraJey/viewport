@@ -226,16 +226,22 @@ def _process_single_photo(
                     try:
                         s3_client.delete_object(Bucket=bucket, Key=object_key)
                     except ClientError as delete_error:
-                        # Best-effort cleanup of an invalid uploaded object; the hourly
-                        # cleanup_orphaned_uploads_task sweeps any S3 objects left behind.
-                        logger.warning("Failed to delete invalid S3 object %s: %s", object_key, delete_error)
+                        error_code = delete_error.response.get("Error", {}).get("Code", "")
+                        if error_code == "NoSuchKey":
+                            logger.info("Invalid S3 object %s already absent", object_key)
+                        elif _is_retryable_s3_error(delete_error):
+                            raise ThumbnailTransientError(f"Retryable S3 delete error for invalid object {photo_id}") from delete_error
+                        else:
+                            logger.error(
+                                "Non-retryable S3 delete error for invalid object %s: %s; retaining photo row and quota",
+                                object_key,
+                                delete_error,
+                            )
+                            return
 
                     with task_db_session() as db_cleanup:
                         photo_row = db_cleanup.execute(
-                            select(Photo.file_size, Gallery.owner_id)
-                            .select_from(Photo)
-                            .join(Gallery, Photo.gallery_id == Gallery.id)
-                            .where(Photo.id == photo_id)
+                            select(Photo.file_size, Gallery.owner_id).select_from(Photo).join(Gallery, Photo.gallery_id == Gallery.id).where(Photo.id == photo_id)
                         ).one_or_none()
                         if photo_row:
                             file_size, owner_id = photo_row
@@ -441,29 +447,30 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
                     and_(Photo.status == PhotoUploadStatus.SUCCESSFUL, missing_metadata),
                 )
 
-                owner_totals = [
-                    (owner_id, int(total_size))
-                    for owner_id, total_size in db.execute(
-                        select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0))
-                        .select_from(Photo)
-                        .join(Gallery, Photo.gallery_id == Gallery.id)
-                        .where(
-                            Photo.id.in_(failed_ids),
-                            failure_eligible,
-                        )
-                        .group_by(Gallery.owner_id)
-                    ).all()
-                ]
-
-                db.execute(
+                update_stmt = (
                     update(Photo)
                     .where(
                         Photo.id.in_(failed_ids),
                         failure_eligible,
                     )
                     .values(status=PhotoUploadStatus.FAILED)
+                    .returning(Photo.id)
                 )
-                _decrement_used_for_owner_totals(db, owner_totals)
+                updated_rows = db.execute(update_stmt, execution_options={"synchronize_session": False}).all()
+                updated_ids = [str(row[0]) for row in updated_rows]
+
+                if updated_ids:
+                    owner_totals = [
+                        (owner_id, int(total_size))
+                        for owner_id, total_size in db.execute(
+                            select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0))
+                            .select_from(Photo)
+                            .join(Gallery, Photo.gallery_id == Gallery.id)
+                            .where(Photo.id.in_(updated_ids))
+                            .group_by(Gallery.owner_id)
+                        ).all()
+                    ]
+                    _decrement_used_for_owner_totals(db, owner_totals)
 
             db.commit()
 
