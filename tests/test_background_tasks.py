@@ -483,8 +483,9 @@ def test_reconcile_successful_uploads_max_batch_limit(engine: Engine, monkeypatc
 
         # Should only requeue up to 500 photos (the max_batch limit)
         assert result["requeued_count"] == 500
-        assert len(captured_calls) == 1
-        assert len(captured_calls[0]) == 500
+        assert len(captured_calls) == 50
+        assert all(len(batch) == 10 for batch in captured_calls)
+        assert sum(len(batch) for batch in captured_calls) == 500
     finally:
         # Clean up test data
         if gallery_id:
@@ -544,6 +545,7 @@ def test_reconcile_successful_uploads_missing_metadata_criteria(engine: Engine, 
             return original_delay(photos_batch)
 
         monkeypatch.setattr(create_thumbnails_batch_task, "delay", mock_delay)
+        monkeypatch.setattr(background_tasks, "create_thumbnail_from_path", lambda _path: (b"avif", 640, 480))
 
         result = reconcile_successful_uploads_task.run()
 
@@ -581,6 +583,7 @@ def test_reconcile_successful_uploads_requeue_then_process_keeps_successful_stat
             captured_calls.append(photos_batch)
 
         monkeypatch.setattr(create_thumbnails_batch_task, "delay", mock_delay)
+        monkeypatch.setattr(background_tasks, "create_thumbnail_from_path", lambda _path: (b"avif", 640, 480))
 
         requeue_result = reconcile_successful_uploads_task.run()
 
@@ -1069,13 +1072,14 @@ def test_process_single_photo_get_object_non_retryable_error(engine: Engine, s3_
 
 
 def test_process_single_photo_upload_non_retryable_raises(engine: Engine, s3_container, monkeypatch) -> None:
-    """Non-retryable upload_fileobj error is caught by outer handler, tracked as failure."""
+    """Non-retryable put_object error is caught by outer handler and tracked as failure."""
     from unittest.mock import MagicMock
 
     with photo_context(engine, "up-err-test", "up.jpg") as ctx:
         s3_client = get_s3_client()
         monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock())
-        monkeypatch.setattr(s3_client, "upload_fileobj", MagicMock(side_effect=RuntimeError("upload boom")))
+        monkeypatch.setattr(background_tasks, "create_thumbnail_from_path", MagicMock(return_value=(b"avif", 100, 100)))
+        monkeypatch.setattr(s3_client, "put_object", MagicMock(side_effect=RuntimeError("upload boom")))
 
         tracker = BatchTaskResult(1)
         _process_single_photo(
@@ -1576,8 +1580,7 @@ def test_notify_submitted_redis_unavailable(monkeypatch) -> None:
 
 # ── _process_single_photo: retryable tag/upload errors ───────────────────
 def test_process_single_photo_tagging_retryable_client_error(engine: Engine, s3_container, monkeypatch) -> None:
-    """Retryable ClientError from put_object_tagging raises ThumbnailTransientError inside the inner try,
-    which is caught by the outer S3 error handler (not retryable for ThumbnailTransientError type)."""
+    """Retryable ClientError from put_object_tagging propagates for Celery retry."""
     from unittest.mock import MagicMock
 
     tag_error = ClientError(
@@ -1590,20 +1593,18 @@ def test_process_single_photo_tagging_retryable_client_error(engine: Engine, s3_
         monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock(side_effect=tag_error))
 
         tracker = BatchTaskResult(1)
-        _process_single_photo(
-            {"photo_id": str(ctx.photo_id), "object_key": ctx.object_key},
-            s3_client,
-            get_s3_settings().bucket,
-            existing_ids={str(ctx.photo_id)},
-            result_tracker=tracker,
-        )
-        # ThumbnailTransientError from tag is caught by outer except Exception handler
-        assert tracker.failed == 1
-        assert tracker.results[0]["message"] == "S3 read failed"
+        with pytest.raises(ThumbnailTransientError):
+            _process_single_photo(
+                {"photo_id": str(ctx.photo_id), "object_key": ctx.object_key},
+                s3_client,
+                get_s3_settings().bucket,
+                existing_ids={str(ctx.photo_id)},
+                result_tracker=tracker,
+            )
 
 
 def test_process_single_photo_tagging_retryable_generic_exception(engine: Engine, s3_container, monkeypatch) -> None:
-    """Retryable generic Exception from put_object_tagging → ThumbnailTransientError caught by outer handler."""
+    """Retryable connection error from put_object_tagging propagates for Celery retry."""
     from unittest.mock import MagicMock
 
     from botocore.exceptions import EndpointConnectionError
@@ -1611,31 +1612,6 @@ def test_process_single_photo_tagging_retryable_generic_exception(engine: Engine
     with photo_context(engine, "tag-gen-retry", "tgr.jpg") as ctx:
         s3_client = get_s3_client()
         monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock(side_effect=EndpointConnectionError(endpoint_url="x")))
-
-        tracker = BatchTaskResult(1)
-        _process_single_photo(
-            {"photo_id": str(ctx.photo_id), "object_key": ctx.object_key},
-            s3_client,
-            get_s3_settings().bucket,
-            existing_ids={str(ctx.photo_id)},
-            result_tracker=tracker,
-        )
-        assert tracker.failed == 1
-        assert tracker.results[0]["message"] == "S3 read failed"
-
-
-def test_process_single_photo_upload_retryable_error(engine: Engine, s3_container, monkeypatch) -> None:
-    """Retryable upload_fileobj error raises ThumbnailTransientError."""
-    from unittest.mock import MagicMock
-
-    with photo_context(engine, "up-retry", "ur.jpg") as ctx:
-        s3_client = get_s3_client()
-        monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock())
-        upload_error = ClientError(
-            {"Error": {"Code": "ServiceUnavailable"}, "ResponseMetadata": {"RequestId": "", "HTTPHeaders": {}, "HostId": "", "RetryAttempts": 0, "HTTPStatusCode": 503}},
-            "UploadPart",
-        )
-        monkeypatch.setattr(s3_client, "upload_fileobj", MagicMock(side_effect=upload_error))
 
         tracker = BatchTaskResult(1)
         with pytest.raises(ThumbnailTransientError):
@@ -1646,6 +1622,110 @@ def test_process_single_photo_upload_retryable_error(engine: Engine, s3_containe
                 existing_ids={str(ctx.photo_id)},
                 result_tracker=tracker,
             )
+
+
+def test_process_single_photo_upload_retryable_error(engine: Engine, s3_container, monkeypatch) -> None:
+    """Retryable put_object error raises ThumbnailTransientError."""
+    from unittest.mock import MagicMock
+
+    with photo_context(engine, "up-retry", "ur.jpg") as ctx:
+        s3_client = get_s3_client()
+        monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock())
+        monkeypatch.setattr(background_tasks, "create_thumbnail_from_path", MagicMock(return_value=(b"avif", 100, 100)))
+        upload_error = ClientError(
+            {"Error": {"Code": "ServiceUnavailable"}, "ResponseMetadata": {"RequestId": "", "HTTPHeaders": {}, "HostId": "", "RetryAttempts": 0, "HTTPStatusCode": 503}},
+            "UploadPart",
+        )
+        monkeypatch.setattr(s3_client, "put_object", MagicMock(side_effect=upload_error))
+
+        tracker = BatchTaskResult(1)
+        with pytest.raises(ThumbnailTransientError):
+            _process_single_photo(
+                {"photo_id": str(ctx.photo_id), "object_key": ctx.object_key},
+                s3_client,
+                get_s3_settings().bucket,
+                existing_ids={str(ctx.photo_id)},
+                result_tracker=tracker,
+            )
+
+
+def test_process_single_photo_scratch_space_failure_is_retryable(engine: Engine, s3_container, monkeypatch) -> None:
+    """Local scratch exhaustion must retry instead of permanently failing a valid photo."""
+    from unittest.mock import MagicMock
+
+    with photo_context(engine, "scratch-retry", "scratch.jpg") as ctx:
+        s3_client = get_s3_client()
+        monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock())
+        monkeypatch.setattr(background_tasks.tempfile, "TemporaryFile", MagicMock(side_effect=OSError(28, "no space left on device")))
+
+        tracker = BatchTaskResult(1)
+        with pytest.raises(ThumbnailTransientError):
+            _process_single_photo(
+                {"photo_id": str(ctx.photo_id), "object_key": ctx.object_key},
+                s3_client,
+                get_s3_settings().bucket,
+                existing_ids={str(ctx.photo_id)},
+                result_tracker=tracker,
+            )
+
+        assert tracker.failed == 0
+
+
+def test_process_single_photo_validation_io_failure_does_not_delete_original(engine: Engine, s3_container, monkeypatch) -> None:
+    """A local validation read error retries without deleting valid S3/DB data."""
+    from unittest.mock import MagicMock
+
+    with photo_context(engine, "validation-io-retry", "validation.jpg") as ctx:
+        s3_client = get_s3_client()
+        delete_object = MagicMock()
+        monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock())
+        monkeypatch.setattr(s3_client, "delete_object", delete_object)
+        monkeypatch.setattr(background_tasks, "_is_valid_image", MagicMock(side_effect=background_tasks.ThumbnailScratchError("I/O error")))
+
+        tracker = BatchTaskResult(1)
+        with pytest.raises(ThumbnailTransientError):
+            _process_single_photo(
+                {"photo_id": str(ctx.photo_id), "object_key": ctx.object_key},
+                s3_client,
+                get_s3_settings().bucket,
+                existing_ids={str(ctx.photo_id)},
+                result_tracker=tracker,
+            )
+
+        delete_object.assert_not_called()
+        assert tracker.failed == 0
+
+
+def test_late_duplicate_failure_does_not_overwrite_completed_photo_or_quota(engine: Engine, s3_container) -> None:
+    """A divergent duplicate result cannot turn a fully completed photo into FAILED."""
+
+    with photo_context(engine, "duplicate-result", "duplicate.jpg") as ctx:
+        with session_scope(engine) as session:
+            photo = session.get(Photo, ctx.photo_id)
+            user = session.get(User, ctx.user_id)
+            assert photo is not None
+            assert user is not None
+            photo.status = PhotoUploadStatus.SUCCESSFUL
+            photo.thumbnail_object_key = f"{ctx.gallery_id}/duplicate_thumbnail.avif"
+            photo.width = 640
+            photo.height = 480
+            user.storage_used = photo.file_size
+            expected_storage_used = photo.file_size
+
+        tracker = BatchTaskResult(1)
+        tracker.add_error(str(ctx.photo_id), "late duplicate failed")
+        background_tasks._batch_update_photo_results(tracker.results, tracker)
+
+        with session_scope(engine) as session:
+            photo = session.get(Photo, ctx.photo_id)
+            user = session.get(User, ctx.user_id)
+            assert photo is not None
+            assert user is not None
+            assert photo.status == PhotoUploadStatus.SUCCESSFUL
+            assert photo.thumbnail_object_key.endswith("duplicate_thumbnail.avif")
+            assert user.storage_used == expected_storage_used
+
+        assert str(ctx.photo_id) not in background_tasks._get_thumbnail_candidate_ids([str(ctx.photo_id)])
 
 
 # ── delete_photos_batch_task: else branch (line 289) ─────────────────────

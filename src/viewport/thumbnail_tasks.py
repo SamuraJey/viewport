@@ -1,7 +1,9 @@
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from typing import TypedDict
 from uuid import UUID
+
+THUMBNAIL_TASK_BATCH_SIZE = 10
 
 
 class ThumbnailTaskPayload(TypedDict):
@@ -29,3 +31,10 @@ def to_thumbnail_task_payloads(items: Iterable[ThumbnailTaskItem]) -> list[Thumb
     """Serialize typed thumbnail work items to Celery-compatible dictionaries."""
 
     return [item.to_payload() for item in items]
+
+
+def chunk_thumbnail_task_payloads(payloads: Sequence[ThumbnailTaskPayload]) -> Iterator[list[ThumbnailTaskPayload]]:
+    """Yield bounded Celery payload batches while preserving input order."""
+
+    for start in range(0, len(payloads), THUMBNAIL_TASK_BATCH_SIZE):
+        yield list(payloads[start : start + THUMBNAIL_TASK_BATCH_SIZE])

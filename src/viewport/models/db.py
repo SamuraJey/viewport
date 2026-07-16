@@ -77,8 +77,8 @@ def _get_sync_engine_and_sessionmaker() -> tuple[Engine, sessionmaker[Session]]:
     connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
 
     pool_config = {
-        "pool_size": 20,
-        "max_overflow": 20,
+        "pool_size": 2,
+        "max_overflow": 2,
         "pool_timeout": 5,
         "pool_recycle": 1800,
         "pool_pre_ping": True,
