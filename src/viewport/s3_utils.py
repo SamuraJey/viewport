@@ -149,33 +149,28 @@ def create_thumbnail_from_path(
     max_size: tuple[int, int] = (1000, 1000),
     quality: int = 70,
 ) -> tuple[bytes, int, int]:
-    """Create an autorotated AVIF thumbnail through libvips' streaming pipeline."""
+    """Create an autorotated AVIF thumbnail through libvips' streaming pipeline.
+
+    Always uses ``pyvips.Image.thumbnail`` for shrink-on-load + auto-orient,
+    then strips alpha after resize when present — the previous per-branch
+    approach (``new_from_file`` + ``extract_band`` + ``thumbnail_image`` for
+    alpha images) discarded both optimisations.
+    """
 
     pyvips = _get_pyvips()
     try:
         path = os.fspath(image_path)
-        source = pyvips.Image.new_from_file(path, access="sequential", fail_on="error")
-        if source.hasalpha():
-            # Pillow's previous ``convert('RGB')`` discarded alpha without
-            # compositing. Remove it before resizing so libvips does not
-            # premultiply transparent colors against black.
-            source = source.extract_band(0, n=source.bands - 1)
-            image = source.thumbnail_image(
-                max_size[0],
-                height=max_size[1],
-                size="down",
-                fail_on="error",
-            )
-        else:
-            # Keep decoder shrink-on-load (notably JPEG) on the common path.
-            del source
-            image = pyvips.Image.thumbnail(
-                path,
-                max_size[0],
-                height=max_size[1],
-                size="down",
-                fail_on="error",
-            )
+        image = pyvips.Image.thumbnail(
+            path,
+            max_size[0],
+            height=max_size[1],
+            size="down",
+            fail_on="error",
+        )
+        if image.hasalpha():
+            # Strip alpha after resize so orientation + shrink-on-load
+            # are preserved.
+            image = image.extract_band(0, n=image.bands - 1)
         if image.interpretation != "srgb":
             image = image.colourspace("srgb")
 

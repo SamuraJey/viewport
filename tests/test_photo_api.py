@@ -350,7 +350,7 @@ class TestPhotoAPI:
         response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch-confirm", json=request_payload)
 
         assert response.status_code == 503
-        assert [len(batch) for batch in first_attempt] == [10, 10]
+        assert [len(batch) for batch in first_attempt] == [10, 10, 1]
 
         retry_batches: list[list[dict]] = []
         monkeypatch.setattr("viewport.api.photo.create_thumbnails_batch_task.delay", retry_batches.append)

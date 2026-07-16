@@ -76,6 +76,8 @@ def _get_sync_engine_and_sessionmaker() -> tuple[Engine, sessionmaker[Session]]:
     database_url = get_database_url()
     connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
 
+    # Per-worker pool: 4 Celery prefork children × (2+2) = 16 sync conns max.
+    # Plus async backend conns + beat — must fit under Postgres max_connections.
     pool_config = {
         "pool_size": 2,
         "max_overflow": 2,

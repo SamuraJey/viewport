@@ -134,10 +134,30 @@ def _enqueue_media_processing(photo: Photo) -> None:
 
 
 def _enqueue_thumbnail_batches(batches: list[list[ThumbnailTaskPayload]]) -> None:
-    """Publish thumbnail batches from a worker thread to avoid blocking the event loop."""
+    """Publish thumbnail batches from a worker thread to avoid blocking the event loop.
 
-    for batch in batches:
-        create_thumbnails_batch_task.delay(batch)
+    Tries every batch; raises only after the loop so that a transient broker
+    error on batch N does not silently abandon batches N+1 onward.  The caller
+    returns 503 on failure, and the client retry will re-enqueue still-PROCESSING
+    photos while skipping those already completed by earlier published batches.
+    """
+
+    failed_batches: list[int] = []
+    for i, batch in enumerate(batches):
+        try:
+            create_thumbnails_batch_task.delay(batch)
+        except Exception:
+            logger.warning(
+                "Failed to enqueue thumbnail batch %d/%d",
+                i + 1,
+                len(batches),
+            )
+            failed_batches.append(i)
+    if failed_batches:
+        raise RuntimeError(
+            f"Failed to enqueue {len(failed_batches)}/{len(batches)} "
+            f"thumbnail batches (indices: {failed_batches})"
+        )
 
 
 @router.post("/{gallery_id}/photos/{photo_id}/download")
