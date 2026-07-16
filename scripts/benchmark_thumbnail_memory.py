@@ -93,7 +93,10 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--sample-interval-ms",
         type=float,
         default=5.0,
-        help="RSS sampling interval inside each child (default: 5)",
+        help=(
+            "RSS sampling interval inside each child; spikes shorter than the interval may be missed, "
+            "so use cgroup memory.peak for aggregate acceptance (default: 5)"
+        ),
     )
     parser.add_argument("--indent", type=_non_negative_int, default=None, help="pretty-print JSON with this indent")
     args = parser.parse_args(argv)
