@@ -14,6 +14,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.orm import Session, sessionmaker
 
+from tests.helpers import create_test_thumbnail_from_path
 from viewport import background_tasks
 from viewport.background_tasks import (
     ThumbnailTransientError,
@@ -46,6 +47,13 @@ def engine(sync_engine: Engine) -> Engine:
     return sync_engine
 
 
+@pytest.fixture(autouse=True)
+def _stub_native_thumbnail_encoder(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep task orchestration tests independent from host libvips packages."""
+
+    monkeypatch.setattr(background_tasks, "create_thumbnail_from_path", create_test_thumbnail_from_path)
+
+
 class PhotoSetup(NamedTuple):
     photo_id: str
     gallery_id: str
@@ -76,7 +84,13 @@ def _create_dummy_jpeg_bytes(width: int = IMAGE_SIZE[0], height: int = IMAGE_SIZ
 
 
 @contextmanager
-def photo_context(engine: Engine, gallery_name: str, filename: str, content: bytes | None = None):
+def photo_context(
+    engine: Engine,
+    gallery_name: str,
+    filename: str,
+    content: bytes | None = None,
+    status: PhotoUploadStatus = PhotoUploadStatus.PENDING,
+):
     if content is None:
         content = _create_dummy_jpeg_bytes()
 
@@ -94,6 +108,7 @@ def photo_context(engine: Engine, gallery_name: str, filename: str, content: byt
 
         photo = Photo(
             gallery_id=gallery.id,
+            status=status,
             object_key=object_key,
             thumbnail_object_key=object_key,
             file_size=len(content),
@@ -126,7 +141,7 @@ def assert_batch_counts(result, successful=0, failed=0, skipped=0):
 
 
 def test_create_thumbnails_batch_task_creates_thumbnail(engine: Engine, s3_container) -> None:
-    with photo_context(engine, "celery-test", "celery-original.jpg") as ctx:
+    with photo_context(engine, "celery-test", "celery-original.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
         result = _execute_thumbnail_task(str(ctx.photo_id), ctx.object_key)
 
         assert_batch_counts(result, successful=1)
@@ -144,7 +159,7 @@ def test_create_thumbnails_batch_task_creates_thumbnail(engine: Engine, s3_conta
 
 
 def test_create_thumbnails_batch_task_skips_missing_object(engine: Engine, s3_container) -> None:
-    with photo_context(engine, "missing-test", "missing.jpg") as ctx:
+    with photo_context(engine, "missing-test", "missing.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
         s3_client = get_s3_client()
         bucket = S3Settings().bucket
         s3_client.delete_object(Bucket=bucket, Key=ctx.object_key)
@@ -156,8 +171,8 @@ def test_create_thumbnails_batch_task_skips_missing_object(engine: Engine, s3_co
 
 
 def test_create_thumbnails_batch_task_skips_deleted_during_processing(engine: Engine, s3_container, monkeypatch) -> None:
-    with photo_context(engine, "deleted-during", "deleted.jpg") as ctx:
-        original_precheck: Callable[[list[str]], set[str]] = background_tasks._get_existing_photo_ids
+    with photo_context(engine, "deleted-during", "deleted.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
+        original_precheck: Callable[[list[str]], set[str]] = background_tasks._get_thumbnail_candidate_ids
 
         def _delete_after_precheck(photo_ids: list[str]) -> set[str]:
             existing_ids: set[str] = original_precheck(photo_ids)
@@ -165,7 +180,7 @@ def test_create_thumbnails_batch_task_skips_deleted_during_processing(engine: En
                 session.query(Photo).filter(Photo.id == ctx.photo_id).delete()
             return existing_ids
 
-        monkeypatch.setattr(background_tasks, "_get_existing_photo_ids", _delete_after_precheck)
+        monkeypatch.setattr(background_tasks, "_get_thumbnail_candidate_ids", _delete_after_precheck)
 
         result = _execute_thumbnail_task(str(ctx.photo_id), ctx.object_key)
         assert_batch_counts(result, skipped=1)
@@ -173,7 +188,13 @@ def test_create_thumbnails_batch_task_skips_deleted_during_processing(engine: En
 
 
 def test_create_thumbnails_batch_task_reports_processing_errors(engine: Engine, s3_container, monkeypatch) -> None:
-    with photo_context(engine, "error-test", "broken.jpg", content=b"not-an-image") as ctx:
+    with photo_context(
+        engine,
+        "error-test",
+        "broken.jpg",
+        content=b"not-an-image",
+        status=PhotoUploadStatus.PROCESSING,
+    ) as ctx:
         monkeypatch.setattr(background_tasks, "_is_valid_image", lambda _: True)  # Force validation to pass so processing continues to error
         result = _execute_thumbnail_task(str(ctx.photo_id), ctx.object_key)
         assert_batch_counts(result, failed=1)
@@ -190,7 +211,7 @@ def test_create_thumbnails_batch_task_invalid_image_deletes_record_when_mocked(e
 
     This test mocks `_is_valid_image` to isolate the decision path.
     """
-    with photo_context(engine, "mocked-invalid", "mocked.jpg") as ctx:
+    with photo_context(engine, "mocked-invalid", "mocked.jpg", status=PhotoUploadStatus.PROCESSING) as ctx:
         # Force the validator to return False
         monkeypatch.setattr(background_tasks, "_is_valid_image", lambda _: False)
 
