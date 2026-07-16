@@ -1149,6 +1149,15 @@ def test_process_single_photo_invalid_image_delete_non_retryable_retains_row(eng
     from unittest.mock import MagicMock
 
     with photo_context(engine, "inv-cleanup", "bad.jpg", content=b"not-an-image") as ctx:
+        # Seed storage_used to the photo's file_size so we can verify it's retained
+        with session_scope(engine) as session:
+            photo = session.get(Photo, ctx.photo_id)
+            assert photo is not None
+            seeded_file_size = photo.file_size
+            user = session.get(User, ctx.user_id)
+            assert user is not None
+            user.storage_used = seeded_file_size
+
         s3_client = get_s3_client()
         monkeypatch.setattr(s3_client, "put_object_tagging", MagicMock())
 
@@ -1173,9 +1182,12 @@ def test_process_single_photo_invalid_image_delete_non_retryable_retains_row(eng
         assert tracker.successful == 0
         assert tracker.skipped == 0
 
-        # Photo row is retained in the DB
+        # Photo row and storage_used are both retained in the DB
         with session_scope(engine) as session:
             assert session.get(Photo, ctx.photo_id) is not None
+            refreshed_user = session.get(User, ctx.user_id)
+            assert refreshed_user is not None
+            assert refreshed_user.storage_used == seeded_file_size
 
 
 # ── _delete_photo_data_impl ──────────────────────────────────────────────

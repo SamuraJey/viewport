@@ -239,14 +239,17 @@ def _process_single_photo(
                             )
                             return
 
-                    with task_db_session() as db_cleanup:
-                        photo_row = db_cleanup.execute(
-                            select(Photo.file_size, Gallery.owner_id).select_from(Photo).join(Gallery, Photo.gallery_id == Gallery.id).where(Photo.id == photo_id)
-                        ).one_or_none()
-                        if photo_row:
-                            file_size, owner_id = photo_row
-                            db_cleanup.execute(update(User).where(User.id == owner_id).values(storage_used=func.greatest(User.storage_used - file_size, 0)))
-                        db_cleanup.execute(delete(Photo).where(Photo.id == photo_id))
+                    try:
+                        with task_db_session() as db_cleanup:
+                            photo_row = db_cleanup.execute(
+                                select(Photo.file_size, Gallery.owner_id).select_from(Photo).join(Gallery, Photo.gallery_id == Gallery.id).where(Photo.id == photo_id)
+                            ).one_or_none()
+                            if photo_row:
+                                file_size, owner_id = photo_row
+                                db_cleanup.execute(update(User).where(User.id == owner_id).values(storage_used=func.greatest(User.storage_used - file_size, 0)))
+                            db_cleanup.execute(delete(Photo).where(Photo.id == photo_id))
+                    except Exception as db_error:
+                        raise ThumbnailTransientError(f"Retryable DB cleanup error for invalid image {photo_id}") from db_error
 
                     result_tracker.add_error(photo_id, "Invalid image file")
                     return
