@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import os
+import shutil
 import subprocess
 import tempfile
 import uuid
@@ -12,16 +13,16 @@ from typing import TYPE_CHECKING, Any, TypedDict, cast
 from botocore.exceptions import ClientError, ConnectionClosedError, ConnectTimeoutError, EndpointConnectionError, ReadTimeoutError, SSLError
 from celery.exceptions import SoftTimeLimitExceeded
 from PIL import Image, UnidentifiedImageError
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 
 from viewport.celery_app import celery_app
 from viewport.models.gallery import Gallery, MediaType, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
-from viewport.s3_utils import create_thumbnail, generate_playback_object_key, generate_thumbnail_object_key, get_s3_client, get_s3_settings
+from viewport.s3_utils import create_thumbnail, create_thumbnail_from_path, generate_playback_object_key, generate_thumbnail_object_key, get_s3_client, get_s3_settings
 from viewport.services.redis_service import RedisService
 from viewport.task_utils import BatchTaskResult, task_db_session
-from viewport.thumbnail_tasks import ThumbnailTaskItem, ThumbnailTaskPayload, to_thumbnail_task_payloads
+from viewport.thumbnail_tasks import ThumbnailTaskItem, ThumbnailTaskPayload, chunk_thumbnail_task_payloads, to_thumbnail_task_payloads
 from viewport.video_metrics import VIDEO_QUEUE_DEPTH, report_cleanup_failure, report_derivative_sizes, report_original_size, report_processing_error, report_retry, report_transcode_duration
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,14 @@ VIDEO_TEMP_MAX_AGE_SECONDS = 2 * 60 * 60
 
 class ThumbnailTransientError(Exception):
     """Retryable transient thumbnail processing error."""
+
+
+class ThumbnailSourceError(Exception):
+    """Wrap an S3 failure while streaming an original into local scratch space."""
+
+
+class ThumbnailScratchError(Exception):
+    """Retryable failure while creating or writing local thumbnail scratch data."""
 
 
 class VideoTransientError(Exception):
@@ -77,14 +86,48 @@ if TYPE_CHECKING:
     from mypy_boto3_s3.type_defs import DeleteTypeDef
 
 
-def _is_valid_image(image_bytes: bytes) -> bool:
-    """Validate if the given bytes represent a valid image."""
+def _is_valid_image(image_source: bytes | str | os.PathLike[str]) -> bool:
+    """Validate image structure without decoding a full-resolution pixel buffer."""
+
+    source: io.BytesIO | str | os.PathLike[str]
+    source = io.BytesIO(image_source) if isinstance(image_source, bytes) else image_source
     try:
-        with Image.open(io.BytesIO(image_bytes)) as img:
+        with Image.open(source) as img:
             img.verify()
         return True
-    except UnidentifiedImageError, OSError:
+    except UnidentifiedImageError:
         return False
+    except OSError as error:
+        if not isinstance(image_source, bytes) and error.errno is not None:
+            raise ThumbnailScratchError from error
+        return False
+
+
+@contextlib.contextmanager
+def _stream_s3_object_to_tempfile(s3_client: "S3Client", bucket: str, object_key: str):
+    """Stream an S3 body to an anonymous local file and yield its procfs path."""
+
+    try:
+        response = s3_client.get_object(Bucket=bucket, Key=object_key)
+    except Exception as error:
+        raise ThumbnailSourceError from error
+
+    body = response["Body"]
+    with contextlib.closing(body), contextlib.ExitStack() as scratch_stack:
+        try:
+            image_file = scratch_stack.enter_context(tempfile.TemporaryFile())
+        except OSError as error:
+            raise ThumbnailScratchError from error
+
+        try:
+            shutil.copyfileobj(body, image_file, length=1024 * 1024)
+            image_file.flush()
+            image_file.seek(0)
+        except OSError as error:
+            raise ThumbnailScratchError from error
+        except Exception as error:
+            raise ThumbnailSourceError from error
+        yield f"/proc/self/fd/{image_file.fileno()}"
 
 
 def _get_existing_photo_ids(photo_ids: list[str]) -> set[str]:
@@ -92,6 +135,24 @@ def _get_existing_photo_ids(photo_ids: list[str]) -> set[str]:
 
     with task_db_session() as db:
         stmt = select(Photo.id).join(Photo.gallery).where(Photo.id.in_(photo_ids), Gallery.is_deleted.is_(False))
+        return {str(row[0]) for row in db.execute(stmt).all()}
+
+
+def _get_thumbnail_candidate_ids(photo_ids: list[str]) -> set[str]:
+    """Return images that still need processing, excluding completed duplicates."""
+
+    missing_metadata = or_(Photo.width.is_(None), Photo.height.is_(None), Photo.thumbnail_object_key == Photo.object_key)
+    with task_db_session() as db:
+        stmt = (
+            select(Photo.id)
+            .join(Photo.gallery)
+            .where(
+                Photo.id.in_(photo_ids),
+                Gallery.is_deleted.is_(False),
+                Photo.media_type == MediaType.IMAGE.value,
+                or_(Photo.status == PhotoUploadStatus.PROCESSING, and_(Photo.status == PhotoUploadStatus.SUCCESSFUL, missing_metadata)),
+            )
+        )
         return {str(row[0]) for row in db.execute(stmt).all()}
 
 
@@ -131,29 +192,86 @@ def _process_single_photo(
             return
 
         # Check media_type — videos are processed by the video task, not here
-        with task_db_session() as db:
-            media_type_val = db.execute(select(Photo.media_type).where(Photo.id == uuid.UUID(photo_id))).scalar_one_or_none()
-            if media_type_val == MediaType.VIDEO.value:
-                logger.warning("Photo %s is a video, dispatched to thumbnail task in error; skipping", photo_id)
-                result_tracker.add_skipped(photo_id, "Video dispatched to thumbnail task")
-                return
-
-        # Download original from S3
         try:
-            try:
-                s3_client.put_object_tagging(Bucket=bucket, Key=object_key, Tagging={"TagSet": [{"Key": "upload-status", "Value": "confirmed"}]})
-            except ClientError as tag_error:
-                if _is_retryable_s3_error(tag_error):
-                    raise ThumbnailTransientError(f"Retryable S3 tag error for {photo_id}") from tag_error
-                logger.warning("Failed to update S3 tag for %s: %s", object_key, tag_error)
-            except Exception as tag_general_error:
-                if _is_retryable_s3_error(tag_general_error):
-                    raise ThumbnailTransientError(f"Retryable S3 tag error for {photo_id}") from tag_general_error
-                logger.warning("Unexpected error updating S3 tag for %s: %s", object_key, tag_general_error)
+            with task_db_session() as db:
+                media_type_val = db.execute(select(Photo.media_type).where(Photo.id == uuid.UUID(photo_id))).scalar_one_or_none()
+        except Exception as db_error:
+            raise ThumbnailTransientError(f"Retryable DB error checking media type for {photo_id}") from db_error
+        if media_type_val == MediaType.VIDEO.value:
+            logger.warning("Photo %s is a video, dispatched to thumbnail task in error; skipping", photo_id)
+            result_tracker.add_skipped(photo_id, "Video dispatched to thumbnail task")
+            return
 
-            response = s3_client.get_object(Bucket=bucket, Key=object_key)
-            image_bytes = response["Body"].read()
-        except Exception as s3_error:
+        # Confirm the object tag before processing.
+        try:
+            s3_client.put_object_tagging(Bucket=bucket, Key=object_key, Tagging={"TagSet": [{"Key": "upload-status", "Value": "confirmed"}]})
+        except ClientError as tag_error:
+            if _is_retryable_s3_error(tag_error):
+                raise ThumbnailTransientError(f"Retryable S3 tag error for {photo_id}") from tag_error
+            logger.warning("Failed to update S3 tag for %s: %s", object_key, tag_error)
+        except Exception as tag_general_error:
+            if _is_retryable_s3_error(tag_general_error):
+                raise ThumbnailTransientError(f"Retryable S3 tag error for {photo_id}") from tag_general_error
+            logger.warning("Unexpected error updating S3 tag for %s: %s", object_key, tag_general_error)
+
+        # Download the compressed original to disk, then let libvips stream it.
+        try:
+            with _stream_s3_object_to_tempfile(s3_client, bucket, object_key) as image_path:
+                # Keep the historical validation/deletion behavior while avoiding
+                # a second full-resolution raster allocation.
+                if not _is_valid_image(image_path):
+                    logger.warning(
+                        "Object %s for photo %s is not a valid image",
+                        object_key,
+                        photo_id,
+                    )
+
+                    try:
+                        s3_client.delete_object(Bucket=bucket, Key=object_key)
+                    except Exception as delete_error:
+                        if isinstance(delete_error, ClientError):
+                            error_code = delete_error.response.get("Error", {}).get("Code", "")
+                            if error_code == "NoSuchKey":
+                                logger.info("Invalid S3 object %s already absent", object_key)
+                            elif _is_retryable_s3_error(delete_error):
+                                raise ThumbnailTransientError(f"Retryable S3 delete error for invalid object {photo_id}") from delete_error
+                            else:
+                                logger.error(
+                                    "Non-retryable S3 delete error for invalid object %s: %s; retaining photo row and quota",
+                                    object_key,
+                                    delete_error,
+                                )
+                                return
+                        elif _is_retryable_s3_error(delete_error):
+                            raise ThumbnailTransientError(f"Retryable S3 delete error for invalid object {photo_id}") from delete_error
+                        else:
+                            logger.error(
+                                "Non-retryable S3 delete error for invalid object %s: %s; retaining photo row and quota",
+                                object_key,
+                                delete_error,
+                            )
+                            return
+
+                    try:
+                        with task_db_session() as db_cleanup:
+                            photo_row = db_cleanup.execute(
+                                select(Photo.file_size, Gallery.owner_id).select_from(Photo).join(Gallery, Photo.gallery_id == Gallery.id).where(Photo.id == photo_id)
+                            ).one_or_none()
+                            if photo_row:
+                                file_size, owner_id = photo_row
+                                db_cleanup.execute(update(User).where(User.id == owner_id).values(storage_used=func.greatest(User.storage_used - file_size, 0)))
+                            db_cleanup.execute(delete(Photo).where(Photo.id == photo_id))
+                    except Exception as db_error:
+                        raise ThumbnailTransientError(f"Retryable DB cleanup error for invalid image {photo_id}") from db_error
+
+                    result_tracker.add_error(photo_id, "Invalid image file")
+                    return
+                thumbnail_bytes, width, height = create_thumbnail_from_path(image_path)
+        except ThumbnailScratchError as scratch_error:
+            raise ThumbnailTransientError(f"Retryable local scratch error for {photo_id}") from scratch_error
+        except ThumbnailSourceError as source_error:
+            cause = source_error.__cause__
+            s3_error = cause if isinstance(cause, Exception) else source_error
             # Safely extract error code from boto3 exceptions
             error_response = cast(dict[str, Any], getattr(s3_error, "response", {}) or {})
             error_code = cast(str, error_response.get("Error", {}).get("Code", ""))
@@ -170,61 +288,30 @@ def _process_single_photo(
             result_tracker.add_error(photo_id, "S3 read failed")
             return
 
-        # Validate image magic bytes before processing
-        if not _is_valid_image(image_bytes):
-            logger.warning(
-                "Object %s for photo %s is not a valid image",
-                object_key,
-                photo_id,
-            )
-
-            try:
-                s3_client.delete_object(Bucket=bucket, Key=object_key)
-            except ClientError as delete_error:
-                # Best-effort cleanup of an invalid uploaded object; the hourly
-                # cleanup_orphaned_uploads_task sweeps any S3 objects left behind.
-                logger.warning("Failed to delete invalid S3 object %s: %s", object_key, delete_error)
-
-            # Previously we preserved the DB record and marked it FAILED, but
-            # the intended behavior for invalid uploaded objects is to remove
-            # them entirely (object + DB record). Delete the DB row so orphan
-            # entries aren't left behind.
-            with task_db_session() as db_cleanup:
-                photo_row = db_cleanup.execute(select(Photo.file_size, Gallery.owner_id).select_from(Photo).join(Gallery, Photo.gallery_id == Gallery.id).where(Photo.id == photo_id)).one_or_none()
-                if photo_row:
-                    file_size, owner_id = photo_row
-                    db_cleanup.execute(update(User).where(User.id == owner_id).values(storage_used=func.greatest(User.storage_used - file_size, 0)))
-                db_cleanup.execute(delete(Photo).where(Photo.id == photo_id))
-
-            result_tracker.add_error(photo_id, "Invalid image file")
-            return
-
-        # Create thumbnail
-        thumbnail_bytes, width, height = create_thumbnail(image_bytes)
-        del image_bytes  # Free memory ASAP
-
         thumbnail_object_key = generate_thumbnail_object_key(object_key)
 
         # CRITICAL: Check again if photo still exists before uploading thumbnail
-        with task_db_session() as db_check:
-            photo_check_stmt = select(Photo.id).join(Photo.gallery).where(Photo.id == photo_id, Gallery.is_deleted.is_(False))
-            if not db_check.execute(photo_check_stmt).scalar_one_or_none():
-                logger.warning("Photo %s deleted during processing, skipping upload", photo_id)
-                result_tracker.add_skipped(photo_id, "Photo deleted during processing")
-                del thumbnail_bytes
-                return
+        try:
+            with task_db_session() as db_check:
+                photo_check_stmt = select(Photo.id).join(Photo.gallery).where(Photo.id == photo_id, Gallery.is_deleted.is_(False))
+                exists = db_check.execute(photo_check_stmt).scalar_one_or_none()
+        except Exception as db_error:
+            del thumbnail_bytes
+            raise ThumbnailTransientError(f"Retryable DB error checking photo existence for {photo_id}") from db_error
+        if not exists:
+            logger.warning("Photo %s deleted during processing, skipping upload", photo_id)
+            result_tracker.add_skipped(photo_id, "Photo deleted during processing")
+            del thumbnail_bytes
+            return
 
         # Upload thumbnail with aggressive caching (immutable content)
-        thumbnail_io = io.BytesIO(thumbnail_bytes)
         try:
-            s3_client.upload_fileobj(
-                thumbnail_io,
-                bucket,
-                thumbnail_object_key,
-                ExtraArgs={
-                    "ContentType": "image/avif",
-                    "CacheControl": "public, max-age=31536000, immutable",  # 1 year, never changes
-                },
+            s3_client.put_object(
+                Body=thumbnail_bytes,
+                Bucket=bucket,
+                Key=thumbnail_object_key,
+                ContentType="image/avif",
+                CacheControl="public, max-age=31536000, immutable",
             )
         except Exception as upload_error:
             if _is_retryable_s3_error(upload_error):
@@ -375,29 +462,36 @@ def _batch_update_photo_results(results: list[dict], result_tracker: BatchTaskRe
                 failed_ids = [r["photo_id"] for r in failed_results]
                 logger.info("Batch marking %s photos as FAILED in DB", len(failed_ids))
 
-                owner_totals = [
-                    (owner_id, int(total_size))
-                    for owner_id, total_size in db.execute(
-                        select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0))
-                        .select_from(Photo)
-                        .join(Gallery, Photo.gallery_id == Gallery.id)
-                        .where(
-                            Photo.id.in_(failed_ids),
-                            Photo.status.in_([PhotoUploadStatus.THUMBNAIL_CREATING, PhotoUploadStatus.SUCCESSFUL]),
-                        )
-                        .group_by(Gallery.owner_id)
-                    ).all()
-                ]
+                missing_metadata = or_(Photo.width.is_(None), Photo.height.is_(None), Photo.thumbnail_object_key == Photo.object_key)
+                failure_eligible = or_(
+                    Photo.status == PhotoUploadStatus.PROCESSING,
+                    and_(Photo.status == PhotoUploadStatus.SUCCESSFUL, missing_metadata),
+                )
 
-                db.execute(
+                update_stmt = (
                     update(Photo)
                     .where(
                         Photo.id.in_(failed_ids),
-                        Photo.status.in_([PhotoUploadStatus.THUMBNAIL_CREATING, PhotoUploadStatus.SUCCESSFUL]),
+                        failure_eligible,
                     )
                     .values(status=PhotoUploadStatus.FAILED)
+                    .returning(Photo.id)
                 )
-                _decrement_used_for_owner_totals(db, owner_totals)
+                updated_rows = db.execute(update_stmt, execution_options={"synchronize_session": False}).all()
+                updated_ids = [str(row[0]) for row in updated_rows]
+
+                if updated_ids:
+                    owner_totals = [
+                        (owner_id, int(total_size))
+                        for owner_id, total_size in db.execute(
+                            select(Gallery.owner_id, func.coalesce(func.sum(Photo.file_size), 0))
+                            .select_from(Photo)
+                            .join(Gallery, Photo.gallery_id == Gallery.id)
+                            .where(Photo.id.in_(updated_ids))
+                            .group_by(Gallery.owner_id)
+                        ).all()
+                    ]
+                    _decrement_used_for_owner_totals(db, owner_totals)
 
             db.commit()
 
@@ -427,7 +521,7 @@ def create_thumbnails_batch_task(self, photos: list[ThumbnailTaskPayload]) -> di
     result_tracker = BatchTaskResult(len(photos))
 
     photo_ids = [p["photo_id"] for p in photos]
-    existing_ids = _get_existing_photo_ids(photo_ids)
+    existing_ids = _get_thumbnail_candidate_ids(photo_ids)
 
     for photo_data in photos:
         _process_single_photo(photo_data, s3_client, bucket, existing_ids, result_tracker)
@@ -1335,7 +1429,8 @@ def reconcile_successful_uploads_task() -> dict:
         return {"requeued_count": 0}
 
     photos = to_thumbnail_task_payloads(ThumbnailTaskItem(row[0], row[1]) for row in rows)
-    create_thumbnails_batch_task.delay(photos)
+    for batch in chunk_thumbnail_task_payloads(photos):
+        create_thumbnails_batch_task.delay(batch)
     logger.info("Requeued %s successful uploads missing thumbnails/metadata", len(photos))
     return {"requeued_count": len(photos)}
 

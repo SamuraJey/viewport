@@ -1,11 +1,12 @@
 import io
 import logging
+import os
+import tempfile
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import boto3
 from botocore.client import Config
-from PIL import Image, ImageOps
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Configure logging - set botocore to WARNING level to reduce noise
@@ -61,10 +62,12 @@ def get_s3_client() -> "S3Client":
 
     logger.info("Creating sync S3 client for endpoint: %s", endpoint)
 
-    # Increase max pool connections to support concurrent uploads
+    # A prefork child processes one task at a time. Keep enough connections for
+    # boto3 transfer helpers without allocating a pool sized for cross-process
+    # concurrency (each process owns its own client/pool).
     config = Config(
         signature_version=settings.signature_version,
-        max_pool_connections=200,  # Increased to handle concurrent batch uploads
+        max_pool_connections=10,
         retries={"max_attempts": 3, "mode": "standard"},
         connect_timeout=10,
         read_timeout=60,
@@ -125,57 +128,78 @@ def upload_fileobj(
     return f"/{settings.bucket}/{filename}"
 
 
-def create_thumbnail(image_bytes: bytes, max_size: tuple[int, int] = (1000, 1000), quality: int = 70) -> tuple[bytes, int, int]:
-    """Create a thumbnail from image bytes in AVIF format (CPU-bound, can be run in thread pool).
+@lru_cache(maxsize=1)
+def _get_pyvips() -> Any:
+    """Import and configure pyvips lazily in the process that does image work."""
 
-    Optimized for performance and memory usage by using modern AVIF format
-    which provides superior compression and quality compared to JPEG.
+    # Four Celery prefork children already provide process-level parallelism.
+    # Avoid a second layer of libvips threads per image unless explicitly tuned.
+    os.environ.setdefault("VIPS_CONCURRENCY", "1")
 
-    Args:
-        image_bytes: Original image as bytes
-        max_size: Maximum dimensions (width, height) for thumbnail
-        quality: AVIF quality (0-100, defaults to 75; 0=smallest/poorest, 100=largest/best)
+    import pyvips
 
-    Returns:
-        Tuple of (thumbnail_bytes, width, height)
+    # Long-lived workers do not benefit from caching one-shot thumbnail graphs;
+    # disabling it prevents native operation graphs from raising idle RSS.
+    pyvips.cache_set_max(0)
+    return pyvips
+
+
+def create_thumbnail_from_path(
+    image_path: str | os.PathLike[str],
+    max_size: tuple[int, int] = (1000, 1000),
+    quality: int = 70,
+) -> tuple[bytes, int, int]:
+    """Create an autorotated AVIF thumbnail through libvips' streaming pipeline.
+
+    Always uses ``pyvips.Image.thumbnail`` for shrink-on-load + auto-orient,
+    then strips alpha after resize when present — the previous per-branch
+    approach (``new_from_file`` + ``extract_band`` + ``thumbnail_image`` for
+    alpha images) discarded both optimisations.
     """
+
+    pyvips = _get_pyvips()
     try:
-        with Image.open(io.BytesIO(image_bytes)) as opened_img:
-            # JPEG optimization: hint the decoder about target size to save CPU/RAM.
-            # This reconfigures the decoder to return a scaled-down version
-            # directly if supported (JPEG/MPO).
-            if opened_img.format == "JPEG":
-                opened_img.draft("RGB", max_size)
+        path = os.fspath(image_path)
+        image = pyvips.Image.thumbnail(
+            path,
+            max_size[0],
+            height=max_size[1],
+            size="down",
+            fail_on="error",
+        )
+        if image.hasalpha():
+            # Strip alpha after resize so orientation + shrink-on-load
+            # are preserved.
+            image = image.extract_band(0, n=image.bands - 1)
+        if image.interpretation != "srgb":
+            image = image.colourspace("srgb")
 
-            # Apply EXIF orientation. Done after draft() hint to rotate fewer pixels
-            # if the decoder already downscaled, but before thumbnail() to ensure
-            # correct final aspect ratio.
-            img = ImageOps.exif_transpose(opened_img)
-
-            # Ensure we're in RGB mode (e.g., if original was CMYK or P)
-            if img.mode != "RGB":
-                img = img.convert("RGB")
-
-            # High-quality downsampling. LANCZOS is the best quality filter.
-            img.thumbnail(max_size, Image.Resampling.LANCZOS)
-
-            width, height = img.size
-
-            thumbnail_io = io.BytesIO()
-            # AVIF: modern format with superior compression
-            # quality: 0-100 (default 75, Pillow default for AVIF)
-            # speed: 8 #noqa
-            # subsampling: 4:2:0 (default, good for web)
-            img.save(
-                thumbnail_io,
-                format="AVIF",
-                quality=quality,
-                speed=8,
-            )
-            return thumbnail_io.getvalue(), width, height
-    except Exception as e:
-        logger.error("Failed to create thumbnail: %s", e)
+        width, height = image.width, image.height
+        thumbnail_bytes = image.heifsave_buffer(
+            Q=quality,
+            compression="av1",
+            effort=2,
+            subsample_mode="on",
+            keep=8,  # ForeignKeep.ICC; strip EXIF/XMP/IPTC from public derivatives.
+        )
+        return bytes(thumbnail_bytes), width, height
+    except Exception as error:
+        logger.error("Failed to create thumbnail: %s", error)
         raise
+
+
+def create_thumbnail(
+    image_bytes: bytes,
+    max_size: tuple[int, int] = (1000, 1000),
+    quality: int = 70,
+) -> tuple[bytes, int, int]:
+    """Compatibility wrapper for callers, such as video poster extraction, that hold bytes."""
+
+    with tempfile.TemporaryFile() as image_file:
+        image_file.write(image_bytes)
+        image_file.flush()
+        image_file.seek(0)
+        return create_thumbnail_from_path(f"/proc/self/fd/{image_file.fileno()}", max_size=max_size, quality=quality)
 
 
 def generate_thumbnail_object_key(original_object_key: str) -> str:

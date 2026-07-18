@@ -1,5 +1,6 @@
 import io
 from typing import cast
+from unittest.mock import patch
 
 import requests
 from fastapi.testclient import TestClient
@@ -34,6 +35,19 @@ def _build_valid_image_upload(filename: str, fallback_content: bytes) -> tuple[b
     return buffer.getvalue(), content_type
 
 
+def create_test_thumbnail_from_path(
+    image_path: str,
+    max_size: tuple[int, int] = (1000, 1000),
+    quality: int = 70,
+) -> tuple[bytes, int, int]:
+    """Stand in for the native AVIF encoder in tests that exercise task orchestration."""
+
+    del quality
+    with Image.open(image_path) as image:
+        image.thumbnail(max_size)
+        return b"test-avif-thumbnail", image.width, image.height
+
+
 def upload_photo_via_presigned(client: TestClient, gallery_id: str, content: bytes, filename: str = "photo.jpg") -> str:
     """Upload a photo using the presigned upload flow and return its ID."""
     upload_content, content_type = _build_valid_image_upload(filename, content)
@@ -57,10 +71,17 @@ def upload_photo_via_presigned(client: TestClient, gallery_id: str, content: byt
     upload_resp = requests.put(presigned_url, headers=headers, data=upload_content)
     assert upload_resp.status_code in {200, 204}
 
-    confirm_resp = client.post(
-        f"/galleries/{gallery_id}/photos/batch-confirm",
-        json={"items": [{"photo_id": item["photo_id"], "success": True}]},
-    )
+    # Celery runs eagerly in tests. Stub only the native encoder so API tests
+    # still execute the complete confirm/task/DB transition without requiring
+    # host-level libvips; native behavior has dedicated pipeline tests.
+    with patch(
+        "viewport.background_tasks.create_thumbnail_from_path",
+        side_effect=create_test_thumbnail_from_path,
+    ):
+        confirm_resp = client.post(
+            f"/galleries/{gallery_id}/photos/batch-confirm",
+            json={"items": [{"photo_id": item["photo_id"], "success": True}]},
+        )
     assert confirm_resp.status_code == 200
 
     return item["photo_id"]

@@ -10,6 +10,10 @@ FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 FROM python:${PYTHON_VERSION}-slim AS build
 COPY --from=uv /uv /uvx /bin/
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential libvips-dev pkg-config && \
+    rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 ENV UV_COMPILE_BYTECODE=1 \
@@ -19,6 +23,7 @@ ENV UV_COMPILE_BYTECODE=1 \
 COPY uv.lock pyproject.toml README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-install-project --no-dev
+RUN .venv/bin/python -c "import pyvips; assert pyvips.API_mode; assert pyvips.type_find('VipsOperation', 'heifsave_buffer')"
 
 # Copy source code separately - light layer, invalidated on code changes
 COPY src/ src/
@@ -30,7 +35,9 @@ ARG APP_GID
 
 RUN groupadd --system --gid "${APP_GID}" appgroup && \
     useradd --system --uid "${APP_UID}" --gid appgroup --home-dir /app --shell /bin/false appuser
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libx264-164 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ffmpeg libheif-plugin-aomenc libvips42t64 libx264-164 && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH" \
@@ -40,6 +47,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONFAULTHANDLER=1
 
 COPY --from=build --chown=appuser:appgroup /app/.venv /app/.venv
+RUN python -c "import pyvips; image = pyvips.Image.black(2, 2, bands=3).copy(interpretation='srgb'); encoded = bytes(image.heifsave_buffer(compression='av1', Q=70)); assert encoded[4:12] == b'ftypavif'"
 
 COPY --from=build --chown=appuser:appgroup /app/src /app/src
 

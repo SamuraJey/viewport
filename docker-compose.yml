@@ -135,7 +135,12 @@ services:
   celery_worker:
     <<: *celery-base
     container_name: viewport_celery_worker
-    command: celery -A src.viewport.celery_app worker --loglevel=info --concurrency=4 --max-tasks-per-child=500 --beat
+    command: celery -A src.viewport.celery_app worker --loglevel=info --concurrency=4 --prefetch-multiplier=1 --max-tasks-per-child=50 --max-memory-per-child=160000 --beat
+    environment:
+      <<: *celery-s3-env
+      MALLOC_ARENA_MAX: "1"
+      MALLOC_TRIM_THRESHOLD_: "131072"
+      VIPS_CONCURRENCY: "1"
     deploy:
       resources:
         limits:

@@ -30,7 +30,7 @@ from viewport.schemas.photo import (
     PhotoResponse,
     PresignedUploadData,
 )
-from viewport.thumbnail_tasks import ThumbnailTaskItem, to_thumbnail_task_payloads
+from viewport.thumbnail_tasks import ThumbnailTaskItem, ThumbnailTaskPayload, chunk_thumbnail_task_payloads, to_thumbnail_task_payloads
 from viewport.video_metrics import VIDEO_QUEUE_DEPTH
 
 MAX_IMAGE_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
@@ -131,6 +131,33 @@ def _enqueue_media_processing(photo: Photo) -> None:
         VIDEO_QUEUE_DEPTH.inc()
     else:
         create_thumbnails_batch_task.delay([{"photo_id": str(photo.id), "object_key": photo.object_key}])
+
+
+def _enqueue_thumbnail_batches(batches: list[list[ThumbnailTaskPayload]]) -> None:
+    """Publish thumbnail batches from a worker thread to avoid blocking the event loop.
+
+    Tries every batch; raises only after the loop so that a transient broker
+    error on batch N does not silently abandon batches N+1 onward.  The caller
+    returns 503 on failure, and the client retry will re-enqueue still-PROCESSING
+    photos while skipping those already completed by earlier published batches.
+    """
+
+    failed_batches: list[int] = []
+    for i, batch in enumerate(batches):
+        try:
+            create_thumbnails_batch_task.delay(batch)
+        except Exception:
+            logger.warning(
+                "Failed to enqueue thumbnail batch %d/%d",
+                i + 1,
+                len(batches),
+            )
+            failed_batches.append(i)
+    if failed_batches:
+        raise RuntimeError(
+            f"Failed to enqueue {len(failed_batches)}/{len(batches)} "
+            f"thumbnail batches (indices: {failed_batches})"
+        )
 
 
 @router.post("/{gallery_id}/photos/{photo_id}/download")
@@ -527,8 +554,9 @@ async def batch_confirm_uploads(
     # 5. Start batch thumbnail processing (will retry tagging if needed)
     if photos_to_process:
         thumbnail_payloads = to_thumbnail_task_payloads(photos_to_process)
+        thumbnail_batches = list(chunk_thumbnail_task_payloads(thumbnail_payloads))
         try:
-            await run_in_threadpool(create_thumbnails_batch_task.delay, thumbnail_payloads)
+            await run_in_threadpool(_enqueue_thumbnail_batches, thumbnail_batches)
         except Exception as exc:
             logger.warning(
                 "Failed to enqueue thumbnail task",
