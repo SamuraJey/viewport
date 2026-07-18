@@ -192,12 +192,15 @@ def _process_single_photo(
             return
 
         # Check media_type — videos are processed by the video task, not here
-        with task_db_session() as db:
-            media_type_val = db.execute(select(Photo.media_type).where(Photo.id == uuid.UUID(photo_id))).scalar_one_or_none()
-            if media_type_val == MediaType.VIDEO.value:
-                logger.warning("Photo %s is a video, dispatched to thumbnail task in error; skipping", photo_id)
-                result_tracker.add_skipped(photo_id, "Video dispatched to thumbnail task")
-                return
+        try:
+            with task_db_session() as db:
+                media_type_val = db.execute(select(Photo.media_type).where(Photo.id == uuid.UUID(photo_id))).scalar_one_or_none()
+        except Exception as db_error:
+            raise ThumbnailTransientError(f"Retryable DB error checking media type for {photo_id}") from db_error
+        if media_type_val == MediaType.VIDEO.value:
+            logger.warning("Photo %s is a video, dispatched to thumbnail task in error; skipping", photo_id)
+            result_tracker.add_skipped(photo_id, "Video dispatched to thumbnail task")
+            return
 
         # Confirm the object tag before processing.
         try:
@@ -225,10 +228,20 @@ def _process_single_photo(
 
                     try:
                         s3_client.delete_object(Bucket=bucket, Key=object_key)
-                    except ClientError as delete_error:
-                        error_code = delete_error.response.get("Error", {}).get("Code", "")
-                        if error_code == "NoSuchKey":
-                            logger.info("Invalid S3 object %s already absent", object_key)
+                    except Exception as delete_error:
+                        if isinstance(delete_error, ClientError):
+                            error_code = delete_error.response.get("Error", {}).get("Code", "")
+                            if error_code == "NoSuchKey":
+                                logger.info("Invalid S3 object %s already absent", object_key)
+                            elif _is_retryable_s3_error(delete_error):
+                                raise ThumbnailTransientError(f"Retryable S3 delete error for invalid object {photo_id}") from delete_error
+                            else:
+                                logger.error(
+                                    "Non-retryable S3 delete error for invalid object %s: %s; retaining photo row and quota",
+                                    object_key,
+                                    delete_error,
+                                )
+                                return
                         elif _is_retryable_s3_error(delete_error):
                             raise ThumbnailTransientError(f"Retryable S3 delete error for invalid object {photo_id}") from delete_error
                         else:
@@ -278,13 +291,18 @@ def _process_single_photo(
         thumbnail_object_key = generate_thumbnail_object_key(object_key)
 
         # CRITICAL: Check again if photo still exists before uploading thumbnail
-        with task_db_session() as db_check:
-            photo_check_stmt = select(Photo.id).join(Photo.gallery).where(Photo.id == photo_id, Gallery.is_deleted.is_(False))
-            if not db_check.execute(photo_check_stmt).scalar_one_or_none():
-                logger.warning("Photo %s deleted during processing, skipping upload", photo_id)
-                result_tracker.add_skipped(photo_id, "Photo deleted during processing")
-                del thumbnail_bytes
-                return
+        try:
+            with task_db_session() as db_check:
+                photo_check_stmt = select(Photo.id).join(Photo.gallery).where(Photo.id == photo_id, Gallery.is_deleted.is_(False))
+                exists = db_check.execute(photo_check_stmt).scalar_one_or_none()
+        except Exception as db_error:
+            del thumbnail_bytes
+            raise ThumbnailTransientError(f"Retryable DB error checking photo existence for {photo_id}") from db_error
+        if not exists:
+            logger.warning("Photo %s deleted during processing, skipping upload", photo_id)
+            result_tracker.add_skipped(photo_id, "Photo deleted during processing")
+            del thumbnail_bytes
+            return
 
         # Upload thumbnail with aggressive caching (immutable content)
         try:
