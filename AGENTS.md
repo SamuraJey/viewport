@@ -22,6 +22,7 @@
 - Auth: endpoints in `src/viewport/api/auth.py`; request auth uses `get_current_user()` from `src/viewport/auth_utils.py` (HTTP Bearer, consistent 401s). Access/refresh tokens carry an HMAC fingerprint of the current `users.password_hash`; password changes make existing access and refresh tokens fail without a migration or server-side refresh-token storage.
 - Repositories:
   - Constructed per-request from `db: AsyncSession = Depends(get_db, scope="function")` (`src/viewport/models/db.py`). Keep this scope consistent across repository and auth dependencies so the shared session is finalized before the response body is sent.
+  - Shared repository dependency providers live in `src/viewport/dependencies.py`; routers should import them instead of defining local duplicates.
   - Keep business logic close to repository methods when it’s DB/S3 orchestration (e.g. async delete/rename in `GalleryRepository`).
   - `Project` is the only top-level delivery object and `Gallery` remains the leaf upload unit inside a project. Legacy standalone galleries are backfilled into one-gallery projects, and compatibility endpoints should preserve that invariant.
   - Private gallery photo listing (`GET /galleries/{gallery_id}`) supports query params `search`, `sort_by`, and `order`; repository methods must apply filters inside `gallery_id` with `galleries.is_deleted = false`, and `total_photos` must reflect filtered results.

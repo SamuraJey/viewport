@@ -3,14 +3,12 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from viewport.auth_utils import get_current_user, get_current_user_for_download
 from viewport.background_tasks import create_thumbnails_batch_task, delete_photos_batch_task, process_videos_batch_task
-from viewport.dependencies import get_s3_client
+from viewport.dependencies import get_gallery_repository, get_s3_client, get_user_repository
 from viewport.filename_utils import build_content_disposition, resolve_photo_filename, sanitize_filename, split_name_and_ext
-from viewport.models.db import get_db
 from viewport.models.gallery import MediaType, Photo, PhotoUploadStatus
 from viewport.models.user import User
 from viewport.repositories.gallery_repository import GalleryRepository
@@ -83,14 +81,6 @@ async def _invalidate_presigned_cache_safely(
             operation,
             exc,
         )
-
-
-def get_gallery_repository(db: AsyncSession = Depends(get_db, scope="function")) -> GalleryRepository:
-    return GalleryRepository(db)
-
-
-def get_user_repository(db: AsyncSession = Depends(get_db, scope="function")) -> UserRepository:
-    return UserRepository(db)
 
 
 def make_unique_display_name(filename: str, occupied_names: set[str]) -> str:

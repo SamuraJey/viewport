@@ -1,19 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from viewport.api.auth import hash_password, verify_password
 from viewport.auth_utils import get_current_user
-from viewport.models.db import get_db
+from viewport.dependencies import get_user_repository
 from viewport.models.user import User
 from viewport.repositories.user_repository import UserRepository
 from viewport.schemas.auth import ChangePasswordRequest, MeResponse, UpdateMeRequest
 
 router = APIRouter(tags=["user"])
-
-
-def get_user_repository(db: AsyncSession = Depends(get_db, scope="function")) -> UserRepository:
-    return UserRepository(db)
 
 
 @router.get("/me", response_model=MeResponse)

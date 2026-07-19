@@ -1,11 +1,12 @@
 import logging
 import time
-from typing import Any
 
 from prometheus_client import Gauge, Histogram
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
+from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.pool import ConnectionPoolEntry, PoolProxiedConnection
 
 logger = logging.getLogger(__name__)
 
@@ -39,14 +40,14 @@ def instrument_connection_pool(
     checkout_duration = DB_CONNECTION_CHECKOUT_DURATION_SECONDS.labels(pool=pool_name)
 
     def on_checkout(
-        _dbapi_connection: Any,
-        connection_record: Any,
-        _connection_proxy: Any,
+        _dbapi_connection: DBAPIConnection,
+        connection_record: ConnectionPoolEntry,
+        _connection_proxy: PoolProxiedConnection,
     ) -> None:
         connection_record.info[checkout_started_key] = time.monotonic()
         checked_out.inc()
 
-    def on_checkin(_dbapi_connection: Any, connection_record: Any) -> None:
+    def on_checkin(_dbapi_connection: DBAPIConnection | None, connection_record: ConnectionPoolEntry) -> None:
         checkout_started = connection_record.info.pop(checkout_started_key, None)
         if checkout_started is None:
             return

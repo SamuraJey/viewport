@@ -5,13 +5,12 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from viewport.api.auth import hash_password
 from viewport.auth_utils import get_current_user
+from viewport.dependencies import get_gallery_repository, get_project_repository, get_selection_repository, get_sharelink_repository
 from viewport.dependencies import get_s3_client as get_async_s3_client
-from viewport.models.db import get_db
 from viewport.models.sharelink import ShareLink
 from viewport.repositories.gallery_repository import GalleryRepository
 from viewport.repositories.project_repository import ProjectRepository
@@ -58,22 +57,6 @@ class PreparedShareLinkUpdate:
     is_active: bool | None
     password_hash: str | None
     password_clear: bool | None
-
-
-def get_gallery_repository(db: AsyncSession = Depends(get_db, scope="function")) -> GalleryRepository:
-    return GalleryRepository(db)
-
-
-def get_project_repository(db: AsyncSession = Depends(get_db, scope="function")) -> ProjectRepository:
-    return ProjectRepository(db)
-
-
-def get_sharelink_repository(db: AsyncSession = Depends(get_db, scope="function")) -> ShareLinkRepository:
-    return ShareLinkRepository(db)
-
-
-def get_selection_repository(db: AsyncSession = Depends(get_db, scope="function")) -> SelectionRepository:
-    return SelectionRepository(db)
 
 
 async def _hash_sharelink_password(password: str | None) -> str | None:

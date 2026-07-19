@@ -6,13 +6,11 @@ from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from viewport.auth_utils import get_current_user
 from viewport.background_tasks import notify_selection_submitted_task
-from viewport.dependencies import get_s3_client
-from viewport.models.db import get_db
+from viewport.dependencies import get_s3_client, get_selection_repository
 from viewport.models.sharelink import ShareLink
 from viewport.models.sharelink_selection import SelectionSessionStatus, ShareLinkSelectionConfig, ShareLinkSelectionItem, ShareLinkSelectionSession
 from viewport.models.user import User
@@ -42,10 +40,6 @@ router = APIRouter(tags=["selection"])
 SELECTION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 SELECTION_COOKIE_PREFIX = "viewport-selection-resume-"
 LIGHTROOM_SEPARATOR = "|"
-
-
-def get_selection_repository(db: AsyncSession = Depends(get_db, scope="function")) -> SelectionRepository:
-    return SelectionRepository(db)
 
 
 def _selection_cookie_name(share_id: uuid.UUID) -> str:
