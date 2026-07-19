@@ -1,4 +1,4 @@
-import type { KeyboardEvent, MutableRefObject, TouchEventHandler } from 'react';
+import type { KeyboardEvent, MutableRefObject, ReactNode, TouchEventHandler } from 'react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   AlertCircle,
@@ -15,7 +15,7 @@ import { getAccessiblePhotoName } from '../../lib/accessibility';
 import { formatDuration } from '../../lib/utils';
 import type { PublicPhoto, SelectionSession } from '../../types';
 import { LazyImage } from '../LazyImage';
-import { AppPopover } from '../ui';
+import { AppBadge, AppPopover } from '../ui';
 import { PublicGalleryGridControls } from './PublicGalleryGridControls';
 
 interface PublicGalleryPhotoSectionProps {
@@ -135,13 +135,16 @@ const PhotoCommentPanel = ({
     if (saveState === 'saved') return 'Saved';
     return hasComment ? 'Saved note' : 'No note saved yet';
   })();
-  const statusClassName = (() => {
-    if (saveState === 'error') return 'border-danger/30 bg-danger/10 text-danger';
-    if (saveState === 'saving') return 'border-accent/30 bg-accent/10 text-accent';
-    if (hasUnsavedChanges) {
-      return 'border-amber-400/30 bg-amber-400/10 text-amber-700';
-    }
-    return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700';
+  const statusTone: 'danger' | 'accent' | 'warning' | 'success' = (() => {
+    if (saveState === 'error') return 'danger';
+    if (saveState === 'saving') return 'accent';
+    if (hasUnsavedChanges) return 'warning';
+    return 'success';
+  })();
+  const statusIcon: ReactNode = (() => {
+    if (saveState === 'error') return <AlertCircle className="h-3.5 w-3.5" />;
+    if (saveState === 'saving') return <Loader2 className="h-3.5 w-3.5 animate-spin" />;
+    return <CheckCircle2 className="h-3.5 w-3.5" />;
   })();
 
   const handleSave = useCallback(
@@ -232,20 +235,11 @@ const PhotoCommentPanel = ({
         className="min-h-32 w-full resize-none rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm text-text outline-none transition-colors placeholder:text-muted/70 focus:border-accent/60 focus:ring-2 focus:ring-accent/15 disabled:cursor-not-allowed disabled:opacity-70"
       />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div
-          id={statusId}
-          aria-live="polite"
-          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClassName}`}
-        >
-          {saveState === 'error' ? (
-            <AlertCircle className="h-3.5 w-3.5" />
-          ) : saveState === 'saving' ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <CheckCircle2 className="h-3.5 w-3.5" />
-          )}
-          {statusText}
-        </div>
+        <span id={statusId} aria-live="polite" className="contents">
+          <AppBadge tone={statusTone} variant="subtle" size="sm" icon={statusIcon}>
+            {statusText}
+          </AppBadge>
+        </span>
         <div className="flex items-center justify-end gap-2">
           <button
             type="button"

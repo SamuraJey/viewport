@@ -13,7 +13,7 @@ import {
 import type { GalleryPhoto } from '../../types/photo';
 import type { PublicPhoto } from '../../types/sharelink';
 import type { PhotoSpacing, PublicColorScheme } from '../../types/gallery';
-import { AppDialog, AppDialogDescription, AppDialogTitle } from '../ui';
+import { AppBadge, AppDialog, AppDialogDescription, AppDialogTitle } from '../ui';
 import {
   getPublicGalleryThemeClassName,
   normalizePublicGalleryAppearance,
@@ -401,22 +401,24 @@ export const AppearanceEditor = ({
 
         {/* ---- Save status ---- */}
         {saveStatus !== 'idle' && (
-          <div
-            aria-live="polite"
-            className={`rounded-xl px-4 py-2.5 text-sm font-medium ${
-              saveStatus === 'saving'
-                ? 'bg-surface-foreground/10 text-muted dark:bg-surface/20'
-                : saveStatus === 'saved'
-                  ? 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                  : saveStatus === 'error'
-                    ? 'bg-danger/10 text-danger dark:bg-danger/20'
-                    : 'bg-amber-500/10 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
-            }`}
-          >
-            {saveStatus === 'saving' && (
-              <Loader2 className="mr-2 inline-block h-4 w-4 animate-spin align-[-2px]" />
+          <div aria-live="polite">
+            {saveStatus === 'saving' ? (
+              <AppBadge tone="neutral" variant="subtle" size="sm" icon={<Loader2 className="h-4 w-4 animate-spin" />}>
+                {SAVE_STATUS_LABELS[saveStatus]}
+              </AppBadge>
+            ) : saveStatus === 'saved' ? (
+              <AppBadge tone="success" variant="subtle" size="sm">
+                {SAVE_STATUS_LABELS[saveStatus]}
+              </AppBadge>
+            ) : saveStatus === 'error' ? (
+              <AppBadge tone="danger" variant="subtle" size="sm">
+                {SAVE_STATUS_LABELS[saveStatus]}
+              </AppBadge>
+            ) : (
+              <AppBadge tone="warning" variant="subtle" size="sm">
+                {SAVE_STATUS_LABELS[saveStatus]}
+              </AppBadge>
             )}
-            {SAVE_STATUS_LABELS[saveStatus]}
           </div>
         )}
 

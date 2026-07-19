@@ -1579,7 +1579,7 @@ export const ShareLinkDetailPage = () => {
               </div>
 
               <div className="max-w-4xl">
-                <h1 className="text-balance font-sans text-4xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground sm:text-5xl">
+                <h1 className="text-balance font-oswald text-4xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground sm:text-5xl">
                   {analytics.share_link.label || 'Untitled Share Link'}
                 </h1>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-muted sm:text-base">

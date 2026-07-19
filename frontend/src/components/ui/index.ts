@@ -1,3 +1,4 @@
+export { AppBadge } from './AppBadge';
 export { AppDialog, AppDialogDescription, AppDialogTitle } from './AppDialog';
 export { AppListbox } from './AppListbox';
 export { AppPopover } from './AppPopover';

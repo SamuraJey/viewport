@@ -573,7 +573,7 @@ export const ShareLinksDashboardPage = () => {
           </nav>
 
           <div className="mt-2 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <h1 className="font-sans text-4xl font-bold tracking-tight text-text dark:text-accent-foreground lg:text-5xl">
+            <h1 className="font-oswald text-4xl font-bold tracking-tight text-text dark:text-accent-foreground lg:text-5xl">
               Share Links Dashboard
             </h1>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

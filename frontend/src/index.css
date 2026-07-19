@@ -1,6 +1,5 @@
-/* Fonts (Inter Variable for UI, Fraunces Variable for display headings) */
-@import '@fontsource-variable/inter';
-@import '@fontsource-variable/fraunces';
+/* Import Google Fonts */
+@import 'https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Cuprum:wght@400;500;700&family=PT+Sans:wght@400;700&display=swap';
 @config '../tailwind.config.js';
 @import 'tailwindcss';
 
@@ -191,7 +190,7 @@ a[role='button'],
 
 html,
 body {
-  font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'Oswald', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
@@ -820,13 +819,6 @@ body.dark .popup-arrow,
   width: 5rem;
   height: 3rem;
   border-radius: 0.375rem;
-}
-h1 {
-  font-family: 'Fraunces Variable', Georgia, serif;
-}
-
-h2 {
-  font-family: 'Fraunces Variable', Georgia, serif;
 }
 
 /* Fallbacks for accent (primary) utilities

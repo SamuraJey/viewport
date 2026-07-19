@@ -1,6 +1,6 @@
 # RFC 001 — Визуальный фундамент
 
-**Status**: PR 1 «Type system + tokens» shipped (commit `e973114`, 2026-07-19). PRs 2–5 pending.
+**Status**: PR 2 «AppBadge» + PR 3 «Migrate badges» shipped (commits `6d89b40`, `cb89121`, `1a52765`, `3034550`, `e3378e9`, `32e71bd`, `aa5fa77`, `b89fc81`, 2026-07-19). PRs 4-5 pending. Шрифты вне scope — Inter/Fraunces migration отложен, Oswald + Cuprum + PT Sans через Google Fonts остаются.
 **Date**: 2026-07-19
 **Author**: UI/UX audit pass
 **Phase**: 1 (фундамент)
@@ -11,12 +11,7 @@
 Текущая визуальная база Viewport работает, но держится на полу-ручных хардкодах и
 наследует несколько архитектурных решений, которые мешают дальнейшему развитию.
 
-1. **Шрифтовая система разваливается.** `Oswald` подключён в `tailwind.config.js:7-8`
-   и используется только в логотипе (`Layout.tsx:59`). `Cuprum` — для всего
-   остального. Это два разных жанра (геометрический гротеск vs гуманистический с
-   засечками), и Oswald в одном только логотипе ухудшает консистентность.
-
-2. **Семантические токены неполные.** В `index.css:309-310` определены только
+1. **Семантические токены неполные.** В `index.css:309-310` определены только
    `--color-danger-rgb` и `--color-success-rgb`. В коде повсеместно
    хардкодятся `bg-amber-500/90` (warning) и `bg-blue-500/90` (info) — см.
    `PhotoCard.tsx:115, 121`, `EnhancedGalleryCard.tsx`. Светлая и тёмная темы
@@ -24,61 +19,26 @@
    surface-2` идут с правильной инверсией, в светлой `surface-1` отличается от
    `surface` на 0.6% — карточки почти неотличимы от фона.
 
-3. **Бейджи — ручной копипаст.** Один и тот же паттерн
+2. **Бейджи — ручной копипаст.** Один и тот же паттерн
    `bg-{tone}-500/90 ... text-white text-xs font-semibold backdrop-blur-md shadow-lg`
    повторяется в `PhotoCard.tsx:84-135`, `EnhancedGalleryCard.tsx`, проектных
    карточках, share-link статусах, и в десятке других мест. У каждой реализации
    свой оттенок и padding — UI дрожит.
-
-4. **Корпоративный жаргон.** «PORTFOLIO COMMAND CENTER», «PROJECT DELIVERY HUB»,
+3. **Корпоративный жаргон.** «PORTFOLIO COMMAND CENTER», «PROJECT DELIVERY HUB»,
    «CLIENT DELIVERY HUB» (`DashboardPage.tsx`, `ProjectPage.tsx`,
    `GalleryPage.tsx`) — overline-надписи, которые не несут информации, но
    съедают вертикальное место и сообщают «мы делаем enterprise-софт», а не
    «инструмент для фотографа».
 
-5. **Лайт-тема плоская.** В тёмной теме глубина появляется за счёт инверсии
+4. **Лайт-тема плоская.** В тёмной теме глубина появляется за счёт инверсии
    surface-палитры; в светлой теме всё в одном бежевом тоне. На скриншоте
    dashboard в light theme карточки отличаются от фона только тонкой 1px
    границей.
 
-6. **Внешние Google Fonts.** `@import url('https://fonts.googleapis.com/...')` в
-   `index.css:2` — добавляет сетевой запрос, ломает оффлайн, и не позволяет
-   preload’ить.
 
-## Предложение
+Пять атомарных изменений (§1.1 отложен — шрифты вне scope), каждое в отдельном коммите внутри одного PR.
 
-Шесть атомарных изменений, каждое в отдельном коммите внутри одного PR.
-
-### 1.1. Типографика: Inter Variable + Fraunces Variable
-
-Заменить текущие Oswald + Cuprum + PT Sans на:
-
-- **Inter Variable** — для UI-текста (кнопки, лейблы, body, навигация).
-  Современный, читаемый, ~30KB woff2-variable шрифт.
-- **Fraunces Variable** — для display-заголовков (`<h1>`, hero-блоки,
-  public gallery cover overlay). Editorial serif с optical sizes, даёт
-  «премиальный» вид без ущерба для производительности.
-
-```bash
-npm i @fontsource-variable/inter @fontsource-variable/fraunces
-```
-
-```css
-/* index.css:1-3 — заменить */
-@import '@fontsource-variable/inter';
-@import '@fontsource-variable/fraunces';
-```
-
-```js
-// tailwind.config.js — обновить fontFamily
-fontFamily: {
-  sans: ['"Inter Variable"', 'system-ui', 'sans-serif'],
-  display: ['"Fraunces Variable"', 'Georgia', 'serif'],
-}
-```
-
-В `Layout.tsx:59` и везде `font-oswald` заменить на `font-sans` (default).
-`font-cuprum` удалить из конфига.
+### 1.1. *(отложено)*
 
 ### 1.2. Семантические токены: warning / info
 
@@ -184,9 +144,8 @@ interface AppBadgeProps {
 
 ## Альтернативы
 
-- **Оставить Oswald + Cuprum** — отказано, дублирование без выигрыша.
-- **Один шрифт везде** (только Inter) — отказано, display-сериф добавляет
-  премиальности public gallery hero.
+- ~~**Оставить Oswald + Cuprum**~~ — *отложено: шрифты вне scope текущего PR*
+- **Один шрифт везде** — n/a (отложено)
 - **CSS-only design tokens (без JS-обёртки)** — оставляем, `tailwind-variants`
   (опц.) только для композиции variant-классов.
 - **CSS `color-mix()` для badge-цветов** — рассматривали вместо RGB-токенов, но
@@ -194,9 +153,6 @@ interface AppBadgeProps {
 
 ## Acceptance criteria
 
-- [x] `@fontsource-variable/inter` и `@fontsource-variable/fraunces` подключены;
-  Google Fonts import удалён; build не делает внешних запросов за шрифтами.
-- [x] `font-oswald` и `font-cuprum` больше не используются ни в одном `.tsx`.
 - [x] `--color-info-rgb` и `--color-warning-rgb` зарегистрированы в `:root` и
   `html.dark`, доступны как `bg-info/...` / `bg-warning/...`.
 - [x] В light theme контраст между `surface` и `surface-1` визуально различим
@@ -215,25 +171,20 @@ interface AppBadgeProps {
 
 ## Rollout
 
-1. [x] PR «Type system + tokens» (1.1, 1.2, 1.3): заменить шрифты, добавить токены.
-   Никаких визуальных правок UI-компонентов. *(shipped: commit `e973114`)*
-2. PR «AppBadge» (1.5): новый компонент, без замены существующих. Покрыть
-   snapshot-тестами.
-3. PR «Migrate badges» (1.5 применение): заменить все `bg-amber-500/90
-   backdrop-blur-md` на `<AppBadge tone="warning">`. Делать component-by-component
-   в отдельных коммитах внутри PR, чтобы ревью оставалось читаемым.
-4. PR «Theme depth + glass» (1.3 application, 1.4): surface tokens shipped in PR 1; PR 4 applies them to specific components and adds bg-noise / bg-mesh-accent.
-  Тут возможны визуальные regressions → ручная проверка в обеих
-   темах на dashboard, gallery, share link detail, public gallery, auth.
+1. [x] ~~PR «Type system + tokens»~~ — *отменён: §1.1 (шрифты) вне scope. §1.2 + §1.3
+   (semantic tokens + surface depth) применены в коммитах `e973114` (см. историю),
+2. [x] PR «AppBadge» (1.5): новый компонент. *(shipped: commit `6d89b40`)*
+3. [x] PR «Migrate badges» (1.5 применение): заменить все `bg-amber-500/90
+   backdrop-blur-md` на `<AppBadge tone="warning">`. *(shipped: commits `cb89121`,
+   `1a52765`, `3034550`, `e3378e9`, `32e71bd`, `aa5fa77`, `b89fc81`)*
+4. PR «Theme depth + glass» (1.4): bg-noise и bg-mesh-accent helpers.
 5. PR «Remove jargon» (1.6): косметика, минимальный риск.
 
 Каждый PR отдельно проходит `npm run qa`.
 
 ## Open questions
 
-- **Q1.** Оставляем Oswald как «brand mark» только в логотипе? Текущее
-  предложение убирает его полностью. Альтернатива — `font-display` (Fraunces)
-  в логотипе, что даст editorial-вид. **Нужно решение brand-команды.**
+- ~~**Q1.** Оставляем Oswald как «brand mark» только в логотипе?~~ *отложено вместе с §1.1*
 - **Q2.** Шумовая текстура на body — навсегда или выключаемо в low-vision mode? - Да.
   Текущее предложение: скрывать при `html[data-readability-mode='on']` через
   `display: none` на соответствующем элементе.
@@ -242,7 +193,7 @@ interface AppBadgeProps {
 ## Связанные документы
 
 - Внутренний контекст: `frontend/src/index.css`, `frontend/tailwind.config.js`,
-  `frontend/src/Layout.tsx:38-66`, `frontend/src/components/gallery/PhotoCard.tsx:84-135`.
+  `frontend/src/components/gallery/PhotoCard.tsx:84-135`.
 - Связанные RFC: [002 A11y](./rfc-002-a11y-improvements.md),
   [006 Photo grid system](./rfc-006-photo-grid-system.md),
   [011 Skeletons](./rfc-011-skeletons-and-transitions.md).

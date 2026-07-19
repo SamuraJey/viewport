@@ -14,6 +14,7 @@ import {
   VideoOff,
 } from 'lucide-react';
 import type { GalleryPhoto } from '../../types';
+import { AppBadge } from '../ui';
 import { getAccessiblePhotoName } from '../../lib/accessibility';
 import { formatDuration } from '../../lib/utils';
 
@@ -82,10 +83,9 @@ const PhotoCardComponent = ({
     >
       {/* Cover indicator */}
       {isCover && (
-        <div className="absolute top-3 right-3 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/90 text-white text-xs font-semibold backdrop-blur-md shadow-lg">
-          <Star className="h-3 w-3 fill-current" />
+        <AppBadge tone="warning" icon={<Star className="h-3 w-3 fill-current" />} className="absolute top-3 right-3 z-10">
           Cover
-        </div>
+        </AppBadge>
       )}
 
       {/* Selection checkbox */}
@@ -112,26 +112,29 @@ const PhotoCardComponent = ({
       <div className="relative h-64 sm:h-72 md:h-80 bg-surface-1 dark:bg-surface-dark-1 overflow-hidden">
         {/* Status badge — shown for non-successful media */}
         {photo.status === 'processing' && (
-          <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/90 text-white text-xs font-semibold backdrop-blur-md shadow-lg">
-            <Loader2 className="h-3 w-3 animate-spin" />
+          <AppBadge tone="warning" icon={<Loader2 className="h-3 w-3 animate-spin" />} className="absolute top-3 right-3 z-10">
             Processing
-          </div>
+          </AppBadge>
         )}
         {photo.status === 'pending' && (
-          <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/90 text-white text-xs font-semibold backdrop-blur-md shadow-lg">
-            <Loader2 className="h-3 w-3 animate-spin" />
+          <AppBadge tone="info" icon={<Loader2 className="h-3 w-3 animate-spin" />} className="absolute top-3 right-3 z-10">
             Pending
-          </div>
+          </AppBadge>
         )}
         {photo.status === 'failed' && (
-          <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-500/90 text-white text-xs font-semibold backdrop-blur-md shadow-lg">
-            {photo.media_type === 'video' ? (
-              <VideoOff className="h-3 w-3" />
-            ) : (
-              <ImageOff className="h-3 w-3" />
-            )}
+          <AppBadge
+            tone="danger"
+            icon={
+              photo.media_type === 'video' ? (
+                <VideoOff className="h-3 w-3" />
+              ) : (
+                <ImageOff className="h-3 w-3" />
+              )
+            }
+            className="absolute top-3 right-3 z-10"
+          >
             Failed
-          </div>
+          </AppBadge>
         )}
 
         {/* Video play badge — shown only for successful videos */}

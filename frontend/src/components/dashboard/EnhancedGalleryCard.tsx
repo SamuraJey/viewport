@@ -173,7 +173,7 @@ export const EnhancedGalleryCard = ({
               <div className="min-w-0">
                 <textarea
                   ref={renameInputRef}
-                  className={`block w-full resize-none overflow-y-auto rounded-xl border border-accent/25 bg-surface-1/80 px-3 py-2 pr-8 font-display ${titleTextSizeClass} font-bold uppercase text-text caret-accent outline-none transition-colors placeholder:text-muted/60 focus:border-accent/50 focus:bg-surface-1 focus:outline-none focus:ring-0 dark:bg-surface-dark-1/80 dark:text-accent-foreground`}
+                  className={`block w-full resize-none overflow-y-auto rounded-xl border border-accent/25 bg-surface-1/80 px-3 py-2 pr-8 font-oswald ${titleTextSizeClass} font-bold uppercase text-text caret-accent outline-none transition-colors placeholder:text-muted/60 focus:border-accent/50 focus:bg-surface-1 focus:outline-none focus:ring-0 dark:bg-surface-dark-1/80 dark:text-accent-foreground`}
                   value={renameInput}
                   maxLength={GALLERY_NAME_MAX_LENGTH}
                   onChange={(event) => onRenameInputChange(event.target.value)}
@@ -218,7 +218,7 @@ export const EnhancedGalleryCard = ({
               <div className="group/title flex flex-1 items-center text-left">
                 <div className="min-w-0 flex-1">
                   <h3
-                    className={`wrap-anywhere whitespace-normal font-display ${titleTextSizeClass} font-bold uppercase text-text transition-colors`}
+                    className={`wrap-anywhere whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors`}
                   >
                     {galleryTitle}
                   </h3>
