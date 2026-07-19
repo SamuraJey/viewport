@@ -56,7 +56,7 @@ export const Layout = ({ children }: LayoutProps) => {
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-3 sm:px-4">
           <Link
             to="/dashboard"
-            className="flex min-w-0 items-center gap-2 font-oswald text-lg font-bold uppercase tracking-wide text-text transition-opacity hover:opacity-80 sm:gap-2.5 sm:text-xl sm:tracking-wider dark:text-accent-foreground"
+            className="flex min-w-0 items-center gap-2 font-sans text-lg font-bold uppercase tracking-wide text-text transition-opacity hover:opacity-80 sm:gap-2.5 sm:text-xl sm:tracking-wider dark:text-accent-foreground"
             aria-label="Go to home"
           >
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-accent/10 text-accent sm:h-9 sm:w-9 sm:rounded-2xl">

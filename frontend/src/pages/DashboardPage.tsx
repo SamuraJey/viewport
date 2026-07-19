@@ -346,10 +346,10 @@ export const DashboardPage = () => {
             <p className="mb-2 text-sm font-bold uppercase tracking-[0.22em] text-accent/70">
               Portfolio command center
             </p>
-            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground sm:text-5xl">
+            <h1 className="font-display text-4xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground sm:text-5xl">
               Projects
             </h1>
-            <p className="mt-3 max-w-xl font-cuprum text-lg leading-7 text-muted">
+            <p className="mt-3 max-w-xl text-lg leading-7 text-muted">
               Find the next delivery quickly, review active share links, and start a new client
               project without leaving the workspace.
             </p>
@@ -515,7 +515,7 @@ export const DashboardPage = () => {
                           <div className="group/title relative flex flex-1 items-center text-left">
                             <div className="min-w-0 flex-1">
                               <h2
-                                className={`wrap-anywhere overflow-hidden whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:4]`}
+                                className={`wrap-anywhere overflow-hidden whitespace-normal font-display ${titleTextSizeClass} font-bold uppercase text-text transition-colors [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:4]`}
                               >
                                 {project.name}
                               </h2>

@@ -10,9 +10,11 @@ FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 FROM python:${PYTHON_VERSION}-slim AS build
 COPY --from=uv /uv /uvx /bin/
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends build-essential libvips-dev pkg-config && \
-    rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends build-essential libvips-dev pkg-config
 
 WORKDIR /app
 
@@ -35,9 +37,11 @@ ARG APP_GID
 
 RUN groupadd --system --gid "${APP_GID}" appgroup && \
     useradd --system --uid "${APP_UID}" --gid appgroup --home-dir /app --shell /bin/false appuser
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg libheif-plugin-aomenc libvips42t64 libx264-164 && \
-    rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends ffmpeg libheif-plugin-aomenc libvips42t64 libx264-164
 
 WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH" \

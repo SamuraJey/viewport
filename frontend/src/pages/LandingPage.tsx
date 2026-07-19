@@ -285,7 +285,7 @@ export const LandingPage = () => {
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <Link
             to="/"
-            className="flex items-center gap-2.5 font-oswald text-xl font-bold uppercase tracking-wider text-text transition-opacity hover:opacity-80 dark:text-accent-foreground"
+            className="flex items-center gap-2.5 font-display text-xl font-bold uppercase tracking-wider text-text transition-opacity hover:opacity-80 dark:text-accent-foreground"
           >
             <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/10 text-accent shadow-xs">
               <Camera className="h-5 w-5" />
@@ -332,7 +332,7 @@ export const LandingPage = () => {
               Built for photographers and studios
             </span>
             <div className="space-y-5">
-              <h1 className="max-w-4xl font-oswald text-5xl font-bold uppercase leading-[0.92] tracking-wider sm:text-6xl lg:text-7xl">
+              <h1 className="max-w-4xl font-display text-5xl font-bold uppercase leading-[0.92] tracking-wider sm:text-6xl lg:text-7xl">
                 Deliver photo galleries that sell your studio twice.
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-muted sm:text-xl">
@@ -364,7 +364,7 @@ export const LandingPage = () => {
                   key={stat.label}
                   className="rounded-3xl border border-border/50 bg-surface/80 p-4 shadow-xs backdrop-blur transition-all duration-200 hover:border-accent/20 hover:shadow-sm dark:border-border/35 dark:bg-surface-foreground/6"
                 >
-                  <p className="font-oswald text-3xl font-bold uppercase text-text dark:text-accent-foreground">
+                  <p className="font-display text-3xl font-bold uppercase text-text dark:text-accent-foreground">
                     {stat.value}
                   </p>
                   <p className="mt-1 text-sm leading-5 text-muted">{stat.label}</p>
@@ -414,7 +414,7 @@ export const LandingPage = () => {
             <p className="text-sm font-bold uppercase tracking-[0.24em] text-accent">
               Why Viewport
             </p>
-            <h2 className="mt-3 font-oswald text-4xl font-bold uppercase tracking-wide sm:text-5xl">
+            <h2 className="mt-3 font-display text-4xl font-bold uppercase tracking-wide sm:text-5xl">
               Less admin. Better reveal.
             </h2>
             <p className="mt-4 text-lg leading-8 text-muted">
@@ -445,7 +445,7 @@ export const LandingPage = () => {
           <div className="grid gap-6 rounded-4xl border border-border/50 bg-surface/85 p-6 shadow-xs backdrop-blur dark:border-border/35 dark:bg-surface-foreground/6 lg:grid-cols-[0.85fr_1.15fr] lg:p-8">
             <div className="space-y-4">
               <p className="text-sm font-bold uppercase tracking-[0.24em] text-accent">Workflow</p>
-              <h2 className="font-oswald text-4xl font-bold uppercase tracking-wider sm:text-5xl">
+              <h2 className="font-display text-4xl font-bold uppercase tracking-wider sm:text-5xl">
                 From final edit to client yes.
               </h2>
               <p className="text-lg leading-8 text-muted">
@@ -463,7 +463,7 @@ export const LandingPage = () => {
                     <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-accent text-accent-foreground">
                       <Icon className="h-5 w-5" />
                     </span>
-                    <span className="font-oswald text-3xl font-bold text-accent/35">
+                    <span className="font-display text-3xl font-bold text-accent/35">
                       0{index + 1}
                     </span>
                   </div>
@@ -483,7 +483,7 @@ export const LandingPage = () => {
           <div className="mb-9 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
               <p className="text-sm font-bold uppercase tracking-[0.24em] text-accent">Plans</p>
-              <h2 className="mt-3 font-oswald text-4xl font-bold uppercase tracking-wide sm:text-5xl">
+              <h2 className="mt-3 font-display text-4xl font-bold uppercase tracking-wide sm:text-5xl">
                 Start lean. Scale calmly.
               </h2>
               <p className="mt-4 text-lg leading-8 text-muted">
@@ -518,7 +518,7 @@ export const LandingPage = () => {
                 <p className="text-sm font-bold uppercase tracking-[0.2em] text-muted">
                   {card.price}
                 </p>
-                <h3 className="mt-4 font-oswald text-4xl font-bold uppercase tracking-wide text-text dark:text-accent-foreground">
+                <h3 className="mt-4 font-display text-4xl font-bold uppercase tracking-wide text-text dark:text-accent-foreground">
                   {card.name}
                 </h3>
                 <p className="mt-3 min-h-14 text-sm leading-6 text-muted">{card.description}</p>
@@ -580,7 +580,7 @@ export const LandingPage = () => {
           <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
             <div>
               <p className="text-sm font-bold uppercase tracking-[0.24em] text-accent">FAQ</p>
-              <h2 className="mt-3 font-oswald text-4xl font-bold uppercase tracking-wide sm:text-5xl">
+              <h2 className="mt-3 font-display text-4xl font-bold uppercase tracking-wide sm:text-5xl">
                 Built for the delivery details.
               </h2>
             </div>
@@ -616,7 +616,7 @@ export const LandingPage = () => {
                 </p>
                 <h2
                   id="landing-final-cta-title"
-                  className="mt-5 max-w-3xl font-oswald text-4xl font-bold uppercase tracking-wide text-text dark:text-accent-foreground sm:text-5xl"
+                  className="mt-5 max-w-3xl font-display text-4xl font-bold uppercase tracking-wide text-text dark:text-accent-foreground sm:text-5xl"
                 >
                   Make every delivery feel intentional.
                 </h2>
