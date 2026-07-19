@@ -1,6 +1,6 @@
 # RFC 001 — Визуальный фундамент
 
-**Status**: PR 2 «AppBadge» + PR 3 «Migrate badges» shipped (commits `6d89b40`, `cb89121`, `1a52765`, `3034550`, `e3378e9`, `32e71bd`, `aa5fa77`, `b89fc81`, 2026-07-19). PRs 4-5 pending. Шрифты вне scope — Inter/Fraunces migration отложен, Oswald + Cuprum + PT Sans через Google Fonts остаются.
+**Status**: PR 2 + PR 3 + PR 5 shipped. PR 4 «Theme depth + glass» — частичный: `bg-mesh-accent` shipped (DashboardPage metric cards), `bg-noise` отклонён после визуальной проверки (выглядел чужеродно). PR 1 отменён. Шрифты вне scope.
 **Date**: 2026-07-19
 **Author**: UI/UX audit pass
 **Phase**: 1 (фундамент)
@@ -160,10 +160,15 @@ interface AppBadgeProps {
 - [ ] `AppBadge` покрывает 100% существующих бейджей; в кодовой базе нет
   повторного `bg-{amber|blue|red|green}-500/90 ... text-white text-xs font-semibold
   backdrop-blur-md` паттерна. *(deferred to PR 2/3)*
-- [ ] Body имеет `bg-noise` с `opacity-[0.03]`, видимой разницы в luma нет, но
-  «бумажное» ощущение появляется. *(deferred to PR 4)*
-- [ ] Все «COMMAND CENTER / DELIVERY HUB / CONTROL DECK» overline-надписи
-  удалены; вместо них — функциональный subline или ничего. *(deferred to PR 5)*
+- [x] Все «COMMAND CENTER / DELIVERY HUB / CONTROL DECK» overline-надписи
+  удалены; вместо них — функциональный subline или ничего. *(shipped: PR 5 —
+  `DashboardPage.tsx` и `ProjectPage.tsx`. В `GalleryPage.tsx` и
+  `ShareLinksDashboardPage.tsx` целевой жаргон не обнаружен.)*
+- [x] `bg-mesh-accent` helper добавлен и применён к metric cards секции
+  dashboard. *(shipped: PR 4 partial — `index.css` + `DashboardPage.tsx`)*
+- [ ] ~~Body имеет `bg-noise` с `opacity-[0.03]`~~ — *отклонено: на практике
+  текстура выглядела чужеродно и не давала «бумажного» ощущения. PR 4 ограничен
+  mesh-accent helper'ом.*
 - [x] Vitest + lint + typecheck проходят. `npm run test:run` без сломанных
   snapshot'ов (если только визуальный вывод не изменился намеренно — тогда
   обновлённый snapshot + ручная проверка скриншота).
@@ -175,19 +180,21 @@ interface AppBadgeProps {
    (semantic tokens + surface depth) применены в коммитах `e973114` (см. историю),
 2. [x] PR «AppBadge» (1.5): новый компонент. *(shipped: commit `6d89b40`)*
 3. [x] PR «Migrate badges» (1.5 применение): заменить все `bg-amber-500/90
-   backdrop-blur-md` на `<AppBadge tone="warning">`. *(shipped: commits `cb89121`,
-   `1a52765`, `3034550`, `e3378e9`, `32e71bd`, `aa5fa77`, `b89fc81`)*
-4. PR «Theme depth + glass» (1.4): bg-noise и bg-mesh-accent helpers.
-5. PR «Remove jargon» (1.6): косметика, минимальный риск.
+4. [partial] PR «Theme depth + glass» (1.4): `bg-mesh-accent` shipped
+   (DashboardPage metric cards, коммит pending). `bg-noise` отклонён — визуально
+   чужеродно. Mesh accent остался как единственный glass-элемент PR 4.
+5. [x] PR «Remove jargon» (1.6): косметика. *(shipped: `DashboardPage.tsx` —
+   «Portfolio command center», `ProjectPage.tsx` — «Project delivery hub».
+   `ShareLinksDashboardPage.tsx` и `GalleryPage.tsx` целевого жаргона не
+   содержали.)*
 
 Каждый PR отдельно проходит `npm run qa`.
 
 ## Open questions
 
 - ~~**Q1.** Оставляем Oswald как «brand mark» только в логотипе?~~ *отложено вместе с §1.1*
-- **Q2.** Шумовая текстура на body — навсегда или выключаемо в low-vision mode? - Да.
-  Текущее предложение: скрывать при `html[data-readability-mode='on']` через
-  `display: none` на соответствующем элементе.
+- ~~**Q2.** Шумовая текстура на body — навсегда или выключаемо в low-vision mode?~~
+  *снят: `bg-noise` отклонён по результатам визуальной проверки.*
 
 
 ## Связанные документы
