@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Check, Eye, EyeOff, FolderPlus, GripHorizontal, Info, Settings2 } from 'lucide-react';
 
 import { EnhancedGalleryCard } from '../../dashboard/EnhancedGalleryCard';
-import { AppPopover } from '../../ui';
+import { AppBadge, AppPopover } from '../../ui';
 import type { Gallery, ProjectGallerySummary } from '../../../types';
 import { VISIBILITY_ACTION_BUTTON_CLASS, cardVariants, containerVariants } from '../constants';
 import { ProjectGuidanceItem } from '../ProjectGuidanceItem';
@@ -148,22 +148,19 @@ export const ProjectGalleriesPanel = ({
                     onDelete={handleDeleteGallery}
                     onShare={setSharingGallery}
                     extraTopBadges={
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium backdrop-blur-sm ${
-                          (folder.project_visibility ?? 'listed') === 'listed'
-                            ? 'bg-accent/90 text-accent-foreground'
-                            : 'bg-amber-500/85 text-slate-950'
-                        }`}
-                      >
-                        {(folder.project_visibility ?? 'listed') === 'listed' ? (
-                          <Check className="h-3 w-3" />
-                        ) : (
-                          <EyeOff className="h-3 w-3" />
-                        )}
-                        {(folder.project_visibility ?? 'listed') === 'listed'
-                          ? 'Visible in project'
-                          : 'Direct link only'}
-                      </span>
+                      (() => {
+                        const isListed = (folder.project_visibility ?? 'listed') === 'listed';
+                        return (
+                          <AppBadge
+                            tone={isListed ? 'accent' : 'warning'}
+                            variant="filled"
+                            icon={isListed ? <Check className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                            className="rounded-md backdrop-blur-sm"
+                          >
+                            {isListed ? 'Visible in project' : 'Direct link only'}
+                          </AppBadge>
+                        );
+                      })()
                     }
                     extraActions={
                       <AppPopover
