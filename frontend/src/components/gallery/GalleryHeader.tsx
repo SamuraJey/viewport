@@ -229,7 +229,7 @@ export const GalleryHeader = ({
             <div className="flex min-w-0 items-center gap-3">
               <Link
                 to={backTo}
-                className="inline-flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 text-sm font-semibold text-muted transition-colors hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent"
+                className="inline-flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 text-sm font-semibold text-muted transition-colors hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark"
               >
                 <ArrowLeft className="h-4 w-4" />
                 <span className="hidden sm:inline">{backLabel}</span>

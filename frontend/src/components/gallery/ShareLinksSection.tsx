@@ -289,7 +289,7 @@ const ShareLinksSectionComponent = ({
                               href={fullUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="gallery-link__anchor truncate rounded-md px-1 -mx-1 font-medium text-accent hover:underline focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent"
+                              className="gallery-link__anchor truncate rounded-md px-1 -mx-1 font-medium text-accent hover:underline focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark"
                             >
                               {fullUrl}
                             </a>

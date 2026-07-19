@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const TYPING_SELECTOR = 'input, textarea, select, [contenteditable="true"]';
+const MODAL_SELECTOR = '[role="dialog"][aria-modal="true"], [aria-modal="true"]';
 const GO_TIMEOUT_MS = 500;
 
 export interface UseKeyboardShortcutsOptions {
@@ -64,6 +65,11 @@ export const useKeyboardShortcuts = (options: UseKeyboardShortcutsOptions = {}) 
       if (event.key === '?') {
         event.preventDefault();
         setIsOpen(true);
+        return;
+      }
+
+      const isModalOpen = document.querySelector(MODAL_SELECTOR) !== null;
+      if (isModalOpen) {
         return;
       }
 

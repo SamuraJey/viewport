@@ -44,7 +44,7 @@ export const LightboxKeyboardHint = ({ isOpen }: LightboxKeyboardHintProps) => {
     >
       <span className="inline-flex items-center gap-2">
         <Keyboard className="h-4 w-4" aria-hidden="true" />
-        <span>← → to navigate • Esc to close • F for fullscreen</span>
+        <span>← → to navigate • Esc to close</span>
       </span>
     </div>
   );
