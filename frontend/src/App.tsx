@@ -8,6 +8,7 @@ import { NotFoundPage, ErrorPage } from './pages/ErrorPage';
 import { useAuthStore } from './stores/authStore';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { KeyboardShortcutsDialog } from './components/a11y/KeyboardShortcutsDialog';
+import { CommandPalette } from './components/command/CommandPalette';
 
 const LoginPage = lazy(() =>
   import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })),
@@ -60,15 +61,25 @@ const RouteFallback = () => (
 
 const ProtectedLayout = () => {
   const { isAuthenticated } = useAuthStore();
-  const { isOpen, setIsOpen } = useKeyboardShortcuts({ enabled: isAuthenticated });
+  const { isOpen, setIsOpen, paletteOpen, setPaletteOpen } = useKeyboardShortcuts({ enabled: isAuthenticated });
 
   return (
     <RequireAuth>
-      <Layout>
+      <Layout onOpenCommandPalette={() => setPaletteOpen(true)}>
         <Outlet />
       </Layout>
       {isAuthenticated && (
-        <KeyboardShortcutsDialog open={isOpen} onClose={() => setIsOpen(false)} />
+        <>
+          <KeyboardShortcutsDialog open={isOpen} onClose={() => setIsOpen(false)} />
+          <CommandPalette
+            open={paletteOpen}
+            onOpenChange={setPaletteOpen}
+            onOpenShortcuts={() => {
+              setPaletteOpen(false);
+              setIsOpen(true);
+            }}
+          />
+        </>
       )}
     </RequireAuth>
   );

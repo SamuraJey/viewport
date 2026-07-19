@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
+import { consumePendingAction } from '../components/command/commandActions';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { PaginationControls } from '../components/PaginationControls';
 import { CollectionCard, CollectionShareBadge } from '../components/dashboard/CollectionCard';
@@ -231,6 +232,18 @@ export const DashboardPage = () => {
     setError('');
     setIsProjectModalOpen(true);
   };
+
+  const handleOpenProjectModalRef = useRef(handleOpenProjectModal);
+  handleOpenProjectModalRef.current = handleOpenProjectModal;
+  const consumedPendingActionRef = useRef(false);
+  useEffect(() => {
+    if (consumedPendingActionRef.current) return;
+    consumedPendingActionRef.current = true;
+    const action = consumePendingAction();
+    if (action === 'create-project') {
+      handleOpenProjectModalRef.current();
+    }
+  }, []);
 
   const handleConfirmCreateProject = async () => {
     if (!newProjectName.trim()) return;

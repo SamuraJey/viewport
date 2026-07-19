@@ -1,6 +1,8 @@
 import { X } from 'lucide-react';
 import { AppDialog, AppDialogDescription, AppDialogTitle } from '../ui';
 
+const isMacPlatform = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+
 interface KeyboardShortcutsDialogProps {
   open: boolean;
   onClose: () => void;
@@ -12,6 +14,7 @@ interface Shortcut {
 }
 
 const SHORTCUTS: Shortcut[] = [
+  { keys: isMacPlatform ? '⌘ K' : 'Ctrl K', description: 'Open command palette' },
   { keys: 'n', description: 'New project' },
   { keys: 'u', description: 'Upload to current gallery' },
   { keys: '/', description: 'Focus search' },
