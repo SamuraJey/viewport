@@ -697,9 +697,6 @@ export const ProjectPage = () => {
               Back to dashboard
             </Link>
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-accent">
-                Project delivery hub
-              </p>
               <h1
                 ref={projectTitleRef}
                 style={{ fontSize: `${projectTitleFontSizePx}px` }}

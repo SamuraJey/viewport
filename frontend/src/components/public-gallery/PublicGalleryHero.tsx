@@ -337,7 +337,6 @@ export const PublicGalleryHero = ({
       )}
 
       <div className="pg-hero__overlay bg-linear-to-t from-black/80 via-black/40 to-black/10" />
-
       {renderHeroContent()}
 
       {/* Animated scroll button */}

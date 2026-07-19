@@ -343,9 +343,6 @@ export const DashboardPage = () => {
         <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_16%_0%,rgba(31,144,255,0.10),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(34,197,94,0.07),transparent_26%)]" />
         <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(23rem,34rem)] xl:items-center">
           <div className="max-w-2xl">
-            <p className="mb-2 text-sm font-bold uppercase tracking-[0.22em] text-accent/70">
-              Portfolio command center
-            </p>
             <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground sm:text-5xl">
               Projects
             </h1>
@@ -403,8 +400,8 @@ export const DashboardPage = () => {
             </button>
           </div>
         </div>
+        <div className="relative mt-5 grid gap-3 overflow-hidden rounded-2xl bg-mesh-accent p-2 sm:grid-cols-2 xl:grid-cols-4">
 
-        <div className="relative mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             icon={FolderOpen}
             label="Visible page"
