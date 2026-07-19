@@ -42,7 +42,7 @@ export const PhotoSelectionBar = ({
           <button
             type="button"
             onClick={onSelectAll}
-            className="group inline-flex h-10 items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 whitespace-nowrap transition-all duration-200 hover:bg-surface-1 hover:border-accent/30 hover:-translate-y-0.5 hover:shadow-sm dark:border-border/40 dark:bg-surface-dark dark:hover:bg-surface-dark-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="group inline-flex h-10 items-center gap-2 rounded-xl border border-border/50 bg-surface px-4 whitespace-nowrap transition-all duration-200 hover:bg-surface-1 hover:border-accent/30 hover:-translate-y-0.5 hover:shadow-sm dark:border-border/40 dark:bg-surface-dark dark:hover:bg-surface-dark-2 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
             title={
               areAllOnPageSelected
                 ? 'Deselect all photos on this page'
@@ -79,7 +79,7 @@ export const PhotoSelectionBar = ({
           <button
             type="button"
             onClick={onCancel}
-            className="inline-flex h-10 items-center justify-center rounded-xl border border-border/50 bg-surface px-5 text-sm font-bold text-muted whitespace-nowrap transition-all duration-200 hover:bg-surface-1 hover:text-text hover:-translate-y-0.5 hover:shadow-sm dark:border-border/40 dark:bg-surface-dark dark:text-text dark:hover:bg-surface-dark-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="inline-flex h-10 items-center justify-center rounded-xl border border-border/50 bg-surface px-5 text-sm font-bold text-muted whitespace-nowrap transition-all duration-200 hover:bg-surface-1 hover:text-text hover:-translate-y-0.5 hover:shadow-sm dark:border-border/40 dark:bg-surface-dark dark:text-text dark:hover:bg-surface-dark-2 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
           >
             Clear Selection
           </button>
@@ -87,7 +87,7 @@ export const PhotoSelectionBar = ({
             type="button"
             onClick={onDownloadSelected}
             disabled={!hasSelection || isDownloadingZip}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-5 text-sm font-bold text-accent whitespace-nowrap transition-all duration-200 hover:bg-accent/20 hover:border-accent/50 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-accent/10 disabled:hover:border-accent/30 disabled:hover:shadow-none disabled:hover:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-5 text-sm font-bold text-accent whitespace-nowrap transition-all duration-200 hover:bg-accent/20 hover:border-accent/50 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-accent/10 disabled:hover:border-accent/30 disabled:hover:shadow-none disabled:hover:translate-y-0 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
           >
             <Download className="w-4 h-4" />
             <span>Download {selectionCount > 0 ? `(${selectionCount})` : ''}</span>
@@ -97,7 +97,7 @@ export const PhotoSelectionBar = ({
             type="button"
             onClick={onDeleteMultiple}
             disabled={!hasSelection}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-danger/20 bg-danger px-5 text-sm font-bold text-accent-foreground whitespace-nowrap shadow-sm transition-all duration-200 hover:shadow-md hover:brightness-110 hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100 disabled:hover:shadow-sm disabled:hover:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-danger/20 bg-danger px-5 text-sm font-bold text-accent-foreground whitespace-nowrap shadow-sm transition-all duration-200 hover:shadow-md hover:brightness-110 hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100 disabled:hover:shadow-sm disabled:hover:translate-y-0 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-danger focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
           >
             <Trash2 className="w-4 h-4" />
             Delete {selectionCount > 0 ? `(${selectionCount})` : ''}

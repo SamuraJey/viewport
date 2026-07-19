@@ -53,7 +53,7 @@ export const AppListbox = <TValue extends string>({
           <ListboxButton
             aria-label={ariaLabel}
             className={cn(
-              'flex w-full items-center gap-2 rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-offset-surface-dark',
+              'flex w-full items-center gap-2 rounded-xl text-left outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60 dark:focus-visible:ring-offset-surface-dark',
               typeof buttonClassName === 'function' ? buttonClassName(open) : buttonClassName,
             )}
           >

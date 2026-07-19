@@ -47,7 +47,8 @@ describe('AppBadge', () => {
     );
     const badge = screen.getByText('Published');
     const icon = screen.getByTestId('icon');
-    expect(badge.firstElementChild).toBe(icon);
+    expect(badge.firstElementChild).toContainElement(icon);
+    expect(badge.firstElementChild).toHaveAttribute('aria-hidden', 'true');
   });
 
   /* 3. tone backgrounds — filled */
@@ -115,7 +116,17 @@ describe('AppBadge', () => {
     expect(badge).toHaveClass('my-custom-tag');
   });
 
-  /* 8. span element */
+  /* 8. aria-label passthrough */
+  it('forwards aria-label to the badge', () => {
+    render(
+      <AppBadge tone="warning" aria-label="Upload failed">
+        Failed
+      </AppBadge>,
+    );
+    expect(screen.getByLabelText('Upload failed')).toHaveTextContent('Failed');
+  });
+
+  /* 9. span element */
   it('renders as a <span> element', () => {
     render(<AppBadge tone="info">Span</AppBadge>);
     const badge = screen.getByText('Span');

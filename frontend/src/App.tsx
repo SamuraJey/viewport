@@ -6,6 +6,8 @@ import { Layout } from './components/Layout';
 import { AccessibilityPage } from './pages/AccessibilityPage';
 import { NotFoundPage, ErrorPage } from './pages/ErrorPage';
 import { useAuthStore } from './stores/authStore';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { KeyboardShortcutsDialog } from './components/a11y/KeyboardShortcutsDialog';
 
 const LoginPage = lazy(() =>
   import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })),
@@ -56,13 +58,21 @@ const RouteFallback = () => (
   </div>
 );
 
-const ProtectedLayout = () => (
-  <RequireAuth>
-    <Layout>
-      <Outlet />
-    </Layout>
-  </RequireAuth>
-);
+const ProtectedLayout = () => {
+  const { isAuthenticated } = useAuthStore();
+  const { isOpen, setIsOpen } = useKeyboardShortcuts({ enabled: isAuthenticated });
+
+  return (
+    <RequireAuth>
+      <Layout>
+        <Outlet />
+      </Layout>
+      {isAuthenticated && (
+        <KeyboardShortcutsDialog open={isOpen} onClose={() => setIsOpen(false)} />
+      )}
+    </RequireAuth>
+  );
+};
 
 function App() {
   const { isAuthenticated } = useAuthStore();

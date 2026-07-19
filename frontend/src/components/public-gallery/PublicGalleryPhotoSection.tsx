@@ -203,7 +203,7 @@ const PhotoCommentPanel = ({
             void handleSave({ closeAfterSave: true });
           }}
           disabled={isSaving}
-          className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border/50 bg-surface text-muted transition-colors hover:border-accent/40 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-wait disabled:opacity-60"
+          className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-border/50 bg-surface text-muted transition-colors hover:border-accent/40 hover:text-text focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-wait disabled:opacity-60"
           aria-label={hasUnsavedChanges ? 'Save note and close' : 'Close note editor'}
           title={hasUnsavedChanges ? 'Save note and close' : 'Close'}
         >
@@ -247,7 +247,7 @@ const PhotoCommentPanel = ({
               void handleSave();
             }}
             disabled={isSaveDisabled}
-            className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-border/50 bg-surface px-3 py-2 text-xs font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-55"
+            className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-border/50 bg-surface px-3 py-2 text-xs font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-55"
           >
             Save
           </button>
@@ -257,7 +257,7 @@ const PhotoCommentPanel = ({
               void handleSave({ closeAfterSave: true });
             }}
             disabled={isSaving}
-            className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground transition-colors hover:bg-accent/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-wait disabled:opacity-70"
+            className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground transition-colors hover:bg-accent/90 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface disabled:cursor-wait disabled:opacity-70"
           >
             {hasUnsavedChanges ? 'Save & close' : 'Done'}
           </button>
@@ -366,7 +366,7 @@ export const PublicGalleryPhotoSection = ({
                             selection?.onTogglePhoto(photo.photo_id);
                           }}
                           disabled={isSelectionLocked}
-                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-sm transition-all duration-200 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-sm transition-all duration-200 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface ${
                             isSelected
                               ? 'border-accent/50 bg-accent text-accent-foreground opacity-100 shadow-lg'
                               : 'border-white/45 bg-black/20 text-white opacity-70 hover:bg-black/35 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100'
@@ -383,7 +383,7 @@ export const PublicGalleryPhotoSection = ({
                             className="relative"
                             buttonAriaLabel={`${hasComment ? 'Edit' : 'Add'} a note for ${accessiblePhotoName}`}
                             buttonClassName={(open) =>
-                              `inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/45 bg-black/25 text-white backdrop-blur-sm transition-all duration-200 hover:bg-black/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+                              `inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/45 bg-black/25 text-white backdrop-blur-sm transition-all duration-200 hover:bg-black/35 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface ${
                                 open || hasComment
                                   ? 'opacity-100 shadow-lg'
                                   : 'opacity-85 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100'
@@ -429,7 +429,7 @@ export const PublicGalleryPhotoSection = ({
                     <button
                       type="button"
                       onClick={() => onOpenPhoto(index)}
-                      className="block h-full w-full cursor-pointer border-0 bg-transparent p-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                      className="block h-full w-full cursor-pointer border-0 bg-transparent p-0 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
                       aria-label={accessiblePhotoName}
                     >
                       <LazyImage

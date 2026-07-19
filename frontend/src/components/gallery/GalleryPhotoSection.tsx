@@ -137,7 +137,7 @@ const GalleryPhotoSectionComponent = ({
             <button
               type="button"
               onClick={actions.onDismissUploadError}
-              className="ml-auto text-xs font-bold text-accent-foreground bg-danger/80 hover:bg-danger px-3 py-1.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              className="ml-auto text-xs font-bold text-accent-foreground bg-danger/80 hover:bg-danger px-3 py-1.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-danger focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
             >
               Dismiss
             </button>
@@ -149,7 +149,7 @@ const GalleryPhotoSectionComponent = ({
             <button
               type="button"
               onClick={actions.onDismissActionInfo}
-              className="ml-auto text-xs font-bold text-amber-900 dark:text-amber-100 bg-amber-200/80 dark:bg-amber-800/70 hover:bg-amber-300 dark:hover:bg-amber-700 px-3 py-1.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              className="ml-auto text-xs font-bold text-amber-900 dark:text-amber-100 bg-amber-200/80 dark:bg-amber-800/70 hover:bg-amber-300 dark:hover:bg-amber-700 px-3 py-1.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-amber-500 focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
             >
               Dismiss
             </button>
@@ -161,7 +161,7 @@ const GalleryPhotoSectionComponent = ({
             <button
               type="button"
               onClick={actions.onDismissError}
-              className="ml-auto text-xs font-bold text-accent-foreground bg-danger/80 hover:bg-danger px-3 py-1.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              className="ml-auto text-xs font-bold text-accent-foreground bg-danger/80 hover:bg-danger px-3 py-1.5 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-danger focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
             >
               Dismiss
             </button>
@@ -219,7 +219,7 @@ const GalleryPhotoSectionComponent = ({
           <button
             type="button"
             onClick={actions.onClearSearch}
-            className="mt-6 inline-flex h-11 items-center rounded-xl border border-border/50 bg-surface px-5 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:text-accent hover:-translate-y-0.5 hover:shadow-sm focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1"
+            className="mt-6 inline-flex h-11 items-center rounded-xl border border-border/50 bg-surface px-5 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:text-accent hover:-translate-y-0.5 hover:shadow-sm focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1"
           >
             Clear search
           </button>

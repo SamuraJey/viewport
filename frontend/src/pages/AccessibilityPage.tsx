@@ -49,7 +49,7 @@ export const AccessibilityPage = () => {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link
             to={backHref}
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2 text-sm font-semibold transition-all duration-200 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:bg-surface-dark-1"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2 text-sm font-semibold transition-all duration-200 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:bg-surface-dark-1"
           >
             <ArrowLeft className="h-4 w-4" />
             {backLabel}

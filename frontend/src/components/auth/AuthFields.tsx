@@ -55,7 +55,7 @@ export const AuthPasswordField = ({ id, label, ...inputProps }: PasswordFieldPro
         />
         <button
           type="button"
-          className="absolute right-3 top-1/2 transform -translate-y-1/2 cursor-pointer rounded-lg p-1 text-muted transition-all duration-200 hover:scale-110 hover:text-text active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent group-focus-within:text-accent"
+          className="absolute right-3 top-1/2 transform -translate-y-1/2 cursor-pointer rounded-lg p-1 text-muted transition-all duration-200 hover:scale-110 hover:text-text active:scale-95 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent group-focus-within:text-accent"
           onClick={() => setShowPassword((prev) => !prev)}
           aria-label={showPassword ? 'Hide password' : 'Show password'}
         >

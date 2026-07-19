@@ -11,6 +11,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { SkipToContentLink } from '../components/a11y/SkipToContentLink';
+import { LightboxKeyboardHint } from '../components/a11y/LightboxKeyboardHint';
 import { ReadabilitySettingsButton } from '../components/ReadabilitySettingsButton';
 import { AppDialog, AppDialogDescription, AppDialogTitle } from '../components/ui';
 import {
@@ -255,7 +256,7 @@ export const PublicGalleryPage = () => {
     touchHandlers,
   } = usePublicGalleryGrid({ photos: displayedPhotos, spacing: appearance.photo_spacing });
 
-  const { openLightbox, renderLightbox } = usePhotoLightbox({
+  const { openLightbox, lightboxOpen, renderLightbox } = usePhotoLightbox({
     photoCardSelector: '.pg-card',
     gridRef,
     onLoadMore: () => {
@@ -1268,6 +1269,7 @@ export const PublicGalleryPage = () => {
       ) : null}
 
       {renderLightbox(lightboxSlides, displayedPhotoTotal)}
+      <LightboxKeyboardHint isOpen={lightboxOpen} />
     </div>
   );
 };

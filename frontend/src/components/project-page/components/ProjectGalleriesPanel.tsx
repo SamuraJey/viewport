@@ -68,7 +68,7 @@ export const ProjectGalleriesPanel = ({
         <button
           type="button"
           onClick={openGalleryDialog}
-          className="mt-6 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+          className="mt-6 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent"
         >
           <FolderPlus className="h-4 w-4" />
           Add first gallery
@@ -83,7 +83,7 @@ export const ProjectGalleriesPanel = ({
           <AppPopover
             className="relative shrink-0"
             buttonAriaLabel="Project share delivery rules"
-            buttonClassName="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-border/45 bg-surface-1 px-3 text-sm font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent dark:border-border/30 dark:bg-surface-dark-1"
+            buttonClassName="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-border/45 bg-surface-1 px-3 text-sm font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent dark:border-border/30 dark:bg-surface-dark-1"
             buttonContent={
               <>
                 <Info className="h-4 w-4" />

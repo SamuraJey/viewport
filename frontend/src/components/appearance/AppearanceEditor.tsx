@@ -439,7 +439,7 @@ export const AppearanceEditor = ({
               <button
                 type="button"
                 onClick={handleOpenCoverPicker}
-                className="inline-flex min-h-10 items-center justify-center rounded-full bg-surface-1 px-6 text-[11px] font-black uppercase tracking-[0.14em] text-text transition-all duration-200 hover:bg-surface-2 active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
+                className="inline-flex min-h-10 items-center justify-center rounded-full bg-surface-1 px-6 text-[11px] font-black uppercase tracking-[0.14em] text-text transition-all duration-200 hover:bg-surface-2 active:scale-95 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2"
               >
                 Select cover image
               </button>
@@ -472,7 +472,7 @@ export const AppearanceEditor = ({
                 type="button"
                 onClick={handleCloseCoverPicker}
                 aria-label="Close cover image picker"
-                className="rounded-xl p-2 text-muted transition-all duration-200 hover:bg-surface-1 hover:text-text active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-surface-dark-1"
+                className="rounded-xl p-2 text-muted transition-all duration-200 hover:bg-surface-1 hover:text-text active:scale-95 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent dark:hover:bg-surface-dark-1"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -487,7 +487,7 @@ export const AppearanceEditor = ({
               <button
                 type="button"
                 onClick={() => handleSelectCoverPhoto(null)}
-                className={`mb-4 flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
+                className={`mb-4 flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent ${
                   draft.cover_photo_id === null
                     ? 'border-accent bg-accent/10 text-text'
                     : 'border-border/40 bg-surface-1/40 text-muted hover:border-border/70 hover:text-text dark:bg-surface-dark-1/60'
@@ -521,7 +521,7 @@ export const AppearanceEditor = ({
                   return (
                     <div
                       key={photo.id}
-                      className={`group relative overflow-hidden rounded-2xl border-2 bg-surface-1 text-left transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:bg-surface-dark-1 ${
+                      className={`group relative overflow-hidden rounded-2xl border-2 bg-surface-1 text-left transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:bg-surface-dark-1 ${
                         isSelected
                           ? 'border-accent ring-2 ring-accent/35'
                           : 'border-border/30 hover:border-border/70'
@@ -558,7 +558,7 @@ export const AppearanceEditor = ({
                             ? `Preview ${photo.filename} full screen`
                             : 'Preview photo full screen'
                         }
-                        className="absolute left-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-black/60 text-white shadow-sm backdrop-blur-sm transition-all duration-200 hover:bg-black/75 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white/80"
+                        className="absolute left-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-black/60 text-white shadow-sm backdrop-blur-sm transition-all duration-200 hover:bg-black/75 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-white/80"
                       >
                         <Maximize2 className="h-4 w-4" />
                       </button>
@@ -684,7 +684,7 @@ export const AppearanceEditor = ({
                       cover_display_option: option.value,
                     })
                   }
-                  className={`flex aspect-square flex-col justify-between border p-2 text-left transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+                  className={`flex aspect-square flex-col justify-between border p-2 text-left transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface ${
                     isSelected
                       ? 'border-text bg-surface ring-1 ring-text dark:border-text dark:bg-surface-dark'
                       : 'border-border/50 bg-surface hover:border-text/50 dark:border-border/30 dark:bg-surface-dark-1'
@@ -724,7 +724,7 @@ export const AppearanceEditor = ({
                   key={value}
                   type="button"
                   onClick={() => updateDraft({ public_photo_spacing: value })}
-                  className={`flex aspect-square flex-col items-center justify-center gap-2 border text-[8px] font-black uppercase tracking-[0.14em] transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
+                  className={`flex aspect-square flex-col items-center justify-center gap-2 border text-[8px] font-black uppercase tracking-[0.14em] transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent ${
                     isSelected
                       ? 'border-text bg-surface text-text ring-1 ring-text dark:bg-surface-dark'
                       : 'border-border/50 bg-surface text-muted hover:border-text/50 dark:border-border/30 dark:bg-surface-dark-1'
@@ -755,7 +755,7 @@ export const AppearanceEditor = ({
                   key={value}
                   type="button"
                   onClick={() => updateDraft({ public_color_scheme: value })}
-                  className={`flex h-[4.75rem] flex-col items-center justify-center gap-2 border text-[8px] font-black uppercase tracking-[0.14em] transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
+                  className={`flex h-[4.75rem] flex-col items-center justify-center gap-2 border text-[8px] font-black uppercase tracking-[0.14em] transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent ${
                     isSelected
                       ? 'border-text bg-surface text-text ring-1 ring-text dark:bg-surface-dark'
                       : 'border-border/50 bg-surface text-muted hover:border-text/50 dark:border-border/30 dark:bg-surface-dark-1'
@@ -783,7 +783,7 @@ export const AppearanceEditor = ({
                 key={tab.key}
                 type="button"
                 onClick={() => setPreviewTab(tab.key)}
-                className={`min-h-12 flex-1 border-b-2 text-sm font-medium transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
+                className={`min-h-12 flex-1 border-b-2 text-sm font-medium transition-colors focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent ${
                   isSelected
                     ? 'border-text text-text'
                     : 'border-transparent text-muted hover:text-text'

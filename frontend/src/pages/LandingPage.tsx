@@ -343,7 +343,7 @@ export const LandingPage = () => {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Link
                 to="/auth/register"
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-4 text-base font-bold text-accent-foreground shadow-lg shadow-accent/20 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:brightness-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-4 text-base font-bold text-accent-foreground shadow-lg shadow-accent/20 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:brightness-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
               >
                 Start delivering better
                 <ArrowRight className="h-5 w-5" />
@@ -351,7 +351,7 @@ export const LandingPage = () => {
               <button
                 type="button"
                 onClick={handleOpenDemoCabinet}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-border/50 bg-surface-1/80 px-6 py-4 text-base font-bold text-text transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1/80 dark:text-accent-foreground dark:hover:bg-surface-dark-2"
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-border/50 bg-surface-1/80 px-6 py-4 text-base font-bold text-text transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:border-border/40 dark:bg-surface-dark-1/80 dark:text-accent-foreground dark:hover:bg-surface-dark-2"
               >
                 Open demo dashboard
                 <ChevronRight className="h-5 w-5" />

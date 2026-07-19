@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Edit3, ImageIcon, Share2, Trash2 } from 'lucide-react';
 import type { ReactNode, RefObject, SyntheticEvent } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useId } from 'react';
 
 import { CollectionCard, CollectionShareBadge } from './CollectionCard';
 import { getCollectionTitleTextSizeClass } from './collectionCardUtils';
@@ -59,6 +59,7 @@ export const EnhancedGalleryCard = ({
   extraActions,
   variants,
 }: EnhancedGalleryCardProps) => {
+  const descriptionId = useId();
   const galleryTitle = makeGalleryTitle(gallery);
   const coverUrl = gallery.cover_photo_thumbnail_url ?? null;
   const metadataParts = [
@@ -142,7 +143,7 @@ export const EnhancedGalleryCard = ({
                   event.stopPropagation();
                   onShare(gallery);
                 }}
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent"
                 title="Share Gallery"
                 aria-label={`Share ${galleryTitle}`}
               >
@@ -156,7 +157,7 @@ export const EnhancedGalleryCard = ({
                 event.stopPropagation();
                 onDelete(gallery);
               }}
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-danger hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-danger"
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-danger hover:text-white focus:outline-none focus-visible:ring-[3px] focus-visible:ring-danger"
               title="Delete Gallery"
               aria-label={`Delete ${galleryTitle}`}
             >
@@ -211,8 +212,12 @@ export const EnhancedGalleryCard = ({
           </div>
         ) : (
           <div className="relative flex flex-1 flex-col">
+            <span id={descriptionId} className="sr-only">
+              {metadataParts.join(', ')}
+            </span>
             <Link
               to={resolveGalleryPath(gallery)}
+              aria-describedby={descriptionId}
               className="flex flex-1 flex-col justify-between gap-4 pr-5 no-underline transition-colors"
             >
               <div className="group/title flex flex-1 items-center text-left">
