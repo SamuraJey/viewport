@@ -14,7 +14,10 @@ vi.mock('../../../services/shareLinkService', () => ({
   shareLinkService: { getOwnerShareLinks: vi.fn() },
 }));
 vi.mock('../../../stores/authStore', () => ({
-  useAuthStore: () => ({ logout: vi.fn() }),
+  useAuthStore: (selector?: (state: { logout: () => void }) => unknown) => {
+    const state = { logout: vi.fn() };
+    return selector ? selector(state) : state;
+  },
 }));
 
 import { projectService } from '../../../services/projectService';

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect, type RefObject } from 'react';
+import { useMemo, useRef, useState, useEffect, type ReactElement, type RefObject } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Command } from 'cmdk';
 import { cn } from '../../lib/utils';
@@ -21,7 +21,7 @@ export function CommandPalette({
   open,
   onOpenChange,
   onOpenShortcuts,
-}: CommandPaletteProps): React.ReactElement | null {
+}: CommandPaletteProps): ReactElement | null {
   const navigate = useNavigate();
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const logout = useAuthStore((s) => s.logout);
@@ -66,17 +66,17 @@ export function CommandPalette({
   const { projects, shareLinks, isLoading } = useCommandItems({ enabled: open });
 
   const historyIds = useMemo(
-    () => (search.trim() === '' ? readCommandHistory() : []),
-    [search],
+    () => (open && search.trim() === '' ? readCommandHistory() : []),
+    [open, search],
   );
 
-  const recentCommands = useMemo(
-    () =>
-      historyIds
-        .map((id) => staticCommands.find((c) => c.id === id))
-        .filter((c): c is CommandType => Boolean(c)),
-    [historyIds, staticCommands],
-  );
+  const recentCommands = useMemo(() => {
+    if (historyIds.length === 0) return [];
+    const all = [...staticCommands, ...projects, ...shareLinks];
+    return historyIds
+      .map((id) => all.find((c) => c.id === id))
+      .filter((c): c is CommandType => Boolean(c));
+  }, [historyIds, staticCommands, projects, shareLinks]);
 
   const handleSelect = (cmd: CommandType) => {
     pushCommandHistory(cmd.id);

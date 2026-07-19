@@ -1,6 +1,7 @@
 import { Command } from 'cmdk';
 import { cn } from '../../lib/utils';
 import type { Command as CommandType } from './CommandRegistry';
+import type { ReactElement } from 'react';
 
 interface CommandItemProps {
   command: CommandType;
@@ -10,7 +11,7 @@ interface CommandItemProps {
 export function CommandItem({
   command,
   onSelect,
-}: CommandItemProps): React.ReactElement {
+}: CommandItemProps): ReactElement {
   const Icon = command.icon;
 
   return (

@@ -1,7 +1,6 @@
 import { X } from 'lucide-react';
 import { AppDialog, AppDialogDescription, AppDialogTitle } from '../ui';
-
-const isMacPlatform = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+import { isMacPlatform } from '../../lib/platform';
 
 interface KeyboardShortcutsDialogProps {
   open: boolean;

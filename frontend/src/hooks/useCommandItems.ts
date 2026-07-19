@@ -36,39 +36,54 @@ export function useCommandItems(options: { enabled: boolean }): UseCommandItemsR
       setError(null);
 
       try {
-        const [projectsResult, shareLinksResult] = await Promise.all([
+        const [projectsSettled, shareLinksSettled] = await Promise.allSettled([
           projectService.getProjects(1, 5, { sort_by: 'created_at', order: 'desc' }),
           shareLinkService.getOwnerShareLinks(1, 5, undefined, 'active'),
         ]);
 
         if (cancelled) return;
 
-        setProjects(
-          projectsResult.projects.map((p) => ({
-            id: 'project:' + p.id,
-            label: p.name,
-            group: 'navigation',
-            icon: FolderOpen,
-            keywords: [p.name],
-            perform: () => navigate('/projects/' + p.id),
-          })),
-        );
+        let failed = false;
 
-        setShareLinks(
-          shareLinksResult.share_links.map((link) => ({
-            id: 'sharelink:' + link.id,
-            label: link.label || link.project_name || link.gallery_name || 'Share link',
-            group: 'navigation',
-            icon: Share2,
-            keywords: [link.label, link.project_name, link.gallery_name].filter(
-              (v): v is string => Boolean(v),
-            ),
-            perform: () => navigate('/share-links/' + link.id),
-          })),
-        );
+        if (projectsSettled.status === 'fulfilled') {
+          setProjects(
+            projectsSettled.value.projects.map((p) => ({
+              id: 'project:' + p.id,
+              label: p.name,
+              group: 'navigation',
+              icon: FolderOpen,
+              keywords: [p.name],
+              perform: () => navigate('/projects/' + p.id),
+            })),
+          );
+        } else {
+          failed = true;
+        }
+
+        if (shareLinksSettled.status === 'fulfilled') {
+          setShareLinks(
+            shareLinksSettled.value.share_links.map((link) => ({
+              id: 'sharelink:' + link.id,
+              label: link.label || link.project_name || link.gallery_name || 'Share link',
+              group: 'navigation',
+              icon: Share2,
+              keywords: [link.label, link.project_name, link.gallery_name].filter(
+                (v): v is string => Boolean(v),
+              ),
+              perform: () => navigate('/share-links/' + link.id),
+            })),
+          );
+        } else {
+          failed = true;
+        }
+
+        if (failed) {
+          setError('Failed to load commands');
+        }
       } catch {
-        if (cancelled) return;
-        setError('Failed to load commands');
+        if (!cancelled) {
+          setError('Failed to load commands');
+        }
       } finally {
         if (!cancelled) {
           setIsLoading(false);

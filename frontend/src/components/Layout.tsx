@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { getAvatarInitials, stringToHue } from '../lib/avatar';
 import { isDemoModeEnabled } from '../lib/demoMode';
+import { isMacPlatform } from '../lib/platform';
 import { NetworkStatus } from './ErrorDisplay';
 import { AppPopover } from './ui/AppPopover';
 import { ReadabilitySettingsButton } from './ReadabilitySettingsButton';
@@ -14,7 +15,6 @@ import { ProfileModal } from './ProfileModal';
 import { ThemeSwitch } from './ThemeSwitch';
 import { useAuthStore } from '../stores/authStore';
 
-const isMacPlatform = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 interface LayoutProps {
   children: ReactNode;
@@ -104,7 +104,10 @@ export const Layout = ({ children, onOpenCommandPalette }: LayoutProps) => {
               >
                 <Search className="h-3.5 w-3.5" aria-hidden="true" />
                 Quick search
-                <kbd className="ml-1 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono dark:bg-surface-dark-2">{isMacPlatform ? '⌘K' : 'Ctrl K'}</kbd>
+                <span className="ml-1 flex items-center gap-0.5">
+                  <kbd className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono dark:bg-surface-dark-2">{isMacPlatform ? '⌘' : 'Ctrl'}</kbd>
+                  <kbd className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono dark:bg-surface-dark-2">K</kbd>
+                </span>
               </button>
             ) : null}
 

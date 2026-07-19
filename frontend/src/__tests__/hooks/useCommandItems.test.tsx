@@ -90,4 +90,27 @@ describe('useCommandItems', () => {
     });
     expect(getOwnerShareLinks).toHaveBeenCalledWith(1, 5, undefined, 'active');
   });
+  it('preserves the successful source when the other rejects (Promise.allSettled)', async () => {
+    getProjects.mockRejectedValue(new Error('projects down'));
+    getOwnerShareLinks.mockResolvedValue({
+      share_links: [
+        { id: 's1', label: 'Client preview', project_name: 'Porto', scope_type: 'project' },
+      ],
+      total: 1,
+      page: 1,
+      size: 5,
+    } as ShareLinksDashboardResponse);
+
+    const { result } = renderHook(() => useCommandItems({ enabled: true }), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    // The failed source leaves projects empty; the successful source still populates.
+    expect(result.current.projects).toEqual([]);
+    expect(result.current.shareLinks).toHaveLength(1);
+    expect(result.current.shareLinks[0].id).toBe('sharelink:s1');
+    expect(result.current.error).toBe('Failed to load commands');
+  });
 });
