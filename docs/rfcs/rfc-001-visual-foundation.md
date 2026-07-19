@@ -222,8 +222,8 @@ interface AppBadgeProps {
 3. PR «Migrate badges» (1.5 применение): заменить все `bg-amber-500/90
    backdrop-blur-md` на `<AppBadge tone="warning">`. Делать component-by-component
    в отдельных коммитах внутри PR, чтобы ревью оставалось читаемым.
-4. PR «Theme depth + glass» (1.3, 1.4): применить surface-перебалансировку и
-   bg-noise. Тут возможны визуальные regressions → ручная проверка в обеих
+4. PR «Theme depth + glass» (1.3 application, 1.4): surface tokens shipped in PR 1; PR 4 applies them to specific components and adds bg-noise / bg-mesh-accent.
+  Тут возможны визуальные regressions → ручная проверка в обеих
    темах на dashboard, gallery, share link detail, public gallery, auth.
 5. PR «Remove jargon» (1.6): косметика, минимальный риск.
 
