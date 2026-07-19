@@ -23,7 +23,7 @@ export const AuthLayout = ({ children }: AuthLayoutProps) => {
 
       <Link
         to="/"
-        className="fixed left-4 top-4 z-50 inline-flex items-center gap-2 rounded-2xl border border-border/40 bg-surface/85 px-3 py-2 font-oswald text-sm font-bold uppercase tracking-wider text-text shadow-sm backdrop-blur-lg transition-all duration-200 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent dark:bg-surface-dark/85"
+        className="fixed left-4 top-4 z-50 inline-flex items-center gap-2 rounded-2xl border border-border/40 bg-surface/85 px-3 py-2 font-sans text-sm font-bold uppercase tracking-wider text-text shadow-sm backdrop-blur-lg transition-all duration-200 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent dark:bg-surface-dark/85"
         aria-label="Viewport home"
       >
         <Camera className="h-5 w-5" />

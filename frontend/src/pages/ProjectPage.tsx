@@ -703,7 +703,7 @@ export const ProjectPage = () => {
               <h1
                 ref={projectTitleRef}
                 style={{ fontSize: `${projectTitleFontSizePx}px` }}
-                className="max-w-full whitespace-normal wrap-break-word font-oswald font-bold uppercase leading-none tracking-wide text-text dark:text-accent-foreground"
+                className="max-w-full whitespace-normal wrap-break-word font-sans font-bold uppercase leading-none tracking-wide text-text dark:text-accent-foreground"
               >
                 {project.name}
               </h1>
@@ -835,7 +835,7 @@ export const ProjectPage = () => {
                 <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
                   Project settings
                 </p>
-                <AppDialogTitle className="mt-1 font-oswald text-2xl font-bold uppercase tracking-wide text-text">
+                <AppDialogTitle className="mt-1 font-sans text-2xl font-bold uppercase tracking-wide text-text">
                   Rename project
                 </AppDialogTitle>
                 <AppDialogDescription className="mt-1 text-sm leading-6 text-muted">
@@ -919,7 +919,7 @@ export const ProjectPage = () => {
                 <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
                   Add gallery
                 </p>
-                <AppDialogTitle className="mt-1 font-oswald text-2xl font-bold uppercase tracking-wide text-text">
+                <AppDialogTitle className="mt-1 font-sans text-2xl font-bold uppercase tracking-wide text-text">
                   Build the next chapter
                 </AppDialogTitle>
                 <AppDialogDescription className="mt-1 text-sm leading-6 text-muted">

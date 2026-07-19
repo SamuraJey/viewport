@@ -5,8 +5,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        oswald: ['Oswald', 'sans-serif'],
-        cuprum: ['Cuprum', 'PT Sans', 'sans-serif'],
+        sans: ['"Inter Variable"', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
+        display: ['"Fraunces Variable"', 'Georgia', 'serif'],
       },
       spacing: {
         18: '4.5rem',

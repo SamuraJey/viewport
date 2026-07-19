@@ -1,5 +1,6 @@
-/* Import Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Cuprum:wght@400;500;700&family=PT+Sans:wght@400;700&display=swap');
+/* Fonts (Inter Variable for UI, Fraunces Variable for display headings) */
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/fraunces';
 @config '../tailwind.config.js';
 @import 'tailwindcss';
 
@@ -20,6 +21,10 @@
   --color-photo-overlay: rgb(var(--color-photo-overlay-rgb) / 0.5);
   --color-danger: rgb(var(--color-danger-rgb));
   --color-success: rgb(var(--color-success-rgb));
+  --color-info: rgb(var(--color-info-rgb));
+  --color-info-foreground: rgb(var(--color-info-foreground-rgb));
+  --color-warning: rgb(var(--color-warning-rgb));
+  --color-warning-foreground: rgb(var(--color-warning-foreground-rgb));
 
   /* Gallery card tokens */
   --color-card-bg: rgb(var(--color-surface-1-rgb));
@@ -186,7 +191,7 @@ a[role='button'],
 
 html,
 body {
-  font-family: 'Cuprum', 'PT Sans', sans-serif;
+  font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
@@ -297,17 +302,21 @@ html.dark {
   --color-text-rgb: var(--color-neutral-900-rgb);
   --color-muted-rgb: var(--color-neutral-500-rgb);
   --color-muted-dark-rgb: 82 82 91;
-  --color-surface-rgb: var(--color-neutral-50-rgb);
-  --color-surface-1-rgb: var(--color-neutral-100-rgb);
-  --color-surface-2-rgb: var(--color-neutral-200-rgb);
+  --color-surface-rgb: 255 255 255;
+  --color-surface-1-rgb: 248 250 252;
+  --color-surface-2-rgb: 241 245 249;
   --color-surface-dark-rgb: var(--color-neutral-800-rgb);
   --color-surface-dark-1-rgb: var(--color-neutral-100-rgb);
   --color-surface-dark-2-rgb: var(--color-neutral-200-rgb);
-  --color-surface-foreground-rgb: var(--color-neutral-100-rgb);
+  --color-surface-foreground-rgb: 255 255 255;
   --color-accent-rgb: var(--color-primary-500-rgb);
   --color-accent-foreground-rgb: var(--color-white-rgb);
   --color-danger-rgb: 239 68 68;
   --color-success-rgb: 16 185 129;
+  --color-info-rgb: 56 189 248;          /* sky-400 */
+  --color-warning-rgb: 245 158 11;       /* amber-500 */
+  --color-info-foreground-rgb: 255 255 255;
+  --color-warning-foreground-rgb: 255 255 255;
   --color-photo-overlay-rgb: var(--color-black-rgb);
 
   --readability-font-scale-factor: 1;
@@ -405,6 +414,8 @@ html.dark {
   --color-accent-foreground-rgb: var(--color-white-rgb);
   --color-danger-rgb: 248 113 113;
   --color-success-rgb: 34 197 94;
+  --color-info-rgb: 56 189 248;
+  --color-warning-rgb: 251 191 36;       /* amber-400 — softer on dark surfaces */
   --color-photo-overlay-rgb: var(--color-black-rgb);
 }
 
@@ -810,11 +821,11 @@ body.dark .popup-arrow,
 }
 
 h1 {
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 h2 {
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 /* Fallbacks for accent (primary) utilities

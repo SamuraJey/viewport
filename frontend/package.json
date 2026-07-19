@@ -17,6 +17,8 @@
     "qa": "npm run lint && npm run test:run && npm run build"
   },
   "dependencies": {
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/inter": "^5.3.0",
     "@headlessui/react": "^2.1.10",
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/postcss": "^4.2.2",

@@ -63,7 +63,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = React.memo(
                 className={`w-5 h-5 ${isDangerous ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}
               />
             </div>
-            <AppDialogTitle className="font-oswald text-lg font-bold uppercase tracking-wide text-text dark:text-white">
+            <AppDialogTitle className="font-sans text-lg font-bold uppercase tracking-wide text-text dark:text-white">
               {title}
             </AppDialogTitle>
           </div>
