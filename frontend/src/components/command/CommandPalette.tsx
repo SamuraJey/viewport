@@ -27,6 +27,7 @@ export function CommandPalette({
   const logout = useAuthStore((s) => s.logout);
   const inputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState('');
+  const [historyIds, setHistoryIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open) {
@@ -65,10 +66,9 @@ export function CommandPalette({
 
   const { projects, shareLinks, isLoading } = useCommandItems({ enabled: open });
 
-  const historyIds = useMemo(
-    () => (open && search.trim() === '' ? readCommandHistory() : []),
-    [open, search],
-  );
+  useEffect(() => {
+    setHistoryIds(open && search.trim() === '' ? readCommandHistory() : []);
+  }, [open, search]);
 
   const recentCommands = useMemo(() => {
     if (historyIds.length === 0) return [];
@@ -94,10 +94,11 @@ export function CommandPalette({
     '[&_[cmdk-group-heading]]:text-muted',
   );
 
-  const navCommands = staticCommands.filter((c) => c.group === 'navigation');
-  const actionCommands = staticCommands.filter((c) => c.group === 'actions');
-  const themeCommands = staticCommands.filter((c) => c.group === 'theme');
-  const settingsCommands = staticCommands.filter((c) => c.group === 'settings');
+  const isAvailable = (c: CommandType) => c.when?.() !== false;
+  const navCommands = staticCommands.filter((c) => c.group === 'navigation' && isAvailable(c));
+  const actionCommands = staticCommands.filter((c) => c.group === 'actions' && isAvailable(c));
+  const themeCommands = staticCommands.filter((c) => c.group === 'theme' && isAvailable(c));
+  const settingsCommands = staticCommands.filter((c) => c.group === 'settings' && isAvailable(c));
 
   return (
     <AppDialog
@@ -123,7 +124,7 @@ export function CommandPalette({
           className="w-full border-b border-border/40 bg-transparent px-4 py-3 text-sm text-text outline-none placeholder:text-muted dark:border-border/30"
         />
 
-        <Command.List className="max-h-[60vh] overflow-y-auto p-2">
+        <Command.List label="Search results" className="max-h-[60vh] overflow-y-auto p-2">
           <Command.Empty className="px-3 py-6 text-center text-sm text-muted">
             No results found.
           </Command.Empty>
@@ -208,7 +209,7 @@ export function CommandPalette({
           </Command.Group>
 
           {isLoading && (
-            <div className="px-3 py-2 text-xs text-muted">Loading\u2026</div>
+            <Command.Loading label="Loading command results">Loading…</Command.Loading>
           )}
         </Command.List>
       </Command>

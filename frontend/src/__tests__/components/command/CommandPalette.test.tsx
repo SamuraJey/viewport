@@ -19,6 +19,12 @@ vi.mock('../../../stores/authStore', () => ({
     return selector ? selector(state) : state;
   },
 }));
+vi.mock('../../../stores/themeStore', () => ({
+  useThemeStore: (selector?: (state: { toggleTheme: () => void }) => unknown) => {
+    const state = { toggleTheme: vi.fn() };
+    return selector ? selector(state) : state;
+  },
+}));
 
 import { projectService } from '../../../services/projectService';
 import { shareLinkService } from '../../../services/shareLinkService';

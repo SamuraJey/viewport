@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useCallback } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { RequireAuth } from './components/RequireAuth';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -62,6 +62,10 @@ const RouteFallback = () => (
 const ProtectedLayout = () => {
   const { isAuthenticated } = useAuthStore();
   const { isOpen, setIsOpen, paletteOpen, setPaletteOpen } = useKeyboardShortcuts({ enabled: isAuthenticated });
+  const handleOpenShortcuts = useCallback(() => {
+    setPaletteOpen(false);
+    setIsOpen(true);
+  }, [setPaletteOpen, setIsOpen]);
 
   return (
     <RequireAuth>
@@ -74,10 +78,7 @@ const ProtectedLayout = () => {
           <CommandPalette
             open={paletteOpen}
             onOpenChange={setPaletteOpen}
-            onOpenShortcuts={() => {
-              setPaletteOpen(false);
-              setIsOpen(true);
-            }}
+            onOpenShortcuts={handleOpenShortcuts}
           />
         </>
       )}
