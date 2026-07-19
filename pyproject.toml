@@ -1,7 +1,7 @@
 [project]
 name = "viewport"
 version = "0.1.0"
-description = "Portal for sharing photos with friends"
+description = "Portal for sharing photos with friends."
 readme = "README.md"
 requires-python = ">=3.14, <3.15"
 dependencies = [
