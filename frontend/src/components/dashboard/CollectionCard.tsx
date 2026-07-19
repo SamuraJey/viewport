@@ -19,7 +19,7 @@ const DEFAULT_SHELL_CLASSNAME =
   'group relative flex h-full w-full flex-col overflow-hidden rounded-3xl border border-card-border bg-surface text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:scale-[1.005] hover:shadow-xl dark:bg-surface-dark';
 
 export const CollectionShareBadge = ({ label = 'Public' }: { label?: string }) => (
-  <AppBadge tone="success" variant="subtle" size="xs" icon={<Link2 className="h-3.5 w-3.5" />}>
+  <AppBadge tone="success" variant="subtle" size="xs" icon={<Link2 className="h-3.5 w-3.5" />} className="backdrop-blur-sm">
     {label}
   </AppBadge>
 );

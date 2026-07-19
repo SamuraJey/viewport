@@ -155,7 +155,11 @@ export const ProjectGalleriesPanel = ({
                             tone={isListed ? 'accent' : 'warning'}
                             variant="filled"
                             icon={isListed ? <Check className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                            className="rounded-md backdrop-blur-sm"
+                            className={
+                              isListed
+                                ? 'rounded-md backdrop-blur-sm shadow-none'
+                                : 'rounded-md backdrop-blur-sm text-slate-950 shadow-none dark:text-slate-50'
+                            }
                           >
                             {isListed ? 'Visible in project' : 'Direct link only'}
                           </AppBadge>
