@@ -13,15 +13,27 @@ export const LightboxKeyboardHint = ({ isOpen }: LightboxKeyboardHintProps) => {
 
   useEffect(() => {
     if (!isOpen) {
+      setVisible(false);
       return;
     }
 
-    if (localStorage.getItem(STORAGE_KEY) === '1') {
+    let alreadyShown = false;
+    try {
+      alreadyShown = localStorage.getItem(STORAGE_KEY) === '1';
+    } catch {
+      // localStorage can be disabled in private mode; treat as already shown.
+    }
+
+    if (alreadyShown) {
       return;
     }
 
     setVisible(true);
-    localStorage.setItem(STORAGE_KEY, '1');
+    try {
+      localStorage.setItem(STORAGE_KEY, '1');
+    } catch {
+      // Ignore localStorage write failures.
+    }
 
     const timer = window.setTimeout(() => {
       setVisible(false);

@@ -62,14 +62,14 @@ export const useKeyboardShortcuts = (options: UseKeyboardShortcutsOptions = {}) 
         return;
       }
 
-      if (event.key === '?') {
-        event.preventDefault();
-        setIsOpen(true);
+      const isModalOpen = document.querySelector(MODAL_SELECTOR) !== null;
+      if (isModalOpen) {
         return;
       }
 
-      const isModalOpen = document.querySelector(MODAL_SELECTOR) !== null;
-      if (isModalOpen) {
+      if (event.key === '?') {
+        event.preventDefault();
+        setIsOpen(true);
         return;
       }
 

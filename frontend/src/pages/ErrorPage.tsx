@@ -41,7 +41,7 @@ const ErrorActions = ({ showBackButton, onRetry }: ErrorActionsProps) => (
     {showBackButton && (
       <Link
         to="/"
-        className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 font-semibold text-accent-foreground no-underline transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px]"
+        className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 font-semibold text-accent-foreground no-underline transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
       >
         <Home className="w-5 h-5" />
         Go Home

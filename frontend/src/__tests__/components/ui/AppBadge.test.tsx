@@ -124,6 +124,7 @@ describe('AppBadge', () => {
       </AppBadge>,
     );
     expect(screen.getByLabelText('Upload failed')).toHaveTextContent('Failed');
+    expect(screen.getByRole('img', { name: 'Upload failed' })).toBeInTheDocument();
   });
 
   /* 9. span element */
