@@ -12,17 +12,17 @@ jobs:
   detect-changes:
     name: Detect Changed Areas
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 2
     permissions:
       contents: read
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.0
       - name: Filter paths
         id: filter
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4.0.2
         with:
           filters: |
             backend:
@@ -48,11 +48,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.0
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4.2.0
       - name: Build backend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7.3.0
         with:
           context: .
           file: ./Dockerfile.backend
@@ -71,10 +71,10 @@ jobs:
       pull-requests: write
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v8.3.2
         with:
           version: ""
           enable-cache: true
@@ -98,7 +98,7 @@ jobs:
 
       - name: Comment coverage on PR (non-blocking)
         continue-on-error: true
-        uses: py-cov-action/python-coverage-comment-action@v3
+        uses: py-cov-action/python-coverage-comment-action@v4.1
         with:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -111,9 +111,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.0
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.0.0
         with:
           node-version: "22"
           cache: "npm"
@@ -143,9 +143,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7.0.0
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.0.0
         with:
           node-version: "22"
           cache: "npm"
