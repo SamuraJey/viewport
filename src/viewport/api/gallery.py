@@ -6,13 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from viewport.auth_utils import get_current_user, get_current_user_for_download
 from viewport.background_tasks import delete_gallery_data_task
+from viewport.dependencies import get_gallery_repository, get_project_repository
 from viewport.dependencies import get_s3_client as get_async_s3_client
-from viewport.models.db import get_db
 from viewport.models.gallery import MediaType, PhotoUploadStatus
 from viewport.models.gallery import ProjectVisibility as GalleryProjectVisibility
 from viewport.models.project import Project
@@ -38,14 +37,6 @@ from viewport.zip_utils import build_zip_fallback_name, make_unique_zip_entry_na
 
 router = APIRouter(prefix="/galleries", tags=["galleries"])
 logger = logging.getLogger(__name__)
-
-
-def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
-    return GalleryRepository(db)
-
-
-def get_project_repository(db: AsyncSession = Depends(get_db)) -> ProjectRepository:
-    return ProjectRepository(db)
 
 
 async def _get_project_name(gallery, project_repo: ProjectRepository) -> str | None:

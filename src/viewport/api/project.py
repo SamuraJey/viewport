@@ -2,12 +2,11 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from viewport.auth_utils import get_current_user
 from viewport.background_tasks import delete_gallery_data_task
+from viewport.dependencies import get_gallery_repository, get_project_repository
 from viewport.dependencies import get_s3_client as get_async_s3_client
-from viewport.models.db import get_db
 from viewport.models.gallery import PhotoUploadStatus
 from viewport.models.gallery import ProjectVisibility as GalleryProjectVisibility
 from viewport.models.project import Project
@@ -29,14 +28,6 @@ from viewport.schemas.project import (
 )
 
 router = APIRouter(prefix="/projects", tags=["projects"])
-
-
-def get_project_repository(db: AsyncSession = Depends(get_db)) -> ProjectRepository:
-    return ProjectRepository(db)
-
-
-def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
-    return GalleryRepository(db)
 
 
 def _serialize_project_response(

@@ -1,5 +1,11 @@
 # Connection Leak Fix: run_in_threadpool Removal
 
+> Historical incident note. Current request-session and connection-pool
+> lifecycle rules are documented in
+> [database-connection-lifecycle.md](./database-connection-lifecycle.md).
+> A long-lived `AsyncSession` is not by itself evidence of a checked-out
+> connection; use the pool checkout metrics described there.
+
 ## Problem Summary
 
 Backend was hanging after 10-20 minutes of load testing with connection pool exhaustion:

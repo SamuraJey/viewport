@@ -6,11 +6,10 @@ import bcrypt
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from viewport.auth_utils import authsettings, password_token_fingerprint, password_token_fingerprint_matches
-from viewport.models.db import get_db
+from viewport.dependencies import get_user_repository
 from viewport.repositories.user_repository import UserRepository
 from viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair, validate_user_password
 
@@ -37,10 +36,6 @@ def _resolve_bcrypt_rounds() -> int:
 _BCRYPT_ROUNDS = _resolve_bcrypt_rounds()
 # A dummy hash to use when the user is not found, to prevent timing attacks.
 DUMMY_HASH = bcrypt.hashpw(b"viewport-dummy-password", bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)).decode("utf-8")
-
-
-def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
-    return UserRepository(db)
 
 
 def hash_password(password: str) -> str:

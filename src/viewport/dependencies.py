@@ -2,6 +2,7 @@
 Dependency Injection
 
 This module provides FastAPI dependency injection for shared services:
+- Repository providers backed by the request-scoped database session
 - AsyncS3Client: S3 storage operations
 - RedisService: Redis caching infrastructure
 - PresignedUrlCacheService: Presigned URL caching business logic
@@ -12,6 +13,15 @@ All services are initialized during application startup via the lifespan context
 import logging
 from collections.abc import AsyncGenerator
 
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from viewport.models.db import get_db
+from viewport.repositories.gallery_repository import GalleryRepository
+from viewport.repositories.project_repository import ProjectRepository
+from viewport.repositories.selection_repository import SelectionRepository
+from viewport.repositories.sharelink_repository import ShareLinkRepository
+from viewport.repositories.user_repository import UserRepository
 from viewport.s3_service import AsyncS3Client
 from viewport.services.presigned_cache import PresignedUrlCacheService, get_presigned_cache_service
 from viewport.services.redis_service import RedisService, get_redis_service
@@ -20,6 +30,26 @@ logger = logging.getLogger(__name__)
 
 # Global instance of the S3 client (initialized during app startup)
 _s3_client_instance: AsyncS3Client | None = None
+
+
+def get_gallery_repository(db: AsyncSession = Depends(get_db, scope="function")) -> GalleryRepository:
+    return GalleryRepository(db)
+
+
+def get_project_repository(db: AsyncSession = Depends(get_db, scope="function")) -> ProjectRepository:
+    return ProjectRepository(db)
+
+
+def get_selection_repository(db: AsyncSession = Depends(get_db, scope="function")) -> SelectionRepository:
+    return SelectionRepository(db)
+
+
+def get_sharelink_repository(db: AsyncSession = Depends(get_db, scope="function")) -> ShareLinkRepository:
+    return ShareLinkRepository(db)
+
+
+def get_user_repository(db: AsyncSession = Depends(get_db, scope="function")) -> UserRepository:
+    return UserRepository(db)
 
 
 async def get_s3_client() -> AsyncGenerator[AsyncS3Client]:

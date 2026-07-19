@@ -3,7 +3,7 @@
 ## Big picture
 - Monorepo: FastAPI backend in `src/viewport/` + React/Vite frontend in `frontend/`.
 - Backend layers: routers in `src/viewport/api/` → repository layer in `src/viewport/repositories/` (SQLAlchemy `Session`) → Postgres models in `src/viewport/models/`.
-- Backend database access uses SQLAlchemy `AsyncSession` in app code, repositories, and auth dependencies, while Celery background tasks currently use a sync SQLAlchemy `Session` via `task_db_session()`.
+- Backend database access uses SQLAlchemy `AsyncSession` in app code, repositories, and auth dependencies, while Celery background tasks currently use a sync SQLAlchemy `Session` via `task_db_session()`. HTTP consumers of `get_db()` must use `Depends(get_db, scope="function")` so sessions close before response transmission, especially for `StreamingResponse`; streaming generators must not retain or query through a DB session. Actual connection ownership is measured through SQLAlchemy checkout/checkin metrics in `src/viewport/db_metrics.py`; see `docs/database-connection-lifecycle.md`.
 - Storage/URLs: originals + thumbnails/posters/playback live in S3-compatible storage (rustfs). Backend generates presigned URLs and caches them via `PresignedUrlCacheService` (`src/viewport/services/presigned_cache.py`) backed by `RedisService` (`src/viewport/services/redis_service.py`) for cross-worker coherence.
 - Media pipeline: the `photos` table stores both images and videos. `Photo.media_type` is `'image'` or `'video'`; `Photo.thumbnail_object_key` is the image thumbnail or video poster; `Photo.playback_object_key` is the transcoded MP4 for videos. Original files count toward storage quota; derivatives do not. See `docs/video-support.md` for formats, limits, upload flow, and processing details.
 - uv is used as package manager.
@@ -21,7 +21,8 @@
   - Initializes singleton services (`AsyncS3Client`, `RedisService`, `PresignedUrlCacheService`) in `lifespan()` and exposes them via DI (`src/viewport/dependencies.py`).
 - Auth: endpoints in `src/viewport/api/auth.py`; request auth uses `get_current_user()` from `src/viewport/auth_utils.py` (HTTP Bearer, consistent 401s). Access/refresh tokens carry an HMAC fingerprint of the current `users.password_hash`; password changes make existing access and refresh tokens fail without a migration or server-side refresh-token storage.
 - Repositories:
-  - Constructed per-request from `db: AsyncSession = Depends(get_db)` (`src/viewport/models/db.py`).
+  - Constructed per-request from `db: AsyncSession = Depends(get_db, scope="function")` (`src/viewport/models/db.py`). Keep this scope consistent across repository and auth dependencies so the shared session is finalized before the response body is sent.
+  - Shared repository dependency providers live in `src/viewport/dependencies.py`; routers should import them instead of defining local duplicates.
   - Keep business logic close to repository methods when it’s DB/S3 orchestration (e.g. async delete/rename in `GalleryRepository`).
   - `Project` is the only top-level delivery object and `Gallery` remains the leaf upload unit inside a project. Legacy standalone galleries are backfilled into one-gallery projects, and compatibility endpoints should preserve that invariant.
   - Private gallery photo listing (`GET /galleries/{gallery_id}`) supports query params `search`, `sort_by`, and `order`; repository methods must apply filters inside `gallery_id` with `galleries.is_deleted = false`, and `total_photos` must reflect filtered results.

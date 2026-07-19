@@ -6,12 +6,11 @@ import zipstream
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse, StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from viewport.dependencies import get_gallery_repository, get_project_repository, get_sharelink_repository
 from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.filename_utils import build_content_disposition
 from viewport.logger import logger
-from viewport.models.db import get_db
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus
 from viewport.models.sharelink import ShareLink, ShareScopeType
 from viewport.repositories.gallery_repository import GalleryRepository
@@ -51,18 +50,6 @@ def _resolve_public_sorting(gallery: Gallery) -> tuple[GalleryPhotoSortBy, SortO
         sort_order = SortOrder(getattr(gallery, "public_sort_order", sort_order.value))
 
     return sort_by, sort_order
-
-
-def get_sharelink_repository(db: AsyncSession = Depends(get_db)) -> ShareLinkRepository:
-    return ShareLinkRepository(db)
-
-
-def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
-    return GalleryRepository(db)
-
-
-def get_project_repository(db: AsyncSession = Depends(get_db)) -> ProjectRepository:
-    return ProjectRepository(db)
 
 
 async def get_valid_sharelink(
