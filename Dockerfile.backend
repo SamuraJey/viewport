@@ -12,6 +12,7 @@ COPY --from=uv /uv /uvx /bin/
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get update && \
     apt-get install -y --no-install-recommends build-essential libvips-dev pkg-config
 
@@ -38,6 +39,7 @@ RUN groupadd --system --gid "${APP_GID}" appgroup && \
     useradd --system --uid "${APP_UID}" --gid appgroup --home-dir /app --shell /bin/false appuser
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get update && \
     apt-get install -y --no-install-recommends ffmpeg libheif-plugin-aomenc libvips42t64 libx264-164
 
