@@ -695,7 +695,7 @@ export const PublicGalleryPage = () => {
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
                 Project share
               </p>
-              <h1 className="mt-3 font-sans text-4xl font-bold uppercase tracking-wide text-text">
+              <h1 className="mt-3 font-display text-4xl font-bold uppercase tracking-wide text-text">
                 {projectShare.project_name || 'Public Project'}
               </h1>
               <p className="mt-3 text-sm text-muted">
