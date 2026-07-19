@@ -235,7 +235,7 @@ const PhotoCommentPanel = ({
         className="min-h-32 w-full resize-none rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm text-text outline-none transition-colors placeholder:text-muted/70 focus:border-accent/60 focus:ring-2 focus:ring-accent/15 disabled:cursor-not-allowed disabled:opacity-70"
       />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <span id={statusId} className="contents">
+        <span id={statusId} aria-live="polite" className="contents">
           <AppBadge tone={statusTone} variant="subtle" size="sm" icon={statusIcon}>
             {statusText}
           </AppBadge>
