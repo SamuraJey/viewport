@@ -1,6 +1,7 @@
 import { motion, type Variants } from 'framer-motion';
 import { Link2 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { AppBadge } from '../ui';
 
 interface CollectionCardProps {
   body: ReactNode;
@@ -18,10 +19,9 @@ const DEFAULT_SHELL_CLASSNAME =
   'group relative flex h-full w-full flex-col overflow-hidden rounded-3xl border border-card-border bg-surface text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:scale-[1.005] hover:shadow-xl dark:bg-surface-dark';
 
 export const CollectionShareBadge = ({ label = 'Public' }: { label?: string }) => (
-  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-bold tracking-[0.14em] text-emerald-700 backdrop-blur-sm dark:text-emerald-300">
-    <Link2 className="h-3.5 w-3.5" />
+  <AppBadge tone="success" variant="subtle" size="xs" icon={<Link2 className="h-3.5 w-3.5" />}>
     {label}
-  </span>
+  </AppBadge>
 );
 
 export const CollectionCard = ({
