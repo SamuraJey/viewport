@@ -1,5 +1,5 @@
 import json
-import logging
+from unittest.mock import patch
 
 from viewport.logger import logger
 
@@ -17,11 +17,10 @@ def test_structured_logger_format():
     assert "foo" in out
 
 
-def test_structured_logger_timestamp_uses_single_utc_designator(caplog):
-    caplog.set_level(logging.INFO, logger="viewport")
+def test_structured_logger_timestamp_uses_single_utc_designator():
+    with patch.object(logger._logger, "info") as log_info:
+        logger.log_event("timestamp_check")
 
-    logger.log_event("timestamp_check")
-
-    payload = json.loads(caplog.records[-1].message)
+    payload = json.loads(log_info.call_args.args[0])
     assert payload["timestamp"].endswith("Z")
     assert "+00:00Z" not in payload["timestamp"]

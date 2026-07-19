@@ -7,9 +7,27 @@ from fastapi.responses import StreamingResponse
 from fastapi.routing import APIRoute, Dependant
 from sqlalchemy import create_engine, text
 
+from viewport.api.auth import router as auth_router
+from viewport.api.gallery import router as gallery_router
+from viewport.api.photo import router as photo_router
+from viewport.api.project import router as project_router
+from viewport.api.public import router as public_router
+from viewport.api.selection import router as selection_router
+from viewport.api.sharelink import router as sharelink_router
+from viewport.api.user import router as user_router
 from viewport.db_metrics import DB_CONNECTION_CHECKOUT_DURATION_SECONDS, DB_CONNECTIONS_CHECKED_OUT, instrument_connection_pool
-from viewport.main import app
 from viewport.models.db import get_db
+
+ROUTERS = (
+    auth_router,
+    gallery_router,
+    photo_router,
+    project_router,
+    sharelink_router,
+    public_router,
+    selection_router,
+    user_router,
+)
 
 
 def _walk_dependencies(dependant: Dependant):
@@ -29,14 +47,15 @@ def _sample_value(metric, sample_name: str, labels: dict[str, str]) -> float:
 def test_all_request_db_dependencies_are_function_scoped():
     violations: list[str] = []
 
-    for route in app.routes:
-        if not isinstance(route, APIRoute):
-            continue
-        violations.extend(
-            f"{','.join(sorted(route.methods or []))} {route.path}: scope={dependency.scope!r}"
-            for dependency in _walk_dependencies(route.dependant)
-            if dependency.call is get_db and dependency.scope != "function"
-        )
+    for router in ROUTERS:
+        for route in router.routes:
+            if not isinstance(route, APIRoute):
+                continue
+            violations.extend(
+                f"{','.join(sorted(route.methods or []))} {route.path}: scope={dependency.scope!r}"
+                for dependency in _walk_dependencies(route.dependant)
+                if dependency.call is get_db and dependency.scope != "function"
+            )
 
     assert violations == []
 
