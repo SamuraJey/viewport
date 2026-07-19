@@ -60,19 +60,19 @@ class PreparedShareLinkUpdate:
     password_clear: bool | None
 
 
-def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
+def get_gallery_repository(db: AsyncSession = Depends(get_db, scope="function")) -> GalleryRepository:
     return GalleryRepository(db)
 
 
-def get_project_repository(db: AsyncSession = Depends(get_db)) -> ProjectRepository:
+def get_project_repository(db: AsyncSession = Depends(get_db, scope="function")) -> ProjectRepository:
     return ProjectRepository(db)
 
 
-def get_sharelink_repository(db: AsyncSession = Depends(get_db)) -> ShareLinkRepository:
+def get_sharelink_repository(db: AsyncSession = Depends(get_db, scope="function")) -> ShareLinkRepository:
     return ShareLinkRepository(db)
 
 
-def get_selection_repository(db: AsyncSession = Depends(get_db)) -> SelectionRepository:
+def get_selection_repository(db: AsyncSession = Depends(get_db, scope="function")) -> SelectionRepository:
     return SelectionRepository(db)
 
 

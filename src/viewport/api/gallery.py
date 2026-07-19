@@ -40,11 +40,11 @@ router = APIRouter(prefix="/galleries", tags=["galleries"])
 logger = logging.getLogger(__name__)
 
 
-def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
+def get_gallery_repository(db: AsyncSession = Depends(get_db, scope="function")) -> GalleryRepository:
     return GalleryRepository(db)
 
 
-def get_project_repository(db: AsyncSession = Depends(get_db)) -> ProjectRepository:
+def get_project_repository(db: AsyncSession = Depends(get_db, scope="function")) -> ProjectRepository:
     return ProjectRepository(db)
 
 

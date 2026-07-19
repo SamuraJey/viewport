@@ -9,15 +9,18 @@ def test_sync_engine_uses_worker_sized_connection_pool(monkeypatch):
         engine = Mock()
         create_engine = Mock(return_value=engine)
         session_factory = Mock()
+        instrument_connection_pool = Mock()
 
         monkeypatch.setattr(db, "get_database_url", lambda: "postgresql+psycopg://viewport:test@db/viewport")
         monkeypatch.setattr(db, "create_engine", create_engine)
         monkeypatch.setattr(db, "sessionmaker", Mock(return_value=session_factory))
+        monkeypatch.setattr(db, "instrument_connection_pool", instrument_connection_pool)
 
         created_engine, created_session_factory = db._get_sync_engine_and_sessionmaker()
 
         assert created_engine is engine
         assert created_session_factory is session_factory
+        instrument_connection_pool.assert_called_once_with(engine, pool_name="sync-worker")
         create_engine.assert_called_once_with(
             "postgresql+psycopg://viewport:test@db/viewport",
             future=True,

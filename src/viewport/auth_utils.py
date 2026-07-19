@@ -78,7 +78,7 @@ async def _get_user_from_token(token: str | None, db: AsyncSession) -> User:
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> User:
     """Get current authenticated user from JWT token."""
     token = credentials.credentials if credentials else None
@@ -88,7 +88,7 @@ async def get_current_user(
 async def get_current_user_for_download(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ) -> User:
     """Resolve auth for browser-managed downloads.
 

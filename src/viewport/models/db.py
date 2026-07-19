@@ -1,4 +1,5 @@
 import logging
+import time
 from collections.abc import AsyncGenerator
 from functools import lru_cache
 
@@ -9,6 +10,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+
+from viewport.db_metrics import instrument_connection_pool
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +68,7 @@ def _get_engine_and_sessionmaker() -> tuple[AsyncEngine, async_sessionmaker[Asyn
     }
 
     eng = create_async_engine(database_url, connect_args=connect_args, **pool_config)
+    instrument_connection_pool(eng, pool_name="async-backend")
     sess = async_sessionmaker(bind=eng, expire_on_commit=False)
 
     return eng, sess
@@ -87,6 +91,7 @@ def _get_sync_engine_and_sessionmaker() -> tuple[Engine, sessionmaker[Session]]:
     }
 
     eng = create_engine(database_url, future=True, connect_args=connect_args, **pool_config)
+    instrument_connection_pool(eng, pool_name="sync-worker")
     sess = sessionmaker(bind=eng, future=True)
 
     return eng, sess
@@ -114,10 +119,8 @@ async def get_db() -> AsyncGenerator[AsyncSession]:  # pragma: no cover
     The context manager automatically closes the session,
     so explicit close() is not needed and can cause issues.
     """
-    import time
-
     session_maker = get_session_maker()
-    session_start = time.time()
+    session_start = time.monotonic()
 
     async with session_maker() as session:
         try:
@@ -125,19 +128,25 @@ async def get_db() -> AsyncGenerator[AsyncSession]:  # pragma: no cover
         except HTTPException as http_exc:
             status_code = getattr(http_exc, "status_code", None)
             log_method = logger.info if isinstance(status_code, int) and status_code < 500 else logger.warning
-            log_method("Session HTTP exception after %.3fs: %s", time.time() - session_start, http_exc)
+            log_method("Session HTTP exception after %.3fs: %s", time.monotonic() - session_start, http_exc)
             await session.rollback()
             raise
         except RequestValidationError as validation_exc:
             # Invalid request payloads (422) are expected user errors, not server crashes.
-            logger.info("Session validation exception after %.3fs: %s", time.time() - session_start, validation_exc)
+            logger.info("Session validation exception after %.3fs: %s", time.monotonic() - session_start, validation_exc)
             await session.rollback()
             raise
         except Exception as e:
-            logger.warning("Session error after %.3fs: %s", time.time() - session_start, e, exc_info=True)
+            logger.warning("Session error after %.3fs: %s", time.monotonic() - session_start, e, exc_info=True)
             await session.rollback()
             raise
         finally:
-            duration = time.time() - session_start
-            if duration > 1.0:  # Log sessions longer than 1 second
-                logger.warning("Long-lived session: %.3fs", duration)
+            duration = time.monotonic() - session_start
+            if duration > 1.0:
+                transaction_active = session.in_transaction()
+                log_method = logger.warning if transaction_active else logger.info
+                log_method(
+                    "Long-lived request DB session: %.3fs (transaction_active=%s)",
+                    duration,
+                    transaction_active,
+                )

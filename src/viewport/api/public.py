@@ -53,15 +53,15 @@ def _resolve_public_sorting(gallery: Gallery) -> tuple[GalleryPhotoSortBy, SortO
     return sort_by, sort_order
 
 
-def get_sharelink_repository(db: AsyncSession = Depends(get_db)) -> ShareLinkRepository:
+def get_sharelink_repository(db: AsyncSession = Depends(get_db, scope="function")) -> ShareLinkRepository:
     return ShareLinkRepository(db)
 
 
-def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
+def get_gallery_repository(db: AsyncSession = Depends(get_db, scope="function")) -> GalleryRepository:
     return GalleryRepository(db)
 
 
-def get_project_repository(db: AsyncSession = Depends(get_db)) -> ProjectRepository:
+def get_project_repository(db: AsyncSession = Depends(get_db, scope="function")) -> ProjectRepository:
     return ProjectRepository(db)
 
 

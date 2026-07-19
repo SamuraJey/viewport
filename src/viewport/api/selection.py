@@ -44,7 +44,7 @@ SELECTION_COOKIE_PREFIX = "viewport-selection-resume-"
 LIGHTROOM_SEPARATOR = "|"
 
 
-def get_selection_repository(db: AsyncSession = Depends(get_db)) -> SelectionRepository:
+def get_selection_repository(db: AsyncSession = Depends(get_db, scope="function")) -> SelectionRepository:
     return SelectionRepository(db)
 
 

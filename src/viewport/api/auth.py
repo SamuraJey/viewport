@@ -39,7 +39,7 @@ _BCRYPT_ROUNDS = _resolve_bcrypt_rounds()
 DUMMY_HASH = bcrypt.hashpw(b"viewport-dummy-password", bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)).decode("utf-8")
 
 
-def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
+def get_user_repository(db: AsyncSession = Depends(get_db, scope="function")) -> UserRepository:
     return UserRepository(db)
 
 

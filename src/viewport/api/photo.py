@@ -85,11 +85,11 @@ async def _invalidate_presigned_cache_safely(
         )
 
 
-def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
+def get_gallery_repository(db: AsyncSession = Depends(get_db, scope="function")) -> GalleryRepository:
     return GalleryRepository(db)
 
 
-def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
+def get_user_repository(db: AsyncSession = Depends(get_db, scope="function")) -> UserRepository:
     return UserRepository(db)
 
 
@@ -154,10 +154,7 @@ def _enqueue_thumbnail_batches(batches: list[list[ThumbnailTaskPayload]]) -> Non
             )
             failed_batches.append(i)
     if failed_batches:
-        raise RuntimeError(
-            f"Failed to enqueue {len(failed_batches)}/{len(batches)} "
-            f"thumbnail batches (indices: {failed_batches})"
-        )
+        raise RuntimeError(f"Failed to enqueue {len(failed_batches)}/{len(batches)} thumbnail batches (indices: {failed_batches})")
 
 
 @router.post("/{gallery_id}/photos/{photo_id}/download")

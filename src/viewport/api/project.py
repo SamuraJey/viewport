@@ -31,11 +31,11 @@ from viewport.schemas.project import (
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-def get_project_repository(db: AsyncSession = Depends(get_db)) -> ProjectRepository:
+def get_project_repository(db: AsyncSession = Depends(get_db, scope="function")) -> ProjectRepository:
     return ProjectRepository(db)
 
 
-def get_gallery_repository(db: AsyncSession = Depends(get_db)) -> GalleryRepository:
+def get_gallery_repository(db: AsyncSession = Depends(get_db, scope="function")) -> GalleryRepository:
     return GalleryRepository(db)
 
 

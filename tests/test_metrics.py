@@ -9,3 +9,5 @@ class TestMetrics:
         resp = client.get("/metrics")
         assert "http_requests_total" in resp.text
         assert "http_request_duration_seconds" in resp.text
+        assert "viewport_db_connections_checked_out" in resp.text
+        assert "viewport_db_connection_checkout_duration_seconds" in resp.text

@@ -12,7 +12,7 @@ from viewport.schemas.auth import ChangePasswordRequest, MeResponse, UpdateMeReq
 router = APIRouter(tags=["user"])
 
 
-def get_user_repository(db: AsyncSession = Depends(get_db)) -> UserRepository:
+def get_user_repository(db: AsyncSession = Depends(get_db, scope="function")) -> UserRepository:
     return UserRepository(db)
 
 
