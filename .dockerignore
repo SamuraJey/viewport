@@ -102,3 +102,4 @@ venv/
 .vscode/
 
 frontend/coverage
+.uv-docker-cache
