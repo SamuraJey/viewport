@@ -83,7 +83,12 @@ const PhotoCardComponent = ({
     >
       {/* Cover indicator */}
       {isCover && (
-        <AppBadge tone="warning" icon={<Star className="h-3 w-3 fill-current" />} className="absolute top-3 right-3 z-10">
+        <AppBadge
+          tone="warning"
+          icon={<Star className="h-3 w-3 fill-current" />}
+          className="absolute top-3 right-3 z-10"
+          aria-label="Cover photo"
+        >
           Cover
         </AppBadge>
       )}
@@ -96,7 +101,7 @@ const PhotoCardComponent = ({
             e.stopPropagation();
             onToggleSelection(photo.id, e.shiftKey);
           }}
-          className={`absolute top-3 left-3 z-10 p-1.5 rounded-xl transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+          className={`absolute top-3 left-3 z-10 p-1.5 rounded-xl transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface ${
             isSelected
               ? 'bg-accent text-accent-foreground shadow-md scale-110'
               : 'bg-surface/90 dark:bg-surface-dark-1/90 text-muted hover:text-text shadow-sm hover:scale-105 backdrop-blur-md'
@@ -112,12 +117,22 @@ const PhotoCardComponent = ({
       <div className="relative h-64 sm:h-72 md:h-80 bg-surface-1 dark:bg-surface-dark-1 overflow-hidden">
         {/* Status badge — shown for non-successful media */}
         {photo.status === 'processing' && (
-          <AppBadge tone="warning" icon={<Loader2 className="h-3 w-3 animate-spin" />} className="absolute top-3 right-3 z-10">
+          <AppBadge
+            tone="warning"
+            icon={<Loader2 className="h-3 w-3 animate-spin" />}
+            className="absolute top-3 right-3 z-10"
+            aria-label="Photo is processing"
+          >
             Processing
           </AppBadge>
         )}
         {photo.status === 'pending' && (
-          <AppBadge tone="info" icon={<Loader2 className="h-3 w-3 animate-spin" />} className="absolute top-3 right-3 z-10">
+          <AppBadge
+            tone="info"
+            icon={<Loader2 className="h-3 w-3 animate-spin" />}
+            className="absolute top-3 right-3 z-10"
+            aria-label="Photo upload is pending"
+          >
             Pending
           </AppBadge>
         )}
@@ -132,6 +147,7 @@ const PhotoCardComponent = ({
               )
             }
             className="absolute top-3 right-3 z-10"
+            aria-label="Photo processing failed"
           >
             Failed
           </AppBadge>
@@ -156,14 +172,14 @@ const PhotoCardComponent = ({
           )}
 
         {/* Action Panel - overlay at the bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/80 via-black/40 to-transparent transition-all duration-200 z-20 flex items-center justify-center gap-2 opacity-0 pointer-events-none translate-y-4 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0">
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/80 via-black/40 to-transparent transition-all duration-200 z-20 flex items-center justify-center gap-2 opacity-0 pointer-events-none translate-y-4 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-focus-within:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               onOpenPhoto(index);
             }}
-            className="p-2.5 rounded-xl bg-white/20 hover:bg-white/40 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white"
+            className="p-2.5 rounded-xl bg-white/20 hover:bg-white/40 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-white"
             title="Open photo"
             aria-label="Open photo"
           >
@@ -176,7 +192,7 @@ const PhotoCardComponent = ({
                 e.stopPropagation();
                 onClearCover();
               }}
-              className="p-2.5 rounded-xl bg-amber-500/80 hover:bg-amber-500 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="p-2.5 rounded-xl bg-amber-500/80 hover:bg-amber-500 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-amber-500"
               title="Remove cover"
               aria-label="Remove cover"
             >
@@ -189,7 +205,7 @@ const PhotoCardComponent = ({
                 e.stopPropagation();
                 onSetCover(photo.id);
               }}
-              className="p-2.5 rounded-xl bg-white/20 hover:bg-amber-500/80 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-500"
+              className="p-2.5 rounded-xl bg-white/20 hover:bg-amber-500/80 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-amber-500"
               title="Set as cover"
               aria-label="Set as cover"
             >
@@ -202,7 +218,7 @@ const PhotoCardComponent = ({
               e.stopPropagation();
               onRenamePhoto(photo.id, photo.filename);
             }}
-            className="p-2.5 rounded-xl bg-white/20 hover:bg-white/40 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white"
+            className="p-2.5 rounded-xl bg-white/20 hover:bg-white/40 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-white"
             title="Rename photo"
             aria-label="Rename photo"
           >
@@ -211,7 +227,7 @@ const PhotoCardComponent = ({
           <button
             type="button"
             onClick={handleDownload}
-            className="p-2.5 rounded-xl bg-white/20 hover:bg-green-500/80 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-green-500"
+            className="p-2.5 rounded-xl bg-white/20 hover:bg-green-500/80 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-green-500"
             title="Download photo"
             aria-label="Download photo"
           >
@@ -223,7 +239,7 @@ const PhotoCardComponent = ({
               e.stopPropagation();
               onDeletePhoto(photo.id);
             }}
-            className="p-2.5 rounded-xl bg-white/20 hover:bg-red-500/80 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-red-500"
+            className="p-2.5 rounded-xl bg-white/20 hover:bg-red-500/80 text-white backdrop-blur-md transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-red-500"
             title="Delete photo"
             aria-label="Delete photo"
           >
@@ -248,7 +264,7 @@ const PhotoCardComponent = ({
             }
             onRenamePhoto(photo.id, photo.filename);
           }}
-          className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+          className="w-full h-full p-0 border-0 bg-transparent cursor-pointer absolute inset-0 rounded-2xl focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-accent"
           aria-label={accessiblePhotoName}
           title={
             isSelectionMode

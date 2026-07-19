@@ -348,7 +348,7 @@ export const PublicGalleryHero = ({
           <a
             href="#gallery-content"
             aria-label="Scroll to photos"
-            className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white/50 backdrop-blur-xs transition-all duration-300 hover:scale-110 hover:border-white hover:bg-white/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white"
+            className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white/50 backdrop-blur-xs transition-all duration-300 hover:scale-110 hover:border-white hover:bg-white/20 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-white"
             onClick={(event) => {
               event.preventDefault();
               const target = document.getElementById('gallery-content');

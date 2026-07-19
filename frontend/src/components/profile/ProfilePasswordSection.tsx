@@ -74,7 +74,7 @@ const PasswordField = ({
         type="button"
         aria-label={`${show ? 'Hide' : 'Show'} ${label.toLowerCase()}`}
         onClick={onToggleShow}
-        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted transition-all duration-200 hover:bg-surface-2 hover:text-text hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent dark:hover:bg-surface-dark-2"
+        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted transition-all duration-200 hover:bg-surface-2 hover:text-text hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent dark:hover:bg-surface-dark-2"
       >
         {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
       </button>
@@ -212,7 +212,7 @@ export const ProfilePasswordSection = ({
       <button
         type="submit"
         disabled={!canSubmit}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:transform-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:transform-none focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
       >
         {changingPassword ? (
           <>

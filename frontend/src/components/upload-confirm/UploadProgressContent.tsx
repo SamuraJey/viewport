@@ -3,11 +3,19 @@ import type { UploadProgress } from '../../hooks/usePhotoUpload';
 
 interface UploadProgressContentProps {
   progress: UploadProgress;
+  totalCount: number;
 }
 
-export const UploadProgressContent = ({ progress }: UploadProgressContentProps) => {
+export const UploadProgressContent = ({ progress, totalCount }: UploadProgressContentProps) => {
+  const uploadedCount = progress.successCount ?? 0;
+  const failedCount = progress.failedCount ?? 0;
+  const liveMessage = `${uploadedCount} of ${totalCount} photos uploaded.${failedCount > 0 ? ` ${failedCount} failed.` : ''}`;
+
   return (
     <div className="space-y-6">
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {liveMessage}
+      </div>
       <div className="flex items-center gap-5 p-5 rounded-2xl bg-accent/5 border border-accent/20 shadow-xs relative overflow-hidden">
         {/* Animated background stripes */}
         <div className="absolute inset-0 bg-linear-to-r from-transparent via-accent/5 to-transparent" />

@@ -562,7 +562,7 @@ export const ShareLinkDetailPage = () => {
               ? 'Share follow-up instructions or monitor the next delivery window.'
               : 'Copy the public URL and send it to your client.';
   const tabClassName = ({ selected }: { selected: boolean }) =>
-    `inline-flex h-11 items-center justify-center whitespace-nowrap rounded-2xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+    `inline-flex h-11 items-center justify-center whitespace-nowrap rounded-2xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface ${
       selected
         ? 'border-accent/60 bg-accent/12 text-accent shadow-[0_0_0_1px_rgba(56,189,248,0.08),0_12px_24px_-18px_rgba(56,189,248,0.9)]'
         : 'border-border/70 bg-surface/70 text-text hover:border-accent/35 hover:text-text'
@@ -889,7 +889,7 @@ export const ShareLinkDetailPage = () => {
                     onClick={() => {
                       void handleSaveSelectionConfig();
                     }}
-                    className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:bg-accent/90 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+                    className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:bg-accent/90 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
                   >
                     {isSavingSelectionConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     {selectionConfigHasChanges
@@ -903,7 +903,7 @@ export const ShareLinkDetailPage = () => {
                       onClick={() => {
                         void handleExportFilesCsv();
                       }}
-                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-surface-dark/70 dark:text-accent-foreground motion-reduce:transition-none"
+                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-surface-dark/70 dark:text-accent-foreground motion-reduce:transition-none"
                     >
                       <Download className="h-4 w-4" />
                       CSV
@@ -914,7 +914,7 @@ export const ShareLinkDetailPage = () => {
                       onClick={() => {
                         void handleExportLightroom();
                       }}
-                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-surface-dark/70 dark:text-accent-foreground motion-reduce:transition-none"
+                      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-surface-dark/70 dark:text-accent-foreground motion-reduce:transition-none"
                     >
                       <FileText className="h-4 w-4" />
                       Lightroom
@@ -926,7 +926,7 @@ export const ShareLinkDetailPage = () => {
                       void handleRefreshSelection();
                     }}
                     disabled={isSelectionLoading}
-                    className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface/80 px-3 py-2 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-surface-dark/70 dark:text-accent-foreground motion-reduce:transition-none"
+                    className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface/80 px-3 py-2 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-surface-dark/70 dark:text-accent-foreground motion-reduce:transition-none"
                   >
                     <RefreshCw className={`h-4 w-4 ${isSelectionLoading ? 'animate-spin' : ''}`} />
                     Refresh selection
@@ -1008,7 +1008,7 @@ export const ShareLinkDetailPage = () => {
                     setHasAttemptedSelectionLoad(false);
                     setSelectionError('');
                   }}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-danger/30 px-3 py-2 text-xs font-bold transition-colors hover:bg-danger/10 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-danger/30 px-3 py-2 text-xs font-bold transition-colors hover:bg-danger/10 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-danger"
                 >
                   Retry selection load
                 </button>
@@ -1278,7 +1278,7 @@ export const ShareLinkDetailPage = () => {
                           <button
                             type="button"
                             onClick={() => setSelectedSessionId(session.id)}
-                            className="w-full cursor-pointer px-4 py-3 text-left focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+                            className="w-full cursor-pointer px-4 py-3 text-left focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent"
                             aria-pressed={active}
                           >
                             <div className="flex items-start justify-between gap-3">
@@ -1542,7 +1542,7 @@ export const ShareLinkDetailPage = () => {
         <Link
           to="/share-links"
           onClick={resetScrollForBreadcrumbNavigation}
-          className="transition-colors hover:text-accent focus:outline-hidden focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-accent"
+          className="transition-colors hover:text-accent focus:outline-hidden focus-visible:rounded-md focus-visible:ring-[3px] focus-visible:ring-accent"
         >
           Share Links Dashboard
         </Link>
@@ -1595,7 +1595,7 @@ export const ShareLinkDetailPage = () => {
                 </span>
                 <Link
                   to={sourcePath}
-                  className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1.5 font-bold text-accent transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                  className="inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1.5 font-bold text-accent transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent/15 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent motion-reduce:transition-none motion-reduce:hover:translate-y-0"
                 >
                   Open source {isProjectLink ? 'project' : 'gallery'}: {sourceLabel}
                   <ExternalLink className="h-3.5 w-3.5" />
@@ -1631,7 +1631,7 @@ export const ShareLinkDetailPage = () => {
                 <button
                   type="button"
                   onClick={handleCopyLink}
-                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2.5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent/90 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2.5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 hover:bg-accent/90 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface motion-reduce:transition-none motion-reduce:hover:translate-y-0"
                 >
                   <Copy className="h-4 w-4" />
                   {copied ? 'Copied to clipboard' : 'Copy client link'}
@@ -1640,7 +1640,7 @@ export const ShareLinkDetailPage = () => {
                   href={publicUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm font-bold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface px-3 py-2.5 text-sm font-bold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] motion-reduce:transition-none motion-reduce:hover:translate-y-0"
                 >
                   <ExternalLink className="h-4 w-4" />
                   Open public page
@@ -1659,7 +1659,7 @@ export const ShareLinkDetailPage = () => {
               <button
                 type="button"
                 onClick={() => setEditingOpen(true)}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm font-bold text-accent transition-all hover:-translate-y-0.5 hover:bg-accent/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm font-bold text-accent transition-all hover:-translate-y-0.5 hover:bg-accent/15 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent motion-reduce:transition-none motion-reduce:hover:translate-y-0"
               >
                 <PencilLine className="h-4 w-4" />
                 Edit
@@ -1667,7 +1667,7 @@ export const ShareLinkDetailPage = () => {
               <button
                 type="button"
                 onClick={handleDeleteLink}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-bold text-danger transition-all hover:-translate-y-0.5 hover:bg-danger/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-bold text-danger transition-all hover:-translate-y-0.5 hover:bg-danger/15 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-danger motion-reduce:transition-none motion-reduce:hover:translate-y-0"
               >
                 <Trash2 className="h-4 w-4" />
                 Delete
@@ -1699,7 +1699,7 @@ export const ShareLinkDetailPage = () => {
               key={preset}
               type="button"
               onClick={() => setDays(preset)}
-              className={`cursor-pointer rounded-xl px-3 py-2 text-sm font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface motion-reduce:transition-none ${
+              className={`cursor-pointer rounded-xl px-3 py-2 text-sm font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface motion-reduce:transition-none ${
                 days === preset
                   ? 'bg-accent text-accent-foreground'
                   : 'border border-border/50 bg-surface-1 text-text hover:border-accent/40 hover:text-accent dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground'

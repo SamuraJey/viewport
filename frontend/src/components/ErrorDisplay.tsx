@@ -41,7 +41,7 @@ export const ErrorDisplay = ({
               <button
                 type="button"
                 onClick={onRetry}
-                className="inline-flex items-center gap-2 bg-red-100 dark:bg-red-500/20 hover:bg-red-200 dark:hover:bg-red-500/30 text-red-700 dark:text-red-300 px-5 py-2.5 rounded-xl shadow-sm transition-all duration-200 font-semibold focus:outline-hidden focus-visible:ring-2 focus-visible:ring-red-500"
+                className="inline-flex items-center gap-2 bg-red-100 dark:bg-red-500/20 hover:bg-red-200 dark:hover:bg-red-500/30 text-red-700 dark:text-red-300 px-5 py-2.5 rounded-xl shadow-sm transition-all duration-200 font-semibold focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-red-500"
               >
                 <RefreshCw className="w-4 h-4" />
                 Try Again
@@ -51,7 +51,7 @@ export const ErrorDisplay = ({
               <button
                 type="button"
                 onClick={onDismiss}
-                className="inline-flex items-center gap-2 bg-surface-foreground dark:bg-surface hover:bg-surface text-text dark:text-text px-5 py-2.5 rounded-xl shadow-sm transition-all duration-200 font-semibold focus:outline-hidden focus-visible:ring-2 focus-visible:ring-surface-foreground"
+                className="inline-flex items-center gap-2 bg-surface-foreground dark:bg-surface hover:bg-surface text-text dark:text-text px-5 py-2.5 rounded-xl shadow-sm transition-all duration-200 font-semibold focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-surface-foreground"
               >
                 <X className="w-4 h-4" />
                 Dismiss
@@ -70,7 +70,7 @@ export const ErrorDisplay = ({
               <button
                 type="button"
                 onClick={onDismiss}
-                className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all duration-200 hover:scale-105 text-sm font-semibold focus:outline-hidden focus-visible:ring-2 focus-visible:ring-red-500 rounded-md px-2 py-1"
+                className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all duration-200 hover:scale-105 text-sm font-semibold focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-red-500 rounded-md px-2 py-1"
               >
                 Dismiss
               </button>
@@ -79,7 +79,7 @@ export const ErrorDisplay = ({
               <button
                 type="button"
                 onClick={onRetry}
-                className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-red-500 rounded-md p-1"
+                className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all duration-200 hover:scale-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-red-500 rounded-md p-1"
                 title="Retry"
               >
                 <RefreshCw className="h-4 w-4" />
@@ -109,7 +109,7 @@ export const NetworkStatus = () => {
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="inline-flex items-center gap-2 bg-yellow-100 dark:bg-yellow-500/10 hover:bg-yellow-200 dark:hover:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 px-3 py-1.5 rounded-lg text-sm shadow-sm font-semibold transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-yellow-500"
+          className="inline-flex items-center gap-2 bg-yellow-100 dark:bg-yellow-500/10 hover:bg-yellow-200 dark:hover:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 px-3 py-1.5 rounded-lg text-sm shadow-sm font-semibold transition-colors focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-yellow-500"
           title="Retry"
         >
           <RefreshCw className="w-4 h-4" />

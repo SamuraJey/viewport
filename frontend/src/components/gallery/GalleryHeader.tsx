@@ -93,7 +93,7 @@ interface GalleryHeaderProps {
 }
 
 const compactButtonClass =
-  'inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark';
+  'inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark';
 
 const overflowActionClass = (tone: 'default' | 'danger' = 'default') =>
   `flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
@@ -229,7 +229,7 @@ export const GalleryHeader = ({
             <div className="flex min-w-0 items-center gap-3">
               <Link
                 to={backTo}
-                className="inline-flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 text-sm font-semibold text-muted transition-colors hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+                className="inline-flex shrink-0 items-center gap-2 rounded-lg px-1.5 py-1 text-sm font-semibold text-muted transition-colors hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark"
               >
                 <ArrowLeft className="h-4 w-4" />
                 <span className="hidden sm:inline">{backLabel}</span>
@@ -426,7 +426,7 @@ export const GalleryHeader = ({
               buttonRef={filtersButtonRef}
               buttonAriaLabel="Public sort"
               buttonClassName={(open) =>
-                `inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0 dark:focus-visible:ring-offset-surface-dark ${
+                `inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface active:translate-y-0 dark:focus-visible:ring-offset-surface-dark ${
                   open || hasCustomPublicSort
                     ? 'border-accent/45 bg-accent/10 text-accent'
                     : 'border-border/40 bg-surface-1 text-text hover:border-accent/40 hover:text-accent dark:border-border/30 dark:bg-surface-dark-1'

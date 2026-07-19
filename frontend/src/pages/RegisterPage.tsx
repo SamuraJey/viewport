@@ -130,7 +130,7 @@ export const RegisterPage = () => {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full cursor-pointer bg-accent text-accent-foreground font-semibold py-3.5 px-6 rounded-xl shadow-sm hover:shadow-accent/20 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-sm flex items-center justify-center gap-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          className="w-full cursor-pointer bg-accent text-accent-foreground font-semibold py-3.5 px-6 rounded-xl shadow-sm hover:shadow-accent/20 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:shadow-sm flex items-center justify-center gap-2 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
         >
           {isLoading ? (
             <>
@@ -155,7 +155,7 @@ export const RegisterPage = () => {
         <div className="text-center">
           <Link
             to="/auth/login"
-            className="inline-flex items-center gap-2 rounded-lg p-2 text-sm font-semibold text-text transition-colors duration-200 hover:bg-surface-1/50 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+            className="inline-flex items-center gap-2 rounded-lg p-2 text-sm font-semibold text-text transition-colors duration-200 hover:bg-surface-1/50 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent"
           >
             Sign in to your account
           </Link>

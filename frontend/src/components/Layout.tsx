@@ -36,7 +36,7 @@ export const Layout = ({ children }: LayoutProps) => {
     [user?.email, user?.display_name],
   );
   const navButtonBase =
-    'inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold uppercase tracking-wide transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark';
+    'inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold uppercase tracking-wide transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent/70 focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark';
   const navButtonInactive =
     'border-border/40 bg-surface-1 text-text hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2 dark:border-border/60 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2';
   const navButtonActive =
@@ -174,7 +174,7 @@ export const Layout = ({ children }: LayoutProps) => {
               key={to}
               to={to}
               aria-current={active ? 'page' : undefined}
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-2 text-[11px] font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent ${
+              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-2 text-[11px] font-bold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent ${
                 active
                   ? 'bg-accent text-accent-foreground shadow-sm'
                   : 'text-muted hover:bg-surface-1 hover:text-text dark:hover:bg-surface-dark-1'
@@ -190,7 +190,7 @@ export const Layout = ({ children }: LayoutProps) => {
         <div className="mx-auto flex w-full max-w-7xl justify-end">
           <Link
             to="/accessibility"
-            className="font-semibold text-accent hover:underline focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark"
+            className="font-semibold text-accent hover:underline focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark"
           >
             Accessibility
           </Link>

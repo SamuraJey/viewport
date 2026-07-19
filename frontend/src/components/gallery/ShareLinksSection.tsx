@@ -155,7 +155,7 @@ const ShareLinksSectionComponent = ({
             type="button"
             onClick={onCreateLink}
             disabled={isCreatingLink}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-accent/20 bg-accent px-5 py-3 font-bold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:transform-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-accent/20 bg-accent px-5 py-3 font-bold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:transform-none focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface active:translate-y-0"
             id="gallery-create-btn"
             aria-label="Create new share link"
           >
@@ -289,7 +289,7 @@ const ShareLinksSectionComponent = ({
                               href={fullUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="gallery-link__anchor truncate rounded-md px-1 -mx-1 font-medium text-accent hover:underline focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+                              className="gallery-link__anchor truncate rounded-md px-1 -mx-1 font-medium text-accent hover:underline focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark"
                             >
                               {fullUrl}
                             </a>
@@ -337,7 +337,7 @@ const ShareLinksSectionComponent = ({
                         <button
                           type="button"
                           onClick={() => onOpenLinkAnalytics(link.id)}
-                          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-accent/20 bg-accent/10 p-2 text-accent transition-all duration-200 hover:scale-110 hover:bg-accent/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-95"
+                          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-accent/20 bg-accent/10 p-2 text-accent transition-all duration-200 hover:scale-110 hover:bg-accent/20 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface active:scale-95"
                           title="Open analytics"
                           aria-label="Open analytics"
                         >
@@ -348,7 +348,7 @@ const ShareLinksSectionComponent = ({
                         <button
                           type="button"
                           onClick={() => onEditLink(link)}
-                          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-accent/20 bg-accent/10 p-2 text-accent transition-all duration-200 hover:scale-110 hover:bg-accent/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-95"
+                          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-accent/20 bg-accent/10 p-2 text-accent transition-all duration-200 hover:scale-110 hover:bg-accent/20 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface active:scale-95"
                           title="Edit link"
                           aria-label="Edit link"
                         >
@@ -358,7 +358,7 @@ const ShareLinksSectionComponent = ({
                       <button
                         type="button"
                         onClick={() => void copyToClipboard(fullUrl)}
-                        className="gallery-copy__btn flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-success/20 bg-success/10 p-2 text-success transition-all duration-200 hover:scale-110 hover:bg-success/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-95"
+                        className="gallery-copy__btn flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-success/20 bg-success/10 p-2 text-success transition-all duration-200 hover:scale-110 hover:bg-success/20 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-success focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface active:scale-95"
                         title="Copy link"
                         aria-label="Copy link"
                       >
@@ -371,7 +371,7 @@ const ShareLinksSectionComponent = ({
                       <button
                         type="button"
                         onClick={() => onDeleteLink(link.id)}
-                        className="gallery-delete__btn flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-danger/20 bg-danger/10 p-2 text-danger transition-all duration-200 hover:scale-110 hover:bg-danger/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:scale-95"
+                        className="gallery-delete__btn flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-danger/20 bg-danger/10 p-2 text-danger transition-all duration-200 hover:scale-110 hover:bg-danger/20 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-danger focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface active:scale-95"
                         title="Delete link"
                         aria-label="Delete link"
                       >

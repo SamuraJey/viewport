@@ -579,7 +579,7 @@ export const ShareLinksDashboardPage = () => {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <Link
                 to="/dashboard"
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:bg-accent/90 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:bg-accent/90 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
               >
                 <Plus className="h-4 w-4" />
                 Create share link
@@ -589,7 +589,7 @@ export const ShareLinksDashboardPage = () => {
                 onClick={() => void fetchLinks({ preserveRows: true })}
                 aria-label="Refresh list"
                 disabled={isRefreshing}
-                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1/80 px-4 py-2.5 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:bg-surface-2 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground dark:hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1/80 px-4 py-2.5 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:bg-surface-2 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground dark:hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isRefreshing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -659,7 +659,7 @@ export const ShareLinksDashboardPage = () => {
                           goToPage(1);
                         }}
                         className={cn(
-                          'cursor-pointer rounded-full border px-4 py-2 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+                          'cursor-pointer rounded-full border px-4 py-2 text-sm font-bold transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface',
                           active
                             ? 'border-accent/50 bg-accent text-accent-foreground'
                             : 'border-border/50 bg-surface-1 text-muted hover:border-accent/35 hover:bg-surface-2 hover:text-text dark:border-white/10 dark:bg-white/[0.035] dark:hover:bg-white/[0.07]',
@@ -722,7 +722,7 @@ export const ShareLinksDashboardPage = () => {
                 <button
                   type="button"
                   onClick={handleResetFilters}
-                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/45 bg-surface px-3 py-2 text-sm font-bold text-text transition-all hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground"
+                  className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/45 bg-surface px-3 py-2 text-sm font-bold text-text transition-all hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground"
                 >
                   <FilterX className="h-4 w-4" />
                   Clear filters
@@ -873,7 +873,7 @@ export const ShareLinksDashboardPage = () => {
                               <div className="flex flex-wrap items-center gap-2">
                                 <Link
                                   to={`/share-links/${link.id}`}
-                                  className="min-w-0 truncate text-base font-bold text-text transition-colors hover:text-accent focus:outline-hidden focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-accent dark:text-accent-foreground"
+                                  className="min-w-0 truncate text-base font-bold text-text transition-colors hover:text-accent focus:outline-hidden focus-visible:rounded-md focus-visible:ring-[3px] focus-visible:ring-accent dark:text-accent-foreground"
                                 >
                                   {linkTitle}
                                 </Link>
@@ -928,7 +928,7 @@ export const ShareLinksDashboardPage = () => {
                           <div className="mt-4 grid grid-cols-2 gap-2">
                             <Link
                               to={`/share-links/${link.id}`}
-                              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-accent/45 bg-accent/10 px-3 py-2 text-sm font-bold text-accent transition-all hover:bg-accent hover:text-accent-foreground focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+                              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-accent/45 bg-accent/10 px-3 py-2 text-sm font-bold text-accent transition-all hover:bg-accent hover:text-accent-foreground focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent"
                             >
                               Open
                               <ExternalLink className="h-3.5 w-3.5" />
@@ -936,7 +936,7 @@ export const ShareLinksDashboardPage = () => {
                             <button
                               type="button"
                               onClick={() => void handleCopyLink(link.id)}
-                              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/45 bg-surface px-3 py-2 text-sm font-bold text-text transition-colors duration-200 hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground motion-reduce:transition-none"
+                              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/45 bg-surface px-3 py-2 text-sm font-bold text-text transition-colors duration-200 hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground motion-reduce:transition-none"
                             >
                               <Copy className="h-4 w-4" />
                               {copiedLinkId === link.id ? 'Copied' : 'Copy'}
@@ -946,7 +946,7 @@ export const ShareLinksDashboardPage = () => {
                               buttonAriaLabel={`Card actions for ${linkTitle}`}
                               buttonClassName={(open) =>
                                 cn(
-                                  'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/45 bg-surface px-3 py-2 text-sm font-bold text-text transition-colors duration-200 hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground motion-reduce:transition-none',
+                                  'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/45 bg-surface px-3 py-2 text-sm font-bold text-text transition-colors duration-200 hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground motion-reduce:transition-none',
                                   open ? 'border-accent/45 text-accent' : '',
                                 )
                               }
@@ -1026,7 +1026,7 @@ export const ShareLinksDashboardPage = () => {
                             <button
                               type="button"
                               onClick={() => handleDeleteLink(link)}
-                              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-bold text-danger transition-all hover:bg-danger/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger"
+                              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2 text-sm font-bold text-danger transition-all hover:bg-danger/15 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-danger"
                             >
                               <Trash2 className="h-4 w-4" />
                               Delete
@@ -1098,7 +1098,7 @@ export const ShareLinksDashboardPage = () => {
                                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                                   <Link
                                     to={`/share-links/${link.id}`}
-                                    className="min-w-0 truncate text-[1.05rem] font-bold leading-tight text-text transition-colors hover:text-accent focus:outline-hidden focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-accent dark:text-accent-foreground"
+                                    className="min-w-0 truncate text-[1.05rem] font-bold leading-tight text-text transition-colors hover:text-accent focus:outline-hidden focus-visible:rounded-md focus-visible:ring-[3px] focus-visible:ring-accent dark:text-accent-foreground"
                                   >
                                     {linkTitle}
                                   </Link>
@@ -1166,7 +1166,7 @@ export const ShareLinksDashboardPage = () => {
                               <Link
                                 to={`/share-links/${link.id}`}
                                 aria-label={`Open details for ${linkTitle}`}
-                                className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-accent/50 bg-accent/10 px-3 py-2 text-sm font-bold text-accent transition-all hover:bg-accent hover:text-accent-foreground focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                                className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-accent/50 bg-accent/10 px-3 py-2 text-sm font-bold text-accent transition-all hover:bg-accent hover:text-accent-foreground focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
                               >
                                 Open
                                 <ExternalLink className="h-3.5 w-3.5" />
@@ -1174,7 +1174,7 @@ export const ShareLinksDashboardPage = () => {
                               <button
                                 type="button"
                                 onClick={() => void handleCopyLink(link.id)}
-                                className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/45 bg-surface px-3 py-2 text-sm font-bold text-text transition-all hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035]"
+                                className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/45 bg-surface px-3 py-2 text-sm font-bold text-text transition-all hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035]"
                                 aria-label={`Copy link ${linkTitle}`}
                               >
                                 <Copy className="h-4 w-4" />
@@ -1185,7 +1185,7 @@ export const ShareLinksDashboardPage = () => {
                                 buttonAriaLabel={`More actions for ${linkTitle}`}
                                 buttonClassName={(open) =>
                                   cn(
-                                    'inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-border/45 bg-surface text-text transition-all hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035]',
+                                    'inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-border/45 bg-surface text-text transition-all hover:border-accent/35 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035]',
                                     open ? 'border-accent/45 text-accent' : '',
                                   )
                                 }

@@ -37,7 +37,7 @@ export const GalleryLoadErrorState = ({ error, onRetry }: GalleryLoadErrorStateP
       <button
         type="button"
         onClick={onRetry}
-        className="cursor-pointer px-6 py-3 bg-accent text-accent-foreground font-bold rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border border-accent/20 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface active:translate-y-0"
+        className="cursor-pointer px-6 py-3 bg-accent text-accent-foreground font-bold rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 border border-accent/20 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface active:translate-y-0"
       >
         Try Again
       </button>
@@ -51,7 +51,7 @@ export const GalleryNotFoundState = () => (
       <div className="text-muted dark:text-muted-dark text-xl font-bold">Gallery not found</div>
       <Link
         to="/dashboard"
-        className="inline-flex items-center gap-2 text-accent hover:text-accent/80 font-bold transition-colors focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent rounded-lg px-2 py-1"
+        className="inline-flex items-center gap-2 text-accent hover:text-accent/80 font-bold transition-colors focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent rounded-lg px-2 py-1"
       >
         ← Back to Dashboard
       </Link>

@@ -41,7 +41,7 @@ const ErrorActions = ({ showBackButton, onRetry }: ErrorActionsProps) => (
     {showBackButton && (
       <Link
         to="/"
-        className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 font-semibold text-accent-foreground no-underline transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+        className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 font-semibold text-accent-foreground no-underline transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
       >
         <Home className="w-5 h-5" />
         Go Home
@@ -52,7 +52,7 @@ const ErrorActions = ({ showBackButton, onRetry }: ErrorActionsProps) => (
       <button
         type="button"
         onClick={onRetry}
-        className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-6 py-3 font-semibold text-text shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+        className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-6 py-3 font-semibold text-text shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px]"
       >
         <RefreshCw className="w-5 h-5" />
         Try Again
@@ -62,7 +62,7 @@ const ErrorActions = ({ showBackButton, onRetry }: ErrorActionsProps) => (
     <button
       type="button"
       onClick={() => window.location.reload()}
-      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-transparent px-6 py-3 font-medium text-muted shadow-sm transition-all duration-200 hover:border-accent/30 hover:bg-surface-1 hover:text-text focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+      className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-transparent px-6 py-3 font-medium text-muted shadow-sm transition-all duration-200 hover:border-accent/30 hover:bg-surface-1 hover:text-text focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px]"
     >
       <RefreshCw className="w-5 h-5" />
       Refresh Page

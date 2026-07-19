@@ -314,7 +314,7 @@ export const DashboardPage = () => {
         <button
           type="button"
           onClick={() => setSearchInput('')}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface px-8 py-3 font-semibold text-text shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+          className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface px-8 py-3 font-semibold text-text shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px]"
         >
           Clear search
         </button>
@@ -323,7 +323,7 @@ export const DashboardPage = () => {
           type="button"
           onClick={handleOpenProjectModal}
           disabled={isCreatingProject}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-8 py-3 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+          className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-8 py-3 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
           aria-label="Create your first project"
         >
           {isCreatingProject ? (
@@ -388,7 +388,7 @@ export const DashboardPage = () => {
               type="button"
               onClick={handleOpenProjectModal}
               disabled={isCreatingProject}
-              className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-accent px-4 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+              className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-accent px-4 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
               aria-label="Create new project"
             >
               {isCreatingProject ? (
@@ -496,7 +496,7 @@ export const DashboardPage = () => {
                             event.stopPropagation();
                             handleDeleteProject(project);
                           }}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-danger hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-danger"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-danger hover:text-white focus:outline-none focus-visible:ring-[3px] focus-visible:ring-danger"
                           title="Delete Project"
                           aria-label={`Delete project ${project.name}`}
                         >

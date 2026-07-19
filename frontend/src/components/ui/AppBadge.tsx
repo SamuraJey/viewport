@@ -23,6 +23,8 @@ interface AppBadgeProps {
   children: ReactNode;
   size?: 'xs' | 'sm';
   className?: string;
+  /** Accessible label exposed to screen readers via role="img". */
+  'aria-label'?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -84,6 +86,7 @@ export const AppBadge = ({
   children,
   size = 'sm',
   className,
+  'aria-label': ariaLabel,
 }: AppBadgeProps) => {
   const base = variant === 'filled' ? filledBase : subtleBase;
   const toneBg = variant === 'filled' ? filledBg[tone] : subtleContainer[tone];
@@ -91,8 +94,12 @@ export const AppBadge = ({
   const sizeClass = sizeClasses[size];
 
   return (
-    <span className={cn(base, toneBg, toneText, sizeClass, className)}>
-      {icon}
+    <span
+      className={cn(base, toneBg, toneText, sizeClass, className)}
+      aria-label={ariaLabel}
+      role={ariaLabel ? 'img' : undefined}
+    >
+      {icon ? <span aria-hidden="true">{icon}</span> : null}
       {children}
     </span>
   );

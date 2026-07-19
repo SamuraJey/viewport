@@ -444,7 +444,7 @@ export const ShareLinkSettingsModal = ({
   ).map(({ id, label: tabLabel, Icon, panel }) => ({
     key: id,
     tabClassName: ({ selected }: { selected: boolean }) =>
-      `flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset ${
+      `flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-inset ${
         selected ? 'border-accent text-accent' : 'border-transparent text-muted hover:text-text'
       }`,
     tab: (

@@ -35,7 +35,7 @@ export const ThemeSwitch = ({ className = '', variant = 'floating' }: ThemeSwitc
   };
 
   const baseClasses =
-    'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-border/40 dark:border-border/40 transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-50 disabled:cursor-not-allowed';
+    'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-border/40 dark:border-border/40 transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface disabled:opacity-50 disabled:cursor-not-allowed';
   const variantClasses =
     variant === 'floating'
       ? 'fixed top-4 right-4 z-50 bg-surface/80 dark:bg-surface/80 backdrop-blur-md shadow-lg hover:shadow-xl hover:scale-110'

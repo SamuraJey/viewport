@@ -420,6 +420,9 @@ html.dark {
   --color-info-foreground-rgb: 255 255 255;
   --color-warning-foreground-rgb: 255 255 255;
   --color-photo-overlay-rgb: var(--color-black-rgb);
+
+  /* High-contrast focus ring on dark surfaces (RFC 002 §2.1) */
+  --readability-focus-ring-rgb: var(--color-primary-600-rgb);
 }
 
 html {
@@ -445,13 +448,27 @@ body {
   [role='tab'],
   [tabindex]:not([tabindex='-1'])
 ):focus-visible {
-  outline: var(--readability-focus-ring-width) solid rgb(var(--readability-focus-ring-rgb));
-  outline-offset: var(--readability-focus-ring-offset);
+  /* Use a Tailwind-compatible ring shadow so component utilities override
+     this default instead of stacking an outline on top of a ring. */
+  --tw-ring-color: rgb(var(--readability-focus-ring-rgb));
+  --tw-ring-offset-color: rgb(var(--color-surface-rgb));
+  --tw-ring-width: var(--readability-focus-ring-width);
+  --tw-ring-offset-width: var(--readability-focus-ring-offset);
+  --tw-ring-inset: ;
+  box-shadow:
+    0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color),
+    0 0 0 calc(var(--tw-ring-width) + var(--tw-ring-offset-width)) var(--tw-ring-color);
 }
 
 :where(main[id='main-content'], [id='main-content'][tabindex='-1']):focus-visible {
-  outline: var(--readability-focus-ring-width) solid rgb(var(--readability-focus-ring-rgb));
-  outline-offset: var(--readability-focus-ring-offset);
+  --tw-ring-color: rgb(var(--readability-focus-ring-rgb));
+  --tw-ring-offset-color: rgb(var(--color-surface-rgb));
+  --tw-ring-width: var(--readability-focus-ring-width);
+  --tw-ring-offset-width: var(--readability-focus-ring-offset);
+  --tw-ring-inset: ;
+  box-shadow:
+    0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color),
+    0 0 0 calc(var(--tw-ring-width) + var(--tw-ring-offset-width)) var(--tw-ring-color);
 }
 
 html[data-readability-mode='on'][data-readability-font-scale='125'] {

@@ -202,7 +202,7 @@ export const PhotoUploadConfirmModal = memo(
           )}
 
           {/* Upload progress */}
-          {isUploading && progress && <UploadProgressContent progress={progress} />}
+          {isUploading && progress && <UploadProgressContent progress={progress} totalCount={validUploadCount} />}
 
           {/* Upload results */}
           {result && <UploadResultContent result={result} />}

@@ -612,7 +612,7 @@ export const ProjectPage = () => {
   }
 
   const contentTabClassName = ({ selected }: { selected: boolean }): string =>
-    `inline-flex h-12 shrink-0 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+    `inline-flex h-12 shrink-0 items-center justify-center whitespace-nowrap rounded-2xl border px-5 text-sm font-semibold transition-all duration-200 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface ${
       selected
         ? 'border-accent/60 bg-accent/12 text-accent shadow-[0_0_0_1px_rgba(56,189,248,0.08),0_12px_24px_-18px_rgba(56,189,248,0.9)]'
         : 'border-border/70 bg-surface/70 text-text hover:border-accent/35 hover:text-text'
@@ -732,7 +732,7 @@ export const ProjectPage = () => {
             <button
               type="button"
               onClick={openProjectRenameDialog}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3.5 py-2 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3.5 py-2 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent"
             >
               <PencilLine className="h-4 w-4" />
               Rename project
@@ -740,7 +740,7 @@ export const ProjectPage = () => {
             <button
               type="button"
               onClick={openGalleryDialog}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3.5 py-2 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3.5 py-2 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent"
             >
               <FolderPlus className="h-4 w-4" />
               Add gallery
@@ -748,7 +748,7 @@ export const ProjectPage = () => {
             <button
               type="button"
               onClick={() => setIsShareLinkCreateOpen(true)}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-3.5 py-2 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-3.5 py-2 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
             >
               <Share2 className="h-4 w-4" />
               Share project
@@ -756,7 +756,7 @@ export const ProjectPage = () => {
             <button
               type="button"
               onClick={requestDeleteProject}
-              className="cursor-pointer rounded-xl border border-danger/30 bg-danger/10 px-3.5 py-2 text-sm font-semibold text-danger transition-all duration-200 hover:-translate-y-0.5 hover:bg-danger/15 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-danger"
+              className="cursor-pointer rounded-xl border border-danger/30 bg-danger/10 px-3.5 py-2 text-sm font-semibold text-danger transition-all duration-200 hover:-translate-y-0.5 hover:bg-danger/15 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-danger"
             >
               Delete project
             </button>
