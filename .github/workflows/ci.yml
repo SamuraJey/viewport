@@ -47,19 +47,35 @@ jobs:
     if: ${{ needs.detect-changes.outputs.backend == 'true' }}
     permissions:
       contents: read
+      actions: write
     steps:
       - uses: actions/checkout@v7.0.0
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.2.0
+
+      - name: Restore uv package cache for Docker
+        uses: actions/cache@v4
+        with:
+          path: .uv-docker-cache
+          key: ${{ runner.os }}-docker-uv-cache-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-docker-uv-cache-
+
+      - name: Inject uv cache into Docker build
+        uses: reproducible-containers/buildkit-cache-dance@v2.1.4
+        with:
+          cache-source: .uv-docker-cache
+          cache-target: /root/.cache/uv
+
       - name: Build backend image
         uses: docker/build-push-action@v7.3.0
         with:
           context: .
           file: ./Dockerfile.backend
           push: false
-          cache-from: type=gha,scope=backend-image
-          cache-to: type=gha,mode=max,scope=backend-image
-
+          cache-from: type=gha,scope=backend-image,ignore-error=true
+          cache-to: type=gha,mode=max,scope=backend-image,ignore-error=true
   python-tests:
     name: Python Tests (with coverage >= 80%)
     runs-on: ubuntu-latest
