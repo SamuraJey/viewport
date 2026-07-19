@@ -235,7 +235,7 @@ export const GalleryHeader = ({
                 <span className="hidden sm:inline">{backLabel}</span>
                 <span className="sm:hidden">Back</span>
               </Link>
-              <h1 className="min-w-0 truncate font-display text-3xl font-bold uppercase leading-none tracking-wide text-text sm:text-4xl">
+              <h1 className="min-w-0 truncate font-oswald text-3xl font-bold uppercase leading-none tracking-wide text-text sm:text-4xl">
                 {resolvedTitle}
               </h1>
             </div>

@@ -122,7 +122,7 @@ const ErrorPageContent = ({
         <div className="mb-8 flex justify-center">{errorIcon}</div>
 
         <div className="mb-6">
-          <h1 className="font-display text-8xl font-bold leading-none text-accent/20 md:text-9xl">
+          <h1 className="font-oswald text-8xl font-bold leading-none text-accent/20 md:text-9xl">
             {errorStatus}
           </h1>
         </div>

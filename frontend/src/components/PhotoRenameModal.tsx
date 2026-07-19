@@ -102,7 +102,7 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
                 <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
                   Photo metadata
                 </p>
-                <AppDialogTitle className="mt-1 font-sans text-2xl font-bold uppercase tracking-wide text-text">
+                <AppDialogTitle className="mt-1 font-oswald text-2xl font-bold uppercase tracking-wide text-text">
                   Rename photo
                 </AppDialogTitle>
                 <AppDialogDescription className="mt-1 text-sm leading-6 text-muted">
