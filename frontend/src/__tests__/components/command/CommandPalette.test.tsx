@@ -116,4 +116,62 @@ describe('CommandPalette', () => {
     fireEvent.click(screen.getByRole('option', { name: /go to dashboard/i }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+
+  it('surfaces a role=alert error message when both sources fail', async () => {
+    getProjects.mockRejectedValue(new Error('projects down'));
+    getOwnerShareLinks.mockRejectedValue(new Error('sharelinks down'));
+
+    render(
+      <MemoryRouter>
+        <CommandPalette open={true} onOpenChange={vi.fn()} onOpenShortcuts={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('alert').textContent).toBe('Failed to load commands');
+    // Static navigation commands still render alongside the error.
+    expect(screen.getByText('Navigation')).toBeInTheDocument();
+  });
+
+  it('gives recent items a distinct cmdk value from their source-group copy', async () => {
+    // Seed history so the Recent section renders a static command that also
+    // appears in its source group (Go to dashboard → Navigation).
+    window.localStorage.setItem('viewport-cmd-history', JSON.stringify(['go-dashboard']));
+
+    getProjects.mockResolvedValue({
+      projects: [],
+      total: 0,
+      page: 1,
+      size: 5,
+    } as ProjectListResponse);
+    getOwnerShareLinks.mockResolvedValue({
+      share_links: [],
+      total: 0,
+      page: 1,
+      size: 20,
+    } as ShareLinksDashboardResponse);
+
+    render(
+      <MemoryRouter>
+        <CommandPalette open={true} onOpenChange={vi.fn()} onOpenShortcuts={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Recent')).toBeInTheDocument();
+    });
+
+    // Two options named "Go to dashboard" should render (Recent + Navigation),
+    // but their cmdk data-value attributes must differ so cmdk does not collide.
+    const dashboardOptions = screen.getAllByRole('option', { name: /go to dashboard/i });
+    expect(dashboardOptions).toHaveLength(2);
+    const values = dashboardOptions.map((el) => el.getAttribute('data-value'));
+    expect(values).toContain('go-dashboard');
+    expect(values).toContain('recent:go-dashboard');
+    expect(new Set(values).size).toBe(2);
+
+    window.localStorage.removeItem('viewport-cmd-history');
+  });
 });

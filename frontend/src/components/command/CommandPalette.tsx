@@ -64,7 +64,7 @@ export function CommandPalette({
     [performers],
   );
 
-  const { projects, shareLinks, isLoading } = useCommandItems({ enabled: open });
+  const { projects, shareLinks, isLoading, error } = useCommandItems({ enabled: open });
 
   useEffect(() => {
     setHistoryIds(open && search.trim() === '' ? readCommandHistory() : []);
@@ -133,8 +133,9 @@ export function CommandPalette({
             <Command.Group heading="Recent" className={groupHeadingClass}>
               {recentCommands.map((cmd) => (
                 <CommandItem
-                  key={cmd.id}
+                  key={`recent-${cmd.id}`}
                   command={cmd}
+                  valuePrefix="recent:"
                   onSelect={() => handleSelect(cmd)}
                 />
               ))}
@@ -210,6 +211,15 @@ export function CommandPalette({
 
           {isLoading && (
             <Command.Loading label="Loading command results">Loading…</Command.Loading>
+          )}
+
+          {error && !isLoading && (
+            <div
+              role="alert"
+              className="px-3 py-2 text-xs text-danger"
+            >
+              {error}
+            </div>
           )}
         </Command.List>
       </Command>

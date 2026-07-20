@@ -6,17 +6,22 @@ import type { ReactElement } from 'react';
 interface CommandItemProps {
   command: CommandType;
   onSelect: () => void;
+  /** Optional prefix for the cmdk item `value` to disambiguate the same command
+   *  appearing in multiple groups (e.g. Recent + source group). The command's
+   *  `id` is preserved for history lookup/selection. */
+  valuePrefix?: string;
 }
 
 export function CommandItem({
   command,
   onSelect,
+  valuePrefix,
 }: CommandItemProps): ReactElement {
   const Icon = command.icon;
 
   return (
     <Command.Item
-      value={command.id}
+      value={valuePrefix ? `${valuePrefix}${command.id}` : command.id}
       onSelect={onSelect}
       keywords={command.keywords}
       className={cn(
