@@ -1,6 +1,7 @@
 import { StrictMode, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import { AppToaster } from './components/AppToaster';
 import { DeferredLenis } from './components/DeferredLenis';
 import { ReadabilityInitializer } from './components/ReadabilityInitializer';
 import { ThemeInitializer } from './components/ThemeInitializer';
@@ -21,6 +22,7 @@ createRoot(document.getElementById('root')!).render(
         <ReadabilityInitializer />
         <ThemeInitializer />
         <App />
+        <AppToaster />
       </BrowserRouter>
     </DeferredLenis>
   </AppWrapper>,
