@@ -282,7 +282,7 @@ describe('useGalleryActions', () => {
     expect(toastMock.error).toHaveBeenCalled();
   });
 
-  it('shows toast.success on photo rename', async () => {
+  it('does not fire toast.success on photo rename (modal handles it)', async () => {
     vi.mocked(photoService.renamePhoto).mockResolvedValue({
       id: 'photo-1',
       filename: 'renamed.jpg',
@@ -304,8 +304,7 @@ describe('useGalleryActions', () => {
       await result.current.handleRenameConfirm('renamed.jpg');
     });
 
-    await waitFor(() => {
-      expect(toastMock.success).toHaveBeenCalledWith('Photo renamed');
-    });
+    expect(photoService.renamePhoto).toHaveBeenCalledWith('gallery-1', 'photo-1', 'renamed.jpg');
+    expect(toastMock.success).not.toHaveBeenCalled();
   });
 });

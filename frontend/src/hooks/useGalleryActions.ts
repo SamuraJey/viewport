@@ -516,7 +516,6 @@ export const useGalleryActions = ({
             : photo,
         ),
       );
-      toast.success('Photo renamed');
     } catch (err) {
       // handleError surfaces the page-level error banner; the toast is shown
       // by PhotoRenameModal which catches the re-thrown error.
@@ -580,18 +579,6 @@ export const useGalleryActions = ({
               ? { ...prev, cover_photo_id: null }
               : prev,
           );
-        }
-
-        if (result.failed_ids.length > 0) {
-          const enqueueError = new Error(
-            `Failed to enqueue deletion for ${result.failed_ids.length} photo${result.failed_ids.length > 1 ? 's' : ''}.`,
-          );
-          handleError(enqueueError);
-          toast.error(enqueueError.message);
-          throw enqueueError;
-        }
-
-        if (deletedOrMissingIds.length > 0) {
           if (notFoundCount > 0) {
             setActionInfo(
               notFoundCount === 1
@@ -603,6 +590,15 @@ export const useGalleryActions = ({
           }
           clearSelection();
           toast.success(`${deletedOrMissingIds.length} photo${deletedOrMissingIds.length > 1 ? 's' : ''} deleted`);
+        }
+
+        if (result.failed_ids.length > 0) {
+          const enqueueError = new Error(
+            `Failed to enqueue deletion for ${result.failed_ids.length} photo${result.failed_ids.length > 1 ? 's' : ''}.`,
+          );
+          handleError(enqueueError);
+          toast.error(enqueueError.message);
+          throw enqueueError;
         }
       },
     });
