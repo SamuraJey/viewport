@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Camera, ChevronDown, Home, LogOut, Settings, Share2 } from 'lucide-react';
+import { Camera, ChevronDown, Home, LogOut, Search, Settings, Share2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+
 import { getAvatarInitials, stringToHue } from '../lib/avatar';
 import { isDemoModeEnabled } from '../lib/demoMode';
+import { isMacPlatform } from '../lib/platform';
 import { NetworkStatus } from './ErrorDisplay';
 import { AppPopover } from './ui/AppPopover';
 import { ReadabilitySettingsButton } from './ReadabilitySettingsButton';
@@ -13,11 +15,13 @@ import { ProfileModal } from './ProfileModal';
 import { ThemeSwitch } from './ThemeSwitch';
 import { useAuthStore } from '../stores/authStore';
 
+
 interface LayoutProps {
   children: ReactNode;
+  onOpenCommandPalette?: () => void;
 }
 
-export const Layout = ({ children }: LayoutProps) => {
+export const Layout = ({ children, onOpenCommandPalette }: LayoutProps) => {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
@@ -90,6 +94,22 @@ export const Layout = ({ children }: LayoutProps) => {
               className="hidden h-6 w-px bg-border/40 dark:bg-border/30 md:block"
               aria-hidden="true"
             />
+
+            {onOpenCommandPalette ? (
+              <button
+                type="button"
+                onClick={onOpenCommandPalette}
+                className="hidden md:inline-flex items-center gap-2 rounded-xl border border-border/40 bg-surface-1 px-3 py-1.5 text-xs text-muted transition-colors hover:border-accent/40 hover:text-text focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent/70 focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:border-border/60 dark:bg-surface-dark-1 dark:hover:bg-surface-dark-2 dark:focus-visible:ring-offset-surface-dark"
+                aria-label="Open command palette"
+              >
+                <Search className="h-3.5 w-3.5" aria-hidden="true" />
+                Quick search
+                <span className="ml-1 flex items-center gap-0.5">
+                  <kbd className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono dark:bg-surface-dark-2">{isMacPlatform ? '⌘' : 'Ctrl'}</kbd>
+                  <kbd className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono dark:bg-surface-dark-2">K</kbd>
+                </span>
+              </button>
+            ) : null}
 
             <div className="flex items-center gap-1.5">
               <ReadabilitySettingsButton />

@@ -16,6 +16,13 @@ export interface UseKeyboardShortcutsOptions {
   onFocusSearch?: () => void;
 }
 
+export interface UseKeyboardShortcutsResult {
+  isOpen: boolean;
+  setIsOpen: (v: boolean) => void;
+  paletteOpen: boolean;
+  setPaletteOpen: (v: boolean) => void;
+}
+
 /**
  * Global keyboard shortcuts for power users.
  *
@@ -25,9 +32,10 @@ export interface UseKeyboardShortcutsOptions {
  * - `g s` navigates to share links.
  * - Page-specific actions (`n`, `u`, `/`) are invoked through the provided callbacks.
  */
-export const useKeyboardShortcuts = (options: UseKeyboardShortcutsOptions = {}) => {
+export const useKeyboardShortcuts = (options: UseKeyboardShortcutsOptions = {}): UseKeyboardShortcutsResult => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const optionsRef = useRef(options);
   const pendingGoRef = useRef(false);
   const goTimeoutRef = useRef<number | null>(null);
@@ -49,8 +57,23 @@ export const useKeyboardShortcuts = (options: UseKeyboardShortcutsOptions = {}) 
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const isTyping = target?.matches(TYPING_SELECTOR) ?? false;
+      // Cmd/Ctrl+K toggles the command palette — fires even while typing or in a modal
+      if ((event.metaKey || event.ctrlKey) && (event.key === 'k' || event.key === 'K')) {
+        event.preventDefault();
+        if (isOpen) setIsOpen(false);
+        setPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      // Escape closes the palette before the shortcuts dialog
+      if (paletteOpen && event.key === 'Escape') {
+        event.preventDefault();
+        setPaletteOpen(false);
+        return;
+      }
+
+      const target = event.target;
+      const isTyping = target instanceof Element && target.matches(TYPING_SELECTOR);
 
       if (isOpen && event.key === 'Escape') {
         event.preventDefault();
@@ -122,7 +145,7 @@ export const useKeyboardShortcuts = (options: UseKeyboardShortcutsOptions = {}) 
       document.removeEventListener('keydown', handleKeyDown);
       clearGoTimeout();
     };
-  }, [isOpen, navigate, options.enabled]);
+  }, [isOpen, paletteOpen, navigate, options.enabled]);
 
-  return { isOpen, setIsOpen };
+  return { isOpen, setIsOpen, paletteOpen, setPaletteOpen };
 };

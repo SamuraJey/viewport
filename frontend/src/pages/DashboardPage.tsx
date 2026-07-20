@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
+import { usePendingAction } from '../hooks/usePendingAction';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { PaginationControls } from '../components/PaginationControls';
 import { CollectionCard, CollectionShareBadge } from '../components/dashboard/CollectionCard';
@@ -231,6 +232,12 @@ export const DashboardPage = () => {
     setError('');
     setIsProjectModalOpen(true);
   };
+
+  usePendingAction((action) => {
+    if (action === 'create-project') {
+      handleOpenProjectModal();
+    }
+  });
 
   const handleConfirmCreateProject = async () => {
     if (!newProjectName.trim()) return;
