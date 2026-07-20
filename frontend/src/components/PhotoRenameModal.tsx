@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { X, FileText, Check, Loader2 } from 'lucide-react';
 import { sanitizeFilenameStem, isValidFilenameStem } from '../lib/filenameUtils';
+import { toast } from 'sonner';
 import { AppDialog, AppDialogDescription, AppDialogTitle } from './ui';
 
 export interface PhotoRenameModalProps {
@@ -57,11 +58,12 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
       try {
         await onRename(newFilename);
         onClose();
+        toast.success('Photo renamed', { description: `Renamed to ${newFilename}` });
       } catch (err: unknown) {
         const message =
           (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
           (err instanceof Error ? err.message : 'Failed to rename photo. Please try again.');
-        setError(message);
+        toast.error(message);
       } finally {
         setIsRenaming(false);
       }

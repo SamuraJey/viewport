@@ -7,6 +7,7 @@ import { useConfirmation } from './useConfirmation';
 import { useErrorHandler } from './useErrorHandler';
 import { useModal } from './useModal';
 import { handleApiError } from '../lib/errorHandling';
+import { toast } from 'sonner';
 import type {
   GalleryDetail,
   GalleryPhotoSortBy,
@@ -326,8 +327,10 @@ export const useGalleryActions = ({
           navigate(parentProjectId ? `/projects/${parentProjectId}` : '/dashboard', {
             replace: true,
           });
+          toast.success('Gallery deleted');
         } catch (err) {
           handleError(err);
+          toast.error(handleApiError(err).message);
           throw err;
         }
       },
@@ -347,8 +350,10 @@ export const useGalleryActions = ({
 
     try {
       await photoService.downloadGalleryZip(galleryId);
+      toast.success('Download started');
     } catch (err) {
       handleError(err);
+      toast.error(handleApiError(err).message);
     } finally {
       releaseZipDownloadLock();
     }
@@ -365,8 +370,10 @@ export const useGalleryActions = ({
 
     try {
       await photoService.downloadSelectedPhotosZip(galleryId, Array.from(selectedIds));
+      toast.success('Download started');
     } catch (err) {
       handleError(err);
+      toast.error(handleApiError(err).message);
     } finally {
       releaseZipDownloadLock();
     }
@@ -379,8 +386,10 @@ export const useGalleryActions = ({
 
       try {
         await photoService.downloadPhoto(galleryId, photoId);
+        toast.success('Download started');
       } catch (err) {
         handleError(err);
+        toast.error(handleApiError(err).message);
       }
     },
     [clearError, galleryId, handleError],
@@ -401,13 +410,16 @@ export const useGalleryActions = ({
         return next;
       });
       setActionInfo('');
+      toast.success('Cover photo updated');
     } catch (err) {
       if (isNotFoundError(err)) {
         removePhotoLocally(photoId);
         setActionInfo('This photo was already deleted.');
+        toast.info('Photo was already deleted');
         return;
       }
       handleError(err);
+      toast.error(handleApiError(err).message);
     }
   };
 
@@ -420,8 +432,10 @@ export const useGalleryActions = ({
         latestGalleryRef.current = next;
         return next;
       });
+      toast.success('Cover photo removed');
     } catch (err) {
       handleError(err);
+      toast.error(handleApiError(err).message);
     }
   };
 
@@ -431,9 +445,11 @@ export const useGalleryActions = ({
     try {
       const created = await shareLinkService.createShareLink(galleryId, payload);
       await fetchShareLinks(false);
+      toast.success('Share link created');
       return created;
     } catch (err) {
       handleError(err);
+      toast.error(handleApiError(err).message);
       throw err;
     } finally {
       setIsCreatingLink(false);
@@ -449,8 +465,10 @@ export const useGalleryActions = ({
         try {
           await shareLinkService.deleteShareLink(galleryId, linkId);
           await fetchShareLinks(false);
+          toast.success('Share link deleted');
         } catch (err) {
           handleError(err);
+          toast.error(handleApiError(err).message);
           throw err;
         }
       },
@@ -465,8 +483,10 @@ export const useGalleryActions = ({
     try {
       await shareLinkService.updateShareLink(galleryId, linkId, payload);
       await fetchShareLinks(false);
+      toast.success('Share link updated');
     } catch (err) {
       handleError(err);
+      toast.error(handleApiError(err).message);
       throw err;
     }
   };
@@ -478,23 +498,31 @@ export const useGalleryActions = ({
   const handleRenameConfirm = async (newFilename: string) => {
     if (!renameModal.data) return;
 
-    const renamedPhoto = await photoService.renamePhoto(
-      galleryId,
-      renameModal.data.id,
-      newFilename,
-    );
-    setPhotoUrls((prev) =>
-      prev.map((photo) =>
-        photo.id === renameModal.data!.id
-          ? {
-              ...photo,
-              filename: renamedPhoto.filename,
-              url: renamedPhoto.url,
-              thumbnail_url: renamedPhoto.thumbnail_url,
-            }
-          : photo,
-      ),
-    );
+    try {
+      const renamedPhoto = await photoService.renamePhoto(
+        galleryId,
+        renameModal.data.id,
+        newFilename,
+      );
+      setPhotoUrls((prev) =>
+        prev.map((photo) =>
+          photo.id === renameModal.data!.id
+            ? {
+                ...photo,
+                filename: renamedPhoto.filename,
+                url: renamedPhoto.url,
+                thumbnail_url: renamedPhoto.thumbnail_url,
+              }
+            : photo,
+        ),
+      );
+      toast.success('Photo renamed');
+    } catch (err) {
+      // handleError surfaces the page-level error banner; the toast is shown
+      // by PhotoRenameModal which catches the re-thrown error.
+      handleError(err);
+      throw err;
+    }
   };
 
   const handleDeletePhoto = (photoId: string) => {
@@ -508,13 +536,16 @@ export const useGalleryActions = ({
           await photoService.deletePhoto(galleryId, photoId);
           removePhotoLocally(photoId);
           setActionInfo('');
+          toast.success('Photo deleted');
         } catch (err) {
           if (isNotFoundError(err)) {
             removePhotoLocally(photoId);
             setActionInfo('This photo was already deleted.');
+            toast.info('Photo was already deleted');
             return;
           }
           handleError(err);
+          toast.error(handleApiError(err).message);
           throw err;
         }
       },
@@ -534,6 +565,7 @@ export const useGalleryActions = ({
           result = await photoService.deletePhotos(galleryId, selectedPhotoIds);
         } catch (err) {
           handleError(err);
+          toast.error(handleApiError(err).message);
           throw err;
         }
 
@@ -555,6 +587,7 @@ export const useGalleryActions = ({
             `Failed to enqueue deletion for ${result.failed_ids.length} photo${result.failed_ids.length > 1 ? 's' : ''}.`,
           );
           handleError(enqueueError);
+          toast.error(enqueueError.message);
           throw enqueueError;
         }
 
@@ -569,6 +602,7 @@ export const useGalleryActions = ({
             setActionInfo('');
           }
           clearSelection();
+          toast.success(`${deletedOrMissingIds.length} photo${deletedOrMissingIds.length > 1 ? 's' : ''} deleted`);
         }
       },
     });

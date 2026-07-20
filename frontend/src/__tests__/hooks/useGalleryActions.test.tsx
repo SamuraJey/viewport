@@ -2,8 +2,23 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGalleryActions } from '../../hooks/useGalleryActions';
+
+const { toastMock } = vi.hoisted(() => ({
+  toastMock: {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
+  },
+}));
+
+vi.mock('sonner', () => ({
+  toast: toastMock,
+}));
 import { ApiError } from '../../lib/errorHandling';
 import { galleryService } from '../../services/galleryService';
+import { photoService } from '../../services/photoService';
+import { shareLinkService } from '../../services/shareLinkService';
 import type { Gallery, GalleryDetail } from '../../types';
 
 vi.mock('../../services/galleryService', () => ({
@@ -217,5 +232,80 @@ describe('useGalleryActions', () => {
     expect(result.current.gallery?.cover_photo_id).toBeNull();
     expect(result.current.gallery?.cover_photo_thumbnail_url).toBe('/photos/photo-1-thumb.jpg');
     expect(result.current.actionInfo).toBe('This photo was already deleted.');
+  });
+
+  it('shows toast.success on share link creation', async () => {
+    vi.mocked(shareLinkService.createShareLink).mockResolvedValue({
+      id: 'link-1',
+      gallery_id: 'gallery-1',
+      label: 'Preview',
+      is_active: true,
+      expires_at: null,
+      views: 0,
+      zip_downloads: 0,
+      single_downloads: 0,
+      created_at: '2026-01-01',
+    } as never);
+
+    const { result } = renderUseGalleryActions();
+
+    await act(async () => {
+      await result.current.fetchGalleryDetails(1, true);
+    });
+
+    await act(async () => {
+      await result.current.handleCreateShareLink({ label: 'Preview' });
+    });
+
+    expect(toastMock.success).toHaveBeenCalledWith('Share link created');
+  });
+
+  it('shows toast.error on share link creation failure', async () => {
+    vi.mocked(shareLinkService.createShareLink).mockRejectedValue(
+      new ApiError(500, 'Server error'),
+    );
+
+    const { result } = renderUseGalleryActions();
+
+    await act(async () => {
+      await result.current.fetchGalleryDetails(1, true);
+    });
+
+    await act(async () => {
+      try {
+        await result.current.handleCreateShareLink({ label: 'Preview' });
+      } catch {
+        // expected — handler rethrows
+      }
+    });
+
+    expect(toastMock.error).toHaveBeenCalled();
+  });
+
+  it('shows toast.success on photo rename', async () => {
+    vi.mocked(photoService.renamePhoto).mockResolvedValue({
+      id: 'photo-1',
+      filename: 'renamed.jpg',
+      url: '/photos/renamed.jpg',
+      thumbnail_url: '/photos/renamed-thumb.jpg',
+    } as never);
+
+    const { result } = renderUseGalleryActions();
+
+    await act(async () => {
+      await result.current.fetchGalleryDetails(1, true);
+    });
+
+    await act(async () => {
+      result.current.handleRenamePhoto('photo-1', 'photo-1.jpg');
+    });
+
+    await act(async () => {
+      await result.current.handleRenameConfirm('renamed.jpg');
+    });
+
+    await waitFor(() => {
+      expect(toastMock.success).toHaveBeenCalledWith('Photo renamed');
+    });
   });
 });

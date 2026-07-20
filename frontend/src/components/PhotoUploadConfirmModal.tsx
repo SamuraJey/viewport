@@ -8,6 +8,7 @@ import { UploadProgressContent } from './upload-confirm/UploadProgressContent';
 import { UploadResultContent } from './upload-confirm/UploadResultContent';
 import { UploadCancelWarning, UploadModalFooter } from './upload-confirm/UploadModalActions';
 import { AppDialog, AppDialogDescription, AppDialogTitle } from './ui';
+import { toast } from 'sonner';
 
 interface PhotoUploadConfirmModalProps {
   isOpen: boolean;
@@ -83,6 +84,13 @@ export const PhotoUploadConfirmModal = memo(
     const handleClose = useCallback(() => {
       if (result) {
         // Upload is complete - call onUploadComplete and close
+        if (result.successful_uploads > 0 && result.failed_uploads === 0) {
+          toast.success('Upload complete', { description: `${result.successful_uploads} of ${result.total_files} file${result.total_files !== 1 ? 's' : ''} uploaded successfully.` });
+        } else if (result.successful_uploads > 0 && result.failed_uploads > 0) {
+          toast.warning('Partial upload', { description: `${result.successful_uploads} uploaded, ${result.failed_uploads} failed.` });
+        } else if (result.successful_uploads === 0 && result.failed_uploads > 0) {
+          toast.error('Upload failed', { description: `All ${result.total_files} file${result.total_files !== 1 ? 's' : ''} failed to upload.` });
+        }
         onUploadComplete(result);
         onClose();
         setResult(null);

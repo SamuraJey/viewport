@@ -33,6 +33,7 @@
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.15.1",
     "sanitize-filename": "^1.6.3",
+    "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "yet-another-react-lightbox": "^3.28.0",
     "zustand": "^5.0.6"

@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
+import { toast } from 'sonner';
 import { useAuthStore } from '../stores/authStore';
 
 export const useProfileActions = (isOpen: boolean, onClose: () => void) => {
@@ -63,13 +64,14 @@ export const useProfileActions = (isOpen: boolean, onClose: () => void) => {
         storage_quota: updated.storage_quota,
       });
       onClose();
+      toast.success('Profile updated', { description: 'Your display name has been saved.' });
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 401) {
         logout();
         navigate('/auth/login');
       } else {
-        setError('Failed to update profile');
+        toast.error('Failed to update profile');
       }
     } finally {
       setSavingProfile(false);
@@ -90,6 +92,7 @@ export const useProfileActions = (isOpen: boolean, onClose: () => void) => {
         confirm_password: confirmPassword,
       });
       onClose();
+      toast.success('Password changed', { description: 'Your new password is now active.' });
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 401) {
@@ -98,7 +101,7 @@ export const useProfileActions = (isOpen: boolean, onClose: () => void) => {
       } else {
         const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data
           ?.detail;
-        setError(detail || 'Failed to change password');
+        toast.error(detail || 'Failed to change password');
       }
     } finally {
       setChangingPassword(false);
