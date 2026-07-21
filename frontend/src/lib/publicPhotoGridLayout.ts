@@ -205,8 +205,11 @@ export const computeJustifiedLayout = <T extends PublicPhotoGridItem>(
   const rows = groupedRows.map((group, rowIndex): JustifiedLayoutRow<T> => {
     const isComplete = group.isComplete;
     const gapWidth = gap * Math.max(group.items.length - 1, 0);
-    const availableWidth = Math.max(0, containerWidth - gapWidth);
     const ratioSum = group.ratios.reduce((sum, ratio) => sum + ratio, 0);
+    const availableWidth =
+      containerWidth === 0
+        ? ratioSum * targetRowHeight
+        : Math.max(0, containerWidth - gapWidth);
     const fittedHeight = ratioSum > 0 ? availableWidth / ratioSum : 0;
     const rowHeight = isComplete ? fittedHeight : Math.min(targetRowHeight, fittedHeight);
 

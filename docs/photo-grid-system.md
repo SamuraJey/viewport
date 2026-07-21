@@ -8,6 +8,11 @@ The photo-grid system described here belongs only to public share pages and the 
 - **Uniform** uses equal-height cells and `object-fit: contain`. The complete source frame remains visible; semantic surface colors fill any unused space.
 - **Justified** groups photos into full-width rows. Completed rows fill the available width, while the final row stays at or below the target height. Display ratios are bounded to limit cropping.
 
+Justified targets are intentionally photo-forward: 360px/260px for
+Large/Compact on desktop and 240px/180px on mobile. Completed rows reserve a
+0.5px rounding guard on their final item so browser flex quantization cannot
+wrap that item and expose a card-sized gap on the right.
+
 Public viewers can select `large` or `compact` density. On touch-sized viewports, pinch-in selects compact density and pinch-out selects large density without blocking ordinary one-finger vertical scrolling.
 
 ## Implementation
@@ -56,3 +61,9 @@ With 200 rendered cards, layout switches measured 30.1ms (Uniform), 53.9ms
 (Justified), and 46.3ms (Masonry); a 120-frame scroll sample averaged 60.4fps
 with a 17ms p95. A clean browser session reported no console messages or
 runtime errors, and the temporary demo fixture was restored to 12 photos.
+
+A follow-up 2048×1053 check used 100 portrait-heavy photos. The 1962px grid
+rendered completed Large rows at 325–359px and Compact rows at 216–236px;
+their measured right edge gap stayed between 0.50px and 0.61px. Mobile at
+390px retained zero page/grid overflow. The temporary fixture was again
+restored after verification.

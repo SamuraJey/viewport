@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   computeJustifiedLayout,
@@ -122,6 +122,45 @@ describe('publicPhotoGridLayout', () => {
       ).toEqual([1.5, 1 / 1.5]);
     });
 
+    it('uses and normalizes custom aspect-ratio callbacks', () => {
+      const getAspectRatio = vi
+        .fn<(item: { photo_id: string; ratio: number }, index: number) => number | null>()
+        .mockReturnValueOnce(null)
+        .mockReturnValueOnce(100);
+      const layout = computeJustifiedLayout(
+        [
+          { photo_id: 'fallback', ratio: 0.5 },
+          { photo_id: 'clamped', ratio: 1 },
+        ],
+        {
+          ...justifiedOptions,
+          containerWidth: 2_100,
+          maxCropRatio: 20,
+          getAspectRatio,
+        },
+      );
+
+      expect(getAspectRatio).toHaveBeenNthCalledWith(1, { photo_id: 'fallback', ratio: 0.5 }, 0);
+      expect(getAspectRatio).toHaveBeenNthCalledWith(2, { photo_id: 'clamped', ratio: 1 }, 1);
+      expect(layout.itemGeometry.map((item) => item.aspectRatio)).toEqual([0.5, 20]);
+    });
+
+    it('keeps fallback geometry positive before a container measurement exists', () => {
+      const layout = computeJustifiedLayout(
+        [
+          { photo_id: 'landscape', ratio: 2 },
+          { photo_id: 'portrait', ratio: 0.5 },
+        ],
+        { ...justifiedOptions, containerWidth: 0, maxCropRatio: 20 },
+      );
+
+      expect(layout.rows[0]).toMatchObject({ height: 100, width: 260, isComplete: false });
+      layout.itemGeometry.forEach(({ width, height }) => {
+        expect(width).toBeGreaterThan(0);
+        expect(height).toBeGreaterThan(0);
+      });
+    });
+
     it('does not overflow a narrow container with a wide last-row photo', () => {
       const layout = computeJustifiedLayout([{ photo_id: 'panorama', ratio: 4 }], {
         ...justifiedOptions,
@@ -182,6 +221,31 @@ describe('publicPhotoGridLayout', () => {
         { columnWidth: 156, gap: 8, rowHeight: 8 },
       ),
     ).toEqual([6, 20, 11]);
+  });
+
+  it('uses callback fallbacks and clamps custom ratios for masonry spans', () => {
+    const getAspectRatio = vi
+      .fn<(item: { photo_id: string; ratio: number }, index: number) => number | null>()
+      .mockReturnValueOnce(null)
+      .mockReturnValueOnce(100);
+
+    expect(
+      computeMasonrySpans(
+        [
+          { photo_id: 'fallback', ratio: 2 },
+          { photo_id: 'clamped', ratio: 1 },
+        ],
+        { columnWidth: 100, gap: 0, rowHeight: 10, getAspectRatio },
+      ),
+    ).toEqual([5, 1]);
+    expect(getAspectRatio).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns safe one-row spans when masonry measurements are unavailable', () => {
+    const photos = [{ photo_id: 'one' }, { photo_id: 'two' }];
+
+    expect(computeMasonrySpans(photos, { columnWidth: 0, gap: 8, rowHeight: 8 })).toEqual([1, 1]);
+    expect(computeMasonrySpans(photos, { columnWidth: 100, gap: 8, rowHeight: 0 })).toEqual([1, 1]);
   });
 
   it('computes public masonry and justified geometry for 200 photos within 100ms', () => {

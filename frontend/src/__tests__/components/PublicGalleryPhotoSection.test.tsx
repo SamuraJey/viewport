@@ -85,6 +85,7 @@ describe('PublicGalleryPhotoSection', () => {
     );
     expect(screen.getByTestId('lazy-image')).toHaveAttribute('data-object-fit', 'cover');
     expect(screen.getByTestId('lazy-image')).toHaveClass('group-hover:scale-[1.01]');
+    expect(screen.getByTestId('public-batch')).toHaveStyle({ width: '300px', height: '200px' });
   });
 
   it('exposes a public Justified control without owner dependencies', () => {
