@@ -27,6 +27,7 @@ describe('PhotoRenameModal', () => {
     );
 
     const input = await screen.findByLabelText(/filename/i);
+    expect(screen.getByRole('button', { name: 'Submit rename photo form' })).toBeInTheDocument();
     fireEvent.change(input, { target: { value: 'portrait-final' } });
     await user.click(input);
     await user.keyboard('{Enter}');

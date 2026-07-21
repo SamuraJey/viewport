@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   Check,
   Copy,
@@ -10,11 +10,10 @@ import {
   SlidersHorizontal,
   Sparkles,
   Users,
-  X,
 } from 'lucide-react';
 import type { SelectionConfigUpdateRequest, ShareLink } from '../../../types';
 import { copyTextToClipboard } from '../../../lib/clipboard';
-import { AppDialog, AppDialogDescription, AppDialogTitle, AppTabs } from '../../ui';
+import { AppDrawer, AppTabs } from '../../ui';
 import { formatUtcDateTimeInputValue, parseUtcDateTimeInputValue } from '../shareLinkDateTime';
 import type {
   PasswordMode,
@@ -316,10 +315,6 @@ export const ShareLinkSettingsModal = ({
     }, 2000);
   };
 
-  if (!isOpen) {
-    return null;
-  }
-
   const title = mode === 'create' ? 'Create share link' : 'Edit share link';
   const description =
     mode === 'create'
@@ -456,43 +451,46 @@ export const ShareLinkSettingsModal = ({
     panel,
   }));
 
-  return (
-    <AppDialog
-      open={isOpen}
-      onClose={handleClose}
-      canClose={!isSaving && !isRetryingSelection}
-      size="2xl"
-      initialFocusRef={labelInputRef}
-      containerClassName="items-start overflow-y-auto py-6 sm:py-10"
-      panelClassName="overflow-hidden rounded-2xl border border-border/50 bg-surface shadow-2xl dark:border-border/30 dark:bg-surface-dark"
-    >
-      <div className="flex items-start justify-between gap-4 border-b border-border/40 px-5 py-4 sm:px-6">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="rounded-xl bg-accent/15 p-2 text-accent">
-            {mode === 'create' ? (
-              <Share2 className="h-5 w-5" />
-            ) : (
-              <PencilLine className="h-5 w-5" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <AppDialogTitle className="text-lg font-bold text-text">{title}</AppDialogTitle>
-            <AppDialogDescription className="mt-0.5 text-sm text-muted">
-              {description}
-            </AppDialogDescription>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={handleClose}
-          aria-label="Close share link settings"
-          className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-1 hover:text-text"
-          disabled={isSaving || isRetryingSelection}
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
+  const formId = `${useId()}-share-link-settings-${mode}`;
+  const drawerFooter = createdLink ? undefined : (
+    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+      <button
+        type="button"
+        onClick={handleClose}
+        className="rounded-xl border border-border/50 px-4 py-2.5 text-sm font-semibold text-text transition-colors hover:bg-surface-1"
+        disabled={isSaving}
+      >
+        Cancel
+      </button>
+      <button
+        type="submit"
+        form={formId}
+        className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={!canSubmit}
+      >
+        {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+        {mode === 'create' ? 'Create link' : 'Save changes'}
+      </button>
+    </div>
+  );
 
+  return (
+    <AppDrawer
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) handleClose();
+      }}
+      canClose={!isSaving && !isRetryingSelection}
+      width="lg"
+      title={title}
+      description={description}
+      eyebrow={mode === 'create' ? 'Public delivery' : 'Link settings'}
+      icon={mode === 'create' ? <Share2 className="h-5 w-5" /> : <PencilLine className="h-5 w-5" />}
+      initialFocusRef={labelInputRef}
+      bodyClassName="p-0 md:px-0 md:py-0"
+      footer={drawerFooter}
+      closeLabel="Close share link settings"
+    >
       {createdLink ? (
         <div className="space-y-5 px-5 py-5 sm:px-6">
           <div className="rounded-2xl border border-success/30 bg-success/10 px-4 py-4 text-success">
@@ -557,14 +555,19 @@ export const ShareLinkSettingsModal = ({
           </div>
         </div>
       ) : (
-        <form onSubmit={handleSubmitForm}>
+        <form id={formId} onSubmit={handleSubmitForm}>
+          <button
+            type="submit"
+            className="sr-only"
+            tabIndex={-1}
+            aria-label="Submit share link form"
+          />
           <AppTabs
             items={tabItems}
             selectedKey={activeTab}
             onChange={setActiveTab}
             preserveInactivePanels
-            listClassName="flex shrink-0 gap-1 overflow-x-auto border-b border-border/50 bg-surface/80 px-4 dark:border-border/40 dark:bg-surface-dark/80"
-            panelsClassName="max-h-[calc(100vh-16rem)] overflow-y-auto"
+            listClassName="sticky top-0 z-10 flex shrink-0 gap-1 overflow-x-auto border-b border-border/50 bg-surface/95 px-4 backdrop-blur-xl dark:border-border/40"
             defaultPanelClassName="px-5 py-5 sm:px-6"
           />
 
@@ -595,31 +598,8 @@ export const ShareLinkSettingsModal = ({
               </p>
             ) : null}
           </div>
-
-          <div className="flex flex-col-reverse gap-2 border-t border-border/40 px-5 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="rounded-xl border border-border/50 px-4 py-2.5 text-sm font-semibold text-text transition-colors hover:bg-surface-1"
-              disabled={isSaving}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={!canSubmit}
-            >
-              {isSaving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Share2 className="h-4 w-4" />
-              )}
-              {mode === 'create' ? 'Create link' : 'Save changes'}
-            </button>
-          </div>
         </form>
       )}
-    </AppDialog>
+    </AppDrawer>
   );
 };

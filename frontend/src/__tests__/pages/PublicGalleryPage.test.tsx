@@ -128,6 +128,10 @@ vi.mock('../../services/shareLinkService', () => ({
   },
 }));
 
+vi.mock('../../lib/clipboard', () => ({
+  copyTextToClipboard: vi.fn().mockResolvedValue(true),
+}));
+
 // Mock ThemeSwitch and Lightbox to keep tests focused
 vi.mock('../../components/ThemeSwitch', () => ({
   ThemeSwitch: () => <button data-testid="theme-switch">T</button>,
@@ -161,8 +165,8 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-const wrapper = () => (
-  <MemoryRouter>
+const wrapper = (initialEntry = '/') => (
+  <MemoryRouter initialEntries={[initialEntry]}>
     <PublicGalleryPage />
   </MemoryRouter>
 );
@@ -227,6 +231,86 @@ describe('PublicGalleryPage', () => {
     expect(thumbs).toHaveLength(2);
     expect(screen.queryByRole('button', { name: /finish selection/i })).not.toBeInTheDocument();
     expect(document.getElementById('gallery-content')).toBeInTheDocument();
+  });
+
+  it('opens the public share bottom sheet with all handoff actions', async () => {
+    const user = userEvent.setup();
+    render(wrapper());
+
+    const shareButton = await screen.findByRole('button', { name: 'Share Public Gallery' });
+    await user.click(shareButton);
+
+    const drawer = await screen.findByRole('dialog', { name: 'Share Public Gallery' });
+    expect(drawer).toHaveAttribute('data-side', 'bottom');
+    expect(within(drawer).getByRole('button', { name: /copy link/i })).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: /email/i })).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: /sms/i })).toBeInTheDocument();
+    await user.click(within(drawer).getByRole('button', { name: /qr code/i }));
+
+    const qrDrawer = await screen.findByRole('dialog', { name: 'QR code' });
+    expect(within(qrDrawer).getByTitle('QR code for Public Gallery')).toBeInTheDocument();
+    expect(within(qrDrawer).getByText('http://localhost/share/abc123')).toBeInTheDocument();
+    expect(drawer).toBeInTheDocument();
+  });
+
+  it('never exposes a favorites resume token through public share actions', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    const { copyTextToClipboard } = await import('../../lib/clipboard');
+    mockRouteParams = { shareId: 'abc123', resumeToken: 'secret-resume-token' };
+    vi.mocked(shareLinkService.getPublicSelectionConfig).mockResolvedValue({
+      is_enabled: true,
+      list_title: 'Selected photos',
+      limit_enabled: false,
+      limit_value: null,
+      allow_photo_comments: false,
+      require_name: true,
+      require_email: false,
+      require_phone: false,
+      require_client_note: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+    vi.mocked(shareLinkService.getPublicSelectionSession).mockResolvedValue({
+      id: 'session-1',
+      sharelink_id: 'abc123',
+      status: 'in_progress',
+      client_name: 'Jane Client',
+      selected_count: 0,
+      resume_token: 'secret-resume-token',
+      items: [],
+    } as any);
+
+    const user = userEvent.setup();
+    render(wrapper('/share/abc123/favorites/secret-resume-token'));
+
+    await user.click(await screen.findByRole('button', { name: 'Share Public Gallery' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Share Public Gallery' });
+    const emailHref = within(drawer).getByRole('link', { name: /email/i }).getAttribute('href');
+    const smsHref = within(drawer).getByRole('link', { name: /sms/i }).getAttribute('href');
+
+    expect(emailHref).toContain(encodeURIComponent('http://localhost/share/abc123'));
+    expect(smsHref).toContain(encodeURIComponent('http://localhost/share/abc123'));
+    expect(emailHref).not.toContain('secret-resume-token');
+    expect(smsHref).not.toContain('secret-resume-token');
+
+    await user.click(within(drawer).getByRole('button', { name: /copy link/i }));
+    expect(copyTextToClipboard).toHaveBeenCalledWith('http://localhost/share/abc123');
+  });
+
+  it('shares a canonical project-gallery URL without carrying query parameters', async () => {
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-1' };
+    const user = userEvent.setup();
+    render(wrapper('/share/abc123/galleries/gallery-1?utm_source=private-note'));
+
+    await user.click(await screen.findByRole('button', { name: 'Share Public Gallery' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Share Public Gallery' });
+    const emailHref = within(drawer).getByRole('link', { name: /email/i }).getAttribute('href');
+
+    expect(emailHref).toContain(
+      encodeURIComponent('http://localhost/share/abc123/galleries/gallery-1'),
+    );
+    expect(emailHref).not.toContain('utm_source');
+    expect(emailHref).not.toContain('private-note');
   });
 
   it('does not render a ZIP size estimate when the payload omits the total', async () => {

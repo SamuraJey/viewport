@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, User, Lock, ShieldAlert } from 'lucide-react';
+import { User, Lock, ShieldAlert } from 'lucide-react';
 
 import { useProfileActions } from '../hooks/useProfileActions';
 import { getAvatarInitials, stringToHue } from '../lib/avatar';
 import { ProfileInfoSection } from './profile/ProfileInfoSection';
 import { ProfilePasswordSection } from './profile/ProfilePasswordSection';
 import { ProfileDangerZoneSection } from './profile/ProfileDangerZoneSection';
-import { AppDialog, AppDialogDescription, AppDialogTitle, AppTabs } from './ui';
+import { AppDrawer, AppTabs } from './ui';
 
 type TabId = 'profile' | 'security' | 'account';
 const TABS: { id: TabId; label: string; Icon: React.ElementType }[] = [
@@ -155,52 +155,36 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
   }));
 
   return (
-    <AppDialog
+    <AppDrawer
       open={isOpen}
-      onClose={onClose}
-      size="xl"
-      initialFocusRef={firstFieldRef}
-      panelProps={{ 'data-lenis-prevent': true }}
-      panelClassName="flex max-h-[min(92vh,58rem)] flex-col overflow-hidden rounded-3xl border border-border/50 bg-surface shadow-2xl dark:border-border/40 dark:bg-surface-dark"
-    >
-      {/* ── Header ── */}
-      <div className="flex shrink-0 items-center gap-4 border-b border-border/50 bg-surface/95 px-6 py-4 backdrop-blur-md dark:border-border/40 dark:bg-surface-dark/95">
-        {/* Avatar */}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      canClose={!savingProfile && !changingPassword}
+      width="md"
+      title={displayName || email || 'Account settings'}
+      description={email || 'Manage your profile, security, and account.'}
+      eyebrow="Account center"
+      icon={
         <div
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-bold text-white select-none"
+          className="flex h-full w-full items-center justify-center text-sm font-bold text-white select-none"
           style={{ background: `hsl(${avatarHue} 55% 50%)` }}
           aria-hidden="true"
         >
           {initials}
         </div>
-
-        <div className="min-w-0 flex-1">
-          <AppDialogTitle className="truncate text-lg font-bold leading-tight tracking-tight text-text">
-            {displayName || email}
-          </AppDialogTitle>
-          <AppDialogDescription className="truncate text-xs font-medium text-muted">
-            {email}
-          </AppDialogDescription>
-        </div>
-
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close account settings"
-          className="ml-2 shrink-0 rounded-xl p-2 text-muted transition-all duration-200 hover:bg-surface-1 hover:text-text active:scale-95 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent dark:hover:bg-surface-dark-1"
-        >
-          <X className="h-5 w-5" />
-        </button>
-      </div>
-
+      }
+      initialFocusRef={firstFieldRef}
+      bodyClassName="p-0 md:px-0 md:py-0"
+      closeLabel="Close account settings"
+    >
       <AppTabs
         items={tabItems}
         selectedKey={activeTab}
         onChange={setActiveTab}
-        listClassName="flex shrink-0 gap-1 border-b border-border/50 bg-surface/80 px-4 dark:border-border/40 dark:bg-surface-dark/80"
-        panelsClassName="h-120 overflow-y-auto"
+        listClassName="sticky top-0 z-10 flex shrink-0 gap-1 overflow-x-auto border-b border-border/50 bg-surface/95 px-4 backdrop-blur-xl dark:border-border/40"
         defaultPanelClassName="p-6 sm:p-7"
       />
-    </AppDialog>
+    </AppDrawer>
   );
 });
