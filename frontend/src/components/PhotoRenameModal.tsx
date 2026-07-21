@@ -78,7 +78,7 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
       nameWithoutExtension.trim().length > 0 &&
       `${sanitizeFilenameStem(nameWithoutExtension)}${extension}` !== currentFilename;
 
-    const formId = 'photo-rename-form';
+    const formId = `${React.useId()}-photo-rename-form`;
 
     return (
       <AppDrawer

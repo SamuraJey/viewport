@@ -231,7 +231,7 @@ export const AppDrawer = ({
               <button
                 type="button"
                 onClick={() => handleOpenChange(false)}
-                disabled={!canClose}
+                disabled={!canClose || hasOpenNestedDrawer}
                 aria-label={closeLabel}
                 className="absolute right-4 top-4 rounded-xl p-2 text-muted transition-colors hover:bg-surface-1 hover:text-text focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-surface-dark-1 md:right-5 md:top-5"
               >

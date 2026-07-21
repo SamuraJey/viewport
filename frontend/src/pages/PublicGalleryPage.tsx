@@ -32,10 +32,11 @@ import {
   PublicGalleryExpired,
 } from '../components/public-gallery/PublicGalleryStates';
 import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 import { usePublicGallery } from '../hooks/usePublicGallery';
 import { usePublicGalleryGrid } from '../hooks/usePublicGalleryGrid';
+import { usePublicGalleryShare } from '../hooks/usePublicGalleryShare';
 import { usePublicSelection } from '../hooks/usePublicSelection';
-import { copyTextToClipboard } from '../lib/clipboard';
 import { isDemoModeEnabled } from '../lib/demoMode';
 import { formatFileSize } from '../lib/utils';
 import { handleApiError } from '../lib/errorHandling';
@@ -77,7 +78,7 @@ export const PublicGalleryPage = () => {
   const [startFormError, setStartFormError] = useState('');
   const [sessionNoteDraft, setSessionNoteDraft] = useState('');
   const [openFavoritesAfterStart, setOpenFavoritesAfterStart] = useState(false);
-  const [entryLinkCopied, setEntryLinkCopied] = useState(false);
+  const { copied: entryLinkCopied, copy: copyEntryLink } = useCopyToClipboard();
   const [selectedPhotos, setSelectedPhotos] = useState<PublicPhoto[]>([]);
   const [selectedPhotosError, setSelectedPhotosError] = useState('');
   const [isLoadingSelectedPhotos, setIsLoadingSelectedPhotos] = useState(false);
@@ -86,9 +87,15 @@ export const PublicGalleryPage = () => {
   const [downloadError, setDownloadError] = useState('');
   const [isDownloadPasswordRequired, setIsDownloadPasswordRequired] = useState(false);
   const [isDownloadExpired, setIsDownloadExpired] = useState(false);
-  const [isShareDrawerOpen, setIsShareDrawerOpen] = useState(false);
-  const [isQrDrawerOpen, setIsQrDrawerOpen] = useState(false);
-  const [shareLinkCopied, setShareLinkCopied] = useState(false);
+  const {
+    isShareDrawerOpen,
+    isQrDrawerOpen,
+    shareLinkCopied,
+    openShareDrawer,
+    handleShareDrawerOpenChange,
+    handleQrDrawerOpenChange,
+    copyShareLink,
+  } = usePublicGalleryShare();
   const startNameInputRef = useRef<HTMLInputElement | null>(null);
   const heroBoundaryRef = useRef<HTMLDivElement | null>(null);
   const [hasScrolledPastHero, setHasScrolledPastHero] = useState(false);
@@ -475,11 +482,7 @@ export const PublicGalleryPage = () => {
   const shareSubject = `View ${heroTitle} on Viewport`;
   const encodedShareSubject = encodeURIComponent(shareSubject);
   const encodedShareBody = encodeURIComponent(`${shareSubject}\n\n${shareUrl}`);
-  const handleCopyShareLink = useCallback(async () => {
-    if (!shareUrl || !(await copyTextToClipboard(shareUrl))) return;
-    setShareLinkCopied(true);
-    window.setTimeout(() => setShareLinkCopied(false), 2000);
-  }, [shareUrl]);
+  const handleCopyShareLink = useCallback(() => copyShareLink(shareUrl), [copyShareLink, shareUrl]);
   const activeProjectGallery = projectGalleryTabs?.galleries.find(
     (projectGallery) => projectGallery.gallery_id === activeGalleryId,
   );
@@ -538,21 +541,10 @@ export const PublicGalleryPage = () => {
     navigate(`/share/${shareId}`);
   }, [navigate, selection, shareId]);
 
-  const handleCopyEntryLink = useCallback(async () => {
-    if (!entryLink) {
-      return;
-    }
-
-    const copied = await copyTextToClipboard(entryLink);
-    if (!copied) {
-      return;
-    }
-
-    setEntryLinkCopied(true);
-    window.setTimeout(() => {
-      setEntryLinkCopied(false);
-    }, 2000);
-  }, [entryLink]);
+  const handleCopyEntryLink = useCallback(
+    () => copyEntryLink(entryLink),
+    [copyEntryLink, entryLink],
+  );
 
   const handleOpenSelectionStart = useCallback(
     (openFavoritesAfter = false) => {
@@ -762,7 +754,7 @@ export const PublicGalleryPage = () => {
       <div className="fixed top-6 right-6 z-30 flex items-center gap-2">
         <button
           type="button"
-          onClick={() => setIsShareDrawerOpen(true)}
+          onClick={openShareDrawer}
           aria-label={`Share ${heroTitle}`}
           className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border/50 bg-surface/90 px-4 text-sm font-semibold text-text shadow-lg backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent"
         >
@@ -1305,13 +1297,7 @@ export const PublicGalleryPage = () => {
 
       <AppDrawer
         open={isShareDrawerOpen}
-        onOpenChange={(open) => {
-          setIsShareDrawerOpen(open);
-          if (!open) {
-            setIsQrDrawerOpen(false);
-            setShareLinkCopied(false);
-          }
-        }}
+        onOpenChange={handleShareDrawerOpenChange}
         side="bottom"
         snapPoints={[0.5, 0.9]}
         width="md"
@@ -1353,7 +1339,7 @@ export const PublicGalleryPage = () => {
           </a>
 
           <a
-            href={`sms:?&body=${encodedShareBody}`}
+            href={`sms:?body=${encodedShareBody}`}
             className="group flex min-h-20 items-center gap-4 rounded-2xl border border-border/45 bg-surface-1 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-accent/45 hover:shadow-md"
           >
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
@@ -1368,13 +1354,13 @@ export const PublicGalleryPage = () => {
           <AppDrawer
             nested
             open={isQrDrawerOpen}
-            onOpenChange={setIsQrDrawerOpen}
+            onOpenChange={handleQrDrawerOpenChange}
             side="bottom"
             snapPoints={[0.65, 0.92]}
             width="sm"
             title="QR code"
             description="Keep this link card open while transferring the gallery to another device."
-            eyebrow="Nested drawer"
+            eyebrow="Scan to open"
             icon={<QrCode className="h-5 w-5" />}
             className={`pg-public-page ${getPublicGalleryThemeClassName(appearance)}`}
             closeLabel="Close QR code drawer"

@@ -173,16 +173,19 @@ describe('AppDrawer', () => {
 
     render(<NestedHarness />);
     const parent = await screen.findByRole('dialog', { name: 'Parent drawer' });
+    const parentCloseButton = within(parent).getByRole('button', { name: 'Close drawer' });
     await user.click(within(parent).getByRole('button', { name: 'Open nested' }));
 
     expect(await screen.findByRole('dialog', { name: 'Nested drawer' })).toBeInTheDocument();
     expect(parent).toBeInTheDocument();
+    expect(parentCloseButton).toBeDisabled();
 
     await user.keyboard('{Escape}');
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: 'Nested drawer' })).not.toBeInTheDocument(),
     );
     expect(parent).toBeInTheDocument();
+    expect(parentCloseButton).toBeEnabled();
 
     await user.keyboard('{Escape}');
     await waitFor(() => expect(parent).not.toBeInTheDocument());

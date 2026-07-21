@@ -1,4 +1,4 @@
-import type { FormEvent, RefObject } from 'react';
+import { useId, type FormEvent, type RefObject } from 'react';
 import { CalendarDays, CheckCircle2, FolderPlus, Loader2, Sparkles } from 'lucide-react';
 
 import { GALLERY_NAME_MAX_LENGTH } from '../../constants/gallery';
@@ -31,7 +31,7 @@ export const CreateProjectModal = ({
   const isNearLimit = charsLeft <= 12;
   const isAtLimit = charsLeft <= 0;
   const canSubmit = !isCreating && name.trim().length > 0 && name.length <= GALLERY_NAME_MAX_LENGTH;
-  const formId = 'create-project-form';
+  const formId = `${useId()}-create-project-form`;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -145,7 +145,7 @@ export const CreateProjectModal = ({
               className="flex gap-3 rounded-2xl border border-border/35 bg-surface-1/70 p-3.5"
             >
               <CheckCircle2
-                className={`mt-0.5 h-4 w-4 shrink-0 ${index === 0 ? 'text-accent' : 'text-emerald-500'}`}
+                className={`mt-0.5 h-4 w-4 shrink-0 ${index === 0 ? 'text-accent' : 'text-success'}`}
               />
               <div>
                 <p className="text-sm font-bold text-text">{featureTitle}</p>

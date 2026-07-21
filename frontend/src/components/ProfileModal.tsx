@@ -160,6 +160,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
+      canClose={!savingProfile && !changingPassword}
       width="md"
       title={displayName || email || 'Account settings'}
       description={email || 'Manage your profile, security, and account.'}

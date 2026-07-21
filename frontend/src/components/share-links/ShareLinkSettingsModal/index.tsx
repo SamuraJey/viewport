@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   Check,
   Copy,
@@ -451,7 +451,7 @@ export const ShareLinkSettingsModal = ({
     panel,
   }));
 
-  const formId = `share-link-settings-${mode}`;
+  const formId = `${useId()}-share-link-settings-${mode}`;
   const drawerFooter = createdLink ? undefined : (
     <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
       <button
