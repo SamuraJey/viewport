@@ -80,6 +80,7 @@
 - **Styling and theme maintenance**: Keep Tailwind dark-mode working off the `html` class that `themeStore` manages (no ad-hoc `theme === 'dark'` branches inside components). Define semantic color tokens in `frontend/src/index.css` via `@theme`/custom vars and use the generated utilities (`bg-surface`, `text-text`, `text-muted`, `bg-surface-foreground`, etc.) with `dark:` variants instead of hardcoding RGB values. When tweaking tokens (like `--color-surface-foreground-rgb`), follow the existing RGB palettes to keep light- and dark-theme surfaces consistent, and let the Tailwind utilities adapt automatically.
 - **Interactive primitives**: Use shared wrappers in `frontend/src/components/ui/` for accessible stateful UI.
   - `AppDialog` for dialogs/modals.
+  - `AppDrawer` for editor surfaces that preserve page context: right-side panels on desktop and bottom sheets on mobile. Use `nested` for drawer-from-drawer flows and keep confirmations in `AppDialog`.
   - `AppTabs` for tab groups with string-key state.
   - `AppSwitch` for binary setting toggles.
   - `AppPopover` for anchored floating panels.

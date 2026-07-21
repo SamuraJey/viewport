@@ -1,19 +1,26 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useNavigationType, useParams } from 'react-router-dom';
+import QRCode from 'react-qr-code';
 import {
   ArrowLeft,
+  Check,
   CheckCircle2,
+  Copy,
   Download as DownloadIcon,
   Heart,
   Link2,
   LockKeyhole,
   LogOut,
+  Mail,
+  MessageCircle,
+  QrCode,
+  Share2,
 } from 'lucide-react';
 import { SkipToContentLink } from '../components/a11y/SkipToContentLink';
 import { LightboxKeyboardHint } from '../components/a11y/LightboxKeyboardHint';
 import { ReadabilitySettingsButton } from '../components/ReadabilitySettingsButton';
-import { AppDialog, AppDialogDescription, AppDialogTitle } from '../components/ui';
+import { AppDialog, AppDialogDescription, AppDialogTitle, AppDrawer } from '../components/ui';
 import {
   normalizePublicGalleryAppearance,
   getPublicGalleryThemeClassName,
@@ -79,6 +86,9 @@ export const PublicGalleryPage = () => {
   const [downloadError, setDownloadError] = useState('');
   const [isDownloadPasswordRequired, setIsDownloadPasswordRequired] = useState(false);
   const [isDownloadExpired, setIsDownloadExpired] = useState(false);
+  const [isShareDrawerOpen, setIsShareDrawerOpen] = useState(false);
+  const [isQrDrawerOpen, setIsQrDrawerOpen] = useState(false);
+  const [shareLinkCopied, setShareLinkCopied] = useState(false);
   const startNameInputRef = useRef<HTMLInputElement | null>(null);
   const heroBoundaryRef = useRef<HTMLDivElement | null>(null);
   const [hasScrolledPastHero, setHasScrolledPastHero] = useState(false);
@@ -454,6 +464,22 @@ export const PublicGalleryPage = () => {
     ? projectGalleryTabs?.photographer || folderShare?.photographer
     : folderShare?.photographer;
   const heroCover = folderShare?.cover ?? null;
+  const shareUrl = useMemo(() => {
+    if (typeof window === 'undefined' || !shareId) return '';
+    const origin = window.location.origin || 'http://localhost';
+    const canonicalPath = galleryId
+      ? `/share/${encodeURIComponent(shareId)}/galleries/${encodeURIComponent(galleryId)}`
+      : `/share/${encodeURIComponent(shareId)}`;
+    return new URL(canonicalPath, origin).toString();
+  }, [galleryId, shareId]);
+  const shareSubject = `View ${heroTitle} on Viewport`;
+  const encodedShareSubject = encodeURIComponent(shareSubject);
+  const encodedShareBody = encodeURIComponent(`${shareSubject}\n\n${shareUrl}`);
+  const handleCopyShareLink = useCallback(async () => {
+    if (!shareUrl || !(await copyTextToClipboard(shareUrl))) return;
+    setShareLinkCopied(true);
+    window.setTimeout(() => setShareLinkCopied(false), 2000);
+  }, [shareUrl]);
   const activeProjectGallery = projectGalleryTabs?.galleries.find(
     (projectGallery) => projectGallery.gallery_id === activeGalleryId,
   );
@@ -734,6 +760,15 @@ export const PublicGalleryPage = () => {
     >
       <SkipToContentLink targetId="main-content" />
       <div className="fixed top-6 right-6 z-30 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setIsShareDrawerOpen(true)}
+          aria-label={`Share ${heroTitle}`}
+          className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border/50 bg-surface/90 px-4 text-sm font-semibold text-text shadow-lg backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent"
+        >
+          <Share2 className="h-4 w-4" />
+          <span className="hidden sm:inline">Share</span>
+        </button>
         <ReadabilitySettingsButton />
       </div>
 
@@ -1267,6 +1302,129 @@ export const PublicGalleryPage = () => {
           </section>
         </div>
       ) : null}
+
+      <AppDrawer
+        open={isShareDrawerOpen}
+        onOpenChange={(open) => {
+          setIsShareDrawerOpen(open);
+          if (!open) {
+            setIsQrDrawerOpen(false);
+            setShareLinkCopied(false);
+          }
+        }}
+        side="bottom"
+        snapPoints={[0.5, 0.9]}
+        width="md"
+        title={`Share ${heroTitle}`}
+        description="Send the gallery in the format that works best for your client."
+        eyebrow="Public gallery"
+        icon={<Share2 className="h-5 w-5" />}
+        className={`pg-public-page ${getPublicGalleryThemeClassName(appearance)}`}
+        closeLabel="Close share gallery drawer"
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => void handleCopyShareLink()}
+            className="group flex min-h-20 items-center gap-4 rounded-2xl border border-border/45 bg-surface-1 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-accent/45 hover:shadow-md"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
+              {shareLinkCopied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
+            </span>
+            <span>
+              <span className="block text-sm font-bold text-text">
+                {shareLinkCopied ? 'Link copied' : 'Copy link'}
+              </span>
+              <span className="mt-0.5 block text-xs text-muted">Ready to paste anywhere</span>
+            </span>
+          </button>
+
+          <a
+            href={`mailto:?subject=${encodedShareSubject}&body=${encodedShareBody}`}
+            className="group flex min-h-20 items-center gap-4 rounded-2xl border border-border/45 bg-surface-1 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-accent/45 hover:shadow-md"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
+              <Mail className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="block text-sm font-bold text-text">Email</span>
+              <span className="mt-0.5 block text-xs text-muted">Open your mail app</span>
+            </span>
+          </a>
+
+          <a
+            href={`sms:?&body=${encodedShareBody}`}
+            className="group flex min-h-20 items-center gap-4 rounded-2xl border border-border/45 bg-surface-1 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-accent/45 hover:shadow-md"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
+              <MessageCircle className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="block text-sm font-bold text-text">SMS</span>
+              <span className="mt-0.5 block text-xs text-muted">Send from your phone</span>
+            </span>
+          </a>
+
+          <AppDrawer
+            nested
+            open={isQrDrawerOpen}
+            onOpenChange={setIsQrDrawerOpen}
+            side="bottom"
+            snapPoints={[0.65, 0.92]}
+            width="sm"
+            title="QR code"
+            description="Keep this link card open while transferring the gallery to another device."
+            eyebrow="Nested drawer"
+            icon={<QrCode className="h-5 w-5" />}
+            className={`pg-public-page ${getPublicGalleryThemeClassName(appearance)}`}
+            closeLabel="Close QR code drawer"
+            trigger={
+              <button
+                type="button"
+                className="group flex min-h-20 items-center gap-4 rounded-2xl border border-border/45 bg-surface-1 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-accent/45 hover:shadow-md"
+              >
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
+                  <QrCode className="h-5 w-5" />
+                </span>
+                <span>
+                  <span className="block text-sm font-bold text-text">QR code</span>
+                  <span className="mt-0.5 block text-xs text-muted">
+                    Open a scan-friendly link card
+                  </span>
+                </span>
+              </button>
+            }
+          >
+            <div className="mx-auto max-w-sm rounded-[2rem] border border-border/45 bg-surface-1 p-6 text-center shadow-sm">
+              <div className="mx-auto w-44 rounded-[1.75rem] bg-white p-4 shadow-inner">
+                <QRCode
+                  value={shareUrl}
+                  title={`QR code for ${heroTitle}`}
+                  level="M"
+                  size={176}
+                  bgColor="#ffffff"
+                  fgColor="#111827"
+                  className="h-auto w-full"
+                />
+              </div>
+              <p className="mt-5 text-xs font-bold uppercase tracking-[0.18em] text-muted">
+                Gallery link
+              </p>
+              <p className="mt-2 break-all rounded-xl bg-surface px-3 py-2 font-mono text-xs leading-5 text-text">
+                {shareUrl}
+              </p>
+              <button
+                type="button"
+                onClick={() => void handleCopyShareLink()}
+                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground"
+              >
+                {shareLinkCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {shareLinkCopied ? 'Copied' : 'Copy gallery link'}
+              </button>
+            </div>
+          </AppDrawer>
+        </div>
+      </AppDrawer>
 
       {renderLightbox(lightboxSlides, displayedPhotoTotal)}
       <LightboxKeyboardHint isOpen={lightboxOpen} />

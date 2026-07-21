@@ -42,9 +42,18 @@ if (!Element.prototype.getAnimations) {
   });
 }
 
+// Vaul's drag gesture uses the Pointer Events capture API, which jsdom omits.
+if (!Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = vi.fn();
+  Element.prototype.releasePointerCapture = vi.fn();
+  Element.prototype.hasPointerCapture = vi.fn(() => false);
+}
+
 // jsdom does not implement scrollIntoView; cmdk calls it on the active command item.
 if (!Element.prototype.scrollIntoView) {
-  Element.prototype.scrollIntoView = vi.fn(() => {}) as unknown as typeof Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = vi.fn(
+    () => {},
+  ) as unknown as typeof Element.prototype.scrollIntoView;
 }
 
 // Mock URL methods

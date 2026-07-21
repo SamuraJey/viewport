@@ -1,5 +1,8 @@
 export { AppBadge } from './AppBadge';
 export { AppDialog, AppDialogDescription, AppDialogTitle } from './AppDialog';
+export { AppDrawer } from './AppDrawer';
+export type { AppDrawerSide, AppDrawerWidth } from './AppDrawer';
+export { AppDrawerSection } from './AppDrawerSection';
 export { AppListbox } from './AppListbox';
 export { AppPopover } from './AppPopover';
 export { AppSwitch } from './AppSwitch';
