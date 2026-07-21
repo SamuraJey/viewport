@@ -57,6 +57,7 @@
   - `useSelection`: Multi-select state with Shift+click range selection (selectedIds Set, toggle/selectRange/selectAll methods).
   - `useModal`: Generic modal state (isOpen, data, open/close methods).
   - `useErrorHandler`: Centralized error handling (error, clearError, handleError).
+  - `usePublicGalleryGrid`: Public-gallery rendering state for masonry/uniform/justified layouts, measurement, and pinch density, used by both the public gallery page and its public preview in `AppearanceEditor`. Keep geometry in `lib/publicPhotoGridLayout.ts`, attach observers through the returned callback ref, and keep uniform images uncropped with `object-fit: contain`. Do not import this hook into owner `GalleryPage`/`GalleryPhotoSection` grids or add owner layout controls.
 - **State management**: Zustand stores in `frontend/src/stores/` (authStore, themeStore).
   - Theme uses **themeStore only** (ThemeContext was removed). Access via `useThemeStore()` hook.
   - Theme preference is persisted under `localStorage['theme-preference']` with values `light|dark|system`.

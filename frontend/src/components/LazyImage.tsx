@@ -113,7 +113,7 @@ export const LazyImage = ({
       ) : (
         <div
           ref={imgRef}
-          className={`w-full bg-surface-1 dark:bg-surface-dark-1 animate-pulse flex items-center justify-center ${layoutTransitionClass}`}
+          className={`h-full w-full bg-surface-1 dark:bg-surface-dark-1 animate-pulse flex items-center justify-center ${layoutTransitionClass}`}
           style={{ aspectRatio }}
         >
           <div className="text-muted text-sm font-medium">Loading...</div>
