@@ -28,6 +28,7 @@ interface SegmentedControlProps<T extends string> {
 const layoutOptions: SegmentedOption<PublicGridLayout>[] = [
   { value: 'masonry', label: 'Masonry' },
   { value: 'uniform', label: 'Uniform' },
+  { value: 'justified', label: 'Justified' },
 ];
 
 const densityOptions: SegmentedOption<PublicGridDensity>[] = [

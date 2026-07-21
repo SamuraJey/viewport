@@ -308,6 +308,8 @@ export const AppearanceEditor = ({
         thumbnail_url: photo.thumbnail_url,
         full_url: photo.url,
         filename: photo.filename,
+        width: photo.width,
+        height: photo.height,
       })),
     [photos],
   );
@@ -334,9 +336,10 @@ export const AppearanceEditor = ({
   const {
     gridDensity: previewGridDensity,
     gridLayout: previewGridLayout,
-    gridRef: previewGridRef,
+    setGridRef: setPreviewGridRef,
     gridClassNames: previewGridClassNames,
     getAspectRatioHint: getPreviewAspectRatioHint,
+    getItemStyle: getPreviewItemStyle,
     setGridMode: setPreviewGridMode,
     setLayoutMode: setPreviewLayoutMode,
     touchHandlers: previewTouchHandlers,
@@ -854,11 +857,11 @@ export const AppearanceEditor = ({
                   totalPhotos={photos.length}
                   displayedPhotos={previewPhotos.length}
                   gridClassNames={previewGridClassNames}
-                  showGridControls={false}
                   gridLayout={previewGridLayout}
                   gridDensity={previewGridDensity}
-                  gridRef={previewGridRef}
+                  gridRef={setPreviewGridRef}
                   getAspectRatioHint={getPreviewAspectRatioHint}
+                  getItemStyle={getPreviewItemStyle}
                   observerTargetRef={previewObserverRef}
                   isLoadingMore={false}
                   hasMore={false}

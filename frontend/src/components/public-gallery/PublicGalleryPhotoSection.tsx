@@ -1,4 +1,11 @@
-import type { KeyboardEvent, MutableRefObject, ReactNode, TouchEventHandler } from 'react';
+import type {
+  CSSProperties,
+  KeyboardEvent,
+  MutableRefObject,
+  RefCallback,
+  ReactNode,
+  TouchEventHandler,
+} from 'react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   AlertCircle,
@@ -28,8 +35,9 @@ interface PublicGalleryPhotoSectionProps {
   gridClassNames: string;
   gridLayout: PublicGridLayout;
   gridDensity: PublicGridDensity;
-  gridRef: MutableRefObject<HTMLDivElement | null>;
+  gridRef: RefCallback<HTMLDivElement>;
   getAspectRatioHint: (photo: PublicPhoto) => number;
+  getItemStyle: (photo: PublicPhoto) => CSSProperties;
   observerTargetRef: MutableRefObject<HTMLDivElement | null>;
   isLoading?: boolean;
   isLoadingMore: boolean;
@@ -280,6 +288,7 @@ export const PublicGalleryPhotoSection = ({
   gridDensity,
   gridRef,
   getAspectRatioHint,
+  getItemStyle,
   observerTargetRef,
   isLoading = false,
   isLoadingMore,
@@ -326,7 +335,7 @@ export const PublicGalleryPhotoSection = ({
         </div>
       ) : photos.length > 0 ? (
         <>
-          <div className={gridClassNames} ref={gridRef}>
+          <div className={gridClassNames} data-grid-layout={gridLayout} ref={gridRef}>
             {photos.map((photo, index) => {
               const accessiblePhotoName = getAccessiblePhotoName({
                 displayName: photo.filename,
@@ -351,11 +360,14 @@ export const PublicGalleryPhotoSection = ({
               return (
                 <div
                   key={photo.photo_id}
-                  className={`pg-card group relative overflow-visible transition-all duration-300 ${cardClassName}`}
+                  className={`pg-card group relative h-full overflow-visible transition-all duration-300 ${cardClassName}`}
+                  style={getItemStyle(photo)}
                   data-testid="public-batch"
                   data-photo-id={photo.photo_id}
                 >
-                  <div className={`relative overflow-hidden rounded-xl ${imageWrapperClassName}`}>
+                  <div
+                    className={`relative h-full overflow-hidden rounded-xl ${imageWrapperClassName}`}
+                  >
                     {hasSelectionEnabled ? (
                       <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-2">
                         <button
@@ -435,9 +447,11 @@ export const PublicGalleryPhotoSection = ({
                       <LazyImage
                         src={photo.thumbnail_url}
                         alt={accessiblePhotoName}
-                        className={`pg-card__media transition-transform duration-300 group-hover:scale-[1.01] ${imageClassName}`}
+                        className={`pg-card__media ${isUniformLayout ? '' : 'transition-transform duration-300 group-hover:scale-[1.01]'} ${imageClassName}`}
                         imgClassName="pg-card__img"
-                        aspectRatioHint={isUniformLayout ? undefined : getAspectRatioHint(photo)}
+                        aspectRatioHint={
+                          isUniformLayout ? undefined : getAspectRatioHint(photo)
+                        }
                         objectFit={isUniformLayout ? 'contain' : 'cover'}
                       />
                     </button>

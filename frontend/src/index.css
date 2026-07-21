@@ -1102,6 +1102,7 @@ body.dark .gallery-create__btn,
 .pg-grid {
   --pg-columns: 1;
   display: grid;
+  width: 100%;
   align-items: start;
 }
 
@@ -1120,6 +1121,10 @@ body.dark .gallery-create__btn,
   grid-auto-rows: 6px;
 }
 
+.pg-grid.pg-grid--measuring {
+  grid-auto-rows: auto;
+}
+
 .pg-grid-uniform--large {
   --pg-columns: 1;
   grid-template-columns: repeat(var(--pg-columns), minmax(0, 1fr));
@@ -1132,6 +1137,29 @@ body.dark .gallery-create__btn,
   gap: 0.85rem;
 }
 
+.pg-grid-layout-justified {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.pg-grid-justified--large,
+.pg-grid-justified--compact {
+  --pg-columns: 1;
+}
+
+.pg-grid-layout-masonry > [data-photo-id],
+.pg-grid-layout-uniform > [data-photo-id] {
+  width: 100%;
+}
+
+.pg-grid-layout-justified > [data-photo-id] {
+  min-width: 0;
+  max-width: 100%;
+  flex-grow: 0;
+  flex-shrink: 0;
+}
+
 .pg-card__media {
   width: 100%;
   height: 100%;
@@ -1139,11 +1167,11 @@ body.dark .gallery-create__btn,
 
 .pg-card__media--uniform {
   height: 20rem;
-  /* match private gallery h-80 for consistent rows */
+  /* Uniform keeps the whole frame visible; the image itself uses object-contain. */
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.02);
+  background: rgb(var(--color-surface-1-rgb));
 }
 
 .pg-card__img {
@@ -1233,6 +1261,26 @@ body.dark .gallery-create__btn,
   --color-surface-foreground-rgb: 248, 250, 252;
   --color-accent-rgb: 56, 189, 248;
   --color-accent-foreground-rgb: 15, 23, 42;
+}
+
+.pg-public-page.pg-theme-light,
+.pg-public-page.pg-theme-dark {
+  /* Tailwind color utilities read the semantic tokens directly. Rebind them
+     inside the public page so the photographer's scheme wins over html.dark. */
+  --color-accent: rgb(var(--color-accent-rgb));
+  --color-accent-foreground: rgb(var(--color-accent-foreground-rgb));
+  --color-border: rgb(var(--color-border-rgb));
+  --color-text: rgb(var(--color-text-rgb));
+  --color-muted: rgb(var(--color-muted-rgb));
+  --color-surface: rgb(var(--color-surface-rgb));
+  --color-surface-1: rgb(var(--color-surface-1-rgb));
+  --color-surface-2: rgb(var(--color-surface-2-rgb));
+  --color-surface-dark: rgb(var(--color-surface-dark-rgb));
+  --color-surface-dark-1: rgb(var(--color-surface-dark-1-rgb));
+  --color-surface-dark-2: rgb(var(--color-surface-dark-2-rgb));
+  --color-surface-foreground: rgb(var(--color-surface-foreground-rgb));
+  --color-card-bg: rgb(var(--color-surface-1-rgb));
+  --color-card-border: rgb(var(--color-border-rgb));
 }
 
 .pg-gesture-surface {
