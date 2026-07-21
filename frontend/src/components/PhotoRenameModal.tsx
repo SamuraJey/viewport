@@ -134,6 +134,12 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
             }
           }}
         >
+          <button
+            type="submit"
+            className="sr-only"
+            tabIndex={-1}
+            aria-label="Submit rename photo form"
+          />
           <AppDrawerSection
             title="Filename"
             description="Keep the file recognizable for clients and exports."
