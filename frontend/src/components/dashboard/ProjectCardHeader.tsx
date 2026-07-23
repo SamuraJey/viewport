@@ -1,22 +1,31 @@
 import { Eye, ImageIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 
 import type { Project } from '../../types';
 import { cn } from '../../lib/utils';
+import { CollectionCardCover, CollectionShareBadge } from './CollectionCard';
 
 interface ProjectCardHeaderProps {
+  actions?: ReactNode;
+  dragHandle?: ReactNode;
   project: Project;
   isPreviewVisible: boolean;
+  linkTo?: string;
 }
 
 export const ProjectCardHeader = ({
+  actions,
+  dragHandle,
   project,
   isPreviewVisible,
+  linkTo,
 }: ProjectCardHeaderProps) => {
   const coverUrl = project.cover_photo_thumbnail_url;
   const previewUrls = project.preview_thumbnail_urls.slice(0, 4);
 
-  return (
-    <div className="relative aspect-[16/9] overflow-hidden bg-surface-2 dark:bg-surface-dark-2">
+  const media = (
+    <>
       {coverUrl ? (
         <img
           src={coverUrl}
@@ -38,21 +47,6 @@ export const ProjectCardHeader = ({
       )}
 
       <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/5 to-black/65" />
-
-      {project.active_viewers_count > 0 ? (
-        <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-success px-2.5 py-1 text-xs font-bold text-white shadow-[0_6px_18px_rgba(0,0,0,0.22)]">
-          <span className="relative flex h-2 w-2" aria-hidden="true">
-            <span className="absolute inset-0 animate-ping rounded-full bg-white/75 motion-reduce:animate-none" />
-            <span className="relative h-2 w-2 rounded-full bg-white" />
-          </span>
-          {project.active_viewers_count} watching
-        </div>
-      ) : project.has_active_share_links ? (
-        <div className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-black/65 px-2.5 py-1 text-xs font-semibold text-white shadow-[0_6px_18px_rgba(0,0,0,0.18)]">
-          <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-          Delivery live
-        </div>
-      ) : null}
 
       {previewUrls.length > 0 ? (
         <div
@@ -82,6 +76,50 @@ export const ProjectCardHeader = ({
           </div>
         </div>
       ) : null}
-    </div>
+    </>
+  );
+
+  const statusBadge =
+    project.active_viewers_count > 0 ? (
+      <span className="inline-flex items-center gap-2 rounded-full bg-success px-2.5 py-1 text-xs font-bold text-white shadow-[0_6px_18px_rgba(0,0,0,0.22)]">
+        <span className="relative flex h-2 w-2" aria-hidden="true">
+          <span className="absolute inset-0 animate-ping rounded-full bg-white/75 motion-reduce:animate-none" />
+          <span className="relative h-2 w-2 rounded-full bg-white" />
+        </span>
+        {project.active_viewers_count} watching
+      </span>
+    ) : project.has_active_share_links ? (
+      <CollectionShareBadge
+        label="Delivery live"
+        icon={<Eye className="h-3.5 w-3.5" aria-hidden="true" />}
+      />
+    ) : null;
+
+  return (
+    <CollectionCardCover persistentTopRightOverlay={dragHandle} topOverlay={statusBadge}>
+      {linkTo ? (
+        <Link
+          to={linkTo}
+          className="absolute inset-0 block focus:outline-none"
+          aria-label={`Open ${project.name}`}
+        >
+          {media}
+        </Link>
+      ) : (
+        media
+      )}
+      {actions ? (
+        <div
+          className={cn(
+            'absolute bottom-3 left-1/2 z-30 -translate-x-1/2 transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none',
+            isPreviewVisible
+              ? '-translate-y-16 opacity-100'
+              : 'pointer-events-none translate-y-2 opacity-0',
+          )}
+        >
+          {actions}
+        </div>
+      ) : null}
+    </CollectionCardCover>
   );
 };

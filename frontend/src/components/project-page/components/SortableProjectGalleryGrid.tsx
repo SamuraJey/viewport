@@ -199,34 +199,30 @@ export const SortableProjectGalleryGrid = ({
       <DragOverlay dropAnimation={null}>
         {activeGallery ? (
           <div
-            className="w-[min(24rem,calc(100vw-2rem))] rotate-1 overflow-hidden rounded-3xl border border-card-border bg-surface opacity-95 shadow-[0_24px_52px_rgba(15,23,42,0.28)] dark:bg-surface-dark"
+            data-testid="gallery-drag-preview"
+            className="flex h-20 w-[min(20rem,calc(100vw-2rem))] rotate-1 items-center gap-3 overflow-hidden rounded-2xl border border-card-border bg-surface p-2 opacity-95 shadow-[0_18px_40px_rgba(15,23,42,0.24)] dark:bg-surface-dark"
             aria-hidden="true"
           >
-            <div className="relative h-40 overflow-hidden bg-surface-2 dark:bg-surface-dark-2">
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-surface-2 dark:bg-surface-dark-2">
               {activeGallery.cover_photo_thumbnail_url ? (
                 <img
                   src={activeGallery.cover_photo_thumbnail_url}
                   alt=""
-                  className="h-full w-full object-cover"
+                  className="absolute inset-0 h-full w-full object-cover"
                 />
               ) : (
                 <div className="flex h-full items-center justify-center bg-linear-to-br from-accent/12 via-surface-2 to-surface text-accent dark:via-surface-dark-2 dark:to-surface-dark">
-                  <ImageIcon className="h-10 w-10" />
+                  <ImageIcon className="h-6 w-6" />
                 </div>
               )}
-              <div className="absolute inset-0 bg-linear-to-t from-black/55 via-transparent to-transparent" />
-              <span className="absolute bottom-3 left-4 rounded-md bg-black/65 px-2 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-                Position {findGalleryPosition(galleries, activeGallery.id)} of {galleries.length}
-              </span>
             </div>
-            <div className="p-4">
-              <p className="line-clamp-2 font-oswald text-xl font-bold uppercase text-text">
+            <div className="min-w-0 flex-1 pr-2">
+              <p className="text-xs font-semibold text-accent">Moving gallery</p>
+              <p className="mt-0.5 truncate font-oswald text-lg font-bold uppercase text-text">
                 {activeGallery.name}
               </p>
-              <p className="mt-1 text-sm text-muted">
-                {(activeGallery.project_visibility ?? 'listed') === 'listed'
-                  ? 'Visible in project'
-                  : 'Direct link only'}
+              <p className="mt-0.5 text-xs text-muted">
+                Position {findGalleryPosition(galleries, activeGallery.id)} of {galleries.length}
               </p>
             </div>
           </div>

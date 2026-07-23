@@ -370,9 +370,18 @@ describe('ProjectPage', () => {
     expect(screen.getByText('Direct link only')).toBeInTheDocument();
     expect(screen.getByLabelText('Change project visibility for Photos')).toBeInTheDocument();
     expect(screen.getByLabelText('Change project visibility for 3eds')).toBeInTheDocument();
-    expect(screen.getByText('8 photos • 512 Bytes • Apr 18, 2026')).toBeInTheDocument();
-    expect(screen.getByText('4 photos • 512 Bytes • Apr 18, 2026')).toBeInTheDocument();
-    expect(screen.getByText('4 photos • 512 Bytes • Apr 18, 2026')).toHaveClass('mt-auto');
+    const photosCard = screen.getByRole('article', {
+      name: 'Photos. 8 photos, 512 Bytes, Apr 18, 2026.',
+    });
+    const secondaryCard = screen.getByRole('article', {
+      name: '3eds. 4 photos, 512 Bytes, Apr 18, 2026.',
+    });
+    expect(within(photosCard).getByText('8')).toBeInTheDocument();
+    expect(within(photosCard).getByText('512 Bytes')).toBeInTheDocument();
+    expect(within(photosCard).getByText('Apr 18, 2026')).toBeInTheDocument();
+    expect(within(secondaryCard).getByText('4')).toBeInTheDocument();
+    expect(within(secondaryCard).getByText('512 Bytes')).toBeInTheDocument();
+    expect(within(secondaryCard).getByText('Apr 18, 2026')).toBeInTheDocument();
   });
 
   it('keeps appearance mounted and ignores stale photos after project navigation', async () => {
@@ -419,11 +428,11 @@ describe('ProjectPage', () => {
 
     const { router } = renderRoutedProjectPage();
 
-    await screen.findByText('Wedding Weekend');
+    await screen.findByRole('heading', { level: 1, name: 'Wedding Weekend' });
     await act(async () => {
       await router.navigate('/projects/project-2');
     });
-    await screen.findByText('Second Project');
+    await screen.findByRole('heading', { level: 1, name: 'Second Project' });
     await waitFor(() => {
       expect(projectService.getProjectPhotos).toHaveBeenCalledWith('project-2', {
         limit: 100,

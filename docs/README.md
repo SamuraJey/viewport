@@ -46,6 +46,7 @@ Frontend architecture, components, and state management.
 - [Project Structure](./frontend/structure.md) - React code organization
 - [Architecture](./frontend/architecture.md) - Design patterns and architecture
 - [Components Guide](./frontend/components.md) - Reusable components
+- [Owner Collection Cards](./frontend/collection-cards.md) - Shared project and gallery card system
 - [State Management](./frontend/state-management.md) - Zustand stores
 - [Styling](./frontend/styling.md) - Tailwind CSS and theming
 

@@ -3,7 +3,13 @@ import { Edit3, ImageIcon, Share2, Trash2 } from 'lucide-react';
 import type { ReactNode, RefObject, SyntheticEvent } from 'react';
 import { useEffect, useId } from 'react';
 
-import { CollectionCard, CollectionShareBadge } from './CollectionCard';
+import {
+  CollectionCard,
+  CollectionCardCover,
+  CollectionCardMetrics,
+  CollectionCardTitle,
+  CollectionShareBadge,
+} from './CollectionCard';
 import { getCollectionTitleTextSizeClass } from './collectionCardUtils';
 import { GALLERY_NAME_MAX_LENGTH } from '../../constants/gallery';
 import { formatDateOnly, formatFileSize } from '../../lib/utils';
@@ -69,6 +75,7 @@ export const EnhancedGalleryCard = ({
   ].filter(Boolean);
   const maxEditorHeight = 180;
   const titleTextSizeClass = getCollectionTitleTextSizeClass(galleryTitle);
+  const articleLabel = `${galleryTitle}. ${metadataParts.join(', ')}.`;
 
   const beginRenameFromEvent = (event: SyntheticEvent) => {
     event.preventDefault();
@@ -97,76 +104,77 @@ export const EnhancedGalleryCard = ({
 
   return (
     <CollectionCard
+      ariaLabel={articleLabel}
       variants={variants}
-      shellClassName="group relative flex h-full w-full flex-col overflow-hidden rounded-3xl border border-card-border bg-surface text-left shadow-sm transition-all duration-300 hover:-translate-y-1.5 hover:scale-[1.01] hover:shadow-xl dark:bg-surface-dark"
-      coverClassName="relative h-52 overflow-hidden bg-surface-2 dark:bg-surface-dark-2"
       cover={
-        coverUrl ? (
-          <>
-            <img
-              src={coverUrl}
-              alt={`${galleryTitle} cover`}
-              loading="lazy"
-              className="absolute inset-0 h-full w-full object-cover opacity-80 transition-transform duration-500 group-hover:scale-110"
-            />
-            <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/10 to-black/40 transition-colors duration-300 group-hover:from-black/0 group-hover:via-black/15 group-hover:to-black/50" />
-          </>
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-linear-to-br from-accent/10 via-surface-2 to-surface dark:from-accent/15 dark:via-surface-dark-2 dark:to-surface-dark">
-            <div className="absolute inset-0 opacity-45 [background-image:radial-gradient(circle_at_18%_24%,rgba(31,144,255,0.16),transparent_24%),radial-gradient(circle_at_82%_72%,rgba(34,197,94,0.12),transparent_26%)]" />
-            <div className="relative text-center">
-              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-border/45 bg-surface/70 text-accent shadow-xs backdrop-blur dark:border-white/10 dark:bg-surface-dark/70">
-                <ImageIcon className="h-6 w-6" />
-              </span>
-              <span className="mt-3 block text-xs font-bold uppercase tracking-[0.18em] text-muted">
-                No cover yet
-              </span>
+        <CollectionCardCover
+          topOverlay={
+            <>
+              {gallery.has_active_share_links ? <CollectionShareBadge /> : null}
+              {extraTopBadges}
+            </>
+          }
+          topRightOverlay={
+            !isRenamingThis ? (
+              <>
+                {extraActions}
+                {onShare ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      onShare(gallery);
+                    }}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent"
+                    title="Share Gallery"
+                    aria-label={`Share ${galleryTitle}`}
+                  >
+                    <Share2 className="h-4 w-4" />
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onDelete(gallery);
+                  }}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-danger hover:text-white focus:outline-none focus-visible:ring-[3px] focus-visible:ring-danger"
+                  title="Delete Gallery"
+                  aria-label={`Delete ${galleryTitle}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </>
+            ) : null
+          }
+        >
+          {coverUrl ? (
+            <>
+              <img
+                src={coverUrl}
+                alt={`${galleryTitle} cover`}
+                loading="lazy"
+                className="absolute inset-0 h-full w-full object-cover opacity-80 transition-transform duration-500 group-hover/card:scale-[1.035]"
+              />
+              <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/10 to-black/40 transition-colors duration-300 group-hover/card:from-black/0 group-hover/card:via-black/15 group-hover/card:to-black/50" />
+            </>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-linear-to-br from-accent/10 via-surface-2 to-surface dark:from-accent/15 dark:via-surface-dark-2 dark:to-surface-dark">
+              <div className="absolute inset-0 opacity-45 [background-image:radial-gradient(circle_at_18%_24%,rgba(31,144,255,0.16),transparent_24%),radial-gradient(circle_at_82%_72%,rgba(34,197,94,0.12),transparent_26%)]" />
+              <div className="relative text-center">
+                <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-border/45 bg-surface/70 text-accent shadow-xs backdrop-blur dark:border-white/10 dark:bg-surface-dark/70">
+                  <ImageIcon className="h-6 w-6" />
+                </span>
+                <span className="mt-3 block text-xs font-bold uppercase tracking-[0.18em] text-muted">
+                  No cover yet
+                </span>
+              </div>
             </div>
-          </div>
-        )
+          )}
+        </CollectionCardCover>
       }
-      topOverlay={
-        <>
-          {gallery.has_active_share_links ? <CollectionShareBadge /> : null}
-          {extraTopBadges}
-        </>
-      }
-      topRightOverlay={
-        !isRenamingThis ? (
-          <>
-            {extraActions}
-            {onShare ? (
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onShare(gallery);
-                }}
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent"
-                title="Share Gallery"
-                aria-label={`Share ${galleryTitle}`}
-              >
-                <Share2 className="h-4 w-4" />
-              </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                onDelete(gallery);
-              }}
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-danger hover:text-white focus:outline-none focus-visible:ring-[3px] focus-visible:ring-danger"
-              title="Delete Gallery"
-              aria-label={`Delete ${galleryTitle}`}
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </>
-        ) : null
-      }
-      bodyClassName={isRenamingThis ? 'flex flex-1 flex-col p-4' : 'flex flex-1 flex-col p-4'}
       body={
         isRenamingThis ? (
           <div className="w-full min-w-0">
@@ -218,25 +226,19 @@ export const EnhancedGalleryCard = ({
             <Link
               to={resolveGalleryPath(gallery)}
               aria-describedby={descriptionId}
-              className="flex flex-1 flex-col justify-between gap-4 pr-5 no-underline transition-colors"
+              className="flex flex-1 flex-col justify-center pr-5 no-underline transition-colors"
             >
-              <div className="group/title flex flex-1 items-center text-left">
-                <div className="min-w-0 flex-1">
-                  <h3
-                    className={`wrap-anywhere whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors`}
-                  >
-                    {galleryTitle}
-                  </h3>
-                </div>
-              </div>
-              <p className="mt-auto rounded-full border border-border/55 bg-surface-1 px-3 py-2 text-sm text-muted dark:border-border/45 dark:bg-surface-dark-1">
-                {metadataParts.join(' • ')}
+              <CollectionCardTitle as="h3" className={titleTextSizeClass}>
+                {galleryTitle}
+              </CollectionCardTitle>
+              <p className="mt-1.5 truncate text-sm text-muted">
+                {gallery.project_name ?? 'Gallery'}
               </p>
             </Link>
             <button
               type="button"
               onClick={beginRenameFromEvent}
-              className="absolute right-0 top-1 inline-flex h-4 w-4 items-center justify-center text-muted opacity-0 transition-opacity duration-200 hover:text-accent group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 focus:outline-none"
+              className="absolute right-0 top-1 inline-flex h-4 w-4 items-center justify-center text-muted opacity-0 transition-opacity duration-200 hover:text-accent group-hover/card:opacity-100 group-focus-within/card:opacity-100 focus:opacity-100 focus:outline-none"
               aria-label={`Rename ${galleryTitle}`}
               title="Rename gallery"
             >
@@ -244,6 +246,24 @@ export const EnhancedGalleryCard = ({
             </button>
           </div>
         )
+      }
+      footer={
+        <CollectionCardMetrics
+          items={[
+            {
+              label: 'Photos',
+              value: new Intl.NumberFormat().format(gallery.photo_count),
+            },
+            {
+              label: 'Storage',
+              value: formatFileSize(gallery.total_size_bytes),
+            },
+            {
+              label: 'Shot',
+              value: formatDateOnly(gallery.shooting_date || gallery.created_at),
+            },
+          ]}
+        />
       }
     />
   );

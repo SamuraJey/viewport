@@ -3,106 +3,84 @@
 exports[`ProjectCard > renders the complete visual and accessibility contract 1`] = `
 <article
   aria-label="North Sea Editorial Delivery With A Deliberately Long Name. 3 galleries, 812 photos, 3 active share links. Last activity 2 hours ago."
-  class="group/card relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-surface shadow-[0_10px_28px_rgba(15,23,42,0.09)] ring-1 ring-border/55 transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(15,23,42,0.14)] focus-within:ring-[3px] focus-within:ring-accent dark:bg-surface-dark dark:ring-border/40 dark:shadow-[0_10px_30px_rgba(0,0,0,0.28)] motion-reduce:transform-none motion-reduce:transition-none"
-  role="article"
+  class="group/card relative flex h-full min-w-0 w-full flex-col overflow-hidden rounded-3xl border border-card-border bg-surface text-left shadow-sm transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:shadow-xl focus-within:ring-[3px] focus-within:ring-accent dark:bg-surface-dark motion-reduce:transform-none motion-reduce:transition-none"
 >
   <div
-    class="relative"
+    class="relative h-52 overflow-hidden bg-surface-2 dark:bg-surface-dark-2"
   >
     <a
       aria-label="Open North Sea Editorial Delivery With A Deliberately Long Name"
-      class="block focus:outline-none"
+      class="absolute inset-0 block focus:outline-none"
       data-discover="true"
       href="/projects/project-card-test"
     >
+      <img
+        alt=""
+        aria-hidden="true"
+        class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover/card:scale-[1.035]"
+        loading="lazy"
+        src="https://example.com/cover.jpg"
+        style="object-position: 38% 62%;"
+      />
       <div
-        class="relative aspect-[16/9] overflow-hidden bg-surface-2 dark:bg-surface-dark-2"
+        class="absolute inset-0 bg-linear-to-b from-black/5 via-black/5 to-black/65"
+      />
+      <div
+        aria-hidden="false"
+        class="absolute inset-x-0 bottom-0 p-3 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none translate-y-0 opacity-100"
       >
-        <img
-          alt=""
-          aria-hidden="true"
-          class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover/card:scale-[1.035]"
-          loading="lazy"
-          src="https://example.com/cover.jpg"
-          style="object-position: 38% 62%;"
-        />
         <div
-          class="absolute inset-0 bg-linear-to-b from-black/5 via-black/5 to-black/65"
-        />
-        <div
-          class="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-success px-2.5 py-1 text-xs font-bold text-white shadow-[0_6px_18px_rgba(0,0,0,0.22)]"
-        >
-          <span
-            aria-hidden="true"
-            class="relative flex h-2 w-2"
-          >
-            <span
-              class="absolute inset-0 animate-ping rounded-full bg-white/75 motion-reduce:animate-none"
-            />
-            <span
-              class="relative h-2 w-2 rounded-full bg-white"
-            />
-          </span>
-          2
-           watching
-        </div>
-        <div
-          aria-hidden="false"
-          class="absolute inset-x-0 bottom-0 p-3 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none translate-y-0 opacity-100"
+          class="grid grid-cols-4 gap-1.5 rounded-xl bg-black/35 p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.24)] backdrop-blur-sm"
         >
           <div
-            class="grid grid-cols-4 gap-1.5 rounded-xl bg-black/35 p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.24)] backdrop-blur-sm"
+            class="aspect-[4/3] overflow-hidden rounded-lg bg-black/20 ring-1 ring-white/20"
           >
-            <div
-              class="aspect-[4/3] overflow-hidden rounded-lg bg-black/20 ring-1 ring-white/20"
-            >
-              <img
-                alt=""
-                aria-hidden="true"
-                class="h-full w-full object-cover"
-                loading="lazy"
-                src="https://example.com/one.jpg"
-              />
-            </div>
-            <div
-              class="aspect-[4/3] overflow-hidden rounded-lg bg-black/20 ring-1 ring-white/20"
-            >
-              <img
-                alt=""
-                aria-hidden="true"
-                class="h-full w-full object-cover"
-                loading="lazy"
-                src="https://example.com/two.jpg"
-              />
-            </div>
-            <div
-              class="aspect-[4/3] overflow-hidden rounded-lg bg-black/20 ring-1 ring-white/20"
-            >
-              <img
-                alt=""
-                aria-hidden="true"
-                class="h-full w-full object-cover"
-                loading="lazy"
-                src="https://example.com/three.jpg"
-              />
-            </div>
-            <div
-              class="aspect-[4/3] overflow-hidden rounded-lg bg-black/20 ring-1 ring-white/20"
-            >
-              <img
-                alt=""
-                aria-hidden="true"
-                class="h-full w-full object-cover"
-                loading="lazy"
-                src="https://example.com/four.jpg"
-              />
-            </div>
+            <img
+              alt=""
+              aria-hidden="true"
+              class="h-full w-full object-cover"
+              loading="lazy"
+              src="https://example.com/one.jpg"
+            />
+          </div>
+          <div
+            class="aspect-[4/3] overflow-hidden rounded-lg bg-black/20 ring-1 ring-white/20"
+          >
+            <img
+              alt=""
+              aria-hidden="true"
+              class="h-full w-full object-cover"
+              loading="lazy"
+              src="https://example.com/two.jpg"
+            />
+          </div>
+          <div
+            class="aspect-[4/3] overflow-hidden rounded-lg bg-black/20 ring-1 ring-white/20"
+          >
+            <img
+              alt=""
+              aria-hidden="true"
+              class="h-full w-full object-cover"
+              loading="lazy"
+              src="https://example.com/three.jpg"
+            />
+          </div>
+          <div
+            class="aspect-[4/3] overflow-hidden rounded-lg bg-black/20 ring-1 ring-white/20"
+          >
+            <img
+              alt=""
+              aria-hidden="true"
+              class="h-full w-full object-cover"
+              loading="lazy"
+              src="https://example.com/four.jpg"
+            />
           </div>
         </div>
       </div>
     </a>
     <div
-      class="absolute bottom-3 left-1/2 -translate-x-1/2 transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none -translate-y-16 opacity-100"
+      class="absolute bottom-3 left-1/2 z-30 -translate-x-1/2 transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none -translate-y-16 opacity-100"
     >
       <div
         class="flex items-center rounded-xl bg-black/72 p-1 shadow-[0_8px_22px_rgba(0,0,0,0.28)] backdrop-blur-sm"
@@ -202,9 +180,30 @@ exports[`ProjectCard > renders the complete visual and accessibility contract 1`
         </button>
       </div>
     </div>
+    <div
+      class="absolute left-4 top-4 z-20 flex items-center gap-2"
+    >
+      <span
+        class="inline-flex items-center gap-2 rounded-full bg-success px-2.5 py-1 text-xs font-bold text-white shadow-[0_6px_18px_rgba(0,0,0,0.22)]"
+      >
+        <span
+          aria-hidden="true"
+          class="relative flex h-2 w-2"
+        >
+          <span
+            class="absolute inset-0 animate-ping rounded-full bg-white/75 motion-reduce:animate-none"
+          />
+          <span
+            class="relative h-2 w-2 rounded-full bg-white"
+          />
+        </span>
+        2
+         watching
+      </span>
+    </div>
   </div>
   <div
-    class="relative flex min-h-30 flex-1 flex-col px-4 pb-4 pt-4"
+    class="relative flex min-h-28 flex-1 flex-col p-4"
   >
     <div
       class="flex min-w-0 items-start gap-3 pr-8"
@@ -215,7 +214,7 @@ exports[`ProjectCard > renders the complete visual and accessibility contract 1`
         href="/projects/project-card-test"
       >
         <h2
-          class="line-clamp-2 wrap-anywhere text-xl font-bold leading-6 tracking-[-0.02em] text-text transition-colors group-hover/card:text-accent"
+          class="line-clamp-2 wrap-anywhere font-oswald text-xl font-bold uppercase leading-6 text-text transition-colors group-hover/card:text-accent"
           title="North Sea Editorial Delivery With A Deliberately Long Name"
         >
           North Sea Editorial Delivery With A Deliberately Long Name
@@ -284,7 +283,8 @@ exports[`ProjectCard > renders the complete visual and accessibility contract 1`
     </div>
   </div>
   <div
-    class="grid grid-cols-3 divide-x divide-border/45 border-t border-border/45 bg-surface-1/80 dark:divide-border/35 dark:border-border/35 dark:bg-surface-dark-1/70"
+    class="grid divide-x divide-border/45 border-t border-border/45 bg-surface-1/80 dark:divide-border/35 dark:border-border/35 dark:bg-surface-dark-1/70"
+    style="grid-template-columns: repeat(3, minmax(0, 1fr));"
   >
     <div
       class="min-w-0 px-3 py-3 first:pl-4 last:pr-4"

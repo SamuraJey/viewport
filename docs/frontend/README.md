@@ -13,6 +13,9 @@ Frontend architecture, design patterns, and best practices.
 ### 🎨 [Components Guide](./components.md)
 Documentation of reusable React components and their usage.
 
+### 🗂️ [Owner Collection Cards](./collection-cards.md)
+Shared project and gallery card structure, extension points, interaction rules, and tests.
+
 ### 🔄 [State Management](./state-management.md)
 Zustand store setup, state patterns, and data flow.
 

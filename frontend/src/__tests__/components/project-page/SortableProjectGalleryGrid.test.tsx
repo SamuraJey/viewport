@@ -54,6 +54,8 @@ describe('SortableProjectGalleryGrid', () => {
     await user.keyboard(' ');
 
     expect(handle).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('gallery-drag-preview')).toHaveClass('h-20');
+    expect(screen.getByText('Moving gallery')).toBeInTheDocument();
     expect(describeGalleryDragStart(galleries, 'gallery-1')).toBe(
       'Picked up Ceremony, position 1 of 2.',
     );
