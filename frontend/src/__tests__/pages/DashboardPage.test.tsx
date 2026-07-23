@@ -14,6 +14,7 @@ const makeProject = (overrides: Partial<Project>): Project => ({
   name: 'Project 1',
   created_at: '2024-01-01T00:00:00Z',
   shooting_date: '2024-01-01',
+  manual_order: 0,
   entry_gallery_id: 'gallery-1',
   entry_gallery_name: 'Main Gallery',
   gallery_count: 1,
@@ -22,7 +23,18 @@ const makeProject = (overrides: Partial<Project>): Project => ({
   total_photo_count: 12,
   total_size_bytes: 0,
   has_active_share_links: false,
+  active_share_link_count: 0,
+  latest_share_link_id: null,
+  active_viewers_count: 0,
+  last_activity_at: '2024-01-01T00:00:00Z',
   cover_photo_thumbnail_url: null,
+  preview_thumbnail_urls: [],
+  cover_photo_id: null,
+  cover_focal_x: 50,
+  cover_focal_y: 50,
+  cover_display_option: 'centered_title',
+  public_photo_spacing: 'medium',
+  public_color_scheme: 'light',
   ...overrides,
 });
 
@@ -45,7 +57,16 @@ const mockProjects: Project[] = [
     visible_gallery_count: 1,
     total_photo_count: 8,
     has_active_share_links: true,
+    active_share_link_count: 2,
+    latest_share_link_id: 'share-2',
+    active_viewers_count: 3,
     cover_photo_thumbnail_url: 'https://example.com/cover.jpg',
+    preview_thumbnail_urls: [
+      'https://example.com/preview-1.jpg',
+      'https://example.com/preview-2.jpg',
+      'https://example.com/preview-3.jpg',
+      'https://example.com/preview-4.jpg',
+    ],
   }),
 ];
 
@@ -56,7 +77,14 @@ vi.mock('../../services/projectService', () => ({
     getProject: vi.fn(),
     updateProject: vi.fn(),
     deleteProject: vi.fn(),
+    reorderProjects: vi.fn(),
     createProjectGallery: vi.fn(),
+  },
+}));
+
+vi.mock('../../services/shareLinkService', () => ({
+  shareLinkService: {
+    createProjectShareLink: vi.fn(),
   },
 }));
 
@@ -91,6 +119,11 @@ describe('DashboardPage', () => {
     mockNavigate.mockReset();
 
     const { projectService } = await import('../../services/projectService');
+    vi.mocked(projectService.getProjects).mockReset();
+    vi.mocked(projectService.createProject).mockReset();
+    vi.mocked(projectService.updateProject).mockReset();
+    vi.mocked(projectService.deleteProject).mockReset();
+    vi.mocked(projectService.reorderProjects).mockReset();
     vi.mocked(projectService.getProjects).mockResolvedValue({
       projects: mockProjects,
       total: mockProjects.length,
@@ -106,29 +139,30 @@ describe('DashboardPage', () => {
     await screen.findByText('Wedding Weekend');
 
     expect(screen.getAllByRole('heading', { level: 1, name: 'Projects' })).toHaveLength(1);
-    expect(screen.getAllByRole('button', { name: 'Create new project' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'New project' })).toHaveLength(1);
     expect(screen.getByLabelText('Search projects')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Search projects...')).toBeInTheDocument();
-    expect(screen.getByLabelText('Sort projects')).toHaveTextContent('Date created (new to old)');
+    expect(screen.getByPlaceholderText('Search projects')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sort projects')).toHaveTextContent('Manual order');
     expect(
       screen.queryByRole('heading', { level: 2, name: 'Project library' }),
     ).not.toBeInTheDocument();
 
-    expect(screen.getByText('2 galleries • 20 photos • 0 Bytes')).toBeInTheDocument();
-    expect(screen.getByText('1 gallery • 8 photos • 0 Bytes')).toBeInTheDocument();
-    expect(screen.getByText('1 gallery • 8 photos • 0 Bytes')).toHaveClass('mt-auto');
+    expect(screen.getByRole('article', { name: /Wedding Weekend.*20 photos/i })).toBeInTheDocument();
+    expect(screen.getByRole('article', { name: /A Very Long Editorial.*2 active share links/i })).toBeInTheDocument();
+    expect(screen.getByText('3 watching')).toBeInTheDocument();
+    expect(screen.getAllByText('Photos')).toHaveLength(2);
+    expect(screen.getAllByText('Storage')).toHaveLength(2);
+    expect(screen.getAllByText('Links')).toHaveLength(2);
     expect(
       screen.getByRole('heading', {
         level: 2,
         name: 'A Very Long Editorial Project Title That Still Needs To Fit Cleanly On The Card',
       }),
-    ).toHaveClass('wrap-anywhere', 'whitespace-normal');
-    expect(screen.getByRole('link', { name: /Wedding Weekend/ })).toHaveAttribute(
+    ).toHaveClass('wrap-anywhere', 'line-clamp-2');
+    expect(screen.getByRole('link', { name: 'Open Wedding Weekend' })).toHaveAttribute(
       'href',
       '/projects/project-1',
     );
-    expect(screen.getByText('Public')).toBeInTheDocument();
-    expect(screen.getAllByText(/20 photos/i).length).toBeGreaterThan(0);
 
     expect(screen.queryByText(/^PROJECT$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/starts with/i)).not.toBeInTheDocument();
@@ -145,10 +179,78 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenCalledWith(1, 18, {
         search: undefined,
-        sort_by: 'created_at',
-        order: 'desc',
+        sort_by: 'manual_order',
+        order: 'asc',
       });
     });
+  });
+
+  it('polls project delivery activity every 60 seconds without returning to loading state', async () => {
+    vi.useFakeTimers();
+    const { projectService } = await import('../../services/projectService');
+
+    render(<DashboardPageWrapper />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('Wedding Weekend')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Loading projects')).not.toBeInTheDocument();
+    vi.mocked(projectService.getProjects).mockClear();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+
+    expect(projectService.getProjects).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Wedding Weekend')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Loading projects')).not.toBeInTheDocument();
+  });
+
+  it('ignores a stale project response after a newer request has completed', async () => {
+    const { projectService } = await import('../../services/projectService');
+    const freshProject = makeProject({ id: 'project-fresh', name: 'Fresh Result' });
+    let resolveStale!: (value: {
+      projects: Project[];
+      total: number;
+      page: number;
+      size: number;
+    }) => void;
+    const staleRequest = new Promise<{
+      projects: Project[];
+      total: number;
+      page: number;
+      size: number;
+    }>((resolve) => {
+      resolveStale = resolve;
+    });
+
+    vi.mocked(projectService.getProjects)
+      .mockReturnValueOnce(staleRequest)
+      .mockResolvedValueOnce({
+        projects: [freshProject],
+        total: 1,
+        page: 1,
+        size: 18,
+      });
+
+    render(<DashboardPageWrapper />);
+    fillInput(screen.getByLabelText('Search projects'), 'fresh');
+
+    expect(await screen.findByText('Fresh Result', {}, { timeout: 1500 })).toBeInTheDocument();
+
+    await act(async () => {
+      resolveStale({
+        projects: mockProjects,
+        total: mockProjects.length,
+        page: 1,
+        size: 18,
+      });
+      await staleRequest;
+    });
+
+    expect(screen.getByText('Fresh Result')).toBeInTheDocument();
+    expect(screen.queryByText('Wedding Weekend')).not.toBeInTheDocument();
   });
 
   it('requests project search from query params', async () => {
@@ -159,8 +261,8 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenCalledWith(1, 18, {
         search: 'weekend',
-        sort_by: 'created_at',
-        order: 'desc',
+        sort_by: 'manual_order',
+        order: 'asc',
       });
     });
   });
@@ -189,8 +291,8 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenCalledWith(3, 18, {
         search: undefined,
-        sort_by: 'created_at',
-        order: 'desc',
+        sort_by: 'manual_order',
+        order: 'asc',
       });
     });
 
@@ -224,9 +326,7 @@ describe('DashboardPage', () => {
         order: 'asc',
       });
     });
-    expect(screen.getByTestId('location')).toHaveTextContent(
-      '/dashboard?sort_by=photo_count&order=asc',
-    );
+    expect(screen.getByTestId('location')).toHaveTextContent('/dashboard?sort_by=photo_count');
   });
 
   it('updates project search and resets pagination without dropping the search query', async () => {
@@ -237,8 +337,8 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenCalledWith(3, 18, {
         search: undefined,
-        sort_by: 'created_at',
-        order: 'desc',
+        sort_by: 'manual_order',
+        order: 'asc',
       });
     });
 
@@ -248,8 +348,8 @@ describe('DashboardPage', () => {
       () => {
         expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, {
           search: 'client',
-          sort_by: 'created_at',
-          order: 'desc',
+          sort_by: 'manual_order',
+          order: 'asc',
         });
       },
       { timeout: 1500 },
@@ -266,8 +366,8 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenCalledWith(3, 18, {
         search: undefined,
-        sort_by: 'created_at',
-        order: 'desc',
+        sort_by: 'manual_order',
+        order: 'asc',
       });
     });
 
@@ -295,8 +395,8 @@ describe('DashboardPage', () => {
 
       expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, {
         search: 'client',
-        sort_by: 'created_at',
-        order: 'desc',
+        sort_by: 'manual_order',
+        order: 'asc',
       });
     } finally {
       await vi.runOnlyPendingTimersAsync();
@@ -323,7 +423,7 @@ describe('DashboardPage', () => {
     render(<DashboardPageWrapper />);
 
     await screen.findByText('Wedding Weekend');
-    await user.click(screen.getByRole('button', { name: 'Create new project' }));
+    await user.click(screen.getByRole('button', { name: 'New project' }));
     fillInput(screen.getByPlaceholderText('Project name'), 'Client Delivery');
     await user.click(screen.getByRole('button', { name: 'Create Project' }));
 
@@ -355,7 +455,7 @@ describe('DashboardPage', () => {
     render(<DashboardPageWrapper />);
 
     await screen.findByText('Wedding Weekend');
-    await user.click(screen.getByRole('button', { name: 'Create new project' }));
+    await user.click(screen.getByRole('button', { name: 'New project' }));
     await user.type(screen.getByPlaceholderText('Project name'), 'Keyboard Delivery{Enter}');
 
     await waitFor(() => {
@@ -393,7 +493,7 @@ describe('DashboardPage', () => {
     render(<DashboardPageWrapper />);
 
     await screen.findByText('Wedding Weekend');
-    await user.click(screen.getByRole('button', { name: 'Create new project' }));
+    await user.click(screen.getByRole('button', { name: 'New project' }));
     fillInput(screen.getByPlaceholderText('Project name'), 'Client Delivery');
     await user.click(screen.getByRole('button', { name: 'Create Project' }));
 
@@ -414,11 +514,12 @@ describe('DashboardPage', () => {
     render(<DashboardPageWrapper />);
 
     await screen.findByText('Wedding Weekend');
-    await user.click(screen.getByLabelText('Delete project Wedding Weekend'));
+    fireEvent.click(screen.getByLabelText('Project actions for Wedding Weekend'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete project' }));
 
     const deleteDialog = await screen.findByRole('dialog', { name: /delete project/i });
     expect(
-      within(deleteDialog).getByText(/delete "Wedding Weekend" and all of its galleries/i),
+      within(deleteDialog).getByText(/delete “Wedding Weekend” and all of its galleries/i),
     ).toBeInTheDocument();
 
     await user.click(within(deleteDialog).getByRole('button', { name: 'Delete' }));
@@ -458,7 +559,8 @@ describe('DashboardPage', () => {
     render(<DashboardPageWrapper initialPath="/dashboard?page=3" />);
 
     await screen.findByText('Last Project');
-    await user.click(screen.getByLabelText('Delete project Last Project'));
+    fireEvent.click(screen.getByLabelText('Project actions for Last Project'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete project' }));
     await user.click(
       within(await screen.findByRole('dialog', { name: /delete project/i })).getByRole('button', {
         name: 'Delete',
@@ -474,8 +576,8 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenLastCalledWith(2, 18, {
         search: undefined,
-        sort_by: 'created_at',
-        order: 'desc',
+        sort_by: 'manual_order',
+        order: 'asc',
       });
     });
     expect(
@@ -496,18 +598,18 @@ describe('DashboardPage', () => {
 
     const emptyHeading = await screen.findByRole('heading', {
       level: 2,
-      name: 'No projects yet',
+      name: 'Create your first project',
     });
     const emptyState = emptyHeading.closest('div');
 
     expect(
       screen.getByText(
-        'Create your first project to upload photos, organize galleries, and share polished deliveries with clients.',
+        'Projects group related galleries and share-link deliveries for one client.',
       ),
     ).toBeInTheDocument();
 
     expect(
-      within(emptyState as HTMLElement).getByRole('button', { name: 'Create your first project' }),
+      within(emptyState as HTMLElement).getByRole('button', { name: 'New project' }),
     ).toBeInTheDocument();
   });
 });

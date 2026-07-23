@@ -1,0 +1,336 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ProjectCard > renders the complete visual and accessibility contract 1`] = `
+<article
+  aria-label="North Sea Editorial Delivery With A Deliberately Long Name. 3 galleries, 812 photos, 3 active share links. Last activity 2 hours ago."
+  class="group/card relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl bg-surface shadow-[0_10px_28px_rgba(15,23,42,0.09)] ring-1 ring-border/55 transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(15,23,42,0.14)] focus-within:ring-[3px] focus-within:ring-accent dark:bg-surface-dark dark:ring-border/40 dark:shadow-[0_10px_30px_rgba(0,0,0,0.28)] motion-reduce:transform-none motion-reduce:transition-none"
+  role="article"
+>
+  <div
+    class="relative"
+  >
+    <a
+      aria-label="Open North Sea Editorial Delivery With A Deliberately Long Name"
+      class="block focus:outline-none"
+      data-discover="true"
+      href="/projects/project-card-test"
+    >
+      <div
+        class="relative aspect-[16/9] overflow-hidden bg-surface-2 dark:bg-surface-dark-2"
+      >
+        <img
+          alt=""
+          aria-hidden="true"
+          class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out group-hover/card:scale-[1.035]"
+          loading="lazy"
+          src="https://example.com/cover.jpg"
+          style="object-position: 38% 62%;"
+        />
+        <div
+          class="absolute inset-0 bg-linear-to-b from-black/5 via-black/5 to-black/65"
+        />
+        <div
+          class="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full bg-success px-2.5 py-1 text-xs font-bold text-white shadow-[0_6px_18px_rgba(0,0,0,0.22)]"
+        >
+          <span
+            aria-hidden="true"
+            class="relative flex h-2 w-2"
+          >
+            <span
+              class="absolute inset-0 animate-ping rounded-full bg-white/75 motion-reduce:animate-none"
+            />
+            <span
+              class="relative h-2 w-2 rounded-full bg-white"
+            />
+          </span>
+          2
+           watching
+        </div>
+        <div
+          aria-hidden="false"
+          class="absolute inset-x-0 bottom-0 p-3 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none translate-y-0 opacity-100"
+        >
+          <div
+            class="grid grid-cols-4 gap-1.5 rounded-xl bg-black/35 p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.24)] backdrop-blur-sm"
+          >
+            <div
+              class="aspect-[4/3] overflow-hidden rounded-lg bg-black/20 ring-1 ring-white/20"
+            >
+              <img
+                alt=""
+                aria-hidden="true"
+                class="h-full w-full object-cover"
+                loading="lazy"
+                src="https://example.com/one.jpg"
+              />
+            </div>
+            <div
+              class="aspect-[4/3] overflow-hidden rounded-lg bg-black/20 ring-1 ring-white/20"
+            >
+              <img
+                alt=""
+                aria-hidden="true"
+                class="h-full w-full object-cover"
+                loading="lazy"
+                src="https://example.com/two.jpg"
+              />
+            </div>
+            <div
+              class="aspect-[4/3] overflow-hidden rounded-lg bg-black/20 ring-1 ring-white/20"
+            >
+              <img
+                alt=""
+                aria-hidden="true"
+                class="h-full w-full object-cover"
+                loading="lazy"
+                src="https://example.com/three.jpg"
+              />
+            </div>
+            <div
+              class="aspect-[4/3] overflow-hidden rounded-lg bg-black/20 ring-1 ring-white/20"
+            >
+              <img
+                alt=""
+                aria-hidden="true"
+                class="h-full w-full object-cover"
+                loading="lazy"
+                src="https://example.com/four.jpg"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </a>
+    <div
+      class="absolute bottom-3 left-1/2 -translate-x-1/2 transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none -translate-y-16 opacity-100"
+    >
+      <div
+        class="flex items-center rounded-xl bg-black/72 p-1 shadow-[0_8px_22px_rgba(0,0,0,0.28)] backdrop-blur-sm"
+      >
+        <button
+          aria-label="Copy latest project share link"
+          class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-bold text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-45"
+          type="button"
+        >
+          <svg
+            aria-hidden="true"
+            class="lucide lucide-link2 lucide-link-2 h-3.5 w-3.5"
+            fill="none"
+            height="24"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M9 17H7A5 5 0 0 1 7 7h2"
+            />
+            <path
+              d="M15 7h2a5 5 0 1 1 0 10h-2"
+            />
+            <line
+              x1="8"
+              x2="16"
+              y1="12"
+              y2="12"
+            />
+          </svg>
+          Copy
+        </button>
+        <button
+          aria-label="Open latest project share page"
+          class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-bold text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-45"
+          type="button"
+        >
+          <svg
+            aria-hidden="true"
+            class="lucide lucide-external-link h-3.5 w-3.5"
+            fill="none"
+            height="24"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M15 3h6v6"
+            />
+            <path
+              d="M10 14 21 3"
+            />
+            <path
+              d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"
+            />
+          </svg>
+          View
+        </button>
+        <button
+          aria-label="Add gallery to project"
+          class="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-2.5 text-xs font-bold text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-45"
+          type="button"
+        >
+          <svg
+            aria-hidden="true"
+            class="lucide lucide-folder-plus h-3.5 w-3.5"
+            fill="none"
+            height="24"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M12 10v6"
+            />
+            <path
+              d="M9 13h6"
+            />
+            <path
+              d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"
+            />
+          </svg>
+          Gallery
+        </button>
+      </div>
+    </div>
+  </div>
+  <div
+    class="relative flex min-h-30 flex-1 flex-col px-4 pb-4 pt-4"
+  >
+    <div
+      class="flex min-w-0 items-start gap-3 pr-8"
+    >
+      <a
+        class="min-w-0 flex-1 rounded-md focus:outline-none"
+        data-discover="true"
+        href="/projects/project-card-test"
+      >
+        <h2
+          class="line-clamp-2 wrap-anywhere text-xl font-bold leading-6 tracking-[-0.02em] text-text transition-colors group-hover/card:text-accent"
+          title="North Sea Editorial Delivery With A Deliberately Long Name"
+        >
+          North Sea Editorial Delivery With A Deliberately Long Name
+        </h2>
+        <p
+          class="mt-1.5 text-sm text-muted"
+        >
+          3
+           
+          galleries
+          <span
+            aria-hidden="true"
+          >
+             · 
+          </span>
+          Last activity 
+          2 hours ago
+        </p>
+      </a>
+    </div>
+    <div
+      class="absolute right-3 top-3"
+    >
+      <div
+        data-headlessui-state=""
+      >
+        <button
+          aria-expanded="false"
+          aria-label="Project actions for North Sea Editorial Delivery With A Deliberately Long Name"
+          class="flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-text focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent dark:hover:bg-surface-dark-2"
+          data-headlessui-state=""
+          id="headlessui-popover-button-_r_2_"
+          type="button"
+        >
+          <svg
+            aria-hidden="true"
+            class="lucide lucide-ellipsis h-5 w-5"
+            fill="none"
+            height="24"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <circle
+              cx="12"
+              cy="12"
+              r="1"
+            />
+            <circle
+              cx="19"
+              cy="12"
+              r="1"
+            />
+            <circle
+              cx="5"
+              cy="12"
+              r="1"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div
+    class="grid grid-cols-3 divide-x divide-border/45 border-t border-border/45 bg-surface-1/80 dark:divide-border/35 dark:border-border/35 dark:bg-surface-dark-1/70"
+  >
+    <div
+      class="min-w-0 px-3 py-3 first:pl-4 last:pr-4"
+    >
+      <p
+        class="truncate text-base font-bold tabular-nums text-text"
+        title="812 photos"
+      >
+        812
+      </p>
+      <p
+        class="mt-0.5 text-xs font-medium text-muted"
+      >
+        Photos
+      </p>
+    </div>
+    <div
+      class="min-w-0 px-3 py-3 first:pl-4 last:pr-4"
+    >
+      <p
+        class="truncate text-base font-bold tabular-nums text-text"
+        title="1.08 GB storage"
+      >
+        1.08 GB
+      </p>
+      <p
+        class="mt-0.5 text-xs font-medium text-muted"
+      >
+        Storage
+      </p>
+    </div>
+    <div
+      class="min-w-0 px-3 py-3 first:pl-4 last:pr-4"
+    >
+      <p
+        class="truncate text-base font-bold tabular-nums text-success dark:text-success"
+        title="3 links"
+      >
+        3
+      </p>
+      <p
+        class="mt-0.5 text-xs font-medium text-muted"
+      >
+        Links
+      </p>
+    </div>
+  </div>
+</article>
+`;

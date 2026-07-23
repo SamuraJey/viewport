@@ -100,11 +100,89 @@ async def test_create_project_with_initial_gallery_rolls_back_when_flush_fails()
     db.refresh = AsyncMock()
     db.in_transaction = Mock(return_value=False)
     repo = ProjectRepository(db)
+    repo._next_manual_order = AsyncMock(return_value=-1)
 
     with pytest.raises(RuntimeError, match="flush failed"):
         await repo.create_project_with_initial_gallery(uuid.uuid4(), "Broken Project")
 
     db.rollback.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_next_manual_order_locks_owner_before_reading_minimum():
+    owner_id = uuid.uuid4()
+    lock_result = Mock()
+    order_result = Mock()
+    order_result.scalar_one.return_value = -4
+    db = AsyncMock()
+    db.execute.side_effect = [lock_result, order_result]
+    repo = ProjectRepository(db)
+
+    result = await repo._next_manual_order(owner_id)
+
+    assert result == -4
+    assert db.execute.await_count == 2
+    lock_statement = str(db.execute.await_args_list[0].args[0])
+    assert "FROM users" in lock_statement
+    assert "FOR UPDATE" in lock_statement
+
+
+@pytest.mark.asyncio
+async def test_project_share_summaries_map_aggregated_rows():
+    project_id = uuid.uuid4()
+    share_link_id = uuid.uuid4()
+    activity_at = datetime(2026, 7, 23, 12, 0, tzinfo=UTC)
+    execute_result = Mock()
+    execute_result.all.return_value = [
+        (project_id, 3, share_link_id, activity_at),
+    ]
+    db = AsyncMock()
+    db.execute.return_value = execute_result
+    db.in_transaction = Mock(return_value=False)
+    repo = ProjectRepository(db)
+
+    summaries = await repo.get_project_share_summaries([project_id])
+
+    assert summaries == {
+        project_id: (3, share_link_id, activity_at),
+    }
+
+
+@pytest.mark.asyncio
+async def test_reorder_projects_replaces_only_requested_positions_and_normalizes_order():
+    owner_id = uuid.uuid4()
+    projects = [Project(id=uuid.uuid4(), owner_id=owner_id, name=f"Project {index}", manual_order=index) for index in range(4)]
+    scalar_result = Mock()
+    scalar_result.all.return_value = projects
+    execute_result = Mock()
+    execute_result.scalars.return_value = scalar_result
+    db = AsyncMock()
+    db.execute.return_value = execute_result
+    repo = ProjectRepository(db)
+
+    await repo.reorder_projects(owner_id, [projects[2].id, projects[1].id])
+
+    assert [project.manual_order for project in projects] == [0, 2, 1, 3]
+    db.commit.assert_awaited_once()
+    db.rollback.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reorder_projects_rejects_unowned_ids_before_commit():
+    owner_id = uuid.uuid4()
+    project = Project(id=uuid.uuid4(), owner_id=owner_id, name="Owned", manual_order=0)
+    scalar_result = Mock()
+    scalar_result.all.return_value = [project]
+    execute_result = Mock()
+    execute_result.scalars.return_value = scalar_result
+    db = AsyncMock()
+    db.execute.return_value = execute_result
+    repo = ProjectRepository(db)
+
+    with pytest.raises(ValueError, match="missing or unowned"):
+        await repo.reorder_projects(owner_id, [uuid.uuid4()])
+
+    db.commit.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -471,6 +549,14 @@ async def test_project_repository_batch_enrichment_helpers(repo: ProjectReposito
     )
     await _create_photo(
         db_session,
+        first_gallery.id,
+        display_name="alpha-latest.jpg",
+        thumbnail_object_key="alpha-latest-thumb",
+        file_size=110,
+        uploaded_at=datetime(2026, 4, 19, 11, 0, tzinfo=UTC),
+    )
+    await _create_photo(
+        db_session,
         second_gallery.id,
         display_name="beta.jpg",
         thumbnail_object_key="beta-thumb",
@@ -509,7 +595,7 @@ async def test_project_repository_batch_enrichment_helpers(repo: ProjectReposito
     }
     assert active_share_project_ids == {first_project.id}
     assert sharelink.project_id == first_project.id
-    assert recent_keys[first_project.id] == ["alpha-thumb", "beta-thumb"]
+    assert recent_keys[first_project.id] == ["alpha-latest-thumb", "beta-thumb"]
     assert recent_keys[second_project.id] == ["gamma-thumb"]
 
 

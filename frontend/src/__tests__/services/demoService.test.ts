@@ -135,6 +135,34 @@ describe('demoService', () => {
     expect(createdAsc.projects[0].name).toBe('Porto Wedding Delivery');
   });
 
+  it('persists a partial manual project reorder', async () => {
+    const { getDemoService } = await import('../../services/demoService');
+    const service = getDemoService();
+
+    const first = await service.createProject({ name: 'First manual project' });
+    const second = await service.createProject({ name: 'Second manual project' });
+    const before = await service.getProjects(1, 20, {
+      sort_by: 'manual_order',
+      order: 'asc',
+    });
+    const requested = before.projects
+      .filter((project) => project.id === first.id || project.id === second.id)
+      .map((project) => project.id)
+      .reverse();
+
+    await service.reorderProjects(requested);
+
+    const after = await service.getProjects(1, 20, {
+      sort_by: 'manual_order',
+      order: 'asc',
+    });
+    expect(
+      after.projects
+        .filter((project) => project.id === first.id || project.id === second.id)
+        .map((project) => project.id),
+    ).toEqual(requested);
+  });
+
   it('creates multiple galleries inside a project in demo mode', async () => {
     const { getDemoService } = await import('../../services/demoService');
     const service = getDemoService();

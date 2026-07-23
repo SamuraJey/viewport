@@ -564,6 +564,80 @@ describe('ProjectPage', () => {
       'gallery-2',
       'gallery-1',
     ]);
+    expect(
+      screen.getByText('Position 1 of 2').parentElement?.previousElementSibling,
+    ).toHaveTextContent('3eds');
+    expect(
+      screen.getByText('Position 2 of 2').parentElement?.previousElementSibling,
+    ).toHaveTextContent('Photos');
+    expect(screen.getByText('3eds is now position 1 of 2.')).toBeInTheDocument();
+  });
+
+  it('restores the previous gallery order when persistence fails', async () => {
+    const { projectService } = await import('../../services/projectService');
+
+    vi.mocked(projectService.reorderProjectGalleries).mockRejectedValueOnce(
+      new Error('Reorder failed'),
+    );
+
+    renderProjectPage();
+
+    expect(await screen.findByRole('heading', { name: 'Photos' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Change project visibility for 3eds'));
+    const visibilityPanel = (await screen.findByText('Project visibility')).parentElement;
+    expect(visibilityPanel).not.toBeNull();
+    fireEvent.click(within(visibilityPanel!).getByRole('button', { name: /move earlier/i }));
+
+    expect(await screen.findByText('Reorder failed')).toBeInTheDocument();
+    expect(
+      screen.getByText('Position 1 of 2').parentElement?.previousElementSibling,
+    ).toHaveTextContent('Photos');
+    expect(
+      screen.getByText('Position 2 of 2').parentElement?.previousElementSibling,
+    ).toHaveTextContent('3eds');
+    expect(
+      screen.getByText('Could not move 3eds. The previous gallery order was restored.'),
+    ).toBeInTheDocument();
+  });
+
+  it('reconciles a successful reorder without dropping a concurrently loaded gallery', async () => {
+    const { projectService } = await import('../../services/projectService');
+
+    renderProjectPage();
+
+    expect(await screen.findByRole('heading', { name: 'Photos' })).toBeInTheDocument();
+    const initialProject = await vi.mocked(projectService.getProject).mock.results[0].value;
+    vi.mocked(projectService.getProject).mockResolvedValueOnce({
+      ...initialProject,
+      gallery_count: 3,
+      visible_gallery_count: 2,
+      galleries: [
+        ...initialProject.galleries,
+        {
+          ...initialProject.galleries[0],
+          id: 'gallery-3',
+          name: 'After Party',
+          project_position: 2,
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByLabelText('Change project visibility for 3eds'));
+    const visibilityPanel = (await screen.findByText('Project visibility')).parentElement;
+    expect(visibilityPanel).not.toBeNull();
+    fireEvent.click(within(visibilityPanel!).getByRole('button', { name: /move earlier/i }));
+
+    expect(await screen.findByRole('heading', { name: 'After Party' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Position 1 of 3').parentElement?.previousElementSibling,
+    ).toHaveTextContent('3eds');
+    expect(
+      screen.getByText('Position 2 of 3').parentElement?.previousElementSibling,
+    ).toHaveTextContent('Photos');
+    expect(
+      screen.getByText('Position 3 of 3').parentElement?.previousElementSibling,
+    ).toHaveTextContent('After Party');
   });
 
   it('refreshes project state after creating a gallery share link', async () => {

@@ -40,10 +40,12 @@ import type {
   ShareLink,
 } from '../types';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { usePendingAction } from '../hooks/usePendingAction';
 
 import type { GalleryDraft } from '../components/project-page/types';
 import { buildGalleryDraft } from '../components/project-page/utils';
 import { ProjectGalleriesPanel } from '../components/project-page/components/ProjectGalleriesPanel';
+import { applyProjectGalleryOrder } from '../components/project-page/projectGalleryDnd';
 import { ProjectAppearanceSection } from '../components/appearance/ProjectAppearanceSection';
 
 export const ProjectPage = () => {
@@ -64,6 +66,7 @@ export const ProjectPage = () => {
   const [editingShareLink, setEditingShareLink] = useState<ShareLink | null>(null);
   const [isUpdatingGallery, setIsUpdatingGallery] = useState<string | null>(null);
   const [isReorderingGallery, setIsReorderingGallery] = useState<string | null>(null);
+  const [galleryOrderAnnouncement, setGalleryOrderAnnouncement] = useState('');
   const [sharingGallery, setSharingGallery] = useState<Gallery | null>(null);
   const [isProjectRenameDialogOpen, setIsProjectRenameDialogOpen] = useState(false);
   const [projectNameDraft, setProjectNameDraft] = useState('');
@@ -80,14 +83,21 @@ export const ProjectPage = () => {
   const [isLoadingProjectPhotos, setIsLoadingProjectPhotos] = useState(false);
   const activeProjectIdRef = useRef(projectId);
   const projectPhotosRequestIdRef = useRef(0);
+  const projectLoadRequestIdRef = useRef(0);
+  const galleryReorderRequestIdRef = useRef(0);
+  const activeGalleryOrderRef = useRef<string[] | null>(null);
 
   const [activeTab, setActiveTab] = useState<'galleries' | 'appearance'>('galleries');
 
   useEffect(() => {
     activeProjectIdRef.current = projectId;
     projectPhotosRequestIdRef.current += 1;
+    projectLoadRequestIdRef.current += 1;
+    galleryReorderRequestIdRef.current += 1;
+    activeGalleryOrderRef.current = null;
     setProjectPhotos([]);
     setIsLoadingProjectPhotos(false);
+    setIsReorderingGallery(null);
   }, [projectId]);
 
   const loadProjectPhotos = useCallback(async () => {
@@ -123,6 +133,7 @@ export const ProjectPage = () => {
 
   const loadProject = useCallback(async () => {
     if (!projectId) return;
+    const requestId = ++projectLoadRequestIdRef.current;
     setIsLoading(true);
     try {
       setError('');
@@ -131,14 +142,25 @@ export const ProjectPage = () => {
         shareLinkService.getProjectShareLinks(projectId),
         shareLinkService.getProjectWarningShareLinks(projectId),
       ]);
-      setProject(projectResponse);
+      if (requestId !== projectLoadRequestIdRef.current) return;
+
+      const preferredGalleryOrder = activeGalleryOrderRef.current;
+      setProject(
+        preferredGalleryOrder
+          ? applyProjectGalleryOrder(projectResponse, preferredGalleryOrder)
+          : projectResponse,
+      );
       setShareLinks(links);
       setWarningShareLinks(warningLinks);
       void loadProjectPhotos();
     } catch (err) {
-      setError(handleApiError(err).message || 'Failed to load project');
+      if (requestId === projectLoadRequestIdRef.current) {
+        setError(handleApiError(err).message || 'Failed to load project');
+      }
     } finally {
-      setIsLoading(false);
+      if (requestId === projectLoadRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [loadProjectPhotos, projectId]);
 
@@ -308,6 +330,14 @@ export const ProjectPage = () => {
     setIsProjectRenameDialogOpen(true);
   };
 
+  usePendingAction((action) => {
+    if (action === 'create-gallery') {
+      openGalleryDialog();
+    } else if (action === 'project-settings') {
+      setActiveTab('appearance');
+    }
+  });
+
   const closeProjectRenameDialog = () => {
     if (isRenamingProject) return;
     setIsProjectRenameDialogOpen(false);
@@ -463,25 +493,86 @@ export const ProjectPage = () => {
     const [movedGallery] = reorderedGalleries.splice(currentIndex, 1);
     reorderedGalleries.splice(boundedTargetIndex, 0, movedGallery);
 
-    const updates = reorderedGalleries
-      .map((gallery, index) => ({ gallery, index }))
-      .filter(({ gallery, index }) => (gallery.project_position ?? 0) !== index);
-
-    if (updates.length === 0) {
+    const reorderedGalleryIds = reorderedGalleries.map((gallery) => gallery.id);
+    const hasOrderChange = reorderedGalleryIds.some(
+      (galleryId, index) => galleryId !== project.galleries[index]?.id,
+    );
+    if (!hasOrderChange) {
       return;
     }
 
+    const previousOrder = project.galleries.map((gallery) => gallery.id);
+    const reorderProjectId = projectId;
+    const reorderRequestId = ++galleryReorderRequestIdRef.current;
+
+    projectLoadRequestIdRef.current += 1;
+    activeGalleryOrderRef.current = reorderedGalleryIds;
+    setError('');
+    setIsLoading(false);
     setIsReorderingGallery(galleryId);
+    setGalleryOrderAnnouncement(
+      `Moving ${movedGallery.name} to position ${boundedTargetIndex + 1}.`,
+    );
+    setProject((previousProject) =>
+      previousProject
+        ? applyProjectGalleryOrder(previousProject, reorderedGalleryIds)
+        : previousProject,
+    );
+
     try {
-      await projectService.reorderProjectGalleries(
-        projectId,
-        reorderedGalleries.map((folder) => folder.id),
+      await projectService.reorderProjectGalleries(reorderProjectId, reorderedGalleryIds);
+      if (
+        activeProjectIdRef.current !== reorderProjectId ||
+        galleryReorderRequestIdRef.current !== reorderRequestId
+      ) {
+        return;
+      }
+
+      const refreshRequestId = ++projectLoadRequestIdRef.current;
+      try {
+        const refreshedProject = await projectService.getProject(reorderProjectId);
+        if (
+          activeProjectIdRef.current === reorderProjectId &&
+          galleryReorderRequestIdRef.current === reorderRequestId &&
+          projectLoadRequestIdRef.current === refreshRequestId
+        ) {
+          setProject(applyProjectGalleryOrder(refreshedProject, reorderedGalleryIds));
+        }
+      } catch {
+        // Persistence already succeeded; keep the optimistic project state.
+      }
+
+      activeGalleryOrderRef.current = null;
+      setGalleryOrderAnnouncement(
+        `${movedGallery.name} is now position ${boundedTargetIndex + 1} of ${reorderedGalleryIds.length}.`,
       );
-      await loadProject();
     } catch (err) {
+      if (
+        activeProjectIdRef.current !== reorderProjectId ||
+        galleryReorderRequestIdRef.current !== reorderRequestId
+      ) {
+        return;
+      }
+
+      projectLoadRequestIdRef.current += 1;
+      activeGalleryOrderRef.current = null;
+      setIsLoading(false);
+      setProject((previousProject) =>
+        previousProject
+          ? applyProjectGalleryOrder(previousProject, previousOrder)
+          : previousProject,
+      );
       setError(handleApiError(err).message || 'Failed to reorder galleries');
+      setGalleryOrderAnnouncement(
+        `Could not move ${movedGallery.name}. The previous gallery order was restored.`,
+      );
     } finally {
-      setIsReorderingGallery(null);
+      if (
+        activeProjectIdRef.current === reorderProjectId &&
+        galleryReorderRequestIdRef.current === reorderRequestId
+      ) {
+        setIsReorderingGallery(null);
+      }
     }
   };
 
@@ -627,6 +718,7 @@ export const ProjectPage = () => {
       renameInputRef={renameInputRef}
       isUpdatingGallery={isUpdatingGallery}
       isReorderingGallery={isReorderingGallery}
+      requiresReorderConfirmation={projectSelectionWarningSummary.hasSensitiveSessions}
       openGalleryDialog={openGalleryDialog}
       setRenameInput={setRenameInput}
       handleConfirmRename={() => void handleConfirmRename()}
@@ -1058,6 +1150,10 @@ export const ProjectPage = () => {
         }}
         onManageCreated={(shareLinkId) => navigate(`/share-links/${shareLinkId}`)}
       />
+
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {galleryOrderAnnouncement}
+      </p>
 
       {ConfirmModal}
     </div>

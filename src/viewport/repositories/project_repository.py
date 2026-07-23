@@ -8,6 +8,7 @@ from viewport.gallery_constants import PUBLIC_GALLERY_SORT_BY_DEFAULT, PUBLIC_GA
 from viewport.models.gallery import Gallery, Photo, PhotoUploadStatus, ProjectVisibility
 from viewport.models.project import Project
 from viewport.models.sharelink import ShareLink, ShareScopeType
+from viewport.models.user import User
 from viewport.repositories.base_repository import BaseRepository
 from viewport.repositories.query_utils import LIKE_ESCAPE_CHAR as DEFAULT_LIKE_ESCAPE_CHAR
 from viewport.repositories.query_utils import escape_like_term, literal_like_pattern
@@ -38,6 +39,9 @@ class ProjectRepository(BaseRepository):
     ):
         order_fn = asc if order == SortOrder.ASC else desc
 
+        if sort_by == ProjectListSortBy.MANUAL_ORDER:
+            return [order_fn(Project.manual_order), order_fn(Project.created_at), order_fn(Project.id)]
+
         if sort_by == ProjectListSortBy.NAME:
             return [order_fn(func.lower(Project.name)), order_fn(Project.created_at), order_fn(Project.id)]
 
@@ -52,11 +56,23 @@ class ProjectRepository(BaseRepository):
 
         return [order_fn(Project.created_at), order_fn(Project.id)]
 
+    async def _next_manual_order(self, owner_id: uuid.UUID) -> int:
+        await self._lock_project_order(owner_id)
+        stmt = select(func.coalesce(func.min(Project.manual_order), 0) - 1).where(
+            Project.owner_id == owner_id,
+            Project.is_deleted.is_(False),
+        )
+        return int((await self.db.execute(stmt)).scalar_one())
+
+    async def _lock_project_order(self, owner_id: uuid.UUID) -> None:
+        await self.db.execute(select(User.id).where(User.id == owner_id).with_for_update())
+
     async def create_project(self, owner_id: uuid.UUID, name: str, shooting_date: date | None = None) -> Project:
         project = Project(
             owner_id=owner_id,
             name=name,
             shooting_date=shooting_date or datetime.now(UTC).date(),
+            manual_order=await self._next_manual_order(owner_id),
         )
         self.db.add(project)
         await self.db.commit()
@@ -108,6 +124,7 @@ class ProjectRepository(BaseRepository):
             owner_id=owner_id,
             name=project_name,
             shooting_date=resolved_shooting_date,
+            manual_order=await self._next_manual_order(owner_id),
         )
         self.db.add(project)
 
@@ -150,6 +167,7 @@ class ProjectRepository(BaseRepository):
             owner_id=owner_id,
             name=name,
             shooting_date=resolved_shooting_date,
+            manual_order=await self._next_manual_order(owner_id),
         )
         gallery = Gallery(
             owner_id=owner_id,
@@ -221,6 +239,41 @@ class ProjectRepository(BaseRepository):
         stmt = stmt.order_by(*order_by_clauses).offset((page - 1) * size).limit(size)
         projects = list((await self.db.execute(stmt)).scalars().all())
         return await self._finish_read((projects, total))
+
+    async def reorder_projects(self, owner_id: uuid.UUID, ordered_project_ids: list[uuid.UUID]) -> None:
+        await self._lock_project_order(owner_id)
+        stmt = (
+            select(Project)
+            .where(
+                Project.owner_id == owner_id,
+                Project.is_deleted.is_(False),
+            )
+            .order_by(Project.manual_order.asc(), Project.created_at.asc(), Project.id.asc())
+            .with_for_update()
+        )
+        projects = list((await self.db.execute(stmt)).scalars().all())
+        projects_by_id = {project.id: project for project in projects}
+        requested_ids = set(ordered_project_ids)
+
+        if not requested_ids.issubset(projects_by_id):
+            raise ValueError("Project list contains missing or unowned projects")
+
+        occupied_positions = [index for index, project in enumerate(projects) if project.id in requested_ids]
+        if len(occupied_positions) != len(ordered_project_ids):
+            raise ValueError("Project list must contain unique project ids")
+
+        reordered_projects = list(projects)
+        for index, project_id in zip(occupied_positions, ordered_project_ids, strict=True):
+            reordered_projects[index] = projects_by_id[project_id]
+
+        for index, project in enumerate(reordered_projects):
+            project.manual_order = index
+
+        try:
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
 
     async def get_project_by_id_and_owner(self, project_id: uuid.UUID, owner_id: uuid.UUID) -> Project | None:
         stmt = select(Project).where(Project.id == project_id, Project.owner_id == owner_id, Project.is_deleted.is_(False))
@@ -414,12 +467,12 @@ class ProjectRepository(BaseRepository):
         return await self._finish_read(count > 0)
 
     async def get_recent_project_thumbnail_keys(self, project_id: uuid.UUID, *, listed_only: bool, limit: int = 3) -> list[str]:
-        filters = [Gallery.project_id == project_id, Gallery.is_deleted.is_(False), Photo.thumbnail_object_key.is_not(None), Photo.status == PhotoUploadStatus.SUCCESSFUL]
-        if listed_only:
-            filters.append(Gallery.project_visibility == ProjectVisibility.LISTED.value)
-        stmt = select(Photo.thumbnail_object_key).join(Photo.gallery).where(*filters).order_by(Gallery.project_position.asc(), Photo.uploaded_at.desc(), Photo.id.desc()).limit(limit)
-        keys = [key for key in (await self.db.execute(stmt)).scalars().all() if key]
-        return await self._finish_read(keys)
+        keys_by_project = await self.get_recent_project_thumbnail_keys_by_project_ids(
+            [project_id],
+            listed_only=listed_only,
+            limit=limit,
+        )
+        return keys_by_project.get(project_id, [])
 
     async def get_visible_project_folders(self, project_id: uuid.UUID, limit: int | None = None, offset: int = 0) -> list[Gallery]:
         stmt = (
@@ -480,38 +533,130 @@ class ProjectRepository(BaseRepository):
         project_id_set = {project_id for project_id in (await self.db.execute(stmt)).scalars().all() if project_id is not None}
         return await self._finish_read(project_id_set)
 
-    async def get_recent_project_thumbnail_keys_by_project_ids(
+    async def get_project_share_summaries(
         self,
         project_ids: list[uuid.UUID],
-        *,
-        limit: int = 3,
-    ) -> dict[uuid.UUID, list[str]]:
-        if not project_ids or limit <= 0:
+    ) -> dict[uuid.UUID, tuple[int, uuid.UUID | None, datetime | None]]:
+        if not project_ids:
             return await self._finish_read({})
 
-        ranked_thumbnails = (
+        now = datetime.now(UTC).replace(tzinfo=None)
+        ranked_share_links = (
             select(
-                Gallery.project_id.label("project_id"),
-                Photo.thumbnail_object_key.label("thumbnail_object_key"),
+                ShareLink.project_id.label("project_id"),
+                ShareLink.id.label("share_link_id"),
+                func.count(ShareLink.id).over(partition_by=ShareLink.project_id).label("active_count"),
+                func.max(ShareLink.updated_at).over(partition_by=ShareLink.project_id).label("last_activity_at"),
                 func.row_number()
                 .over(
-                    partition_by=Gallery.project_id,
-                    order_by=(Gallery.project_position.asc(), Photo.uploaded_at.desc(), Photo.id.desc()),
+                    partition_by=ShareLink.project_id,
+                    order_by=(ShareLink.created_at.desc(), ShareLink.id.desc()),
                 )
-                .label("rank"),
+                .label("row_number"),
             )
+            .where(
+                ShareLink.project_id.in_(project_ids),
+                ShareLink.scope_type == ShareScopeType.PROJECT.value,
+                ShareLink.is_active.is_(True),
+                or_(ShareLink.expires_at.is_(None), ShareLink.expires_at > now),
+            )
+            .subquery()
+        )
+        stmt = select(
+            ranked_share_links.c.project_id,
+            ranked_share_links.c.active_count,
+            ranked_share_links.c.share_link_id,
+            ranked_share_links.c.last_activity_at,
+        ).where(ranked_share_links.c.row_number == 1)
+        summaries: dict[uuid.UUID, tuple[int, uuid.UUID | None, datetime | None]] = {
+            project_id: (int(active_count), share_link_id, last_activity_at)
+            for project_id, active_count, share_link_id, last_activity_at in (await self.db.execute(stmt)).all()
+            if project_id is not None
+        }
+        return await self._finish_read(summaries)
+
+    async def get_project_last_photo_activity(
+        self,
+        project_ids: list[uuid.UUID],
+    ) -> dict[uuid.UUID, datetime]:
+        if not project_ids:
+            return await self._finish_read({})
+
+        stmt = (
+            select(Gallery.project_id, func.max(Photo.uploaded_at))
             .select_from(Photo)
             .join(Photo.gallery)
             .where(
                 Gallery.project_id.in_(project_ids),
                 Gallery.is_deleted.is_(False),
-                Photo.thumbnail_object_key.is_not(None),
-                Photo.status == PhotoUploadStatus.SUCCESSFUL,
             )
+            .group_by(Gallery.project_id)
+        )
+        activity_by_project = {project_id: activity_at for project_id, activity_at in (await self.db.execute(stmt)).all() if project_id is not None and activity_at is not None}
+        return await self._finish_read(activity_by_project)
+
+    async def get_recent_project_thumbnail_keys_by_project_ids(
+        self,
+        project_ids: list[uuid.UUID],
+        *,
+        listed_only: bool = False,
+        limit: int = 3,
+    ) -> dict[uuid.UUID, list[str]]:
+        if not project_ids or limit <= 0:
+            return await self._finish_read({})
+
+        filters = [
+            Gallery.project_id.in_(project_ids),
+            Gallery.is_deleted.is_(False),
+            Photo.thumbnail_object_key.is_not(None),
+            Photo.status == PhotoUploadStatus.SUCCESSFUL,
+        ]
+        if listed_only:
+            filters.append(Gallery.project_visibility == ProjectVisibility.LISTED.value)
+
+        latest_thumbnail_per_gallery = (
+            select(
+                Gallery.project_id.label("project_id"),
+                Gallery.id.label("gallery_id"),
+                Gallery.project_position.label("project_position"),
+                Photo.thumbnail_object_key.label("thumbnail_object_key"),
+                func.row_number()
+                .over(
+                    partition_by=Gallery.id,
+                    order_by=(Photo.uploaded_at.desc(), Photo.id.desc()),
+                )
+                .label("gallery_rank"),
+            )
+            .select_from(Photo)
+            .join(Photo.gallery)
+            .where(*filters)
+            .subquery()
+        )
+
+        ranked_thumbnails = (
+            select(
+                latest_thumbnail_per_gallery.c.project_id,
+                latest_thumbnail_per_gallery.c.thumbnail_object_key,
+                func.row_number()
+                .over(
+                    partition_by=latest_thumbnail_per_gallery.c.project_id,
+                    order_by=(
+                        latest_thumbnail_per_gallery.c.project_position.asc(),
+                        latest_thumbnail_per_gallery.c.gallery_id.asc(),
+                    ),
+                )
+                .label("project_rank"),
+            )
+            .where(latest_thumbnail_per_gallery.c.gallery_rank == 1)
             .subquery()
         )
         stmt = (
-            select(ranked_thumbnails.c.project_id, ranked_thumbnails.c.thumbnail_object_key).where(ranked_thumbnails.c.rank <= limit).order_by(ranked_thumbnails.c.project_id, ranked_thumbnails.c.rank)
+            select(ranked_thumbnails.c.project_id, ranked_thumbnails.c.thumbnail_object_key)
+            .where(ranked_thumbnails.c.project_rank <= limit)
+            .order_by(
+                ranked_thumbnails.c.project_id,
+                ranked_thumbnails.c.project_rank,
+            )
         )
 
         thumbnail_keys_by_project: dict[uuid.UUID, list[str]] = {}

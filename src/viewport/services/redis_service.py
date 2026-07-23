@@ -82,6 +82,21 @@ class PipelineContext:
         self.pipeline.expire(key, seconds)
         return self
 
+    def zadd(self, key: str, mapping: dict[str, float]) -> "PipelineContext":
+        """Queue a ZADD command."""
+        self.pipeline.zadd(key, mapping)
+        return self
+
+    def zremrangebyscore(self, key: str, minimum: float, maximum: float) -> "PipelineContext":
+        """Queue a ZREMRANGEBYSCORE command."""
+        self.pipeline.zremrangebyscore(key, minimum, maximum)
+        return self
+
+    def zcount(self, key: str, minimum: float, maximum: float) -> "PipelineContext":
+        """Queue a ZCOUNT command."""
+        self.pipeline.zcount(key, minimum, maximum)
+        return self
+
     async def execute(self) -> list[Any]:
         """Execute all queued commands."""
         result = await self.pipeline.execute()
@@ -359,6 +374,15 @@ class _NoOpPipelineContext:
         return self
 
     def expire(self, key: str, seconds: int) -> "_NoOpPipelineContext":
+        return self
+
+    def zadd(self, key: str, mapping: dict[str, float]) -> "_NoOpPipelineContext":
+        return self
+
+    def zremrangebyscore(self, key: str, minimum: float, maximum: float) -> "_NoOpPipelineContext":
+        return self
+
+    def zcount(self, key: str, minimum: float, maximum: float) -> "_NoOpPipelineContext":
         return self
 
     async def execute(self) -> list[Any]:
