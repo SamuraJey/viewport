@@ -1,11 +1,12 @@
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.concurrency import run_in_threadpool
 
 from viewport.auth_utils import get_current_user
 from viewport.background_tasks import delete_gallery_data_task
-from viewport.dependencies import get_gallery_repository, get_project_repository
+from viewport.dependencies import get_gallery_repository, get_project_repository, get_redis
 from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.models.gallery import PhotoUploadStatus
 from viewport.models.gallery import ProjectVisibility as GalleryProjectVisibility
@@ -23,9 +24,12 @@ from viewport.schemas.project import (
     ProjectListQueryParams,
     ProjectListResponse,
     ProjectPhotosResponse,
+    ProjectReorderRequest,
     ProjectResponse,
     ProjectUpdateRequest,
 )
+from viewport.services.project_presence import get_active_viewer_counts
+from viewport.services.redis_service import RedisService
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -41,6 +45,11 @@ def _serialize_project_response(
     total_size_bytes: int,
     has_active_share_links: bool,
     cover_photo_thumbnail_url: str | None,
+    preview_thumbnail_urls: list[str] | None = None,
+    active_share_link_count: int = 0,
+    latest_share_link_id: uuid.UUID | None = None,
+    active_viewers_count: int = 0,
+    last_activity_at: datetime | None = None,
 ) -> ProjectResponse:
     return ProjectResponse(
         id=str(project.id),
@@ -48,6 +57,7 @@ def _serialize_project_response(
         name=project.name,
         created_at=project.created_at,
         shooting_date=project.shooting_date,
+        manual_order=project.manual_order,
         gallery_count=gallery_count,
         visible_gallery_count=visible_gallery_count,
         entry_gallery_id=str(entry_gallery_id) if entry_gallery_id else None,
@@ -56,7 +66,12 @@ def _serialize_project_response(
         total_photo_count=total_photo_count,
         total_size_bytes=total_size_bytes,
         has_active_share_links=has_active_share_links,
+        active_share_link_count=active_share_link_count,
+        latest_share_link_id=str(latest_share_link_id) if latest_share_link_id else None,
+        active_viewers_count=active_viewers_count,
+        last_activity_at=last_activity_at or project.created_at,
         cover_photo_thumbnail_url=cover_photo_thumbnail_url,
+        preview_thumbnail_urls=preview_thumbnail_urls or [],
         cover_photo_id=str(project.cover_photo_id) if project.cover_photo_id else None,
         cover_focal_x=float(project.cover_focal_x),
         cover_focal_y=float(project.cover_focal_y),
@@ -89,6 +104,7 @@ async def _build_project_response(
     repo: ProjectRepository,
     gallery_repo: GalleryRepository,
     s3_client: AsyncS3Client,
+    redis: RedisService | None = None,
 ) -> ProjectResponse:
     galleries = await repo.get_project_folders_by_owner(project.id, project.owner_id)
     gallery_ids = [gallery.id for gallery in galleries]
@@ -110,8 +126,11 @@ async def _build_project_response(
     entry_gallery = galleries[0] if galleries else None
     total_photo_count = sum(photo_count_by_gallery.get(gallery.id, 0) for gallery in galleries)
     total_size_bytes = sum(total_size_by_gallery.get(gallery.id, 0) for gallery in galleries)
-    has_active_share_links = await repo.has_active_share_links(project.id)
-    recent_keys = await repo.get_recent_project_thumbnail_keys(project.id, listed_only=False, limit=1)
+    share_summary = (await repo.get_project_share_summaries([project.id])).get(project.id, (0, None, None))
+    active_share_link_count, latest_share_link_id, share_activity_at = share_summary
+    recent_keys = await repo.get_recent_project_thumbnail_keys(project.id, listed_only=False, limit=4)
+    photo_activity_at = (await repo.get_project_last_photo_activity([project.id])).get(project.id)
+    active_viewers_count = (await get_active_viewer_counts(redis, [project.id])).get(project.id, 0)
 
     # Prefer project-level cover photo for dashboard thumbnail
     project_cover_thumbnail_key: str | None = None
@@ -144,6 +163,8 @@ async def _build_project_response(
             recent_keys,
             thumbnail_url_by_key,
         )
+    preview_thumbnail_urls = [thumbnail_url_by_key[key] for key in recent_keys if key in thumbnail_url_by_key][:4]
+    last_activity_at = _latest_datetime(project.created_at, photo_activity_at, share_activity_at)
 
     return _serialize_project_response(
         project,
@@ -153,8 +174,13 @@ async def _build_project_response(
         entry_gallery_name=entry_gallery.name if entry_gallery else None,
         total_photo_count=total_photo_count,
         total_size_bytes=total_size_bytes,
-        has_active_share_links=has_active_share_links,
+        has_active_share_links=active_share_link_count > 0,
         cover_photo_thumbnail_url=cover_thumbnail_url,
+        preview_thumbnail_urls=preview_thumbnail_urls,
+        active_share_link_count=active_share_link_count,
+        latest_share_link_id=latest_share_link_id,
+        active_viewers_count=active_viewers_count,
+        last_activity_at=last_activity_at,
     )
 
 
@@ -163,14 +189,17 @@ async def _build_project_responses(
     repo: ProjectRepository,
     gallery_repo: GalleryRepository,
     s3_client: AsyncS3Client,
+    redis: RedisService | None = None,
 ) -> list[ProjectResponse]:
     if not projects:
         return []
 
     project_ids = [project.id for project in projects]
     project_galleries = await repo.get_project_folders_for_projects(project_ids)
-    active_share_project_ids = await repo.get_active_share_project_ids(project_ids)
-    recent_thumbnail_keys_by_project = await repo.get_recent_project_thumbnail_keys_by_project_ids(project_ids, limit=1)
+    share_summaries = await repo.get_project_share_summaries(project_ids)
+    photo_activity_by_project = await repo.get_project_last_photo_activity(project_ids)
+    active_viewer_counts = await get_active_viewer_counts(redis, project_ids)
+    recent_thumbnail_keys_by_project = await repo.get_recent_project_thumbnail_keys_by_project_ids(project_ids, limit=4)
 
     galleries_by_project: dict[uuid.UUID, list] = {}
     gallery_ids: list[uuid.UUID] = []
@@ -233,6 +262,16 @@ async def _build_project_responses(
                 recent_keys,
                 thumbnail_url_by_key,
             )
+        preview_thumbnail_urls = [thumbnail_url_by_key[key] for key in recent_keys if key in thumbnail_url_by_key][:4]
+        active_share_link_count, latest_share_link_id, share_activity_at = share_summaries.get(
+            project.id,
+            (0, None, None),
+        )
+        last_activity_at = _latest_datetime(
+            project.created_at,
+            photo_activity_by_project.get(project.id),
+            share_activity_at,
+        )
 
         responses.append(
             _serialize_project_response(
@@ -243,12 +282,27 @@ async def _build_project_responses(
                 entry_gallery_name=entry_gallery.name if entry_gallery else None,
                 total_photo_count=total_photo_count,
                 total_size_bytes=total_size_bytes,
-                has_active_share_links=project.id in active_share_project_ids,
+                has_active_share_links=active_share_link_count > 0,
                 cover_photo_thumbnail_url=cover_thumbnail_url,
+                preview_thumbnail_urls=preview_thumbnail_urls,
+                active_share_link_count=active_share_link_count,
+                latest_share_link_id=latest_share_link_id,
+                active_viewers_count=active_viewer_counts.get(project.id, 0),
+                last_activity_at=last_activity_at,
             )
         )
 
     return responses
+
+
+def _latest_datetime(*values: datetime | None) -> datetime:
+    candidates = [value for value in values if value is not None]
+    if not candidates:
+        return datetime.now(UTC)
+    return max(
+        candidates,
+        key=lambda value: value if value.tzinfo is not None else value.replace(tzinfo=UTC),
+    )
 
 
 async def _build_project_gallery_responses(
@@ -312,13 +366,14 @@ async def create_project(
     gallery_repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
+    redis: RedisService | None = Depends(get_redis),
 ) -> ProjectResponse:
     project = await repo.create_project(
         current_user.id,
         request.name,
         request.shooting_date,
     )
-    return await _build_project_response(project, repo, gallery_repo, s3_client)
+    return await _build_project_response(project, repo, gallery_repo, s3_client, redis)
 
 
 @router.get("", response_model=ProjectListResponse)
@@ -327,6 +382,7 @@ async def list_projects(
     gallery_repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
+    redis: RedisService | None = Depends(get_redis),
     list_query: ProjectListQueryParams = Depends(),
     page: int = Query(1, ge=1),
     size: int = Query(10, ge=1, le=100),
@@ -339,8 +395,25 @@ async def list_projects(
         sort_by=list_query.sort_by,
         order=list_query.order,
     )
-    responses = await _build_project_responses(projects, repo, gallery_repo, s3_client)
+    responses = await _build_project_responses(projects, repo, gallery_repo, s3_client, redis)
     return ProjectListResponse(projects=responses, total=total, page=page, size=size)
+
+
+@router.patch("/reorder", status_code=status.HTTP_204_NO_CONTENT)
+async def reorder_projects(
+    request: ProjectReorderRequest,
+    repo: ProjectRepository = Depends(get_project_repository),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    try:
+        ordered_project_ids = [uuid.UUID(project_id) for project_id in request.project_ids]
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="Invalid project id") from exc
+
+    try:
+        await repo.reorder_projects(current_user.id, ordered_project_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/{project_id}", response_model=ProjectDetailResponse)
@@ -350,12 +423,13 @@ async def get_project_detail(
     gallery_repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
+    redis: RedisService | None = Depends(get_redis),
 ) -> ProjectDetailResponse:
     project = await repo.get_project_by_id_and_owner(project_id, current_user.id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    base_response = await _build_project_response(project, repo, gallery_repo, s3_client)
+    base_response = await _build_project_response(project, repo, gallery_repo, s3_client, redis)
     galleries = await repo.get_project_folders_by_owner(project_id, current_user.id)
     gallery_responses = await _build_project_gallery_responses(galleries, gallery_repo, s3_client, project_name=project.name)
     return ProjectDetailResponse(**base_response.model_dump(), galleries=gallery_responses)
@@ -369,6 +443,7 @@ async def update_project(
     gallery_repo: GalleryRepository = Depends(get_gallery_repository),
     current_user: User = Depends(get_current_user),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
+    redis: RedisService | None = Depends(get_redis),
 ) -> ProjectResponse:
     # Parse cover_photo_id (mirror gallery endpoint logic)
     cover_photo_id: object = _UNSET
@@ -404,7 +479,7 @@ async def update_project(
     )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    return await _build_project_response(project, repo, gallery_repo, s3_client)
+    return await _build_project_response(project, repo, gallery_repo, s3_client, redis)
 
 
 @router.get("/{project_id}/photos", response_model=ProjectPhotosResponse)

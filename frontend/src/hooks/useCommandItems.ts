@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { FolderOpen, Share2 } from 'lucide-react';
 import type { Command } from '../components/command/CommandRegistry';
 import { projectService } from '../services/projectService';

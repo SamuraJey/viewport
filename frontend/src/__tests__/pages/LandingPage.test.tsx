@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router';
 import App from '../../App';
 import { LandingPage } from '../../pages/LandingPage';
 import { useAuthStore } from '../../stores/authStore';
@@ -53,8 +53,8 @@ vi.mock('../../lib/demoMode', () => ({
   isDemoModeEnabled: vi.fn(() => false),
 }));
 
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual('react-router');
   return {
     ...actual,
     useNavigate: () => mockNavigate,

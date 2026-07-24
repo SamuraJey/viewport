@@ -7,7 +7,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse, StreamingResponse
 
-from viewport.dependencies import get_gallery_repository, get_project_repository, get_sharelink_repository
+from viewport.dependencies import get_gallery_repository, get_project_repository, get_redis, get_sharelink_repository
 from viewport.dependencies import get_s3_client as get_async_s3_client
 from viewport.filename_utils import build_content_disposition
 from viewport.logger import logger
@@ -33,6 +33,8 @@ from viewport.schemas.public import (
     PublicShareResponse,
     PublicShareUnlockRequest,
 )
+from viewport.services.project_presence import record_project_presence
+from viewport.services.redis_service import RedisService
 from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_available_public_sharelink, get_valid_public_sharelink, unlock_sharelink_password
 from viewport.zip_utils import build_zip_fallback_name, make_content_disposition_header, make_unique_zip_entry_name, sanitize_zip_entry_name
 
@@ -365,6 +367,7 @@ async def _build_public_project_response(
     gallery_repo: GalleryRepository,
     s3_client: AsyncS3Client,
     sharelink: ShareLink,
+    redis: RedisService | None = None,
     record_view: bool = True,
 ) -> PublicProjectResponse:
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
@@ -372,6 +375,13 @@ async def _build_public_project_response(
     project = sharelink.project
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
+
+    await record_project_presence(
+        redis,
+        project.id,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
 
     galleries = await project_repo.get_visible_project_folders(project.id)
 
@@ -558,6 +568,7 @@ async def get_photos_by_sharelink(
     project_repo: ProjectRepository = Depends(get_project_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
+    redis: RedisService | None = Depends(get_redis),
 ) -> PublicShareResponse:
     if sharelink.scope_type == ShareScopeType.PROJECT.value:
         return await _build_public_project_response(
@@ -568,6 +579,7 @@ async def get_photos_by_sharelink(
             gallery_repo=gallery_repo,
             s3_client=s3_client,
             sharelink=sharelink,
+            redis=redis,
         )
 
     gallery = sharelink.gallery
@@ -599,6 +611,7 @@ async def get_project_gallery_by_sharelink(
     gallery_repo: GalleryRepository = Depends(get_gallery_repository),
     sharelink: ShareLink = Depends(get_valid_sharelink),
     s3_client: AsyncS3Client = Depends(get_async_s3_client),
+    redis: RedisService | None = Depends(get_redis),
 ) -> PublicGalleryResponse:
     if sharelink.scope_type != ShareScopeType.PROJECT.value or sharelink.project is None:
         raise HTTPException(status_code=404, detail="Project share not found", headers=PUBLIC_CACHE_CONTROL_HEADERS)
@@ -620,6 +633,7 @@ async def get_project_gallery_by_sharelink(
         gallery_repo=gallery_repo,
         s3_client=s3_client,
         sharelink=sharelink,
+        redis=redis,
         record_view=False,
     )
 

@@ -1,75 +1,39 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import {
-  ArrowUpDown,
-  FolderOpen,
-  HardDrive,
-  ImageIcon,
-  Plus,
-  Search,
-  Share2,
-  Trash2,
-} from 'lucide-react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowUpDown, GripVertical, Plus, Search } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router';
 
-import { usePendingAction } from '../hooks/usePendingAction';
+import { DashboardEmptyState } from '../components/dashboard/DashboardEmptyState';
+import { CreateProjectModal } from '../components/dashboard/CreateProjectModal';
+import { RenameProjectModal } from '../components/dashboard/RenameProjectModal';
+import { SortableProjectGrid } from '../components/dashboard/SortableProjectGrid';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { PaginationControls } from '../components/PaginationControls';
-import { CollectionCard, CollectionShareBadge } from '../components/dashboard/CollectionCard';
-import { getCollectionTitleTextSizeClass } from '../components/dashboard/collectionCardUtils';
-import { CreateProjectModal } from '../components/dashboard/CreateProjectModal';
-import { MetricCard } from '../components/dashboard/MetricCard';
 import { AppListbox } from '../components/ui';
+import { requestProjectAction } from '../components/command/commandActions';
 import { useConfirmation } from '../hooks/useConfirmation';
-import { usePagination } from '../hooks/usePagination';
+import { useCreateProjectModal, useRenameProjectModal } from '../hooks/useDashboardProjectModals';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { usePagination } from '../hooks/usePagination';
+import { usePendingAction } from '../hooks/usePendingAction';
+import { copyTextToClipboard } from '../lib/clipboard';
 import { handleApiError } from '../lib/errorHandling';
-import { formatFileSize } from '../lib/utils';
 import { projectService } from '../services/projectService';
-import type { Project } from '../types';
-import type { ProjectListSortBy, SortOrder } from '../types';
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.05, delayChildren: 0.03 },
-  },
-};
-
-const cardVariants = {
-  hidden: { opacity: 0, y: 20, scale: 0.98 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { type: 'spring' as const, stiffness: 320, damping: 26 },
-  },
-  exit: { opacity: 0, scale: 0.95, y: -6, transition: { duration: 0.14 } },
-};
+import { shareLinkService } from '../services/shareLinkService';
+import type { Project, ProjectListSortBy, SortOrder } from '../types';
 
 const SEARCH_DEBOUNCE_MS = 300;
+const PROJECT_POLL_INTERVAL_MS = 60_000;
 const PROJECT_PAGE_SIZE = 18;
-const DEFAULT_PROJECT_SORT_BY: ProjectListSortBy = 'created_at';
-const DEFAULT_PROJECT_SORT_ORDER: SortOrder = 'desc';
-const numberFormatter = new Intl.NumberFormat();
+const DEFAULT_PROJECT_SORT_BY: ProjectListSortBy = 'manual_order';
+const DEFAULT_PROJECT_SORT_ORDER: SortOrder = 'asc';
 
 interface ProjectSortOption {
   value: `${ProjectListSortBy}:${SortOrder}`;
   label: string;
 }
 
-const DEFAULT_PROJECT_SORT_STATE = {
-  sortBy: DEFAULT_PROJECT_SORT_BY,
-  order: DEFAULT_PROJECT_SORT_ORDER,
-} as const;
-
-const toProjectSortValue = ({ sortBy, order }: { sortBy: ProjectListSortBy; order: SortOrder }) =>
-  `${sortBy}:${order}` as ProjectSortOption['value'];
-
-const DEFAULT_PROJECT_SORT = toProjectSortValue(DEFAULT_PROJECT_SORT_STATE);
-
 const PROJECT_SORT_OPTIONS: ProjectSortOption[] = [
+  { value: 'manual_order:asc', label: 'Manual order' },
   { value: 'created_at:desc', label: 'Date created (new to old)' },
   { value: 'created_at:asc', label: 'Date created (old to new)' },
   { value: 'shooting_date:desc', label: 'Shooting date (new to old)' },
@@ -82,15 +46,8 @@ const PROJECT_SORT_OPTIONS: ProjectSortOption[] = [
   { value: 'total_size_bytes:asc', label: 'Size (small to large)' },
 ];
 
-const resolveProjectPath = (project: Project) => `/projects/${project.id}`;
-
-const formatCountLabel = (count: number, singular: string, plural = `${singular}s`) =>
-  `${count} ${count === 1 ? singular : plural}`;
-
-const getLastValidProjectPage = (total: number, pageSize: number) =>
-  Math.max(1, Math.ceil(total / pageSize));
-
 const isProjectListSortBy = (value: string | null): value is ProjectListSortBy =>
+  value === 'manual_order' ||
   value === 'created_at' ||
   value === 'shooting_date' ||
   value === 'name' ||
@@ -100,13 +57,27 @@ const isProjectListSortBy = (value: string | null): value is ProjectListSortBy =
 const isSortOrder = (value: string | null): value is SortOrder =>
   value === 'asc' || value === 'desc';
 
+const toProjectSortValue = (sortBy: ProjectListSortBy, order: SortOrder) =>
+  `${sortBy}:${order}` as ProjectSortOption['value'];
+
 const parseProjectSortValue = (value: string) => {
   const [sortBy, order] = value.split(':');
   if (!isProjectListSortBy(sortBy) || !isSortOrder(order)) {
-    return DEFAULT_PROJECT_SORT_STATE;
+    return { sortBy: DEFAULT_PROJECT_SORT_BY, order: DEFAULT_PROJECT_SORT_ORDER };
   }
-
   return { sortBy, order };
+};
+
+const sharePath = (shareLinkId: string) => `/share/${shareLinkId}`;
+
+const copyText = async (value: string): Promise<void> => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  if (!(await copyTextToClipboard(value))) {
+    throw new Error('Failed to copy text to clipboard');
+  }
 };
 
 export const DashboardPage = () => {
@@ -119,13 +90,14 @@ export const DashboardPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [isCreatingShareLink, setIsCreatingShareLink] = useState(false);
+  const [isReordering, setIsReordering] = useState(false);
   const [error, setError] = useState('');
+  const [announcement, setAnnouncement] = useState('');
   const [searchInput, setSearchInput] = useState(searchParams.get('search') ?? '');
-  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [newProjectShootingDate, setNewProjectShootingDate] = useState('');
-  const newProjectInputRef = useRef<HTMLInputElement>(null);
+  const fetchRequestIdRef = useRef(0);
+  const isReorderingRef = useRef(false);
+  const fetchProjectsRef = useRef<(showLoading?: boolean) => Promise<void>>(async () => undefined);
 
   const activeSearch = useMemo(() => searchParams.get('search')?.trim() ?? '', [searchParams]);
   const sortByParam = searchParams.get('sort_by');
@@ -136,425 +108,334 @@ export const DashboardPage = () => {
   const activeSortOrder: SortOrder = isSortOrder(orderParam)
     ? orderParam
     : DEFAULT_PROJECT_SORT_ORDER;
-  const activeSortValue = toProjectSortValue({
-    sortBy: activeSortBy,
-    order: activeSortOrder,
-  });
-  const pageSummary = useMemo(
-    () => ({
-      projectCount: projects.length,
-      galleryCount: projects.reduce((sum, project) => sum + project.gallery_count, 0),
-      photoCount: projects.reduce((sum, project) => sum + project.total_photo_count, 0),
-      storageBytes: projects.reduce((sum, project) => sum + project.total_size_bytes, 0),
-      activeShareProjects: projects.filter((project) => project.has_active_share_links).length,
-    }),
-    [projects],
+  const activeSortValue = toProjectSortValue(activeSortBy, activeSortOrder);
+  const canReorder = activeSortBy === 'manual_order' && activeSortOrder === 'asc';
+
+  const fetchProjects = useCallback(
+    async (showLoading = true) => {
+      if (!showLoading && isReorderingRef.current) return;
+      const requestId = ++fetchRequestIdRef.current;
+      if (showLoading) setIsLoading(true);
+      setError('');
+      try {
+        const response = await projectService.getProjects(page, pageSize, {
+          search: activeSearch || undefined,
+          sort_by: activeSortBy,
+          order: activeSortOrder,
+        });
+        if (requestId !== fetchRequestIdRef.current || isReorderingRef.current) return;
+        setProjects(response.projects);
+        setTotal(response.total);
+      } catch (err: unknown) {
+        if (requestId !== fetchRequestIdRef.current) return;
+        setError(handleApiError(err).message || 'Failed to load projects');
+      } finally {
+        if (requestId === fetchRequestIdRef.current) setIsLoading(false);
+      }
+    },
+    [activeSearch, activeSortBy, activeSortOrder, page, pageSize, setTotal],
   );
-  const fetchProjects = useCallback(async () => {
-    setIsLoading(true);
-    setError('');
-    try {
-      const response = await projectService.getProjects(page, pageSize, {
-        search: activeSearch || undefined,
-        sort_by: activeSortBy,
-        order: activeSortOrder,
-      });
-      setProjects(response.projects);
-      setTotal(response.total);
-    } catch (err: unknown) {
-      setError((err as Error)?.message || 'Failed to load projects');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [activeSearch, activeSortBy, activeSortOrder, page, pageSize, setTotal]);
+  fetchProjectsRef.current = fetchProjects;
+
+  const createProjectModal = useCreateProjectModal({
+    onCreated: (project) => navigate(`/projects/${project.id}`),
+    onError: setError,
+  });
+  const renameProjectModal = useRenameProjectModal({
+    onError: setError,
+    onSaved: () => fetchProjectsRef.current(false),
+  });
 
   useEffect(() => {
     void fetchProjects();
   }, [fetchProjects]);
 
   useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void fetchProjects(false);
+    }, PROJECT_POLL_INTERVAL_MS);
+    return () => window.clearInterval(intervalId);
+  }, [fetchProjects]);
+
+  useEffect(() => {
     setSearchInput(activeSearch);
   }, [activeSearch]);
-
-  const updateSortQueryParams = useCallback(
-    ({ sortBy, order }: { sortBy: ProjectListSortBy; order: SortOrder }) => {
-      const nextParams = new URLSearchParams(searchParams);
-
-      if (sortBy === DEFAULT_PROJECT_SORT_BY) {
-        nextParams.delete('sort_by');
-      } else {
-        nextParams.set('sort_by', sortBy);
-      }
-
-      if (order === DEFAULT_PROJECT_SORT_ORDER) {
-        nextParams.delete('order');
-      } else {
-        nextParams.set('order', order);
-      }
-
-      nextParams.delete('page');
-      setSearchParams(nextParams);
-    },
-    [searchParams, setSearchParams],
-  );
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       const normalized = searchInput.trim();
-      if (normalized === activeSearch) {
-        return;
-      }
-
+      if (normalized === activeSearch) return;
       const nextParams = new URLSearchParams(searchParams);
-      if (normalized) {
-        nextParams.set('search', normalized);
-      } else {
-        nextParams.delete('search');
-      }
+      if (normalized) nextParams.set('search', normalized);
+      else nextParams.delete('search');
       nextParams.delete('page');
       setSearchParams(nextParams);
     }, SEARCH_DEBOUNCE_MS);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
+    return () => window.clearTimeout(timeoutId);
   }, [activeSearch, searchInput, searchParams, setSearchParams]);
 
-  useEffect(() => {
-    if (isProjectModalOpen) {
-      newProjectInputRef.current?.focus();
-    }
-  }, [isProjectModalOpen]);
-
-  const handleOpenProjectModal = () => {
-    setNewProjectName('');
-    setNewProjectShootingDate(new Date().toISOString().slice(0, 10));
-    setError('');
-    setIsProjectModalOpen(true);
-  };
-
   usePendingAction((action) => {
-    if (action === 'create-project') {
-      handleOpenProjectModal();
-    }
+    if (action === 'create-project') createProjectModal.open();
   });
 
-  const handleConfirmCreateProject = async () => {
-    if (!newProjectName.trim()) return;
-    try {
-      setIsCreatingProject(true);
-      const project = await projectService.createProject({
-        name: newProjectName.trim(),
-        shooting_date: newProjectShootingDate || undefined,
-      });
-      setIsProjectModalOpen(false);
-      navigate(resolveProjectPath(project));
-      void fetchProjects();
-    } catch (err: unknown) {
-      setError((err as Error)?.message || 'Failed to create project');
-    } finally {
-      setIsCreatingProject(false);
-    }
+  const updateSort = ({ sortBy, order }: { sortBy: ProjectListSortBy; order: SortOrder }) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (sortBy === DEFAULT_PROJECT_SORT_BY) nextParams.delete('sort_by');
+    else nextParams.set('sort_by', sortBy);
+    if (order === DEFAULT_PROJECT_SORT_ORDER) nextParams.delete('order');
+    else nextParams.set('order', order);
+    nextParams.delete('page');
+    setSearchParams(nextParams);
   };
 
   const handleDeleteProject = (project: Project) => {
     openConfirm({
       title: 'Delete project?',
-      message: `Are you sure you want to delete "${project.name}" and all of its galleries? This action cannot be undone.`,
+      message: `Delete “${project.name}” and all of its galleries? This action cannot be undone.`,
       isDangerous: true,
       confirmText: 'Delete',
       onConfirm: async () => {
-        try {
-          await projectService.deleteProject(project.id);
-          const nextTotal = Math.max(0, total - 1);
-          const lastValidPage = getLastValidProjectPage(nextTotal, pageSize);
-          if (page > lastValidPage) {
-            goToPage(lastValidPage);
-            return;
-          }
-
-          await fetchProjects();
-        } catch (err) {
-          setError(handleApiError(err).message || 'Failed to delete project');
-          throw err;
-        }
+        await projectService.deleteProject(project.id);
+        const nextTotal = Math.max(0, total - 1);
+        const lastPage = Math.max(1, Math.ceil(nextTotal / pageSize));
+        if (page > lastPage) goToPage(lastPage);
+        else await fetchProjects(false);
       },
     });
   };
 
+  const handleReorder = async (reordered: Project[]) => {
+    if (isReorderingRef.current) return;
+    isReorderingRef.current = true;
+    setIsReordering(true);
+    fetchRequestIdRef.current += 1;
+    setProjects(reordered);
+    let failureMessage = '';
+    try {
+      await projectService.reorderProjects(reordered.map((project) => project.id));
+    } catch (err) {
+      failureMessage = handleApiError(err).message || 'Failed to save project order';
+    } finally {
+      isReorderingRef.current = false;
+      setIsReordering(false);
+      await fetchProjectsRef.current(false);
+    }
+    if (failureMessage) {
+      setAnnouncement('Project order could not be saved. The latest project list was reloaded.');
+      setError(failureMessage);
+    }
+  };
+
+  const handleCopyLink = async (project: Project) => {
+    if (!project.latest_share_link_id) return;
+    try {
+      await copyText(`${window.location.origin}${sharePath(project.latest_share_link_id)}`);
+      setAnnouncement(`Latest share link for ${project.name} copied.`);
+    } catch (err) {
+      setAnnouncement('');
+      setError(handleApiError(err).message || 'Failed to copy project share link');
+    }
+  };
+
+  const handleOpenShare = (project: Project) => {
+    if (project.latest_share_link_id) navigate(sharePath(project.latest_share_link_id));
+  };
+
+  const handleCreateShareLink = async (project: Project) => {
+    if (isCreatingShareLink) return;
+    setIsCreatingShareLink(true);
+    try {
+      const link = await shareLinkService.createProjectShareLink(project.id, {
+        expires_at: null,
+      });
+      let copyFailure = '';
+      try {
+        await copyText(`${window.location.origin}${sharePath(link.id)}`);
+        setAnnouncement(`Share link for ${project.name} created and copied.`);
+      } catch (err) {
+        const detail = handleApiError(err).message;
+        copyFailure = detail
+          ? `Share link created, but copy failed: ${detail}`
+          : 'Share link created, but failed to copy it';
+        setAnnouncement(`Share link for ${project.name} was created, but could not be copied.`);
+      }
+      await fetchProjects(false);
+      if (copyFailure) setError(copyFailure);
+    } catch (err) {
+      setError(handleApiError(err).message || 'Failed to create project share link');
+    } finally {
+      setIsCreatingShareLink(false);
+    }
+  };
+
   const renderLoading = () => (
-    <div className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(20rem,1fr))]">
-      {Array.from({ length: 8 }).map((_, index) => (
+    <div
+      className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading projects"
+    >
+      {Array.from({ length: 6 }).map((_, index) => (
         <div
           key={index}
-          className="w-full animate-pulse overflow-hidden rounded-3xl border border-border/80 bg-surface shadow-sm dark:border-border/60 dark:bg-surface-dark"
+          className="overflow-hidden rounded-2xl bg-surface shadow-card ring-1 ring-border/45 dark:bg-surface-dark dark:ring-border/35"
         >
-          <div className="h-52 bg-muted/20 dark:bg-muted-dark/20" />
-          <div className="space-y-3 p-5">
-            <div className="h-6 w-3/4 rounded bg-muted/20 dark:bg-muted-dark/20" />
-            <div className="h-4 w-2/3 rounded bg-muted/20 dark:bg-muted-dark/20" />
-            <div className="h-8 w-28 rounded-full bg-muted/20 dark:bg-muted-dark/20" />
+          <div className="aspect-[16/9] animate-pulse bg-surface-2 dark:bg-surface-dark-2" />
+          <div className="space-y-3 p-4">
+            <div className="h-6 w-2/3 animate-pulse rounded bg-muted/15" />
+            <div className="h-4 w-1/2 animate-pulse rounded bg-muted/15" />
+          </div>
+          <div className="grid grid-cols-3 divide-x divide-border/40 border-t border-border/40">
+            {Array.from({ length: 3 }).map((__, metricIndex) => (
+              <div
+                key={metricIndex}
+                className="h-15 animate-pulse bg-surface-1 dark:bg-surface-dark-1"
+              />
+            ))}
           </div>
         </div>
       ))}
     </div>
   );
 
-  const renderEmptyState = () => (
-    <div className="rounded-3xl border border-dashed border-border bg-surface-1/50 px-4 py-24 text-center dark:border-border/40 dark:bg-surface-dark-1/50">
-      <div className="mb-6 inline-flex rounded-full bg-accent/10 p-4">
-        {activeSearch ? (
-          <Search className="h-8 w-8 text-accent" />
-        ) : (
-          <Plus className="h-8 w-8 text-accent" />
-        )}
-      </div>
-      <h2 className="mb-2 text-2xl font-semibold text-text">
-        {activeSearch ? 'No matching projects' : 'No projects yet'}
-      </h2>
-      <p className="mx-auto mb-8 max-w-md text-lg text-muted">
-        {activeSearch
-          ? `No project matches “${activeSearch}”. Clear search or try a shorter client name.`
-          : 'Create your first project to upload photos, organize galleries, and share polished deliveries with clients.'}
-      </p>
-      {activeSearch ? (
-        <button
-          type="button"
-          onClick={() => setSearchInput('')}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface px-8 py-3 font-semibold text-text shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px]"
-        >
-          Clear search
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={handleOpenProjectModal}
-          disabled={isCreatingProject}
-          className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-8 py-3 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-          aria-label="Create your first project"
-        >
-          {isCreatingProject ? (
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent-foreground/20 border-t-accent-foreground" />
-          ) : (
-            <Plus className="h-5 w-5" />
-          )}
-          Create your first project
-        </button>
-      )}
-    </div>
-  );
-
   return (
-    <div className="mx-auto flex w-full max-w-295 flex-col gap-8">
-      <header className="relative overflow-hidden rounded-4xl border border-border/60 bg-surface p-5 shadow-sm dark:border-border/45 dark:bg-surface-dark">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_16%_0%,rgba(31,144,255,0.10),transparent_32%),radial-gradient(circle_at_82%_8%,rgba(34,197,94,0.07),transparent_26%)]" />
-        <div className="relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(23rem,34rem)] xl:items-center">
-          <div className="max-w-2xl">
-            <h1 className="font-oswald text-4xl font-bold uppercase tracking-wider text-text dark:text-accent-foreground sm:text-5xl">
-              Projects
-            </h1>
-            <p className="mt-3 max-w-xl text-lg leading-7 text-muted">
-              Find the next delivery quickly, review active share links, and start a new client
-              project without leaving the workspace.
-            </p>
-          </div>
-
-          <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-            <label
-              htmlFor="dashboard-project-search"
-              className="relative flex h-11 flex-1 items-center rounded-2xl border border-border/50 bg-surface-1/80 px-3 shadow-xs transition-colors focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/10 dark:border-border/40 dark:bg-surface-dark-1/80"
-            >
-              <Search className="mr-2 h-4 w-4 text-muted" />
-              <input
-                id="dashboard-project-search"
-                type="search"
-                value={searchInput}
-                onChange={(event) => setSearchInput(event.target.value)}
-                placeholder="Search projects..."
-                className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
-                aria-label="Search projects"
-              />
-            </label>
-            <AppListbox
-              value={activeSortValue}
-              onChange={(value) => updateSortQueryParams(parseProjectSortValue(value))}
-              options={PROJECT_SORT_OPTIONS}
-              className="min-w-0 flex-1 sm:w-64 sm:flex-none"
-              aria-label="Sort projects"
-              startContent={<ArrowUpDown className="h-4 w-4 text-muted" />}
-              buttonClassName={(open) =>
-                `h-11 border px-3 text-sm font-semibold shadow-sm transition-all duration-200 dark:bg-surface-dark-1 ${
-                  open || activeSortValue !== DEFAULT_PROJECT_SORT
-                    ? 'border-accent/45 bg-accent/5 text-accent dark:border-accent/55'
-                    : 'border-border bg-surface-1 text-text hover:border-accent/40 dark:border-border/60'
-                }`
-              }
-              optionsClassName="bg-surface p-1 dark:bg-surface-dark-1"
-            />
-            <button
-              type="button"
-              onClick={handleOpenProjectModal}
-              disabled={isCreatingProject}
-              className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-accent px-4 font-semibold text-accent-foreground shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-              aria-label="Create new project"
-            >
-              {isCreatingProject ? (
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-accent-foreground/20 border-t-accent-foreground" />
-              ) : (
-                <Plus className="h-5 w-5" />
-              )}
-              Create
-            </button>
-          </div>
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-7">
+      <header className="flex flex-col gap-5 border-b border-border/45 pb-6 lg:flex-row lg:items-end lg:justify-between dark:border-border/35">
+        <div>
+          <h1 className="text-4xl font-bold tracking-[-0.03em] text-text sm:text-5xl">Projects</h1>
+          <p className="mt-2 max-w-2xl text-base leading-7 text-muted">
+            Your proofing workspace, ordered around the deliveries that need attention.
+          </p>
         </div>
-        <div className="relative mt-5 grid gap-3 overflow-hidden rounded-2xl bg-mesh-accent p-2 sm:grid-cols-2 xl:grid-cols-4">
-
-          <MetricCard
-            icon={FolderOpen}
-            label="Visible page"
-            value={`${numberFormatter.format(pageSummary.projectCount)} projects`}
-            helper={`${numberFormatter.format(total)} total in workspace`}
+        <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto">
+          <label
+            htmlFor="dashboard-project-search"
+            className="flex h-11 min-w-0 flex-1 items-center rounded-xl bg-surface px-3 shadow-control ring-1 ring-border/55 focus-within:ring-[3px] focus-within:ring-accent dark:bg-surface-dark dark:ring-border/40 sm:w-64"
+          >
+            <Search className="mr-2 h-4 w-4 text-muted" aria-hidden="true" />
+            <input
+              id="dashboard-project-search"
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Search projects"
+              className="w-full bg-transparent text-sm text-text outline-none placeholder:text-muted"
+              aria-label="Search projects"
+            />
+          </label>
+          <AppListbox
+            value={activeSortValue}
+            onChange={(value) => updateSort(parseProjectSortValue(value))}
+            options={PROJECT_SORT_OPTIONS}
+            className="min-w-0 flex-1 sm:w-64 sm:flex-none"
+            aria-label="Sort projects"
+            startContent={<ArrowUpDown className="h-4 w-4 text-muted" aria-hidden="true" />}
+            buttonClassName="h-11 border border-border/55 bg-surface px-3 text-sm font-semibold text-text shadow-control dark:border-border/40 dark:bg-surface-dark"
           />
-          <MetricCard
-            icon={ImageIcon}
-            label="Galleries"
-            value={numberFormatter.format(pageSummary.galleryCount)}
-            helper={`${numberFormatter.format(pageSummary.photoCount)} photos on this page`}
-          />
-          <MetricCard
-            icon={HardDrive}
-            label="Storage"
-            value={formatFileSize(pageSummary.storageBytes)}
-            helper="Current page aggregate"
-          />
-          <MetricCard
-            icon={Share2}
-            label="Client links"
-            value={numberFormatter.format(pageSummary.activeShareProjects)}
-            helper="Projects with active delivery links"
-          />
+          <button
+            type="button"
+            onClick={createProjectModal.open}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-4 font-bold text-accent-foreground shadow-[0_8px_20px_rgba(31,144,255,0.22)] transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 motion-reduce:transform-none"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            New project
+          </button>
         </div>
       </header>
 
       {error ? (
         <ErrorDisplay
           error={error}
-          onRetry={fetchProjects}
+          onRetry={() => void fetchProjects()}
           onDismiss={() => setError('')}
           variant="banner"
         />
       ) : null}
 
-      <section aria-label="Projects grid">
+      {!isLoading && projects.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
+          <p>
+            {total} {total === 1 ? 'project' : 'projects'}
+            {activeSearch ? ` matching “${activeSearch}”` : ''}
+          </p>
+          {canReorder ? (
+            <p className="inline-flex items-center gap-2">
+              <GripVertical className="h-4 w-4" aria-hidden="true" />
+              Drag the handle or use Space and arrow keys to reorder.
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={() =>
+                updateSort({ sortBy: DEFAULT_PROJECT_SORT_BY, order: DEFAULT_PROJECT_SORT_ORDER })
+              }
+              className="font-semibold text-accent hover:underline focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent"
+            >
+              Switch to manual order to drag projects
+            </button>
+          )}
+        </div>
+      ) : null}
+
+      <section aria-label="Projects grid" aria-busy={isReordering}>
         {isLoading ? (
           renderLoading()
         ) : projects.length === 0 ? (
-          renderEmptyState()
+          <DashboardEmptyState
+            hasSearch={Boolean(activeSearch)}
+            searchTerm={activeSearch}
+            onCreateProject={createProjectModal.open}
+            onClearSearch={() => setSearchInput('')}
+          />
         ) : (
           <>
-            <motion.div
-              className="grid gap-6 grid-cols-[repeat(auto-fill,minmax(20rem,1fr))]"
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-            >
-              <AnimatePresence mode="popLayout">
-                {projects.map((project) => {
-                  const coverUrl = project.cover_photo_thumbnail_url ?? null;
-                  const titleTextSizeClass = getCollectionTitleTextSizeClass(project.name);
-                  return (
-                    <CollectionCard
-                      key={project.id}
-                      variants={cardVariants}
-                      cover={
-                        coverUrl ? (
-                          <>
-                            <img
-                              src={coverUrl}
-                              alt=""
-                              aria-hidden="true"
-                              loading="lazy"
-                              className="absolute inset-0 h-full w-full object-cover opacity-80 transition-transform duration-500 group-hover:scale-110"
-                            />
-                            <div className="absolute inset-0 bg-linear-to-b from-black/5 via-black/10 to-black/40 transition-colors duration-300 group-hover:from-black/0 group-hover:via-black/15 group-hover:to-black/50" />
-                          </>
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-linear-to-br from-accent/10 via-surface-2 to-surface dark:from-accent/15 dark:via-surface-dark-2 dark:to-surface-dark">
-                            <div className="absolute inset-0 opacity-45 bg-[radial-gradient(circle_at_18%_24%,rgba(31,144,255,0.16),transparent_24%),radial-gradient(circle_at_82%_72%,rgba(34,197,94,0.12),transparent_26%)]" />
-                            <div className="relative text-center">
-                              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-border/45 bg-surface/70 text-accent shadow-xs backdrop-blur dark:border-white/10 dark:bg-surface-dark/70">
-                                <ImageIcon className="h-6 w-6" />
-                              </span>
-                              <span className="mt-3 block text-xs font-bold uppercase tracking-[0.18em] text-muted">
-                                No cover yet
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      }
-                      topOverlay={
-                        <>{project.has_active_share_links ? <CollectionShareBadge /> : null}</>
-                      }
-                      topRightOverlay={
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            handleDeleteProject(project);
-                          }}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur-sm transition-all duration-200 hover:bg-danger hover:text-white focus:outline-none focus-visible:ring-[3px] focus-visible:ring-danger"
-                          title="Delete Project"
-                          aria-label={`Delete project ${project.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      }
-                      bodyClassName="flex flex-1 flex-col p-4"
-                      body={
-                        <Link
-                          to={resolveProjectPath(project)}
-                          className="flex flex-1 flex-col justify-between gap-4 no-underline transition-colors"
-                        >
-                          <div className="group/title relative flex flex-1 items-center text-left">
-                            <div className="min-w-0 flex-1">
-                              <h2
-                                className={`wrap-anywhere overflow-hidden whitespace-normal font-oswald ${titleTextSizeClass} font-bold uppercase text-text transition-colors [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:4]`}
-                              >
-                                {project.name}
-                              </h2>
-                            </div>
-                          </div>
-                          <p className="mt-auto rounded-full border border-border/40 bg-surface-1/80 px-3 py-1.5 text-sm text-muted dark:border-border/35 dark:bg-surface-dark-1/80">
-                            {formatCountLabel(project.gallery_count, 'gallery', 'galleries')} •{' '}
-                            {formatCountLabel(project.total_photo_count, 'photo')} •{' '}
-                            {formatFileSize(project.total_size_bytes)}
-                          </p>
-                        </Link>
-                      }
-                    />
-                  );
-                })}
-              </AnimatePresence>
-            </motion.div>
+            <SortableProjectGrid
+              projects={projects}
+              disabled={!canReorder || isReordering}
+              onReorder={(reordered) => void handleReorder(reordered)}
+              onAnnouncement={setAnnouncement}
+              onCopyLink={(project) => void handleCopyLink(project)}
+              onOpenProject={(project) => navigate(`/projects/${project.id}`)}
+              onOpenShare={handleOpenShare}
+              onRename={renameProjectModal.open}
+              onAddGallery={(project) =>
+                requestProjectAction(navigate, project.id, 'create-gallery')
+              }
+              onCreateShareLink={(project) => void handleCreateShareLink(project)}
+              onSettings={(project) =>
+                requestProjectAction(navigate, project.id, 'project-settings')
+              }
+              onDelete={handleDeleteProject}
+            />
             <PaginationControls pagination={pagination} isLoading={isLoading} />
           </>
         )}
       </section>
 
-      <AnimatePresence>
-        <CreateProjectModal
-          isOpen={isProjectModalOpen}
-          isCreating={isCreatingProject}
-          name={newProjectName}
-          shootingDate={newProjectShootingDate}
-          inputRef={newProjectInputRef}
-          onClose={() => setIsProjectModalOpen(false)}
-          onConfirm={() => void handleConfirmCreateProject()}
-          onNameChange={setNewProjectName}
-          onShootingDateChange={setNewProjectShootingDate}
-        />
-      </AnimatePresence>
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {announcement}
+      </p>
+
+      <CreateProjectModal
+        isOpen={createProjectModal.isOpen}
+        isCreating={createProjectModal.isCreating}
+        name={createProjectModal.name}
+        shootingDate={createProjectModal.shootingDate}
+        inputRef={createProjectModal.inputRef}
+        onClose={createProjectModal.close}
+        onConfirm={() => void createProjectModal.save()}
+        onNameChange={createProjectModal.setName}
+        onShootingDateChange={createProjectModal.setShootingDate}
+      />
+      <RenameProjectModal
+        open={renameProjectModal.isOpen}
+        projectName={renameProjectModal.project?.name ?? ''}
+        value={renameProjectModal.value}
+        isSaving={renameProjectModal.isSaving}
+        onChange={renameProjectModal.setValue}
+        onClose={renameProjectModal.close}
+        onSave={() => void renameProjectModal.save()}
+      />
       {ConfirmModal}
     </div>
   );

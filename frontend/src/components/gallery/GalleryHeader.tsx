@@ -1,5 +1,5 @@
 import { useEffect, useRef, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import {
   ArrowLeft,
   ArrowUpDown,

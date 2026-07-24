@@ -393,12 +393,18 @@ const buildSeedProjectContent = (): {
           name: 'Porto Wedding Delivery',
           created_at: createdAt,
           shooting_date: '2026-04-03T11:00:00Z',
+          manual_order: 0,
           gallery_count: 0,
           visible_gallery_count: 0,
           total_photo_count: 0,
           total_size_bytes: 0,
           has_active_share_links: false,
+          active_share_link_count: 1,
+          latest_share_link_id: projectShareLink.id,
+          active_viewers_count: 2,
+          last_activity_at: createdAt,
           cover_photo_thumbnail_url: null,
+          preview_thumbnail_urls: [],
           ...DEFAULT_PROJECT_APPEARANCE,
         },
         shareLinks: [projectShareLink],
@@ -520,12 +526,18 @@ const buildProjectsFromGalleryState = (galleries: DemoGalleryState[]): DemoProje
           name: entry.gallery.project_name?.trim() || 'Untitled Project',
           created_at: entry.gallery.created_at,
           shooting_date: entry.gallery.shooting_date,
+          manual_order: groupedProjects.size,
           gallery_count: 0,
           visible_gallery_count: 0,
           total_photo_count: 0,
           total_size_bytes: 0,
           has_active_share_links: false,
+          active_share_link_count: 0,
+          latest_share_link_id: null,
+          active_viewers_count: 0,
+          last_activity_at: entry.gallery.created_at,
           cover_photo_thumbnail_url: null,
+          preview_thumbnail_urls: [],
           ...DEFAULT_PROJECT_APPEARANCE,
         },
         shareLinks: [],
@@ -907,13 +919,45 @@ class DemoServiceStore {
       const coverPhotoThumbnailUrl =
         galleries.find((gallery) => gallery.cover_photo_thumbnail_url)?.cover_photo_thumbnail_url ??
         null;
-      const hasActiveShareLinks = entry.shareLinks.some((link) => link.is_active !== false);
+      const activeShareLinks = entry.shareLinks
+        .filter((link) => {
+          if (link.is_active === false) return false;
+          if (!link.expires_at) return true;
+          return Date.parse(link.expires_at) > Date.now();
+        })
+        .sort(
+          (left, right) =>
+            Date.parse(right.updated_at ?? right.created_at) -
+            Date.parse(left.updated_at ?? left.created_at),
+        );
+      const previewThumbnailUrls = this.galleries
+        .filter((galleryState) => galleryState.gallery.project_id === entry.project.id)
+        .sort(
+          (left, right) =>
+            (left.gallery.project_position ?? 0) - (right.gallery.project_position ?? 0),
+        )
+        .map(
+          (galleryState) =>
+            [...galleryState.photos]
+              .sort((left, right) => Date.parse(right.uploaded_at) - Date.parse(left.uploaded_at))
+              .map((photo) => photo.thumbnail_url)
+              .find((url): url is string => Boolean(url)),
+        )
+        .filter((url): url is string => Boolean(url))
+        .slice(0, 4);
+      const latestPhotoActivity = this.galleries
+        .filter((galleryState) => galleryState.gallery.project_id === entry.project.id)
+        .flatMap((galleryState) => galleryState.photos)
+        .map((photo) => photo.uploaded_at)
+        .sort((left, right) => Date.parse(right) - Date.parse(left))[0];
+      const latestShareActivity = activeShareLinks[0]?.updated_at ?? activeShareLinks[0]?.created_at;
       const {
         id,
         owner_id,
         name,
         created_at,
         shooting_date,
+        manual_order,
         cover_photo_id,
         cover_focal_x,
         cover_focal_y,
@@ -929,6 +973,7 @@ class DemoServiceStore {
           name,
           created_at,
           shooting_date,
+          manual_order: manual_order ?? 0,
           entry_gallery_id: entryGallery?.id ?? null,
           entry_gallery_name: entryGallery?.name ?? null,
           gallery_count: galleryCount,
@@ -936,8 +981,16 @@ class DemoServiceStore {
           has_entry_gallery: Boolean(entryGallery),
           total_photo_count: totalPhotoCount,
           total_size_bytes: totalSizeBytes,
-          has_active_share_links: hasActiveShareLinks,
+          has_active_share_links: activeShareLinks.length > 0,
+          active_share_link_count: activeShareLinks.length,
+          latest_share_link_id: activeShareLinks[0]?.id ?? null,
+          active_viewers_count: entry.project.active_viewers_count ?? 0,
+          last_activity_at:
+            [latestPhotoActivity, latestShareActivity, created_at]
+              .filter((value): value is string => Boolean(value))
+              .sort((left, right) => Date.parse(right) - Date.parse(left))[0] ?? created_at,
           cover_photo_thumbnail_url: coverPhotoThumbnailUrl,
+          preview_thumbnail_urls: previewThumbnailUrls,
           cover_photo_id: cover_photo_id ?? null,
           cover_focal_x: cover_focal_x ?? 50,
           cover_focal_y: cover_focal_y ?? 50,
@@ -1146,8 +1199,8 @@ class DemoServiceStore {
   ): Promise<ProjectListResponse> {
     const normalizedOptions = typeof options === 'string' ? { search: options } : (options ?? {});
     const normalizedSearch = normalizedOptions.search?.trim().toLowerCase() ?? '';
-    const sortBy = normalizedOptions.sort_by ?? 'created_at';
-    const order = normalizedOptions.order ?? 'desc';
+    const sortBy = normalizedOptions.sort_by ?? 'manual_order';
+    const order = normalizedOptions.order ?? 'asc';
     const direction = order === 'asc' ? 1 : -1;
     const start = (page - 1) * size;
     const filtered = this.projects
@@ -1184,6 +1237,11 @@ class DemoServiceStore {
         return (
           compareNumber(left.total_size_bytes, right.total_size_bytes) ||
           compareTieBreakers(left, right)
+        );
+      }
+      if (sortBy === 'manual_order') {
+        return (
+          compareNumber(left.manual_order, right.manual_order) || compareTieBreakers(left, right)
         );
       }
       return compareTieBreakers(left, right);
@@ -1239,6 +1297,8 @@ class DemoServiceStore {
       name: projectName,
       created_at: createdAt,
       shooting_date: payload.shooting_date || createdAt,
+      manual_order:
+        Math.min(0, ...this.projects.map((entry) => entry.project.manual_order ?? 0)) - 1,
       entry_gallery_id: null,
       entry_gallery_name: null,
       gallery_count: 0,
@@ -1247,7 +1307,12 @@ class DemoServiceStore {
       total_photo_count: 0,
       total_size_bytes: 0,
       has_active_share_links: false,
+      active_share_link_count: 0,
+      latest_share_link_id: null,
+      active_viewers_count: 0,
+      last_activity_at: createdAt,
       cover_photo_thumbnail_url: null,
+      preview_thumbnail_urls: [],
       ...DEFAULT_PROJECT_APPEARANCE,
     };
     this.projects.unshift({ project, shareLinks: [] });
@@ -1319,6 +1384,34 @@ class DemoServiceStore {
     this.projects = this.projects.filter((entry) => entry.project.id !== projectId);
     this.recalculateStorageUsed();
     this.recalculateProjects();
+    this.persistState();
+  }
+
+  async reorderProjects(projectIds: string[]): Promise<void> {
+    const requestedIds = new Set(projectIds);
+    if (
+      requestedIds.size !== projectIds.length ||
+      projectIds.some((projectId) => !this.projects.some((entry) => entry.project.id === projectId))
+    ) {
+      throw this.createValidationError('Project list contains missing or duplicate projects');
+    }
+
+    const sortedProjects = [...this.projects].sort(
+      (left, right) =>
+        (left.project.manual_order ?? 0) - (right.project.manual_order ?? 0) ||
+        left.project.id.localeCompare(right.project.id),
+    );
+    const occupiedPositions = sortedProjects
+      .map((entry, index) => (requestedIds.has(entry.project.id) ? index : -1))
+      .filter((index) => index >= 0);
+    const byId = new Map(this.projects.map((entry) => [entry.project.id, entry]));
+    projectIds.forEach((projectId, index) => {
+      sortedProjects[occupiedPositions[index]] = byId.get(projectId)!;
+    });
+    sortedProjects.forEach((entry, index) => {
+      entry.project.manual_order = index;
+    });
+    this.projects = sortedProjects;
     this.persistState();
   }
 

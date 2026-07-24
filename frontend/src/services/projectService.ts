@@ -83,6 +83,17 @@ const deleteProject = async (projectId: string): Promise<void> => {
   await api.delete(`/projects/${projectId}`);
 };
 
+const reorderProjects = async (projectIds: string[]): Promise<void> => {
+  if (isDemoModeEnabled()) {
+    await getDemoService().reorderProjects(projectIds);
+    return;
+  }
+
+  await api.patch('/projects/reorder', {
+    project_ids: projectIds,
+  });
+};
+
 const createProjectGallery = async (
   projectId: string,
   payload: {
@@ -134,6 +145,7 @@ export const projectService = {
   createProject,
   updateProject,
   deleteProject,
+  reorderProjects,
   createProjectGallery,
   reorderProjectGalleries,
   getProjectPhotos,

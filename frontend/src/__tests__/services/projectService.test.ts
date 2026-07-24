@@ -85,4 +85,22 @@ describe('projectService', () => {
       order: 'desc',
     });
   });
+
+  it('persists project order through the production and demo transports', async () => {
+    await projectService.reorderProjects(['project-2', 'project-1']);
+
+    expect(api.patch).toHaveBeenCalledWith('/projects/reorder', {
+      project_ids: ['project-2', 'project-1'],
+    });
+
+    const demoService = {
+      reorderProjects: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(isDemoModeEnabled).mockReturnValue(true);
+    vi.mocked(getDemoService).mockReturnValue(demoService as never);
+
+    await projectService.reorderProjects(['project-1', 'project-2']);
+
+    expect(demoService.reorderProjects).toHaveBeenCalledWith(['project-1', 'project-2']);
+  });
 });

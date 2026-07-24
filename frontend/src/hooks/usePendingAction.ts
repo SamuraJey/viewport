@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router';
 import { consumePendingAction, type PendingAction } from '../components/command/commandActions';
 
 /**

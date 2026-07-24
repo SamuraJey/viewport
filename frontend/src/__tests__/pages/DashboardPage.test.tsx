@@ -1,10 +1,10 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router';
 
 import { DashboardPage } from '../../pages/DashboardPage';
-import type { Project } from '../../types';
+import type { Project, ShareLink } from '../../types';
 
 const mockNavigate = vi.fn();
 
@@ -14,6 +14,7 @@ const makeProject = (overrides: Partial<Project>): Project => ({
   name: 'Project 1',
   created_at: '2024-01-01T00:00:00Z',
   shooting_date: '2024-01-01',
+  manual_order: 0,
   entry_gallery_id: 'gallery-1',
   entry_gallery_name: 'Main Gallery',
   gallery_count: 1,
@@ -22,7 +23,18 @@ const makeProject = (overrides: Partial<Project>): Project => ({
   total_photo_count: 12,
   total_size_bytes: 0,
   has_active_share_links: false,
+  active_share_link_count: 0,
+  latest_share_link_id: null,
+  active_viewers_count: 0,
+  last_activity_at: '2024-01-01T00:00:00Z',
   cover_photo_thumbnail_url: null,
+  preview_thumbnail_urls: [],
+  cover_photo_id: null,
+  cover_focal_x: 50,
+  cover_focal_y: 50,
+  cover_display_option: 'centered_title',
+  public_photo_spacing: 'medium',
+  public_color_scheme: 'light',
   ...overrides,
 });
 
@@ -45,9 +57,30 @@ const mockProjects: Project[] = [
     visible_gallery_count: 1,
     total_photo_count: 8,
     has_active_share_links: true,
+    active_share_link_count: 2,
+    latest_share_link_id: 'share-2',
+    active_viewers_count: 3,
     cover_photo_thumbnail_url: 'https://example.com/cover.jpg',
+    preview_thumbnail_urls: [
+      'https://example.com/preview-1.jpg',
+      'https://example.com/preview-2.jpg',
+      'https://example.com/preview-3.jpg',
+      'https://example.com/preview-4.jpg',
+    ],
   }),
 ];
+
+const makeShareLink = (id: string): ShareLink => ({
+  id,
+  scope_type: 'project',
+  gallery_id: null,
+  project_id: 'project-1',
+  expires_at: null,
+  views: 0,
+  zip_downloads: 0,
+  single_downloads: 0,
+  created_at: '2026-07-24T00:00:00Z',
+});
 
 vi.mock('../../services/projectService', () => ({
   projectService: {
@@ -56,12 +89,19 @@ vi.mock('../../services/projectService', () => ({
     getProject: vi.fn(),
     updateProject: vi.fn(),
     deleteProject: vi.fn(),
+    reorderProjects: vi.fn(),
     createProjectGallery: vi.fn(),
   },
 }));
 
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
+vi.mock('../../services/shareLinkService', () => ({
+  shareLinkService: {
+    createProjectShareLink: vi.fn(),
+  },
+}));
+
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual('react-router');
   return {
     ...actual,
     useNavigate: () => mockNavigate,
@@ -91,6 +131,11 @@ describe('DashboardPage', () => {
     mockNavigate.mockReset();
 
     const { projectService } = await import('../../services/projectService');
+    vi.mocked(projectService.getProjects).mockReset();
+    vi.mocked(projectService.createProject).mockReset();
+    vi.mocked(projectService.updateProject).mockReset();
+    vi.mocked(projectService.deleteProject).mockReset();
+    vi.mocked(projectService.reorderProjects).mockReset();
     vi.mocked(projectService.getProjects).mockResolvedValue({
       projects: mockProjects,
       total: mockProjects.length,
@@ -98,6 +143,9 @@ describe('DashboardPage', () => {
       size: 18,
     });
     vi.mocked(projectService.deleteProject).mockResolvedValue(undefined);
+
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.createProjectShareLink).mockReset();
   });
 
   it('renders the approved dashboard hierarchy and card content model', async () => {
@@ -106,29 +154,34 @@ describe('DashboardPage', () => {
     await screen.findByText('Wedding Weekend');
 
     expect(screen.getAllByRole('heading', { level: 1, name: 'Projects' })).toHaveLength(1);
-    expect(screen.getAllByRole('button', { name: 'Create new project' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'New project' })).toHaveLength(1);
     expect(screen.getByLabelText('Search projects')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Search projects...')).toBeInTheDocument();
-    expect(screen.getByLabelText('Sort projects')).toHaveTextContent('Date created (new to old)');
+    expect(screen.getByPlaceholderText('Search projects')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sort projects')).toHaveTextContent('Manual order');
     expect(
       screen.queryByRole('heading', { level: 2, name: 'Project library' }),
     ).not.toBeInTheDocument();
 
-    expect(screen.getByText('2 galleries • 20 photos • 0 Bytes')).toBeInTheDocument();
-    expect(screen.getByText('1 gallery • 8 photos • 0 Bytes')).toBeInTheDocument();
-    expect(screen.getByText('1 gallery • 8 photos • 0 Bytes')).toHaveClass('mt-auto');
+    expect(
+      screen.getByRole('article', { name: /Wedding Weekend.*20 photos/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('article', { name: /A Very Long Editorial.*2 active share links/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('3 watching')).toBeInTheDocument();
+    expect(screen.getAllByText('Photos')).toHaveLength(2);
+    expect(screen.getAllByText('Storage')).toHaveLength(2);
+    expect(screen.getAllByText('Links')).toHaveLength(2);
     expect(
       screen.getByRole('heading', {
         level: 2,
         name: 'A Very Long Editorial Project Title That Still Needs To Fit Cleanly On The Card',
       }),
-    ).toHaveClass('wrap-anywhere', 'whitespace-normal');
-    expect(screen.getByRole('link', { name: /Wedding Weekend/ })).toHaveAttribute(
+    ).toHaveClass('wrap-anywhere', 'line-clamp-2');
+    expect(screen.getByRole('link', { name: 'Open Wedding Weekend' })).toHaveAttribute(
       'href',
       '/projects/project-1',
     );
-    expect(screen.getByText('Public')).toBeInTheDocument();
-    expect(screen.getAllByText(/20 photos/i).length).toBeGreaterThan(0);
 
     expect(screen.queryByText(/^PROJECT$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/starts with/i)).not.toBeInTheDocument();
@@ -145,10 +198,90 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenCalledWith(1, 18, {
         search: undefined,
-        sort_by: 'created_at',
-        order: 'desc',
+        sort_by: 'manual_order',
+        order: 'asc',
       });
     });
+  });
+
+  it('exposes project loading as a polite live status', async () => {
+    const { projectService } = await import('../../services/projectService');
+    vi.mocked(projectService.getProjects).mockReturnValue(new Promise(() => undefined));
+
+    render(<DashboardPageWrapper />);
+
+    expect(screen.getByRole('status', { name: 'Loading projects' })).toHaveAttribute(
+      'aria-live',
+      'polite',
+    );
+  });
+
+  it('polls project delivery activity every 60 seconds without returning to loading state', async () => {
+    vi.useFakeTimers();
+    const { projectService } = await import('../../services/projectService');
+
+    render(<DashboardPageWrapper />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('Wedding Weekend')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Loading projects')).not.toBeInTheDocument();
+    vi.mocked(projectService.getProjects).mockClear();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+
+    expect(projectService.getProjects).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('Wedding Weekend')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Loading projects')).not.toBeInTheDocument();
+  });
+
+  it('ignores a stale project response after a newer request has completed', async () => {
+    const { projectService } = await import('../../services/projectService');
+    const freshProject = makeProject({ id: 'project-fresh', name: 'Fresh Result' });
+    let resolveStale!: (value: {
+      projects: Project[];
+      total: number;
+      page: number;
+      size: number;
+    }) => void;
+    const staleRequest = new Promise<{
+      projects: Project[];
+      total: number;
+      page: number;
+      size: number;
+    }>((resolve) => {
+      resolveStale = resolve;
+    });
+
+    vi.mocked(projectService.getProjects)
+      .mockReturnValueOnce(staleRequest)
+      .mockResolvedValueOnce({
+        projects: [freshProject],
+        total: 1,
+        page: 1,
+        size: 18,
+      });
+
+    render(<DashboardPageWrapper />);
+    fillInput(screen.getByLabelText('Search projects'), 'fresh');
+
+    expect(await screen.findByText('Fresh Result', {}, { timeout: 1500 })).toBeInTheDocument();
+
+    await act(async () => {
+      resolveStale({
+        projects: mockProjects,
+        total: mockProjects.length,
+        page: 1,
+        size: 18,
+      });
+      await staleRequest;
+    });
+
+    expect(screen.getByText('Fresh Result')).toBeInTheDocument();
+    expect(screen.queryByText('Wedding Weekend')).not.toBeInTheDocument();
   });
 
   it('requests project search from query params', async () => {
@@ -159,8 +292,8 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenCalledWith(1, 18, {
         search: 'weekend',
-        sort_by: 'created_at',
-        order: 'desc',
+        sort_by: 'manual_order',
+        order: 'asc',
       });
     });
   });
@@ -189,8 +322,8 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenCalledWith(3, 18, {
         search: undefined,
-        sort_by: 'created_at',
-        order: 'desc',
+        sort_by: 'manual_order',
+        order: 'asc',
       });
     });
 
@@ -224,9 +357,7 @@ describe('DashboardPage', () => {
         order: 'asc',
       });
     });
-    expect(screen.getByTestId('location')).toHaveTextContent(
-      '/dashboard?sort_by=photo_count&order=asc',
-    );
+    expect(screen.getByTestId('location')).toHaveTextContent('/dashboard?sort_by=photo_count');
   });
 
   it('updates project search and resets pagination without dropping the search query', async () => {
@@ -237,8 +368,8 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenCalledWith(3, 18, {
         search: undefined,
-        sort_by: 'created_at',
-        order: 'desc',
+        sort_by: 'manual_order',
+        order: 'asc',
       });
     });
 
@@ -248,8 +379,8 @@ describe('DashboardPage', () => {
       () => {
         expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, {
           search: 'client',
-          sort_by: 'created_at',
-          order: 'desc',
+          sort_by: 'manual_order',
+          order: 'asc',
         });
       },
       { timeout: 1500 },
@@ -266,8 +397,8 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenCalledWith(3, 18, {
         search: undefined,
-        sort_by: 'created_at',
-        order: 'desc',
+        sort_by: 'manual_order',
+        order: 'asc',
       });
     });
 
@@ -295,8 +426,8 @@ describe('DashboardPage', () => {
 
       expect(projectService.getProjects).toHaveBeenLastCalledWith(1, 18, {
         search: 'client',
-        sort_by: 'created_at',
-        order: 'desc',
+        sort_by: 'manual_order',
+        order: 'asc',
       });
     } finally {
       await vi.runOnlyPendingTimersAsync();
@@ -323,7 +454,7 @@ describe('DashboardPage', () => {
     render(<DashboardPageWrapper />);
 
     await screen.findByText('Wedding Weekend');
-    await user.click(screen.getByRole('button', { name: 'Create new project' }));
+    await user.click(screen.getByRole('button', { name: 'New project' }));
     fillInput(screen.getByPlaceholderText('Project name'), 'Client Delivery');
     await user.click(screen.getByRole('button', { name: 'Create Project' }));
 
@@ -334,6 +465,158 @@ describe('DashboardPage', () => {
     });
 
     expect(mockNavigate).toHaveBeenCalledWith('/projects/project-3');
+  });
+
+  it('renames a project through the extracted modal state and refreshes the list', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+    vi.mocked(projectService.updateProject).mockResolvedValue(
+      makeProject({ id: 'project-1', name: 'Renamed Delivery' }),
+    );
+
+    render(<DashboardPageWrapper />);
+
+    await screen.findByText('Wedding Weekend');
+    fireEvent.click(screen.getByLabelText('Project actions for Wedding Weekend'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename project' }));
+
+    const renameInput = await screen.findByLabelText('Project name');
+    expect(renameInput).toHaveValue('Wedding Weekend');
+    await user.clear(renameInput);
+    await user.type(renameInput, 'Renamed Delivery');
+    await user.click(screen.getByRole('button', { name: 'Save name' }));
+
+    await waitFor(() => {
+      expect(projectService.updateProject).toHaveBeenCalledWith('project-1', {
+        name: 'Renamed Delivery',
+      });
+    });
+    await waitFor(() => {
+      expect(projectService.getProjects).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.queryByRole('dialog', { name: 'Rename project' })).not.toBeInTheDocument();
+  });
+
+  it('clears a successful copy announcement when a later copy fails', async () => {
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    try {
+      render(<DashboardPageWrapper />);
+
+      await screen.findByText('Wedding Weekend');
+      fireEvent.click(
+        screen.getByLabelText(
+          'Project actions for A Very Long Editorial Project Title That Still Needs To Fit Cleanly On The Card',
+        ),
+      );
+      fireEvent.click(await screen.findByRole('button', { name: 'Copy latest share link' }));
+
+      const successAnnouncement =
+        'Latest share link for A Very Long Editorial Project Title That Still Needs To Fit Cleanly On The Card copied.';
+      expect(await screen.findByText(successAnnouncement)).toBeInTheDocument();
+      expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/share/share-2`);
+
+      writeText.mockRejectedValueOnce(new Error('Clipboard access denied'));
+      fireEvent.click(
+        screen.getByLabelText(
+          'Project actions for A Very Long Editorial Project Title That Still Needs To Fit Cleanly On The Card',
+        ),
+      );
+      fireEvent.click(await screen.findByRole('button', { name: 'Copy latest share link' }));
+
+      expect(await screen.findByText('Clipboard access denied')).toBeInTheDocument();
+      expect(writeText).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText(successAnnouncement)).not.toBeInTheDocument();
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator, 'clipboard');
+      }
+    }
+  });
+
+  it('treats a false clipboard fallback result as a copy failure and cleans up', async () => {
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const execCommandDescriptor = Object.getOwnPropertyDescriptor(document, 'execCommand');
+    const execCommand = vi.fn().mockReturnValue(false);
+    Reflect.deleteProperty(navigator, 'clipboard');
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: execCommand,
+    });
+
+    try {
+      render(<DashboardPageWrapper />);
+
+      await screen.findByText('Wedding Weekend');
+      fireEvent.click(
+        screen.getByLabelText(
+          'Project actions for A Very Long Editorial Project Title That Still Needs To Fit Cleanly On The Card',
+        ),
+      );
+      fireEvent.click(await screen.findByRole('button', { name: 'Copy latest share link' }));
+
+      expect(await screen.findByText('Failed to copy text to clipboard')).toBeInTheDocument();
+      expect(execCommand).toHaveBeenCalledWith('copy');
+      expect(document.querySelector('textarea')).not.toBeInTheDocument();
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator, 'clipboard');
+      }
+      if (execCommandDescriptor) {
+        Object.defineProperty(document, 'execCommand', execCommandDescriptor);
+      } else {
+        Reflect.deleteProperty(document, 'execCommand');
+      }
+    }
+  });
+
+  it('refreshes after creating a share link even when copying it fails', async () => {
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const writeText = vi.fn().mockRejectedValue(new Error('Clipboard access denied'));
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const { projectService } = await import('../../services/projectService');
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.createProjectShareLink).mockResolvedValue(
+      makeShareLink('created-share'),
+    );
+
+    try {
+      render(<DashboardPageWrapper />);
+
+      await screen.findByText('Wedding Weekend');
+      fireEvent.click(screen.getByLabelText('Project actions for Wedding Weekend'));
+      fireEvent.click(await screen.findByRole('button', { name: 'Create share link' }));
+
+      expect(
+        await screen.findByText('Share link created, but copy failed: Clipboard access denied'),
+      ).toBeInTheDocument();
+      expect(shareLinkService.createProjectShareLink).toHaveBeenCalledWith('project-1', {
+        expires_at: null,
+      });
+      expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/share/created-share`);
+      await waitFor(() => {
+        expect(projectService.getProjects).toHaveBeenCalledTimes(2);
+      });
+      expect(screen.queryByText('Failed to create project share link')).not.toBeInTheDocument();
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator, 'clipboard');
+      }
+    }
   });
 
   it('creates a project when Enter is pressed in the project modal', async () => {
@@ -355,7 +638,7 @@ describe('DashboardPage', () => {
     render(<DashboardPageWrapper />);
 
     await screen.findByText('Wedding Weekend');
-    await user.click(screen.getByRole('button', { name: 'Create new project' }));
+    await user.click(screen.getByRole('button', { name: 'New project' }));
     await user.type(screen.getByPlaceholderText('Project name'), 'Keyboard Delivery{Enter}');
 
     await waitFor(() => {
@@ -393,7 +676,7 @@ describe('DashboardPage', () => {
     render(<DashboardPageWrapper />);
 
     await screen.findByText('Wedding Weekend');
-    await user.click(screen.getByRole('button', { name: 'Create new project' }));
+    await user.click(screen.getByRole('button', { name: 'New project' }));
     fillInput(screen.getByPlaceholderText('Project name'), 'Client Delivery');
     await user.click(screen.getByRole('button', { name: 'Create Project' }));
 
@@ -414,11 +697,12 @@ describe('DashboardPage', () => {
     render(<DashboardPageWrapper />);
 
     await screen.findByText('Wedding Weekend');
-    await user.click(screen.getByLabelText('Delete project Wedding Weekend'));
+    fireEvent.click(screen.getByLabelText('Project actions for Wedding Weekend'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete project' }));
 
     const deleteDialog = await screen.findByRole('dialog', { name: /delete project/i });
     expect(
-      within(deleteDialog).getByText(/delete "Wedding Weekend" and all of its galleries/i),
+      within(deleteDialog).getByText(/delete “Wedding Weekend” and all of its galleries/i),
     ).toBeInTheDocument();
 
     await user.click(within(deleteDialog).getByRole('button', { name: 'Delete' }));
@@ -458,7 +742,8 @@ describe('DashboardPage', () => {
     render(<DashboardPageWrapper initialPath="/dashboard?page=3" />);
 
     await screen.findByText('Last Project');
-    await user.click(screen.getByLabelText('Delete project Last Project'));
+    fireEvent.click(screen.getByLabelText('Project actions for Last Project'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete project' }));
     await user.click(
       within(await screen.findByRole('dialog', { name: /delete project/i })).getByRole('button', {
         name: 'Delete',
@@ -474,8 +759,8 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(projectService.getProjects).toHaveBeenLastCalledWith(2, 18, {
         search: undefined,
-        sort_by: 'created_at',
-        order: 'desc',
+        sort_by: 'manual_order',
+        order: 'asc',
       });
     });
     expect(
@@ -496,18 +781,18 @@ describe('DashboardPage', () => {
 
     const emptyHeading = await screen.findByRole('heading', {
       level: 2,
-      name: 'No projects yet',
+      name: 'Create your first project',
     });
     const emptyState = emptyHeading.closest('div');
 
     expect(
       screen.getByText(
-        'Create your first project to upload photos, organize galleries, and share polished deliveries with clients.',
+        'Projects group related galleries and share-link deliveries for one client.',
       ),
     ).toBeInTheDocument();
 
     expect(
-      within(emptyState as HTMLElement).getByRole('button', { name: 'Create your first project' }),
+      within(emptyState as HTMLElement).getByRole('button', { name: 'New project' }),
     ).toBeInTheDocument();
   });
 });

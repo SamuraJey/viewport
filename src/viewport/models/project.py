@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Float, ForeignKey, String
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Float, ForeignKey, Index, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,6 +23,7 @@ class Project(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     shooting_date: Mapped[date] = mapped_column(Date, nullable=False, default=lambda: datetime.now(UTC).date())
     is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    manual_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     # Optional cover photo for project-level public hero display
     cover_photo_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -62,4 +63,5 @@ class Project(Base):
         CheckConstraint("cover_display_option IN ('centered_title', 'text_block', 'minimalist')", name="ck_projects_cover_display_option"),
         CheckConstraint("public_photo_spacing IN ('small', 'medium', 'large')", name="ck_projects_public_photo_spacing"),
         CheckConstraint("public_color_scheme IN ('light', 'dark')", name="ck_projects_public_color_scheme"),
+        Index("ix_projects_owner_manual_order", "owner_id", "manual_order"),
     )

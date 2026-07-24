@@ -1,6 +1,6 @@
 export const PENDING_ACTION_KEY = 'viewport:pending-action';
 
-export type PendingAction = 'create-project';
+export type PendingAction = 'create-project' | 'create-gallery' | 'project-settings';
 
 export function requestCreateProject(navigate: (path: string) => void): void {
   try {
@@ -9,6 +9,19 @@ export function requestCreateProject(navigate: (path: string) => void): void {
     // sessionStorage unavailable — degrade gracefully
   }
   navigate('/dashboard');
+}
+
+export function requestProjectAction(
+  navigate: (path: string) => void,
+  projectId: string,
+  action: Exclude<PendingAction, 'create-project'>,
+): void {
+  try {
+    sessionStorage.setItem(PENDING_ACTION_KEY, action);
+  } catch {
+    // sessionStorage unavailable — the project page still opens.
+  }
+  navigate(`/projects/${projectId}`);
 }
 
 export function consumePendingAction(): PendingAction | null {

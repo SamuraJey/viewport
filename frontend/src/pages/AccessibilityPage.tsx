@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Accessibility, ArrowLeft, Eye, Keyboard, Palette, Type } from 'lucide-react';
 import { ReadabilitySettingsButton } from '../components/ReadabilitySettingsButton';
 import { ThemeSwitch } from '../components/ThemeSwitch';

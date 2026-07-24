@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowRight,

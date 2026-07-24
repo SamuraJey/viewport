@@ -225,6 +225,9 @@ class TestRedisServicePipeline:
         mock_pipeline.sadd = MagicMock()
         mock_pipeline.srem = MagicMock()
         mock_pipeline.expire = MagicMock()
+        mock_pipeline.zadd = MagicMock()
+        mock_pipeline.zremrangebyscore = MagicMock()
+        mock_pipeline.zcount = MagicMock()
         mock_pipeline.execute = AsyncMock(return_value=[])
         mock_client.pipeline = MagicMock(return_value=mock_pipeline)
         service = RedisService(mock_client, None, available=True)
@@ -235,6 +238,9 @@ class TestRedisServicePipeline:
             pipe.sadd("set1", "member1", "member2")
             pipe.srem("set2", "member3")
             pipe.expire("key4", 3600)
+            pipe.zadd("sorted1", {"member4": 12.0})
+            pipe.zremrangebyscore("sorted1", 0, 4)
+            pipe.zcount("sorted1", 5, 12)
             await pipe.execute()
 
         mock_pipeline.get.assert_called_once_with("key1")
@@ -242,6 +248,9 @@ class TestRedisServicePipeline:
         mock_pipeline.sadd.assert_called_once_with("set1", "member1", "member2")
         mock_pipeline.srem.assert_called_once_with("set2", "member3")
         mock_pipeline.expire.assert_called_once_with("key4", 3600)
+        mock_pipeline.zadd.assert_called_once_with("sorted1", {"member4": 12.0})
+        mock_pipeline.zremrangebyscore.assert_called_once_with("sorted1", 0, 4)
+        mock_pipeline.zcount.assert_called_once_with("sorted1", 5, 12)
 
 
 class TestNoOpPipelineContext:
@@ -258,6 +267,9 @@ class TestNoOpPipelineContext:
         assert ctx.sadd("k", "m") is ctx
         assert ctx.srem("k", "m") is ctx
         assert ctx.expire("k", 60) is ctx
+        assert ctx.zadd("k", {"m": 1.0}) is ctx
+        assert ctx.zremrangebyscore("k", 0, 1) is ctx
+        assert ctx.zcount("k", 0, 1) is ctx
 
     @pytest.mark.asyncio
     async def test_execute_returns_empty_list(self):

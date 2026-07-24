@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes } from 'react-router-dom';
+import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes } from 'react-router';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -370,9 +370,18 @@ describe('ProjectPage', () => {
     expect(screen.getByText('Direct link only')).toBeInTheDocument();
     expect(screen.getByLabelText('Change project visibility for Photos')).toBeInTheDocument();
     expect(screen.getByLabelText('Change project visibility for 3eds')).toBeInTheDocument();
-    expect(screen.getByText('8 photos • 512 Bytes • Apr 18, 2026')).toBeInTheDocument();
-    expect(screen.getByText('4 photos • 512 Bytes • Apr 18, 2026')).toBeInTheDocument();
-    expect(screen.getByText('4 photos • 512 Bytes • Apr 18, 2026')).toHaveClass('mt-auto');
+    const photosCard = screen.getByRole('article', {
+      name: 'Photos. 8 photos, 512 Bytes, Apr 18, 2026.',
+    });
+    const secondaryCard = screen.getByRole('article', {
+      name: '3eds. 4 photos, 512 Bytes, Apr 18, 2026.',
+    });
+    expect(within(photosCard).getByText('8')).toBeInTheDocument();
+    expect(within(photosCard).getByText('512 Bytes')).toBeInTheDocument();
+    expect(within(photosCard).getByText('Apr 18, 2026')).toBeInTheDocument();
+    expect(within(secondaryCard).getByText('4')).toBeInTheDocument();
+    expect(within(secondaryCard).getByText('512 Bytes')).toBeInTheDocument();
+    expect(within(secondaryCard).getByText('Apr 18, 2026')).toBeInTheDocument();
   });
 
   it('keeps appearance mounted and ignores stale photos after project navigation', async () => {
@@ -419,11 +428,11 @@ describe('ProjectPage', () => {
 
     const { router } = renderRoutedProjectPage();
 
-    await screen.findByText('Wedding Weekend');
+    await screen.findByRole('heading', { level: 1, name: 'Wedding Weekend' });
     await act(async () => {
       await router.navigate('/projects/project-2');
     });
-    await screen.findByText('Second Project');
+    await screen.findByRole('heading', { level: 1, name: 'Second Project' });
     await waitFor(() => {
       expect(projectService.getProjectPhotos).toHaveBeenCalledWith('project-2', {
         limit: 100,
@@ -564,6 +573,80 @@ describe('ProjectPage', () => {
       'gallery-2',
       'gallery-1',
     ]);
+    expect(
+      screen.getByText('Position 1 of 2').parentElement?.previousElementSibling,
+    ).toHaveTextContent('3eds');
+    expect(
+      screen.getByText('Position 2 of 2').parentElement?.previousElementSibling,
+    ).toHaveTextContent('Photos');
+    expect(screen.getByText('3eds is now position 1 of 2.')).toBeInTheDocument();
+  });
+
+  it('restores the previous gallery order when persistence fails', async () => {
+    const { projectService } = await import('../../services/projectService');
+
+    vi.mocked(projectService.reorderProjectGalleries).mockRejectedValueOnce(
+      new Error('Reorder failed'),
+    );
+
+    renderProjectPage();
+
+    expect(await screen.findByRole('heading', { name: 'Photos' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Change project visibility for 3eds'));
+    const visibilityPanel = (await screen.findByText('Project visibility')).parentElement;
+    expect(visibilityPanel).not.toBeNull();
+    fireEvent.click(within(visibilityPanel!).getByRole('button', { name: /move earlier/i }));
+
+    expect(await screen.findByText('Reorder failed')).toBeInTheDocument();
+    expect(
+      screen.getByText('Position 1 of 2').parentElement?.previousElementSibling,
+    ).toHaveTextContent('Photos');
+    expect(
+      screen.getByText('Position 2 of 2').parentElement?.previousElementSibling,
+    ).toHaveTextContent('3eds');
+    expect(
+      screen.getByText('Could not move 3eds. The previous gallery order was restored.'),
+    ).toBeInTheDocument();
+  });
+
+  it('reconciles a successful reorder without dropping a concurrently loaded gallery', async () => {
+    const { projectService } = await import('../../services/projectService');
+
+    renderProjectPage();
+
+    expect(await screen.findByRole('heading', { name: 'Photos' })).toBeInTheDocument();
+    const initialProject = await vi.mocked(projectService.getProject).mock.results[0].value;
+    vi.mocked(projectService.getProject).mockResolvedValueOnce({
+      ...initialProject,
+      gallery_count: 3,
+      visible_gallery_count: 2,
+      galleries: [
+        ...initialProject.galleries,
+        {
+          ...initialProject.galleries[0],
+          id: 'gallery-3',
+          name: 'After Party',
+          project_position: 2,
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByLabelText('Change project visibility for 3eds'));
+    const visibilityPanel = (await screen.findByText('Project visibility')).parentElement;
+    expect(visibilityPanel).not.toBeNull();
+    fireEvent.click(within(visibilityPanel!).getByRole('button', { name: /move earlier/i }));
+
+    expect(await screen.findByRole('heading', { name: 'After Party' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Position 1 of 3').parentElement?.previousElementSibling,
+    ).toHaveTextContent('3eds');
+    expect(
+      screen.getByText('Position 2 of 3').parentElement?.previousElementSibling,
+    ).toHaveTextContent('Photos');
+    expect(
+      screen.getByText('Position 3 of 3').parentElement?.previousElementSibling,
+    ).toHaveTextContent('After Party');
   });
 
   it('refreshes project state after creating a gallery share link', async () => {

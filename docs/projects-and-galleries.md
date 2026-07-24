@@ -114,7 +114,8 @@ Gallery endpoints still work and now accept project placement fields where relev
 - `DashboardPage.tsx` shows **Projects** only
 - creating a project starts with an empty project; galleries are added explicitly from the project surface
 - `ProjectPage.tsx` remains the owner surface for project metadata, gallery visibility/order, and project-scoped share links
-- project gallery visibility and ordering are managed from in-card actions; order is persisted via `project_position`
+- project gallery visibility is managed from in-card actions; presentation order is changed by dragging the dedicated card handle (pointer or keyboard), with `Move earlier`, `Move later`, and `Make leftmost` retained as explicit menu alternatives
+- gallery reordering updates the project grid optimistically, persists the complete order atomically through `PUT /projects/{project_id}/galleries/reorder`, and restores the previous order if persistence fails
 - when project share links already have active or submitted selection sessions, risky changes (hide as `direct_only`, delete gallery, reorder gallery) warn the owner before proceeding
 - `GalleryPage.tsx` remains photo-first for gallery-level work, but its canonical owner route is `/projects/{project_id}/galleries/{gallery_id}`
 - the legacy owner route `/galleries/{gallery_id}` still works and redirects into the owning project when possible

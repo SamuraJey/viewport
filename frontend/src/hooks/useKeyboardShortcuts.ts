@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 const TYPING_SELECTOR = 'input, textarea, select, [contenteditable="true"]';
 const MODAL_SELECTOR = '[role="dialog"][aria-modal="true"], [aria-modal="true"]';

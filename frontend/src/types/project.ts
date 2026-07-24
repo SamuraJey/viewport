@@ -7,6 +7,7 @@ import type {
 } from './gallery';
 
 export type ProjectListSortBy =
+  | 'manual_order'
   | 'created_at'
   | 'shooting_date'
   | 'name'
@@ -25,6 +26,7 @@ export interface Project {
   name: string;
   created_at: string;
   shooting_date: string;
+  manual_order: number;
   entry_gallery_id?: string | null;
   entry_gallery_name?: string | null;
   gallery_count: number;
@@ -33,7 +35,12 @@ export interface Project {
   total_photo_count: number;
   total_size_bytes: number;
   has_active_share_links: boolean;
+  active_share_link_count: number;
+  latest_share_link_id: string | null;
+  active_viewers_count: number;
+  last_activity_at: string;
   cover_photo_thumbnail_url: string | null;
+  preview_thumbnail_urls: string[];
   cover_photo_id: string | null;
   cover_focal_x: number;
   cover_focal_y: number;

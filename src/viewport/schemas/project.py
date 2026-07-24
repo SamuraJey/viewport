@@ -9,6 +9,7 @@ from viewport.schemas.gallery import CoverDisplayOption, GalleryPhotoResponse, P
 
 
 class ProjectListSortBy(StrEnum):
+    MANUAL_ORDER = "manual_order"
     CREATED_AT = "created_at"
     SHOOTING_DATE = "shooting_date"
     NAME = "name"
@@ -66,6 +67,20 @@ class ProjectGalleryReorderRequest(BaseModel):
         return normalized
 
 
+class ProjectReorderRequest(BaseModel):
+    project_ids: list[str] = Field(..., min_length=1, description="Project ids in their desired relative order")
+
+    @field_validator("project_ids")
+    @classmethod
+    def validate_project_ids(cls, value: list[str]) -> list[str]:
+        normalized = [project_id.strip() for project_id in value if project_id.strip()]
+        if len(normalized) != len(value):
+            raise ValueError("Project ids cannot be empty")
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("Project ids must be unique")
+        return normalized
+
+
 class ProjectGallerySummaryResponse(BaseModel):
     id: str
     owner_id: str
@@ -89,6 +104,7 @@ class ProjectResponse(BaseModel):
     name: str
     created_at: datetime
     shooting_date: date
+    manual_order: int = 0
     gallery_count: int = 0
     visible_gallery_count: int = 0
     entry_gallery_id: str | None = None
@@ -97,7 +113,12 @@ class ProjectResponse(BaseModel):
     total_photo_count: int = 0
     total_size_bytes: int = 0
     has_active_share_links: bool = False
+    active_share_link_count: int = 0
+    latest_share_link_id: str | None = None
+    active_viewers_count: int = 0
+    last_activity_at: datetime
     cover_photo_thumbnail_url: str | None = None
+    preview_thumbnail_urls: list[str] = Field(default_factory=list, max_length=4)
     cover_photo_id: str | None = None
     cover_focal_x: float = Field(50.0, ge=0, le=100)
     cover_focal_y: float = Field(50.0, ge=0, le=100)

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState, useEffect, type ReactElement, type RefObject } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Command } from 'cmdk';
 import { cn } from '../../lib/utils';
 import { createStaticCommands } from './CommandRegistry';

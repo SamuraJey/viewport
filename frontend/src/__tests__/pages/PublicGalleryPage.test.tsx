@@ -10,7 +10,7 @@ if (!(global as any).ResizeObserver) {
 }
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { ApiError } from '../../lib/errorHandling';
 let PublicGalleryPage: any;
 const mockNavigate = vi.fn();
@@ -156,8 +156,8 @@ vi.mock('../../hooks/usePhotoLightbox', () => ({
 }));
 
 // Mock useParams to provide shareId
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual('react-router');
   return {
     ...actual,
     useParams: () => mockRouteParams,

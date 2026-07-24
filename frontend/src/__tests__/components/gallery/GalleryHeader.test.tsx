@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type ReactNode, type RefObject } from 'react';
-import { Link, MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 
 type MockPopoverCloseTarget = HTMLElement | RefObject<HTMLElement | null>;
