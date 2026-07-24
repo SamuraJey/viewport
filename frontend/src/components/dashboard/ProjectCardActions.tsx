@@ -16,7 +16,7 @@ export const ProjectCardActions = ({
   onOpenShare,
   onAddGallery,
 }: ProjectCardActionsProps) => (
-  <div className="flex items-center rounded-xl bg-black/72 p-1 shadow-[0_8px_22px_rgba(0,0,0,0.28)] backdrop-blur-sm">
+  <div className="flex items-center rounded-xl bg-black/72 p-1 shadow-lg backdrop-blur-sm">
     <button
       type="button"
       className={actionClassName}

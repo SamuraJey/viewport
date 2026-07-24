@@ -30,7 +30,7 @@ exports[`ProjectCard > renders the complete visual and accessibility contract 1`
         class="absolute inset-x-0 bottom-0 p-3 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none translate-y-0 opacity-100"
       >
         <div
-          class="grid grid-cols-4 gap-1.5 rounded-xl bg-black/35 p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.24)] backdrop-blur-sm"
+          class="grid grid-cols-4 gap-1.5 rounded-xl bg-black/35 p-1.5 shadow-lg backdrop-blur-sm"
         >
           <div
             class="aspect-[4/3] overflow-hidden rounded-lg bg-black/20 ring-1 ring-white/20"
@@ -83,7 +83,7 @@ exports[`ProjectCard > renders the complete visual and accessibility contract 1`
       class="absolute bottom-3 left-1/2 z-30 -translate-x-1/2 transition-[transform,opacity] duration-200 ease-out motion-reduce:transition-none -translate-y-16 opacity-100"
     >
       <div
-        class="flex items-center rounded-xl bg-black/72 p-1 shadow-[0_8px_22px_rgba(0,0,0,0.28)] backdrop-blur-sm"
+        class="flex items-center rounded-xl bg-black/72 p-1 shadow-lg backdrop-blur-sm"
       >
         <button
           aria-label="Copy latest project share link"
@@ -184,7 +184,7 @@ exports[`ProjectCard > renders the complete visual and accessibility contract 1`
       class="absolute left-4 top-4 z-20 flex items-center gap-2"
     >
       <span
-        class="inline-flex items-center gap-2 rounded-full bg-success px-2.5 py-1 text-xs font-bold text-white shadow-[0_6px_18px_rgba(0,0,0,0.22)]"
+        class="inline-flex items-center gap-2 rounded-full bg-success px-2.5 py-1 text-xs font-bold text-white shadow-md"
       >
         <span
           aria-hidden="true"

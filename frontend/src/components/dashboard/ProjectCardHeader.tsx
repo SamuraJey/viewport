@@ -38,7 +38,7 @@ export const ProjectCardHeader = ({
           }}
         />
       ) : (
-        <div className="absolute inset-0 flex items-center justify-center bg-[radial-gradient(circle_at_22%_18%,rgba(31,144,255,0.18),transparent_34%),linear-gradient(145deg,var(--color-surface-2),var(--color-surface))] dark:bg-[radial-gradient(circle_at_22%_18%,rgba(31,144,255,0.22),transparent_34%),linear-gradient(145deg,var(--color-surface-dark-2),var(--color-surface-dark))]">
+        <div className="absolute inset-0 flex items-center justify-center bg-linear-to-br from-accent/18 via-surface-2 to-surface dark:from-accent/22 dark:via-surface-dark-2 dark:to-surface-dark">
           <div className="flex flex-col items-center gap-3 text-muted">
             <ImageIcon className="h-9 w-9" aria-hidden="true" />
             <span className="text-sm font-semibold">Add a project cover</span>
@@ -58,7 +58,7 @@ export const ProjectCardHeader = ({
           )}
           aria-hidden={!isPreviewVisible}
         >
-          <div className="grid grid-cols-4 gap-1.5 rounded-xl bg-black/35 p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.24)] backdrop-blur-sm">
+          <div className="grid grid-cols-4 gap-1.5 rounded-xl bg-black/35 p-1.5 shadow-lg backdrop-blur-sm">
             {previewUrls.map((url, index) => (
               <div
                 key={`${url}-${index}`}
@@ -81,7 +81,7 @@ export const ProjectCardHeader = ({
 
   const statusBadge =
     project.active_viewers_count > 0 ? (
-      <span className="inline-flex items-center gap-2 rounded-full bg-success px-2.5 py-1 text-xs font-bold text-white shadow-[0_6px_18px_rgba(0,0,0,0.22)]">
+      <span className="inline-flex items-center gap-2 rounded-full bg-success px-2.5 py-1 text-xs font-bold text-white shadow-md">
         <span className="relative flex h-2 w-2" aria-hidden="true">
           <span className="absolute inset-0 animate-ping rounded-full bg-white/75 motion-reduce:animate-none" />
           <span className="relative h-2 w-2 rounded-full bg-white" />

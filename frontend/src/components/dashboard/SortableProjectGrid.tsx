@@ -101,7 +101,7 @@ const SortableProjectCard = ({
             {...attributes}
             {...listeners}
             disabled={disabled}
-            className="flex h-9 w-9 touch-none items-center justify-center rounded-lg bg-black/65 text-white shadow-[0_6px_18px_rgba(0,0,0,0.18)] transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-[3px] focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-45"
+            className="flex h-9 w-9 touch-none items-center justify-center rounded-lg bg-black/65 text-white shadow-md transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus-visible:ring-[3px] focus-visible:ring-white disabled:cursor-not-allowed disabled:opacity-45"
             aria-label={
               disabled
                 ? `Manual order is required to move ${project.name}`
@@ -193,7 +193,7 @@ export const SortableProjectGrid = ({
       <DragOverlay dropAnimation={null}>
         {activeProject ? (
           <div
-            className="w-[min(24rem,calc(100vw-2rem))] rotate-1 overflow-hidden rounded-2xl bg-surface opacity-95 shadow-[0_22px_48px_rgba(15,23,42,0.24)] ring-1 ring-border/55 dark:bg-surface-dark"
+            className="w-[min(24rem,calc(100vw-2rem))] rotate-1 overflow-hidden rounded-2xl bg-surface opacity-95 shadow-xl ring-1 ring-border/55 dark:bg-surface-dark"
             aria-hidden="true"
           >
             <ProjectCardHeader project={activeProject} isPreviewVisible={false} />

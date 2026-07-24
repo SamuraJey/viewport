@@ -77,7 +77,7 @@ export const ProjectCardContextMenu = ({
       }`
     }
     buttonContent={<MoreHorizontal className="h-5 w-5" aria-hidden="true" />}
-    panelClassName="mt-2 w-60 rounded-xl border border-border/60 bg-surface p-1.5 shadow-[0_16px_36px_rgba(15,23,42,0.18)] dark:border-border/45 dark:bg-surface-dark"
+    panelClassName="mt-2 w-60 rounded-xl border border-border/60 bg-surface p-1.5 shadow-lg dark:border-border/45 dark:bg-surface-dark"
     panelFocus
     panel={(close) => (
       <div role="group" aria-label={`Actions for ${projectName}`}>

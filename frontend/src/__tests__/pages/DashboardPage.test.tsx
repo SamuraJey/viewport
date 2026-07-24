@@ -436,6 +436,41 @@ describe('DashboardPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/projects/project-3');
   });
 
+  it('reports clipboard failures without announcing a successful copy', async () => {
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const writeText = vi.fn().mockRejectedValue(new Error('Clipboard access denied'));
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    try {
+      render(<DashboardPageWrapper />);
+
+      await screen.findByText('Wedding Weekend');
+      fireEvent.click(
+        screen.getByLabelText(
+          'Project actions for A Very Long Editorial Project Title That Still Needs To Fit Cleanly On The Card',
+        ),
+      );
+      fireEvent.click(await screen.findByRole('button', { name: 'Copy latest share link' }));
+
+      expect(await screen.findByText('Clipboard access denied')).toBeInTheDocument();
+      expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/share/share-2`);
+      expect(
+        screen.queryByText(
+          'Latest share link for A Very Long Editorial Project Title That Still Needs To Fit Cleanly On The Card copied.',
+        ),
+      ).not.toBeInTheDocument();
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator, 'clipboard');
+      }
+    }
+  });
+
   it('creates a project when Enter is pressed in the project modal', async () => {
     const user = userEvent.setup();
     const { projectService } = await import('../../services/projectService');
