@@ -363,6 +363,32 @@ describe('photoService', () => {
     expect(api.post).not.toHaveBeenCalled();
   });
 
+  it('normalizes an empty-MIME video by extension and applies the video size limit', async () => {
+    const video = createFile('clip.mov', MAX_UPLOAD_FILE_SIZE_BYTES + 1, '');
+    vi.mocked(api.post).mockResolvedValueOnce({
+      data: {
+        items: [{ filename: 'clip.mov', success: false, error: 'Test stop after presign' }],
+      },
+    } as any);
+
+    const result = await photoService.uploadPhotosPresigned('gallery-1', [video]);
+
+    expect(api.post).toHaveBeenCalledWith(
+      '/galleries/gallery-1/photos/batch-presigned',
+      {
+        files: [
+          {
+            filename: 'clip.mov',
+            file_size: MAX_UPLOAD_FILE_SIZE_BYTES + 1,
+            content_type: 'video/quicktime',
+          },
+        ],
+      },
+      { signal: undefined },
+    );
+    expect(result.results[0]?.error).toBe('Test stop after presign');
+  });
+
   it('handles presigned batch failures', async () => {
     const file = createFile('photo.jpg', 1024);
 
@@ -643,6 +669,102 @@ describe('photoService', () => {
     });
   });
 
+  it('retries an image with a fresh upload intent', async () => {
+    const failedFile: UploadPreparedFile = {
+      ...createFile('retry-fresh.jpg', 1024),
+      photo_id: 'stale-photo',
+      presigned_data: {
+        url: 'https://s3/stale-image',
+        headers: { 'Content-Type': 'image/jpeg' },
+      },
+      presigned_expires_at: Date.now() + 3_600_000,
+    };
+
+    vi.mocked(api.post).mockImplementation((url) => {
+      if (url === '/galleries/gallery-1/photos/batch-presigned') {
+        return Promise.resolve({
+          data: {
+            items: [
+              {
+                filename: failedFile.filename,
+                success: true,
+                photo_id: 'fresh-photo',
+                presigned_data: {
+                  url: 'https://s3/fresh-image',
+                  headers: { 'Content-Type': 'image/jpeg' },
+                },
+              },
+            ],
+          },
+        } as any);
+      }
+      if (url === '/galleries/gallery-1/photos/batch-confirm') {
+        return Promise.resolve({ data: {} } as any);
+      }
+      return Promise.reject(new Error(`Unexpected url: ${url}`));
+    });
+    MockXMLHttpRequest.sendQueue = [{ type: 'load', status: 200 }];
+
+    const result = await photoService.retryFailedUploads('gallery-1', [failedFile]);
+
+    expect(result.successful_uploads).toBe(1);
+    expect(MockXMLHttpRequest.instances[0]?.url).toBe('https://s3/fresh-image');
+    expect(api.post).toHaveBeenCalledWith(
+      '/galleries/gallery-1/photos/batch-confirm',
+      { items: [{ photo_id: 'fresh-photo', success: true }] },
+      { signal: undefined },
+    );
+  });
+
+  it('retries a video with a fresh multipart upload intent', async () => {
+    const failedFile: UploadPreparedFile = {
+      ...createFile('retry-fresh.mp4', 5, 'video/mp4'),
+      photo_id: 'stale-video-photo',
+      upload_mode: 'multipart',
+      upload_id: 'stale-upload',
+      part_size: 5,
+      presigned_urls: ['https://s3/stale-part'],
+    };
+
+    vi.mocked(api.post).mockImplementation((url) => {
+      if (url === '/galleries/gallery-1/photos/batch-presigned') {
+        return Promise.resolve({
+          data: {
+            items: [
+              {
+                filename: failedFile.filename,
+                success: true,
+                photo_id: 'fresh-video-photo',
+                upload_mode: 'multipart',
+                upload_id: 'fresh-upload',
+                part_size: 5,
+                presigned_urls: ['https://s3/fresh-part'],
+              },
+            ],
+          },
+        } as any);
+      }
+      if (url.includes('/multipart/complete')) {
+        return Promise.resolve({ data: {} } as any);
+      }
+      return Promise.reject(new Error(`Unexpected url: ${url}`));
+    });
+    MockXMLHttpRequest.sendQueue = [{ type: 'load', status: 200 }];
+
+    const result = await photoService.retryFailedUploads('gallery-1', [failedFile]);
+
+    expect(result.successful_uploads).toBe(1);
+    expect(MockXMLHttpRequest.instances[0]?.url).toBe('https://s3/fresh-part');
+    expect(api.post).toHaveBeenCalledWith(
+      '/galleries/gallery-1/photos/fresh-video-photo/multipart/complete',
+      {
+        upload_id: 'fresh-upload',
+        parts: [{ ETag: '"etag-1"', PartNumber: 1 }],
+      },
+      { signal: undefined },
+    );
+  });
+
   it('uses demo upload flow and skips API requests when demo mode is enabled', async () => {
     vi.mocked(isDemoModeEnabled).mockReturnValue(true);
 
@@ -659,6 +781,25 @@ describe('photoService', () => {
       success: true,
     });
     expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('cancels demo uploads before they mutate the gallery', async () => {
+    vi.mocked(isDemoModeEnabled).mockReturnValue(true);
+    const store = getDemoService();
+    const before = await store.getGallery('demo-gallery-fashion', { limit: 1, offset: 0 });
+    const controller = new AbortController();
+    const upload = photoService.uploadPhotosPresigned(
+      'demo-gallery-fashion',
+      [createFile('cancelled-demo.jpg', 1024)],
+      undefined,
+      controller.signal,
+    );
+
+    controller.abort();
+
+    await expect(upload).rejects.toThrow('Upload cancelled');
+    const after = await store.getGallery('demo-gallery-fashion', { limit: 1, offset: 0 });
+    expect(after.total_photos).toBe(before.total_photos);
   });
 
   it('uses demo rename/delete flow and skips API calls when demo mode is enabled', async () => {

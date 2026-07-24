@@ -24,6 +24,7 @@ import type {
   LoginRequest,
   LoginResponse,
   PhotoResponse,
+  PhotoUploadProgress,
   PhotoUploadResponse,
   RegisterRequest,
   RegisterResponse,
@@ -49,6 +50,7 @@ import type {
 } from '../types';
 import { ApiError } from '../lib/errorHandling';
 import { isDemoModeEnabled } from '../lib/demoMode';
+import { isVideoUploadFile } from '../constants/upload';
 
 interface DemoSelectionState {
   selectionConfigs?: Record<string, SelectionConfig>;
@@ -610,8 +612,20 @@ const parsePhotoIndex = (filename: string): string => {
   return base.slice(0, 18);
 };
 
-const delay = async (ms: number): Promise<void> => {
-  await new Promise((resolve) => setTimeout(resolve, ms));
+const delay = async (ms: number, signal?: AbortSignal): Promise<void> => {
+  if (signal?.aborted) throw new Error('Upload cancelled');
+
+  await new Promise<void>((resolve, reject) => {
+    const handleAbort = () => {
+      clearTimeout(timeoutId);
+      reject(new Error('Upload cancelled'));
+    };
+    const timeoutId = setTimeout(() => {
+      signal?.removeEventListener('abort', handleAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', handleAbort, { once: true });
+  });
 };
 
 const triggerDownload = (filename: string, content: string): void => {
@@ -936,12 +950,11 @@ class DemoServiceStore {
           (left, right) =>
             (left.gallery.project_position ?? 0) - (right.gallery.project_position ?? 0),
         )
-        .map(
-          (galleryState) =>
-            [...galleryState.photos]
-              .sort((left, right) => Date.parse(right.uploaded_at) - Date.parse(left.uploaded_at))
-              .map((photo) => photo.thumbnail_url)
-              .find((url): url is string => Boolean(url)),
+        .map((galleryState) =>
+          [...galleryState.photos]
+            .sort((left, right) => Date.parse(right.uploaded_at) - Date.parse(left.uploaded_at))
+            .map((photo) => photo.thumbnail_url)
+            .find((url): url is string => Boolean(url)),
         )
         .filter((url): url is string => Boolean(url))
         .slice(0, 4);
@@ -950,7 +963,8 @@ class DemoServiceStore {
         .flatMap((galleryState) => galleryState.photos)
         .map((photo) => photo.uploaded_at)
         .sort((left, right) => Date.parse(right) - Date.parse(left))[0];
-      const latestShareActivity = activeShareLinks[0]?.updated_at ?? activeShareLinks[0]?.created_at;
+      const latestShareActivity =
+        activeShareLinks[0]?.updated_at ?? activeShareLinks[0]?.created_at;
       const {
         id,
         owner_id,
@@ -3130,27 +3144,36 @@ class DemoServiceStore {
   async uploadPhotosPresigned(
     galleryId: string,
     files: UploadPreparedFile[],
-    onProgress?: (progress: {
-      loaded: number;
-      total: number;
-      percentage: number;
-      currentFile: string;
-      successCount: number;
-      failedCount: number;
-    }) => void,
+    onProgress?: (progress: PhotoUploadProgress) => void,
+    signal?: AbortSignal,
   ): Promise<PhotoUploadResponse> {
     const state = this.getGalleryState(galleryId);
     const total = files.reduce((sum, item) => sum + item.file.size, 0);
     let loaded = 0;
     let successCount = 0;
+    const progressByFilename: PhotoUploadProgress['files'] = Object.fromEntries(
+      files.map((item) => [item.filename, { percentage: 0, status: 'queued' as const }]),
+    );
 
     const results = [] as PhotoUploadResponse['results'];
 
     for (const item of files) {
-      await delay(130);
+      if (signal?.aborted) throw new Error('Upload cancelled');
+      progressByFilename[item.filename] = { percentage: 0, status: 'uploading' };
+      onProgress?.({
+        loaded,
+        total,
+        percentage: total > 0 ? Math.round((loaded / total) * 100) : 0,
+        currentFile: item.filename,
+        successCount,
+        failedCount: 0,
+        files: { ...progressByFilename },
+      });
+      await delay(130, signal);
+      if (signal?.aborted) throw new Error('Upload cancelled');
       loaded += item.file.size;
 
-      const isVideo = item.file.type.startsWith('video/');
+      const isVideo = isVideoUploadFile(item.file);
       const seed = `${item.filename}-${makeDemoId()}`;
       const created: GalleryPhoto = {
         id: makeDemoId(),
@@ -3178,6 +3201,7 @@ class DemoServiceStore {
       }
 
       successCount += 1;
+      progressByFilename[item.filename] = { percentage: 100, status: 'success' };
 
       onProgress?.({
         loaded,
@@ -3186,6 +3210,7 @@ class DemoServiceStore {
         currentFile: item.filename,
         successCount,
         failedCount: 0,
+        files: { ...progressByFilename },
       });
 
       results.push({
@@ -3209,16 +3234,10 @@ class DemoServiceStore {
   async retryFailedUploads(
     galleryId: string,
     failedFiles: UploadPreparedFile[],
-    onProgress?: (progress: {
-      loaded: number;
-      total: number;
-      percentage: number;
-      currentFile: string;
-      successCount: number;
-      failedCount: number;
-    }) => void,
+    onProgress?: (progress: PhotoUploadProgress) => void,
+    signal?: AbortSignal,
   ): Promise<PhotoUploadResponse> {
-    return this.uploadPhotosPresigned(galleryId, failedFiles, onProgress);
+    return this.uploadPhotosPresigned(galleryId, failedFiles, onProgress, signal);
   }
 
   async downloadGalleryZip(galleryId: string): Promise<void> {

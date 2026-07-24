@@ -60,6 +60,18 @@ describe('createImageThumbnail', () => {
       expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
     });
 
+    it('recognizes a JPG by extension when MIME is absent', async () => {
+      const file = createMockFile('photo.jpg', 1024, '');
+      const bitmap = createMockBitmap(400, 267);
+      vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(bitmap));
+
+      const result = await createImageThumbnail(file);
+
+      expect(result.url).toBe('blob:mock-url');
+      expect(createImageBitmap).toHaveBeenCalledWith(file, expect.any(Object));
+      result.cleanup();
+    });
+
     it('falls back to a full-file blob url when createImageBitmap rejects', async () => {
       const file = createMockFile('corrupt.jpg', 1024, 'image/jpeg');
       vi.stubGlobal(

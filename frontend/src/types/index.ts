@@ -36,6 +36,8 @@ export type {
   GalleryPhoto,
   PhotoUploadResult,
   PhotoUploadResponse,
+  PhotoUploadProgress,
+  UploadFileProgress,
   BatchPresignedUploadsRequest,
   BatchPresignedUploadsResponse,
   ConfirmPhotoUploadItem,

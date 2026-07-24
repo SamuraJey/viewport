@@ -1,8 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PhotoUploader } from '../../components/PhotoUploader';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_VIDEO_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
+import { resizeImageForUpload } from '../../lib/imageResize';
+
+vi.mock('../../lib/imageResize', () => ({
+  resizeImageForUpload: vi.fn(),
+}));
 
 describe('PhotoUploader', () => {
   const mockOnUploadComplete = vi.fn();
@@ -150,6 +155,58 @@ describe('PhotoUploader', () => {
     expect(screen.getByText('Upload').closest('button')).toBeDisabled();
   });
 
+  it('offers resize for an oversized JPG when the browser omits its MIME type', async () => {
+    const largeFile = new File(['image'], 'mime-missing.jpg', { type: '' });
+    Object.defineProperty(largeFile, 'size', {
+      value: MAX_UPLOAD_FILE_SIZE_BYTES + 1,
+    });
+
+    render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
+
+    fireEvent.change(screen.getByLabelText('Choose photos or videos to upload'), {
+      target: { files: [largeFile] },
+    });
+
+    expect(
+      await screen.findByLabelText('Resize mime-missing.jpg to fit size limit'),
+    ).toBeInTheDocument();
+  });
+
+  it('does not resurrect a discarded file when resize finishes after close', async () => {
+    const user = userEvent.setup();
+    let resolveResize!: (file: File) => void;
+    vi.mocked(resizeImageForUpload).mockReturnValue(
+      new Promise<File>((resolve) => {
+        resolveResize = resolve;
+      }),
+    );
+    const largeFile = new File(
+      [new ArrayBuffer(MAX_UPLOAD_FILE_SIZE_BYTES + 1)],
+      'discard-me.jpg',
+      {
+        type: 'image/jpeg',
+      },
+    );
+
+    render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
+
+    await user.upload(screen.getByLabelText('Choose photos or videos to upload'), largeFile);
+    await user.click(await screen.findByLabelText('Resize discard-me.jpg to fit size limit'));
+    await user.click(screen.getByLabelText('Close upload dialog'));
+    await user.click(screen.getByRole('button', { name: 'Yes, Close' }));
+
+    await act(async () => {
+      resolveResize(new File(['resized'], 'discard-me.jpg', { type: 'image/jpeg' }));
+      await Promise.resolve();
+    });
+
+    const nextFile = new File(['next'], 'next.jpg', { type: 'image/jpeg' });
+    await user.upload(screen.getByLabelText('Choose photos or videos to upload'), nextFile);
+
+    expect(await screen.findByText('next.jpg')).toBeInTheDocument();
+    expect(screen.queryByText('discard-me.jpg')).not.toBeInTheDocument();
+  });
+
   it('should exclude oversized videos while continuing with valid files', async () => {
     const user = userEvent.setup();
     const image = new File(['image'], 'valid.jpg', { type: 'image/jpeg' });
@@ -184,7 +241,9 @@ describe('PhotoUploader', () => {
     // Simulate drag enter
     fireEvent.dragEnter(dropZone, {
       dataTransfer: {
-        items: [{ kind: 'file', type: 'image/jpeg' }],
+        files: [file],
+        items: [{ kind: 'file', type: 'image/jpeg', getAsFile: () => file }],
+        types: ['Files'],
       },
     });
 
@@ -192,6 +251,8 @@ describe('PhotoUploader', () => {
     fireEvent.drop(dropZone, {
       dataTransfer: {
         files: [file],
+        items: [{ kind: 'file', type: 'image/jpeg', getAsFile: () => file }],
+        types: ['Files'],
       },
     });
 

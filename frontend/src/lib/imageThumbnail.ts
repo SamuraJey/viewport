@@ -1,3 +1,5 @@
+import { isImageUploadFile } from '../constants/upload';
+
 export interface ThumbnailResult {
   url: string | null;
   cleanup: () => void;
@@ -18,7 +20,7 @@ export async function createImageThumbnail(
   file: File,
   maxDimension: number = DEFAULT_MAX_DIMENSION,
 ): Promise<ThumbnailResult> {
-  if (!file.type.startsWith('image/')) {
+  if (!isImageUploadFile(file)) {
     return { url: null, cleanup: () => {} };
   }
 

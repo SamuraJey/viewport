@@ -304,6 +304,17 @@ describe('GalleryPage', () => {
     expect(screen.getAllByRole('img')).toHaveLength(3);
   });
 
+  it('keeps upload intake mounted while the Appearance tab is active', async () => {
+    const user = userEvent.setup();
+    render(<GalleryPageWrapper />);
+
+    await user.click(await screen.findByRole('tab', { name: 'Appearance' }));
+
+    expect(screen.getByRole('tabpanel', { name: 'Appearance' })).toBeInTheDocument();
+    expect(document.querySelectorAll('input[type="file"]')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: /add photos/i })).toBeEnabled();
+  });
+
   it('should navigate to dashboard after deleting the gallery', async () => {
     const { galleryService } = await import('../../services/galleryService');
 

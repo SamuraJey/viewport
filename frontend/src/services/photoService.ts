@@ -9,6 +9,7 @@ import type {
   PhotoResponse,
   PhotoUploadResult,
   PhotoUploadResponse,
+  PhotoUploadProgress,
   UploadPreparedFile,
   BatchPresignedUploadsRequest,
   BatchPresignedUploadsResponse,
@@ -23,7 +24,7 @@ import {
   VIDEO_PART_SIZE,
   SUPPORTED_IMAGE_TYPES,
   SUPPORTED_VIDEO_TYPES,
-  VIDEO_EXTENSIONS,
+  getUploadContentType,
 } from '../constants/upload';
 
 const DOWNLOAD_TARGET_NAME = 'viewport-browser-download';
@@ -182,13 +183,11 @@ const downloadPhoto = async (galleryId: string, photoId: string): Promise<void> 
 
 // File type detection helpers
 const isVideoFile = (file: File): boolean => {
-  if (SUPPORTED_VIDEO_TYPES.includes(file.type)) return true;
-  const name = file.name.toLowerCase();
-  return VIDEO_EXTENSIONS.some((ext) => name.endsWith(ext));
+  return SUPPORTED_VIDEO_TYPES.includes(getUploadContentType(file));
 };
 
 const isImageFile = (file: File): boolean => {
-  return SUPPORTED_IMAGE_TYPES.includes(file.type);
+  return SUPPORTED_IMAGE_TYPES.includes(getUploadContentType(file));
 };
 
 const validateUploadFile = (file: File): string | null => {
@@ -217,7 +216,7 @@ const batchCreateUploadIntents = async (
     files: files.map((item) => ({
       filename: item.filename,
       file_size: item.file.size,
-      content_type: item.file.type,
+      content_type: getUploadContentType(item.file),
     })),
   };
 
@@ -545,18 +544,11 @@ const uploadMultipartToS3 = async (
 const retryFailedUploads = async (
   galleryId: string,
   failedFiles: UploadPreparedFile[],
-  onProgress?: (progress: {
-    loaded: number;
-    total: number;
-    percentage: number;
-    currentFile: string;
-    successCount: number;
-    failedCount: number;
-  }) => void,
+  onProgress?: (progress: PhotoUploadProgress) => void,
   signal?: AbortSignal,
 ): Promise<PhotoUploadResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().retryFailedUploads(galleryId, failedFiles, onProgress);
+    return getDemoService().retryFailedUploads(galleryId, failedFiles, onProgress, signal);
   }
 
   if (failedFiles.length === 0) {
@@ -568,8 +560,11 @@ const retryFailedUploads = async (
     };
   }
 
-  // Use same batch upload logic as uploadPhotosPresigned
-  return uploadPhotosPresigned(galleryId, failedFiles, onProgress, signal);
+  // Failed uploads have already invalidated their original photo/upload intent.
+  // Retry from a clean prepared item so images get a new photo id and videos get
+  // a new multipart upload id and fresh part URLs.
+  const freshFiles = failedFiles.map(({ file, filename }) => ({ file, filename }));
+  return uploadPhotosPresigned(galleryId, freshFiles, onProgress, signal);
 };
 
 /**
@@ -579,18 +574,11 @@ const retryFailedUploads = async (
 const uploadPhotosPresigned = async (
   galleryId: string,
   files: UploadPreparedFile[],
-  onProgress?: (progress: {
-    loaded: number;
-    total: number;
-    percentage: number;
-    currentFile: string;
-    successCount: number;
-    failedCount: number;
-  }) => void,
+  onProgress?: (progress: PhotoUploadProgress) => void,
   signal?: AbortSignal,
 ): Promise<PhotoUploadResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().uploadPhotosPresigned(galleryId, files, onProgress);
+    return getDemoService().uploadPhotosPresigned(galleryId, files, onProgress, signal);
   }
 
   if (files.length === 0) {
@@ -613,6 +601,10 @@ const uploadPhotosPresigned = async (
     let failedUploads = 0;
     let completedBytes = 0;
     const fileProgress = new Map<string, number>();
+    const fileStates = new Map<
+      string,
+      { status: PhotoUploadProgress['files'][string]['status']; error?: string }
+    >(files.map((item) => [item.filename, { status: 'queued' }]));
 
     const emitProgress = (currentFile: string) => {
       if (!onProgress) return;
@@ -627,6 +619,26 @@ const uploadPhotosPresigned = async (
         currentFile,
         successCount: successfulUploads,
         failedCount: failedUploads,
+        files: Object.fromEntries(
+          files.map((item) => {
+            const state = fileStates.get(item.filename) ?? { status: 'queued' as const };
+            const uploadedBytes = fileProgress.get(item.filename) ?? 0;
+            const percentage =
+              state.status === 'success'
+                ? 100
+                : item.file.size > 0
+                  ? Math.min(100, Math.round((uploadedBytes * 100) / item.file.size))
+                  : 0;
+            return [
+              item.filename,
+              {
+                percentage,
+                status: state.status,
+                ...(state.error ? { error: state.error } : {}),
+              },
+            ];
+          }),
+        ),
       });
     };
 
@@ -650,6 +662,7 @@ const uploadPhotosPresigned = async (
         error,
         retryable: false,
       });
+      fileStates.set(item.filename, { status: 'failed', error });
       completedBytes += item.file.size;
       emitProgress(item.filename);
     }
@@ -741,7 +754,12 @@ const uploadPhotosPresigned = async (
             success: false,
             error: 'Failed to get presigned URL',
           });
+          fileStates.set(file.filename, {
+            status: 'failed',
+            error: 'Failed to get presigned URL',
+          });
           completedBytes += file.file.size;
+          emitProgress(file.filename);
         }
       }
 
@@ -763,6 +781,10 @@ const uploadPhotosPresigned = async (
             success: false,
             error: file._presignError || 'File rejected by server',
           });
+          fileStates.set(file.filename, {
+            status: 'failed',
+            error: file._presignError || 'File rejected by server',
+          });
           completedBytes += file.file.size;
           emitProgress(file.filename);
           await wait(INTER_UPLOAD_DELAY_MS);
@@ -770,6 +792,8 @@ const uploadPhotosPresigned = async (
         }
 
         fileProgress.set(file.filename, 0);
+        fileStates.set(file.filename, { status: 'uploading' });
+        emitProgress(file.filename);
 
         try {
           if (isMultipart) {
@@ -821,6 +845,7 @@ const uploadPhotosPresigned = async (
             original_filename: file.filename,
             success: true,
           });
+          fileStates.set(file.filename, { status: 'success' });
         } catch (error) {
           fileProgress.delete(file.filename);
           completedBytes += file.file.size;
@@ -850,12 +875,14 @@ const uploadPhotosPresigned = async (
               batchFailedPhotoIds.push(file.photo_id);
             }
 
+            const errorMessage = error instanceof Error ? error.message : 'Upload failed';
             results.push({
               filename: file.filename,
               original_filename: file.filename,
               success: false,
-              error: error instanceof Error ? error.message : 'Upload failed',
+              error: errorMessage,
             });
+            fileStates.set(file.filename, { status: 'failed', error: errorMessage });
           }
         }
 
