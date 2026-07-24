@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { GalleryPage } from '../../pages/GalleryPage';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -190,8 +190,8 @@ vi.mock('../../components/Layout', () => ({
 }));
 
 // Mock useParams to return gallery ID
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual('react-router');
   return {
     ...actual,
     useParams: () => mockRouteParams,

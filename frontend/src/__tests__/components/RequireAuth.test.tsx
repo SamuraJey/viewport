@@ -2,17 +2,17 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { RequireAuth } from '../../components/RequireAuth';
 import { useAuthStore } from '../../stores/authStore';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter } from 'react-router';
 
 // Mock the auth store
 vi.mock('../../stores/authStore', () => ({
   useAuthStore: vi.fn(),
 }));
 
-// Mock react-router-dom Navigate component
+// Mock react-router Navigate component
 const mockNavigate = vi.fn();
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual('react-router');
   return {
     ...actual,
     Navigate: ({ to, state, replace }: any) => {
@@ -79,8 +79,8 @@ describe('RequireAuth', () => {
 
   it('should preserve current location in state for redirect after login', () => {
     // Mock different location
-    vi.doMock('react-router-dom', async () => {
-      const actual = await vi.importActual('react-router-dom');
+    vi.doMock('react-router', async () => {
+      const actual = await vi.importActual('react-router');
       return {
         ...actual,
         Navigate: ({ to, state, replace }: any) => {

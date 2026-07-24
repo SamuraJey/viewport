@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowUpDown, GripVertical, Plus, Search } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router';
 
 import { DashboardEmptyState } from '../components/dashboard/DashboardEmptyState';
 import { CreateProjectModal } from '../components/dashboard/CreateProjectModal';

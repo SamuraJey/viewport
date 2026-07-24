@@ -1,4 +1,4 @@
-import { isRouteErrorResponse } from 'react-router-dom';
+import { isRouteErrorResponse } from 'react-router';
 import type { ErrorInfo } from 'react';
 
 export interface ErrorDetails {

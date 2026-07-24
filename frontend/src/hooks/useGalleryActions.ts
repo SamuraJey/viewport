@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { galleryService } from '../services/galleryService';
 import { photoService } from '../services/photoService';
 import { shareLinkService } from '../services/shareLinkService';

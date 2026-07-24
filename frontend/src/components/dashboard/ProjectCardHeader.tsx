@@ -1,6 +1,6 @@
 import { Eye, ImageIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import type { Project } from '../../types';
 import { cn } from '../../lib/utils';

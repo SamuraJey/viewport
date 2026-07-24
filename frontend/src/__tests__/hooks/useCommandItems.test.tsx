@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { vi } from 'vitest';
 import type { ProjectListResponse, ShareLinksDashboardResponse } from '../../types';
 import { useCommandItems } from '../../hooks/useCommandItems';

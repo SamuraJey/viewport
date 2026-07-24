@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Camera, ChevronDown, Home, LogOut, Search, Settings, Share2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router';
 
 import { getAvatarInitials, stringToHue } from '../lib/avatar';
 import { isDemoModeEnabled } from '../lib/demoMode';

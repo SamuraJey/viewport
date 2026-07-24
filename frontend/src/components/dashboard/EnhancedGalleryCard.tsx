@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Edit3, ImageIcon, Share2, Trash2 } from 'lucide-react';
 import type { ReactNode, RefObject, SyntheticEvent } from 'react';
 import { useEffect, useId } from 'react';

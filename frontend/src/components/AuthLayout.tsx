@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Camera } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { ReadabilitySettingsButton } from './ReadabilitySettingsButton';
 import { ThemeSwitch } from './ThemeSwitch';
 import { SkipToContentLink } from './a11y/SkipToContentLink';

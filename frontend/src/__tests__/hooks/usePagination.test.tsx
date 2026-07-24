@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { renderHook, act } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import { usePagination } from '../../hooks/usePagination';
 
 describe('usePagination', () => {
