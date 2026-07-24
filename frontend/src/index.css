@@ -25,10 +25,8 @@
   --color-warning: rgb(var(--color-warning-rgb));
   --color-warning-foreground: rgb(var(--color-warning-foreground-rgb));
 
-  /* Gallery card tokens */
-  --color-card-bg: rgb(var(--color-surface-1-rgb));
+  /* Collection card token */
   --color-card-border: rgb(var(--color-border-rgb));
-  --color-card-hover-shadow: rgb(var(--color-neutral-900-rgb) / 0.15);
 
   /* Animation timing */
   --duration-fast: 150ms;
@@ -1279,7 +1277,6 @@ body.dark .gallery-create__btn,
   --color-surface-dark-1: rgb(var(--color-surface-dark-1-rgb));
   --color-surface-dark-2: rgb(var(--color-surface-dark-2-rgb));
   --color-surface-foreground: rgb(var(--color-surface-foreground-rgb));
-  --color-card-bg: rgb(var(--color-surface-1-rgb));
   --color-card-border: rgb(var(--color-border-rgb));
 }
 

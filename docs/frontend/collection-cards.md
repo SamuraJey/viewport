@@ -36,8 +36,8 @@ with cover actions.
 
 Status badges occupy the top-left cover zone. Contextual actions use the
 top-right zone at `sm` and larger sizes. On narrow viewports, contextual actions
-move to a second row below the badges so localization, additional status
-badges, and focus-visible actions cannot overlap.
+move to a second row at a fixed `top-14` offset. This reduces collision risk,
+but variable-width status badges and contextual actions can still overlap.
 
 ## Accessibility and testing
 

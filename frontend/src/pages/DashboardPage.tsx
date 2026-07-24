@@ -260,6 +260,7 @@ export const DashboardPage = () => {
       await copyText(`${window.location.origin}${sharePath(project.latest_share_link_id)}`);
       setAnnouncement(`Latest share link for ${project.name} copied.`);
     } catch (err) {
+      setAnnouncement('');
       setError(handleApiError(err).message || 'Failed to copy project share link');
     }
   };

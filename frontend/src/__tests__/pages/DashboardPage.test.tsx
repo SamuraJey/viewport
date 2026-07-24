@@ -436,9 +436,9 @@ describe('DashboardPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/projects/project-3');
   });
 
-  it('reports clipboard failures without announcing a successful copy', async () => {
+  it('clears a successful copy announcement when a later copy fails', async () => {
     const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
-    const writeText = vi.fn().mockRejectedValue(new Error('Clipboard access denied'));
+    const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText },
@@ -455,13 +455,22 @@ describe('DashboardPage', () => {
       );
       fireEvent.click(await screen.findByRole('button', { name: 'Copy latest share link' }));
 
-      expect(await screen.findByText('Clipboard access denied')).toBeInTheDocument();
+      const successAnnouncement =
+        'Latest share link for A Very Long Editorial Project Title That Still Needs To Fit Cleanly On The Card copied.';
+      expect(await screen.findByText(successAnnouncement)).toBeInTheDocument();
       expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/share/share-2`);
-      expect(
-        screen.queryByText(
-          'Latest share link for A Very Long Editorial Project Title That Still Needs To Fit Cleanly On The Card copied.',
+
+      writeText.mockRejectedValueOnce(new Error('Clipboard access denied'));
+      fireEvent.click(
+        screen.getByLabelText(
+          'Project actions for A Very Long Editorial Project Title That Still Needs To Fit Cleanly On The Card',
         ),
-      ).not.toBeInTheDocument();
+      );
+      fireEvent.click(await screen.findByRole('button', { name: 'Copy latest share link' }));
+
+      expect(await screen.findByText('Clipboard access denied')).toBeInTheDocument();
+      expect(writeText).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText(successAnnouncement)).not.toBeInTheDocument();
     } finally {
       if (clipboardDescriptor) {
         Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
