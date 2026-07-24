@@ -28,6 +28,10 @@
   /* Collection card token */
   --color-card-border: rgb(var(--color-border-rgb));
 
+  /* Surface elevation tokens */
+  --shadow-card: 0 10px 28px rgb(var(--shadow-color-rgb) / 0.08);
+  --shadow-control: 0 5px 16px rgb(var(--shadow-color-rgb) / 0.06);
+
   /* Animation timing */
   --duration-fast: 150ms;
   --duration-normal: 300ms;
@@ -317,6 +321,7 @@ html.dark {
   --color-info-foreground-rgb: 255 255 255;
   --color-warning-foreground-rgb: 255 255 255;
   --color-photo-overlay-rgb: var(--color-black-rgb);
+  --shadow-color-rgb: 15 23 42;
 
   --readability-font-scale-factor: 1;
   --readability-line-height: 1.5;
@@ -418,6 +423,7 @@ html.dark {
   --color-info-foreground-rgb: 255 255 255;
   --color-warning-foreground-rgb: 255 255 255;
   --color-photo-overlay-rgb: var(--color-black-rgb);
+  --shadow-color-rgb: 255 255 255;
 
   /* High-contrast focus ring on dark surfaces (RFC 002 §2.1) */
   --readability-focus-ring-rgb: var(--color-primary-600-rgb);

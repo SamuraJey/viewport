@@ -11,9 +11,11 @@ import { PaginationControls } from '../components/PaginationControls';
 import { AppListbox } from '../components/ui';
 import { requestProjectAction } from '../components/command/commandActions';
 import { useConfirmation } from '../hooks/useConfirmation';
+import { useCreateProjectModal, useRenameProjectModal } from '../hooks/useDashboardProjectModals';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { usePagination } from '../hooks/usePagination';
 import { usePendingAction } from '../hooks/usePendingAction';
+import { copyTextToClipboard } from '../lib/clipboard';
 import { handleApiError } from '../lib/errorHandling';
 import { projectService } from '../services/projectService';
 import { shareLinkService } from '../services/shareLinkService';
@@ -73,14 +75,9 @@ const copyText = async (value: string): Promise<void> => {
     await navigator.clipboard.writeText(value);
     return;
   }
-  const textarea = document.createElement('textarea');
-  textarea.value = value;
-  textarea.style.position = 'fixed';
-  textarea.style.opacity = '0';
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.execCommand('copy');
-  textarea.remove();
+  if (!(await copyTextToClipboard(value))) {
+    throw new Error('Failed to copy text to clipboard');
+  }
 };
 
 export const DashboardPage = () => {
@@ -93,21 +90,14 @@ export const DashboardPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isCreatingShareLink, setIsCreatingShareLink] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
   const [error, setError] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const [searchInput, setSearchInput] = useState(searchParams.get('search') ?? '');
-  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [newProjectShootingDate, setNewProjectShootingDate] = useState('');
-  const [renamingProject, setRenamingProject] = useState<Project | null>(null);
-  const [renameValue, setRenameValue] = useState('');
-  const [isRenamingProject, setIsRenamingProject] = useState(false);
-  const newProjectInputRef = useRef<HTMLInputElement>(null);
   const fetchRequestIdRef = useRef(0);
   const isReorderingRef = useRef(false);
+  const fetchProjectsRef = useRef<(showLoading?: boolean) => Promise<void>>(async () => undefined);
 
   const activeSearch = useMemo(() => searchParams.get('search')?.trim() ?? '', [searchParams]);
   const sortByParam = searchParams.get('sort_by');
@@ -140,11 +130,21 @@ export const DashboardPage = () => {
         if (requestId !== fetchRequestIdRef.current) return;
         setError(handleApiError(err).message || 'Failed to load projects');
       } finally {
-        if (showLoading && requestId === fetchRequestIdRef.current) setIsLoading(false);
+        if (requestId === fetchRequestIdRef.current) setIsLoading(false);
       }
     },
     [activeSearch, activeSortBy, activeSortOrder, page, pageSize, setTotal],
   );
+  fetchProjectsRef.current = fetchProjects;
+
+  const createProjectModal = useCreateProjectModal({
+    onCreated: (project) => navigate(`/projects/${project.id}`),
+    onError: setError,
+  });
+  const renameProjectModal = useRenameProjectModal({
+    onError: setError,
+    onSaved: () => fetchProjectsRef.current(false),
+  });
 
   useEffect(() => {
     void fetchProjects();
@@ -174,19 +174,8 @@ export const DashboardPage = () => {
     return () => window.clearTimeout(timeoutId);
   }, [activeSearch, searchInput, searchParams, setSearchParams]);
 
-  useEffect(() => {
-    if (isProjectModalOpen) newProjectInputRef.current?.focus();
-  }, [isProjectModalOpen]);
-
-  const openProjectModal = () => {
-    setNewProjectName('');
-    setNewProjectShootingDate(new Date().toISOString().slice(0, 10));
-    setError('');
-    setIsProjectModalOpen(true);
-  };
-
   usePendingAction((action) => {
-    if (action === 'create-project') openProjectModal();
+    if (action === 'create-project') createProjectModal.open();
   });
 
   const updateSort = ({ sortBy, order }: { sortBy: ProjectListSortBy; order: SortOrder }) => {
@@ -197,23 +186,6 @@ export const DashboardPage = () => {
     else nextParams.set('order', order);
     nextParams.delete('page');
     setSearchParams(nextParams);
-  };
-
-  const handleCreateProject = async () => {
-    if (!newProjectName.trim()) return;
-    setIsCreatingProject(true);
-    try {
-      const project = await projectService.createProject({
-        name: newProjectName.trim(),
-        shooting_date: newProjectShootingDate || undefined,
-      });
-      setIsProjectModalOpen(false);
-      navigate(`/projects/${project.id}`);
-    } catch (err) {
-      setError(handleApiError(err).message || 'Failed to create project');
-    } finally {
-      setIsCreatingProject(false);
-    }
   };
 
   const handleDeleteProject = (project: Project) => {
@@ -234,23 +206,23 @@ export const DashboardPage = () => {
 
   const handleReorder = async (reordered: Project[]) => {
     if (isReorderingRef.current) return;
-    const previous = projects;
     isReorderingRef.current = true;
     setIsReordering(true);
     fetchRequestIdRef.current += 1;
     setProjects(reordered);
+    let failureMessage = '';
     try {
       await projectService.reorderProjects(reordered.map((project) => project.id));
-      isReorderingRef.current = false;
-      setIsReordering(false);
-      await fetchProjects(false);
     } catch (err) {
-      setProjects(previous);
-      setAnnouncement('Project order could not be saved. The previous order was restored.');
-      setError(handleApiError(err).message || 'Failed to save project order');
+      failureMessage = handleApiError(err).message || 'Failed to save project order';
     } finally {
       isReorderingRef.current = false;
       setIsReordering(false);
+      await fetchProjectsRef.current(false);
+    }
+    if (failureMessage) {
+      setAnnouncement('Project order could not be saved. The latest project list was reloaded.');
+      setError(failureMessage);
     }
   };
 
@@ -276,9 +248,19 @@ export const DashboardPage = () => {
       const link = await shareLinkService.createProjectShareLink(project.id, {
         expires_at: null,
       });
-      await copyText(`${window.location.origin}${sharePath(link.id)}`);
-      setAnnouncement(`Share link for ${project.name} created and copied.`);
+      let copyFailure = '';
+      try {
+        await copyText(`${window.location.origin}${sharePath(link.id)}`);
+        setAnnouncement(`Share link for ${project.name} created and copied.`);
+      } catch (err) {
+        const detail = handleApiError(err).message;
+        copyFailure = detail
+          ? `Share link created, but copy failed: ${detail}`
+          : 'Share link created, but failed to copy it';
+        setAnnouncement(`Share link for ${project.name} was created, but could not be copied.`);
+      }
       await fetchProjects(false);
+      if (copyFailure) setError(copyFailure);
     } catch (err) {
       setError(handleApiError(err).message || 'Failed to create project share link');
     } finally {
@@ -286,31 +268,17 @@ export const DashboardPage = () => {
     }
   };
 
-  const handleRename = (project: Project) => {
-    setRenamingProject(project);
-    setRenameValue(project.name);
-  };
-
-  const saveRename = async () => {
-    if (!renamingProject || !renameValue.trim()) return;
-    setIsRenamingProject(true);
-    try {
-      await projectService.updateProject(renamingProject.id, { name: renameValue.trim() });
-      setRenamingProject(null);
-      await fetchProjects(false);
-    } catch (err) {
-      setError(handleApiError(err).message || 'Failed to rename project');
-    } finally {
-      setIsRenamingProject(false);
-    }
-  };
-
   const renderLoading = () => (
-    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3" aria-label="Loading projects">
+    <div
+      className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading projects"
+    >
       {Array.from({ length: 6 }).map((_, index) => (
         <div
           key={index}
-          className="overflow-hidden rounded-2xl bg-surface shadow-[0_10px_28px_rgba(15,23,42,0.08)] ring-1 ring-border/45 dark:bg-surface-dark dark:ring-border/35"
+          className="overflow-hidden rounded-2xl bg-surface shadow-card ring-1 ring-border/45 dark:bg-surface-dark dark:ring-border/35"
         >
           <div className="aspect-[16/9] animate-pulse bg-surface-2 dark:bg-surface-dark-2" />
           <div className="space-y-3 p-4">
@@ -319,7 +287,10 @@ export const DashboardPage = () => {
           </div>
           <div className="grid grid-cols-3 divide-x divide-border/40 border-t border-border/40">
             {Array.from({ length: 3 }).map((__, metricIndex) => (
-              <div key={metricIndex} className="h-15 animate-pulse bg-surface-1 dark:bg-surface-dark-1" />
+              <div
+                key={metricIndex}
+                className="h-15 animate-pulse bg-surface-1 dark:bg-surface-dark-1"
+              />
             ))}
           </div>
         </div>
@@ -339,7 +310,7 @@ export const DashboardPage = () => {
         <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto">
           <label
             htmlFor="dashboard-project-search"
-            className="flex h-11 min-w-0 flex-1 items-center rounded-xl bg-surface px-3 shadow-[0_5px_16px_rgba(15,23,42,0.06)] ring-1 ring-border/55 focus-within:ring-[3px] focus-within:ring-accent dark:bg-surface-dark dark:ring-border/40 sm:w-64"
+            className="flex h-11 min-w-0 flex-1 items-center rounded-xl bg-surface px-3 shadow-control ring-1 ring-border/55 focus-within:ring-[3px] focus-within:ring-accent dark:bg-surface-dark dark:ring-border/40 sm:w-64"
           >
             <Search className="mr-2 h-4 w-4 text-muted" aria-hidden="true" />
             <input
@@ -359,11 +330,11 @@ export const DashboardPage = () => {
             className="min-w-0 flex-1 sm:w-64 sm:flex-none"
             aria-label="Sort projects"
             startContent={<ArrowUpDown className="h-4 w-4 text-muted" aria-hidden="true" />}
-            buttonClassName="h-11 border border-border/55 bg-surface px-3 text-sm font-semibold text-text shadow-[0_5px_16px_rgba(15,23,42,0.06)] dark:border-border/40 dark:bg-surface-dark"
+            buttonClassName="h-11 border border-border/55 bg-surface px-3 text-sm font-semibold text-text shadow-control dark:border-border/40 dark:bg-surface-dark"
           />
           <button
             type="button"
-            onClick={openProjectModal}
+            onClick={createProjectModal.open}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-accent px-4 font-bold text-accent-foreground shadow-[0_8px_20px_rgba(31,144,255,0.22)] transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 motion-reduce:transform-none"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
@@ -413,7 +384,7 @@ export const DashboardPage = () => {
           <DashboardEmptyState
             hasSearch={Boolean(activeSearch)}
             searchTerm={activeSearch}
-            onCreateProject={openProjectModal}
+            onCreateProject={createProjectModal.open}
             onClearSearch={() => setSearchInput('')}
           />
         ) : (
@@ -426,10 +397,14 @@ export const DashboardPage = () => {
               onCopyLink={(project) => void handleCopyLink(project)}
               onOpenProject={(project) => navigate(`/projects/${project.id}`)}
               onOpenShare={handleOpenShare}
-              onRename={handleRename}
-              onAddGallery={(project) => requestProjectAction(navigate, project.id, 'create-gallery')}
+              onRename={renameProjectModal.open}
+              onAddGallery={(project) =>
+                requestProjectAction(navigate, project.id, 'create-gallery')
+              }
               onCreateShareLink={(project) => void handleCreateShareLink(project)}
-              onSettings={(project) => requestProjectAction(navigate, project.id, 'project-settings')}
+              onSettings={(project) =>
+                requestProjectAction(navigate, project.id, 'project-settings')
+              }
               onDelete={handleDeleteProject}
             />
             <PaginationControls pagination={pagination} isLoading={isLoading} />
@@ -442,26 +417,24 @@ export const DashboardPage = () => {
       </p>
 
       <CreateProjectModal
-        isOpen={isProjectModalOpen}
-        isCreating={isCreatingProject}
-        name={newProjectName}
-        shootingDate={newProjectShootingDate}
-        inputRef={newProjectInputRef}
-        onClose={() => setIsProjectModalOpen(false)}
-        onConfirm={() => void handleCreateProject()}
-        onNameChange={setNewProjectName}
-        onShootingDateChange={setNewProjectShootingDate}
+        isOpen={createProjectModal.isOpen}
+        isCreating={createProjectModal.isCreating}
+        name={createProjectModal.name}
+        shootingDate={createProjectModal.shootingDate}
+        inputRef={createProjectModal.inputRef}
+        onClose={createProjectModal.close}
+        onConfirm={() => void createProjectModal.save()}
+        onNameChange={createProjectModal.setName}
+        onShootingDateChange={createProjectModal.setShootingDate}
       />
       <RenameProjectModal
-        open={Boolean(renamingProject)}
-        projectName={renamingProject?.name ?? ''}
-        value={renameValue}
-        isSaving={isRenamingProject}
-        onChange={setRenameValue}
-        onClose={() => {
-          if (!isRenamingProject) setRenamingProject(null);
-        }}
-        onSave={() => void saveRename()}
+        open={renameProjectModal.isOpen}
+        projectName={renameProjectModal.project?.name ?? ''}
+        value={renameProjectModal.value}
+        isSaving={renameProjectModal.isSaving}
+        onChange={renameProjectModal.setValue}
+        onClose={renameProjectModal.close}
+        onSave={() => void renameProjectModal.save()}
       />
       {ConfirmModal}
     </div>

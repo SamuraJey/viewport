@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 
 import { DashboardPage } from '../../pages/DashboardPage';
-import type { Project } from '../../types';
+import type { Project, ShareLink } from '../../types';
 
 const mockNavigate = vi.fn();
 
@@ -70,6 +70,18 @@ const mockProjects: Project[] = [
   }),
 ];
 
+const makeShareLink = (id: string): ShareLink => ({
+  id,
+  scope_type: 'project',
+  gallery_id: null,
+  project_id: 'project-1',
+  expires_at: null,
+  views: 0,
+  zip_downloads: 0,
+  single_downloads: 0,
+  created_at: '2026-07-24T00:00:00Z',
+});
+
 vi.mock('../../services/projectService', () => ({
   projectService: {
     getProjects: vi.fn(),
@@ -131,6 +143,9 @@ describe('DashboardPage', () => {
       size: 18,
     });
     vi.mocked(projectService.deleteProject).mockResolvedValue(undefined);
+
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.createProjectShareLink).mockReset();
   });
 
   it('renders the approved dashboard hierarchy and card content model', async () => {
@@ -147,8 +162,12 @@ describe('DashboardPage', () => {
       screen.queryByRole('heading', { level: 2, name: 'Project library' }),
     ).not.toBeInTheDocument();
 
-    expect(screen.getByRole('article', { name: /Wedding Weekend.*20 photos/i })).toBeInTheDocument();
-    expect(screen.getByRole('article', { name: /A Very Long Editorial.*2 active share links/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('article', { name: /Wedding Weekend.*20 photos/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('article', { name: /A Very Long Editorial.*2 active share links/i }),
+    ).toBeInTheDocument();
     expect(screen.getByText('3 watching')).toBeInTheDocument();
     expect(screen.getAllByText('Photos')).toHaveLength(2);
     expect(screen.getAllByText('Storage')).toHaveLength(2);
@@ -183,6 +202,18 @@ describe('DashboardPage', () => {
         order: 'asc',
       });
     });
+  });
+
+  it('exposes project loading as a polite live status', async () => {
+    const { projectService } = await import('../../services/projectService');
+    vi.mocked(projectService.getProjects).mockReturnValue(new Promise(() => undefined));
+
+    render(<DashboardPageWrapper />);
+
+    expect(screen.getByRole('status', { name: 'Loading projects' })).toHaveAttribute(
+      'aria-live',
+      'polite',
+    );
   });
 
   it('polls project delivery activity every 60 seconds without returning to loading state', async () => {
@@ -436,6 +467,36 @@ describe('DashboardPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/projects/project-3');
   });
 
+  it('renames a project through the extracted modal state and refreshes the list', async () => {
+    const user = userEvent.setup();
+    const { projectService } = await import('../../services/projectService');
+    vi.mocked(projectService.updateProject).mockResolvedValue(
+      makeProject({ id: 'project-1', name: 'Renamed Delivery' }),
+    );
+
+    render(<DashboardPageWrapper />);
+
+    await screen.findByText('Wedding Weekend');
+    fireEvent.click(screen.getByLabelText('Project actions for Wedding Weekend'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Rename project' }));
+
+    const renameInput = await screen.findByLabelText('Project name');
+    expect(renameInput).toHaveValue('Wedding Weekend');
+    await user.clear(renameInput);
+    await user.type(renameInput, 'Renamed Delivery');
+    await user.click(screen.getByRole('button', { name: 'Save name' }));
+
+    await waitFor(() => {
+      expect(projectService.updateProject).toHaveBeenCalledWith('project-1', {
+        name: 'Renamed Delivery',
+      });
+    });
+    await waitFor(() => {
+      expect(projectService.getProjects).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.queryByRole('dialog', { name: 'Rename project' })).not.toBeInTheDocument();
+  });
+
   it('clears a successful copy announcement when a later copy fails', async () => {
     const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
     const writeText = vi.fn().mockResolvedValue(undefined);
@@ -471,6 +532,84 @@ describe('DashboardPage', () => {
       expect(await screen.findByText('Clipboard access denied')).toBeInTheDocument();
       expect(writeText).toHaveBeenCalledTimes(2);
       expect(screen.queryByText(successAnnouncement)).not.toBeInTheDocument();
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator, 'clipboard');
+      }
+    }
+  });
+
+  it('treats a false clipboard fallback result as a copy failure and cleans up', async () => {
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const execCommandDescriptor = Object.getOwnPropertyDescriptor(document, 'execCommand');
+    const execCommand = vi.fn().mockReturnValue(false);
+    Reflect.deleteProperty(navigator, 'clipboard');
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: execCommand,
+    });
+
+    try {
+      render(<DashboardPageWrapper />);
+
+      await screen.findByText('Wedding Weekend');
+      fireEvent.click(
+        screen.getByLabelText(
+          'Project actions for A Very Long Editorial Project Title That Still Needs To Fit Cleanly On The Card',
+        ),
+      );
+      fireEvent.click(await screen.findByRole('button', { name: 'Copy latest share link' }));
+
+      expect(await screen.findByText('Failed to copy text to clipboard')).toBeInTheDocument();
+      expect(execCommand).toHaveBeenCalledWith('copy');
+      expect(document.querySelector('textarea')).not.toBeInTheDocument();
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator, 'clipboard');
+      }
+      if (execCommandDescriptor) {
+        Object.defineProperty(document, 'execCommand', execCommandDescriptor);
+      } else {
+        Reflect.deleteProperty(document, 'execCommand');
+      }
+    }
+  });
+
+  it('refreshes after creating a share link even when copying it fails', async () => {
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+    const writeText = vi.fn().mockRejectedValue(new Error('Clipboard access denied'));
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const { projectService } = await import('../../services/projectService');
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.createProjectShareLink).mockResolvedValue(
+      makeShareLink('created-share'),
+    );
+
+    try {
+      render(<DashboardPageWrapper />);
+
+      await screen.findByText('Wedding Weekend');
+      fireEvent.click(screen.getByLabelText('Project actions for Wedding Weekend'));
+      fireEvent.click(await screen.findByRole('button', { name: 'Create share link' }));
+
+      expect(
+        await screen.findByText('Share link created, but copy failed: Clipboard access denied'),
+      ).toBeInTheDocument();
+      expect(shareLinkService.createProjectShareLink).toHaveBeenCalledWith('project-1', {
+        expires_at: null,
+      });
+      expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/share/created-share`);
+      await waitFor(() => {
+        expect(projectService.getProjects).toHaveBeenCalledTimes(2);
+      });
+      expect(screen.queryByText('Failed to create project share link')).not.toBeInTheDocument();
     } finally {
       if (clipboardDescriptor) {
         Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);

@@ -34,7 +34,7 @@ Photo and storage metrics include every non-deleted gallery in the project, incl
 
 Project creation and reorder both lock the owner row before reading or rewriting order, so concurrent creates cannot claim the same position and cannot race a reorder. The endpoint then locks the owner's non-deleted projects, rejects missing, duplicate, or unowned IDs, replaces only the positions occupied by the submitted subset, normalizes all resulting `manual_order` values, and commits atomically. This allows a paginated dashboard to reorder the current page without moving projects from other pages.
 
-The frontend applies reorder optimistically and serializes writes. Silent polling pauses while a reorder is pending, stale list responses are ignored, and a successful write is refreshed from the server. A failed request restores the previous order and announces the rollback. Drag handles support pointer input and dnd-kit's keyboard flow: focus the handle, press Space, move with the arrow keys, then press Space to drop.
+The frontend applies reorder optimistically and serializes writes. Silent polling pauses while a reorder is pending, stale list responses are ignored, and both successful and failed writes refresh the latest active dashboard query from the server. A failed request reports the error without restoring a captured list from an earlier search, sort, or page. Drag handles support pointer input and dnd-kit's keyboard flow: focus the handle, press Space, move with the arrow keys, then press Space to drop.
 
 ## Active delivery presence
 
@@ -50,6 +50,6 @@ Presence is best-effort. If Redis is unavailable at startup or disconnects later
 
 ## Card behavior
 
-Project cards use the saved focal point for the 16:9 cover, expose three metric columns (photos, storage, active links), and reveal up to four preview thumbnails plus quick actions on hover or keyboard focus. The always-visible context menu supports copying the latest link, opening or renaming the project, adding a gallery, creating a share link, opening settings, and deleting the project through the shared confirmation dialog.
+Project cards use the saved focal point for the 16:9 cover, expose three metric columns (photos, storage, active links), and reveal up to four preview thumbnails plus quick actions on hover or keyboard focus. The always-visible context menu supports copying the latest link, opening or renaming the project, adding a gallery, creating a share link, opening settings, and deleting the project through the shared confirmation dialog. After a share link is created, the dashboard refreshes even if clipboard access fails and reports the copy problem separately from link creation.
 
 The empty dashboard uses an illustrated first-project state. Light and dark themes use the existing semantic tokens; the live viewer indicator is absolutely positioned so polling updates do not shift card layout. On touch devices, tapping the cover opens the project and the always-visible `⋮` button exposes actions; a mobile preview drawer is intentionally deferred from this rollout.
