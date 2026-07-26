@@ -68,7 +68,7 @@ describe('UploadConfirmModal', () => {
     const scrollRegion = screen.getByTestId('upload-scroll-region');
 
     expect(scrollRegion).not.toContainElement(overallStatus);
-    expect(screen.getByText('4 files uploading in parallel')).toBeInTheDocument();
+    expect(screen.getByText('photo-4.jpg')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Overall upload progress' })).toHaveAttribute(
       'aria-valuenow',
       '35',

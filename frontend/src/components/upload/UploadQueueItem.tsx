@@ -22,7 +22,10 @@ interface UploadQueueItemProps {
   onResize?: (id: string) => void;
 }
 
-const UPLOAD_PREVIEW_MAX_DIMENSION = 480;
+// Queue cards are at most a few hundred CSS pixels wide. Keeping the generated
+// bitmap at the established 400px cap avoids extra decode/encode work while
+// preserving a crisp preview at every grid breakpoint.
+const UPLOAD_PREVIEW_MAX_DIMENSION = 400;
 
 const statusBadge = (job: UploadJob) => {
   if (job.status === 'uploading') {

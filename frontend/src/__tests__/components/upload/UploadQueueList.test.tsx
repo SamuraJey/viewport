@@ -102,7 +102,7 @@ describe('UploadQueueList', () => {
 
     const preview = await screen.findByRole('img', { name: 'Preview of proof.jpg' });
     expect(preview).toHaveClass('h-full', 'w-full', 'object-cover');
-    expect(createImageThumbnail).toHaveBeenCalledWith(job.file, 480);
+    expect(createImageThumbnail).toHaveBeenCalledWith(job.file, 400);
   });
 
   it('does not generate thumbnails for queue rows outside the viewport', () => {

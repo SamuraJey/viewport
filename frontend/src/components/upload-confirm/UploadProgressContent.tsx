@@ -10,16 +10,8 @@ export const UploadProgressContent = ({ progress, totalCount }: UploadProgressCo
   const uploadedCount = progress.successCount ?? 0;
   const failedCount = progress.failedCount ?? 0;
   const completedCount = uploadedCount + failedCount;
-  const activeCount = Object.values(progress.files).filter(
-    (fileProgress) => fileProgress.status === 'uploading',
-  ).length;
   const liveMessage = `${completedCount} of ${totalCount} files processed.${failedCount > 0 ? ` ${failedCount} failed.` : ''}`;
-  const activityLabel =
-    activeCount > 1
-      ? `${activeCount} files uploading in parallel`
-      : activeCount === 1
-        ? progress.currentFile || 'Uploading file'
-        : 'Preparing the next files';
+  const activityLabel = progress.currentFile || 'Preparing files';
 
   return (
     <div data-testid="upload-overall-status" className="space-y-2.5">
