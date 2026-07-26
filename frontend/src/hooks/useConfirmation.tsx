@@ -93,5 +93,6 @@ export function useConfirmation() {
   return {
     openConfirm,
     ConfirmModal,
+    isConfirmationOpen: state.isOpen,
   };
 }

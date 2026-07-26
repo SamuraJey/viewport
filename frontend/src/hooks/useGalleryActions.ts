@@ -69,7 +69,7 @@ export const useGalleryActions = ({
   const latestGalleryRef = useRef<GalleryDetail | null>(null);
 
   const { error, clearError, handleError } = useErrorHandler();
-  const { openConfirm, ConfirmModal } = useConfirmation();
+  const { openConfirm, ConfirmModal, isConfirmationOpen } = useConfirmation();
   const renameModal = useModal<{ id: string; filename: string }>();
 
   const { page, pageSize, setTotal } = pagination;
@@ -589,7 +589,9 @@ export const useGalleryActions = ({
             setActionInfo('');
           }
           clearSelection();
-          toast.success(`${deletedOrMissingIds.length} photo${deletedOrMissingIds.length > 1 ? 's' : ''} deleted`);
+          toast.success(
+            `${deletedOrMissingIds.length} photo${deletedOrMissingIds.length > 1 ? 's' : ''} deleted`,
+          );
         }
 
         if (result.failed_ids.length > 0) {
@@ -625,6 +627,7 @@ export const useGalleryActions = ({
     error,
     clearError,
     ConfirmModal,
+    isConfirmationOpen,
     renameModal,
     fetchGalleryDetails,
     fetchShareLinks,

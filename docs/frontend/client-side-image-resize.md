@@ -1,14 +1,15 @@
 # Client-Side Image Resize
 
-Oversized JPEG/PNG files (>10 MB) are resized in the browser before upload using
-`browser-image-compression`. Users never hit a hard rejection — oversized files
-always open the upload confirmation modal where resize controls are available.
+Oversized JPEG/PNG files (>10 MB) that enter the upload queue can be resized in
+the browser using `browser-image-compression`. They remain staged in the
+confirmation modal, but cannot upload until resized to the 10 MB image limit or
+removed.
 
 ## Entry point
 
-`PhotoUploadConfirmModal` (`frontend/src/components/PhotoUploadConfirmModal.tsx`)
-always renders `UploadSelectionContent` when files are selected. The early
-rejection path for oversized files was removed.
+`UploadConfirmModal` (`frontend/src/components/upload/UploadConfirmModal.tsx`)
+keeps oversized supported images in the staged upload queue with resize controls
+instead of rejecting them before review.
 
 ## Core module
 
@@ -38,36 +39,42 @@ hand-tuned quality would be overridden by the binary search anyway.
 
 ## Supported MIME types
 
-`SUPPORTED_IMAGE_TYPES` in `constants/upload.ts` (single source of truth, imported by
-`uploadConfirmUtils.ts`, `imageResize.ts`, and `usePhotoUpload.ts`):
+`SUPPORTED_IMAGE_TYPES` in `constants/upload.ts` is the single source of truth:
 
 ```ts
 ['image/jpeg', 'image/png', 'image/jpg']
 ```
 
-All three modules now import from the same constant — the lists can no longer diverge.
+When a browser omits `File.type`, upload classification resolves a supported
+content type from the filename extension before validation or resizing.
 
 ## UI: upload confirmation modal
 
-All resize UI lives in `frontend/src/components/upload-confirm/`.
+All current resize orchestration lives in
+`frontend/src/components/upload/UploadConfirmModal.tsx`, with row actions in
+`UploadQueueItem.tsx`.
 
 ### Single resize
 
-Per-file "Resize" button in `FileCard` (only visible when `canResize` is true —
-file is oversized AND has a supported type).
+The per-file **Resize** button is visible only when the shared
+`isResizableOversizedImage` predicate passes: the file is a supported image and
+exceeds the 10 MB image limit.
 
-Flow: `handleResize(index)` → `resizeImageForUpload(file)` → `handleReplaceFile(index, resized)`.
+Flow: `handleResize(jobId)` → `resizeImageForUpload(file)` →
+`handleReplaceJob(jobId, resized)`.
 
-Errors shown via `resizeError` banner (auto-clears after 5 seconds).
+Resize errors are shown as a toast and leave the original queue row available.
 
 ### Batch resize
 
-"Resize All (N)" button in the issues banner (visible when `hasLargeFiles`).
+**Resize all** is available when one or more queue rows satisfy the same shared
+resize predicate.
 
-Flow: `handleResizeAll()` → local mutable copy of `files` → sequential `resizeImageForUpload` per oversized file → `onFilesChange(workingFiles)` once at end.
+Flow: `handleResizeAll()` → local mutable copy of `files` → sequential
+`resizeImageForUpload` per eligible image → `onFilesChange(workingFiles)` once
+at the end.
 
-Batch errors accumulated as `failedCount` and surfaced after the loop:
-`"2 of 5 files failed to resize"`.
+Each failed resize reports its file and leaves that original file in the queue.
 
 ### Size display
 
@@ -76,25 +83,36 @@ Oversized files show: `14.2 MB → ≤ 10 MB`
 This is an honest upper bound — the library guarantees output ≤10 MB. No fake
 estimate is computed.
 
+### Queue and cancellation contract
+
+Files from **Add photos**, page-wide drag-and-drop, and clipboard paste enter the
+same confirmation queue. Owners may reorder it before upload with the pointer or
+keyboard grip. Each row keeps independent progress and failure state, and retry
+requests a fresh upload intent for that file only. Closing a populated or active
+queue requires confirmation; canceling an active run stops remaining work
+without undoing files that already completed. Images must be at most 10 MB after
+optional resize, while supported videos remain unmodified and may be up to
+500 MB. See [Photo upload UX](../photo-upload-ux.md) for the complete intake and
+transfer contract.
+
 ## Performance considerations
 
 | Concern | Solution |
 |---|---|
-| `FileCard` re-renders during batch | `isResizingBatch` prop disables Framer Motion `layout` animation |
-| `handleResize`/`handleResizeAll` recreations | Wrapped in `useCallback` with correct deps |
-| Stale-closure overwrites in batch loop | Local mutable copy, single `onFilesChange` at end |
+| Queue rows during batch resize | Per-row `resizingJobId` keeps the active state local |
+| `handleResize`/`handleResizeAll` recreations | Wrapped in `useCallback` with explicit dependencies |
+| Stale-closure overwrites in batch loop | Local mutable copy, single `onFilesChange` at the end |
 | Bundle size (~25 KB gzipped) | Code-split via page-level `React.lazy()` on `GalleryPage` in `App.tsx` |
 
 ## Utility functions
 
-In `frontend/src/components/upload-confirm/uploadConfirmUtils.ts`:
+In `frontend/src/components/upload/uploadUtils.ts`:
 
 | Function | Purpose |
 |---|---|
-| `isFileTooLarge(file)` | `file.size > MAX_UPLOAD_FILE_SIZE_BYTES` |
-| `isResizableFile(file)` | Too large AND supported type — gates the Resize button |
-| `hasFileUploadError(file)` | Too large OR invalid type |
-| `getFileUploadErrorText(file)` | Human-readable error for the file card |
+| `isResizableOversizedImage(file)` | Supported oversized image — gates all resize actions |
+| `getUploadValidationError(file)` | Empty, unsupported, and type-specific size validation |
+| `prepareUploadSelection(current, incoming)` | Ordered deduplication without truncating the selection |
 
 ## Related files
 
@@ -105,12 +123,12 @@ frontend/src/
 │   └── imageThumbnail.ts            # createImageThumbnail (thumbnail previews)
 ├── components/
 │   ├── PhotoUploader.tsx           # Entry: file selection → modal
-│   ├── PhotoUploadConfirmModal.tsx # Modal orchestration
-│   └── upload-confirm/
-│       ├── UploadSelectionContent.tsx  # Resize UI, handlers, state
-│       └── uploadConfirmUtils.ts       # Size/type checks
+│   └── upload/
+│       ├── UploadConfirmModal.tsx  # Queue and resize orchestration
+│       ├── UploadQueueItem.tsx     # Per-file resize action
+│       └── uploadUtils.ts          # Shared validation and resize predicate
 ├── hooks/
-│   └── usePhotoUpload.ts           # handleReplaceFile, onFilesChange
+│   └── usePhotoUpload.ts           # Queue jobs, replace, upload, retry, cancel
 └── constants/
-    └── upload.ts                   # MAX_UPLOAD_FILE_SIZE_BYTES
+    └── upload.ts                   # Image/video types and size limits
 ```

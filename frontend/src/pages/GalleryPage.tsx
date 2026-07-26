@@ -16,7 +16,7 @@ import { usePhotoLightbox } from '../hooks/usePhotoLightbox';
 import { GalleryHeader } from '../components/gallery/GalleryHeader';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { GallerySelectionSessionsPanel } from '../components/gallery/GallerySelectionSessionsPanel';
-import { GalleryDragOverlay } from '../components/gallery/GalleryDragOverlay';
+import { GalleryDropZone } from '../components/gallery/GalleryDropZone';
 import { GalleryPhotoSection } from '../components/gallery/GalleryPhotoSection';
 import { GalleryAppearanceSection } from '../components/gallery-appearance/GalleryAppearanceSection';
 import { AppTabs } from '../components/ui';
@@ -25,9 +25,8 @@ import {
   GalleryLoadErrorState,
   GalleryNotFoundState,
 } from '../components/gallery/GalleryPageStates';
-import { type PhotoUploaderHandle } from '../components/PhotoUploader';
+import { PhotoUploader, type PhotoUploaderHandle } from '../components/PhotoUploader';
 import { useGalleryActions } from '../hooks/useGalleryActions';
-import { useGalleryDragAndDrop } from '../hooks/useGalleryDragAndDrop';
 import { usePagination } from '../hooks/usePagination';
 import { useSelection } from '../hooks/useSelection';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -124,9 +123,9 @@ export const GalleryPage = () => {
   );
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showInitialLoadingState, setShowInitialLoadingState] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isShareLinkCreateOpen, setIsShareLinkCreateOpen] = useState(false);
   const [editingShareLink, setEditingShareLink] = useState<ShareLink | null>(null);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [photoSizeById, setPhotoSizeById] = useState<Record<string, number>>({});
   const [favoritesTabs, setFavoritesTabs] = useState<FavoritesUserTab[]>([]);
   const [selectedFavoritesTabKey, setSelectedFavoritesTabKey] = useState<string | null>(null);
@@ -237,6 +236,7 @@ export const GalleryPage = () => {
     error,
     clearError,
     ConfirmModal,
+    isConfirmationOpen,
     renameModal,
     fetchGalleryDetails,
     fetchShareLinks,
@@ -468,22 +468,29 @@ export const GalleryPage = () => {
     handleSavePublicSortSettings,
   ]);
 
-  // Drag and Drop
-  const {
-    isPageDragActive,
-    handleGalleryDragEnter,
-    handleGalleryDragOver,
-    handleGalleryDragLeave,
-    handleGalleryDrop,
-  } = useGalleryDragAndDrop(photoUploaderRef);
-
   // Lightbox
-  const { openLightbox, renderLightbox } = usePhotoLightbox({
+  const { lightboxOpen, openLightbox, renderLightbox } = usePhotoLightbox({
     photoCardSelector: '[data-photo-card]',
     gridRef,
   });
 
   // Derived state
+  const isPageModalOpen =
+    lightboxOpen ||
+    renameModal.isOpen ||
+    isShareLinkCreateOpen ||
+    Boolean(editingShareLink) ||
+    isConfirmationOpen ||
+    isUploadModalOpen;
+
+  const handleDropZoneFilesAccepted = useCallback((files: File[]) => {
+    if (!photoUploaderRef.current) {
+      return 0;
+    }
+
+    return photoUploaderRef.current.handleExternalFiles(files);
+  }, []);
+
   const areAllOnPageSelected =
     photoUrls.length > 0 && photoUrls.every((p) => selection.isSelected(p.id));
 
@@ -1043,11 +1050,9 @@ export const GalleryPage = () => {
       panel: (
         <div className="space-y-8">
           <GalleryPhotoSection
-            galleryId={galleryId}
             pagination={pagination}
             gridRef={gridRef}
             photoUploaderRef={photoUploaderRef}
-            onModalStateChange={setIsModalOpen}
             state={{
               photoUrls,
               isLoadingPhotos,
@@ -1068,7 +1073,6 @@ export const GalleryPage = () => {
                 gallery.cover_photo_id === photoId,
             }}
             actions={{
-              onUploadComplete: handleUploadComplete,
               onDismissUploadError: () => setUploadError(''),
               onDismissActionInfo: () => setActionInfo(''),
               onDismissError: clearError,
@@ -1152,145 +1156,149 @@ export const GalleryPage = () => {
   ];
 
   return (
-    <div
-      className="relative min-h-screen pb-20"
-      onDragEnter={isModalOpen ? undefined : handleGalleryDragEnter}
-      onDragOver={isModalOpen ? undefined : handleGalleryDragOver}
-      onDragLeave={isModalOpen ? undefined : handleGalleryDragLeave}
-      onDrop={isModalOpen ? undefined : handleGalleryDrop}
-      aria-label={isSelectionMode ? 'Selection mode active' : undefined}
-    >
-      <GalleryDragOverlay isActive={isPageDragActive} />
-
-      <div className="space-y-4">
-        {/* Gallery Header */}
-        <GalleryHeader
-          gallery={gallery}
-          title={gallery.name || undefined}
-          subtitle={galleryHeaderSubtitle}
-          backTo={project ? `/projects/${project.id}` : undefined}
-          backLabel={project ? 'Back to Project' : undefined}
-          projectNavigation={projectNavigation}
-          settingsHref={project ? `/projects/${project.id}` : undefined}
-          visiblePhotoCount={photoUrls.length}
-          totalPhotoCount={pagination.total}
-          isLoadingPhotos={isLoadingPhotos}
-          shootingDateInput={shootingDateInput}
-          onShootingDateChange={setShootingDateInput}
-          isSavingShootingDate={isSavingShootingDate}
-          publicSortBy={publicSortByInput}
-          publicSortOrder={publicSortOrderInput}
-          onPublicSortChange={({
-            sortBy: nextSortBy,
-            sortOrder: nextSortOrder,
-          }: {
-            sortBy: GalleryPhotoSortBy;
-            sortOrder: SortOrder;
-          }) => {
-            setPublicSortByInput(nextSortBy);
-            setPublicSortOrderInput(nextSortOrder);
-          }}
-          isSavingPublicSortSettings={isSavingPublicSortSettings}
-          searchValue={searchInput}
-          sortBy={sortBy}
-          sortOrder={sortOrder}
-          onDeleteGallery={handleDeleteGallery}
-          onAddPhotos={() => photoUploaderRef.current?.openFilePicker()}
-          onDownloadGallery={photoUrls.length > 0 ? handleDownloadGallery : undefined}
-          onToggleSelectionMode={photoUrls.length > 0 ? handleToggleSelectionMode : undefined}
-          isSelectionMode={isSelectionMode}
-          isDownloadingZip={isDownloadingZip}
-          onCreateShareLink={() => setIsShareLinkCreateOpen(true)}
-          isCreatingShareLink={isCreatingLink}
-          shareLinkCount={shareLinks.length}
-          onSearchChange={setSearchInput}
-          onSortChange={({
-            sortBy: nextSortBy,
-            sortOrder: nextSortOrder,
-          }: {
-            sortBy: GalleryPhotoSortBy;
-            sortOrder: SortOrder;
-          }) => {
-            updateFilterQueryParams({
+    <GalleryDropZone onFilesAccepted={handleDropZoneFilesAccepted} disabled={isPageModalOpen}>
+      <PhotoUploader
+        ref={photoUploaderRef}
+        galleryId={galleryId}
+        onUploadComplete={handleUploadComplete}
+        existingFilenames={photoUrls.map((photo) => photo.filename)}
+        showDropzone={false}
+        onModalStateChange={setIsUploadModalOpen}
+      />
+      <div
+        className="relative min-h-screen pb-20"
+        aria-label={isSelectionMode ? 'Selection mode active' : undefined}
+      >
+        <div className="space-y-4">
+          {/* Gallery Header */}
+          <GalleryHeader
+            gallery={gallery}
+            title={gallery.name || undefined}
+            subtitle={galleryHeaderSubtitle}
+            backTo={project ? `/projects/${project.id}` : undefined}
+            backLabel={project ? 'Back to Project' : undefined}
+            projectNavigation={projectNavigation}
+            settingsHref={project ? `/projects/${project.id}` : undefined}
+            visiblePhotoCount={photoUrls.length}
+            totalPhotoCount={pagination.total}
+            isLoadingPhotos={isLoadingPhotos}
+            shootingDateInput={shootingDateInput}
+            onShootingDateChange={setShootingDateInput}
+            isSavingShootingDate={isSavingShootingDate}
+            publicSortBy={publicSortByInput}
+            publicSortOrder={publicSortOrderInput}
+            onPublicSortChange={({
               sortBy: nextSortBy,
-              order: nextSortOrder,
-              resetPage: true,
-            });
-          }}
-        />
-
-        <AppTabs
-          items={
-            isFavoritesTabVisible
-              ? contentTabItems
-              : contentTabItems.filter((item) => item.key !== 'favorites')
-          }
-          selectedKey={activeContentTab}
-          onChange={handleSelectContentTab}
-          listClassName="flex items-center gap-2 overflow-x-auto px-1 pt-1"
-          panelsClassName="mt-3"
-        />
-      </div>
-
-      {/* Lightbox */}
-      {renderLightbox(
-        photoUrls.map((photo) => ({
-          src: photo.url,
-          thumbnailSrc: photo.thumbnail_url,
-          alt: photo.filename,
-          download: photo.url,
-          downloadFilename: photo.filename,
-          media_type: photo.media_type,
-          playback_url: photo.playback_url,
-          duration_ms: photo.duration_ms,
-          onDownload: () => {
-            void handleDownloadPhoto(photo.id);
-          },
-        })),
-        pagination.total,
-      )}
-
-      {/* Photo Rename Modal */}
-      <AnimatePresence>
-        {renameModal.isOpen && (
-          <PhotoRenameModal
-            isOpen={renameModal.isOpen}
-            onClose={renameModal.close}
-            currentFilename={renameModal.data?.filename || ''}
-            onRename={handleRenameConfirm}
+              sortOrder: nextSortOrder,
+            }: {
+              sortBy: GalleryPhotoSortBy;
+              sortOrder: SortOrder;
+            }) => {
+              setPublicSortByInput(nextSortBy);
+              setPublicSortOrderInput(nextSortOrder);
+            }}
+            isSavingPublicSortSettings={isSavingPublicSortSettings}
+            searchValue={searchInput}
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            onDeleteGallery={handleDeleteGallery}
+            onAddPhotos={() => photoUploaderRef.current?.openFilePicker()}
+            onDownloadGallery={photoUrls.length > 0 ? handleDownloadGallery : undefined}
+            onToggleSelectionMode={photoUrls.length > 0 ? handleToggleSelectionMode : undefined}
+            isSelectionMode={isSelectionMode}
+            isDownloadingZip={isDownloadingZip}
+            onCreateShareLink={() => setIsShareLinkCreateOpen(true)}
+            isCreatingShareLink={isCreatingLink}
+            shareLinkCount={shareLinks.length}
+            onSearchChange={setSearchInput}
+            onSortChange={({
+              sortBy: nextSortBy,
+              sortOrder: nextSortOrder,
+            }: {
+              sortBy: GalleryPhotoSortBy;
+              sortOrder: SortOrder;
+            }) => {
+              updateFilterQueryParams({
+                sortBy: nextSortBy,
+                order: nextSortOrder,
+                resetPage: true,
+              });
+            }}
           />
-        )}
-      </AnimatePresence>
 
-      <AnimatePresence>
-        {gallery ? (
-          <ShareLinkSettingsModal
-            isOpen={isShareLinkCreateOpen}
-            mode="create"
-            galleryName={gallery.name}
-            onClose={() => setIsShareLinkCreateOpen(false)}
-            onCreate={handleCreateShareLink}
-            onSaveSelectionConfig={(shareLinkId, payload) =>
-              shareLinkService.updateOwnerSelectionConfig(galleryId, shareLinkId, payload)
+          <AppTabs
+            items={
+              isFavoritesTabVisible
+                ? contentTabItems
+                : contentTabItems.filter((item) => item.key !== 'favorites')
             }
-            onManageCreated={(shareLinkId) => navigate(`/share-links/${shareLinkId}`)}
+            selectedKey={activeContentTab}
+            onChange={handleSelectContentTab}
+            listClassName="flex items-center gap-2 overflow-x-auto px-1 pt-1"
+            panelsClassName="mt-3"
           />
-        ) : null}
-      </AnimatePresence>
+        </div>
 
-      <AnimatePresence>
-        {editingShareLink ? (
-          <ShareLinkEditorModal
-            isOpen={Boolean(editingShareLink)}
-            link={editingShareLink}
-            onClose={() => setEditingShareLink(null)}
-            onSave={(payload) => handleUpdateShareLink(editingShareLink.id, payload)}
-          />
-        ) : null}
-      </AnimatePresence>
+        {/* Lightbox */}
+        {renderLightbox(
+          photoUrls.map((photo) => ({
+            src: photo.url,
+            thumbnailSrc: photo.thumbnail_url,
+            alt: photo.filename,
+            download: photo.url,
+            downloadFilename: photo.filename,
+            media_type: photo.media_type,
+            playback_url: photo.playback_url,
+            duration_ms: photo.duration_ms,
+            onDownload: () => {
+              void handleDownloadPhoto(photo.id);
+            },
+          })),
+          pagination.total,
+        )}
 
-      {/* Confirmation Modal */}
-      {ConfirmModal}
-    </div>
+        {/* Photo Rename Modal */}
+        <AnimatePresence>
+          {renameModal.isOpen && (
+            <PhotoRenameModal
+              isOpen={renameModal.isOpen}
+              onClose={renameModal.close}
+              currentFilename={renameModal.data?.filename || ''}
+              onRename={handleRenameConfirm}
+            />
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {gallery ? (
+            <ShareLinkSettingsModal
+              isOpen={isShareLinkCreateOpen}
+              mode="create"
+              galleryName={gallery.name}
+              onClose={() => setIsShareLinkCreateOpen(false)}
+              onCreate={handleCreateShareLink}
+              onSaveSelectionConfig={(shareLinkId, payload) =>
+                shareLinkService.updateOwnerSelectionConfig(galleryId, shareLinkId, payload)
+              }
+              onManageCreated={(shareLinkId) => navigate(`/share-links/${shareLinkId}`)}
+            />
+          ) : null}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {editingShareLink ? (
+            <ShareLinkEditorModal
+              isOpen={Boolean(editingShareLink)}
+              link={editingShareLink}
+              onClose={() => setEditingShareLink(null)}
+              onSave={(payload) => handleUpdateShareLink(editingShareLink.id, payload)}
+            />
+          ) : null}
+        </AnimatePresence>
+
+        {/* Confirmation Modal */}
+        {ConfirmModal}
+      </div>
+    </GalleryDropZone>
   );
 };

@@ -1,8 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PhotoUploader } from '../../components/PhotoUploader';
+import { GalleryDropZone } from '../../components/gallery/GalleryDropZone';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_VIDEO_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
+import { resizeImageForUpload } from '../../lib/imageResize';
+
+vi.mock('../../lib/imageResize', () => ({
+  resizeImageForUpload: vi.fn(async (file: File) => file),
+}));
 
 describe('PhotoUploader', () => {
   const mockOnUploadComplete = vi.fn();
@@ -11,6 +17,11 @@ describe('PhotoUploader', () => {
     vi.clearAllMocks();
     // Make sure onUploadComplete returns a resolved promise by default
     mockOnUploadComplete.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.mocked(resizeImageForUpload).mockReset();
+    vi.mocked(resizeImageForUpload).mockImplementation(async (file: File) => file);
   });
 
   it('should render drop zone with file input', () => {
@@ -91,6 +102,110 @@ describe('PhotoUploader', () => {
     }
   });
 
+  it('re-enables intake after the last queued file is removed', async () => {
+    const user = userEvent.setup();
+    const onModalStateChange = vi.fn();
+    const firstFile = new File(['first'], 'first.jpg', { type: 'image/jpeg' });
+    const nextFile = new File(['next'], 'next-drop.jpg', { type: 'image/jpeg' });
+
+    render(
+      <PhotoUploader
+        galleryId="test-gallery"
+        onUploadComplete={mockOnUploadComplete}
+        onModalStateChange={onModalStateChange}
+      />,
+    );
+
+    const dropZone = screen.getByLabelText(/upload photos or videos/i);
+    const fileInput = dropZone.querySelector('input[type="file"]');
+    expect(fileInput).toBeInTheDocument();
+
+    await user.upload(fileInput as HTMLInputElement, firstFile);
+    expect(await screen.findByText('first.jpg')).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText('Remove first.jpg'));
+
+    await waitFor(() => {
+      expect(screen.queryByText('first.jpg')).not.toBeInTheDocument();
+      expect(onModalStateChange).toHaveBeenLastCalledWith(false);
+    });
+
+    fireEvent.drop(dropZone, {
+      dataTransfer: {
+        files: [nextFile],
+        items: [{ kind: 'file', type: 'image/jpeg', getAsFile: () => nextFile }],
+        types: ['Files'],
+      },
+    });
+
+    expect(await screen.findByText('next-drop.jpg')).toBeInTheDocument();
+    expect(onModalStateChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it('adds dropped files to an existing review queue', async () => {
+    const user = userEvent.setup();
+    const firstFile = new File(['first'], 'first.jpg', { type: 'image/jpeg' });
+    const addedFile = new File(['added'], 'added-in-review.jpg', { type: 'image/jpeg' });
+
+    render(
+      <GalleryDropZone onFilesAccepted={vi.fn()} disabled>
+        <PhotoUploader
+          galleryId="test-gallery"
+          onUploadComplete={mockOnUploadComplete}
+          showDropzone={false}
+        />
+      </GalleryDropZone>,
+    );
+
+    const initialInput = screen
+      .getAllByLabelText('Choose photos or videos to upload')
+      .find((input) => input.classList.contains('hidden'));
+    expect(initialInput).toBeDefined();
+    await user.upload(initialInput!, firstFile);
+    expect(await screen.findByText('first.jpg')).toBeInTheDocument();
+
+    fireEvent.dragEnter(initialInput.parentElement!, {
+      dataTransfer: {
+        files: [addedFile],
+        items: [{ kind: 'file', type: 'image/jpeg', getAsFile: () => addedFile }],
+        types: ['Files'],
+      },
+    });
+    expect(screen.queryByTestId('upload-drag-overlay')).not.toBeInTheDocument();
+
+    const reviewModalHeader = screen.getByRole('heading', { name: /review files/i });
+    fireEvent.drop(reviewModalHeader, {
+      dataTransfer: {
+        files: [addedFile],
+        items: [{ kind: 'file', type: 'image/jpeg', getAsFile: () => addedFile }],
+        types: ['Files'],
+      },
+    });
+
+    expect(await screen.findByText('added-in-review.jpg')).toBeInTheDocument();
+    expect(screen.getByText('first.jpg')).toBeInTheDocument();
+  });
+
+  it('adds pasted files to an existing review queue', async () => {
+    const user = userEvent.setup();
+    const firstFile = new File(['first'], 'first.jpg', { type: 'image/jpeg' });
+    const pastedFile = new File(['pasted'], 'pasted-in-review.jpg', { type: 'image/jpeg' });
+
+    render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
+
+    await user.upload(screen.getByLabelText('Choose photos or videos to upload'), firstFile);
+    expect(await screen.findByText('first.jpg')).toBeInTheDocument();
+
+    fireEvent.paste(document, {
+      clipboardData: {
+        items: [{ kind: 'file', type: 'image/jpeg', getAsFile: () => pastedFile }],
+      },
+    });
+
+    expect(await screen.findByText('pasted-in-review.jpg')).toBeInTheDocument();
+    expect(screen.getByText('first.jpg')).toBeInTheDocument();
+  });
+
   it('should reject unsupported files', async () => {
     const onUploadComplete = vi.fn().mockResolvedValue(undefined);
     render(<PhotoUploader galleryId="test-gallery" onUploadComplete={onUploadComplete} />);
@@ -150,6 +265,58 @@ describe('PhotoUploader', () => {
     expect(screen.getByText('Upload').closest('button')).toBeDisabled();
   });
 
+  it('offers resize for an oversized JPG when the browser omits its MIME type', async () => {
+    const largeFile = new File(['image'], 'mime-missing.jpg', { type: '' });
+    Object.defineProperty(largeFile, 'size', {
+      value: MAX_UPLOAD_FILE_SIZE_BYTES + 1,
+    });
+
+    render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
+
+    fireEvent.change(screen.getByLabelText('Choose photos or videos to upload'), {
+      target: { files: [largeFile] },
+    });
+
+    expect(
+      await screen.findByLabelText('Resize mime-missing.jpg to fit size limit'),
+    ).toBeInTheDocument();
+  });
+
+  it('does not resurrect a discarded file when resize finishes after close', async () => {
+    const user = userEvent.setup();
+    let resolveResize!: (file: File) => void;
+    vi.mocked(resizeImageForUpload).mockReturnValue(
+      new Promise<File>((resolve) => {
+        resolveResize = resolve;
+      }),
+    );
+    const largeFile = new File(
+      [new ArrayBuffer(MAX_UPLOAD_FILE_SIZE_BYTES + 1)],
+      'discard-me.jpg',
+      {
+        type: 'image/jpeg',
+      },
+    );
+
+    render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
+
+    await user.upload(screen.getByLabelText('Choose photos or videos to upload'), largeFile);
+    await user.click(await screen.findByLabelText('Resize discard-me.jpg to fit size limit'));
+    await user.click(screen.getByLabelText('Close upload dialog'));
+    await user.click(screen.getByRole('button', { name: 'Yes, Close' }));
+
+    await act(async () => {
+      resolveResize(new File(['resized'], 'discard-me.jpg', { type: 'image/jpeg' }));
+      await Promise.resolve();
+    });
+
+    const nextFile = new File(['next'], 'next.jpg', { type: 'image/jpeg' });
+    await user.upload(screen.getByLabelText('Choose photos or videos to upload'), nextFile);
+
+    expect(await screen.findByText('next.jpg')).toBeInTheDocument();
+    expect(screen.queryByText('discard-me.jpg')).not.toBeInTheDocument();
+  });
+
   it('should exclude oversized videos while continuing with valid files', async () => {
     const user = userEvent.setup();
     const image = new File(['image'], 'valid.jpg', { type: 'image/jpeg' });
@@ -184,7 +351,9 @@ describe('PhotoUploader', () => {
     // Simulate drag enter
     fireEvent.dragEnter(dropZone, {
       dataTransfer: {
-        items: [{ kind: 'file', type: 'image/jpeg' }],
+        files: [file],
+        items: [{ kind: 'file', type: 'image/jpeg', getAsFile: () => file }],
+        types: ['Files'],
       },
     });
 
@@ -192,6 +361,8 @@ describe('PhotoUploader', () => {
     fireEvent.drop(dropZone, {
       dataTransfer: {
         files: [file],
+        items: [{ kind: 'file', type: 'image/jpeg', getAsFile: () => file }],
+        types: ['Files'],
       },
     });
 

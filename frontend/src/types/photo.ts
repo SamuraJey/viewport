@@ -40,6 +40,24 @@ export interface PhotoUploadResponse {
   failed_uploads: number;
 }
 
+export interface UploadFileProgress {
+  percentage: number;
+  status: 'queued' | 'uploading' | 'success' | 'failed';
+  error?: string;
+}
+
+export interface PhotoUploadProgress {
+  loaded: number;
+  total: number;
+  percentage: number;
+  currentFile: string;
+  currentBatch?: number;
+  totalBatches?: number;
+  successCount: number;
+  failedCount: number;
+  files: Record<string, UploadFileProgress>;
+}
+
 // Presigned upload types
 interface PhotoUploadIntentRequest {
   filename: string;

@@ -5,9 +5,9 @@ import { PaginationControls } from '../PaginationControls';
 import { EmptyGalleryState } from './EmptyGalleryState';
 import { PhotoCard } from './PhotoCard';
 import { PhotoSelectionBar } from './PhotoSelectionBar';
-import { PhotoUploader, type PhotoUploaderHandle } from '../PhotoUploader';
+import type { PhotoUploaderHandle } from '../PhotoUploader';
 import { formatFileSize } from '../../lib/utils';
-import type { PhotoUploadResponse, GalleryPhoto } from '../../types';
+import type { GalleryPhoto } from '../../types';
 
 interface GalleryPagination {
   page: number;
@@ -22,11 +22,9 @@ interface GalleryPagination {
 }
 
 interface GalleryPhotoSectionProps {
-  galleryId: string;
   pagination: GalleryPagination;
   gridRef: MutableRefObject<HTMLDivElement | null>;
   photoUploaderRef: RefObject<PhotoUploaderHandle | null>;
-  onModalStateChange?: (isOpen: boolean) => void;
   state: {
     photoUrls: GalleryPhoto[];
     isLoadingPhotos: boolean;
@@ -46,7 +44,6 @@ interface GalleryPhotoSectionProps {
     isCoverPhoto: (photoId: string) => boolean;
   };
   actions: {
-    onUploadComplete: (result: PhotoUploadResponse) => void;
     onDismissUploadError: () => void;
     onDismissActionInfo: () => void;
     onDismissError: () => void;
@@ -93,11 +90,9 @@ const GalleryPhotoGridSkeleton = ({ page, renderNonce }: { page: number; renderN
 );
 
 const GalleryPhotoSectionComponent = ({
-  galleryId,
   pagination,
   gridRef,
   photoUploaderRef,
-  onModalStateChange,
   state,
   selection,
   actions,
@@ -123,14 +118,6 @@ const GalleryPhotoSectionComponent = ({
   return (
     <section className="px-0 py-0" data-photos-section aria-label="Gallery photos">
       <div className="mb-4">
-        <PhotoUploader
-          ref={photoUploaderRef}
-          galleryId={galleryId}
-          onUploadComplete={actions.onUploadComplete}
-          existingFilenames={state.photoUrls.map((photo) => photo.filename)}
-          showDropzone={false}
-          onModalStateChange={onModalStateChange}
-        />
         {state.uploadError && (
           <div className="mt-3 text-danger bg-danger/10 dark:bg-danger/20 px-4 py-3 rounded-xl text-sm flex items-center gap-3 shadow-xs">
             {state.uploadError}

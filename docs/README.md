@@ -47,6 +47,7 @@ Frontend architecture, components, and state management.
 - [Architecture](./frontend/architecture.md) - Design patterns and architecture
 - [Components Guide](./frontend/components.md) - Reusable components
 - [Owner Collection Cards](./frontend/collection-cards.md) - Shared project and gallery card system
+- [Photo Upload UX](./photo-upload-ux.md) - Page-wide intake, queue, retry, cancellation, and progress behavior
 - [State Management](./frontend/state-management.md) - Zustand stores
 - [Styling](./frontend/styling.md) - Tailwind CSS and theming
 

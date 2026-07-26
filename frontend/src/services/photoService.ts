@@ -9,6 +9,7 @@ import type {
   PhotoResponse,
   PhotoUploadResult,
   PhotoUploadResponse,
+  PhotoUploadProgress,
   UploadPreparedFile,
   BatchPresignedUploadsRequest,
   BatchPresignedUploadsResponse,
@@ -23,7 +24,7 @@ import {
   VIDEO_PART_SIZE,
   SUPPORTED_IMAGE_TYPES,
   SUPPORTED_VIDEO_TYPES,
-  VIDEO_EXTENSIONS,
+  getUploadContentType,
 } from '../constants/upload';
 
 const DOWNLOAD_TARGET_NAME = 'viewport-browser-download';
@@ -182,13 +183,11 @@ const downloadPhoto = async (galleryId: string, photoId: string): Promise<void> 
 
 // File type detection helpers
 const isVideoFile = (file: File): boolean => {
-  if (SUPPORTED_VIDEO_TYPES.includes(file.type)) return true;
-  const name = file.name.toLowerCase();
-  return VIDEO_EXTENSIONS.some((ext) => name.endsWith(ext));
+  return SUPPORTED_VIDEO_TYPES.includes(getUploadContentType(file));
 };
 
 const isImageFile = (file: File): boolean => {
-  return SUPPORTED_IMAGE_TYPES.includes(file.type);
+  return SUPPORTED_IMAGE_TYPES.includes(getUploadContentType(file));
 };
 
 const validateUploadFile = (file: File): string | null => {
@@ -217,7 +216,7 @@ const batchCreateUploadIntents = async (
     files: files.map((item) => ({
       filename: item.filename,
       file_size: item.file.size,
-      content_type: item.file.type,
+      content_type: getUploadContentType(item.file),
     })),
   };
 
@@ -545,18 +544,11 @@ const uploadMultipartToS3 = async (
 const retryFailedUploads = async (
   galleryId: string,
   failedFiles: UploadPreparedFile[],
-  onProgress?: (progress: {
-    loaded: number;
-    total: number;
-    percentage: number;
-    currentFile: string;
-    successCount: number;
-    failedCount: number;
-  }) => void,
+  onProgress?: (progress: PhotoUploadProgress) => void,
   signal?: AbortSignal,
 ): Promise<PhotoUploadResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().retryFailedUploads(galleryId, failedFiles, onProgress);
+    return getDemoService().retryFailedUploads(galleryId, failedFiles, onProgress, signal);
   }
 
   if (failedFiles.length === 0) {
@@ -568,8 +560,11 @@ const retryFailedUploads = async (
     };
   }
 
-  // Use same batch upload logic as uploadPhotosPresigned
-  return uploadPhotosPresigned(galleryId, failedFiles, onProgress, signal);
+  // Failed uploads have already invalidated their original photo/upload intent.
+  // Retry from a clean prepared item so images get a new photo id and videos get
+  // a new multipart upload id and fresh part URLs.
+  const freshFiles = failedFiles.map(({ file, filename }) => ({ file, filename }));
+  return uploadPhotosPresigned(galleryId, freshFiles, onProgress, signal);
 };
 
 /**
@@ -579,18 +574,11 @@ const retryFailedUploads = async (
 const uploadPhotosPresigned = async (
   galleryId: string,
   files: UploadPreparedFile[],
-  onProgress?: (progress: {
-    loaded: number;
-    total: number;
-    percentage: number;
-    currentFile: string;
-    successCount: number;
-    failedCount: number;
-  }) => void,
+  onProgress?: (progress: PhotoUploadProgress) => void,
   signal?: AbortSignal,
 ): Promise<PhotoUploadResponse> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().uploadPhotosPresigned(galleryId, files, onProgress);
+    return getDemoService().uploadPhotosPresigned(galleryId, files, onProgress, signal);
   }
 
   if (files.length === 0) {
@@ -604,6 +592,7 @@ const uploadPhotosPresigned = async (
 
   const BATCH_SIZE = 50; // Request presigned URLs in batches of 50
   const INTER_UPLOAD_DELAY_MS = 5; // Delay between uploads
+  const PROGRESS_EMIT_INTERVAL_MS = 100;
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   return (async () => {
@@ -612,10 +601,26 @@ const uploadPhotosPresigned = async (
     let successfulUploads = 0;
     let failedUploads = 0;
     let completedBytes = 0;
+    let cancellationRequested = false;
     const fileProgress = new Map<string, number>();
+    const fileStates = new Map<
+      string,
+      { status: PhotoUploadProgress['files'][string]['status']; error?: string }
+    >(files.map((item) => [item.filename, { status: 'queued' }]));
+    let lastProgressEmittedAt: number | null = null;
 
-    const emitProgress = (currentFile: string) => {
+    const emitProgress = (currentFile: string, { force = false }: { force?: boolean } = {}) => {
       if (!onProgress) return;
+
+      const now = Date.now();
+      if (
+        !force &&
+        lastProgressEmittedAt !== null &&
+        now - lastProgressEmittedAt < PROGRESS_EMIT_INTERVAL_MS
+      ) {
+        return;
+      }
+      lastProgressEmittedAt = now;
 
       const loaded = completedBytes + Array.from(fileProgress.values()).reduce((a, b) => a + b, 0);
       const percentage = totalSize > 0 ? Math.min(100, Math.round((loaded * 100) / totalSize)) : 0;
@@ -627,6 +632,26 @@ const uploadPhotosPresigned = async (
         currentFile,
         successCount: successfulUploads,
         failedCount: failedUploads,
+        files: Object.fromEntries(
+          files.map((item) => {
+            const state = fileStates.get(item.filename) ?? { status: 'queued' as const };
+            const uploadedBytes = fileProgress.get(item.filename) ?? 0;
+            const percentage =
+              state.status === 'success'
+                ? 100
+                : item.file.size > 0
+                  ? Math.min(100, Math.round((uploadedBytes * 100) / item.file.size))
+                  : 0;
+            return [
+              item.filename,
+              {
+                percentage,
+                status: state.status,
+                ...(state.error ? { error: state.error } : {}),
+              },
+            ];
+          }),
+        ),
       });
     };
 
@@ -650,8 +675,9 @@ const uploadPhotosPresigned = async (
         error,
         retryable: false,
       });
+      fileStates.set(item.filename, { status: 'failed', error });
       completedBytes += item.file.size;
-      emitProgress(item.filename);
+      emitProgress(item.filename, { force: true });
     }
 
     if (validFiles.length === 0) {
@@ -727,9 +753,15 @@ const uploadPhotosPresigned = async (
             }
           }
         } catch {
-          presignFailed = true;
+          if (signal?.aborted) {
+            cancellationRequested = true;
+          } else {
+            presignFailed = true;
+          }
         }
       }
+
+      if (cancellationRequested) break;
 
       if (presignFailed) {
         // Batch request failed
@@ -741,7 +773,12 @@ const uploadPhotosPresigned = async (
             success: false,
             error: 'Failed to get presigned URL',
           });
+          fileStates.set(file.filename, {
+            status: 'failed',
+            error: 'Failed to get presigned URL',
+          });
           completedBytes += file.file.size;
+          emitProgress(file.filename, { force: true });
         }
       }
 
@@ -763,13 +800,19 @@ const uploadPhotosPresigned = async (
             success: false,
             error: file._presignError || 'File rejected by server',
           });
+          fileStates.set(file.filename, {
+            status: 'failed',
+            error: file._presignError || 'File rejected by server',
+          });
           completedBytes += file.file.size;
-          emitProgress(file.filename);
+          emitProgress(file.filename, { force: true });
           await wait(INTER_UPLOAD_DELAY_MS);
           continue;
         }
 
         fileProgress.set(file.filename, 0);
+        fileStates.set(file.filename, { status: 'uploading' });
+        emitProgress(file.filename, { force: true });
 
         try {
           if (isMultipart) {
@@ -821,11 +864,13 @@ const uploadPhotosPresigned = async (
             original_filename: file.filename,
             success: true,
           });
+          fileStates.set(file.filename, { status: 'success' });
         } catch (error) {
           fileProgress.delete(file.filename);
           completedBytes += file.file.size;
 
           const isCancelled = error instanceof Error && error.message === 'Upload cancelled';
+          if (isCancelled) cancellationRequested = true;
 
           // Always abort multipart uploads to avoid leaked S3 parts and reserved quota.
           // On cancellation the original signal is already aborted, so pass undefined
@@ -843,45 +888,56 @@ const uploadPhotosPresigned = async (
             }
           }
 
-          // Don't add cancelled uploads to failed list
+          // Finalize a cancelled single-upload intent as failed so its quota is
+          // released, but do not present the user-initiated cancellation as a
+          // retryable upload failure.
+          if (file.photo_id && !isMultipart) {
+            batchFailedPhotoIds.push(file.photo_id);
+          }
+
+          // Don't add cancelled uploads to the visible failed list.
           if (!isCancelled) {
             failedUploads++;
-            if (file.photo_id && !isMultipart) {
-              batchFailedPhotoIds.push(file.photo_id);
-            }
 
+            const errorMessage = error instanceof Error ? error.message : 'Upload failed';
             results.push({
               filename: file.filename,
               original_filename: file.filename,
               success: false,
-              error: error instanceof Error ? error.message : 'Upload failed',
+              error: errorMessage,
             });
+            fileStates.set(file.filename, { status: 'failed', error: errorMessage });
           }
         }
 
-        emitProgress(file.filename);
+        emitProgress(file.filename, { force: true });
+        if (cancellationRequested) break;
         await wait(INTER_UPLOAD_DELAY_MS);
       }
 
-      // 3. Confirm batch uploads immediately after batch is uploaded
+      // 3. Confirm every transferred or failed single-upload intent. This is a
+      // control-plane request and deliberately does not reuse the transfer
+      // signal: cancellation must not strand files that already reached S3.
       if (batchSuccessfulPhotoIds.length > 0 || batchFailedPhotoIds.length > 0) {
         try {
           await batchConfirmUploads(
             galleryId,
             batchSuccessfulPhotoIds,
             batchFailedPhotoIds,
-            signal,
+            undefined,
           );
         } catch (error) {
           console.error('Failed to confirm batch uploads:', error);
           // Non-fatal - uploads are still in S3, just not confirmed
         }
       }
+
+      if (cancellationRequested || signal?.aborted) break;
     }
 
     return {
       results,
-      total_files: files.length,
+      total_files: cancellationRequested ? results.length : files.length,
       successful_uploads: successfulUploads,
       failed_uploads: failedUploads,
     };
