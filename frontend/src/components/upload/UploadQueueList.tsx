@@ -9,9 +9,9 @@ import {
 } from '@dnd-kit/core';
 import {
   arrayMove,
+  rectSortingStrategy,
   SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { UploadQueueItem } from './UploadQueueItem';
 import type { UploadJob } from './types';
@@ -65,7 +65,7 @@ export const UploadQueueList = ({
       accessibility={{
         screenReaderInstructions: {
           draggable:
-            'Press space to pick up a file. Use the up and down arrow keys to move it. Press space again to drop, or escape to cancel.',
+            'Press space to pick up a file. Use the arrow keys to move it through the grid. Press space again to drop, or escape to cancel.',
         },
         announcements: {
           onDragStart: ({ active }) =>
@@ -86,8 +86,11 @@ export const UploadQueueList = ({
         },
       }}
     >
-      <SortableContext items={jobs.map((job) => job.id)} strategy={verticalListSortingStrategy}>
-        <ul className="space-y-2" aria-label="Upload queue">
+      <SortableContext items={jobs.map((job) => job.id)} strategy={rectSortingStrategy}>
+        <ul
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
+          aria-label="Upload queue"
+        >
           {jobs.map((job, index) => (
             <UploadQueueItem
               key={job.id}

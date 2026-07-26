@@ -3157,67 +3157,75 @@ class DemoServiceStore {
 
     const results = [] as PhotoUploadResponse['results'];
 
-    for (const item of files) {
-      if (signal?.aborted) throw new Error('Upload cancelled');
-      progressByFilename[item.filename] = { percentage: 0, status: 'uploading' };
-      onProgress?.({
-        loaded,
-        total,
-        percentage: total > 0 ? Math.round((loaded / total) * 100) : 0,
-        currentFile: item.filename,
-        successCount,
-        failedCount: 0,
-        files: { ...progressByFilename },
-      });
-      await delay(130, signal);
-      if (signal?.aborted) throw new Error('Upload cancelled');
-      loaded += item.file.size;
+    try {
+      for (const item of files) {
+        if (signal?.aborted) throw new Error('Upload cancelled');
+        progressByFilename[item.filename] = { percentage: 0, status: 'uploading' };
+        onProgress?.({
+          loaded,
+          total,
+          percentage: total > 0 ? Math.round((loaded / total) * 100) : 0,
+          currentFile: item.filename,
+          successCount,
+          failedCount: 0,
+          files: { ...progressByFilename },
+        });
+        await delay(130, signal);
+        if (signal?.aborted) throw new Error('Upload cancelled');
+        loaded += item.file.size;
 
-      const isVideo = isVideoUploadFile(item.file);
-      const seed = `${item.filename}-${makeDemoId()}`;
-      const created: GalleryPhoto = {
-        id: makeDemoId(),
-        media_type: isVideo ? 'video' : 'image',
-        filename: item.filename,
-        url: isVideo
-          ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
-          : `https://picsum.photos/seed/${encodeURIComponent(seed)}/1600/1100`,
-        thumbnail_url: `https://picsum.photos/seed/${encodeURIComponent(seed)}/700/500`,
-        playback_url: isVideo
-          ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
-          : undefined,
-        duration_ms: isVideo ? 15000 : undefined,
-        file_size: item.file.size,
-        status: 'successful',
-        uploaded_at: nowIso(),
-      };
-
-      state.photos.unshift(created);
-      if (!state.gallery.cover_photo_id) {
-        state.gallery = {
-          ...state.gallery,
-          cover_photo_id: created.id,
+        const isVideo = isVideoUploadFile(item.file);
+        const seed = `${item.filename}-${makeDemoId()}`;
+        const created: GalleryPhoto = {
+          id: makeDemoId(),
+          media_type: isVideo ? 'video' : 'image',
+          filename: item.filename,
+          url: isVideo
+            ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+            : `https://picsum.photos/seed/${encodeURIComponent(seed)}/1600/1100`,
+          thumbnail_url: `https://picsum.photos/seed/${encodeURIComponent(seed)}/700/500`,
+          playback_url: isVideo
+            ? 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'
+            : undefined,
+          duration_ms: isVideo ? 15000 : undefined,
+          file_size: item.file.size,
+          status: 'successful',
+          uploaded_at: nowIso(),
         };
+
+        state.photos.unshift(created);
+        if (!state.gallery.cover_photo_id) {
+          state.gallery = {
+            ...state.gallery,
+            cover_photo_id: created.id,
+          };
+        }
+
+        successCount += 1;
+        progressByFilename[item.filename] = { percentage: 100, status: 'success' };
+
+        onProgress?.({
+          loaded,
+          total,
+          percentage: total > 0 ? Math.round((loaded / total) * 100) : 100,
+          currentFile: item.filename,
+          successCount,
+          failedCount: 0,
+          files: { ...progressByFilename },
+        });
+
+        results.push({
+          filename: item.filename,
+          original_filename: item.filename,
+          success: true,
+        });
       }
-
-      successCount += 1;
-      progressByFilename[item.filename] = { percentage: 100, status: 'success' };
-
-      onProgress?.({
-        loaded,
-        total,
-        percentage: total > 0 ? Math.round((loaded / total) * 100) : 100,
-        currentFile: item.filename,
-        successCount,
-        failedCount: 0,
-        files: { ...progressByFilename },
-      });
-
-      results.push({
-        filename: item.filename,
-        original_filename: item.filename,
-        success: true,
-      });
+    } catch (error) {
+      if (signal?.aborted && successCount > 0) {
+        this.recalculateStorageUsed();
+        this.persistState();
+      }
+      throw error;
     }
 
     this.recalculateStorageUsed();

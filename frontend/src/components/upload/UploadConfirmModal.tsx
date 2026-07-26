@@ -5,8 +5,7 @@ import type { PhotoUploadResponse } from '../../types';
 import { usePhotoUpload } from '../../hooks/usePhotoUpload';
 import { resizeImageForUpload } from '../../lib/imageResize';
 import { formatFileSize } from '../../lib/utils';
-import { isImageUploadFile } from '../../constants/upload';
-import { getUploadValidationError } from './uploadUtils';
+import { isResizableOversizedImage } from './uploadUtils';
 import { UploadQueueList } from './UploadQueueList';
 import { UploadProgressContent } from '../upload-confirm/UploadProgressContent';
 import { UploadResultContent } from '../upload-confirm/UploadResultContent';
@@ -78,12 +77,7 @@ export const UploadConfirmModal = memo(
     const isActiveRef = useRef(true);
 
     const resizableJobs = useMemo(
-      () =>
-        jobs.filter(
-          (job) =>
-            isImageUploadFile(job.file) &&
-            getUploadValidationError(job.file)?.includes('10 MB limit'),
-        ),
+      () => jobs.filter((job) => isResizableOversizedImage(job.file)),
       [jobs],
     );
 
@@ -180,7 +174,7 @@ export const UploadConfirmModal = memo(
     }, [files, isResizingAll, onFilesChange, resizableJobs]);
 
     const liveMessage = progress
-      ? `${progress.successCount} of ${files.length} files uploaded. ${progress.currentFile} is ${progress.files[progress.currentFile]?.percentage ?? progress.percentage} percent complete.${progress.failedCount > 0 ? ` ${progress.failedCount} failed.` : ''}`
+      ? `Upload in progress. ${progress.successCount} of ${files.length} files uploaded.${progress.failedCount > 0 ? ` ${progress.failedCount} failed.` : ''}`
       : result
         ? `${result.successful_uploads} of ${result.total_files} files uploaded. ${result.failed_uploads} failed.`
         : `${validUploadCount} of ${files.length} files ready to upload.`;

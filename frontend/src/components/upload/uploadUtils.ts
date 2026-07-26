@@ -1,9 +1,13 @@
 import type { Accept } from 'react-dropzone';
 import {
+  MAX_UPLOAD_FILE_SIZE_BYTES,
+  MAX_UPLOAD_FILE_SIZE_MB,
   MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES,
+  MAX_VIDEO_UPLOAD_FILE_SIZE_MB,
   SUPPORTED_UPLOAD_TYPES,
   getMaxUploadSizeBytes,
   getUploadContentType,
+  isImageUploadFile,
   isVideoUploadFile,
 } from '../../constants/upload';
 
@@ -40,6 +44,9 @@ export const deduplicateUploadFiles = (files: File[]): File[] => {
 export const isSupportedUploadFile = (file: File): boolean =>
   SUPPORTED_UPLOAD_TYPES.includes(getUploadContentType(file));
 
+export const isResizableOversizedImage = (file: File): boolean =>
+  isSupportedUploadFile(file) && isImageUploadFile(file) && file.size > MAX_UPLOAD_FILE_SIZE_BYTES;
+
 export const getUploadValidationError = (file: File): string | null => {
   if (!isSupportedUploadFile(file)) {
     return 'Unsupported format. Choose JPG, PNG, or a supported video file.';
@@ -49,8 +56,8 @@ export const getUploadValidationError = (file: File): string | null => {
   }
   if (file.size > getMaxUploadSizeBytes(file)) {
     return isVideoUploadFile(file)
-      ? 'Video exceeds the 500 MB limit.'
-      : 'Image exceeds the 10 MB limit. Resize it before uploading.';
+      ? `Video exceeds the ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB limit.`
+      : `Image exceeds the ${MAX_UPLOAD_FILE_SIZE_MB} MB limit. Resize it before uploading.`;
   }
   return null;
 };

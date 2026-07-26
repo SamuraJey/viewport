@@ -48,16 +48,19 @@ describe('UploadQueueList', () => {
         } as DOMRect;
       });
 
-    render(
-      <UploadQueueList jobs={jobs} onReorder={onReorder} onRetry={vi.fn()} onRemove={vi.fn()} />,
-    );
+    try {
+      render(
+        <UploadQueueList jobs={jobs} onReorder={onReorder} onRetry={vi.fn()} onRemove={vi.fn()} />,
+      );
 
-    const handle = screen.getByRole('button', { name: /reorder first\.jpg/i });
-    handle.focus();
-    await user.keyboard('[Space][ArrowDown][Space]');
+      const handle = screen.getByRole('button', { name: /reorder first\.jpg/i });
+      handle.focus();
+      await user.keyboard('[Space][ArrowDown][Space]');
 
-    expect(onReorder).toHaveBeenCalledWith([jobs[1], jobs[0]]);
-    rectSpy.mockRestore();
+      expect(onReorder).toHaveBeenCalledWith([jobs[1], jobs[0]]);
+    } finally {
+      rectSpy.mockRestore();
+    }
   });
 
   it('renders per-file progress and retries only the selected row', async () => {
@@ -81,6 +84,25 @@ describe('UploadQueueList', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Retry failed.jpg' }));
     expect(onRetry).toHaveBeenCalledWith('failed');
+  });
+
+  it('renders compact previews in a responsive proofing grid', async () => {
+    const job = makeJob('proof');
+    vi.mocked(createImageThumbnail).mockResolvedValueOnce({
+      url: 'blob:proof-preview',
+      cleanup: vi.fn(),
+    });
+
+    render(
+      <UploadQueueList jobs={[job]} onReorder={vi.fn()} onRetry={vi.fn()} onRemove={vi.fn()} />,
+    );
+
+    const queue = screen.getByRole('list', { name: 'Upload queue' });
+    expect(queue).toHaveClass('grid', 'grid-cols-2', 'sm:grid-cols-3', 'lg:grid-cols-4', 'gap-3');
+
+    const preview = await screen.findByRole('img', { name: 'Preview of proof.jpg' });
+    expect(preview).toHaveClass('h-full', 'w-full', 'object-cover');
+    expect(createImageThumbnail).toHaveBeenCalledWith(job.file, 480);
   });
 
   it('does not generate thumbnails for queue rows outside the viewport', () => {

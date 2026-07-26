@@ -58,6 +58,9 @@ export const usePhotoUpload = (
   const abortControllerRef = useRef<AbortController | null>(null);
   const failedFilesRef = useRef<UploadPreparedFile[]>([]);
   const sessionResultRef = useRef<PhotoUploadResponse | null>(null);
+  const nextRunGenerationRef = useRef(0);
+  const activeRunGenerationRef = useRef<number | null>(null);
+  const retryJobStateSnapshotRef = useRef<Record<string, UploadJobState> | null>(null);
 
   const { preparedFiles, renameWarnings } = useMemo(() => {
     const occupied = new Set(existingFilenames);
@@ -142,7 +145,8 @@ export const usePhotoUpload = (
   );
 
   const applyProgress = useCallback(
-    (nextProgress: PhotoUploadProgress) => {
+    (nextProgress: PhotoUploadProgress, runGeneration: number) => {
+      if (activeRunGenerationRef.current !== runGeneration) return;
       setProgress(nextProgress);
       setJobStateById((current) => {
         const next = { ...current };
@@ -163,7 +167,8 @@ export const usePhotoUpload = (
   );
 
   const applyResult = useCallback(
-    (uploadResult: PhotoUploadResponse) => {
+    (uploadResult: PhotoUploadResponse, runGeneration: number) => {
+      if (activeRunGenerationRef.current !== runGeneration) return;
       setJobStateById((current) => {
         const next = { ...current };
         uploadResult.results.forEach((item) => {
@@ -234,6 +239,7 @@ export const usePhotoUpload = (
 
   const handleUpload = useCallback(async () => {
     if (!hasValidFiles || isUploading) return;
+    retryJobStateSnapshotRef.current = null;
     setIsUploading(true);
     setProgress(null);
     setResult(null);
@@ -256,18 +262,21 @@ export const usePhotoUpload = (
       ),
     );
 
-    abortControllerRef.current = new AbortController();
+    const runGeneration = ++nextRunGenerationRef.current;
+    activeRunGenerationRef.current = runGeneration;
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     try {
       const uploadResult = await photoService.uploadPhotosPresigned(
         galleryId,
         preparedFiles,
-        applyProgress,
-        abortControllerRef.current.signal,
+        (nextProgress) => applyProgress(nextProgress, runGeneration),
+        abortController.signal,
       );
-      applyResult(uploadResult);
-    } catch (error) {
-      if (!(error instanceof Error && error.message.toLowerCase().includes('cancelled'))) {
+      applyResult(uploadResult, runGeneration);
+    } catch {
+      if (!abortController.signal.aborted) {
         const failedResult: PhotoUploadResponse = {
           results: preparedFiles.map(
             (item): PhotoUploadResult => ({
@@ -281,12 +290,17 @@ export const usePhotoUpload = (
           successful_uploads: 0,
           failed_uploads: preparedFiles.length,
         };
-        applyResult(failedResult);
+        applyResult(failedResult, runGeneration);
       }
     } finally {
-      setIsUploading(false);
-      setProgress(null);
-      abortControllerRef.current = null;
+      if (activeRunGenerationRef.current === runGeneration) {
+        activeRunGenerationRef.current = null;
+        setIsUploading(false);
+        setProgress(null);
+        if (abortControllerRef.current === abortController) {
+          abortControllerRef.current = null;
+        }
+      }
     }
   }, [applyProgress, applyResult, galleryId, hasValidFiles, isUploading, preparedFiles]);
 
@@ -294,6 +308,13 @@ export const usePhotoUpload = (
     async (items: UploadPreparedFile[]) => {
       if (items.length === 0 || isUploading) return;
       const previousResult = sessionResultRef.current;
+      retryJobStateSnapshotRef.current = Object.fromEntries(
+        items.flatMap((item) => {
+          const id = getUploadFileKey(item.file);
+          const state = jobStateById[id];
+          return state ? [[id, state] as const] : [];
+        }),
+      );
       setIsUploading(true);
       setProgress(null);
       setJobStateById((current) => {
@@ -307,17 +328,20 @@ export const usePhotoUpload = (
         return next;
       });
 
-      abortControllerRef.current = new AbortController();
+      const runGeneration = ++nextRunGenerationRef.current;
+      activeRunGenerationRef.current = runGeneration;
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
       try {
         const retryResult = await photoService.retryFailedUploads(
           galleryId,
           items,
-          applyProgress,
-          abortControllerRef.current.signal,
+          (nextProgress) => applyProgress(nextProgress, runGeneration),
+          abortController.signal,
         );
-        applyResult(mergeUploadResults(previousResult, retryResult));
-      } catch (error) {
-        if (error instanceof Error && error.message.toLowerCase().includes('cancelled')) return;
+        applyResult(mergeUploadResults(previousResult, retryResult), runGeneration);
+      } catch {
+        if (abortController.signal.aborted) return;
         const retryFailure: PhotoUploadResponse = {
           results: items.map((item) => ({
             filename: item.filename,
@@ -329,14 +353,20 @@ export const usePhotoUpload = (
           successful_uploads: 0,
           failed_uploads: items.length,
         };
-        applyResult(mergeUploadResults(previousResult, retryFailure));
+        applyResult(mergeUploadResults(previousResult, retryFailure), runGeneration);
       } finally {
-        setIsUploading(false);
-        setProgress(null);
-        abortControllerRef.current = null;
+        if (activeRunGenerationRef.current === runGeneration) {
+          activeRunGenerationRef.current = null;
+          retryJobStateSnapshotRef.current = null;
+          setIsUploading(false);
+          setProgress(null);
+          if (abortControllerRef.current === abortController) {
+            abortControllerRef.current = null;
+          }
+        }
       }
     },
-    [applyProgress, applyResult, galleryId, isUploading],
+    [applyProgress, applyResult, galleryId, isUploading, jobStateById],
   );
 
   const handleRetryFile = useCallback(
@@ -353,8 +383,27 @@ export const usePhotoUpload = (
   }, [retryPreparedFiles]);
 
   const cancelUpload = useCallback(() => {
+    const retryJobStateSnapshot = retryJobStateSnapshotRef.current;
+    retryJobStateSnapshotRef.current = null;
+    activeRunGenerationRef.current = null;
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
+    setJobStateById((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([id, state]) => [
+          id,
+          state.status === 'uploading'
+            ? (retryJobStateSnapshot?.[id] ?? {
+                ...state,
+                status: 'queued',
+                progress: 0,
+                error: undefined,
+                retryable: undefined,
+              })
+            : state,
+        ]),
+      ),
+    );
     setProgress(null);
     setResult(null);
     setIsUploading(false);

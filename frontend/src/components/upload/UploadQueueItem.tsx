@@ -5,8 +5,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { AppBadge } from '../ui';
 import { formatFileSize } from '../../lib/utils';
 import { createImageThumbnail } from '../../lib/imageThumbnail';
-import { isImageUploadFile } from '../../constants/upload';
-import { getUploadValidationError } from './uploadUtils';
+import { isImageUploadFile, isVideoUploadFile } from '../../constants/upload';
+import { getUploadValidationError, isResizableOversizedImage } from './uploadUtils';
 import type { UploadJob } from './types';
 
 interface UploadQueueItemProps {
@@ -21,6 +21,8 @@ interface UploadQueueItemProps {
   onRemove: (id: string) => void;
   onResize?: (id: string) => void;
 }
+
+const UPLOAD_PREVIEW_MAX_DIMENSION = 480;
 
 const statusBadge = (job: UploadJob) => {
   if (job.status === 'uploading') {
@@ -44,11 +46,7 @@ const statusBadge = (job: UploadJob) => {
       </AppBadge>
     );
   }
-  return (
-    <AppBadge tone="neutral" variant="subtle" size="xs">
-      Ready
-    </AppBadge>
-  );
+  return null;
 };
 
 export const UploadQueueItem = ({
@@ -76,8 +74,10 @@ export const UploadQueueItem = ({
   const [shouldLoadThumbnail, setShouldLoadThumbnail] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const validationError = getUploadValidationError(job.file);
-  const canResize =
-    Boolean(onResize) && isImageUploadFile(job.file) && validationError?.includes('10 MB limit');
+  const canResize = Boolean(onResize) && isResizableOversizedImage(job.file);
+  const canRetry = job.status === 'failed' && job.retryable !== false && !validationError;
+  const isVideo = isVideoUploadFile(job.file);
+  const isImage = isImageUploadFile(job.file);
 
   const setRowRef = useCallback(
     (node: HTMLLIElement | null) => {
@@ -109,7 +109,7 @@ export const UploadQueueItem = ({
     let disposed = false;
     let cleanup = () => {};
 
-    void createImageThumbnail(job.file).then((result) => {
+    void createImageThumbnail(job.file, UPLOAD_PREVIEW_MAX_DIMENSION).then((result) => {
       if (disposed) {
         result.cleanup();
         return;
@@ -135,48 +135,65 @@ export const UploadQueueItem = ({
         transition,
         opacity: isDragging ? 0.4 : 1,
       }}
-      className={`group flex min-w-0 items-center gap-3 rounded-2xl bg-surface-1 p-3 shadow-xs dark:bg-surface-dark-1 ${
-        visibleError ? 'ring-1 ring-danger/35' : ''
-      }`}
+      className={`group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-surface transition-colors hover:border-accent/40 dark:bg-surface-dark-1 ${
+        visibleError ? 'border-danger/35' : 'border-border/40'
+      } ${visibleError ? 'ring-1 ring-danger/35' : ''}`}
       data-upload-job={job.id}
     >
-      <button
-        ref={setActivatorNodeRef}
-        type="button"
-        {...attributes}
-        {...listeners}
-        disabled={reorderDisabled}
-        className="inline-flex h-10 w-8 shrink-0 touch-none cursor-grab items-center justify-center rounded-xl text-muted transition-colors hover:bg-surface-2 hover:text-accent focus:cursor-grabbing focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent dark:hover:bg-surface-dark-2 disabled:cursor-not-allowed disabled:opacity-35"
-        aria-label={`Reorder ${displayedName}, position ${index + 1} of ${totalCount}`}
-        title="Drag or use the keyboard to reorder"
-      >
-        <GripVertical className="h-4 w-4" aria-hidden="true" />
-      </button>
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-950">
+        <button
+          ref={setActivatorNodeRef}
+          type="button"
+          {...attributes}
+          {...listeners}
+          disabled={reorderDisabled}
+          className="absolute left-2 top-2 z-20 inline-flex h-10 w-10 touch-none cursor-grab items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-black/80 focus:cursor-grabbing focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-35"
+          aria-label={`Reorder ${displayedName}, position ${index + 1} of ${totalCount}`}
+          title="Drag or use the keyboard to reorder"
+        >
+          <GripVertical className="h-4 w-4" aria-hidden="true" />
+        </button>
 
-      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-surface-2 dark:bg-surface-dark-2">
+        <button
+          type="button"
+          onClick={() => onRemove(job.id)}
+          disabled={actionsDisabled}
+          className="absolute right-2 top-2 z-20 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-sm backdrop-blur-sm transition-colors hover:bg-danger focus:outline-none focus-visible:ring-[3px] focus-visible:ring-danger focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-35"
+          aria-label={`Remove ${displayedName}`}
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
+
         {thumbnailUrl ? (
           <img
             src={thumbnailUrl}
-            alt={`Preview of ${job.file.name}`}
+            alt={`Preview of ${displayedName}`}
             className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-muted">
-            {job.file.type.startsWith('video/') ? (
-              <Video className="h-5 w-5" aria-hidden="true" />
-            ) : (
-              <ImageIcon className="h-5 w-5" aria-hidden="true" />
-            )}
+          <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-surface-2 text-muted dark:bg-surface-dark-2">
+            {isVideo ? (
+              <Video className="h-10 w-10" aria-hidden="true" />
+            ) : isImage ? (
+              <ImageIcon className="h-10 w-10" aria-hidden="true" />
+            ) : null}
+            <span className="text-xs font-bold uppercase tracking-[0.14em]">Preparing preview</span>
           </div>
         )}
         {isResizing && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-950/55 text-white">
-            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-slate-950/70 text-white backdrop-blur-sm">
+            <Loader2 className="h-8 w-8 animate-spin" aria-hidden="true" />
+            <span className="text-sm font-bold">Resizing preview</span>
           </div>
+        )}
+        {job.status !== 'queued' && (
+          <div className="absolute bottom-2 left-2 z-20">{statusBadge(job)}</div>
         )}
       </div>
 
-      <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col p-3">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <p
             className="min-w-0 flex-1 truncate text-sm font-semibold text-text"
@@ -184,7 +201,6 @@ export const UploadQueueItem = ({
           >
             {displayedName}
           </p>
-          {statusBadge(job)}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-muted">
           <span>
@@ -217,46 +233,39 @@ export const UploadQueueItem = ({
             />
           </div>
         )}
-      </div>
 
-      <div className="flex shrink-0 items-center gap-1">
-        {canResize && (
-          <button
-            type="button"
-            onClick={() => onResize?.(job.id)}
-            disabled={actionsDisabled || isResizing}
-            className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-bold text-accent transition-colors hover:bg-accent/10 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-45"
-            aria-label={`Resize ${job.file.name} to fit size limit`}
-          >
-            {isResizing ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Shrink className="h-4 w-4" aria-hidden="true" />
+        {(canResize || canRetry) && (
+          <div className="mt-auto flex flex-wrap items-center justify-end gap-1 pt-3">
+            {canResize && (
+              <button
+                type="button"
+                onClick={() => onResize?.(job.id)}
+                disabled={actionsDisabled || isResizing}
+                className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-bold text-accent transition-colors hover:bg-accent/10 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-45"
+                aria-label={`Resize ${displayedName} to fit size limit`}
+              >
+                {isResizing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Shrink className="h-4 w-4" aria-hidden="true" />
+                )}
+                <span>Resize</span>
+              </button>
             )}
-            <span className="hidden sm:inline">Resize</span>
-          </button>
+            {canRetry && (
+              <button
+                type="button"
+                onClick={() => onRetry(job.id)}
+                disabled={retryDisabled}
+                className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-bold text-accent transition-colors hover:bg-accent/10 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-45"
+                aria-label={`Retry ${displayedName}`}
+              >
+                <RotateCw className="h-4 w-4" aria-hidden="true" />
+                <span>Retry</span>
+              </button>
+            )}
+          </div>
         )}
-        {job.status === 'failed' && job.retryable !== false && !validationError && (
-          <button
-            type="button"
-            onClick={() => onRetry(job.id)}
-            disabled={retryDisabled}
-            className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-bold text-accent transition-colors hover:bg-accent/10 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-45"
-            aria-label={`Retry ${displayedName}`}
-          >
-            <RotateCw className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">Retry</span>
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => onRemove(job.id)}
-          disabled={actionsDisabled}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-muted transition-colors hover:bg-danger/10 hover:text-danger focus:outline-none focus-visible:ring-[3px] focus-visible:ring-danger disabled:cursor-not-allowed disabled:opacity-35"
-          aria-label={`Remove ${job.file.name}`}
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-        </button>
       </div>
     </li>
   );

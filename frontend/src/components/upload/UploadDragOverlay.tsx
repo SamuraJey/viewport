@@ -1,5 +1,6 @@
 import { createPortal } from 'react-dom';
 import { AlertTriangle, UploadCloud } from 'lucide-react';
+import { MAX_VIDEO_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 
 interface UploadDragOverlayProps {
   visible: boolean;
@@ -41,7 +42,7 @@ export const UploadDragOverlay = ({
         </p>
         <p className="mx-auto mt-3 max-w-md text-sm font-medium leading-6 text-muted">
           {isRejected
-            ? 'Use JPG, PNG, or a supported video format. Videos can be up to 500 MB.'
+            ? `Use JPG, PNG, or a supported video format. Videos can be up to ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB.`
             : 'Release anywhere to stage photos and videos in the upload queue.'}
         </p>
         {fileCount > 0 && (

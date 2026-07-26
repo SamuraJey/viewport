@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PhotoUploader } from '../../components/PhotoUploader';
@@ -6,7 +6,7 @@ import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_VIDEO_UPLOAD_FILE_SIZE_MB } from '../..
 import { resizeImageForUpload } from '../../lib/imageResize';
 
 vi.mock('../../lib/imageResize', () => ({
-  resizeImageForUpload: vi.fn(),
+  resizeImageForUpload: vi.fn(async (file: File) => file),
 }));
 
 describe('PhotoUploader', () => {
@@ -16,6 +16,11 @@ describe('PhotoUploader', () => {
     vi.clearAllMocks();
     // Make sure onUploadComplete returns a resolved promise by default
     mockOnUploadComplete.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.mocked(resizeImageForUpload).mockReset();
+    vi.mocked(resizeImageForUpload).mockImplementation(async (file: File) => file);
   });
 
   it('should render drop zone with file input', () => {
@@ -94,6 +99,46 @@ describe('PhotoUploader', () => {
 
       expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
     }
+  });
+
+  it('re-enables intake after the last queued file is removed', async () => {
+    const user = userEvent.setup();
+    const onModalStateChange = vi.fn();
+    const firstFile = new File(['first'], 'first.jpg', { type: 'image/jpeg' });
+    const nextFile = new File(['next'], 'next-drop.jpg', { type: 'image/jpeg' });
+
+    render(
+      <PhotoUploader
+        galleryId="test-gallery"
+        onUploadComplete={mockOnUploadComplete}
+        onModalStateChange={onModalStateChange}
+      />,
+    );
+
+    const dropZone = screen.getByLabelText(/upload photos or videos/i);
+    const fileInput = dropZone.querySelector('input[type="file"]');
+    expect(fileInput).toBeInTheDocument();
+
+    await user.upload(fileInput as HTMLInputElement, firstFile);
+    expect(await screen.findByText('first.jpg')).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText('Remove first.jpg'));
+
+    await waitFor(() => {
+      expect(screen.queryByText('first.jpg')).not.toBeInTheDocument();
+      expect(onModalStateChange).toHaveBeenLastCalledWith(false);
+    });
+
+    fireEvent.drop(dropZone, {
+      dataTransfer: {
+        files: [nextFile],
+        items: [{ kind: 'file', type: 'image/jpeg', getAsFile: () => nextFile }],
+        types: ['Files'],
+      },
+    });
+
+    expect(await screen.findByText('next-drop.jpg')).toBeInTheDocument();
+    expect(onModalStateChange).toHaveBeenLastCalledWith(true);
   });
 
   it('should reject unsupported files', async () => {

@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { ImagePlus, Upload } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -10,10 +10,12 @@ import {
   prepareUploadSelection,
 } from './upload/uploadUtils';
 import {
+  MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES,
   MAX_UPLOAD_FILE_SIZE_MB,
   MAX_VIDEO_UPLOAD_FILE_SIZE_MB,
   SUPPORTED_UPLOAD_TYPES,
   VIDEO_EXTENSIONS,
+  isVideoUploadFile,
 } from '../constants/upload';
 import type { PhotoUploadResponse } from '../types';
 
@@ -27,12 +29,27 @@ interface PhotoUploaderProps {
 
 export interface PhotoUploaderHandle {
   openFilePicker: () => void;
-  handleExternalFiles: (fileList: FileList | File[]) => void;
+  handleExternalFiles: (fileList: FileList | File[]) => number;
 }
 
 const PRIMARY_VIDEO_FORMATS = VIDEO_EXTENSIONS.slice(0, 2)
   .map((extension) => extension.slice(1).toUpperCase())
   .join(' / ');
+
+const DropzoneOpenPublisher = ({
+  open,
+  onReady,
+}: {
+  open: () => void;
+  onReady: (openHandler: (() => void) | null) => void;
+}) => {
+  useEffect(() => {
+    onReady(open);
+    return () => onReady(null);
+  }, [onReady, open]);
+
+  return null;
+};
 
 export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>(
   (
@@ -47,6 +64,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
   ) => {
     const hiddenFileInputRef = useRef<HTMLInputElement>(null);
     const dropzoneOpenRef = useRef<(() => void) | null>(null);
+    const filesRef = useRef<File[]>([]);
     const [files, setFiles] = useState<File[]>([]);
     const [error, setError] = useState('');
     const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -57,51 +75,62 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
       onModalStateChange?.(true);
     }, [onModalStateChange]);
 
+    const handleFilesChange = useCallback((nextFiles: File[]) => {
+      filesRef.current = nextFiles;
+      setFiles(nextFiles);
+    }, []);
+
+    const publishDropzoneOpen = useCallback((openHandler: (() => void) | null) => {
+      dropzoneOpenRef.current = openHandler;
+    }, []);
+
     const handleFiles = useCallback(
       (fileList: FileList | File[]) => {
         if (isUploadBusy) {
           toast.warning('Wait for the current transfer to finish', {
             description: 'You can add more files when the active upload is complete.',
           });
-          return;
+          return 0;
         }
         const rawFiles = Array.from(fileList);
         const supportedFiles = rawFiles.filter(isSupportedUploadFile);
-        const oversizedVideos = supportedFiles.filter(
-          (file) =>
-            (file.type.startsWith('video/') ||
-              VIDEO_EXTENSIONS.some((extension) => file.name.toLowerCase().endsWith(extension))) &&
-            file.size > MAX_VIDEO_UPLOAD_FILE_SIZE_MB * 1024 * 1024,
+        const oversizedVideos = new Set(
+          supportedFiles.filter(
+            (file) => isVideoUploadFile(file) && file.size > MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES,
+          ),
         );
-        const acceptedFiles = supportedFiles.filter((file) => !oversizedVideos.includes(file));
+        const acceptedFiles = supportedFiles.filter((file) => !oversizedVideos.has(file));
 
         if (rawFiles.length > supportedFiles.length) {
           setError('Some files were skipped. Use JPG, PNG, or a supported video format.');
-        } else if (oversizedVideos.length > 0) {
+        } else if (oversizedVideos.size > 0) {
           setError(`Video files must be under ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB.`);
         } else {
           setError('');
         }
 
-        if (acceptedFiles.length === 0) return;
+        if (acceptedFiles.length === 0) return 0;
 
-        setFiles((currentFiles) => {
-          const selection = prepareUploadSelection(currentFiles, acceptedFiles);
-          if (selection.duplicateCount > 0) {
-            toast.info(
-              `${selection.duplicateCount} duplicate file${selection.duplicateCount === 1 ? '' : 's'} skipped`,
-            );
-          }
-          if (selection.overflowCount > 0) {
-            toast.warning(`Only ${MAX_UPLOAD_FILES} files can be queued at once`, {
-              description: `${selection.overflowCount} file${selection.overflowCount === 1 ? '' : 's'} not added.`,
-            });
-          }
-          return selection.files;
-        });
+        const currentFiles = filesRef.current;
+        const selection = prepareUploadSelection(currentFiles, acceptedFiles);
+        const stagedCount = selection.files.length - currentFiles.length;
+        if (selection.duplicateCount > 0) {
+          toast.info(
+            `${selection.duplicateCount} duplicate file${selection.duplicateCount === 1 ? '' : 's'} skipped`,
+          );
+        }
+        if (selection.overflowCount > 0) {
+          toast.warning(`Only ${MAX_UPLOAD_FILES} files can be queued at once`, {
+            description: `${selection.overflowCount} file${selection.overflowCount === 1 ? '' : 's'} not added.`,
+          });
+        }
+        if (stagedCount === 0) return 0;
+
+        handleFilesChange(selection.files);
         openModal();
+        return stagedCount;
       },
-      [isUploadBusy, openModal],
+      [handleFilesChange, isUploadBusy, openModal],
     );
 
     const handleFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -111,18 +140,29 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
 
     const handleUploadComplete = (result: PhotoUploadResponse) => {
       setShowConfirmModal(false);
-      setFiles([]);
+      handleFilesChange([]);
       setIsUploadBusy(false);
       onModalStateChange?.(false);
       onUploadComplete(result);
     };
 
-    const handleCloseConfirmModal = () => {
+    const handleCloseConfirmModal = useCallback(() => {
       setShowConfirmModal(false);
-      setFiles([]);
+      handleFilesChange([]);
       setIsUploadBusy(false);
       onModalStateChange?.(false);
-    };
+    }, [handleFilesChange, onModalStateChange]);
+
+    const handleModalFilesChange = useCallback(
+      (nextFiles: File[]) => {
+        if (nextFiles.length === 0) {
+          handleCloseConfirmModal();
+          return;
+        }
+        handleFilesChange(nextFiles);
+      },
+      [handleCloseConfirmModal, handleFilesChange],
+    );
 
     useImperativeHandle(
       ref,
@@ -160,8 +200,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
               if (rejections.length === 0) return;
               const hasOversizedVideo = rejections.some(
                 ({ file }) =>
-                  file.type.startsWith('video/') &&
-                  file.size > MAX_VIDEO_UPLOAD_FILE_SIZE_MB * 1024 * 1024,
+                  isVideoUploadFile(file) && file.size > MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES,
               );
               const hasInvalidType = rejections.some(({ errors }) =>
                 errors.some((error) => error.code === 'file-invalid-type'),
@@ -184,9 +223,9 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
             rootAriaLabel="Upload photos or videos"
             className="block"
           >
-            {({ isDragActive, isDragReject, open }) => {
-              dropzoneOpenRef.current = open;
-              return (
+            {({ isDragActive, isDragReject, open }) => (
+              <>
+                <DropzoneOpenPublisher open={open} onReady={publishDropzoneOpen} />
                 <div
                   className={`uploader-zone relative flex cursor-pointer select-none flex-col items-center justify-center rounded-3xl border-2 border-dashed px-8 py-12 text-center transition-all duration-200 ${
                     isDragReject
@@ -221,8 +260,8 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
                     (video)
                   </p>
                 </div>
-              );
-            }}
+              </>
+            )}
           </UploadDropzone>
         )}
 
@@ -245,7 +284,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
               existingFilenames={existingFilenames}
               galleryId={galleryId}
               onUploadComplete={handleUploadComplete}
-              onFilesChange={setFiles}
+              onFilesChange={handleModalFilesChange}
               onModalStateChange={onModalStateChange}
               onBusyChange={setIsUploadBusy}
             />

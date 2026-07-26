@@ -125,6 +125,7 @@ export const GalleryPage = () => {
   const [showInitialLoadingState, setShowInitialLoadingState] = useState(false);
   const [isShareLinkCreateOpen, setIsShareLinkCreateOpen] = useState(false);
   const [editingShareLink, setEditingShareLink] = useState<ShareLink | null>(null);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [photoSizeById, setPhotoSizeById] = useState<Record<string, number>>({});
   const [favoritesTabs, setFavoritesTabs] = useState<FavoritesUserTab[]>([]);
   const [selectedFavoritesTabKey, setSelectedFavoritesTabKey] = useState<string | null>(null);
@@ -235,6 +236,7 @@ export const GalleryPage = () => {
     error,
     clearError,
     ConfirmModal,
+    isConfirmationOpen,
     renameModal,
     fetchGalleryDetails,
     fetchShareLinks,
@@ -467,12 +469,28 @@ export const GalleryPage = () => {
   ]);
 
   // Lightbox
-  const { openLightbox, renderLightbox } = usePhotoLightbox({
+  const { lightboxOpen, openLightbox, renderLightbox } = usePhotoLightbox({
     photoCardSelector: '[data-photo-card]',
     gridRef,
   });
 
   // Derived state
+  const isPageModalOpen =
+    lightboxOpen ||
+    renameModal.isOpen ||
+    isShareLinkCreateOpen ||
+    Boolean(editingShareLink) ||
+    isConfirmationOpen ||
+    isUploadModalOpen;
+
+  const handleDropZoneFilesAccepted = useCallback((files: File[]) => {
+    if (!photoUploaderRef.current) {
+      return 0;
+    }
+
+    return photoUploaderRef.current.handleExternalFiles(files);
+  }, []);
+
   const areAllOnPageSelected =
     photoUrls.length > 0 && photoUrls.every((p) => selection.isSelected(p.id));
 
@@ -1138,15 +1156,14 @@ export const GalleryPage = () => {
   ];
 
   return (
-    <GalleryDropZone
-      onFilesAccepted={(files) => photoUploaderRef.current?.handleExternalFiles(files)}
-    >
+    <GalleryDropZone onFilesAccepted={handleDropZoneFilesAccepted} disabled={isPageModalOpen}>
       <PhotoUploader
         ref={photoUploaderRef}
         galleryId={galleryId}
         onUploadComplete={handleUploadComplete}
         existingFilenames={photoUrls.map((photo) => photo.filename)}
         showDropzone={false}
+        onModalStateChange={setIsUploadModalOpen}
       />
       <div
         className="relative min-h-screen pb-20"

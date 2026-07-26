@@ -592,6 +592,7 @@ const uploadPhotosPresigned = async (
 
   const BATCH_SIZE = 50; // Request presigned URLs in batches of 50
   const INTER_UPLOAD_DELAY_MS = 5; // Delay between uploads
+  const PROGRESS_EMIT_INTERVAL_MS = 100;
   const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   return (async () => {
@@ -605,9 +606,20 @@ const uploadPhotosPresigned = async (
       string,
       { status: PhotoUploadProgress['files'][string]['status']; error?: string }
     >(files.map((item) => [item.filename, { status: 'queued' }]));
+    let lastProgressEmittedAt: number | null = null;
 
-    const emitProgress = (currentFile: string) => {
+    const emitProgress = (currentFile: string, { force = false }: { force?: boolean } = {}) => {
       if (!onProgress) return;
+
+      const now = Date.now();
+      if (
+        !force &&
+        lastProgressEmittedAt !== null &&
+        now - lastProgressEmittedAt < PROGRESS_EMIT_INTERVAL_MS
+      ) {
+        return;
+      }
+      lastProgressEmittedAt = now;
 
       const loaded = completedBytes + Array.from(fileProgress.values()).reduce((a, b) => a + b, 0);
       const percentage = totalSize > 0 ? Math.min(100, Math.round((loaded * 100) / totalSize)) : 0;
@@ -664,7 +676,7 @@ const uploadPhotosPresigned = async (
       });
       fileStates.set(item.filename, { status: 'failed', error });
       completedBytes += item.file.size;
-      emitProgress(item.filename);
+      emitProgress(item.filename, { force: true });
     }
 
     if (validFiles.length === 0) {
@@ -759,7 +771,7 @@ const uploadPhotosPresigned = async (
             error: 'Failed to get presigned URL',
           });
           completedBytes += file.file.size;
-          emitProgress(file.filename);
+          emitProgress(file.filename, { force: true });
         }
       }
 
@@ -786,14 +798,14 @@ const uploadPhotosPresigned = async (
             error: file._presignError || 'File rejected by server',
           });
           completedBytes += file.file.size;
-          emitProgress(file.filename);
+          emitProgress(file.filename, { force: true });
           await wait(INTER_UPLOAD_DELAY_MS);
           continue;
         }
 
         fileProgress.set(file.filename, 0);
         fileStates.set(file.filename, { status: 'uploading' });
-        emitProgress(file.filename);
+        emitProgress(file.filename, { force: true });
 
         try {
           if (isMultipart) {
@@ -886,7 +898,7 @@ const uploadPhotosPresigned = async (
           }
         }
 
-        emitProgress(file.filename);
+        emitProgress(file.filename, { force: true });
         await wait(INTER_UPLOAD_DELAY_MS);
       }
 

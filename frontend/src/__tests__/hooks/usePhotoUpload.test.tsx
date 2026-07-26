@@ -91,6 +91,127 @@ describe('usePhotoUpload', () => {
     });
   });
 
+  it('ignores late upload completion after cancellation', async () => {
+    const file = makeFile('pending.jpg');
+    const completedResult: PhotoUploadResponse = {
+      results: [{ filename: file.name, original_filename: file.name, success: true }],
+      total_files: 1,
+      successful_uploads: 1,
+      failed_uploads: 0,
+    };
+    let resolveUpload!: (value: PhotoUploadResponse) => void;
+    const pendingUpload = new Promise<PhotoUploadResponse>((resolve) => {
+      resolveUpload = resolve;
+    });
+
+    vi.mocked(photoService.uploadPhotosPresigned).mockImplementation(
+      async (_galleryId, _files, onProgress) => {
+        onProgress?.({
+          loaded: Math.round(file.size / 2),
+          total: file.size,
+          percentage: 50,
+          currentFile: file.name,
+          successCount: 0,
+          failedCount: 0,
+          files: {
+            [file.name]: { percentage: 50, status: 'uploading' },
+          },
+        });
+        return pendingUpload;
+      },
+    );
+
+    const { result } = renderHook(() => usePhotoUpload('gallery-1', [file], [], vi.fn()));
+
+    let uploadPromise!: Promise<void>;
+    act(() => {
+      uploadPromise = result.current.handleUpload();
+    });
+
+    await waitFor(() => {
+      expect(result.current.progress?.percentage).toBe(50);
+      expect(result.current.jobs[0]?.status).toBe('uploading');
+    });
+
+    act(() => {
+      result.current.cancelUpload();
+    });
+
+    await act(async () => {
+      resolveUpload(completedResult);
+      await uploadPromise;
+    });
+
+    expect(result.current.progress).toBeNull();
+    expect(result.current.result).toBeNull();
+    expect(result.current.jobs.every((job) => job.status !== 'uploading')).toBe(true);
+  });
+
+  it('restores a retryable failure when a retry is cancelled', async () => {
+    const file = makeFile('retry.jpg');
+    vi.mocked(photoService.uploadPhotosPresigned).mockResolvedValue({
+      results: [
+        {
+          filename: file.name,
+          original_filename: file.name,
+          success: false,
+          error: 'Network interrupted',
+          retryable: true,
+        },
+      ],
+      total_files: 1,
+      successful_uploads: 0,
+      failed_uploads: 1,
+    });
+
+    let resolveRetry!: (value: PhotoUploadResponse) => void;
+    vi.mocked(photoService.retryFailedUploads).mockImplementation(
+      () =>
+        new Promise<PhotoUploadResponse>((resolve) => {
+          resolveRetry = resolve;
+        }),
+    );
+
+    const { result } = renderHook(() => usePhotoUpload('gallery-1', [file], [], vi.fn()));
+
+    await act(async () => {
+      await result.current.handleUpload();
+    });
+    expect(result.current.jobs[0]).toMatchObject({
+      status: 'failed',
+      error: 'Network interrupted',
+      retryable: true,
+    });
+
+    let retryPromise!: Promise<void>;
+    act(() => {
+      retryPromise = result.current.handleRetryFile(result.current.jobs[0].id);
+    });
+    await waitFor(() => expect(result.current.jobs[0]?.status).toBe('uploading'));
+
+    act(() => {
+      result.current.cancelUpload();
+    });
+    await act(async () => {
+      resolveRetry({
+        results: [{ filename: file.name, original_filename: file.name, success: true }],
+        total_files: 1,
+        successful_uploads: 1,
+        failed_uploads: 0,
+      });
+      await retryPromise;
+    });
+
+    expect(result.current.jobs[0]).toMatchObject({
+      status: 'failed',
+      progress: 0,
+      error: 'Network interrupted',
+      retryable: true,
+    });
+    expect(result.current.progress).toBeNull();
+    expect(result.current.result).toBeNull();
+  });
+
   it('prepares deterministic duplicate filenames without dropping distinct files', () => {
     const first = makeFile('photo.jpg');
     const second = new File(['other-image-data'], 'photo.jpg', {

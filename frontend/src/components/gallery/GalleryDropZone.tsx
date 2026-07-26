@@ -7,7 +7,7 @@ import { UploadDropzone } from '../upload/UploadDropzone';
 
 interface GalleryDropZoneProps {
   children: ReactNode;
-  onFilesAccepted: (files: File[]) => void;
+  onFilesAccepted: (files: File[]) => number | void;
   disabled?: boolean;
 }
 
@@ -34,10 +34,13 @@ export const GalleryDropZone = ({
 
   const handlePaste = useCallback(
     (files: File[]) => {
-      onFilesAccepted(files);
-      toast.info(`${files.length} file${files.length === 1 ? '' : 's'} pasted`, {
+      const stagedCount = onFilesAccepted(files) ?? 0;
+      if (stagedCount === 0) return;
+      toast.info(`${stagedCount} file${stagedCount === 1 ? '' : 's'} pasted`, {
         description:
-          files.length === 1 ? files[0]?.name : 'Added to the upload queue from the clipboard.',
+          stagedCount === 1 && files.length === 1
+            ? files[0]?.name
+            : 'Added to the upload queue from the clipboard.',
       });
     },
     [onFilesAccepted],
