@@ -500,6 +500,65 @@ describe('photoService', () => {
     expect(firstHeaders.find(([key]) => key.toLowerCase() === 'content-length')).toBeUndefined();
   });
 
+  it('uploads up to four files concurrently and starts the next file when a slot opens', async () => {
+    const files = Array.from({ length: 5 }, (_, index) =>
+      createFile(`photo-${index + 1}.jpg`, 1024),
+    );
+
+    vi.mocked(api.post).mockImplementation((url) => {
+      if (url === '/galleries/gallery-1/photos/batch-presigned') {
+        return Promise.resolve({
+          data: {
+            items: files.map((file, index) => ({
+              filename: file.filename,
+              success: true,
+              photo_id: `photo-${index + 1}`,
+              presigned_data: {
+                url: `https://s3/upload-${index + 1}`,
+                headers: { 'Content-Type': 'image/jpeg' },
+              },
+            })),
+          },
+        } as any);
+      }
+
+      if (url === '/galleries/gallery-1/photos/batch-confirm') {
+        return Promise.resolve({ data: {} } as any);
+      }
+
+      return Promise.reject(new Error('Unexpected url'));
+    });
+
+    MockXMLHttpRequest.sendQueue = Array.from({ length: files.length }, () => ({
+      type: 'manual' as const,
+      status: 200,
+    }));
+
+    const uploadPromise = photoService.uploadPhotosPresigned('gallery-1', files);
+
+    await vi.waitFor(() => expect(MockXMLHttpRequest.instances).toHaveLength(4));
+    expect(MockXMLHttpRequest.instances.map((xhr) => xhr.url)).toEqual([
+      'https://s3/upload-1',
+      'https://s3/upload-2',
+      'https://s3/upload-3',
+      'https://s3/upload-4',
+    ]);
+
+    MockXMLHttpRequest.instances[0]?.respond();
+    await vi.waitFor(() => expect(MockXMLHttpRequest.instances).toHaveLength(5));
+    expect(MockXMLHttpRequest.instances[4]?.url).toBe('https://s3/upload-5');
+
+    MockXMLHttpRequest.instances.slice(1).forEach((xhr) => xhr.respond());
+
+    const result = await uploadPromise;
+    expect(result).toMatchObject({
+      total_files: 5,
+      successful_uploads: 5,
+      failed_uploads: 0,
+    });
+    expect(result.results.map((item) => item.filename)).toEqual(files.map((file) => file.filename));
+  });
+
   it('finalizes completed images through a fresh request when a later upload is cancelled', async () => {
     const fileA = createFile('a.jpg', 2000);
     const fileB = createFile('b.jpg', 3000);

@@ -262,7 +262,7 @@ export const UploadConfirmModal = memo(
           backdropClassName="fixed inset-0 bg-slate-950/60 backdrop-blur-md"
           panelClassName="relative my-4 flex min-h-0 max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-3xl bg-surface shadow-2xl sm:my-8 sm:max-h-[calc(100dvh-4rem)] dark:bg-surface-foreground"
         >
-        <div className="border-b border-border/45 bg-surface px-5 py-5 sm:px-7 dark:bg-surface-foreground">
+        <div className="shrink-0 border-b border-border/45 bg-surface px-5 py-5 sm:px-7 dark:bg-surface-foreground">
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -304,6 +304,11 @@ export const UploadConfirmModal = memo(
               <X className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
+          {progress && (
+            <div className="mt-4 border-t border-border/40 pt-4">
+              <UploadProgressContent progress={progress} totalCount={files.length} />
+            </div>
+          )}
         </div>
 
         {showCancelWarning && (
@@ -316,17 +321,13 @@ export const UploadConfirmModal = memo(
 
         <div
           data-lenis-prevent
+          data-testid="upload-scroll-region"
           className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-7 sm:py-6"
         >
           <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
             {liveMessage}
           </div>
 
-          {progress && (
-            <div className="mb-5">
-              <UploadProgressContent progress={progress} totalCount={files.length} />
-            </div>
-          )}
           {result && !isUploading && (
             <div className="mb-5">
               <UploadResultContent result={result} />

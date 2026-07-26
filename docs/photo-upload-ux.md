@@ -23,6 +23,10 @@ settings.
   open review modal. The modal uses direct drag handlers plus the shared
   editable-control-safe paste handler, then applies validation and deduplication
   before appending files without disturbing the existing order.
+- The uploader runs up to four file jobs concurrently. This restores the
+  established multi-transfer throughput while keeping browser and storage
+  request pressure bounded; multipart videos retain their separate four-part
+  concurrency limit.
 - The queue can be reordered before upload with pointer drag or from the
   dedicated grip with Space and the arrow keys. That visible order determines
   submission order and is locked after transfer starts; concurrent transfers
@@ -36,6 +40,9 @@ settings.
   fresh upload intent.
 - Queue thumbnails are generated only when rows approach the viewport, avoiding
   a burst of bitmap work for large selections.
+- While a transfer is active, the compact aggregate status and progress bar stay
+  pinned above the scrollable queue so counts, bytes, failures, and the number of
+  parallel file jobs remain visible at any scroll position.
 
 The backend API remains unchanged: images still use presigned PUT plus batch
 confirmation through `/batch-confirm`; videos retain multipart part uploads,

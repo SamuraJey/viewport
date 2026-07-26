@@ -17,6 +17,7 @@ import type {
   BatchConfirmUploadResponse,
 } from '../types';
 import {
+  MAX_CONCURRENT_FILE_UPLOADS,
   MAX_UPLOAD_FILE_SIZE_BYTES,
   MAX_UPLOAD_FILE_SIZE_MB,
   MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES,
@@ -782,10 +783,12 @@ const uploadPhotosPresigned = async (
         }
       }
 
-      // 2. Upload files to S3, skipping rejected entries
-      for (const file of batch) {
+      // 2. Upload files to S3 through a bounded worker pool. Four concurrent
+      // file jobs restores the established throughput without letting large
+      // selections create an unbounded number of browser requests.
+      const processFile = async (file: UploadPreparedFile) => {
         if (presignFailed && filesToPresign.includes(file)) {
-          continue;
+          return;
         }
 
         const isMultipart =
@@ -807,7 +810,7 @@ const uploadPhotosPresigned = async (
           completedBytes += file.file.size;
           emitProgress(file.filename, { force: true });
           await wait(INTER_UPLOAD_DELAY_MS);
-          continue;
+          return;
         }
 
         fileProgress.set(file.filename, 0);
@@ -911,9 +914,25 @@ const uploadPhotosPresigned = async (
         }
 
         emitProgress(file.filename, { force: true });
-        if (cancellationRequested) break;
-        await wait(INTER_UPLOAD_DELAY_MS);
-      }
+        if (!cancellationRequested) {
+          await wait(INTER_UPLOAD_DELAY_MS);
+        }
+      };
+
+      let nextFileIndex = 0;
+      const uploadWorker = async () => {
+        while (!cancellationRequested && !signal?.aborted) {
+          const file = batch[nextFileIndex];
+          nextFileIndex += 1;
+          if (!file) return;
+          await processFile(file);
+        }
+      };
+      const workers = Array.from(
+        { length: Math.min(MAX_CONCURRENT_FILE_UPLOADS, batch.length) },
+        () => uploadWorker(),
+      );
+      await Promise.all(workers);
 
       // 3. Confirm every transferred or failed single-upload intent. This is a
       // control-plane request and deliberately does not reuse the transfer
@@ -935,9 +954,18 @@ const uploadPhotosPresigned = async (
       if (cancellationRequested || signal?.aborted) break;
     }
 
+    const wasCancelled = cancellationRequested || signal?.aborted;
+    const resultByFilename = new Map(
+      results.map((item) => [item.original_filename || item.filename, item]),
+    );
+    const orderedResults = files.flatMap((item) => {
+      const result = resultByFilename.get(item.filename);
+      return result ? [result] : [];
+    });
+
     return {
-      results,
-      total_files: cancellationRequested ? results.length : files.length,
+      results: orderedResults,
+      total_files: wasCancelled ? orderedResults.length : files.length,
       successful_uploads: successfulUploads,
       failed_uploads: failedUploads,
     };

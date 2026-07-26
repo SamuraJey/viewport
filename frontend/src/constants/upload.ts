@@ -1,5 +1,6 @@
 export const MAX_UPLOAD_FILE_SIZE_MB = 10;
 export const MAX_UPLOAD_FILE_SIZE_BYTES = MAX_UPLOAD_FILE_SIZE_MB * 1024 * 1024;
+export const MAX_CONCURRENT_FILE_UPLOADS = 4;
 export const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/jpg'];
 
 export const MAX_VIDEO_UPLOAD_FILE_SIZE_MB = 500;
