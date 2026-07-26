@@ -112,7 +112,7 @@ In `frontend/src/components/upload/uploadUtils.ts`:
 |---|---|
 | `isResizableOversizedImage(file)` | Supported oversized image — gates all resize actions |
 | `getUploadValidationError(file)` | Empty, unsupported, and type-specific size validation |
-| `prepareUploadSelection(current, incoming)` | Deduplication and the 200-file queue limit |
+| `prepareUploadSelection(current, incoming)` | Ordered deduplication without truncating the selection |
 
 ## Related files
 

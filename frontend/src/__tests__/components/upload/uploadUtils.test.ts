@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MAX_UPLOAD_FILES,
   deduplicateUploadFiles,
   getUploadValidationError,
   prepareUploadSelection,
@@ -25,18 +24,17 @@ describe('uploadUtils', () => {
     expect(deduplicateUploadFiles([first, duplicate, distinct])).toEqual([first, distinct]);
   });
 
-  it('deduplicates against the existing queue and enforces the queue limit', () => {
+  it('deduplicates against the existing queue without truncating the selection', () => {
     const existing = file('existing.jpg');
-    const incoming = Array.from({ length: MAX_UPLOAD_FILES + 2 }, (_, index) =>
+    const incoming = Array.from({ length: 202 }, (_, index) =>
       file(`photo-${index}.jpg`),
     );
 
     const result = prepareUploadSelection([existing], [existing, ...incoming]);
 
-    expect(result.files).toHaveLength(MAX_UPLOAD_FILES);
+    expect(result.files).toHaveLength(203);
     expect(result.files[0]).toBe(existing);
     expect(result.duplicateCount).toBe(1);
-    expect(result.overflowCount).toBe(3);
   });
 
   it('uses extension-aware image and video size messages when MIME is absent', () => {

@@ -4,11 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { UploadConfirmModal } from './upload/UploadConfirmModal';
 import { UploadDropzone } from './upload/UploadDropzone';
-import {
-  MAX_UPLOAD_FILES,
-  isSupportedUploadFile,
-  prepareUploadSelection,
-} from './upload/uploadUtils';
+import { isSupportedUploadFile, prepareUploadSelection } from './upload/uploadUtils';
 import {
   MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES,
   MAX_UPLOAD_FILE_SIZE_MB,
@@ -118,11 +114,6 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
           toast.info(
             `${selection.duplicateCount} duplicate file${selection.duplicateCount === 1 ? '' : 's'} skipped`,
           );
-        }
-        if (selection.overflowCount > 0) {
-          toast.warning(`Only ${MAX_UPLOAD_FILES} files can be queued at once`, {
-            description: `${selection.overflowCount} file${selection.overflowCount === 1 ? '' : 's'} not added.`,
-          });
         }
         if (stagedCount === 0) return 0;
 
@@ -284,6 +275,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
               existingFilenames={existingFilenames}
               galleryId={galleryId}
               onUploadComplete={handleUploadComplete}
+              onFilesAdded={handleFiles}
               onFilesChange={handleModalFilesChange}
               onModalStateChange={onModalStateChange}
               onBusyChange={setIsUploadBusy}

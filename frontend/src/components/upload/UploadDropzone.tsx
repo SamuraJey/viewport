@@ -5,7 +5,7 @@ import {
   type DropEvent,
   type DropzoneState,
 } from 'react-dropzone';
-import { ACCEPTED_MIME_TYPES, MAX_DROPZONE_FILE_SIZE, MAX_UPLOAD_FILES } from './uploadUtils';
+import { ACCEPTED_MIME_TYPES, MAX_DROPZONE_FILE_SIZE } from './uploadUtils';
 
 export interface UploadDropzoneRenderState {
   isDragActive: boolean;
@@ -34,7 +34,7 @@ export const UploadDropzone = ({
   onFilesAccepted,
   onFilesRejected,
   onDragEnter,
-  maxFiles = MAX_UPLOAD_FILES,
+  maxFiles = 0,
   maxSize = MAX_DROPZONE_FILE_SIZE,
   disabled = false,
   noClick = true,

@@ -1,21 +1,16 @@
 import { useCallback, useState, type ReactNode } from 'react';
-import type { DropEvent, FileRejection } from 'react-dropzone';
+import type { DropEvent } from 'react-dropzone';
 import { toast } from 'sonner';
 import { PasteHandler } from '../upload/PasteHandler';
 import { UploadDragOverlay } from '../upload/UploadDragOverlay';
 import { UploadDropzone } from '../upload/UploadDropzone';
+import { describeUploadRejections } from '../upload/uploadUtils';
 
 interface GalleryDropZoneProps {
   children: ReactNode;
   onFilesAccepted: (files: File[]) => number | void;
   disabled?: boolean;
 }
-
-const describeRejections = (rejections: FileRejection[]): string => {
-  const firstError = rejections[0]?.errors[0]?.message;
-  const rejectedCount = rejections.length;
-  return `${rejectedCount} file${rejectedCount === 1 ? '' : 's'} skipped${firstError ? `: ${firstError}` : '.'}`;
-};
 
 export const GalleryDropZone = ({
   children,
@@ -51,7 +46,7 @@ export const GalleryDropZone = ({
       onFilesAccepted={onFilesAccepted}
       onFilesRejected={(rejections) =>
         toast.error('Some files were not added', {
-          description: describeRejections(rejections),
+          description: describeUploadRejections(rejections),
         })
       }
       onDragEnter={handleDragEnter}

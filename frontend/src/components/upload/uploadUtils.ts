@@ -1,4 +1,4 @@
-import type { Accept } from 'react-dropzone';
+import type { Accept, FileRejection } from 'react-dropzone';
 import {
   MAX_UPLOAD_FILE_SIZE_BYTES,
   MAX_UPLOAD_FILE_SIZE_MB,
@@ -11,7 +11,6 @@ import {
   isVideoUploadFile,
 } from '../../constants/upload';
 
-export const MAX_UPLOAD_FILES = 200;
 export const MAX_DROPZONE_FILE_SIZE = MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES;
 
 export const ACCEPTED_MIME_TYPES: Accept = {
@@ -26,6 +25,12 @@ export const ACCEPTED_MIME_TYPES: Accept = {
   'video/x-msvideo': ['.avi'],
   'video/mpeg': ['.mpeg', '.mpg'],
   'video/3gpp': ['.3gp'],
+};
+
+export const describeUploadRejections = (rejections: FileRejection[]): string => {
+  const firstError = rejections[0]?.errors[0]?.message;
+  const rejectedCount = rejections.length;
+  return `${rejectedCount} file${rejectedCount === 1 ? '' : 's'} skipped${firstError ? `: ${firstError}` : '.'}`;
 };
 
 export const getUploadFileKey = (file: File): string =>
@@ -65,14 +70,12 @@ export const getUploadValidationError = (file: File): string | null => {
 export const prepareUploadSelection = (
   currentFiles: File[],
   incomingFiles: File[],
-): { files: File[]; duplicateCount: number; overflowCount: number } => {
+): { files: File[]; duplicateCount: number } => {
   const combined = [...currentFiles, ...incomingFiles];
   const deduplicated = deduplicateUploadFiles(combined);
   const duplicateCount = combined.length - deduplicated.length;
-  const overflowCount = Math.max(0, deduplicated.length - MAX_UPLOAD_FILES);
   return {
-    files: deduplicated.slice(0, MAX_UPLOAD_FILES),
+    files: deduplicated,
     duplicateCount,
-    overflowCount,
   };
 };

@@ -15,10 +15,14 @@ settings.
   overlay communicates whether the payload can be accepted.
 - Clipboard files are accepted everywhere except editable controls such as
   inputs, textareas, selects, and content-editable regions.
-- `PhotoUploader` normalizes all entry points, removes duplicates, caps the
-  combined queue at 200 files, and opens `UploadConfirmModal`. Paste feedback
-  reports the number actually staged after deduplication and queue limits; no
+- `PhotoUploader` normalizes all entry points, removes duplicates, and opens
+  `UploadConfirmModal` without an artificial file-count cap. Paste feedback
+  reports the number actually staged after deduplication; no
   success toast is shown when nothing enters the queue.
+- Before transfer starts, more files can be dropped directly into the open
+  review modal. The modal uses the same direct drag handlers as the earlier
+  review grid, then applies the shared validation and deduplication before
+  appending files without disturbing the existing order.
 - The queue can be reordered before upload with pointer drag or from the
   dedicated grip with Space and the arrow keys. That visible order determines
   submission order and is locked after transfer starts; concurrent transfers
@@ -26,10 +30,12 @@ settings.
 - Each queue card shows its own validation, upload progress, completion, or
   failure state. The queue uses a compact proofing grid with up to four cards
   per row on desktop, keeping previews large enough to recognize each frame
-  without reducing scanability for large selections. A failed card retries only
-  that file using a fresh upload intent.
+  without reducing scanability for large selections. Thumbnail generation
+  preserves the source aspect ratio; the 4:3 card applies a cover crop instead
+  of stretching the photograph. A failed card retries only that file using a
+  fresh upload intent.
 - Queue thumbnails are generated only when rows approach the viewport, avoiding
-  a burst of bitmap work for the 200-file maximum.
+  a burst of bitmap work for large selections.
 
 The backend API remains unchanged: images still use presigned PUT plus batch
 confirmation through `/batch-confirm`; videos retain multipart part uploads,
@@ -80,7 +86,7 @@ percentage tick.
 
 Frontend coverage includes:
 
-- queue deduplication, validation, and the 200-file cap;
+- queue deduplication and validation without selection truncation;
 - clipboard intake and editable-control exclusions;
 - page-wide drop acceptance and rejection feedback;
 - per-file upload progress and retry behavior;

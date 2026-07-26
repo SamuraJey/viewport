@@ -141,6 +141,30 @@ describe('PhotoUploader', () => {
     expect(onModalStateChange).toHaveBeenLastCalledWith(true);
   });
 
+  it('adds dropped files to an existing review queue', async () => {
+    const user = userEvent.setup();
+    const firstFile = new File(['first'], 'first.jpg', { type: 'image/jpeg' });
+    const addedFile = new File(['added'], 'added-in-review.jpg', { type: 'image/jpeg' });
+
+    render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
+
+    const initialInput = screen.getByLabelText('Choose photos or videos to upload');
+    await user.upload(initialInput, firstFile);
+    expect(await screen.findByText('first.jpg')).toBeInTheDocument();
+
+    const reviewModalHeader = screen.getByRole('heading', { name: /review files/i });
+    fireEvent.drop(reviewModalHeader, {
+      dataTransfer: {
+        files: [addedFile],
+        items: [{ kind: 'file', type: 'image/jpeg', getAsFile: () => addedFile }],
+        types: ['Files'],
+      },
+    });
+
+    expect(await screen.findByText('added-in-review.jpg')).toBeInTheDocument();
+    expect(screen.getByText('first.jpg')).toBeInTheDocument();
+  });
+
   it('should reject unsupported files', async () => {
     const onUploadComplete = vi.fn().mockResolvedValue(undefined);
     render(<PhotoUploader galleryId="test-gallery" onUploadComplete={onUploadComplete} />);

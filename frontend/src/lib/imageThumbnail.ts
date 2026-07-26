@@ -27,12 +27,21 @@ export async function createImageThumbnail(
   let fallbackUrl: string | null = null;
 
   try {
-    const bitmap = await createImageBitmap(file, {
+    const resizeOptions = {
+      resizeQuality: 'high' as const,
+      imageOrientation: 'from-image' as const,
+    };
+    let bitmap = await createImageBitmap(file, {
       resizeWidth: maxDimension,
-      resizeHeight: maxDimension,
-      resizeQuality: 'high',
-      imageOrientation: 'from-image',
+      ...resizeOptions,
     });
+    if (bitmap.height > maxDimension) {
+      bitmap.close();
+      bitmap = await createImageBitmap(file, {
+        resizeHeight: maxDimension,
+        ...resizeOptions,
+      });
+    }
 
     const canvas = document.createElement('canvas');
     canvas.width = bitmap.width;

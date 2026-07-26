@@ -1,4 +1,12 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+} from 'react';
 import { AlertTriangle, CheckCircle2, Images, Loader2, Shrink, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { PhotoUploadResponse } from '../../types';
@@ -19,6 +27,7 @@ export interface UploadConfirmModalProps {
   existingFilenames?: string[];
   galleryId: string;
   onUploadComplete: (result: PhotoUploadResponse) => void;
+  onFilesAdded?: (files: File[]) => number | void;
   onFilesChange?: (files: File[]) => void;
   onModalStateChange?: (isOpen: boolean) => void;
   onBusyChange?: (isBusy: boolean) => void;
@@ -50,6 +59,7 @@ export const UploadConfirmModal = memo(
     existingFilenames = [],
     galleryId,
     onUploadComplete,
+    onFilesAdded,
     onFilesChange,
     onModalStateChange,
     onBusyChange,
@@ -73,12 +83,47 @@ export const UploadConfirmModal = memo(
     const [showCancelWarning, setShowCancelWarning] = useState(false);
     const [resizingJobId, setResizingJobId] = useState<string | null>(null);
     const [isResizingAll, setIsResizingAll] = useState(false);
+    const [isDragOver, setIsDragOver] = useState(false);
     const uploadButtonRef = useRef<HTMLButtonElement>(null);
     const isActiveRef = useRef(true);
 
     const resizableJobs = useMemo(
       () => jobs.filter((job) => isResizableOversizedImage(job.file)),
       [jobs],
+    );
+    const intakeDisabled =
+      !onFilesAdded || isUploading || isResizingAll || resizingJobId !== null || Boolean(result);
+
+    const handleDragOver = useCallback(
+      (event: DragEvent<HTMLDivElement>) => {
+        if (intakeDisabled) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'copy';
+        setIsDragOver(true);
+      },
+      [intakeDisabled],
+    );
+
+    const handleDragLeave = useCallback((event: DragEvent<HTMLDivElement>) => {
+      if (
+        event.relatedTarget instanceof Node &&
+        event.currentTarget.contains(event.relatedTarget)
+      ) {
+        return;
+      }
+      setIsDragOver(false);
+    }, []);
+
+    const handleDrop = useCallback(
+      (event: DragEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsDragOver(false);
+        if (intakeDisabled || event.dataTransfer.files.length === 0) return;
+        onFilesAdded?.(Array.from(event.dataTransfer.files));
+      },
+      [intakeDisabled, onFilesAdded],
     );
 
     useEffect(() => {
@@ -187,6 +232,13 @@ export const UploadConfirmModal = memo(
         onClose={handleClose}
         size="5xl"
         initialFocusRef={uploadButtonRef as React.RefObject<HTMLElement | null>}
+        panelProps={{
+          'data-upload-dropzone': 'review-queue',
+          onDragEnter: handleDragOver,
+          onDragOver: handleDragOver,
+          onDragLeave: handleDragLeave,
+          onDrop: handleDrop,
+        }}
         containerClassName="fixed inset-0 flex w-screen items-start justify-center overflow-y-auto p-3 sm:p-6"
         backdropClassName="fixed inset-0 bg-slate-950/60 backdrop-blur-md"
         panelClassName="relative my-4 flex min-h-0 max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-3xl bg-surface shadow-2xl sm:my-8 sm:max-h-[calc(100dvh-4rem)] dark:bg-surface-foreground"
@@ -221,7 +273,7 @@ export const UploadConfirmModal = memo(
                   ? 'Successful files are being processed. Retry only the files that need attention.'
                   : isUploading
                     ? 'Progress updates below are live for every file in the queue.'
-                    : 'Drag the grip or use Space and the arrow keys to set the upload order.'}
+                    : 'Drop more files here, or use the grips to set the upload order.'}
               </AppDialogDescription>
             </div>
             <button
@@ -299,6 +351,19 @@ export const UploadConfirmModal = memo(
             onResize={(jobId) => void handleResize(jobId)}
           />
         </div>
+
+        {isDragOver && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-3 z-30 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-surface/95 px-6 text-center text-accent dark:bg-surface-foreground/95"
+          >
+            <Upload className="mb-3 h-8 w-8" aria-hidden="true" />
+            <p className="text-base font-bold">Drop to add files</p>
+            <p className="mt-1 max-w-md text-sm font-medium text-muted">
+              They will join the current queue without changing its order.
+            </p>
+          </div>
+        )}
 
         <div className="flex flex-col gap-3 border-t border-border/45 bg-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7 dark:bg-surface-foreground">
           <p className="text-sm font-semibold text-muted">
