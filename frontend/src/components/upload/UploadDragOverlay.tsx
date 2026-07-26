@@ -17,12 +17,12 @@ export const UploadDragOverlay = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/38 p-4 backdrop-blur-md"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-photo-overlay p-4 backdrop-blur-md"
       aria-hidden="true"
       data-testid="upload-drag-overlay"
     >
       <div
-        className={`w-full max-w-xl rounded-3xl border-2 border-dashed bg-surface/96 px-8 py-12 text-center shadow-2xl dark:bg-surface-foreground/96 sm:px-12 ${
+        className={`w-full max-w-xl rounded-3xl border-2 border-dashed bg-surface/96 px-8 py-12 text-center shadow-2xl sm:px-12 ${
           isRejected ? 'border-danger' : 'border-accent'
         }`}
       >

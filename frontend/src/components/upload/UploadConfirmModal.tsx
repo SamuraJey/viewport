@@ -13,6 +13,7 @@ import type { PhotoUploadResponse } from '../../types';
 import { usePhotoUpload } from '../../hooks/usePhotoUpload';
 import { resizeImageForUpload } from '../../lib/imageResize';
 import { formatFileSize } from '../../lib/utils';
+import { MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 import { isResizableOversizedImage } from './uploadUtils';
 import { PasteHandler } from './PasteHandler';
 import { UploadQueueList } from './UploadQueueList';
@@ -214,25 +215,28 @@ export const UploadConfirmModal = memo(
       if (isResizingAll || resizableJobs.length === 0) return;
       setIsResizingAll(true);
       const workingFiles = [...files];
-      for (const job of resizableJobs) {
-        const index = workingFiles.findIndex((file) => file === job.file);
-        if (index < 0) continue;
-        setResizingJobId(job.id);
-        try {
-          const resized = await resizeImageForUpload(job.file);
-          if (!isActiveRef.current) return;
-          workingFiles[index] = resized;
-        } catch (error) {
-          if (!isActiveRef.current) return;
-          toast.error(`Could not resize ${job.file.name}`, {
-            description: error instanceof Error ? error.message : 'Try a smaller source file.',
-          });
+      try {
+        for (const job of resizableJobs) {
+          if (!isActiveRef.current) break;
+          const index = workingFiles.findIndex((file) => file === job.file);
+          if (index < 0) continue;
+          setResizingJobId(job.id);
+          try {
+            const resized = await resizeImageForUpload(job.file);
+            if (!isActiveRef.current) break;
+            workingFiles[index] = resized;
+          } catch (error) {
+            if (!isActiveRef.current) break;
+            toast.error(`Could not resize ${job.file.name}`, {
+              description: error instanceof Error ? error.message : 'Try a smaller source file.',
+            });
+          }
         }
+      } finally {
+        setResizingJobId(null);
+        setIsResizingAll(false);
+        if (isActiveRef.current) onFilesChange?.(workingFiles);
       }
-      if (!isActiveRef.current) return;
-      onFilesChange?.(workingFiles);
-      setResizingJobId(null);
-      setIsResizingAll(false);
     }, [files, isResizingAll, onFilesChange, resizableJobs]);
 
     const liveMessage = progress
@@ -340,7 +344,7 @@ export const UploadConfirmModal = memo(
               <p className="min-w-0 flex-1 text-sm font-semibold leading-6 text-text">
                 {validUploadCount === 0
                   ? 'All selected files exceed the maximum size. Resize the images below or remove them.'
-                  : `${resizableJobs.length} oversized image${resizableJobs.length === 1 ? '' : 's'} can be compressed to ≤ 10 MB before upload.`}
+                  : `${resizableJobs.length} oversized image${resizableJobs.length === 1 ? '' : 's'} can be compressed to ≤ ${MAX_UPLOAD_FILE_SIZE_MB} MB before upload.`}
               </p>
               <button
                 type="button"

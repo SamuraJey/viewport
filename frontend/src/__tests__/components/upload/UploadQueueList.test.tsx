@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { UploadQueueList } from '../../../components/upload/UploadQueueList';
-import type { UploadJob } from '../../../components/upload/types';
+import type { UploadJob } from '../../../types';
 import { createImageThumbnail } from '../../../lib/imageThumbnail';
 
 vi.mock('../../../lib/imageThumbnail', () => ({

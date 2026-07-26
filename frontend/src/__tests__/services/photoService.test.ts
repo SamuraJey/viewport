@@ -935,6 +935,40 @@ describe('photoService', () => {
     expect(after.total_photos).toBe(before.total_photos);
   });
 
+  it('returns completed demo uploads when cancellation happens mid-run', async () => {
+    vi.useFakeTimers();
+    vi.mocked(isDemoModeEnabled).mockReturnValue(true);
+    const store = getDemoService();
+    const before = await store.getGallery('demo-gallery-fashion', { limit: 100, offset: 0 });
+    const controller = new AbortController();
+    const completedFile = createFile('completed-demo.jpg', 1024);
+    const pendingFile = createFile('pending-demo.jpg', 1024);
+
+    const upload = photoService.uploadPhotosPresigned(
+      'demo-gallery-fashion',
+      [completedFile, pendingFile],
+      (progress) => {
+        if (progress.successCount === 1) controller.abort();
+      },
+      controller.signal,
+    );
+
+    await vi.runAllTimersAsync();
+    const result = await upload;
+
+    expect(result).toMatchObject({
+      total_files: 1,
+      successful_uploads: 1,
+      failed_uploads: 0,
+      results: [{ filename: 'completed-demo.jpg', success: true }],
+    });
+
+    const after = await store.getGallery('demo-gallery-fashion', { limit: 100, offset: 0 });
+    expect(after.total_photos).toBe(before.total_photos + 1);
+    expect(after.photos.some((photo) => photo.filename === 'completed-demo.jpg')).toBe(true);
+    expect(after.photos.some((photo) => photo.filename === 'pending-demo.jpg')).toBe(false);
+  });
+
   it('uses demo rename/delete flow and skips API calls when demo mode is enabled', async () => {
     vi.mocked(isDemoModeEnabled).mockReturnValue(true);
 

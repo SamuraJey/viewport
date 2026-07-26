@@ -3,13 +3,13 @@ import { photoService } from '../services/photoService';
 import { getMaxUploadSizeBytes } from '../constants/upload';
 import { getSafeNameAndExtension } from '../lib/filenameUtils';
 import { getUploadFileKey, getUploadValidationError } from '../components/upload/uploadUtils';
-import type { UploadJob } from '../components/upload/types';
 import type {
   PhotoUploadProgress,
   PhotoUploadResponse,
   UploadPreparedFile,
   UploadRenameWarning,
   PhotoUploadResult,
+  UploadJob,
 } from '../types';
 
 export type UploadProgress = PhotoUploadProgress;

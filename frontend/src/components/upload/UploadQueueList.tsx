@@ -14,7 +14,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { UploadQueueItem } from './UploadQueueItem';
-import type { UploadJob } from './types';
+import type { UploadJob } from '../../types';
 
 interface UploadQueueListProps {
   jobs: UploadJob[];

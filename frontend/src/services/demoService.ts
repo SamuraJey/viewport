@@ -3224,6 +3224,12 @@ class DemoServiceStore {
       if (signal?.aborted && successCount > 0) {
         this.recalculateStorageUsed();
         this.persistState();
+        return {
+          results,
+          total_files: results.length,
+          successful_uploads: successCount,
+          failed_uploads: 0,
+        };
       }
       throw error;
     }

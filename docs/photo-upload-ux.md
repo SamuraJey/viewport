@@ -58,7 +58,7 @@ changing the server contract.
 - Accepted videos: MP4, MOV, M4V, WEBM, MKV, AVI, MPEG/MPG, and 3GP, up to
   500 MB. When a browser omits `File.type`, the supported MIME type and size
   limit are resolved from the filename extension before the presign request.
-- Empty, unsupported, duplicate, and overflow files receive immediate feedback.
+- Empty, unsupported, duplicate, and oversized files receive immediate feedback.
 - Removing the final queued file closes the empty review dialog and immediately
   restores page-wide drag-and-drop and paste intake.
 - New page-wide drop and paste intake is disabled while another gallery modal,

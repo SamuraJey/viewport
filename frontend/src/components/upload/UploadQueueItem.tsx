@@ -5,9 +5,13 @@ import { CSS } from '@dnd-kit/utilities';
 import { AppBadge } from '../ui';
 import { formatFileSize } from '../../lib/utils';
 import { createImageThumbnail } from '../../lib/imageThumbnail';
-import { isImageUploadFile, isVideoUploadFile } from '../../constants/upload';
+import {
+  isImageUploadFile,
+  isVideoUploadFile,
+  MAX_UPLOAD_FILE_SIZE_MB,
+} from '../../constants/upload';
+import type { UploadJob } from '../../types';
 import { getUploadValidationError, isResizableOversizedImage } from './uploadUtils';
-import type { UploadJob } from './types';
 
 interface UploadQueueItemProps {
   job: UploadJob;
@@ -208,7 +212,7 @@ export const UploadQueueItem = ({
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-muted">
           <span>
             {canResize
-              ? `${formatFileSize(job.file.size)} → ≤ 10 MB`
+              ? `${formatFileSize(job.file.size)} → ≤ ${MAX_UPLOAD_FILE_SIZE_MB} MB`
               : formatFileSize(job.file.size)}
           </span>
           {job.renameWarning && (

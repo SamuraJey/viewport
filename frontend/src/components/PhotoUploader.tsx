@@ -212,7 +212,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
             noClick={false}
             noKeyboard={false}
             rootAriaLabel="Upload photos or videos"
-            className="block"
+            className="block focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
           >
             {({ isDragActive, isDragReject, open }) => (
               <>
@@ -224,7 +224,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
                       : isDragActive
                         ? 'border-accent bg-accent/10 shadow-inner'
                         : 'border-border/50 bg-surface-1/50 hover:border-accent/60 hover:bg-accent/5 dark:border-border/30 dark:bg-surface-dark-1/50'
-                  } focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface`}
+                  }`}
                   role="presentation"
                 >
                   <motion.div

@@ -48,6 +48,8 @@ export type {
   UploadRenameWarning,
 } from './photo';
 
+export type { UploadJob, UploadStatus } from './upload';
+
 // Share link types
 export type {
   ShareScopeType,
