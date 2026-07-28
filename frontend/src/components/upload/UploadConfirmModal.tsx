@@ -365,9 +365,9 @@ export const UploadConfirmModal = memo(
 
           <UploadQueueList
             jobs={jobs}
-            reorderDisabled={isUploading || Boolean(result)}
-            actionsDisabled={isUploading || Boolean(result)}
-            retryDisabled={isUploading}
+            reorderDisabled={isUploading || isResizingAll || resizingJobId !== null || Boolean(result)}
+            actionsDisabled={isUploading || isResizingAll || resizingJobId !== null || Boolean(result)}
+            retryDisabled={isUploading || isResizingAll || resizingJobId !== null}
             resizingJobId={resizingJobId}
             onReorder={handleReorderJobs}
             onRetry={(jobId) => void handleRetryFile(jobId)}

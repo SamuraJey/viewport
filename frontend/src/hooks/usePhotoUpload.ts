@@ -198,16 +198,39 @@ export const usePhotoUpload = (
     [files, onFilesChange],
   );
 
+  const clearRetryBookkeeping = useCallback((jobId: string, filename: string) => {
+    failedFilesRef.current = failedFilesRef.current.filter(
+      (item) => getUploadFileKey(item.file) !== jobId,
+    );
+    const currentResult = sessionResultRef.current;
+    if (!currentResult) return;
+
+    const results = currentResult.results.filter(
+      (item) => (item.original_filename || item.filename) !== filename,
+    );
+    const nextResult: PhotoUploadResponse = {
+      results,
+      total_files: results.length,
+      successful_uploads: results.filter((item) => item.success).length,
+      failed_uploads: results.filter((item) => !item.success).length,
+    };
+    sessionResultRef.current = nextResult;
+    setResult(nextResult);
+  }, []);
+
   const handleRemoveJob = useCallback(
     (jobId: string) => {
+      const filename = preparedById.get(jobId)?.filename;
+      if (!filename) return;
       onFilesChange?.(files.filter((file) => getUploadFileKey(file) !== jobId));
+      clearRetryBookkeeping(jobId, filename);
       setJobStateById((current) => {
         const next = { ...current };
         delete next[jobId];
         return next;
       });
     },
-    [files, onFilesChange],
+    [clearRetryBookkeeping, files, onFilesChange, preparedById],
   );
 
   const handleReorderJobs = useCallback(
@@ -228,14 +251,17 @@ export const usePhotoUpload = (
     (jobId: string, newFile: File) => {
       const index = files.findIndex((file) => getUploadFileKey(file) === jobId);
       if (index < 0) return;
+      const filename = preparedById.get(jobId)?.filename;
+      if (!filename) return;
       handleReplaceFile(index, newFile);
+      clearRetryBookkeeping(jobId, filename);
       setJobStateById((current) => {
         const next = { ...current };
         delete next[jobId];
         return next;
       });
     },
-    [files, handleReplaceFile],
+    [clearRetryBookkeeping, files, handleReplaceFile, preparedById],
   );
 
   const handleUpload = useCallback(async () => {

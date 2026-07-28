@@ -100,7 +100,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
         if (rawFiles.length > supportedFiles.length) {
           setError('Some files were skipped. Use JPG, PNG, or a supported video format.');
         } else if (oversizedVideos.size > 0) {
-          setError(`Video files must be under ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB.`);
+          setError(`Video files may be up to ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB.`);
         } else {
           setError('');
         }
@@ -197,7 +197,7 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
                 errors.some((error) => error.code === 'file-invalid-type'),
               );
               if (hasOversizedVideo) {
-                setError(`Video files must be under ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB.`);
+                setError(`Video files may be up to ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB.`);
               } else if (hasInvalidType) {
                 setError(
                   'Only JPG, PNG and supported video files are allowed. Please select valid files.',

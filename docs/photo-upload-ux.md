@@ -53,7 +53,9 @@ changing the server contract.
 
 ## Validation and failure handling
 
-- Supported images: JPG/JPEG and PNG. The upload limit is 10 MB; oversized
+- Supported images: JPG/JPEG and PNG. The upload limit is 10 MB; when a
+  browser omits `File.type`, the supported image MIME type and size limit are
+  resolved from the filename extension before the presign request. Oversized
   images that enter the queue must be resized or removed before upload.
 - Accepted videos: MP4, MOV, M4V, WEBM, MKV, AVI, MPEG/MPG, and 3GP, up to
   500 MB. When a browser omits `File.type`, the supported MIME type and size
@@ -106,7 +108,7 @@ Run:
 
 ```bash
 cd frontend
-npm run lint
+npm run lint:fix
 npm run test:run
 VITE_API_URL=https://api.example.test npm run build
 ```

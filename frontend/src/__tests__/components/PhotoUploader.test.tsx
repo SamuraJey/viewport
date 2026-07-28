@@ -337,7 +337,7 @@ describe('PhotoUploader', () => {
     });
     expect(screen.queryByText('too-large.mp4')).not.toBeInTheDocument();
     expect(
-      screen.getByText(`Video files must be under ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB.`),
+      screen.getByText(`Video files may be up to ${MAX_VIDEO_UPLOAD_FILE_SIZE_MB} MB.`),
     ).toBeInTheDocument();
   });
 

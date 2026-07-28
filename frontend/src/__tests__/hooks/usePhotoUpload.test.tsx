@@ -318,4 +318,69 @@ describe('usePhotoUpload', () => {
       error: undefined,
     });
   });
+
+  it('does not retry a failed file after it is removed from the queue', async () => {
+    const file = makeFile('remove-me.jpg');
+    vi.mocked(photoService.uploadPhotosPresigned).mockResolvedValue({
+      results: [
+        {
+          filename: file.name,
+          original_filename: file.name,
+          success: false,
+          retryable: true,
+        },
+      ],
+      total_files: 1,
+      successful_uploads: 0,
+      failed_uploads: 1,
+    });
+
+    const { result } = renderHook(() => usePhotoUpload('gallery-1', [file], [], vi.fn()));
+    await act(async () => {
+      await result.current.handleUpload();
+    });
+
+    act(() => {
+      result.current.handleRemoveJob(result.current.jobs[0].id);
+    });
+    await act(async () => {
+      await result.current.handleRetryFailed();
+    });
+
+    expect(photoService.retryFailedUploads).not.toHaveBeenCalled();
+    expect(result.current.result).toMatchObject({ total_files: 0, failed_uploads: 0 });
+  });
+
+  it('does not retry a failed original after it is replaced in the queue', async () => {
+    const file = makeFile('replace-me.jpg');
+    const replacement = makeFile('replacement.jpg');
+    vi.mocked(photoService.uploadPhotosPresigned).mockResolvedValue({
+      results: [
+        {
+          filename: file.name,
+          original_filename: file.name,
+          success: false,
+          retryable: true,
+        },
+      ],
+      total_files: 1,
+      successful_uploads: 0,
+      failed_uploads: 1,
+    });
+
+    const { result } = renderHook(() => usePhotoUpload('gallery-1', [file], [], vi.fn()));
+    await act(async () => {
+      await result.current.handleUpload();
+    });
+
+    act(() => {
+      result.current.handleReplaceJob(result.current.jobs[0].id, replacement);
+    });
+    await act(async () => {
+      await result.current.handleRetryFailed();
+    });
+
+    expect(photoService.retryFailedUploads).not.toHaveBeenCalled();
+    expect(result.current.result).toMatchObject({ total_files: 0, failed_uploads: 0 });
+  });
 });
