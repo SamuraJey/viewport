@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { StrictMode } from 'react';
 import { PhotoUploader } from '../../components/PhotoUploader';
 import { GalleryDropZone } from '../../components/gallery/GalleryDropZone';
 import { MAX_UPLOAD_FILE_SIZE_BYTES, MAX_VIDEO_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
@@ -315,6 +316,48 @@ describe('PhotoUploader', () => {
 
     expect(await screen.findByText('next.jpg')).toBeInTheDocument();
     expect(screen.queryByText('discard-me.jpg')).not.toBeInTheDocument();
+  });
+
+  it('disables upload during a single resize and completes it under Strict Mode', async () => {
+    const user = userEvent.setup();
+    let resolveResize!: (file: File) => void;
+    vi.mocked(resizeImageForUpload).mockReturnValue(
+      new Promise<File>((resolve) => {
+        resolveResize = resolve;
+      }),
+    );
+    const validFile = new File(['valid'], 'valid.jpg', { type: 'image/jpeg' });
+    const largeFile = new File(
+      [new ArrayBuffer(MAX_UPLOAD_FILE_SIZE_BYTES + 1)],
+      'large.jpg',
+      {
+        type: 'image/jpeg',
+      },
+    );
+
+    render(
+      <StrictMode>
+        <PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />
+      </StrictMode>,
+    );
+
+    await user.upload(screen.getByLabelText('Choose photos or videos to upload'), [
+      validFile,
+      largeFile,
+    ]);
+
+    const uploadButton = await screen.findByRole('button', { name: 'Upload' });
+    expect(uploadButton).toBeEnabled();
+
+    await user.click(screen.getByLabelText('Resize large.jpg to fit size limit'));
+    expect(uploadButton).toBeDisabled();
+
+    await act(async () => {
+      resolveResize(new File(['resized'], 'large.jpg', { type: 'image/jpeg' }));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(uploadButton).toBeEnabled());
   });
 
   it('should exclude oversized videos while continuing with valid files', async () => {

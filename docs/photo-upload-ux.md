@@ -108,7 +108,7 @@ Run:
 
 ```bash
 cd frontend
-npm run lint:fix
+npm run lint
 npm run test:run
 VITE_API_URL=https://api.example.test npm run build
 ```

@@ -145,13 +145,13 @@ export const UploadConfirmModal = memo(
       onBusyChange?.(isUploading || isResizingAll || resizingJobId !== null);
     }, [isResizingAll, isUploading, onBusyChange, resizingJobId]);
 
-    useEffect(
-      () => () => {
+    useEffect(() => {
+      isActiveRef.current = true;
+      return () => {
         isActiveRef.current = false;
         onBusyChange?.(false);
-      },
-      [onBusyChange],
-    );
+      };
+    }, [onBusyChange]);
 
     const handleForceClose = useCallback(async () => {
       isActiveRef.current = false;
@@ -424,7 +424,9 @@ export const UploadConfirmModal = memo(
                 ref={uploadButtonRef}
                 type="button"
                 onClick={() => void handleUpload()}
-                disabled={!hasValidFiles || isUploading || isResizingAll}
+                disabled={
+                  !hasValidFiles || isUploading || isResizingAll || resizingJobId !== null
+                }
                 className="inline-flex h-11 min-w-32 items-center justify-center gap-2 rounded-xl bg-text px-6 text-sm font-bold text-surface transition-colors hover:bg-text/90 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {isUploading ? (
