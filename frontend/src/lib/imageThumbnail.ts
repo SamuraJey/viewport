@@ -1,3 +1,5 @@
+import { isImageUploadFile } from '../constants/upload';
+
 export interface ThumbnailResult {
   url: string | null;
   cleanup: () => void;
@@ -18,19 +20,28 @@ export async function createImageThumbnail(
   file: File,
   maxDimension: number = DEFAULT_MAX_DIMENSION,
 ): Promise<ThumbnailResult> {
-  if (!file.type.startsWith('image/')) {
+  if (!isImageUploadFile(file)) {
     return { url: null, cleanup: () => {} };
   }
 
   let fallbackUrl: string | null = null;
 
   try {
-    const bitmap = await createImageBitmap(file, {
+    const resizeOptions = {
+      resizeQuality: 'high' as const,
+      imageOrientation: 'from-image' as const,
+    };
+    let bitmap = await createImageBitmap(file, {
       resizeWidth: maxDimension,
-      resizeHeight: maxDimension,
-      resizeQuality: 'high',
-      imageOrientation: 'from-image',
+      ...resizeOptions,
     });
+    if (bitmap.height > maxDimension) {
+      bitmap.close();
+      bitmap = await createImageBitmap(file, {
+        resizeHeight: maxDimension,
+        ...resizeOptions,
+      });
+    }
 
     const canvas = document.createElement('canvas');
     canvas.width = bitmap.width;

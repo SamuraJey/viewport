@@ -189,6 +189,28 @@ vi.mock('../../components/Layout', () => ({
   Layout: ({ children }: any) => <div data-testid="layout">{children}</div>,
 }));
 
+vi.mock('../../components/upload/UploadConfirmModal', () => ({
+  UploadConfirmModal: ({
+    isOpen,
+    files,
+    onClose,
+  }: {
+    isOpen: boolean;
+    files: File[];
+    onClose: () => void;
+  }) =>
+    isOpen ? (
+      <div role="dialog" aria-label="Review files">
+        {files.map((file) => (
+          <span key={file.name}>{file.name}</span>
+        ))}
+        <button type="button" aria-label="Close upload dialog" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    ) : null,
+}));
+
 // Mock useParams to return gallery ID
 vi.mock('react-router', async () => {
   const actual = await vi.importActual('react-router');
@@ -302,6 +324,47 @@ describe('GalleryPage', () => {
     expect(screen.getByText('Share Links')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /more gallery actions/i })).toBeInTheDocument();
     expect(screen.getAllByRole('img')).toHaveLength(3);
+  });
+
+  it('keeps upload intake mounted while the Appearance tab is active', async () => {
+    const user = userEvent.setup();
+    render(<GalleryPageWrapper />);
+
+    const appearanceTab = await screen.findByRole('tab', { name: 'Appearance' });
+    await user.click(appearanceTab);
+
+    expect(screen.getByRole('tabpanel', { name: 'Appearance' })).toBeInTheDocument();
+    expect(appearanceTab).toHaveAttribute('aria-selected', 'true');
+    const intakeInputs = screen.getAllByLabelText('Choose photos or videos to upload');
+    expect(intakeInputs).toHaveLength(2);
+    expect(screen.getByRole('button', { name: /add photos/i })).toBeEnabled();
+
+    const droppedFile = new File(['dropped'], 'appearance-drop.jpg', { type: 'image/jpeg' });
+    fireEvent.drop(intakeInputs[0].parentElement as HTMLElement, {
+      dataTransfer: {
+        files: [droppedFile],
+        items: [{ kind: 'file', type: 'image/jpeg', getAsFile: () => droppedFile }],
+        types: ['Files'],
+      },
+    });
+
+    expect(await screen.findByText('appearance-drop.jpg')).toBeInTheDocument();
+    expect(appearanceTab).toHaveAttribute('aria-selected', 'true');
+    await user.click(screen.getByRole('button', { name: 'Close upload dialog' }));
+
+    const pastedFile = new File(['pasted'], 'appearance-paste.jpg', { type: 'image/jpeg' });
+    fireEvent.paste(document, {
+      clipboardData: {
+        items: [{ kind: 'file', type: 'image/jpeg', getAsFile: () => pastedFile }],
+      },
+    });
+
+    expect(await screen.findByText('appearance-paste.jpg')).toBeInTheDocument();
+    expect(appearanceTab).toHaveAttribute('aria-selected', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'Close upload dialog' }));
+    expect(screen.getByRole('tabpanel', { name: 'Appearance' })).toBeInTheDocument();
+    expect(appearanceTab).toHaveAttribute('aria-selected', 'true');
   });
 
   it('should navigate to dashboard after deleting the gallery', async () => {

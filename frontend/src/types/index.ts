@@ -36,6 +36,8 @@ export type {
   GalleryPhoto,
   PhotoUploadResult,
   PhotoUploadResponse,
+  PhotoUploadProgress,
+  UploadFileProgress,
   BatchPresignedUploadsRequest,
   BatchPresignedUploadsResponse,
   ConfirmPhotoUploadItem,
@@ -45,6 +47,8 @@ export type {
   UploadPreparedFile,
   UploadRenameWarning,
 } from './photo';
+
+export type { UploadJob, UploadStatus } from './upload';
 
 // Share link types
 export type {

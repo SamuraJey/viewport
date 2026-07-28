@@ -1,6 +1,7 @@
 # Agent instructions (Viewport)
 
 ## Big picture
+
 - Monorepo: FastAPI backend in `src/viewport/` + React/Vite frontend in `frontend/`.
 - Backend layers: routers in `src/viewport/api/` → repository layer in `src/viewport/repositories/` (SQLAlchemy `Session`) → Postgres models in `src/viewport/models/`.
 - Backend database access uses SQLAlchemy `AsyncSession` in app code, repositories, and auth dependencies, while Celery background tasks currently use a sync SQLAlchemy `Session` via `task_db_session()`. HTTP consumers of `get_db()` must use `Depends(get_db, scope="function")` so sessions close before response transmission, especially for `StreamingResponse`; streaming generators must not retain or query through a DB session. Actual connection ownership is measured through SQLAlchemy checkout/checkin metrics in `src/viewport/db_metrics.py`; see `docs/database-connection-lifecycle.md`.
@@ -10,6 +11,7 @@
 - Ask QUESTIONS if you are unsure about any of details of your current task.
 
 ## How to run (preferred workflows)
+
 - Containers (recommended): `docker-compose up -d` (services: backend, postgres, rustfs, redis, celery_worker).
 - Backend local tooling uses `uv` + venv via `just init` or `make init` (see `Justfile`, `Makefile`).
 - Backend dev server (preferred local dev): `uvicorn viewport.main:app --reload`.
@@ -17,6 +19,7 @@
 - Frontend dev server: `cd frontend && npm install && npm run dev`.
 
 ## Backend conventions (FastAPI)
+
 - App entrypoint: `src/viewport/main.py`.
   - Initializes singleton services (`AsyncS3Client`, `RedisService`, `PresignedUrlCacheService`) in `lifespan()` and exposes them via DI (`src/viewport/dependencies.py`).
 - Auth: endpoints in `src/viewport/api/auth.py`; request auth uses `get_current_user()` from `src/viewport/auth_utils.py` (HTTP Bearer, consistent 401s). Access/refresh tokens carry an HMAC fingerprint of the current `users.password_hash`; password changes make existing access and refresh tokens fail without a migration or server-side refresh-token storage.
@@ -49,6 +52,7 @@
   - **Storage quotas**: User storage is tracked on `users` (`storage_quota`, `storage_used`, `storage_reserved`). Reserve bytes on `/batch-presigned`, finalize on confirm, and release on failures/orphan cleanup; only admins edit quota via SQLAdmin.
 
 ## Frontend conventions (React)
+
 - **Type system**: Centralized in `frontend/src/types/` (common.ts, gallery.ts, project.ts, photo.ts, sharelink.ts, auth.ts).
   - Services re-export types for backward compatibility but new code should import from `types/`.
   - Use `PaginatedResponse<T>`, `ApiError`, `AsyncState<T>` for consistent patterns.
@@ -77,6 +81,7 @@
   - Share links management UI spans `GalleryPage.tsx` (local section with inline edit actions), `ShareLinksDashboardPage.tsx` (owner-wide table), and `ShareLinkDetailPage.tsx` (time-series analytics + edit/delete controls).
   - Keep pages as orchestration layers and prefer route-level lazy loading (`React.lazy` + `Suspense`) in `frontend/src/App.tsx` for main page components to control bundle size.
   - `GalleryPage.tsx` follows a **photo-first** layout: compact metadata header and primary focus on the photo grid. Upload starts directly from `Add Photos` (file picker), and drag-and-drop is handled across the whole gallery page instead of a permanently large uploader block.
+  - Gallery upload intake is centralized in `components/gallery/GalleryDropZone.tsx` and `components/PhotoUploader.tsx`: page-wide `react-dropzone` drag state, clipboard files outside editable controls, and ordered deduplication feed `components/upload/UploadConfirmModal.tsx`, which stays mounted across gallery tabs and accepts additional files through direct modal-level drag handlers. Do not impose an artificial file-count cap; rely on lazy thumbnail loading for large selections. Preserve the existing presigned image and multipart video APIs; run file jobs through the bounded four-worker pool, resolve missing browser MIME types from supported extensions, never reuse failed photo/upload intents on retry, carry per-file UI progress through `PhotoUploadProgress.files`, keep aggregate progress outside the queue scroll region, and keep queue order on the accessible dnd-kit grip before upload starts. See `docs/photo-upload-ux.md` for the complete interaction, concurrency, and cancellation contract.
   - In `GalleryPage.tsx`, keep private gallery controls (`search`, `sort_by`, `order`) URL-synced via query params, debounce search input before updating URL/API calls, and reset pagination to page `1` whenever these controls change.
   - Public gallery sorting is not user-adjustable in `PublicGalleryPage.tsx`; photographer-configured settings are edited in private gallery and persisted on the gallery model. For `scope_type = "project"`, the root project payload should list the visible galleries, the public page should open the first listed gallery by default, and navigation should render as a horizontal list of gallery names without preview cards.
   - For large page/modals, prefer feature-local decomposition into focused presentation components under dedicated folders (e.g. `components/public-gallery/`, `components/dashboard/`, `components/profile/`, `components/upload-confirm/`, `components/auth/`) while keeping orchestration in page/container components.
@@ -92,6 +97,7 @@
   - Keep native `<select>` and ordinary form checkboxes unless a custom composite widget is required.
 
 ## Migrations / tests / lint
+
 - Alembic: config `alembic.ini`, migrations in `src/viewport/alembic/`. Create revisions with `alembic revision --autogenerate -m "..."`.
 - **Migration workflow (required)**:
   1. Ensure local DB is at head: `alembic upgrade head`.
@@ -119,6 +125,7 @@
 - Frontend production build requires `VITE_API_URL` in the environment; run it as `VITE_API_URL=https://... npm run build` or the Vite config will fail fast.
 
 ## Service Architecture
+
 - **RedisService** (`src/viewport/services/redis_service.py`):
   - Infrastructure wrapper for Redis with graceful degradation
   - Connection pool management with configurable timeouts
@@ -133,6 +140,7 @@
   - Batch operations for performance
 
 ## Gallery appearance settings
+
 - Gallery appearance settings are persisted on `galleries` (columns `cover_focal_x`, `cover_focal_y`, `cover_display_option`, `public_photo_spacing`, `public_color_scheme`) with DB-level check constraints.
 - Edited from the Gallery page Appearance tab (`GalleryAppearanceSection` component).
 - Autosaved through `PATCH /galleries/{gallery_id}` with a 450ms debounce on the frontend.
@@ -141,11 +149,13 @@
 - Cover fallback: if the explicit `cover_photo_id` doesn't resolve, the first photo under the public sort order is used; an empty gallery returns `null` cover with a placeholder.
 
 ## Gotchas worth keeping in mind
+
 - Presigned URL cache is Redis-backed with a TTL buffer (URL TTL minus 10 minutes). Redis outages should degrade gracefully to direct presign generation without failing requests.
 - Shared ZIP filename sanitization/fallback/deduplication helpers live in `src/viewport/zip_utils.py` and are reused by both private (`api/gallery.py`) and public (`api/public.py`) download endpoints.
 - Single-photo downloads must be browser-managed, not `fetch()`ed from S3 presigned URLs in frontend code. Use private `POST /galleries/{gallery_id}/photos/{photo_id}/download` with form `access_token`, and public `GET/HEAD /s/{share_id}/photos/{photo_id}/download`; these endpoints redirect to attachment presigned URLs to avoid storage CORS issues and keep public single-download analytics accurate.
 
 ## Important rules
+
 - When making significant changes in the project, update this file to reflect new conventions or architectural patterns.
 - After changes to business logic or user-facing flows, create or update the corresponding documentation in `docs/`. This includes new features, behavioral changes, removed functionality, and architectural decisions that affect how the system behaves from the user's perspective.
 - Documentations must be put in docs/ folder.

@@ -1,5 +1,9 @@
 import imageCompression, { type Options } from 'browser-image-compression';
-import { MAX_UPLOAD_FILE_SIZE_BYTES, SUPPORTED_IMAGE_TYPES } from '../constants/upload';
+import {
+  MAX_UPLOAD_FILE_SIZE_BYTES,
+  SUPPORTED_IMAGE_TYPES,
+  getUploadContentType,
+} from '../constants/upload';
 
 const SUPPORTED_RESIZE_TYPES = SUPPORTED_IMAGE_TYPES;
 
@@ -26,11 +30,19 @@ export async function resizeImageForUpload(
   if (file.size <= maxBytes) return file;
 
   // Cannot resize non-image files
-  if (!SUPPORTED_RESIZE_TYPES.includes(file.type)) {
+  const resolvedType = getUploadContentType(file);
+  if (!SUPPORTED_RESIZE_TYPES.includes(resolvedType)) {
     throw new Error(`Cannot resize file type: ${file.type || 'unknown'}`);
   }
 
   try {
+    const compressionSource =
+      file.type === resolvedType
+        ? file
+        : new File([file], file.name, {
+            type: resolvedType,
+            lastModified: file.lastModified,
+          });
     const options: Options = {
       maxSizeMB: maxBytes / (1024 * 1024),
       useWebWorker: true,
@@ -39,11 +51,12 @@ export async function resizeImageForUpload(
     if (quality !== undefined) {
       options.initialQuality = quality;
     }
-    const compressed = await imageCompression(file, options);
+    const compressed = await imageCompression(compressionSource, options);
 
     // Guard: ensure the result retains file identity
     return new File([compressed], file.name, {
-      type: compressed.type || file.type,
+      type: compressed.type || resolvedType,
+      lastModified: file.lastModified,
     });
   } catch (err) {
     throw new Error(

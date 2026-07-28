@@ -41,7 +41,7 @@ describe('createImageThumbnail', () => {
   });
 
   describe('image files', () => {
-    it('creates a thumbnail blob url and a cleanup that revokes it', async () => {
+    it('preserves a landscape image aspect ratio while creating the thumbnail', async () => {
       const file = createMockFile('photo.jpg', 5 * 1024 * 1024, 'image/jpeg');
       const bitmap = createMockBitmap(400, 267);
       vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(bitmap));
@@ -51,13 +51,51 @@ describe('createImageThumbnail', () => {
       expect(result.url).toBe('blob:mock-url');
       expect(createImageBitmap).toHaveBeenCalledWith(file, {
         resizeWidth: 400,
-        resizeHeight: 400,
         resizeQuality: 'high',
         imageOrientation: 'from-image',
       });
       expect(bitmap.close).toHaveBeenCalled();
       result.cleanup();
       expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
+    });
+
+    it('preserves a portrait image aspect ratio and bounds its long edge', async () => {
+      const file = createMockFile('portrait.jpg', 5 * 1024 * 1024, 'image/jpeg');
+      const widthBoundBitmap = createMockBitmap(400, 600);
+      const heightBoundBitmap = createMockBitmap(267, 400);
+      const createBitmap = vi
+        .fn()
+        .mockResolvedValueOnce(widthBoundBitmap)
+        .mockResolvedValueOnce(heightBoundBitmap);
+      vi.stubGlobal('createImageBitmap', createBitmap);
+
+      const result = await createImageThumbnail(file);
+
+      expect(createBitmap).toHaveBeenNthCalledWith(1, file, {
+        resizeWidth: 400,
+        resizeQuality: 'high',
+        imageOrientation: 'from-image',
+      });
+      expect(createBitmap).toHaveBeenNthCalledWith(2, file, {
+        resizeHeight: 400,
+        resizeQuality: 'high',
+        imageOrientation: 'from-image',
+      });
+      expect(widthBoundBitmap.close).toHaveBeenCalled();
+      expect(heightBoundBitmap.close).toHaveBeenCalled();
+      result.cleanup();
+    });
+
+    it('recognizes a JPG by extension when MIME is absent', async () => {
+      const file = createMockFile('photo.jpg', 1024, '');
+      const bitmap = createMockBitmap(400, 267);
+      vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue(bitmap));
+
+      const result = await createImageThumbnail(file);
+
+      expect(result.url).toBe('blob:mock-url');
+      expect(createImageBitmap).toHaveBeenCalledWith(file, expect.any(Object));
+      result.cleanup();
     });
 
     it('falls back to a full-file blob url when createImageBitmap rejects', async () => {
@@ -103,7 +141,6 @@ describe('createImageThumbnail', () => {
       expect(result.url).toBe('blob:mock-url');
       expect(createImageBitmap).toHaveBeenCalledWith(file, {
         resizeWidth: 200,
-        resizeHeight: 200,
         resizeQuality: 'high',
         imageOrientation: 'from-image',
       });

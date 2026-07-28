@@ -88,6 +88,23 @@ describe('resizeImageForUpload', () => {
         maxWidthOrHeight: 4096,
       });
     });
+
+    it('normalizes an empty MIME from the JPG extension before compression', async () => {
+      const file = createMockFile('large.jpg', 15 * 1024 * 1024, '');
+      const compressedFile = createMockFile('large.jpg', 8 * 1024 * 1024, '');
+      mockedImageCompression.mockResolvedValue(compressedFile);
+
+      const result = await resizeImageForUpload(file);
+
+      expect(mockedImageCompression).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'large.jpg',
+          type: 'image/jpeg',
+        }),
+        expect.any(Object),
+      );
+      expect(result.type).toBe('image/jpeg');
+    });
   });
 
   describe('file identity preservation', () => {
