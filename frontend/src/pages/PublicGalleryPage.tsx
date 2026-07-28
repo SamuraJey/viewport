@@ -490,7 +490,7 @@ export const PublicGalleryPage = () => {
   const encodedShareSubject = encodeURIComponent(shareSubject);
   const encodedShareBody = encodeURIComponent(`${shareText}\n\n${shareUrl}`);
   const emailShareHref = `mailto:?subject=${encodedShareSubject}&body=${encodedShareBody}`;
-  const smsShareHref = `sms:&body=${encodedShareBody}`;
+  const smsShareHref = `sms:?body=${encodedShareBody}`;
   const handleCopyShareLink = useCallback(() => copyShareLink(shareUrl), [copyShareLink, shareUrl]);
   const activeProjectGallery = projectGalleryTabs?.galleries.find(
     (projectGallery) => projectGallery.gallery_id === activeGalleryId,

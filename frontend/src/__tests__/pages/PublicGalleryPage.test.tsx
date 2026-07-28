@@ -258,9 +258,10 @@ describe('PublicGalleryPage', () => {
       'href',
       `mailto:?subject=${encodeURIComponent('View Public Gallery on Viewport')}&body=${encodedBody}`,
     );
-    expect(within(drawer).getByRole('link', { name: /sms/i })).toHaveAttribute(
-      'href',
-      `sms:&body=${encodedBody}`,
+    const smsLink = within(drawer).getByRole('link', { name: /sms/i });
+    expect(smsLink).toHaveAttribute('href', `sms:?body=${encodedBody}`);
+    expect(new URL(smsLink.getAttribute('href')!).searchParams.get('body')).toBe(
+      'Open Public Gallery, shared with you through Viewport.\n\nhttp://localhost/share/abc123',
     );
     expect(
       within(drawer).queryByRole('button', { name: /share via device/i }),
