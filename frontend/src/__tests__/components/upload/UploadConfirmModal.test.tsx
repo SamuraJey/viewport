@@ -1,10 +1,17 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UploadConfirmModal } from '../../../components/upload/UploadConfirmModal';
 import { usePhotoUpload } from '../../../hooks/usePhotoUpload';
+import { resizeImageForUpload } from '../../../lib/imageResize';
+import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../../../constants/upload';
 
 vi.mock('../../../hooks/usePhotoUpload', () => ({
   usePhotoUpload: vi.fn(),
+}));
+
+vi.mock('../../../lib/imageResize', () => ({
+  resizeImageForUpload: vi.fn(),
 }));
 
 describe('UploadConfirmModal', () => {
@@ -73,5 +80,66 @@ describe('UploadConfirmModal', () => {
       'aria-valuenow',
       '35',
     );
+  });
+
+  it('can resize after a mounted modal closes and reopens', async () => {
+    const user = userEvent.setup();
+    const largeFile = new File(['image'], 'large.jpg', { type: 'image/jpeg' });
+    Object.defineProperty(largeFile, 'size', {
+      value: MAX_UPLOAD_FILE_SIZE_BYTES + 1,
+    });
+    const resizedFile = new File(['resized'], 'large.jpg', { type: 'image/jpeg' });
+    const handleReplaceJob = vi.fn();
+    vi.mocked(resizeImageForUpload).mockResolvedValue(resizedFile);
+    vi.mocked(usePhotoUpload).mockReturnValue({
+      isUploading: false,
+      progress: null,
+      result: null,
+      setResult: vi.fn(),
+      jobs: [
+        {
+          id: 'job-1',
+          file: largeFile,
+          filename: largeFile.name,
+          status: 'failed',
+          progress: 0,
+        },
+      ],
+      totalSize: largeFile.size,
+      hasLargeFiles: true,
+      validUploadCount: 0,
+      hasValidFiles: false,
+      hasInvalidTypes: false,
+      renameWarnings: [],
+      handleRemoveFile: vi.fn(),
+      handleRemoveJob: vi.fn(),
+      handleReorderJobs: vi.fn(),
+      handleReplaceFile: vi.fn(),
+      handleReplaceJob,
+      handleUpload: vi.fn(),
+      handleRetryFile: vi.fn(),
+      handleRetryFailed: vi.fn(),
+      cancelUpload: vi.fn().mockResolvedValue(null),
+      failedFilesRef: { current: [] },
+    });
+    const props = {
+      onClose: vi.fn(),
+      files: [largeFile],
+      galleryId: 'gallery-1',
+      onUploadComplete: vi.fn(),
+    };
+
+    const { rerender } = render(<UploadConfirmModal {...props} isOpen />);
+
+    await user.click(screen.getByLabelText('Close upload dialog'));
+    await user.click(screen.getByRole('button', { name: 'Yes, Close' }));
+    rerender(<UploadConfirmModal {...props} isOpen={false} />);
+    rerender(<UploadConfirmModal {...props} isOpen />);
+
+    await user.click(screen.getByLabelText('Resize large.jpg to fit size limit'));
+
+    await waitFor(() => {
+      expect(handleReplaceJob).toHaveBeenCalledWith('job-1', resizedFile);
+    });
   });
 });

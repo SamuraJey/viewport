@@ -146,12 +146,12 @@ export const UploadConfirmModal = memo(
     }, [isResizingAll, isUploading, onBusyChange, resizingJobId]);
 
     useEffect(() => {
-      isActiveRef.current = true;
+      if (isOpen) isActiveRef.current = true;
       return () => {
         isActiveRef.current = false;
         onBusyChange?.(false);
       };
-    }, [onBusyChange]);
+    }, [isOpen, onBusyChange]);
 
     const handleForceClose = useCallback(async () => {
       isActiveRef.current = false;
