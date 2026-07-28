@@ -251,8 +251,17 @@ describe('PublicGalleryPage', () => {
     const drawer = await screen.findByRole('dialog', { name: 'Share Public Gallery' });
     expect(drawer).toHaveAttribute('data-side', 'bottom');
     expect(within(drawer).getByRole('button', { name: /copy link/i })).toBeInTheDocument();
-    expect(within(drawer).getByRole('link', { name: /email/i })).toBeInTheDocument();
-    expect(within(drawer).getByRole('link', { name: /sms/i })).toBeInTheDocument();
+    const encodedBody = encodeURIComponent(
+      'Open Public Gallery, shared with you through Viewport.\n\nhttp://localhost/share/abc123',
+    );
+    expect(within(drawer).getByRole('link', { name: /email/i })).toHaveAttribute(
+      'href',
+      `mailto:?subject=${encodeURIComponent('View Public Gallery on Viewport')}&body=${encodedBody}`,
+    );
+    expect(within(drawer).getByRole('link', { name: /sms/i })).toHaveAttribute(
+      'href',
+      `sms:&body=${encodedBody}`,
+    );
     expect(
       within(drawer).queryByRole('button', { name: /share via device/i }),
     ).not.toBeInTheDocument();
