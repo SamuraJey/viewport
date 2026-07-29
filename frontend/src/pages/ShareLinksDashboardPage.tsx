@@ -165,11 +165,8 @@ export const ShareLinksDashboardPage = () => {
         setError(handleApiError(err).message || 'Failed to load share links dashboard');
       } finally {
         if (latestRequestIdRef.current === requestId) {
-          if (preserveRows) {
-            setIsRefreshing(false);
-          } else {
-            setIsLoading(false);
-          }
+          setIsLoading(false);
+          setIsRefreshing(false);
         }
       }
     },
@@ -840,7 +837,7 @@ export const ShareLinksDashboardPage = () => {
             ) : null}
 
             <div className="mt-4">
-              {isLoading && hasLoadedOnce ? (
+              {(isLoading || isRefreshing) && hasLoadedOnce ? (
                 <div
                   className="mb-3 flex items-center gap-3 rounded-xl border border-border/45 bg-surface-1 px-4 py-3 text-sm text-muted dark:border-white/10 dark:bg-white/[0.035]"
                   role="status"

@@ -434,6 +434,7 @@ describe('ShareLinksDashboardPage', () => {
 
     expect(refreshButton).toBeDisabled();
     expect(screen.getByText('Refreshing…')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Updating share links' })).toBeInTheDocument();
 
     refreshResolve?.({
       share_links: [
@@ -579,6 +580,7 @@ describe('ShareLinksDashboardPage', () => {
     });
 
     await screen.findAllByText('Latest result');
+    expect(screen.queryByRole('status', { name: 'Updating share links' })).not.toBeInTheDocument();
 
     resolveFirst?.({
       share_links: [
