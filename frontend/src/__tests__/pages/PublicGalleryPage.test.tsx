@@ -182,6 +182,14 @@ const setNavigatorShare = (share?: Navigator['share']) => {
   });
 };
 
+const revealPublicGalleryControls = async () => {
+  await waitFor(() => {
+    expect(screen.queryByRole('status', { name: /loading gallery/i })).not.toBeInTheDocument();
+  });
+  Object.defineProperty(window, 'scrollY', { value: 500, writable: true, configurable: true });
+  fireEvent.scroll(window);
+};
+
 describe('PublicGalleryPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -239,12 +247,27 @@ describe('PublicGalleryPage', () => {
     expect(thumbs).toHaveLength(2);
     expect(screen.queryByRole('button', { name: /finish selection/i })).not.toBeInTheDocument();
     expect(document.getElementById('gallery-content')).toBeInTheDocument();
+
+    expect(screen.queryByRole('button', { name: 'Share Public Gallery' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /open low-vision settings/i }),
+    ).not.toBeInTheDocument();
+
+    await revealPublicGalleryControls();
+
+    const shareButton = screen.getByRole('button', { name: 'Share Public Gallery' });
+    const readabilityButton = screen.getByRole('button', {
+      name: /open low-vision settings/i,
+    });
+    expect(shareButton).toHaveClass('h-11', 'rounded-2xl', 'px-4', 'text-sm');
+    expect(readabilityButton).toHaveClass('h-11', 'rounded-2xl', 'px-4', 'text-sm');
   });
 
   it('opens the public share bottom sheet with all handoff actions', async () => {
     const user = userEvent.setup();
     render(wrapper());
 
+    await revealPublicGalleryControls();
     const shareButton = await screen.findByRole('button', { name: 'Share Public Gallery' });
     await user.click(shareButton);
 
@@ -304,6 +327,7 @@ describe('PublicGalleryPage', () => {
     const user = userEvent.setup();
     render(wrapper('/share/abc123/favorites/secret-resume-token'));
 
+    await revealPublicGalleryControls();
     await user.click(await screen.findByRole('button', { name: 'Share Public Gallery' }));
     const drawer = await screen.findByRole('dialog', { name: 'Share Public Gallery' });
     const emailHref = within(drawer).getByRole('link', { name: /email/i }).getAttribute('href');
@@ -325,6 +349,7 @@ describe('PublicGalleryPage', () => {
     const user = userEvent.setup();
     render(wrapper('/share/abc123/galleries/gallery-1?utm_source=private-note'));
 
+    await revealPublicGalleryControls();
     await user.click(await screen.findByRole('button', { name: 'Share Public Gallery' }));
     const drawer = await screen.findByRole('dialog', { name: 'Share Public Gallery' });
     const emailHref = within(drawer).getByRole('link', { name: /email/i }).getAttribute('href');
@@ -349,6 +374,7 @@ describe('PublicGalleryPage', () => {
     const user = userEvent.setup();
     render(wrapper('/share/abc123?resume=secret&source=private'));
 
+    await revealPublicGalleryControls();
     await user.click(await screen.findByRole('button', { name: 'Share Public Gallery' }));
     const drawer = await screen.findByRole('dialog', { name: 'Share Public Gallery' });
     await user.click(within(drawer).getByRole('button', { name: /share via device/i }));
@@ -368,6 +394,7 @@ describe('PublicGalleryPage', () => {
     const user = userEvent.setup();
     render(wrapper());
 
+    await revealPublicGalleryControls();
     await user.click(await screen.findByRole('button', { name: 'Share Public Gallery' }));
     const drawer = await screen.findByRole('dialog', { name: 'Share Public Gallery' });
     await user.click(within(drawer).getByRole('button', { name: /share via device/i }));

@@ -1,0 +1,359 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-28T18:44:28Z",
+  "title": "Design System: Viewport",
+  "extensions": {
+    "colorMeta": {
+      "viewfinder-blue": {
+        "role": "primary",
+        "displayName": "Viewfinder Blue",
+        "canonical": "rgb(31 144 255)",
+        "tonalRamp": ["#0b2a4b", "#0f3f73", "#1558a3", "#1976d2", "#1f90ff", "#4fb0ff", "#8fcfff", "#e0f0ff"]
+      },
+      "viewfinder-blue-dark": {
+        "role": "primary",
+        "displayName": "Dark Viewfinder Blue",
+        "canonical": "rgb(48 120 175)",
+        "tonalRamp": ["#071428", "#082034", "#0b3350", "#0e4b75", "#28648c", "#3078af", "#5096d2", "#7fc6ff"]
+      },
+      "gallery-sky": {
+        "role": "secondary",
+        "displayName": "Gallery Sky",
+        "canonical": "rgb(56 189 248)",
+        "tonalRamp": ["#082f49", "#0c4a6e", "#0369a1", "#0284c7", "#0ea5e9", "#38bdf8", "#7dd3fc", "#e0f2fe"]
+      },
+      "cool-canvas": {
+        "role": "neutral",
+        "displayName": "Cool Canvas",
+        "canonical": "rgb(255 255 255)",
+        "tonalRamp": ["#0f1724", "#1f2937", "#334155", "#475569", "#64748b", "#cbd5e1", "#f1f5f9", "#ffffff"]
+      },
+      "cool-canvas-soft": {
+        "role": "neutral",
+        "displayName": "Soft Cool Canvas",
+        "canonical": "rgb(248 250 252)",
+        "tonalRamp": ["#0f1724", "#1f2937", "#334155", "#475569", "#64748b", "#cbd5e1", "#e2e8f0", "#f8fafc"]
+      },
+      "cool-canvas-muted": {
+        "role": "neutral",
+        "displayName": "Muted Cool Canvas",
+        "canonical": "rgb(241 245 249)",
+        "tonalRamp": ["#0f1724", "#1f2937", "#334155", "#475569", "#64748b", "#cbd5e1", "#e2e8f0", "#f1f5f9"]
+      },
+      "slate-ink": {
+        "role": "neutral",
+        "displayName": "Slate Ink",
+        "canonical": "rgb(15 23 36)",
+        "tonalRamp": ["#0f1724", "#1f2937", "#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#f1f5f9"]
+      },
+      "slate-muted": {
+        "role": "neutral",
+        "displayName": "Slate Muted",
+        "canonical": "rgb(100 116 139)",
+        "tonalRamp": ["#0f1724", "#1f2937", "#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#f1f5f9"]
+      },
+      "slate-border": {
+        "role": "neutral",
+        "displayName": "Slate Border",
+        "canonical": "rgb(203 213 225)",
+        "tonalRamp": ["#0f1724", "#1f2937", "#334155", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#f1f5f9"]
+      },
+      "darkroom": {
+        "role": "neutral",
+        "displayName": "Darkroom",
+        "canonical": "rgb(24 24 27)",
+        "tonalRamp": ["#09090b", "#18181b", "#27272a", "#3f3f46", "#52525b", "#71717a", "#a1a1aa", "#e4e4e7"]
+      },
+      "darkroom-raised": {
+        "role": "neutral",
+        "displayName": "Raised Darkroom",
+        "canonical": "rgb(39 39 42)",
+        "tonalRamp": ["#09090b", "#18181b", "#27272a", "#3f3f46", "#52525b", "#71717a", "#a1a1aa", "#e4e4e7"]
+      },
+      "darkroom-high": {
+        "role": "neutral",
+        "displayName": "High Darkroom",
+        "canonical": "rgb(63 63 70)",
+        "tonalRamp": ["#09090b", "#18181b", "#27272a", "#3f3f46", "#52525b", "#71717a", "#a1a1aa", "#e4e4e7"]
+      },
+      "darkroom-ink": {
+        "role": "neutral",
+        "displayName": "Darkroom Ink",
+        "canonical": "rgb(243 244 246)",
+        "tonalRamp": ["#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db", "#f3f4f6"]
+      },
+      "darkroom-muted": {
+        "role": "neutral",
+        "displayName": "Darkroom Muted",
+        "canonical": "rgb(186 195 210)",
+        "tonalRamp": ["#111827", "#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#bac3d2", "#f3f4f6"]
+      },
+      "darkroom-border": {
+        "role": "neutral",
+        "displayName": "Darkroom Border",
+        "canonical": "rgb(113 113 122)",
+        "tonalRamp": ["#09090b", "#18181b", "#27272a", "#3f3f46", "#52525b", "#71717a", "#a1a1aa", "#e4e4e7"]
+      },
+      "success": {
+        "role": "tertiary",
+        "displayName": "Success Green",
+        "canonical": "rgb(16 185 129)",
+        "tonalRamp": ["#022c22", "#064e3b", "#047857", "#059669", "#10b981", "#34d399", "#6ee7b7", "#d1fae5"]
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "Warning Amber",
+        "canonical": "rgb(245 158 11)",
+        "tonalRamp": ["#451a03", "#78350f", "#92400e", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fef3c7"]
+      },
+      "info": {
+        "role": "tertiary",
+        "displayName": "Information Sky",
+        "canonical": "rgb(56 189 248)",
+        "tonalRamp": ["#082f49", "#0c4a6e", "#0369a1", "#0284c7", "#0ea5e9", "#38bdf8", "#7dd3fc", "#e0f2fe"]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Danger Red",
+        "canonical": "rgb(239 68 68)",
+        "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fee2e2"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Landing hero statements and the strongest presentation moments."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Major page and section orientation."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Drawers, cards, dialogs, and localized groups."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Instructions, descriptions, and metadata."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Eyebrows, field labels, badges, and compact navigation."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Keyboard shortcuts, machine identifiers, and compact operational data."
+      }
+    },
+    "shadows": [
+      {
+        "name": "light-ambient-xs",
+        "value": "0 0 0 1px rgb(2 6 23 / 0.05), 0 8px 18px rgb(2 6 23 / 0.08)",
+        "purpose": "Resting compact panels and low cards in light mode."
+      },
+      {
+        "name": "light-ambient-sm",
+        "value": "0 0 0 1px rgb(2 6 23 / 0.06), 0 10px 24px rgb(2 6 23 / 0.10)",
+        "purpose": "Standard cards and sticky controls in light mode."
+      },
+      {
+        "name": "light-ambient-md",
+        "value": "0 0 0 1px rgb(2 6 23 / 0.07), 0 14px 30px rgb(2 6 23 / 0.14)",
+        "purpose": "Hovered controls and raised interactive cards in light mode."
+      },
+      {
+        "name": "light-ambient-xl",
+        "value": "0 0 0 1px rgb(2 6 23 / 0.10), 0 24px 48px rgb(2 6 23 / 0.22)",
+        "purpose": "Dialogs, drawers, and dominant overlays in light mode."
+      },
+      {
+        "name": "dark-ambient-xs",
+        "value": "0 0 0 1px rgb(255 255 255 / 0.08), 0 8px 18px rgb(255 255 255 / 0.06)",
+        "purpose": "Resting compact panels and low cards in dark mode."
+      },
+      {
+        "name": "dark-ambient-md",
+        "value": "0 0 0 1px rgb(255 255 255 / 0.12), 0 14px 30px rgb(255 255 255 / 0.10), 0 0 22px rgb(255 255 255 / 0.06)",
+        "purpose": "Hovered controls and raised cards in dark mode."
+      },
+      {
+        "name": "dark-ambient-xl",
+        "value": "0 0 0 1px rgb(255 255 255 / 0.16), 0 24px 48px rgb(255 255 255 / 0.14), 0 0 30px rgb(255 255 255 / 0.10)",
+        "purpose": "Dialogs, drawers, and dominant overlays in dark mode."
+      }
+    ],
+    "motion": [
+      {
+        "name": "fast",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Color, border, opacity, and compact interaction feedback."
+      },
+      {
+        "name": "popup-action",
+        "value": "160ms ease",
+        "purpose": "Popup action color, border, and shadow feedback."
+      },
+      {
+        "name": "photo-modal",
+        "value": "180ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Photo modal fade and scale entrance."
+      },
+      {
+        "name": "normal",
+        "value": "300ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Card lift, drawer detail, and standard state transitions."
+      },
+      {
+        "name": "theme",
+        "value": "400ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Root view-transition crossfade between light and dark themes."
+      },
+      {
+        "name": "slow",
+        "value": "500ms cubic-bezier(0, 0, 0.2, 1)",
+        "purpose": "Photo-card entrances and larger presentation transitions."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" },
+      { "name": "2xl", "value": "1536px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The default affirmative action for owner workflows.",
+      "html": "<button class=\"ds-btn-primary\">Add photos</button>",
+      "css": ".ds-btn-primary { display:inline-flex; align-items:center; justify-content:center; gap:0.5rem; min-height:2.5rem; padding:0.625rem 1rem; border:1px solid transparent; border-radius:0.75rem; background:var(--color-accent, rgb(31 144 255)); color:var(--color-accent-foreground, #fff); font:700 0.875rem/1.25 Oswald, sans-serif; transition:filter 150ms, transform 150ms, box-shadow 150ms; cursor:pointer; } .ds-btn-primary:hover { filter:brightness(1.1); transform:translateY(-2px); box-shadow:0 14px 30px rgb(2 6 23 / 0.14); } .ds-btn-primary:active { transform:translateY(0); } .ds-btn-primary:focus-visible { outline:none; box-shadow:0 0 0 3px var(--color-surface, #fff), 0 0 0 6px var(--color-accent, rgb(31 144 255)); }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A quiet bordered action used beside a primary action or in compact toolbars.",
+      "html": "<button class=\"ds-btn-secondary\">Share</button>",
+      "css": ".ds-btn-secondary { display:inline-flex; align-items:center; justify-content:center; gap:0.5rem; min-height:2.5rem; padding:0.625rem 1rem; border:1px solid rgb(var(--color-border-rgb, 203 213 225) / 0.55); border-radius:0.75rem; background:var(--color-surface-1, rgb(248 250 252)); color:var(--color-text, rgb(15 23 36)); font:700 0.875rem/1.25 Oswald, sans-serif; transition:color 150ms, border-color 150ms, transform 150ms, box-shadow 150ms; cursor:pointer; } .ds-btn-secondary:hover { color:var(--color-accent, rgb(31 144 255)); border-color:rgb(var(--color-accent-rgb, 31 144 255) / 0.4); transform:translateY(-2px); box-shadow:0 10px 24px rgb(2 6 23 / 0.10); } .ds-btn-secondary:active { transform:translateY(0); } .ds-btn-secondary:focus-visible { outline:none; box-shadow:0 0 0 3px var(--color-surface, #fff), 0 0 0 6px var(--color-accent, rgb(31 144 255)); }"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "The standard 48px field with a strong label and blue focus border.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Project name</span><input class=\"ds-field-input\" placeholder=\"Project name\" /></label>",
+      "css": ".ds-field { display:grid; gap:0.375rem; color:var(--color-text, rgb(15 23 36)); font-family:Oswald, sans-serif; } .ds-field-label { color:var(--color-muted, rgb(100 116 139)); font-size:0.75rem; font-weight:700; letter-spacing:0.16em; text-transform:uppercase; } .ds-field-input { width:100%; height:3rem; padding:0 1rem; border:1px solid rgb(var(--color-border-rgb, 203 213 225) / 0.45); border-radius:1rem; background:var(--color-surface, #fff); color:var(--color-text, rgb(15 23 36)); font:600 0.875rem/1.25 Oswald, sans-serif; transition:border-color 150ms, box-shadow 150ms; } .ds-field-input:hover { border-color:rgb(var(--color-accent-rgb, 31 144 255) / 0.45); } .ds-field-input:focus { outline:none; border-color:var(--color-accent, rgb(31 144 255)); box-shadow:0 0 0 3px rgb(var(--color-accent-rgb, 31 144 255) / 0.18); }"
+    },
+    {
+      "name": "Active Navigation Item",
+      "kind": "nav",
+      "refersTo": "nav-active",
+      "description": "Compact uppercase navigation with a filled active state.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item ds-nav-item-active\" href=\"#\">Dashboard</a><a class=\"ds-nav-item\" href=\"#\">Share links</a></nav>",
+      "css": ".ds-nav { display:flex; align-items:center; gap:0.375rem; font-family:Oswald, sans-serif; } .ds-nav-item { padding:0.5rem 0.75rem; border:1px solid rgb(var(--color-border-rgb, 203 213 225) / 0.4); border-radius:0.75rem; background:var(--color-surface-1, rgb(248 250 252)); color:var(--color-text, rgb(15 23 36)); font-size:0.75rem; font-weight:700; letter-spacing:0.025em; text-decoration:none; text-transform:uppercase; transition:color 150ms, border-color 150ms, transform 150ms; } .ds-nav-item:hover { color:var(--color-accent, rgb(31 144 255)); border-color:rgb(var(--color-accent-rgb, 31 144 255) / 0.4); transform:translateY(-2px); } .ds-nav-item-active { border-color:var(--color-accent, rgb(31 144 255)); background:var(--color-accent, rgb(31 144 255)); color:var(--color-accent-foreground, #fff); } .ds-nav-item:focus-visible { outline:none; box-shadow:0 0 0 3px var(--color-surface, #fff), 0 0 0 6px var(--color-accent, rgb(31 144 255)); }"
+    },
+    {
+      "name": "Subtle Status Badge",
+      "kind": "chip",
+      "refersTo": "badge-subtle",
+      "description": "A pill-shaped semantic state badge with restrained fill and border.",
+      "html": "<span class=\"ds-badge-success\">Public</span>",
+      "css": ".ds-badge-success { display:inline-flex; align-items:center; gap:0.375rem; padding:0.25rem 0.625rem; border:1px solid rgb(var(--color-success-rgb, 16 185 129) / 0.30); border-radius:9999px; background:rgb(var(--color-success-rgb, 16 185 129) / 0.10); color:rgb(4 120 87); font:700 0.625rem/1.25 Oswald, sans-serif; letter-spacing:0.14em; text-transform:uppercase; backdrop-filter:blur(4px); }"
+    },
+    {
+      "name": "Collection Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "The standard project/gallery card: image-led, softly framed, and ambiently raised.",
+      "html": "<article class=\"ds-collection-card\"><div class=\"ds-collection-cover\"></div><div class=\"ds-collection-body\"><h3>Editorial delivery</h3><p>128 photos · Ready to share</p></div></article>",
+      "css": ".ds-collection-card { overflow:hidden; border:1px solid var(--color-card-border, rgb(203 213 225)); border-radius:1.5rem; background:var(--color-surface, #fff); color:var(--color-text, rgb(15 23 36)); box-shadow:0 10px 24px rgb(2 6 23 / 0.10); font-family:Oswald, sans-serif; transition:transform 300ms, box-shadow 300ms; } .ds-collection-card:hover { transform:translateY(-4px) scale(1.005); box-shadow:0 24px 48px rgb(2 6 23 / 0.22); } .ds-collection-cover { height:13rem; background:linear-gradient(135deg, rgb(var(--color-accent-rgb, 31 144 255) / 0.18), var(--color-surface-2, rgb(241 245 249))); } .ds-collection-body { display:grid; gap:0.375rem; min-height:7rem; padding:1rem; } .ds-collection-body h3 { margin:0; font-size:1.25rem; font-weight:700; letter-spacing:0.025em; text-transform:uppercase; } .ds-collection-body p { margin:0; color:var(--color-muted, rgb(100 116 139)); font-size:0.875rem; } .ds-collection-card:focus-within { box-shadow:0 0 0 3px var(--color-surface, #fff), 0 0 0 6px var(--color-accent, rgb(31 144 255)); }"
+    },
+    {
+      "name": "Drawer Section",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "A nested task group inside an editor drawer.",
+      "html": "<section class=\"ds-drawer-section\"><header><h3>Project details</h3><p>Name the delivery and add its shooting date.</p></header><div class=\"ds-drawer-section-body\">Editor content</div></section>",
+      "css": ".ds-drawer-section { overflow:hidden; border:1px solid rgb(var(--color-border-rgb, 203 213 225) / 0.40); border-radius:1rem; background:rgb(var(--color-surface-1-rgb, 248 250 252) / 0.70); color:var(--color-text, rgb(15 23 36)); font-family:Oswald, sans-serif; } .ds-drawer-section header { padding:0.875rem 1rem; border-bottom:1px solid rgb(var(--color-border-rgb, 203 213 225) / 0.35); } .ds-drawer-section h3 { margin:0; font-size:0.875rem; font-weight:700; } .ds-drawer-section p { margin:0.25rem 0 0; color:var(--color-muted, rgb(100 116 139)); font-size:0.75rem; line-height:1.25rem; } .ds-drawer-section-body { padding:1rem; font-size:0.875rem; }"
+    },
+    {
+      "name": "Public Photo Card",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "A gallery-first image tile whose only persistent geometry is the photograph.",
+      "html": "<div class=\"ds-photo-card\"><button class=\"ds-photo-card-action\" type=\"button\" aria-label=\"Open delivered photograph\"><span class=\"ds-photo-frame\"></span></button></div>",
+      "css": ".ds-photo-card { position:relative; height:100%; overflow:visible; } .ds-photo-card-action { display:block; width:100%; padding:0; border:0; border-radius:0.75rem; background:transparent; cursor:pointer; } .ds-photo-frame { display:block; aspect-ratio:4 / 3; overflow:hidden; border-radius:0.75rem; background:linear-gradient(135deg, #16324f, #4f9dcf 62%, #f0bb74); box-shadow:0 6px 22px rgb(2 6 23 / 0.08); transition:transform 300ms, box-shadow 300ms; } .ds-photo-card:hover .ds-photo-frame { transform:scale(1.01); box-shadow:0 12px 32px rgb(0 0 0 / 0.32); } .ds-photo-card-action:focus-visible { outline:none; box-shadow:0 0 0 3px var(--color-surface, #fff), 0 0 0 6px var(--color-accent, rgb(31 144 255)); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Modern Proofing Room",
+    "overview": "Viewport behaves like a contemporary proofing room: photography receives the visual priority, while every surrounding control feels deliberate, quiet, and ready for professional work. The system is calm and confident rather than decorative. Strong uppercase headings establish orientation, compact operational controls stay close to the work, and public gallery surfaces recede so the delivered images lead.\n\nThe identity combines cool blue signals, slate and zinc neutrals, oversized rounded geometry, fine borders, and ambient depth. It uses polish to make client delivery feel considered without turning the owner workspace into corporate SaaS noise. Density changes with purpose: owner surfaces are compact and scannable; public gallery surfaces are spacious and image-led.",
+    "keyCharacteristics": [
+      "Oswald-led, uppercase display hierarchy with narrow, forceful silhouettes.",
+      "Viewfinder Blue used as a functional signal for action, focus, selection, and status.",
+      "Cool Canvas light surfaces and Darkroom zinc surfaces with semantic theme parity.",
+      "Soft precision: generous radii, thin borders, exact alignment, and compact controls.",
+      "Ambient layering through tonal surfaces, translucency, blur, and diffuse shadows.",
+      "Responsive mode changes, including desktop top navigation, mobile bottom navigation, and adaptive drawers.",
+      "Motion that confirms state and hierarchy while respecting reduced-motion preferences."
+    ],
+    "rules": [
+      {
+        "name": "The Viewfinder Signal Rule",
+        "body": "Blue marks actions, focus, selected states, and meaningful information. Do not wash entire owner screens in blue or let it compete with photography.",
+        "section": "colors"
+      },
+      {
+        "name": "The Photographer's Scheme Rule",
+        "body": "A public gallery's scoped light or dark appearance overrides the viewer's shell theme. The photographer controls the presentation of delivered work.",
+        "section": "colors"
+      },
+      {
+        "name": "The Semantic State Rule",
+        "body": "Green, amber, sky, and red communicate state; they are not decorative substitutes for the primary accent.",
+        "section": "colors"
+      },
+      {
+        "name": "The Uppercase Hierarchy Rule",
+        "body": "Use uppercase for the brand, display headings, eyebrows, and compact labels. Keep explanatory sentences and client instructions in normal case.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Condensed Voice Rule",
+        "body": "Oswald is the incumbent default for both display and body. Do not introduce a new body family casually; a typography change is a system-level decision.",
+        "section": "typography"
+      },
+      {
+        "name": "The Ambient Layering Rule",
+        "body": "Surfaces are structured by tone and border first. Add a shadow when a component is sticky, floating, modal, or responding to interaction.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Theme-Parity Rule",
+        "body": "Every elevated light surface needs an intentional dark-theme counterpart; do not rely on the browser's default black shadow in dark mode.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do let photography dominate public surfaces and cover moments.",
+      "Do use Viewfinder Blue as a precise signal for action, focus, selection, and active state.",
+      "Do preserve semantic theme parity across Cool Canvas and Darkroom surfaces.",
+      "Do use 12px, 16px, 24px, and 28px radii according to component scale.",
+      "Do keep owner controls compact, scannable, and close to the content they affect.",
+      "Do use Headless UI, Vaul, and the shared `App*` wrappers for stateful interaction patterns.",
+      "Do respect reduced motion, keyboard focus, browser zoom, and low-vision settings."
+    ],
+    "donts": [
+      "Don't create corporate SaaS noise with widget walls, excessive cards, or several competing accents.",
+      "Don't use blue as a decorative page wash or replace semantic status colors with it.",
+      "Don't introduce a new type family, palette hue, or radius language in an isolated component.",
+      "Don't use dark shadows unchanged in dark mode; preserve the light-halo elevation strategy.",
+      "Don't crop uniform public-gallery images; preserve the complete photograph with containment.",
+      "Don't recreate focus traps, tab ARIA, dialog behavior, or drawer mechanics outside the shared primitives.",
+      "Don't let motion obscure content or ignore `prefers-reduced-motion`."
+    ]
+  }
+}

@@ -133,6 +133,9 @@ Gallery endpoints still work and now accept project placement fields where relev
   successful share closes the drawer, user cancellation (`AbortError`) is
   silent, and other failures keep the drawer open with an accessible inline
   status while all fallback actions remain available.
+- Share and low-vision controls stay hidden while the hero is visible so the
+  cover remains unobstructed. They appear as one consistently sized control
+  group after the hero leaves the viewport and hide again when returning to it.
 - Share URLs are rebuilt canonically rather than copied from the current
   location. Gallery shares use `/share/{share_id}` and project galleries use
   `/share/{share_id}/galleries/{gallery_id}`; query parameters, password state,

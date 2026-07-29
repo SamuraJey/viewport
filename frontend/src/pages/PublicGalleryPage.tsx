@@ -502,11 +502,6 @@ export const PublicGalleryPage = () => {
       : (folderShare?.total_photos ?? activeProjectGallery?.photo_count ?? photos.length);
 
   useEffect(() => {
-    if (isFavoritesView || !selection.session) {
-      setHasScrolledPastHero(false);
-      return;
-    }
-
     const updateHeroVisibilityFromLayout = () => {
       const heroElement = heroBoundaryRef.current;
       if (!heroElement) {
@@ -541,7 +536,7 @@ export const PublicGalleryPage = () => {
       window.removeEventListener('scroll', updateHeroVisibilityFromLayout);
       window.removeEventListener('resize', updateHeroVisibilityFromLayout);
     };
-  }, [isFavoritesView, selection.session]);
+  }, [activeGalleryId, gallery]);
 
   useEffect(() => {
     if (isFavoritesView || activeGalleryId || !projectShare?.galleries.length) {
@@ -774,18 +769,20 @@ export const PublicGalleryPage = () => {
       className={`pg-public-page ${publicThemeClassName} min-h-screen bg-surface text-text`}
     >
       <SkipToContentLink targetId="main-content" />
-      <div className="fixed top-6 right-6 z-30 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={openShareDrawer}
-          aria-label={`Share ${heroTitle}`}
-          className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border/50 bg-surface/90 px-4 text-sm font-semibold text-text shadow-lg backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent"
-        >
-          <Share2 className="h-4 w-4" />
-          <span className="hidden sm:inline">Share</span>
-        </button>
-        <ReadabilitySettingsButton />
-      </div>
+      {hasScrolledPastHero ? (
+        <div className="fixed top-6 right-6 z-30 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={openShareDrawer}
+            aria-label={`Share ${heroTitle}`}
+            className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border/50 bg-surface/90 px-4 text-sm font-semibold text-text shadow-lg backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent"
+          >
+            <Share2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Share</span>
+          </button>
+          <ReadabilitySettingsButton variant="public-gallery" />
+        </div>
+      ) : null}
 
       <div ref={heroBoundaryRef}>
         <PublicGalleryHero
