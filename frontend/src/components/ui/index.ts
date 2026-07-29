@@ -7,3 +7,4 @@ export { AppListbox } from './AppListbox';
 export { AppPopover } from './AppPopover';
 export { AppSwitch } from './AppSwitch';
 export { AppTabs } from './AppTabs';
+export { Skeleton } from './Skeleton';

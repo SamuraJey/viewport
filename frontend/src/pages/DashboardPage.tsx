@@ -8,7 +8,7 @@ import { RenameProjectModal } from '../components/dashboard/RenameProjectModal';
 import { SortableProjectGrid } from '../components/dashboard/SortableProjectGrid';
 import { ErrorDisplay } from '../components/ErrorDisplay';
 import { PaginationControls } from '../components/PaginationControls';
-import { AppListbox } from '../components/ui';
+import { AppListbox, Skeleton } from '../components/ui';
 import { requestProjectAction } from '../components/command/commandActions';
 import { useConfirmation } from '../hooks/useConfirmation';
 import { useCreateProjectModal, useRenameProjectModal } from '../hooks/useDashboardProjectModals';
@@ -280,16 +280,16 @@ export const DashboardPage = () => {
           key={index}
           className="overflow-hidden rounded-2xl bg-surface shadow-card ring-1 ring-border/45 dark:bg-surface-dark dark:ring-border/35"
         >
-          <div className="aspect-[16/9] animate-pulse bg-surface-2 dark:bg-surface-dark-2" />
+          <Skeleton className="aspect-[16/9] rounded-none" />
           <div className="space-y-3 p-4">
-            <div className="h-6 w-2/3 animate-pulse rounded bg-muted/15" />
-            <div className="h-4 w-1/2 animate-pulse rounded bg-muted/15" />
+            <Skeleton className="h-6 w-2/3 rounded bg-muted/15" />
+            <Skeleton className="h-4 w-1/2 rounded bg-muted/15" />
           </div>
           <div className="grid grid-cols-3 divide-x divide-border/40 border-t border-border/40">
             {Array.from({ length: 3 }).map((__, metricIndex) => (
-              <div
+              <Skeleton
                 key={metricIndex}
-                className="h-15 animate-pulse bg-surface-1 dark:bg-surface-dark-1"
+                className="h-15 rounded-none bg-surface-1 dark:bg-surface-dark-1"
               />
             ))}
           </div>

@@ -232,6 +232,21 @@ describe('ProjectPage', () => {
     ] as any);
   });
 
+  it('renders a single polite layout skeleton during the initial project request', async () => {
+    const { projectService } = await import('../../services/projectService');
+    vi.mocked(projectService.getProject).mockReturnValueOnce(new Promise(() => undefined));
+
+    const { container } = renderProjectPage();
+
+    expect(screen.getByRole('status', { name: 'Loading project' })).toHaveAttribute(
+      'aria-live',
+      'polite',
+    );
+    expect(screen.getByTestId('project-page-skeleton')).toBeInTheDocument();
+    expect(container.querySelectorAll('[aria-hidden="true"]').length).toBeGreaterThan(10);
+    expect(screen.queryByText('Loading project…')).not.toBeInTheDocument();
+  });
+
   it('reuses the gallery share-links section UI for project links', async () => {
     renderProjectPage();
 
@@ -668,6 +683,7 @@ describe('ProjectPage', () => {
     renderProjectPage();
 
     expect(await screen.findByRole('heading', { name: 'Photos' })).toBeInTheDocument();
+    vi.mocked(projectService.getProject).mockReturnValueOnce(new Promise(() => undefined));
     await user.click(screen.getByLabelText('Share Photos'));
     await user.click(await screen.findByRole('button', { name: /^Create link$/i }));
 
@@ -677,6 +693,8 @@ describe('ProjectPage', () => {
       expires_at: null,
     });
     expect(projectService.getProject).toHaveBeenCalledTimes(2);
+    expect(screen.getAllByText('Photos').length).toBeGreaterThan(0);
+    expect(screen.queryByTestId('project-page-skeleton')).not.toBeInTheDocument();
   });
 
   it('warns before deleting the whole project when project proofing sessions already exist', async () => {

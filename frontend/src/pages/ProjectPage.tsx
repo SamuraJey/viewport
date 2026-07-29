@@ -47,6 +47,7 @@ import { buildGalleryDraft } from '../components/project-page/utils';
 import { ProjectGalleriesPanel } from '../components/project-page/components/ProjectGalleriesPanel';
 import { applyProjectGalleryOrder } from '../components/project-page/projectGalleryDnd';
 import { ProjectAppearanceSection } from '../components/appearance/ProjectAppearanceSection';
+import { ProjectPageSkeleton } from '../components/project-page/ProjectPageSkeleton';
 
 export const ProjectPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -95,6 +96,11 @@ export const ProjectPage = () => {
     projectLoadRequestIdRef.current += 1;
     galleryReorderRequestIdRef.current += 1;
     activeGalleryOrderRef.current = null;
+    setProject(null);
+    setShareLinks([]);
+    setWarningShareLinks([]);
+    setError('');
+    setIsLoading(true);
     setProjectPhotos([]);
     setIsLoadingProjectPhotos(false);
     setIsReorderingGallery(null);
@@ -686,12 +692,8 @@ export const ProjectPage = () => {
     return created;
   };
 
-  if (isLoading) {
-    return (
-      <div className="rounded-2xl border border-border/50 bg-surface p-6 text-sm text-muted">
-        Loading project…
-      </div>
-    );
+  if ((isLoading && !project) || (project && project.id !== projectId)) {
+    return <ProjectPageSkeleton />;
   }
 
   if (!project) {

@@ -27,6 +27,7 @@ import {
   type SelectionSessionStatusFilter,
 } from '../components/share-link-detail/SelectionTab';
 import { ShareLinkDetailHero } from '../components/share-link-detail/ShareLinkDetailHero';
+import { ShareLinkDetailSkeleton } from '../components/share-link-detail/ShareLinkDetailSkeleton';
 import {
   formatDateTime,
   formatDay,
@@ -155,6 +156,9 @@ export const ShareLinkDetailPage = () => {
 
   useEffect(() => {
     selectedSessionRequestRef.current += 1;
+    setAnalytics(null);
+    setError('');
+    setIsLoading(true);
     setSelectionDetail(null);
     setSelectedSessionId(null);
     setSelectedSessionDetail(null);
@@ -550,18 +554,13 @@ export const ShareLinkDetailPage = () => {
     setSelectionConfigDraft((current) => (current ? { ...current, ...changes } : current));
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[45vh] items-center justify-center text-muted">
-        <span className="inline-flex items-center gap-2">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          Loading analytics...
-        </span>
-      </div>
-    );
+  const hasCurrentAnalytics = analytics?.share_link.id === shareLinkId;
+
+  if (!hasCurrentAnalytics && (isLoading || analytics)) {
+    return <ShareLinkDetailSkeleton />;
   }
 
-  if (error || !analytics) {
+  if (!analytics || analytics.share_link.id !== shareLinkId) {
     return (
       <div className="rounded-2xl border border-danger/30 bg-danger/10 p-8 text-center">
         <h1 className="text-2xl font-bold text-danger">Unable to load share link</h1>
@@ -765,6 +764,14 @@ export const ShareLinkDetailPage = () => {
 
   return (
     <div className="space-y-6">
+      {error ? (
+        <div
+          className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger"
+          role="alert"
+        >
+          {error}
+        </div>
+      ) : null}
       <ShareLinkDetailHero
         shareLink={analytics.share_link}
         status={status}
@@ -810,6 +817,17 @@ export const ShareLinkDetailPage = () => {
               aria-label="Analytics period"
               className="flex flex-wrap items-center gap-2"
             >
+              {isLoading ? (
+                <span
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-muted"
+                  role="status"
+                  aria-live="polite"
+                  aria-label="Updating analytics"
+                >
+                  <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                  Updating analytics…
+                </span>
+              ) : null}
               <span className="hidden items-center gap-2 text-sm font-semibold text-muted lg:inline-flex">
                 <Clock3 className="h-4 w-4" />
                 Period
