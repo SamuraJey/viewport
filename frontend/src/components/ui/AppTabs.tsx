@@ -24,7 +24,9 @@ interface AppTabsProps<TKey extends string> {
   onChange: (key: TKey) => void;
   preserveInactivePanels?: boolean;
   className?: string;
+  headerClassName?: string;
   listClassName?: string;
+  listAccessory?: ReactNode;
   panelsClassName?: string;
   defaultPanelClassName?: string;
 }
@@ -35,7 +37,9 @@ export const AppTabs = <TKey extends string>({
   onChange,
   preserveInactivePanels = false,
   className,
+  headerClassName,
   listClassName,
+  listAccessory,
   panelsClassName,
   defaultPanelClassName,
 }: AppTabsProps<TKey>) => {
@@ -55,32 +59,35 @@ export const AppTabs = <TKey extends string>({
       }}
       className={className}
     >
-      <TabList className={listClassName}>
-        {items.map((item) => {
-          const tabProps = item.tabId ? ({ id: item.tabId } as Record<string, string>) : {};
+      <div className={headerClassName}>
+        <TabList className={listClassName}>
+          {items.map((item) => {
+            const tabProps = item.tabId ? ({ id: item.tabId } as Record<string, string>) : {};
 
-          return (
-            <Tab key={item.key} as={Fragment} disabled={item.disabled} {...tabProps}>
-              {({ selected, disabled }) => {
-                const state = { selected, disabled };
+            return (
+              <Tab key={item.key} as={Fragment} disabled={item.disabled} {...tabProps}>
+                {({ selected, disabled }) => {
+                  const state = { selected, disabled };
 
-                return (
-                  <button
-                    type="button"
-                    className={cn(
-                      typeof item.tabClassName === 'function'
-                        ? item.tabClassName(state)
-                        : item.tabClassName,
-                    )}
-                  >
-                    {typeof item.tab === 'function' ? item.tab(state) : item.tab}
-                  </button>
-                );
-              }}
-            </Tab>
-          );
-        })}
-      </TabList>
+                  return (
+                    <button
+                      type="button"
+                      className={cn(
+                        typeof item.tabClassName === 'function'
+                          ? item.tabClassName(state)
+                          : item.tabClassName,
+                      )}
+                    >
+                      {typeof item.tab === 'function' ? item.tab(state) : item.tab}
+                    </button>
+                  );
+                }}
+              </Tab>
+            );
+          })}
+        </TabList>
+        {listAccessory}
+      </div>
 
       <TabPanels className={panelsClassName}>
         {items.map((item) => (

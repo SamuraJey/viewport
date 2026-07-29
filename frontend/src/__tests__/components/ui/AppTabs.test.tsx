@@ -96,4 +96,29 @@ describe('AppTabs', () => {
     expect(screen.getByText('First panel')).toBeInTheDocument();
     expect(screen.getByText('Second panel')).toBeInTheDocument();
   });
+
+  it('renders optional controls next to the tab list without changing tab semantics', () => {
+    render(
+      <AppTabs
+        selectedKey="first"
+        onChange={() => {}}
+        headerClassName="tabs-header"
+        listAccessory={<button type="button">Last 30 days</button>}
+        items={[
+          {
+            key: 'first',
+            tab: 'First tab',
+            panel: <div>First panel</div>,
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByRole('tablist')).toContainElement(
+      screen.getByRole('tab', { name: /first tab/i }),
+    );
+    expect(screen.getByRole('tablist')).not.toContainElement(
+      screen.getByRole('button', { name: /last 30 days/i }),
+    );
+  });
 });
