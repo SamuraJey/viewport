@@ -123,6 +123,30 @@ Gallery endpoints still work and now accept project placement fields where relev
   - a gallery share page with photos, or
   - a project share page that opens the first listed gallery, keeps a project-scoped hero, renders a horizontal list of gallery names, and keeps a sticky selection bar visible during proofing
 
+### Public gallery sharing and proofing
+
+- The share drawer always offers Copy link, Email, SMS, and QR. Email uses the
+  gallery title as its subject; Email and SMS use the same short share text and
+  canonical gallery URL as the native share payload. SMS opens with
+  `sms:?body=...` so the encoded message is parsed as the `body` query field.
+- `Share via device` appears only when `navigator.share` is callable. A
+  successful share closes the drawer, user cancellation (`AbortError`) is
+  silent, and other failures keep the drawer open with an accessible inline
+  status while all fallback actions remain available.
+- Share URLs are rebuilt canonically rather than copied from the current
+  location. Gallery shares use `/share/{share_id}` and project galleries use
+  `/share/{share_id}/galleries/{gallery_id}`; query parameters, password state,
+  and favorites resume tokens are never included.
+- The sticky selection bar is shared by gallery and project shares. It appears
+  only when selection is enabled, a session exists, the hero has left the
+  viewport, and the user is not in favorites view. It remains visible for zero
+  selections, shows limited or unlimited counts and clamped progress, opens
+  favorites for every session state, and offers `Finish selection` only while
+  the session is `in_progress`.
+
+See [RFC 009 — Public gallery experience](rfcs/rfc-009-public-gallery-experience.md)
+for the complete interaction and validation contract.
+
 ## Selection and favorites
 
 - Selection stays **sharelink-scoped**
