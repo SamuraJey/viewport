@@ -42,6 +42,8 @@ interface UsePhotoLightboxOptions {
   isLoadingMore?: boolean;
   /** Number of photos from the end to trigger load more */
   loadMoreThreshold?: number;
+  /** Show a collection-wide position indicator for callers whose slides start at item one */
+  showPositionIndicator?: boolean;
 }
 
 export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
@@ -52,6 +54,7 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
     hasMore = false,
     isLoadingMore = false,
     loadMoreThreshold = 10,
+    showPositionIndicator = false,
   } = options;
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -104,6 +107,8 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
   // Render the Lightbox component
   const renderLightbox = (slides: PhotoSlide[], totalPhotos?: number) => {
     const areAllPhotosLoaded = totalPhotos !== undefined ? slides.length >= totalPhotos : !hasMore;
+    const currentPosition = lightboxIndex + 1;
+    const displayedTotal = Math.max(totalPhotos ?? slides.length, slides.length, currentPosition);
 
     return (
       <Lightbox
@@ -135,7 +140,22 @@ export const usePhotoLightbox = (options: UsePhotoLightboxOptions = {}) => {
           };
         })}
         plugins={[Thumbnails, Fullscreen, LightboxDownload, Video, Zoom]}
-        render={{ slideContainer: ProgressiveSlide }}
+        render={{
+          slideContainer: ProgressiveSlide,
+          controls: showPositionIndicator
+            ? () => (
+                <div
+                  role="status"
+                  aria-label={`Item ${currentPosition} of ${displayedTotal}`}
+                  className="pointer-events-none absolute left-4 top-4 z-10 rounded-full bg-photo-overlay px-3 py-1.5 text-sm font-medium tabular-nums text-white shadow-sm backdrop-blur-md sm:left-6 sm:top-6"
+                >
+                  <span aria-hidden="true">
+                    {currentPosition} / {displayedTotal}
+                  </span>
+                </div>
+              )
+            : undefined,
+        }}
         controller={{
           closeOnPullDown: true,
           closeOnPullUp: true,

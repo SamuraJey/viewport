@@ -10,7 +10,7 @@ import {
 import { AppDialog, AppDialogDescription, AppDialogTitle, AppSwitch } from './ui';
 
 interface ReadabilitySettingsButtonProps {
-  variant?: 'floating' | 'inline';
+  variant?: 'floating' | 'inline' | 'public-gallery';
 }
 
 const contrastOptions: { value: ReadabilityContrast; label: string }[] = [
@@ -44,6 +44,8 @@ export const ReadabilitySettingsButton = ({
   const buttonClassName =
     variant === 'floating'
       ? 'fixed right-18 top-4 z-50 inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-border/40 bg-surface/80 px-3 text-text shadow-lg backdrop-blur-md transition-all hover:shadow-xl hover:scale-110 dark:bg-surface-dark/80'
+      : variant === 'public-gallery'
+        ? 'inline-flex h-11 items-center gap-2 rounded-2xl border border-border/50 bg-surface/90 px-4 text-sm font-semibold text-text shadow-lg backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent'
       : 'inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-border/40 bg-surface-1 px-3 text-text shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-sm dark:border-border/50 dark:bg-surface-dark-1';
   const controlsDisabled = !enabled;
   const disabledControlClassName =
@@ -60,8 +62,14 @@ export const ReadabilitySettingsButton = ({
         aria-label={enabled ? 'Open readability settings' : 'Open low-vision settings'}
       >
         <Eye className="h-4 w-4" />
-        {variant === 'inline' ? (
-          <span className="ml-2 hidden text-xs font-semibold sm:inline">
+        {variant === 'inline' || variant === 'public-gallery' ? (
+          <span
+            className={
+              variant === 'public-gallery'
+                ? 'hidden sm:inline'
+                : 'ml-2 hidden text-xs font-semibold sm:inline'
+            }
+          >
             {enabled ? 'Low vision on' : 'Low vision'}
           </span>
         ) : null}

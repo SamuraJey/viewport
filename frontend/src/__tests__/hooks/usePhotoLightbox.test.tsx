@@ -1,4 +1,4 @@
-import { renderHook, act } from '@testing-library/react';
+import { render, renderHook, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { usePhotoLightbox } from '../../hooks/usePhotoLightbox';
 import type { PhotoSlide } from '../../hooks/usePhotoLightbox';
@@ -258,6 +258,100 @@ describe('usePhotoLightbox', () => {
     });
 
     expect(result.current.lightboxIndex).toBe(2);
+  });
+
+  it('renders the current position against the server total', () => {
+    const { result } = renderHook(() => usePhotoLightbox({ showPositionIndicator: true }));
+    const slides = Array.from({ length: 5 }, (_, index) => ({
+      src: `/photo${index + 1}.jpg`,
+    }));
+
+    act(() => {
+      result.current.openLightbox(2);
+    });
+
+    const lightbox = result.current.renderLightbox(slides, 120);
+    const indicator = lightbox.props.render.controls();
+    const { getByRole, getByText } = render(indicator);
+
+    expect(getByRole('status')).toHaveAttribute('aria-label', 'Item 3 of 120');
+    expect(getByRole('status')).toHaveClass('text-white');
+    expect(getByText('3 / 120')).toBeInTheDocument();
+  });
+
+  it('falls back to the loaded slide count and includes image and video slides', () => {
+    const { result } = renderHook(() => usePhotoLightbox({ showPositionIndicator: true }));
+    const slides: PhotoSlide[] = [
+      { src: '/photo.jpg', media_type: 'image' },
+      {
+        src: '/video-poster.jpg',
+        media_type: 'video',
+        playback_url: '/video.mp4',
+      },
+    ];
+
+    act(() => {
+      result.current.openLightbox(1);
+    });
+
+    const indicator = result.current.renderLightbox(slides).props.render.controls();
+    const { getByRole } = render(indicator);
+
+    expect(getByRole('status')).toHaveAttribute('aria-label', 'Item 2 of 2');
+  });
+
+  it('keeps the displayed total at least as large as loaded slides and current position', () => {
+    const { result } = renderHook(() => usePhotoLightbox({ showPositionIndicator: true }));
+    const slides = Array.from({ length: 5 }, (_, index) => ({
+      src: `/photo${index + 1}.jpg`,
+    }));
+
+    act(() => {
+      result.current.openLightbox(6);
+    });
+
+    const indicator = result.current.renderLightbox(slides, 3).props.render.controls();
+    const { getByRole } = render(indicator);
+
+    expect(getByRole('status')).toHaveAttribute('aria-label', 'Item 7 of 7');
+  });
+
+  it('updates the position and loaded total while the lightbox remains open', () => {
+    const { result } = renderHook(() => usePhotoLightbox({ showPositionIndicator: true }));
+    const initialSlides = [{ src: '/photo1.jpg' }, { src: '/photo2.jpg' }];
+
+    act(() => {
+      result.current.openLightbox(0);
+    });
+
+    const initialLightbox = result.current.renderLightbox(initialSlides);
+
+    act(() => {
+      initialLightbox.props.on.view({ index: 1 });
+    });
+
+    const paginatedSlides = [
+      ...initialSlides,
+      { src: '/photo3.jpg' },
+      { src: '/photo4.jpg' },
+    ];
+    const updatedLightbox = result.current.renderLightbox(paginatedSlides);
+    const indicator = updatedLightbox.props.render.controls();
+    const { getByRole } = render(indicator);
+
+    expect(updatedLightbox.props.open).toBe(true);
+    expect(getByRole('status')).toHaveAttribute('aria-label', 'Item 2 of 4');
+  });
+
+  it('keeps the shared indicator disabled unless the caller opts in', () => {
+    const { result } = renderHook(() => usePhotoLightbox());
+
+    const lightbox = result.current.renderLightbox(
+      [{ src: '/page-two-photo.jpg' }],
+      120,
+    );
+
+    expect(lightbox.props.render.controls).toBeUndefined();
   });
 
   it('scrolls to photo in grid on lightbox exit', () => {

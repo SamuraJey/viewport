@@ -175,11 +175,40 @@ const fillInput = (input: HTMLElement, value: string) => {
   fireEvent.change(input, { target: { value } });
 };
 
+const setNavigatorShare = (share?: Navigator['share']) => {
+  Object.defineProperty(navigator, 'share', {
+    configurable: true,
+    value: share,
+  });
+};
+
+const revealPublicGalleryControls = async () => {
+  await waitFor(() => {
+    expect(screen.queryByRole('status', { name: /loading gallery/i })).not.toBeInTheDocument();
+  });
+  Object.defineProperty(window, 'scrollY', { value: 500, writable: true, configurable: true });
+  fireEvent.scroll(window);
+};
+
+const createHeroRect = (visibleBottom: number): DOMRect =>
+  ({
+    x: 0,
+    y: visibleBottom - 1000,
+    top: visibleBottom - 1000,
+    right: 1000,
+    bottom: visibleBottom,
+    left: 0,
+    width: 1000,
+    height: 1000,
+    toJSON: () => ({}),
+  }) as DOMRect;
+
 describe('PublicGalleryPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     mockNavigate.mockReset();
     mockRouteParams = { shareId: 'abc123' };
+    setNavigatorShare(undefined);
     window.localStorage.clear();
     Object.defineProperty(window, 'scrollY', { value: 0, writable: true, configurable: true });
     vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -231,20 +260,88 @@ describe('PublicGalleryPage', () => {
     expect(thumbs).toHaveLength(2);
     expect(screen.queryByRole('button', { name: /finish selection/i })).not.toBeInTheDocument();
     expect(document.getElementById('gallery-content')).toBeInTheDocument();
+
+    expect(screen.queryByRole('button', { name: 'Share Public Gallery' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /open low-vision settings/i }),
+    ).not.toBeInTheDocument();
+    const utilityControls = screen.getByTestId('public-gallery-utility-controls');
+    expect(utilityControls).toHaveAttribute('data-state', 'hidden');
+    expect(utilityControls).toHaveAttribute('aria-hidden', 'true');
+    expect(utilityControls).toHaveAttribute('inert');
+    expect(utilityControls).toHaveClass(
+      'pointer-events-none',
+      'opacity-0',
+      'blur-[2px]',
+      'duration-200',
+      'motion-reduce:blur-none',
+      'motion-reduce:transition-none',
+    );
+
+    await revealPublicGalleryControls();
+
+    const shareButton = screen.getByRole('button', { name: 'Share Public Gallery' });
+    const readabilityButton = screen.getByRole('button', {
+      name: /open low-vision settings/i,
+    });
+    expect(utilityControls).toHaveAttribute('data-state', 'visible');
+    expect(utilityControls).not.toHaveAttribute('aria-hidden');
+    expect(utilityControls).not.toHaveAttribute('inert');
+    expect(utilityControls).toHaveClass(
+      'opacity-100',
+      'blur-0',
+      'duration-300',
+      'ease-[cubic-bezier(0.16,1,0.3,1)]',
+    );
+    expect(shareButton).toHaveClass('h-11', 'rounded-2xl', 'px-4', 'text-sm');
+    expect(readabilityButton).toHaveClass('h-11', 'rounded-2xl', 'px-4', 'text-sm');
+  });
+
+  it('reveals gallery controls when only a quarter of the hero remains visible', async () => {
+    render(wrapper());
+    await waitFor(() => {
+      expect(screen.queryByRole('status', { name: /loading gallery/i })).not.toBeInTheDocument();
+    });
+
+    const heroBoundary = screen.getByTestId('public-gallery-hero-boundary');
+    const getHeroRect = vi.spyOn(heroBoundary, 'getBoundingClientRect');
+
+    getHeroRect.mockReturnValue(createHeroRect(260));
+    fireEvent.scroll(window);
+    expect(screen.queryByRole('button', { name: 'Share Public Gallery' })).not.toBeInTheDocument();
+
+    getHeroRect.mockReturnValue(createHeroRect(250));
+    fireEvent.scroll(window);
+    expect(screen.getByRole('button', { name: 'Share Public Gallery' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /open low-vision settings/i })).toBeInTheDocument();
   });
 
   it('opens the public share bottom sheet with all handoff actions', async () => {
     const user = userEvent.setup();
     render(wrapper());
 
+    await revealPublicGalleryControls();
     const shareButton = await screen.findByRole('button', { name: 'Share Public Gallery' });
     await user.click(shareButton);
 
     const drawer = await screen.findByRole('dialog', { name: 'Share Public Gallery' });
     expect(drawer).toHaveAttribute('data-side', 'bottom');
     expect(within(drawer).getByRole('button', { name: /copy link/i })).toBeInTheDocument();
-    expect(within(drawer).getByRole('link', { name: /email/i })).toBeInTheDocument();
-    expect(within(drawer).getByRole('link', { name: /sms/i })).toBeInTheDocument();
+    const encodedBody = encodeURIComponent(
+      'Open Public Gallery, shared with you through Viewport.\n\nhttp://localhost/share/abc123',
+    );
+    expect(within(drawer).getByRole('link', { name: /email/i })).toHaveAttribute(
+      'href',
+      `mailto:?subject=${encodeURIComponent('View Public Gallery on Viewport')}&body=${encodedBody}`,
+    );
+    const smsLink = within(drawer).getByRole('link', { name: /sms/i });
+    expect(smsLink).toHaveAttribute('href', `sms:?body=${encodedBody}`);
+    expect(new URL(smsLink.getAttribute('href')!).searchParams.get('body')).toBe(
+      'Open Public Gallery, shared with you through Viewport.\n\nhttp://localhost/share/abc123',
+    );
+    expect(
+      within(drawer).queryByRole('button', { name: /share via device/i }),
+    ).not.toBeInTheDocument();
     await user.click(within(drawer).getByRole('button', { name: /qr code/i }));
 
     const qrDrawer = await screen.findByRole('dialog', { name: 'QR code' });
@@ -283,6 +380,7 @@ describe('PublicGalleryPage', () => {
     const user = userEvent.setup();
     render(wrapper('/share/abc123/favorites/secret-resume-token'));
 
+    await revealPublicGalleryControls();
     await user.click(await screen.findByRole('button', { name: 'Share Public Gallery' }));
     const drawer = await screen.findByRole('dialog', { name: 'Share Public Gallery' });
     const emailHref = within(drawer).getByRole('link', { name: /email/i }).getAttribute('href');
@@ -299,9 +397,12 @@ describe('PublicGalleryPage', () => {
 
   it('shares a canonical project-gallery URL without carrying query parameters', async () => {
     mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-1' };
+    const nativeShare = vi.fn().mockResolvedValue(undefined);
+    setNavigatorShare(nativeShare);
     const user = userEvent.setup();
     render(wrapper('/share/abc123/galleries/gallery-1?utm_source=private-note'));
 
+    await revealPublicGalleryControls();
     await user.click(await screen.findByRole('button', { name: 'Share Public Gallery' }));
     const drawer = await screen.findByRole('dialog', { name: 'Share Public Gallery' });
     const emailHref = within(drawer).getByRole('link', { name: /email/i }).getAttribute('href');
@@ -311,6 +412,50 @@ describe('PublicGalleryPage', () => {
     );
     expect(emailHref).not.toContain('utm_source');
     expect(emailHref).not.toContain('private-note');
+
+    await user.click(within(drawer).getByRole('button', { name: /share via device/i }));
+    expect(nativeShare).toHaveBeenCalledWith({
+      title: 'View Public Gallery on Viewport',
+      text: 'Open Public Gallery, shared with you through Viewport.',
+      url: 'http://localhost/share/abc123/galleries/gallery-1',
+    });
+  });
+
+  it('shares the canonical gallery URL through the device and closes after success', async () => {
+    const nativeShare = vi.fn().mockResolvedValue(undefined);
+    setNavigatorShare(nativeShare);
+    const user = userEvent.setup();
+    render(wrapper('/share/abc123?resume=secret&source=private'));
+
+    await revealPublicGalleryControls();
+    await user.click(await screen.findByRole('button', { name: 'Share Public Gallery' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Share Public Gallery' });
+    await user.click(within(drawer).getByRole('button', { name: /share via device/i }));
+
+    expect(nativeShare).toHaveBeenCalledWith({
+      title: 'View Public Gallery on Viewport',
+      text: 'Open Public Gallery, shared with you through Viewport.',
+      url: 'http://localhost/share/abc123',
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Share Public Gallery' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('keeps the share drawer open and announces native share failures', async () => {
+    setNavigatorShare(vi.fn().mockRejectedValue(new DOMException('Blocked', 'NotAllowedError')));
+    const user = userEvent.setup();
+    render(wrapper());
+
+    await revealPublicGalleryControls();
+    await user.click(await screen.findByRole('button', { name: 'Share Public Gallery' }));
+    const drawer = await screen.findByRole('dialog', { name: 'Share Public Gallery' });
+    await user.click(within(drawer).getByRole('button', { name: /share via device/i }));
+
+    expect(drawer).toBeInTheDocument();
+    expect(within(drawer).getByRole('status')).toHaveTextContent(
+      "Couldn't open device sharing. Try Copy link instead.",
+    );
   });
 
   it('does not render a ZIP size estimate when the payload omits the total', async () => {
@@ -713,13 +858,14 @@ describe('PublicGalleryPage', () => {
     await waitFor(() => {
       expect(screen.queryByText('Loading gallery photos...')).not.toBeInTheDocument();
     });
-    expect(screen.queryByTestId('project-selection-sticky-bar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('public-gallery-selection-bar')).not.toBeInTheDocument();
 
     Object.defineProperty(window, 'scrollY', { value: 500, writable: true, configurable: true });
     fireEvent.scroll(window);
 
-    const stickyBar = await screen.findByTestId('project-selection-sticky-bar');
-    expect(within(stickyBar).getByText('4 selected')).toBeInTheDocument();
+    const stickyBar = await screen.findByTestId('public-gallery-selection-bar');
+    expect(within(stickyBar).getByText('4 of 12 selected')).toBeInTheDocument();
+    expect(within(stickyBar).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '33');
     expect(within(stickyBar).getByRole('button', { name: /open favorites/i })).toBeInTheDocument();
     expect(
       within(stickyBar).getByRole('button', { name: /finish selection/i }),
@@ -760,7 +906,115 @@ describe('PublicGalleryPage', () => {
     Object.defineProperty(window, 'scrollY', { value: 500, writable: true, configurable: true });
     fireEvent.scroll(window);
 
-    expect(screen.queryByTestId('project-selection-sticky-bar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('public-gallery-selection-bar')).not.toBeInTheDocument();
+  });
+
+  it('shows the same sticky selection bar for a standalone gallery, including zero selections', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    vi.mocked(shareLinkService.getPublicSelectionConfig).mockResolvedValue({
+      is_enabled: true,
+      list_title: 'Selected photos',
+      limit_enabled: false,
+      limit_value: null,
+      allow_photo_comments: false,
+      require_name: true,
+      require_email: false,
+      require_phone: false,
+      require_client_note: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+    vi.mocked(shareLinkService.getPublicSelectionSession).mockResolvedValue({
+      id: 'session-1',
+      sharelink_id: 'abc123',
+      status: 'in_progress',
+      client_name: 'Jane Client',
+      client_email: null,
+      client_phone: null,
+      client_note: null,
+      selected_count: 0,
+      submitted_at: null,
+      last_activity_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      resume_token: 'resume-token',
+      items: [],
+    } as any);
+    window.localStorage.setItem('viewport-selection-resume-abc123', 'resume-token');
+
+    render(wrapper());
+    await screen.findByRole('heading', { level: 1, name: 'Public Gallery' });
+
+    expect(screen.queryByTestId('public-gallery-selection-bar')).not.toBeInTheDocument();
+    Object.defineProperty(window, 'scrollY', { value: 500, writable: true, configurable: true });
+    fireEvent.scroll(window);
+
+    const stickyBar = await screen.findByTestId('public-gallery-selection-bar');
+    expect(within(stickyBar).getByText('0 selected')).toBeInTheDocument();
+    expect(within(stickyBar).queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(document.getElementById('main-content')).toHaveClass('pb-52');
+  });
+
+  it('refreshes the sticky bar to submitted status after finishing selection', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    const baseSession = {
+      id: 'session-1',
+      sharelink_id: 'abc123',
+      status: 'in_progress',
+      client_name: 'Jane Client',
+      client_email: null,
+      client_phone: null,
+      client_note: null,
+      selected_count: 2,
+      submitted_at: null,
+      last_activity_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      resume_token: 'resume-token',
+      items: [],
+    };
+    vi.mocked(shareLinkService.getPublicSelectionConfig).mockResolvedValue({
+      is_enabled: true,
+      list_title: 'Selected photos',
+      limit_enabled: false,
+      limit_value: null,
+      allow_photo_comments: false,
+      require_name: true,
+      require_email: false,
+      require_phone: false,
+      require_client_note: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+    vi.mocked(shareLinkService.getPublicSelectionSession)
+      .mockResolvedValueOnce(baseSession as any)
+      .mockResolvedValueOnce({
+        ...baseSession,
+        status: 'submitted',
+        submitted_at: new Date().toISOString(),
+      } as any);
+    vi.mocked(shareLinkService.submitPublicSelectionSession).mockResolvedValue(undefined as any);
+    window.localStorage.setItem('viewport-selection-resume-abc123', 'resume-token');
+    const user = userEvent.setup();
+
+    render(wrapper());
+    await screen.findByRole('heading', { level: 1, name: 'Public Gallery' });
+    Object.defineProperty(window, 'scrollY', { value: 500, writable: true, configurable: true });
+    fireEvent.scroll(window);
+
+    const stickyBar = await screen.findByTestId('public-gallery-selection-bar');
+    await user.click(within(stickyBar).getByRole('button', { name: /finish selection/i }));
+
+    await waitFor(() => {
+      expect(within(stickyBar).getByText('Selection submitted')).toBeInTheDocument();
+      expect(
+        within(stickyBar).queryByRole('button', { name: /finish selection/i }),
+      ).not.toBeInTheDocument();
+    });
+    expect(shareLinkService.submitPublicSelectionSession).toHaveBeenCalledWith(
+      'abc123',
+      'resume-token',
+    );
   });
 
   it('submits the start selection modal with Enter from the name field', async () => {

@@ -1,32 +1,28 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useNavigationType, useParams } from 'react-router';
-import QRCode from 'react-qr-code';
 import {
   ArrowLeft,
-  Check,
   CheckCircle2,
-  Copy,
   Download as DownloadIcon,
   Heart,
   Link2,
   LockKeyhole,
   LogOut,
-  Mail,
-  MessageCircle,
-  QrCode,
   Share2,
 } from 'lucide-react';
 import { SkipToContentLink } from '../components/a11y/SkipToContentLink';
 import { LightboxKeyboardHint } from '../components/a11y/LightboxKeyboardHint';
 import { ReadabilitySettingsButton } from '../components/ReadabilitySettingsButton';
-import { AppDialog, AppDialogDescription, AppDialogTitle, AppDrawer } from '../components/ui';
+import { AppDialog, AppDialogDescription, AppDialogTitle } from '../components/ui';
 import {
   normalizePublicGalleryAppearance,
   getPublicGalleryThemeClassName,
 } from '../components/public-gallery/galleryAppearance';
 import { PublicGalleryHero } from '../components/public-gallery/PublicGalleryHero';
 import { PublicGalleryPhotoSection } from '../components/public-gallery/PublicGalleryPhotoSection';
+import { PublicGallerySelectionBar } from '../components/public-gallery/PublicGallerySelectionBar';
+import { PublicGalleryShareDrawer } from '../components/public-gallery/PublicGalleryShareDrawer';
 import {
   PublicGalleryError,
   PublicGalleryExpired,
@@ -56,6 +52,8 @@ const createInitialStartForm = (): SelectionSessionStartRequest => ({
 const INTERNAL_PROJECT_NAVIGATION_STATE = {
   skipProjectViewCount: true,
 } as const;
+
+const HERO_CONTROLS_VISIBLE_RATIO = 0.25;
 
 export const PublicGalleryPage = () => {
   const { shareId, resumeToken, galleryId } = useParams<{
@@ -87,15 +85,6 @@ export const PublicGalleryPage = () => {
   const [downloadError, setDownloadError] = useState('');
   const [isDownloadPasswordRequired, setIsDownloadPasswordRequired] = useState(false);
   const [isDownloadExpired, setIsDownloadExpired] = useState(false);
-  const {
-    isShareDrawerOpen,
-    isQrDrawerOpen,
-    shareLinkCopied,
-    openShareDrawer,
-    handleShareDrawerOpenChange,
-    handleQrDrawerOpenChange,
-    copyShareLink,
-  } = usePublicGalleryShare();
   const startNameInputRef = useRef<HTMLInputElement | null>(null);
   const heroBoundaryRef = useRef<HTMLDivElement | null>(null);
   const [hasScrolledPastHero, setHasScrolledPastHero] = useState(false);
@@ -286,6 +275,7 @@ export const PublicGalleryPage = () => {
     hasMore: isFavoritesView ? false : hasMore,
     isLoadingMore: isFavoritesView ? false : isLoadingMore,
     loadMoreThreshold: 10,
+    showPositionIndicator: true,
   });
 
   useEffect(() => {
@@ -458,8 +448,8 @@ export const PublicGalleryPage = () => {
   const isProjectFolderView = Boolean(folderShare?.parent_share_id && !isFavoritesView);
 
   const heroAppearance = appearance;
-  const showStickyProjectSelectionBar = Boolean(
-    projectGalleryTabs &&
+  const publicThemeClassName = getPublicGalleryThemeClassName(appearance);
+  const showStickySelectionBar = Boolean(
     selection.config?.is_enabled &&
     selection.session &&
     hasScrolledPastHero &&
@@ -482,8 +472,27 @@ export const PublicGalleryPage = () => {
     return new URL(canonicalPath, origin).toString();
   }, [galleryId, shareId]);
   const shareSubject = `View ${heroTitle} on Viewport`;
+  const shareText = `Open ${heroTitle}, shared with you through Viewport.`;
+  const sharePayload = useMemo(
+    () => ({ title: shareSubject, text: shareText, url: shareUrl }),
+    [shareSubject, shareText, shareUrl],
+  );
+  const {
+    isShareDrawerOpen,
+    isQrDrawerOpen,
+    shareLinkCopied,
+    isNativeShareSupported,
+    nativeShareError,
+    openShareDrawer,
+    handleShareDrawerOpenChange,
+    handleQrDrawerOpenChange,
+    copyShareLink,
+    shareViaDevice,
+  } = usePublicGalleryShare(sharePayload);
   const encodedShareSubject = encodeURIComponent(shareSubject);
-  const encodedShareBody = encodeURIComponent(`${shareSubject}\n\n${shareUrl}`);
+  const encodedShareBody = encodeURIComponent(`${shareText}\n\n${shareUrl}`);
+  const emailShareHref = `mailto:?subject=${encodedShareSubject}&body=${encodedShareBody}`;
+  const smsShareHref = `sms:?body=${encodedShareBody}`;
   const handleCopyShareLink = useCallback(() => copyShareLink(shareUrl), [copyShareLink, shareUrl]);
   const activeProjectGallery = projectGalleryTabs?.galleries.find(
     (projectGallery) => projectGallery.gallery_id === activeGalleryId,
@@ -495,12 +504,7 @@ export const PublicGalleryPage = () => {
       : (folderShare?.total_photos ?? activeProjectGallery?.photo_count ?? photos.length);
 
   useEffect(() => {
-    if (!projectGalleryTabs || isFavoritesView || !selection.session) {
-      setHasScrolledPastHero(false);
-      return;
-    }
-
-    const updateHeroVisibility = () => {
+    const updateHeroVisibilityFromLayout = () => {
       const heroElement = heroBoundaryRef.current;
       if (!heroElement) {
         setHasScrolledPastHero(window.scrollY > 0);
@@ -508,19 +512,35 @@ export const PublicGalleryPage = () => {
       }
 
       const rect = heroElement.getBoundingClientRect();
-      const isPastHero = rect.height > 0 ? rect.bottom <= 0 : window.scrollY > 0;
+      const isPastHero =
+        rect.height > 0
+          ? rect.bottom <= rect.height * HERO_CONTROLS_VISIBLE_RATIO
+          : window.scrollY > 0;
       setHasScrolledPastHero(isPastHero);
     };
 
-    updateHeroVisibility();
-    window.addEventListener('scroll', updateHeroVisibility, { passive: true });
-    window.addEventListener('resize', updateHeroVisibility);
+    const heroElement = heroBoundaryRef.current;
+    let observer: IntersectionObserver | null = null;
+    if (heroElement && typeof IntersectionObserver === 'function') {
+      observer = new IntersectionObserver(
+        () => {
+          updateHeroVisibilityFromLayout();
+        },
+        { threshold: HERO_CONTROLS_VISIBLE_RATIO },
+      );
+      observer.observe(heroElement);
+    }
+
+    updateHeroVisibilityFromLayout();
+    window.addEventListener('scroll', updateHeroVisibilityFromLayout, { passive: true });
+    window.addEventListener('resize', updateHeroVisibilityFromLayout);
 
     return () => {
-      window.removeEventListener('scroll', updateHeroVisibility);
-      window.removeEventListener('resize', updateHeroVisibility);
+      observer?.disconnect();
+      window.removeEventListener('scroll', updateHeroVisibilityFromLayout);
+      window.removeEventListener('resize', updateHeroVisibilityFromLayout);
     };
-  }, [isFavoritesView, projectGalleryTabs, selection.session]);
+  }, [activeGalleryId, gallery]);
 
   useEffect(() => {
     if (isFavoritesView || activeGalleryId || !projectShare?.galleries.length) {
@@ -750,23 +770,33 @@ export const PublicGalleryPage = () => {
   }
   return (
     <div
-      className={`pg-public-page ${getPublicGalleryThemeClassName(appearance)} min-h-screen bg-surface text-text`}
+      className={`pg-public-page ${publicThemeClassName} min-h-screen bg-surface text-text`}
     >
       <SkipToContentLink targetId="main-content" />
-      <div className="fixed top-6 right-6 z-30 flex items-center gap-2">
+      <div
+        data-testid="public-gallery-utility-controls"
+        data-state={hasScrolledPastHero ? 'visible' : 'hidden'}
+        aria-hidden={hasScrolledPastHero ? undefined : true}
+        inert={hasScrolledPastHero ? undefined : true}
+        className={`fixed top-6 right-6 z-30 flex items-center gap-2 transition-[opacity,filter] motion-reduce:blur-none motion-reduce:transition-none ${
+          hasScrolledPastHero
+            ? 'opacity-100 blur-0 duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]'
+            : 'pointer-events-none opacity-0 blur-[2px] duration-200 ease-in'
+        }`}
+      >
         <button
           type="button"
           onClick={openShareDrawer}
           aria-label={`Share ${heroTitle}`}
-          className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border/50 bg-surface/90 px-4 text-sm font-semibold text-text shadow-lg backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent"
+          className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border/50 bg-surface/90 px-4 text-sm font-semibold text-text shadow-lg backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent"
         >
           <Share2 className="h-4 w-4" />
           <span className="hidden sm:inline">Share</span>
         </button>
-        <ReadabilitySettingsButton />
+        <ReadabilitySettingsButton variant="public-gallery" />
       </div>
 
-      <div ref={heroBoundaryRef}>
+      <div ref={heroBoundaryRef} data-testid="public-gallery-hero-boundary">
         <PublicGalleryHero
           title={heroTitle}
           date={heroDate}
@@ -779,7 +809,9 @@ export const PublicGalleryPage = () => {
       <main
         id="main-content"
         tabIndex={-1}
-        className={`w-full px-4 pt-8 pb-16 sm:px-6 sm:pt-10 lg:px-10 ${showStickyProjectSelectionBar ? 'pb-36 sm:pb-40' : ''}`}
+        className={`w-full px-4 pt-8 sm:px-6 sm:pt-10 lg:px-10 ${
+          showStickySelectionBar ? 'pb-52 sm:pb-36' : 'pb-16'
+        }`}
       >
         {projectGalleryTabs ? (
           <section className="mb-6 space-y-4 border-b border-border/40 pb-5">
@@ -1246,174 +1278,32 @@ export const PublicGalleryPage = () => {
         </div>
       </main>
 
-      {showStickyProjectSelectionBar ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-4 sm:px-6 lg:px-10">
-          <section
-            data-testid="project-selection-sticky-bar"
-            className="pointer-events-auto mx-auto flex w-full max-w-6xl flex-col gap-3 rounded-3xl border border-border/50 bg-surface/95 px-4 py-4 shadow-xl backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted">
-                Project selection
-              </p>
-              <div className="flex flex-wrap items-center gap-2 text-sm text-text">
-                <span className="rounded-full bg-accent/10 px-3 py-1 font-semibold text-accent">
-                  {selection.session?.selected_count ?? 0} selected
-                </span>
-                {selection.config?.limit_enabled && selection.config.limit_value ? (
-                  <span className="text-muted">Limit {selection.config.limit_value}</span>
-                ) : null}
-                {selection.session?.status ? (
-                  <span className="text-muted">Status: {selection.session.status}</span>
-                ) : (
-                  <span className="text-muted">
-                    Use the corner heart in any gallery to keep one shared shortlist.
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleOpenFavorites}
-                className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-4 py-2.5 text-sm font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent"
-              >
-                <Heart className="h-4 w-4" />
-                Open favorites
-              </button>
-              <button
-                type="button"
-                onClick={handleStickyFinishSelection}
-                disabled={
-                  selection.isMutating || Boolean(selection.session && !selection.canMutateSession)
-                }
-                className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                Finish selection
-              </button>
-            </div>
-          </section>
-        </div>
+      {showStickySelectionBar && selection.config && selection.session ? (
+        <PublicGallerySelectionBar
+          config={selection.config}
+          session={selection.session}
+          isMutating={selection.isMutating}
+          onOpenFavorites={handleOpenFavorites}
+          onFinishSelection={handleStickyFinishSelection}
+        />
       ) : null}
 
-      <AppDrawer
+      <PublicGalleryShareDrawer
         open={isShareDrawerOpen}
         onOpenChange={handleShareDrawerOpenChange}
-        side="bottom"
-        snapPoints={[0.5, 0.9]}
-        width="md"
-        title={`Share ${heroTitle}`}
-        description="Send the gallery in the format that works best for your client."
-        eyebrow="Public gallery"
-        icon={<Share2 className="h-5 w-5" />}
-        className={`pg-public-page ${getPublicGalleryThemeClassName(appearance)}`}
-        closeLabel="Close share gallery drawer"
-      >
-        <div className="grid gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => void handleCopyShareLink()}
-            className="group flex min-h-20 items-center gap-4 rounded-2xl border border-border/45 bg-surface-1 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-accent/45 hover:shadow-md"
-          >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
-              {shareLinkCopied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
-            </span>
-            <span>
-              <span className="block text-sm font-bold text-text">
-                {shareLinkCopied ? 'Link copied' : 'Copy link'}
-              </span>
-              <span className="mt-0.5 block text-xs text-muted">Ready to paste anywhere</span>
-            </span>
-          </button>
-
-          <a
-            href={`mailto:?subject=${encodedShareSubject}&body=${encodedShareBody}`}
-            className="group flex min-h-20 items-center gap-4 rounded-2xl border border-border/45 bg-surface-1 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-accent/45 hover:shadow-md"
-          >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
-              <Mail className="h-5 w-5" />
-            </span>
-            <span>
-              <span className="block text-sm font-bold text-text">Email</span>
-              <span className="mt-0.5 block text-xs text-muted">Open your mail app</span>
-            </span>
-          </a>
-
-          <a
-            href={`sms:?body=${encodedShareBody}`}
-            className="group flex min-h-20 items-center gap-4 rounded-2xl border border-border/45 bg-surface-1 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-accent/45 hover:shadow-md"
-          >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
-              <MessageCircle className="h-5 w-5" />
-            </span>
-            <span>
-              <span className="block text-sm font-bold text-text">SMS</span>
-              <span className="mt-0.5 block text-xs text-muted">Send from your phone</span>
-            </span>
-          </a>
-
-          <AppDrawer
-            nested
-            open={isQrDrawerOpen}
-            onOpenChange={handleQrDrawerOpenChange}
-            side="bottom"
-            snapPoints={[0.65, 0.92]}
-            width="sm"
-            title="QR code"
-            description="Keep this link card open while transferring the gallery to another device."
-            eyebrow="Scan to open"
-            icon={<QrCode className="h-5 w-5" />}
-            className={`pg-public-page ${getPublicGalleryThemeClassName(appearance)}`}
-            closeLabel="Close QR code drawer"
-            trigger={
-              <button
-                type="button"
-                className="group flex min-h-20 items-center gap-4 rounded-2xl border border-border/45 bg-surface-1 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-accent/45 hover:shadow-md"
-              >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent transition-colors group-hover:bg-accent group-hover:text-accent-foreground">
-                  <QrCode className="h-5 w-5" />
-                </span>
-                <span>
-                  <span className="block text-sm font-bold text-text">QR code</span>
-                  <span className="mt-0.5 block text-xs text-muted">
-                    Open a scan-friendly link card
-                  </span>
-                </span>
-              </button>
-            }
-          >
-            <div className="mx-auto max-w-sm rounded-[2rem] border border-border/45 bg-surface-1 p-6 text-center shadow-sm">
-              <div className="mx-auto w-44 rounded-[1.75rem] bg-white p-4 shadow-inner">
-                <QRCode
-                  value={shareUrl}
-                  title={`QR code for ${heroTitle}`}
-                  level="M"
-                  size={176}
-                  bgColor="#ffffff"
-                  fgColor="#111827"
-                  className="h-auto w-full"
-                />
-              </div>
-              <p className="mt-5 text-xs font-bold uppercase tracking-[0.18em] text-muted">
-                Gallery link
-              </p>
-              <p className="mt-2 break-all rounded-xl bg-surface px-3 py-2 font-mono text-xs leading-5 text-text">
-                {shareUrl}
-              </p>
-              <button
-                type="button"
-                onClick={() => void handleCopyShareLink()}
-                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground"
-              >
-                {shareLinkCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                {shareLinkCopied ? 'Copied' : 'Copy gallery link'}
-              </button>
-            </div>
-          </AppDrawer>
-        </div>
-      </AppDrawer>
+        qrOpen={isQrDrawerOpen}
+        onQrOpenChange={handleQrDrawerOpenChange}
+        galleryTitle={heroTitle}
+        shareUrl={shareUrl}
+        emailHref={emailShareHref}
+        smsHref={smsShareHref}
+        linkCopied={shareLinkCopied}
+        onCopyLink={handleCopyShareLink}
+        nativeShareSupported={isNativeShareSupported}
+        nativeShareError={nativeShareError}
+        onShareViaDevice={shareViaDevice}
+        themeClassName={publicThemeClassName}
+      />
 
       {renderLightbox(lightboxSlides, displayedPhotoTotal)}
       <LightboxKeyboardHint isOpen={lightboxOpen} />
