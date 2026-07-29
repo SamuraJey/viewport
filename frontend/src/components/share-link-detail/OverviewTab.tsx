@@ -95,7 +95,7 @@ export const OverviewTab = ({
             <button
               type="button"
               onClick={onNavigateToAnalytics}
-              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent"
+              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
             >
               <BarChart3 className="h-4 w-4" />
               Open daily breakdown
@@ -158,7 +158,7 @@ export const OverviewTab = ({
             <button
               type="button"
               onClick={onNavigateToSelection}
-              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent"
+              className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm font-semibold text-text transition-colors hover:border-accent/40 hover:text-accent focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
             >
               <SlidersHorizontal className="h-4 w-4" />
               Open selection

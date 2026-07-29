@@ -1,9 +1,19 @@
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ShareLinkDetailPage } from '../../pages/ShareLinkDetailPage';
+import { copyTextToClipboard } from '../../lib/clipboard';
 import { shareLinkService } from '../../services/shareLinkService';
+import type {
+  OwnerSelectionDetail,
+  OwnerSelectionSessionListItem,
+  SelectionItem,
+  SelectionSession,
+  ShareLinkAnalyticsItem,
+  ShareLinkAnalyticsResponse,
+  ShareLinkSelectionSummary,
+} from '../../types';
 
 vi.mock('../../services/shareLinkService', () => ({
   shareLinkService: {
@@ -11,7 +21,9 @@ vi.mock('../../services/shareLinkService', () => ({
     getOwnerSelectionDetail: vi.fn(),
     getOwnerSelectionSessionDetail: vi.fn(),
     updateShareLink: vi.fn(),
+    updateProjectShareLink: vi.fn(),
     deleteShareLink: vi.fn(),
+    deleteProjectShareLink: vi.fn(),
     updateOwnerSelectionConfig: vi.fn(),
     updateShareLinkSelectionConfig: vi.fn(),
     closeOwnerSelectionSession: vi.fn(),
@@ -21,6 +33,10 @@ vi.mock('../../services/shareLinkService', () => ({
   },
 }));
 
+vi.mock('../../lib/clipboard', () => ({
+  copyTextToClipboard: vi.fn(),
+}));
+
 vi.mock('../../hooks/useConfirmation', () => ({
   useConfirmation: () => ({
     openConfirm: vi.fn(),
@@ -28,165 +44,177 @@ vi.mock('../../hooks/useConfirmation', () => ({
   }),
 }));
 
+const makeSession = (
+  id: string,
+  clientName: string,
+  options: Partial<OwnerSelectionSessionListItem> = {},
+): OwnerSelectionSessionListItem => ({
+  id,
+  status: 'in_progress',
+  client_name: clientName,
+  client_email: null,
+  client_phone: null,
+  client_note: null,
+  selected_count: 0,
+  submitted_at: null,
+  last_activity_at: '2026-04-12T10:00:00Z',
+  created_at: '2026-04-10T10:00:00Z',
+  updated_at: '2026-04-12T10:00:00Z',
+  ...options,
+});
+
+const makeSessionDetail = (
+  session: OwnerSelectionSessionListItem,
+  items: SelectionItem[] = [],
+): SelectionSession => ({
+  ...session,
+  sharelink_id: 'link-1',
+  items,
+});
+
+const makeSelectionDetail = (
+  sessions: OwnerSelectionSessionListItem[],
+  scopeType: 'gallery' | 'project' = 'gallery',
+): OwnerSelectionDetail => ({
+  sharelink_id: scopeType === 'project' ? 'link-project' : 'link-1',
+  sharelink_label: scopeType === 'project' ? 'Project delivery' : 'Client proofing',
+  scope_type: scopeType,
+  project_name: scopeType === 'project' ? 'Wedding Weekend' : null,
+  gallery_name: scopeType === 'gallery' ? 'Spring Session' : null,
+  config: {
+    is_enabled: true,
+    list_title: 'Selected photos',
+    limit_enabled: false,
+    limit_value: null,
+    allow_photo_comments: true,
+    require_email: false,
+    require_phone: false,
+    require_client_note: false,
+    created_at: '2026-04-10T10:00:00Z',
+    updated_at: '2026-04-12T10:00:00Z',
+  },
+  aggregate: {
+    total_sessions: sessions.length,
+    submitted_sessions: sessions.filter((session) => session.status === 'submitted').length,
+    in_progress_sessions: sessions.filter((session) => session.status === 'in_progress').length,
+    closed_sessions: sessions.filter((session) => session.status === 'closed').length,
+    selected_count: sessions.reduce((sum, session) => sum + session.selected_count, 0),
+    latest_activity_at: sessions[0]?.updated_at ?? null,
+  },
+  sessions,
+  session: null,
+});
+
+const makeAnalytics = ({
+  shareLink = {},
+  selectionSummary = {},
+  points,
+}: {
+  shareLink?: Partial<ShareLinkAnalyticsItem>;
+  selectionSummary?: Partial<ShareLinkSelectionSummary>;
+  points?: ShareLinkAnalyticsResponse['points'];
+} = {}): ShareLinkAnalyticsResponse => ({
+  share_link: {
+    id: 'link-1',
+    scope_type: 'gallery',
+    gallery_id: 'gallery-1',
+    gallery_name: 'Spring Session',
+    label: 'Client proofing',
+    is_active: true,
+    expires_at: null,
+    views: 12,
+    zip_downloads: 2,
+    single_downloads: 3,
+    created_at: '2026-04-10T10:00:00Z',
+    updated_at: '2026-04-12T10:00:00Z',
+    ...shareLink,
+  },
+  selection_summary: {
+    is_enabled: true,
+    status: 'in_progress',
+    total_sessions: 1,
+    submitted_sessions: 0,
+    in_progress_sessions: 1,
+    closed_sessions: 0,
+    selected_count: 3,
+    latest_activity_at: '2026-04-12T10:00:00Z',
+    ...selectionSummary,
+  },
+  points: points ?? [
+    {
+      day: '2026-04-10',
+      views_total: 5,
+      views_unique: 4,
+      zip_downloads: 1,
+      single_downloads: 1,
+    },
+    {
+      day: '2026-04-11',
+      views_total: 7,
+      views_unique: 6,
+      zip_downloads: 1,
+      single_downloads: 2,
+    },
+  ],
+});
+
+const defaultSession = makeSession('session-1', 'Ivan', { selected_count: 3 });
+
+const renderPage = (shareLinkId = 'link-1') =>
+  render(
+    <MemoryRouter initialEntries={[`/share-links/${shareLinkId}`]}>
+      <Routes>
+        <Route path="/share-links/:shareLinkId" element={<ShareLinkDetailPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+const openSelectionTab = async (user: ReturnType<typeof userEvent.setup>) => {
+  await screen.findByRole('heading', { name: /client proofing|project delivery/i });
+  await user.click(screen.getByRole('tab', { name: /photo selection/i }));
+  await screen.findByText(/manage selection configuration and per-client selection sessions/i);
+};
+
+const getSessionOrder = () =>
+  within(screen.getByRole('list', { name: /selection sessions/i }))
+    .getAllByRole('button', { name: /open selection session for/i })
+    .map((button) => button.getAttribute('aria-label')?.replace('Open selection session for ', ''));
+
 describe('ShareLinkDetailPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-
-    vi.mocked(shareLinkService.getShareLinkAnalytics).mockResolvedValue({
-      share_link: {
-        id: 'link-1',
-        gallery_id: 'gallery-1',
-        gallery_name: 'Spring Session',
-        label: 'Client proofing',
-        is_active: true,
-        expires_at: null,
-        views: 12,
-        zip_downloads: 2,
-        single_downloads: 3,
-        created_at: '2026-04-10T10:00:00Z',
-        updated_at: '2026-04-12T10:00:00Z',
-      },
-      selection_summary: {
-        is_enabled: true,
-        status: 'in_progress',
-        total_sessions: 1,
-        submitted_sessions: 0,
-        in_progress_sessions: 1,
-        closed_sessions: 0,
-        selected_count: 3,
-        latest_activity_at: '2026-04-12T10:00:00Z',
-      },
-      points: [
-        {
-          day: '2026-04-10',
-          views_total: 5,
-          views_unique: 4,
-          zip_downloads: 1,
-          single_downloads: 1,
-        },
-        {
-          day: '2026-04-11',
-          views_total: 7,
-          views_unique: 6,
-          zip_downloads: 1,
-          single_downloads: 2,
-        },
-      ],
-    } as any);
-
-    vi.mocked(shareLinkService.getOwnerSelectionDetail).mockResolvedValue({
-      sharelink_id: 'link-1',
-      sharelink_label: 'Client proofing',
-      scope_type: 'gallery',
-      config: {
-        is_enabled: true,
-        list_title: 'Selected photos',
-        limit_enabled: false,
-        limit_value: null,
-        allow_photo_comments: true,
-        require_email: false,
-        require_phone: false,
-        require_client_note: false,
-        created_at: '2026-04-10T10:00:00Z',
-        updated_at: '2026-04-12T10:00:00Z',
-      },
-      aggregate: {
-        total_sessions: 1,
-        submitted_sessions: 0,
-        in_progress_sessions: 1,
-        closed_sessions: 0,
-        selected_count: 3,
-        latest_activity_at: '2026-04-12T10:00:00Z',
-      },
-      sessions: [
-        {
-          id: 'session-1',
-          sharelink_id: 'link-1',
-          status: 'in_progress',
-          client_name: 'Ivan',
-          client_email: null,
-          client_phone: null,
-          client_note: null,
-          selected_count: 3,
-          submitted_at: null,
-          last_activity_at: '2026-04-12T10:00:00Z',
-          created_at: '2026-04-10T10:00:00Z',
-          updated_at: '2026-04-12T10:00:00Z',
-          items: [],
-        },
-      ],
-      session: null,
-    } as any);
-
-    vi.mocked(shareLinkService.getOwnerSelectionSessionDetail).mockResolvedValue({
-      id: 'session-1',
-      sharelink_id: 'link-1',
-      status: 'in_progress',
-      client_name: 'Ivan',
-      client_email: null,
-      client_phone: null,
-      client_note: null,
-      selected_count: 3,
-      submitted_at: null,
-      last_activity_at: '2026-04-12T10:00:00Z',
-      created_at: '2026-04-10T10:00:00Z',
-      updated_at: '2026-04-12T10:00:00Z',
-      items: [],
-    } as any);
+    vi.mocked(copyTextToClipboard).mockResolvedValue(true);
+    vi.mocked(shareLinkService.getShareLinkAnalytics).mockResolvedValue(makeAnalytics());
+    vi.mocked(shareLinkService.getOwnerSelectionDetail).mockResolvedValue(
+      makeSelectionDetail([defaultSession]),
+    );
+    vi.mocked(shareLinkService.getOwnerSelectionSessionDetail).mockImplementation(
+      async (_shareLinkId, sessionId) =>
+        makeSessionDetail(
+          sessionId === defaultSession.id
+            ? defaultSession
+            : makeSession(sessionId, `Client ${sessionId}`),
+        ),
+    );
+    vi.mocked(shareLinkService.updateShareLinkSelectionConfig).mockResolvedValue(
+      makeSelectionDetail([defaultSession]).config,
+    );
   });
 
-  const renderPage = () =>
-    render(
-      <MemoryRouter initialEntries={['/share-links/link-1']}>
-        <Routes>
-          <Route path="/share-links/:shareLinkId" element={<ShareLinkDetailPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-
-  it('shows overview first and keeps selection admin behind its own tab', async () => {
+  it('shows Overview first and lazy-loads selection only once', async () => {
+    const user = userEvent.setup();
     renderPage();
 
     expect(await screen.findByRole('heading', { name: /client proofing/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /overview/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /overview/i })).toHaveAttribute('aria-selected', 'true');
     expect(shareLinkService.getOwnerSelectionDetail).not.toHaveBeenCalled();
-    expect(
-      screen.queryByText(/manage selection configuration and per-client selection sessions/i),
-    ).not.toBeInTheDocument();
     expect(screen.getByText(/recent daily activity/i)).toBeInTheDocument();
-  });
 
-  it('switches between analytics and selection tabs', async () => {
-    const user = userEvent.setup();
-    renderPage();
-
-    await screen.findByRole('heading', { name: /client proofing/i });
-
-    await user.click(screen.getByRole('tab', { name: /daily analytics/i }));
-    expect(await screen.findByText(/daily analytics breakdown/i)).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /views total/i })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('tab', { name: /photo selection/i }));
-    expect(
-      await screen.findByText(/manage selection configuration and per-client selection sessions/i),
-    ).toBeInTheDocument();
-    expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: /save selection settings/i })).toBeInTheDocument();
-  });
-
-  it('does not refetch heavy selection detail when leaving and returning to the tab', async () => {
-    const user = userEvent.setup();
-    renderPage();
-
-    await screen.findByRole('heading', { name: /client proofing/i });
-
-    await user.click(screen.getByRole('tab', { name: /photo selection/i }));
-    await screen.findByText(/manage selection configuration and per-client selection sessions/i);
+    await openSelectionTab(user);
     expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole('tab', { name: /overview/i }));
     await user.click(screen.getByRole('tab', { name: /photo selection/i }));
-
     expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(1);
   });
 
@@ -195,7 +223,6 @@ describe('ShareLinkDetailPage', () => {
     vi.mocked(shareLinkService.getOwnerSelectionDetail).mockRejectedValueOnce(
       new Error('selection failed'),
     );
-
     renderPage();
 
     await screen.findByRole('heading', { name: /client proofing/i });
@@ -209,104 +236,431 @@ describe('ShareLinkDetailPage', () => {
 
   it('loads analytics for the default 30 day window', async () => {
     renderPage();
-
     await waitFor(() => {
       expect(shareLinkService.getShareLinkAnalytics).toHaveBeenCalledWith('link-1', 30);
     });
   });
 
-  it('shows project-scoped selection management in the dedicated tab', async () => {
-    vi.mocked(shareLinkService.getShareLinkAnalytics).mockResolvedValueOnce({
-      share_link: {
-        id: 'link-project',
-        scope_type: 'project',
-        project_id: 'project-1',
-        project_name: 'Wedding Weekend',
-        label: 'Project delivery',
-        is_active: true,
-        expires_at: null,
-        views: 12,
-        zip_downloads: 2,
-        single_downloads: 0,
-        created_at: '2026-04-10T10:00:00Z',
-        updated_at: '2026-04-12T10:00:00Z',
-      },
-      selection_summary: {
+  it.each([
+    {
+      name: 'expired link',
+      analytics: makeAnalytics({
+        shareLink: { expires_at: '2020-01-01T00:00:00Z' },
+      }),
+      label: 'Edit expiration',
+    },
+    {
+      name: 'inactive link',
+      analytics: makeAnalytics({
+        shareLink: { is_active: false },
+      }),
+      label: 'Edit link',
+    },
+  ])('opens the existing editor from the CTA for an $name', async ({ analytics, label }) => {
+    const user = userEvent.setup();
+    vi.mocked(shareLinkService.getShareLinkAnalytics).mockResolvedValueOnce(analytics);
+    renderPage();
+
+    const nextAction = (await screen.findByText('Next best action')).parentElement;
+    expect(nextAction).not.toBeNull();
+    expect(within(nextAction!).getAllByRole('button')).toHaveLength(1);
+    await user.click(within(nextAction!).getByRole('button', { name: label }));
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(shareLinkService.updateShareLink).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      name: 'in-progress sessions',
+      summary: { in_progress_sessions: 2, submitted_sessions: 1 },
+      label: 'Review selections',
+    },
+    {
+      name: 'submitted sessions',
+      summary: { in_progress_sessions: 0, submitted_sessions: 1 },
+      label: 'Review exports',
+    },
+  ])('opens Photo selection from the CTA for $name', async ({ summary, label }) => {
+    const user = userEvent.setup();
+    vi.mocked(shareLinkService.getShareLinkAnalytics).mockResolvedValueOnce(
+      makeAnalytics({ selectionSummary: summary }),
+    );
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: label }));
+
+    expect(
+      await screen.findByText(/manage selection configuration and per-client selection sessions/i),
+    ).toBeInTheDocument();
+    expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens loaded analytics from the CTA without another request', async () => {
+    const user = userEvent.setup();
+    vi.mocked(shareLinkService.getShareLinkAnalytics).mockResolvedValueOnce(
+      makeAnalytics({
+        selectionSummary: { in_progress_sessions: 0, submitted_sessions: 0 },
+      }),
+    );
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Open analytics' }));
+
+    expect(await screen.findByText(/daily analytics breakdown/i)).toBeInTheDocument();
+    expect(shareLinkService.getShareLinkAnalytics).toHaveBeenCalledTimes(1);
+  });
+
+  it('copies the client URL from the CTA when there is no activity', async () => {
+    const user = userEvent.setup();
+    vi.mocked(shareLinkService.getShareLinkAnalytics).mockResolvedValueOnce(
+      makeAnalytics({
+        selectionSummary: { in_progress_sessions: 0, submitted_sessions: 0 },
+        points: [],
+      }),
+    );
+    renderPage();
+
+    const nextAction = (await screen.findByText('Next best action')).parentElement;
+    await user.click(within(nextAction!).getByRole('button', { name: 'Copy client link' }));
+
+    expect(copyTextToClipboard).toHaveBeenCalledWith(`${window.location.origin}/share/link-1`);
+  });
+
+  it('shows period controls only for analytics tabs and preserves the selected period', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await openSelectionTab(user);
+    expect(screen.queryByRole('group', { name: /analytics period/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: /overview/i }));
+    await user.click(screen.getByRole('button', { name: 'Last 7 days' }));
+    await waitFor(() => {
+      expect(shareLinkService.getShareLinkAnalytics).toHaveBeenCalledWith('link-1', 7);
+    });
+    expect(screen.getByRole('button', { name: 'Last 7 days' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await user.click(screen.getByRole('tab', { name: /daily analytics/i }));
+    expect(screen.getByRole('group', { name: /analytics period/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /photo selection/i }));
+    expect(screen.queryByRole('group', { name: /analytics period/i })).not.toBeInTheDocument();
+    expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it('validates and saves selection configuration changes', async () => {
+    const user = userEvent.setup();
+    const initialDetail = makeSelectionDetail([defaultSession]);
+    const savedConfig = {
+      ...initialDetail.config,
+      list_title: 'Curated picks',
+      limit_enabled: true,
+      limit_value: 5,
+    };
+    const savedDetail = {
+      ...initialDetail,
+      config: savedConfig,
+    };
+    vi.mocked(shareLinkService.getOwnerSelectionDetail)
+      .mockResolvedValueOnce(initialDetail)
+      .mockResolvedValueOnce(savedDetail);
+    vi.mocked(shareLinkService.updateShareLinkSelectionConfig).mockResolvedValueOnce(savedConfig);
+    renderPage();
+    await openSelectionTab(user);
+
+    await user.click(await screen.findByRole('switch', { name: /limit selection count/i }));
+    const limitInput = screen.getByRole('spinbutton', { name: /maximum photos/i });
+    await user.clear(limitInput);
+    await user.type(limitInput, '0');
+    await user.click(screen.getByRole('button', { name: /save selection settings/i }));
+
+    expect(await screen.findByText('Selection limit must be at least 1')).toBeInTheDocument();
+    expect(shareLinkService.updateShareLinkSelectionConfig).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByRole('textbox', { name: /list title/i }));
+    await user.type(screen.getByRole('textbox', { name: /list title/i }), ' Curated picks ');
+    await user.clear(limitInput);
+    await user.type(limitInput, '5');
+    await user.click(screen.getByRole('button', { name: /save selection settings/i }));
+
+    await waitFor(() => {
+      expect(shareLinkService.updateShareLinkSelectionConfig).toHaveBeenCalledWith('link-1', {
         is_enabled: true,
-        status: 'submitted',
-        total_sessions: 2,
-        submitted_sessions: 1,
-        in_progress_sessions: 1,
-        closed_sessions: 0,
-        selected_count: 6,
-        latest_activity_at: '2026-04-12T10:00:00Z',
-      },
-      points: [
-        {
-          day: '2026-04-10',
-          views_total: 5,
-          views_unique: 4,
-          zip_downloads: 1,
-          single_downloads: 0,
-        },
-      ],
-    } as any);
-    vi.mocked(shareLinkService.getOwnerSelectionDetail).mockResolvedValueOnce({
-      sharelink_id: 'link-project',
-      sharelink_label: 'Project delivery',
-      scope_type: 'project',
-      project_name: 'Wedding Weekend',
-      config: {
-        is_enabled: true,
-        list_title: 'Selected photos',
-        limit_enabled: false,
-        limit_value: null,
+        list_title: 'Curated picks',
+        limit_enabled: true,
+        limit_value: 5,
         allow_photo_comments: true,
         require_email: false,
         require_phone: false,
         require_client_note: false,
-        created_at: '2026-04-10T10:00:00Z',
+      });
+    });
+    expect(await screen.findByRole('textbox', { name: /list title/i })).toHaveValue(
+      'Curated picks',
+    );
+    expect(screen.getByRole('spinbutton', { name: /maximum photos/i })).toHaveValue(5);
+    expect(screen.getByRole('button', { name: /save selection settings/i })).toBeDisabled();
+    expect(screen.queryByText('Selection limit must be at least 1')).not.toBeInTheDocument();
+    expect(shareLinkService.getShareLinkAnalytics).toHaveBeenCalledTimes(2);
+    expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it('refreshes selection configuration and the active session detail', async () => {
+    const user = userEvent.setup();
+    const initialDetail = makeSelectionDetail([defaultSession]);
+    const refreshedDetail = {
+      ...initialDetail,
+      config: {
+        ...initialDetail.config,
+        list_title: 'Fresh server picks',
+      },
+    };
+    const refreshedSession = makeSessionDetail(defaultSession, [
+      {
+        photo_id: 'photo-refreshed',
+        photo_display_name: 'refreshed.jpg',
+        comment: 'Fresh server comment',
+        selected_at: '2026-04-12T09:10:00Z',
+        updated_at: '2026-04-12T09:10:00Z',
+      },
+    ]);
+    vi.mocked(shareLinkService.getOwnerSelectionDetail)
+      .mockResolvedValueOnce(initialDetail)
+      .mockResolvedValueOnce(refreshedDetail);
+    vi.mocked(shareLinkService.getOwnerSelectionSessionDetail)
+      .mockResolvedValueOnce(makeSessionDetail(defaultSession))
+      .mockResolvedValueOnce(refreshedSession);
+    renderPage();
+    await openSelectionTab(user);
+    await waitFor(() => {
+      expect(shareLinkService.getOwnerSelectionSessionDetail).toHaveBeenCalledTimes(1);
+    });
+
+    await user.click(screen.getByRole('button', { name: /refresh selection/i }));
+
+    expect(await screen.findByRole('textbox', { name: /list title/i })).toHaveValue(
+      'Fresh server picks',
+    );
+    expect(await screen.findByText('Fresh server comment')).toBeInTheDocument();
+    expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(2);
+    expect(shareLinkService.getOwnerSelectionSessionDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it('filters by search and status, loads the selected detail, and preserves comments', async () => {
+    const user = userEvent.setup();
+    const sessions = [
+      makeSession('session-anna', 'Anna', {
+        status: 'submitted',
+        client_email: 'anna@example.com',
+        client_note: 'Album shortlist',
+      }),
+      makeSession('session-boris', 'Boris', { status: 'closed' }),
+      makeSession('session-claire', 'Claire', { status: 'in_progress' }),
+    ];
+    vi.mocked(shareLinkService.getOwnerSelectionDetail).mockResolvedValueOnce(
+      makeSelectionDetail(sessions),
+    );
+    vi.mocked(shareLinkService.getOwnerSelectionSessionDetail).mockImplementation(
+      async (_shareLinkId, sessionId) => {
+        const session = sessions.find((candidate) => candidate.id === sessionId)!;
+        return makeSessionDetail(session, [
+          {
+            photo_id: `${sessionId}-photo`,
+            photo_display_name: `${session.client_name}.jpg`,
+            comment: sessionId === 'session-anna' ? 'Warm the skin tone' : null,
+            selected_at: '2026-04-12T09:10:00Z',
+            updated_at: '2026-04-12T09:10:00Z',
+          },
+        ]);
+      },
+    );
+    renderPage();
+    await openSelectionTab(user);
+
+    await user.type(screen.getByPlaceholderText(/search client/i), 'anna@example.com');
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: /filter sessions by status/i }),
+      'submitted',
+    );
+
+    expect(getSessionOrder()).toEqual(['Anna']);
+    await waitFor(() => {
+      expect(shareLinkService.getOwnerSelectionSessionDetail).toHaveBeenCalledWith(
+        'link-1',
+        'session-anna',
+      );
+    });
+    expect(await screen.findByText('Warm the skin tone')).toBeInTheDocument();
+    expect(screen.getAllByText('Album shortlist')).toHaveLength(2);
+  });
+
+  it('supports all session sort modes and preserves the active session after sorting', async () => {
+    const user = userEvent.setup();
+    const sessions = [
+      makeSession('session-zoe', 'Zoe', {
+        selected_count: 5,
+        created_at: '2026-04-01T10:00:00Z',
+        updated_at: '2026-04-10T10:00:00Z',
+      }),
+      makeSession('session-anna', 'Anna', {
+        selected_count: 2,
+        created_at: '2026-04-02T10:00:00Z',
         updated_at: '2026-04-12T10:00:00Z',
-      },
-      aggregate: {
-        total_sessions: 2,
-        submitted_sessions: 1,
-        in_progress_sessions: 1,
-        closed_sessions: 0,
-        selected_count: 6,
-        latest_activity_at: '2026-04-12T10:00:00Z',
-      },
-      sessions: [
-        {
-          id: 'project-session-1',
-          status: 'submitted',
-          client_name: 'Anna',
-          client_email: null,
-          client_phone: null,
-          client_note: null,
-          selected_count: 2,
-          submitted_at: '2026-04-12T10:00:00Z',
-          last_activity_at: '2026-04-12T10:00:00Z',
-          created_at: '2026-04-12T09:00:00Z',
-          updated_at: '2026-04-12T10:00:00Z',
-        },
-      ],
-      session: null,
-    } as any);
-    vi.mocked(shareLinkService.getOwnerSelectionSessionDetail).mockResolvedValueOnce({
-      id: 'project-session-1',
-      sharelink_id: 'link-project',
+      }),
+      makeSession('session-bob', 'bob', {
+        selected_count: 5,
+        created_at: '2026-04-03T10:00:00Z',
+        updated_at: '2026-04-12T10:00:00Z',
+      }),
+    ];
+    vi.mocked(shareLinkService.getOwnerSelectionDetail).mockResolvedValueOnce(
+      makeSelectionDetail(sessions),
+    );
+    renderPage();
+    await openSelectionTab(user);
+
+    const sort = screen.getByRole('combobox', { name: /sort selection sessions/i });
+    expect(sort).toHaveValue('recent');
+    expect(getSessionOrder()).toEqual(['bob', 'Anna', 'Zoe']);
+
+    await user.selectOptions(sort, 'oldest');
+    expect(getSessionOrder()).toEqual(['Zoe', 'Anna', 'bob']);
+
+    await user.selectOptions(sort, 'client_name');
+    expect(getSessionOrder()).toEqual(['Anna', 'bob', 'Zoe']);
+
+    await user.click(screen.getByRole('button', { name: /open selection session for anna/i }));
+    await user.selectOptions(sort, 'selected_count');
+    expect(getSessionOrder()).toEqual(['bob', 'Zoe', 'Anna']);
+    expect(
+      screen.getByRole('button', { name: /open selection session for anna/i }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('selects the first visible session after filtering, clears detail when empty, and restores current-order selection', async () => {
+    const user = userEvent.setup();
+    const sessions = [
+      makeSession('session-anna', 'Anna', {
+        updated_at: '2026-04-12T10:00:00Z',
+      }),
+      makeSession('session-boris', 'Boris', {
+        updated_at: '2026-04-11T10:00:00Z',
+      }),
+    ];
+    vi.mocked(shareLinkService.getOwnerSelectionDetail).mockResolvedValueOnce(
+      makeSelectionDetail(sessions),
+    );
+    renderPage();
+    await openSelectionTab(user);
+
+    await user.click(screen.getByRole('button', { name: /open selection session for boris/i }));
+    await user.clear(screen.getByPlaceholderText(/search client/i));
+    await user.type(screen.getByPlaceholderText(/search client/i), 'Anna');
+    expect(
+      screen.getByRole('button', { name: /open selection session for anna/i }),
+    ).toHaveAttribute('aria-pressed', 'true');
+
+    await user.clear(screen.getByPlaceholderText(/search client/i));
+    await user.type(screen.getByPlaceholderText(/search client/i), 'Nobody');
+    expect(await screen.findByText(/no sessions match your filters/i)).toBeInTheDocument();
+    expect(screen.getByText(/select a session to inspect chosen photos/i)).toBeInTheDocument();
+
+    await user.clear(screen.getByPlaceholderText(/search client/i));
+    expect(
+      screen.getByRole('button', { name: /open selection session for anna/i }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('ignores a stale session-detail response after filters clear the selection', async () => {
+    const user = userEvent.setup();
+    const session = makeSession('session-delayed', 'Delayed client');
+    let resolveDetail!: (detail: SelectionSession) => void;
+    vi.mocked(shareLinkService.getOwnerSelectionDetail).mockResolvedValueOnce(
+      makeSelectionDetail([session]),
+    );
+    vi.mocked(shareLinkService.getOwnerSelectionSessionDetail).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveDetail = resolve;
+      }),
+    );
+    renderPage();
+    await openSelectionTab(user);
+    await waitFor(() => {
+      expect(shareLinkService.getOwnerSelectionSessionDetail).toHaveBeenCalledWith(
+        'link-1',
+        'session-delayed',
+      );
+    });
+
+    await user.type(screen.getByPlaceholderText(/search client/i), 'Nobody');
+    resolveDetail(makeSessionDetail(session));
+
+    expect(await screen.findByText(/no sessions match your filters/i)).toBeInTheDocument();
+    expect(screen.getByText(/select a session to inspect chosen photos/i)).toBeInTheDocument();
+  });
+
+  it('keeps close, reopen, CSV, and Lightroom actions wired to the existing services', async () => {
+    const user = userEvent.setup();
+    const sessions = [
+      makeSession('session-open', 'Open client'),
+      makeSession('session-closed', 'Closed client', { status: 'closed' }),
+    ];
+    vi.mocked(shareLinkService.getOwnerSelectionDetail).mockResolvedValue(
+      makeSelectionDetail(sessions),
+    );
+    renderPage();
+    await openSelectionTab(user);
+
+    await user.click(screen.getByRole('button', { name: 'CSV' }));
+    await user.click(screen.getByRole('button', { name: 'Lightroom' }));
+    const sessionList = screen.getByRole('list', { name: /selection sessions/i });
+    await user.click(within(sessionList).getByRole('button', { name: 'Close' }));
+    await waitFor(() => {
+      expect(shareLinkService.closeOwnerSelectionSession).toHaveBeenCalledWith(
+        'link-1',
+        'session-open',
+      );
+    });
+    await user.click(within(sessionList).getByRole('button', { name: 'Reopen' }));
+
+    expect(shareLinkService.exportShareLinkSelectionFilesCsv).toHaveBeenCalledWith('link-1');
+    expect(shareLinkService.exportShareLinkSelectionLightroom).toHaveBeenCalledWith('link-1');
+    expect(shareLinkService.reopenOwnerSelectionSession).toHaveBeenCalledWith(
+      'link-1',
+      'session-closed',
+    );
+  });
+
+  it('preserves gallery grouping for project selection details', async () => {
+    const projectSession = makeSession('project-session-1', 'Anna', {
       status: 'submitted',
-      client_name: 'Anna',
-      client_email: null,
-      client_phone: null,
-      client_note: null,
       selected_count: 2,
-      submitted_at: '2026-04-12T10:00:00Z',
-      last_activity_at: '2026-04-12T10:00:00Z',
-      created_at: '2026-04-12T09:00:00Z',
-      updated_at: '2026-04-12T10:00:00Z',
-      items: [
+    });
+    vi.mocked(shareLinkService.getShareLinkAnalytics).mockResolvedValueOnce(
+      makeAnalytics({
+        shareLink: {
+          id: 'link-project',
+          scope_type: 'project',
+          gallery_id: null,
+          project_id: 'project-1',
+          project_name: 'Wedding Weekend',
+          label: 'Project delivery',
+        },
+        selectionSummary: {
+          status: 'submitted',
+          total_sessions: 1,
+          submitted_sessions: 1,
+          in_progress_sessions: 0,
+          selected_count: 2,
+        },
+      }),
+    );
+    vi.mocked(shareLinkService.getOwnerSelectionDetail).mockResolvedValueOnce(
+      makeSelectionDetail([projectSession], 'project'),
+    );
+    vi.mocked(shareLinkService.getOwnerSelectionSessionDetail).mockResolvedValueOnce(
+      makeSessionDetail(projectSession, [
         {
           photo_id: 'photo-1',
           photo_display_name: '001.jpg',
@@ -323,36 +677,15 @@ describe('ShareLinkDetailPage', () => {
           selected_at: '2026-04-12T09:15:00Z',
           updated_at: '2026-04-12T09:15:00Z',
         },
-      ],
-    } as any);
-
-    const user = userEvent.setup();
-
-    render(
-      <MemoryRouter initialEntries={['/share-links/link-project']}>
-        <Routes>
-          <Route path="/share-links/:shareLinkId" element={<ShareLinkDetailPage />} />
-        </Routes>
-      </MemoryRouter>,
+      ]),
     );
 
-    expect(await screen.findByRole('heading', { name: /project delivery/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /overview/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /daily analytics/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /photo selection/i })).toBeInTheDocument();
-    expect(
-      screen.getByText(/shared photo-selection flow across all listed galleries/i),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /open selection/i })).toBeInTheDocument();
+    const user = userEvent.setup();
+    renderPage('link-project');
+    await openSelectionTab(user);
 
-    await user.click(screen.getByRole('tab', { name: /photo selection/i }));
-
-    expect(
-      await screen.findByText(/manage selection configuration and per-client selection sessions/i),
-    ).toBeInTheDocument();
-    expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledWith('link-project');
-    expect(screen.getByText('6')).toBeInTheDocument();
     expect(await screen.findByText('Ceremony')).toBeInTheDocument();
     expect(screen.getByText('Portraits')).toBeInTheDocument();
+    expect(screen.getByText('Retouch')).toBeInTheDocument();
   });
 });
