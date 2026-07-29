@@ -190,6 +190,19 @@ const revealPublicGalleryControls = async () => {
   fireEvent.scroll(window);
 };
 
+const createHeroRect = (visibleBottom: number): DOMRect =>
+  ({
+    x: 0,
+    y: visibleBottom - 1000,
+    top: visibleBottom - 1000,
+    right: 1000,
+    bottom: visibleBottom,
+    left: 0,
+    width: 1000,
+    height: 1000,
+    toJSON: () => ({}),
+  }) as DOMRect;
+
 describe('PublicGalleryPage', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -252,6 +265,18 @@ describe('PublicGalleryPage', () => {
     expect(
       screen.queryByRole('button', { name: /open low-vision settings/i }),
     ).not.toBeInTheDocument();
+    const utilityControls = screen.getByTestId('public-gallery-utility-controls');
+    expect(utilityControls).toHaveAttribute('data-state', 'hidden');
+    expect(utilityControls).toHaveAttribute('aria-hidden', 'true');
+    expect(utilityControls).toHaveAttribute('inert');
+    expect(utilityControls).toHaveClass(
+      'pointer-events-none',
+      'opacity-0',
+      'blur-[2px]',
+      'duration-200',
+      'motion-reduce:blur-none',
+      'motion-reduce:transition-none',
+    );
 
     await revealPublicGalleryControls();
 
@@ -259,8 +284,36 @@ describe('PublicGalleryPage', () => {
     const readabilityButton = screen.getByRole('button', {
       name: /open low-vision settings/i,
     });
+    expect(utilityControls).toHaveAttribute('data-state', 'visible');
+    expect(utilityControls).not.toHaveAttribute('aria-hidden');
+    expect(utilityControls).not.toHaveAttribute('inert');
+    expect(utilityControls).toHaveClass(
+      'opacity-100',
+      'blur-0',
+      'duration-300',
+      'ease-[cubic-bezier(0.16,1,0.3,1)]',
+    );
     expect(shareButton).toHaveClass('h-11', 'rounded-2xl', 'px-4', 'text-sm');
     expect(readabilityButton).toHaveClass('h-11', 'rounded-2xl', 'px-4', 'text-sm');
+  });
+
+  it('reveals gallery controls when only a quarter of the hero remains visible', async () => {
+    render(wrapper());
+    await waitFor(() => {
+      expect(screen.queryByRole('status', { name: /loading gallery/i })).not.toBeInTheDocument();
+    });
+
+    const heroBoundary = screen.getByTestId('public-gallery-hero-boundary');
+    const getHeroRect = vi.spyOn(heroBoundary, 'getBoundingClientRect');
+
+    getHeroRect.mockReturnValue(createHeroRect(260));
+    fireEvent.scroll(window);
+    expect(screen.queryByRole('button', { name: 'Share Public Gallery' })).not.toBeInTheDocument();
+
+    getHeroRect.mockReturnValue(createHeroRect(250));
+    fireEvent.scroll(window);
+    expect(screen.getByRole('button', { name: 'Share Public Gallery' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /open low-vision settings/i })).toBeInTheDocument();
   });
 
   it('opens the public share bottom sheet with all handoff actions', async () => {

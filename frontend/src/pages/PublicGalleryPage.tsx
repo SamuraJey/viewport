@@ -53,6 +53,8 @@ const INTERNAL_PROJECT_NAVIGATION_STATE = {
   skipProjectViewCount: true,
 } as const;
 
+const HERO_CONTROLS_VISIBLE_RATIO = 0.25;
+
 export const PublicGalleryPage = () => {
   const { shareId, resumeToken, galleryId } = useParams<{
     shareId: string;
@@ -510,7 +512,10 @@ export const PublicGalleryPage = () => {
       }
 
       const rect = heroElement.getBoundingClientRect();
-      const isPastHero = rect.height > 0 ? rect.bottom <= 0 : window.scrollY > 0;
+      const isPastHero =
+        rect.height > 0
+          ? rect.bottom <= rect.height * HERO_CONTROLS_VISIBLE_RATIO
+          : window.scrollY > 0;
       setHasScrolledPastHero(isPastHero);
     };
 
@@ -518,11 +523,10 @@ export const PublicGalleryPage = () => {
     let observer: IntersectionObserver | null = null;
     if (heroElement && typeof IntersectionObserver === 'function') {
       observer = new IntersectionObserver(
-        ([entry]) => {
-          if (!entry) return;
-          setHasScrolledPastHero(!entry.isIntersecting && entry.boundingClientRect.bottom <= 0);
+        () => {
+          updateHeroVisibilityFromLayout();
         },
-        { threshold: 0 },
+        { threshold: HERO_CONTROLS_VISIBLE_RATIO },
       );
       observer.observe(heroElement);
     }
@@ -769,22 +773,30 @@ export const PublicGalleryPage = () => {
       className={`pg-public-page ${publicThemeClassName} min-h-screen bg-surface text-text`}
     >
       <SkipToContentLink targetId="main-content" />
-      {hasScrolledPastHero ? (
-        <div className="fixed top-6 right-6 z-30 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={openShareDrawer}
-            aria-label={`Share ${heroTitle}`}
-            className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border/50 bg-surface/90 px-4 text-sm font-semibold text-text shadow-lg backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent"
-          >
-            <Share2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Share</span>
-          </button>
-          <ReadabilitySettingsButton variant="public-gallery" />
-        </div>
-      ) : null}
+      <div
+        data-testid="public-gallery-utility-controls"
+        data-state={hasScrolledPastHero ? 'visible' : 'hidden'}
+        aria-hidden={hasScrolledPastHero ? undefined : true}
+        inert={hasScrolledPastHero ? undefined : true}
+        className={`fixed top-6 right-6 z-30 flex items-center gap-2 transition-[opacity,filter] motion-reduce:blur-none motion-reduce:transition-none ${
+          hasScrolledPastHero
+            ? 'opacity-100 blur-0 duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]'
+            : 'pointer-events-none opacity-0 blur-[2px] duration-200 ease-in'
+        }`}
+      >
+        <button
+          type="button"
+          onClick={openShareDrawer}
+          aria-label={`Share ${heroTitle}`}
+          className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border/50 bg-surface/90 px-4 text-sm font-semibold text-text shadow-lg backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent"
+        >
+          <Share2 className="h-4 w-4" />
+          <span className="hidden sm:inline">Share</span>
+        </button>
+        <ReadabilitySettingsButton variant="public-gallery" />
+      </div>
 
-      <div ref={heroBoundaryRef}>
+      <div ref={heroBoundaryRef} data-testid="public-gallery-hero-boundary">
         <PublicGalleryHero
           title={heroTitle}
           date={heroDate}
