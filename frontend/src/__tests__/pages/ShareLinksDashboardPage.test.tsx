@@ -123,6 +123,22 @@ describe('ShareLinksDashboardPage', () => {
       </MemoryRouter>,
     );
 
+  it('renders responsive layout skeletons only for the initial request', () => {
+    vi.mocked(shareLinkService.getOwnerShareLinks).mockReturnValueOnce(
+      new Promise(() => undefined),
+    );
+
+    renderPage();
+
+    expect(screen.getByRole('status', { name: 'Loading share links' })).toHaveAttribute(
+      'aria-live',
+      'polite',
+    );
+    expect(screen.getByTestId('share-links-overview-skeleton')).toBeInTheDocument();
+    expect(screen.getByTestId('share-links-list-skeleton')).toBeInTheDocument();
+    expect(screen.getByTestId('share-links-sidebar-skeleton')).toBeInTheDocument();
+  });
+
   it('renders dashboard overview and clearer link cards', async () => {
     renderPage();
 
@@ -144,6 +160,19 @@ describe('ShareLinksDashboardPage', () => {
     expect(screen.getByText(/sorted by most recent activity/i)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /more actions/i })).toHaveLength(2);
     expect(screen.queryByRole('button', { name: /delete link/i })).not.toBeInTheDocument();
+  });
+
+  it('resets scroll before opening a share-link detail route', async () => {
+    const user = userEvent.setup();
+    const scrollSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    renderPage();
+
+    await user.click(
+      await screen.findByRole('link', { name: 'Open details for Preview for Ivan' }),
+    );
+
+    expect(scrollSpy).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'auto' });
+    scrollSpy.mockRestore();
   });
 
   it('renders date-only analytics labels as local calendar days', async () => {
@@ -405,6 +434,7 @@ describe('ShareLinksDashboardPage', () => {
 
     expect(refreshButton).toBeDisabled();
     expect(screen.getByText('Refreshing…')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Updating share links' })).toBeInTheDocument();
 
     refreshResolve?.({
       share_links: [
@@ -462,6 +492,22 @@ describe('ShareLinksDashboardPage', () => {
       undefined,
       'inactive',
     );
+  });
+
+  it('keeps loaded rows visible while filtered results are revalidating', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findAllByText('Preview for Ivan');
+    vi.mocked(shareLinkService.getOwnerShareLinks).mockReturnValueOnce(
+      new Promise(() => undefined),
+    );
+
+    await user.click(screen.getByRole('button', { name: /paused/i }));
+
+    expect(await screen.findByRole('status', { name: 'Updating share links' })).toBeInTheDocument();
+    expect(screen.getAllByText('Preview for Ivan').length).toBeGreaterThan(0);
+    expect(screen.queryByTestId('share-links-list-skeleton')).not.toBeInTheDocument();
   });
 
   it('updates summary hints when a backend status filter is active', async () => {
@@ -534,6 +580,7 @@ describe('ShareLinksDashboardPage', () => {
     });
 
     await screen.findAllByText('Latest result');
+    expect(screen.queryByRole('status', { name: 'Updating share links' })).not.toBeInTheDocument();
 
     resolveFirst?.({
       share_links: [

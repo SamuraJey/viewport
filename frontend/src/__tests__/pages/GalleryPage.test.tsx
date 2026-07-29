@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { GalleryPage } from '../../pages/GalleryPage';
@@ -324,6 +324,31 @@ describe('GalleryPage', () => {
     expect(screen.getByText('Share Links')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /more gallery actions/i })).toBeInTheDocument();
     expect(screen.getAllByRole('img')).toHaveLength(3);
+  });
+
+  it('delays the initial gallery skeleton to avoid flashing on fast requests', async () => {
+    vi.useFakeTimers();
+    const { galleryService } = await import('../../services/galleryService');
+    vi.mocked(galleryService.getGallery).mockReturnValueOnce(new Promise(() => undefined));
+
+    render(<GalleryPageWrapper />);
+
+    expect(screen.queryByRole('status', { name: 'Loading gallery' })).not.toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(219);
+    });
+    expect(screen.queryByRole('status', { name: 'Loading gallery' })).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(screen.getByRole('status', { name: 'Loading gallery' })).toHaveAttribute(
+      'aria-live',
+      'polite',
+    );
+    expect(screen.getByTestId('gallery-initial-skeleton')).toBeInTheDocument();
+
+    vi.useRealTimers();
   });
 
   it('keeps upload intake mounted while the Appearance tab is active', async () => {

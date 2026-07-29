@@ -9,6 +9,7 @@ import { useAuthStore } from './stores/authStore';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { KeyboardShortcutsDialog } from './components/a11y/KeyboardShortcutsDialog';
 import { CommandPalette } from './components/command/CommandPalette';
+import { RouteTransition } from './components/RouteTransition';
 
 const LoginPage = lazy(() =>
   import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })),
@@ -50,10 +51,13 @@ const RouteFallback = () => (
     className="pointer-events-none fixed inset-0 z-100 flex items-start justify-center bg-surface/35 backdrop-blur-[2px] dark:bg-surface-dark/35"
   >
     <div className="absolute inset-x-0 top-0 h-1 w-full overflow-hidden bg-accent/10">
-      <div className="h-full w-1/2 animate-pulse rounded-r-full bg-accent/80" />
+      <div className="h-full w-1/2 animate-pulse rounded-r-full bg-accent/80 motion-reduce:animate-none" />
     </div>
     <div className="mt-24 inline-flex items-center gap-3 rounded-2xl border border-border/60 bg-surface/95 px-4 py-3 text-sm font-semibold text-text shadow-xl backdrop-blur-lg dark:border-border/40 dark:bg-surface-dark/95">
-      <span className="h-3 w-3 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+      <span
+        className="h-3 w-3 animate-pulse rounded-full bg-accent motion-reduce:animate-none"
+        aria-hidden="true"
+      />
       Preparing your workspace…
     </div>
   </div>
@@ -61,7 +65,9 @@ const RouteFallback = () => (
 
 const ProtectedLayout = () => {
   const { isAuthenticated } = useAuthStore();
-  const { isOpen, setIsOpen, paletteOpen, setPaletteOpen } = useKeyboardShortcuts({ enabled: isAuthenticated });
+  const { isOpen, setIsOpen, paletteOpen, setPaletteOpen } = useKeyboardShortcuts({
+    enabled: isAuthenticated,
+  });
   const handleOpenShortcuts = useCallback(() => {
     setPaletteOpen(false);
     setIsOpen(true);
@@ -93,42 +99,46 @@ function App() {
     <ErrorBoundary>
       <Suspense fallback={<RouteFallback />}>
         <Routes>
-          {/* Public routes */}
-          <Route
-            path="/auth/login"
-            element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />}
-          />
-          <Route
-            path="/auth/register"
-            element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />}
-          />
+          <Route element={<RouteTransition />}>
+            {/* Public routes */}
+            <Route
+              path="/auth/login"
+              element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />}
+            />
+            <Route
+              path="/auth/register"
+              element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />}
+            />
 
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/accessibility" element={<AccessibilityPage />} />
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/accessibility" element={<AccessibilityPage />} />
 
-          {/* Public gallery sharing route */}
-          <Route path="/share/:shareId" element={<PublicGalleryPage />} />
-          <Route path="/share/:shareId/galleries/:galleryId" element={<PublicGalleryPage />} />
-          <Route path="/share/:shareId/favorites/:resumeToken" element={<PublicGalleryPage />} />
+            {/* Public gallery sharing route */}
+            <Route path="/share/:shareId" element={<PublicGalleryPage />} />
+            <Route path="/share/:shareId/galleries/:galleryId" element={<PublicGalleryPage />} />
+            <Route path="/share/:shareId/favorites/:resumeToken" element={<PublicGalleryPage />} />
+
+            {/* Error routes */}
+            <Route path="/error/404" element={<NotFoundPage />} />
+            <Route path="/error/403" element={<ErrorPage statusCode={403} />} />
+            <Route path="/error/500" element={<ErrorPage statusCode={500} />} />
+            <Route path="/error/503" element={<ErrorPage statusCode={503} />} />
+
+            {/* Fallback route - 404 */}
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
 
           {/* Protected routes */}
           <Route element={<ProtectedLayout />}>
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/projects/:projectId/galleries/:galleryId" element={<GalleryPage />} />
-            <Route path="/galleries/:id" element={<GalleryPage />} />
-            <Route path="/projects/:id" element={<ProjectPage />} />
-            <Route path="/share-links" element={<ShareLinksDashboardPage />} />
-            <Route path="/share-links/:shareLinkId" element={<ShareLinkDetailPage />} />
+            <Route element={<RouteTransition />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/projects/:projectId/galleries/:galleryId" element={<GalleryPage />} />
+              <Route path="/galleries/:id" element={<GalleryPage />} />
+              <Route path="/projects/:id" element={<ProjectPage />} />
+              <Route path="/share-links" element={<ShareLinksDashboardPage />} />
+              <Route path="/share-links/:shareLinkId" element={<ShareLinkDetailPage />} />
+            </Route>
           </Route>
-
-          {/* Error routes */}
-          <Route path="/error/404" element={<NotFoundPage />} />
-          <Route path="/error/403" element={<ErrorPage statusCode={403} />} />
-          <Route path="/error/500" element={<ErrorPage statusCode={500} />} />
-          <Route path="/error/503" element={<ErrorPage statusCode={503} />} />
-
-          {/* Fallback route - 404 */}
-          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
     </ErrorBoundary>

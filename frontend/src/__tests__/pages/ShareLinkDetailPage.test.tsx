@@ -201,6 +201,22 @@ describe('ShareLinkDetailPage', () => {
     );
   });
 
+  it('renders a layout-matched skeleton only for the initial analytics request', () => {
+    vi.mocked(shareLinkService.getShareLinkAnalytics).mockReturnValueOnce(
+      new Promise(() => undefined),
+    );
+
+    const { container } = renderPage();
+
+    expect(screen.getByRole('status', { name: 'Loading analytics' })).toHaveAttribute(
+      'aria-live',
+      'polite',
+    );
+    expect(screen.getByTestId('share-link-detail-skeleton')).toBeInTheDocument();
+    expect(container.querySelectorAll('[aria-hidden="true"]').length).toBeGreaterThan(10);
+    expect(shareLinkService.getOwnerSelectionDetail).not.toHaveBeenCalled();
+  });
+
   it('shows Overview first and lazy-loads selection only once', async () => {
     const user = userEvent.setup();
     renderPage();
@@ -347,6 +363,23 @@ describe('ShareLinkDetailPage', () => {
     await user.click(screen.getByRole('tab', { name: /photo selection/i }));
     expect(screen.queryByRole('group', { name: /analytics period/i })).not.toBeInTheDocument();
     expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps loaded analytics visible while changing the period', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: /client proofing/i })).toBeInTheDocument();
+    vi.mocked(shareLinkService.getShareLinkAnalytics).mockReturnValueOnce(
+      new Promise(() => undefined),
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Last 7 days' }));
+
+    expect(await screen.findByRole('status', { name: 'Updating analytics' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /client proofing/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('share-link-detail-skeleton')).not.toBeInTheDocument();
+    expect(shareLinkService.getOwnerSelectionDetail).not.toHaveBeenCalled();
   });
 
   it('validates and saves selection configuration changes', async () => {

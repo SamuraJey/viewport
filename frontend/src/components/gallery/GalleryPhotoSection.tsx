@@ -8,6 +8,7 @@ import { PhotoSelectionBar } from './PhotoSelectionBar';
 import type { PhotoUploaderHandle } from '../PhotoUploader';
 import { formatFileSize } from '../../lib/utils';
 import type { GalleryPhoto } from '../../types';
+import { Skeleton } from '../ui';
 
 interface GalleryPagination {
   page: number;
@@ -65,9 +66,15 @@ interface GalleryPhotoSectionProps {
 const PHOTO_GRID_SKELETON_CARDS = 10;
 
 const GalleryPhotoGridSkeleton = ({ page, renderNonce }: { page: number; renderNonce: number }) => (
-  <div className="pt-4" data-testid="private-gallery-skeleton-grid">
+  <div
+    className="pt-4"
+    data-testid="private-gallery-skeleton-grid"
+    role="status"
+    aria-live="polite"
+    aria-label={`Loading photos page ${page}`}
+  >
     <div className="mb-4 flex items-center gap-3 text-muted">
-      <Loader2 className="h-5 w-5 animate-spin text-accent" />
+      <Loader2 className="h-5 w-5 animate-spin text-accent motion-reduce:animate-none" />
       <span className="text-sm font-bold uppercase tracking-wide">Loading photos</span>
       <span className="text-xs font-semibold text-muted/70">Page {page}</span>
     </div>
@@ -78,10 +85,10 @@ const GalleryPhotoGridSkeleton = ({ page, renderNonce }: { page: number; renderN
           className="overflow-hidden rounded-2xl border border-border/45 bg-surface shadow-xs dark:border-border/35 dark:bg-surface-dark-1"
         >
           <div className="h-64 p-4 sm:h-72 md:h-80">
-            <div className="h-full w-full animate-pulse rounded-xl bg-linear-to-br from-surface-foreground/15 via-surface-foreground/10 to-surface-foreground/15 dark:from-surface/30 dark:via-surface/20 dark:to-surface/30" />
+            <Skeleton className="h-full w-full rounded-xl bg-linear-to-br from-surface-foreground/15 via-surface-foreground/10 to-surface-foreground/15 dark:from-surface/30 dark:via-surface/20 dark:to-surface/30" />
           </div>
           <div className="border-t border-border/40 px-4 py-4 dark:border-border/30">
-            <div className="h-3.5 w-3/4 animate-pulse rounded-full bg-surface-foreground/20 dark:bg-surface/30" />
+            <Skeleton className="h-3.5 w-3/4 rounded-full bg-surface-foreground/20 dark:bg-surface/30" />
           </div>
         </div>
       ))}

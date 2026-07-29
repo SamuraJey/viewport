@@ -1,4 +1,7 @@
 import type { ShareLinkDashboardItem } from '../../types';
+import { resetScrollForBreadcrumbNavigation } from '../share-link-detail/utils';
+
+export { resetScrollForBreadcrumbNavigation };
 
 export const numberFormatter = new Intl.NumberFormat();
 
@@ -117,16 +120,6 @@ export const getReopenableSessionTotal = (links: ShareLinkDashboardItem[]) =>
   links.reduce((sum, link) => sum + getReopenableSessionCount(link), 0);
 
 export const getInsightLinkLabel = (link: ShareLinkDashboardItem) => getShareLinkTitle(link);
-
-export const resetScrollForBreadcrumbNavigation = () => {
-  const root = document.documentElement;
-  const previousScrollBehavior = root.style.scrollBehavior;
-  root.style.scrollBehavior = 'auto';
-  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-  window.setTimeout(() => {
-    root.style.scrollBehavior = previousScrollBehavior;
-  }, 0);
-};
 
 export const buildFallbackTrendValues = (links: ShareLinkDashboardItem[], totalViews: number) => {
   if (links.length === 0) return [0, 0, 0, 0, 0];

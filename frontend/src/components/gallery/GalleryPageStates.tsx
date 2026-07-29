@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { Loader2 } from 'lucide-react';
+import { Skeleton } from '../ui';
 
 interface GalleryLoadErrorStateProps {
   error: string;
@@ -7,11 +8,17 @@ interface GalleryLoadErrorStateProps {
 }
 
 export const GalleryInitialLoadingState = () => (
-  <div className="space-y-6">
-    <div className="h-12 w-64 animate-pulse rounded-xl bg-surface-foreground/10 dark:bg-surface/20" />
+  <div
+    className="space-y-6"
+    role="status"
+    aria-live="polite"
+    aria-label="Loading gallery"
+    data-testid="gallery-initial-skeleton"
+  >
+    <Skeleton className="h-12 w-64 rounded-xl bg-surface-foreground/10 dark:bg-surface/20" />
     <div className="rounded-3xl border border-border/50 bg-surface p-8 dark:border-border/30 dark:bg-surface-foreground/5 shadow-xs">
       <div className="flex items-center gap-4 text-muted">
-        <Loader2 className="h-6 w-6 animate-spin text-accent" />
+        <Loader2 className="h-6 w-6 animate-spin text-accent motion-reduce:animate-none" />
         <div>
           <span className="text-base font-bold">Loading gallery content...</span>
           <p className="mt-1 text-sm">Preparing photos, controls, and share settings.</p>
@@ -19,9 +26,9 @@ export const GalleryInitialLoadingState = () => (
       </div>
       <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {Array.from({ length: 6 }).map((_, index) => (
-          <div
+          <Skeleton
             key={index}
-            className="aspect-4/3 rounded-2xl bg-surface-foreground/10 dark:bg-surface/20 animate-pulse"
+            className="aspect-4/3 rounded-2xl bg-surface-foreground/10 dark:bg-surface/20"
           />
         ))}
       </div>
