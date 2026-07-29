@@ -245,7 +245,7 @@ describe('ShareLinkDetailPage', () => {
     {
       name: 'expired link',
       analytics: makeAnalytics({
-        shareLink: { expires_at: '2020-01-01T00:00:00Z', is_active: false },
+        shareLink: { expires_at: '2020-01-01T00:00:00Z' },
       }),
       label: 'Edit expiration',
     },
@@ -347,6 +347,104 @@ describe('ShareLinkDetailPage', () => {
     await user.click(screen.getByRole('tab', { name: /photo selection/i }));
     expect(screen.queryByRole('group', { name: /analytics period/i })).not.toBeInTheDocument();
     expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it('validates and saves selection configuration changes', async () => {
+    const user = userEvent.setup();
+    const initialDetail = makeSelectionDetail([defaultSession]);
+    const savedConfig = {
+      ...initialDetail.config,
+      list_title: 'Curated picks',
+      limit_enabled: true,
+      limit_value: 5,
+    };
+    const savedDetail = {
+      ...initialDetail,
+      config: savedConfig,
+    };
+    vi.mocked(shareLinkService.getOwnerSelectionDetail)
+      .mockResolvedValueOnce(initialDetail)
+      .mockResolvedValueOnce(savedDetail);
+    vi.mocked(shareLinkService.updateShareLinkSelectionConfig).mockResolvedValueOnce(savedConfig);
+    renderPage();
+    await openSelectionTab(user);
+
+    await user.click(await screen.findByRole('switch', { name: /limit selection count/i }));
+    const limitInput = screen.getByRole('spinbutton', { name: /maximum photos/i });
+    await user.clear(limitInput);
+    await user.type(limitInput, '0');
+    await user.click(screen.getByRole('button', { name: /save selection settings/i }));
+
+    expect(await screen.findByText('Selection limit must be at least 1')).toBeInTheDocument();
+    expect(shareLinkService.updateShareLinkSelectionConfig).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByRole('textbox', { name: /list title/i }));
+    await user.type(screen.getByRole('textbox', { name: /list title/i }), ' Curated picks ');
+    await user.clear(limitInput);
+    await user.type(limitInput, '5');
+    await user.click(screen.getByRole('button', { name: /save selection settings/i }));
+
+    await waitFor(() => {
+      expect(shareLinkService.updateShareLinkSelectionConfig).toHaveBeenCalledWith('link-1', {
+        is_enabled: true,
+        list_title: 'Curated picks',
+        limit_enabled: true,
+        limit_value: 5,
+        allow_photo_comments: true,
+        require_email: false,
+        require_phone: false,
+        require_client_note: false,
+      });
+    });
+    expect(await screen.findByRole('textbox', { name: /list title/i })).toHaveValue(
+      'Curated picks',
+    );
+    expect(screen.getByRole('spinbutton', { name: /maximum photos/i })).toHaveValue(5);
+    expect(screen.getByRole('button', { name: /save selection settings/i })).toBeDisabled();
+    expect(screen.queryByText('Selection limit must be at least 1')).not.toBeInTheDocument();
+    expect(shareLinkService.getShareLinkAnalytics).toHaveBeenCalledTimes(2);
+    expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it('refreshes selection configuration and the active session detail', async () => {
+    const user = userEvent.setup();
+    const initialDetail = makeSelectionDetail([defaultSession]);
+    const refreshedDetail = {
+      ...initialDetail,
+      config: {
+        ...initialDetail.config,
+        list_title: 'Fresh server picks',
+      },
+    };
+    const refreshedSession = makeSessionDetail(defaultSession, [
+      {
+        photo_id: 'photo-refreshed',
+        photo_display_name: 'refreshed.jpg',
+        comment: 'Fresh server comment',
+        selected_at: '2026-04-12T09:10:00Z',
+        updated_at: '2026-04-12T09:10:00Z',
+      },
+    ]);
+    vi.mocked(shareLinkService.getOwnerSelectionDetail)
+      .mockResolvedValueOnce(initialDetail)
+      .mockResolvedValueOnce(refreshedDetail);
+    vi.mocked(shareLinkService.getOwnerSelectionSessionDetail)
+      .mockResolvedValueOnce(makeSessionDetail(defaultSession))
+      .mockResolvedValueOnce(refreshedSession);
+    renderPage();
+    await openSelectionTab(user);
+    await waitFor(() => {
+      expect(shareLinkService.getOwnerSelectionSessionDetail).toHaveBeenCalledTimes(1);
+    });
+
+    await user.click(screen.getByRole('button', { name: /refresh selection/i }));
+
+    expect(await screen.findByRole('textbox', { name: /list title/i })).toHaveValue(
+      'Fresh server picks',
+    );
+    expect(await screen.findByText('Fresh server comment')).toBeInTheDocument();
+    expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(2);
+    expect(shareLinkService.getOwnerSelectionSessionDetail).toHaveBeenCalledTimes(2);
   });
 
   it('filters by search and status, loads the selected detail, and preserves comments', async () => {

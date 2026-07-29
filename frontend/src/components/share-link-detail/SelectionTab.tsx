@@ -614,12 +614,11 @@ export const SelectionTab = ({
                         {session.status === 'closed' ? (
                           <button
                             type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
+                            onClick={() => {
                               void onMutateSessionStatus(session.id, 'reopen');
                             }}
                             disabled={isMutatingSelectionStatus}
-                            className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-success/40 bg-success/10 px-2.5 py-1.5 text-xs font-bold text-success transition-colors hover:bg-success/15 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-success/40 bg-success/10 px-2.5 py-1.5 text-xs font-bold text-success transition-colors hover:bg-success/15 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-success disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             <LockOpen className="h-3.5 w-3.5" />
                             Reopen
@@ -627,12 +626,11 @@ export const SelectionTab = ({
                         ) : (
                           <button
                             type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
+                            onClick={() => {
                               void onMutateSessionStatus(session.id, 'close');
                             }}
                             disabled={isMutatingSelectionStatus}
-                            className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-danger/40 bg-danger/10 px-2.5 py-1.5 text-xs font-bold text-danger transition-colors hover:bg-danger/15 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-danger/40 bg-danger/10 px-2.5 py-1.5 text-xs font-bold text-danger transition-colors hover:bg-danger/15 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-danger disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             <Lock className="h-3.5 w-3.5" />
                             Close

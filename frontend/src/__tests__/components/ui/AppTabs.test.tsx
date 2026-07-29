@@ -114,11 +114,9 @@ describe('AppTabs', () => {
       />,
     );
 
-    expect(screen.getByRole('tablist')).toContainElement(
-      screen.getByRole('tab', { name: /first tab/i }),
-    );
-    expect(screen.getByRole('tablist')).not.toContainElement(
-      screen.getByRole('button', { name: /last 30 days/i }),
-    );
+    const tabList = screen.getByRole('tablist');
+    expect(tabList.parentElement).toHaveClass('tabs-header');
+    expect(tabList).toContainElement(screen.getByRole('tab', { name: /first tab/i }));
+    expect(tabList).not.toContainElement(screen.getByRole('button', { name: /last 30 days/i }));
   });
 });

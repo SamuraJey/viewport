@@ -645,13 +645,8 @@ export const ShareLinkDetailPage = () => {
     },
   ];
 
-  const expirationTimestamp = analytics.share_link.expires_at
-    ? new Date(analytics.share_link.expires_at).getTime()
-    : Number.NaN;
-  const nextActionStatus =
-    Number.isFinite(expirationTimestamp) && expirationTimestamp <= Date.now() ? 'expired' : status;
   const nextAction = getNextOwnerAction({
-    status: nextActionStatus,
+    status,
     inProgressSessions: selectionSummary.in_progress_sessions,
     submittedSessions: selectionSummary.submitted_sessions,
     totalViews: totals.totalViews,

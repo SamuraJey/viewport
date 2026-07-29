@@ -47,6 +47,34 @@ export const AppTabs = <TKey extends string>({
     0,
     items.findIndex((item) => item.key === selectedKey),
   );
+  const tabList = (
+    <TabList className={listClassName}>
+      {items.map((item) => {
+        const tabProps = item.tabId ? ({ id: item.tabId } as Record<string, string>) : {};
+
+        return (
+          <Tab key={item.key} as={Fragment} disabled={item.disabled} {...tabProps}>
+            {({ selected, disabled }) => {
+              const state = { selected, disabled };
+
+              return (
+                <button
+                  type="button"
+                  className={cn(
+                    typeof item.tabClassName === 'function'
+                      ? item.tabClassName(state)
+                      : item.tabClassName,
+                  )}
+                >
+                  {typeof item.tab === 'function' ? item.tab(state) : item.tab}
+                </button>
+              );
+            }}
+          </Tab>
+        );
+      })}
+    </TabList>
+  );
 
   return (
     <TabGroup
@@ -59,35 +87,14 @@ export const AppTabs = <TKey extends string>({
       }}
       className={className}
     >
-      <div className={headerClassName}>
-        <TabList className={listClassName}>
-          {items.map((item) => {
-            const tabProps = item.tabId ? ({ id: item.tabId } as Record<string, string>) : {};
-
-            return (
-              <Tab key={item.key} as={Fragment} disabled={item.disabled} {...tabProps}>
-                {({ selected, disabled }) => {
-                  const state = { selected, disabled };
-
-                  return (
-                    <button
-                      type="button"
-                      className={cn(
-                        typeof item.tabClassName === 'function'
-                          ? item.tabClassName(state)
-                          : item.tabClassName,
-                      )}
-                    >
-                      {typeof item.tab === 'function' ? item.tab(state) : item.tab}
-                    </button>
-                  );
-                }}
-              </Tab>
-            );
-          })}
-        </TabList>
-        {listAccessory}
-      </div>
+      {headerClassName !== undefined || listAccessory !== undefined ? (
+        <div className={headerClassName}>
+          {tabList}
+          {listAccessory}
+        </div>
+      ) : (
+        tabList
+      )}
 
       <TabPanels className={panelsClassName}>
         {items.map((item) => (
