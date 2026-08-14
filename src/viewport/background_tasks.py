@@ -1158,26 +1158,26 @@ def cleanup_refresh_token_sessions_task() -> dict[str, int | float]:
 
     while True:
         with task_db_session() as db:
+            stale_for_audit_cleanup = or_(
+                and_(
+                    RefreshTokenSession.revoked_at.is_(None),
+                    RefreshTokenSession.expires_at < audit_threshold,
+                ),
+                and_(
+                    RefreshTokenSession.revoked_at.is_not(None),
+                    RefreshTokenSession.revoked_at < audit_threshold,
+                ),
+            )
             stale_hashes = (
                 select(RefreshTokenSession.jti_hash)
-                .where(
-                    or_(
-                        and_(
-                            RefreshTokenSession.revoked_at.is_(None),
-                            RefreshTokenSession.expires_at < audit_threshold,
-                        ),
-                        and_(
-                            RefreshTokenSession.revoked_at.is_not(None),
-                            RefreshTokenSession.revoked_at < audit_threshold,
-                        ),
-                    )
-                )
+                .where(stale_for_audit_cleanup)
                 .order_by(RefreshTokenSession.expires_at, RefreshTokenSession.jti_hash)
                 .limit(REFRESH_SESSION_CLEANUP_BATCH_SIZE)
             )
             result = db.execute(
                 delete(RefreshTokenSession).where(
                     RefreshTokenSession.jti_hash.in_(stale_hashes),
+                    stale_for_audit_cleanup,
                 )
             )
             chunk_deleted = max(int(getattr(result, "rowcount", 0) or 0), 0)
