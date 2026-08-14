@@ -34,6 +34,11 @@ class UserRepository(BaseRepository):
         user = (await self.db.execute(stmt)).scalar_one_or_none()
         return await self._finish_read(user)
 
+    async def get_user_password_hash(self, user_id: uuid.UUID) -> str | None:
+        """Read the current password hash without ending the caller's transaction."""
+        stmt = select(User.password_hash).where(User.id == user_id)
+        return (await self.db.execute(stmt)).scalar_one_or_none()
+
     async def update_user_display_name(self, user_id: uuid.UUID, display_name: str | None) -> User | None:
         user = await self.get_user_by_id(user_id)
         if not user:
@@ -48,15 +53,26 @@ class UserRepository(BaseRepository):
             raise
         return user
 
-    async def update_user_password(self, user_id: uuid.UUID, password_hash: str) -> User | None:
-        user = await self.get_user_by_id(user_id)
+    async def update_user_password(
+        self,
+        user_id: uuid.UUID,
+        password_hash: str,
+        *,
+        commit: bool = True,
+        lock_for_update: bool = False,
+    ) -> User | None:
+        stmt = select(User).where(User.id == user_id)
+        if lock_for_update:
+            stmt = stmt.with_for_update()
+        user = (await self.db.execute(stmt)).scalar_one_or_none()
         if not user:
             return None
         user.password_hash = password_hash
         self.db.add(user)
         try:
-            await self.db.commit()
-            await self.db.refresh(user)
+            if commit:
+                await self.db.commit()
+                await self.db.refresh(user)
         except IntegrityError:
             await self.db.rollback()
             raise

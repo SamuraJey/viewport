@@ -63,6 +63,13 @@ os.environ.update(
         "INVITE_CODE": "testinvitecode",
         "BCRYPT_ROUNDS": "4",
         "ENVIRONMENT": "pytest",
+        "AUTH_RATE_LIMIT_USER_LOGIN_IP_LIMIT": "100000",
+        "AUTH_RATE_LIMIT_USER_LOGIN_SCOPE_LIMIT": "100000",
+        "AUTH_RATE_LIMIT_ADMIN_LOGIN_IP_LIMIT": "100000",
+        "AUTH_RATE_LIMIT_ADMIN_LOGIN_SCOPE_LIMIT": "100000",
+        "AUTH_RATE_LIMIT_SHARE_UNLOCK_IP_LIMIT": "100000",
+        "AUTH_RATE_LIMIT_SHARE_UNLOCK_SCOPE_LIMIT": "100000",
+        "AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS": "127.0.0.0/8",
     }
 )
 
@@ -652,7 +659,7 @@ def app_client(
     _clear_s3_cache()
 
     try:
-        with TestClient(app) as test_client:
+        with TestClient(app, client=("127.0.0.1", 50000)) as test_client:
             yield test_client
     finally:
         app.dependency_overrides.clear()

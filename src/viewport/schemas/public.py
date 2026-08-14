@@ -1,10 +1,9 @@
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from viewport.schemas.gallery import CoverDisplayOption, PhotoSpacing, PublicColorScheme
-from viewport.schemas.sharelink import PASSWORD_MAX_BYTES, PASSWORD_MIN_LENGTH, validate_sharelink_password
 
 
 class MediaType(StrEnum):
@@ -20,15 +19,7 @@ class MediaStatus(StrEnum):
 
 
 class PublicShareUnlockRequest(BaseModel):
-    password: str = Field(..., min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_BYTES)
-
-    @field_validator("password")
-    @classmethod
-    def validate_password(cls, value: str) -> str:
-        validated = validate_sharelink_password(value)
-        if validated is None:
-            raise ValueError("password is required")
-        return validated
+    password: str | None = None
 
 
 class PublicPhoto(BaseModel):

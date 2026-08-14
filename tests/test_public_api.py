@@ -655,6 +655,8 @@ class TestPublicAPI:
         unlock_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "client-pass"})
         assert unlock_resp.status_code == 410
         assert unlock_resp.headers.get("Cache-Control") == "no-store, max-age=0, must-revalidate"
+        no_body_unlock_resp = authenticated_client.post(f"/s/{share_id}/unlock")
+        assert no_body_unlock_resp.status_code == 410
 
     def test_get_photos_by_sharelink_returns_404_for_inactive_link(self, authenticated_client: TestClient, gallery_id_fixture: str):
         create_resp = authenticated_client.post(
@@ -676,6 +678,8 @@ class TestPublicAPI:
         unlock_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "client-pass"})
         assert unlock_resp.status_code == 404
         assert unlock_resp.headers.get("Cache-Control") == "no-store, max-age=0, must-revalidate"
+        no_body_unlock_resp = authenticated_client.post(f"/s/{share_id}/unlock")
+        assert no_body_unlock_resp.status_code == 404
 
     def test_password_protected_gallery_share_uses_unlock_cookie_for_public_routes(self, authenticated_client: TestClient, gallery_id_fixture: str):
         photo_id = upload_photo_via_presigned(authenticated_client, gallery_id_fixture, b"protected", "protected.jpg")
@@ -697,13 +701,21 @@ class TestPublicAPI:
         assert wrong_resp.status_code == 401
 
         short_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "short"})
-        assert short_resp.status_code == 422
+        assert short_resp.status_code == 401
 
         long_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "a" * 73})
-        assert long_resp.status_code == 422
+        assert long_resp.status_code == 401
 
         multibyte_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={"password": "é" * 37})
-        assert multibyte_resp.status_code == 422
+        assert multibyte_resp.status_code == 401
+
+        missing_unlock_resp = authenticated_client.post(f"/s/{share_id}/unlock", json={})
+        assert missing_unlock_resp.status_code == 401
+        no_body_unlock_resp = authenticated_client.post(f"/s/{share_id}/unlock")
+        assert no_body_unlock_resp.status_code == 401
+
+        missing_share_no_body_resp = authenticated_client.post(f"/s/{uuid4()}/unlock")
+        assert missing_share_no_body_resp.status_code == 404
 
         owner_after_denied = authenticated_client.get(f"/galleries/{gallery_id_fixture}/share-links").json()[0]
         assert owner_after_denied["views"] == 0

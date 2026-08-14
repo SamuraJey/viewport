@@ -11,6 +11,7 @@ from viewport.models.db import Base
 if TYPE_CHECKING:
     from viewport.models.gallery import Gallery
     from viewport.models.project import Project
+    from viewport.models.refresh_token_session import RefreshTokenSession
 
 
 class User(Base):
@@ -37,3 +38,8 @@ class User(Base):
 
     galleries: Mapped[list["Gallery"]] = relationship("Gallery", back_populates="owner", passive_deletes=True)
     projects: Mapped[list["Project"]] = relationship("Project", back_populates="owner", passive_deletes=True)
+    refresh_token_sessions: Mapped[list["RefreshTokenSession"]] = relationship(
+        "RefreshTokenSession",
+        back_populates="user",
+        passive_deletes=True,
+    )

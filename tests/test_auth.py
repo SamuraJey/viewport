@@ -186,6 +186,15 @@ class TestAuthFlow:
         assert new_tokens["access_token"] != original_access_token
         assert new_tokens["refresh_token"] != refresh_token
 
+        # Replaying the consumed parent revokes the whole family, including its child.
+        replay_response = client.post("/auth/refresh", json=refresh_payload)
+        assert replay_response.status_code == 401
+        child_response = client.post(
+            "/auth/refresh",
+            json={"refresh_token": new_tokens["refresh_token"]},
+        )
+        assert child_response.status_code == 401
+
     def test_refresh_token_invalid_token(self, client: TestClient):
         """Test refresh with invalid token."""
         refresh_payload = {"refresh_token": "invalid_token"}
@@ -233,14 +242,19 @@ class TestAuthFlow:
     def test_refresh_token_nonexistent_user(self, client: TestClient, auth_settings):
         """Test refresh with token for non-existent user."""
         # Create refresh token for non-existent user
-        fake_payload = {"sub": str(uuid4()), "exp": datetime.now(UTC) + timedelta(days=1), "type": "refresh"}
+        fake_payload = {
+            "sub": str(uuid4()),
+            "exp": datetime.now(UTC) + timedelta(days=1),
+            "type": "refresh",
+            "jti": str(uuid4()),
+        }
         fake_token = jwt.encode(fake_payload, auth_settings.jwt_secret_key, algorithm=auth_settings.jwt_algorithm)
 
         refresh_payload = {"refresh_token": fake_token}
         response = client.post("/auth/refresh", json=refresh_payload)
 
         assert response.status_code == 401
-        assert "user not found" in response.json()["detail"].lower()
+        assert response.json()["detail"] == "Invalid refresh token"
 
     def test_refresh_token_malformed_payload(self, client: TestClient):
         """Test refresh endpoint with malformed request."""

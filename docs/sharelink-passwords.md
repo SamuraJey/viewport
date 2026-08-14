@@ -37,6 +37,8 @@ Cookie attributes are environment-sensitive:
 
 The gate applies to all public `/s/{share_id}` content, ZIP download, photo lookup, and selection endpoints. Analytics counters, ZIP generation, S3 presigned URL generation, and selection mutations happen only after successful password verification.
 
+Password verification is rate-limited before bcrypt with independent per-client-IP and per-share-link fixed-window budgets. This applies both to `POST /s/{share_id}/unlock` and to direct `X-Viewport-Share-Password` authentication on protected public routes. A limited request returns `429` with `Retry-After`; see [Authentication abuse protection](auth-abuse-protection.md) for budgets, Redis fallback behavior, and trusted-proxy configuration.
+
 ## Frontend behavior
 
 - Public share calls use `publicApi`, not the authenticated owner `api` client. A public `401` must not refresh owner auth, clear `authStore`, or redirect to login.
@@ -47,9 +49,9 @@ The gate applies to all public `/s/{share_id}` content, ZIP download, photo look
 
 `publicApi` must keep `withCredentials: true` so cross-origin deployments can send the unlock cookie. CORS must keep `allow_credentials=True`, and production origins must remain explicit. In local development, prefer the Vite proxy (`VITE_DEV_PROXY` enabled, default `VITE_API_URL` empty so API base is `/api`) to avoid browser cross-site cookie restrictions on plain HTTP. `Content-Disposition` is exposed so blob download helpers can preserve server-provided ZIP filenames.
 
-Denied password attempts are logged with safe metadata only: share ID, scope type, reason category, method/path, and coarse client fields. Password values, password hashes, cookies, and request headers containing the password must never be logged.
+Denied password attempts are logged with safe metadata only: share ID, scope type, reason category, method/path, and a normalized, bounded hash of the proxy-aware client IP. Password values, password hashes, cookies, raw client IPs, user-agent values, and request headers containing the password must never be logged.
 
-Dedicated rate limiting is intentionally deferred for the first release. If denied-attempt logs show brute-force patterns or bcrypt CPU pressure, add a Redis-backed per-share/client throttle.
+Public privacy semantics remain ordered ahead of password verification and throttling: missing/inactive links stay non-disclosing `404`, expired links stay `410`, and active protected links use the same generic `401` for missing or incorrect passwords. Rate-limit counters and bcrypt work are reached only for an available protected share with a supplied, structurally valid password.
 
 ## Revocation and rollback caveats
 

@@ -1,5 +1,6 @@
 from viewport.models.gallery import Gallery, Photo
 from viewport.models.project import Project
+from viewport.models.refresh_token_session import RefreshTokenSession
 from viewport.models.sharelink import ShareLink
 from viewport.models.sharelink_analytics import ShareLinkDailyStat, ShareLinkDailyVisitor
 from viewport.models.sharelink_selection import ShareLinkSelectionConfig, ShareLinkSelectionItem, ShareLinkSelectionSession
@@ -9,6 +10,7 @@ __all__ = [
     "Gallery",
     "Photo",
     "Project",
+    "RefreshTokenSession",
     "ShareLink",
     "ShareLinkDailyStat",
     "ShareLinkDailyVisitor",

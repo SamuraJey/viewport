@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from redis.exceptions import RedisError
 
-from viewport.services.redis_service import RedisService, RedisSettings, _NoOpPipelineContext
+from viewport.services.redis_service import FIXED_WINDOW_INCREMENT_SCRIPT, RedisService, RedisSettings, _NoOpPipelineContext
 
 
 class TestRedisSettings:
@@ -59,6 +59,7 @@ class TestRedisServiceCreate:
             service = await RedisService.create()
 
             assert service.is_available is False
+            mock_client.aclose.assert_awaited_once_with(close_connection_pool=True)
 
     @pytest.mark.asyncio
     async def test_create_with_generic_exception_degrades_gracefully(self):
@@ -159,6 +160,58 @@ class TestRedisServiceOperations:
 
         assert result == 2
         mock_client.delete.assert_called_once_with("key1", "key2")
+
+    @pytest.mark.asyncio
+    async def test_fixed_window_increment_returns_count_and_ttl(self):
+        mock_client = AsyncMock()
+        mock_client.eval = AsyncMock(return_value=[3, 42])
+        service = RedisService(mock_client, None, available=True)
+
+        result = await service.fixed_window_increment("auth-limit:key", 60)
+
+        assert result is not None
+        assert result.count == 3
+        assert result.retry_after == 42
+        mock_client.eval.assert_awaited_once_with(FIXED_WINDOW_INCREMENT_SCRIPT, 1, "auth-limit:key", 60)
+
+    @pytest.mark.asyncio
+    async def test_fixed_window_increment_returns_none_when_unavailable(self):
+        service = RedisService(None, None, available=False)
+
+        assert await service.fixed_window_increment("auth-limit:key", 60) is None
+
+    @pytest.mark.asyncio
+    async def test_fixed_window_increment_recovers_after_degraded_startup(self):
+        settings = RedisSettings(redis_url="redis://redis.invalid:6379/1")
+        recovered_client = AsyncMock()
+        recovered_client.eval = AsyncMock(return_value=[1, 60])
+        replacement = RedisService(recovered_client, MagicMock(), available=True, settings=settings)
+        service = RedisService(None, None, available=False, settings=settings)
+
+        with patch.object(RedisService, "create", new=AsyncMock(return_value=replacement)) as create:
+            result = await service.fixed_window_increment("auth-limit:key", 60)
+
+        assert result is not None
+        assert result.count == 1
+        assert service.is_available is True
+        create.assert_awaited_once_with(settings)
+        recovered_client.eval.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_fixed_window_increment_returns_none_on_redis_error(self):
+        mock_client = AsyncMock()
+        mock_client.eval = AsyncMock(side_effect=RedisError("script failed"))
+        service = RedisService(mock_client, None, available=True)
+
+        assert await service.fixed_window_increment("auth-limit:key", 60) is None
+
+    @pytest.mark.asyncio
+    async def test_fixed_window_increment_rejects_non_positive_window(self):
+        mock_client = AsyncMock()
+        service = RedisService(mock_client, None, available=True)
+
+        with pytest.raises(ValueError, match="window_seconds must be positive"):
+            await service.fixed_window_increment("auth-limit:key", 0)
 
     @pytest.mark.asyncio
     async def test_sunion_returns_empty_set_when_unavailable(self):

@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, TypedDict, cast
@@ -15,8 +16,10 @@ from celery.exceptions import SoftTimeLimitExceeded
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy import and_, delete, func, or_, select, update
 
+from viewport.auth_metrics import REFRESH_SESSION_CLEANUP_DURATION, REFRESH_SESSION_CLEANUP_ROWS
 from viewport.celery_app import celery_app
 from viewport.models.gallery import Gallery, MediaType, Photo, PhotoUploadStatus
+from viewport.models.refresh_token_session import RefreshTokenSession
 from viewport.models.sharelink import ShareLink
 from viewport.models.user import User
 from viewport.s3_utils import create_thumbnail, create_thumbnail_from_path, generate_playback_object_key, generate_thumbnail_object_key, get_s3_client, get_s3_settings
@@ -42,6 +45,8 @@ SELECTION_SUBMIT_NOTIFY_KEY_PREFIX = "selection:submit:notify:"
 SELECTION_SUBMIT_NOTIFY_TTL_SECONDS = 60 * 60 * 24 * 30
 VIDEO_TEMP_DIR = os.environ.get("VIDEO_TEMP_DIR", "/tmp/video_processing")
 VIDEO_TEMP_MAX_AGE_SECONDS = 2 * 60 * 60
+REFRESH_SESSION_AUDIT_RETENTION_DAYS = 7
+REFRESH_SESSION_CLEANUP_BATCH_SIZE = 1_000
 
 
 class ThumbnailTransientError(Exception):
@@ -1142,6 +1147,52 @@ def cleanup_video_temp_files_task() -> dict[str, int]:
         failed_count,
     )
     return {"deleted_count": deleted_count, "failed_count": failed_count}
+
+
+@celery_app.task(name="cleanup_refresh_token_sessions")
+def cleanup_refresh_token_sessions_task() -> dict[str, int | float]:
+    """Delete refresh-session audit state only after a bounded retention window."""
+    started_at = time.monotonic()
+    audit_threshold = datetime.now(UTC) - timedelta(days=REFRESH_SESSION_AUDIT_RETENTION_DAYS)
+    deleted_count = 0
+
+    while True:
+        with task_db_session() as db:
+            stale_hashes = (
+                select(RefreshTokenSession.jti_hash)
+                .where(
+                    or_(
+                        RefreshTokenSession.expires_at < audit_threshold,
+                        and_(
+                            RefreshTokenSession.revoked_at.is_not(None),
+                            RefreshTokenSession.revoked_at < audit_threshold,
+                        ),
+                    )
+                )
+                .order_by(RefreshTokenSession.expires_at, RefreshTokenSession.jti_hash)
+                .limit(REFRESH_SESSION_CLEANUP_BATCH_SIZE)
+            )
+            result = db.execute(
+                delete(RefreshTokenSession).where(
+                    RefreshTokenSession.jti_hash.in_(stale_hashes),
+                )
+            )
+            chunk_deleted = max(int(getattr(result, "rowcount", 0) or 0), 0)
+
+        deleted_count += chunk_deleted
+        if chunk_deleted < REFRESH_SESSION_CLEANUP_BATCH_SIZE:
+            break
+
+    duration = time.monotonic() - started_at
+    REFRESH_SESSION_CLEANUP_ROWS.inc(deleted_count)
+    REFRESH_SESSION_CLEANUP_DURATION.observe(duration)
+    logger.info(
+        "Refresh-session cleanup removed %s rows in %.3fs (audit retention: %s days)",
+        deleted_count,
+        duration,
+        REFRESH_SESSION_AUDIT_RETENTION_DAYS,
+    )
+    return {"deleted_count": deleted_count, "duration_seconds": duration}
 
 
 @celery_app.task(

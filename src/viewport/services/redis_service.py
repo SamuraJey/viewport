@@ -7,8 +7,10 @@ This module provides a clean, reusable Redis client wrapper with:
 - Proper lifecycle management for FastAPI
 """
 
+import asyncio
 import builtins
 import logging
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -20,6 +22,20 @@ from redis.asyncio import ConnectionPool, Redis
 from redis.exceptions import RedisError
 
 logger = logging.getLogger(__name__)
+
+
+FIXED_WINDOW_INCREMENT_SCRIPT = """
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+local ttl = redis.call('TTL', KEYS[1])
+if ttl < 0 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+    ttl = tonumber(ARGV[1])
+end
+return {count, ttl}
+"""
 
 
 class RedisSettings(BaseSettings):
@@ -103,6 +119,14 @@ class PipelineContext:
         return list(result) if result else []
 
 
+@dataclass(frozen=True)
+class FixedWindowIncrement:
+    """Result of an atomic fixed-window counter increment."""
+
+    count: int
+    retry_after: int
+
+
 class RedisService:
     """Redis service with graceful degradation and clean interface.
 
@@ -133,6 +157,7 @@ class RedisService:
         pool: ConnectionPool | None,
         *,
         available: bool = True,
+        settings: RedisSettings | None = None,
     ):
         """Initialize RedisService.
 
@@ -141,6 +166,9 @@ class RedisService:
         self._client = client
         self._pool = pool
         self._available = available
+        self._settings = settings
+        self._reconnect_lock = asyncio.Lock()
+        self._next_reconnect_at = 0.0
 
     @classmethod
     async def create(cls, settings: RedisSettings | None = None) -> "RedisService":
@@ -154,6 +182,7 @@ class RedisService:
             returns a degraded instance that returns None for all operations.
         """
         resolved_settings = settings or get_redis_settings()
+        client: Redis | None = None
 
         try:
             pool = ConnectionPool.from_url(
@@ -170,14 +199,24 @@ class RedisService:
             await client.ping()  # type: ignore[misc]
             logger.info("Redis connection established successfully")
 
-            return cls(client, pool, available=True)
+            return cls(client, pool, available=True, settings=resolved_settings)
 
         except RedisError as e:
             logger.warning("Redis unavailable, operating in degraded mode: %s", e)
-            return cls(None, None, available=False)
+            if client is not None:
+                try:
+                    await client.aclose(close_connection_pool=True)
+                except Exception as close_error:
+                    logger.debug("Failed to close unavailable Redis client: %s", close_error)
+            return cls(None, None, available=False, settings=resolved_settings)
         except Exception as e:
             logger.warning("Failed to connect to Redis, operating in degraded mode: %s", e)
-            return cls(None, None, available=False)
+            if client is not None:
+                try:
+                    await client.aclose(close_connection_pool=True)
+                except Exception as close_error:
+                    logger.debug("Failed to close unavailable Redis client: %s", close_error)
+            return cls(None, None, available=False, settings=resolved_settings)
 
     @property
     def is_available(self) -> bool:
@@ -186,16 +225,19 @@ class RedisService:
 
     async def close(self) -> None:
         """Close Redis connection and connection pool."""
-        if self._client is not None:
+        try:
+            if self._client is None:
+                return
             try:
                 await self._client.aclose(close_connection_pool=True)
                 logger.info("Redis client closed successfully")
             except Exception as e:
                 logger.error("Error closing Redis client: %s", e)
-            finally:
-                self._client = None
-                self._pool = None
-                self._available = False
+        finally:
+            self._client = None
+            self._pool = None
+            self._available = False
+            self._settings = None
 
     async def ping(self) -> bool:
         """Ping Redis to check connection."""
@@ -283,6 +325,66 @@ class RedisService:
         except RedisError as e:
             logger.warning("Redis DELETE failed: %s", e)
             return 0
+
+    async def fixed_window_increment(self, key: str, window_seconds: int) -> FixedWindowIncrement | None:
+        """Atomically increment a counter and return its remaining window.
+
+        ``None`` means Redis was unavailable or the operation failed. Callers
+        must choose an explicit degradation policy instead of treating that as
+        a zero count.
+        """
+        if window_seconds <= 0:
+            raise ValueError("window_seconds must be positive")
+        if not self.is_available:
+            await self._reconnect_if_due()
+        if not self.is_available:
+            return None
+
+        try:
+            result = await self._client.eval(  # type: ignore[union-attr, misc]
+                FIXED_WINDOW_INCREMENT_SCRIPT,
+                1,
+                key,
+                window_seconds,
+            )
+            if not isinstance(result, (list, tuple)) or len(result) != 2:
+                logger.warning("Redis fixed-window script returned an invalid result for key %s", key)
+                return None
+            return FixedWindowIncrement(count=int(result[0]), retry_after=max(int(result[1]), 1))
+        except (RedisError, TypeError, ValueError) as e:
+            logger.warning("Redis fixed-window increment failed for key %s: %s", key, e)
+            self._available = False
+            self._next_reconnect_at = time.monotonic() + 5.0
+            return None
+
+    async def _reconnect_if_due(self) -> None:
+        """Retry a failed startup/connection so fallback is not permanent."""
+        settings = self._settings
+        if settings is None or time.monotonic() < self._next_reconnect_at:
+            return
+
+        async with self._reconnect_lock:
+            if self.is_available or self._settings is None or time.monotonic() < self._next_reconnect_at:
+                return
+            replacement = await type(self).create(self._settings)
+            if not replacement.is_available:
+                self._next_reconnect_at = time.monotonic() + 5.0
+                return
+
+            old_client = self._client
+            self._client = replacement._client
+            self._pool = replacement._pool
+            self._available = True
+            self._next_reconnect_at = 0.0
+            replacement._client = None
+            replacement._pool = None
+            replacement._available = False
+            if old_client is not None:
+                try:
+                    await old_client.aclose(close_connection_pool=True)
+                except Exception as exc:
+                    logger.debug("Failed to close stale Redis client during reconnect: %s", exc)
+            logger.info("Redis connection restored after degraded startup/runtime state")
 
     async def sadd(self, key: str, *members: str) -> int:
         """Add members to a set.

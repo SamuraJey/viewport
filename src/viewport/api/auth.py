@@ -4,14 +4,19 @@ from os import getenv
 
 import bcrypt
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from starlette.concurrency import run_in_threadpool
 
+from viewport.auth_metrics import REFRESH_FAMILIES_REVOKED, REFRESH_REJECTS, REFRESH_ROTATIONS
 from viewport.auth_utils import authsettings, password_token_fingerprint, password_token_fingerprint_matches
 from viewport.dependencies import get_user_repository
+from viewport.models.user import User
+from viewport.repositories.refresh_token_repository import RefreshRotationRejected, RefreshTokenRepository
 from viewport.repositories.user_repository import UserRepository
 from viewport.schemas.auth import LoginRequest, LoginResponse, RefreshRequest, RegisterRequest, RegisterResponse, TokenPair, validate_user_password
+from viewport.services.auth_rate_limiter import AuthRateLimitRoute, get_auth_rate_limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -63,14 +68,22 @@ def create_access_token(user_id: str, password_hash: str) -> str:
     return jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
 
 
-def create_refresh_token(user_id: str, password_hash: str) -> str:
-    issued_at = datetime.now(UTC)
+def create_refresh_token(
+    user_id: str,
+    password_hash: str,
+    *,
+    jti: str | None = None,
+    issued_at: datetime | None = None,
+    expires_at: datetime | None = None,
+) -> str:
+    issued_at = issued_at or datetime.now(UTC)
+    expires_at = expires_at or issued_at + timedelta(minutes=authsettings.refresh_token_expire_minutes)
     payload = {
         "sub": user_id,
         "iat": issued_at,
-        "exp": issued_at + timedelta(minutes=authsettings.refresh_token_expire_minutes),
+        "exp": expires_at,
         "type": "refresh",
-        "jti": str(uuid.uuid4()),
+        "jti": jti or str(uuid.uuid4()),
         "pwd": password_token_fingerprint(password_hash),
     }
     return jwt.encode(payload, authsettings.jwt_secret_key, algorithm=authsettings.jwt_algorithm)
@@ -93,8 +106,17 @@ async def register_user(request: RegisterRequest, repo: UserRepository = Depends
 
 
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
-async def login_user(request: LoginRequest, repo: UserRepository = Depends(get_user_repository)) -> LoginResponse:
+async def login_user(
+    request: LoginRequest,
+    http_request: Request,
+    repo: UserRepository = Depends(get_user_repository),
+) -> LoginResponse:
     """Login user."""
+    await get_auth_rate_limiter().enforce(
+        http_request,
+        AuthRateLimitRoute.USER_LOGIN,
+        request.email,
+    )
     user = await repo.get_user_by_email(request.email)
 
     if not user:
@@ -106,8 +128,29 @@ async def login_user(request: LoginRequest, repo: UserRepository = Depends(get_u
     if not is_valid:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    access_token = create_access_token(str(user.id), user.password_hash)
-    refresh_token = create_refresh_token(str(user.id), user.password_hash)
+    locked_password_hash = (await repo.db.execute(select(User.password_hash).where(User.id == user.id).with_for_update())).scalar_one_or_none()
+    if locked_password_hash != user.password_hash:
+        await repo.db.commit()
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    issued_at = datetime.now(UTC)
+    expires_at = issued_at + timedelta(minutes=authsettings.refresh_token_expire_minutes)
+    refresh_jti = str(uuid.uuid4())
+    refresh_token = create_refresh_token(
+        str(user.id),
+        locked_password_hash,
+        jti=refresh_jti,
+        issued_at=issued_at,
+        expires_at=expires_at,
+    )
+    await RefreshTokenRepository(repo.db).create_root(
+        user.id,
+        refresh_jti,
+        uuid.uuid4(),
+        issued_at,
+        expires_at,
+    )
+    access_token = create_access_token(str(user.id), locked_password_hash)
     return LoginResponse(
         id=str(user.id),
         email=user.email,
@@ -127,33 +170,64 @@ async def refresh_token(request: RefreshRequest, repo: UserRepository = Depends(
         user_id = payload.get("sub")
         token_type = payload.get("type")
         token_password_fingerprint = payload.get("pwd")
+        parent_jti = payload.get("jti")
 
         # Check if it's actually a refresh token
         if token_type != "refresh":
             raise HTTPException(status_code=401, detail="Invalid token type")
 
-        if not user_id:
+        if not isinstance(user_id, str) or not user_id or not isinstance(parent_jti, str) or not parent_jti:
+            REFRESH_REJECTS.labels(reason="invalid_claims").inc()
             raise HTTPException(status_code=401, detail="Invalid token")
 
         # Check if user exists
         try:
             parsed_user_id = uuid.UUID(user_id)
         except ValueError:
-            raise HTTPException(status_code=401, detail="User not found") from None
+            REFRESH_REJECTS.labels(reason="invalid_claims").inc()
+            raise HTTPException(status_code=401, detail="Invalid refresh token") from None
 
-        user = await repo.get_user_by_id(parsed_user_id)
+        user_stmt = select(User).where(User.id == parsed_user_id).with_for_update()
+        user = (await repo.db.execute(user_stmt)).scalar_one_or_none()
         if not user:
-            raise HTTPException(status_code=401, detail="User not found")
+            await repo.db.commit()
+            REFRESH_REJECTS.labels(reason="user_not_found").inc()
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
         if not password_token_fingerprint_matches(token_password_fingerprint, user.password_hash):
+            await repo.db.commit()
+            REFRESH_REJECTS.labels(reason="password_changed").inc()
             raise HTTPException(status_code=401, detail="Refresh token revoked")
 
-        # Generate new tokens
-        new_access_token = create_access_token(str(user.id), user.password_hash)
-        new_refresh_token = create_refresh_token(str(user.id), user.password_hash)
+        issued_at = datetime.now(UTC)
+        expires_at = issued_at + timedelta(minutes=authsettings.refresh_token_expire_minutes)
+        child_jti = str(uuid.uuid4())
+        new_refresh_token = create_refresh_token(
+            str(user.id),
+            user.password_hash,
+            jti=child_jti,
+            issued_at=issued_at,
+            expires_at=expires_at,
+        )
+        rotation = await RefreshTokenRepository(repo.db).consume_and_create_child(
+            user.id,
+            parent_jti,
+            child_jti,
+            issued_at,
+            expires_at,
+        )
+        if isinstance(rotation, RefreshRotationRejected):
+            REFRESH_REJECTS.labels(reason=rotation.reason.value).inc()
+            if rotation.revoked_sessions:
+                REFRESH_FAMILIES_REVOKED.labels(reason="replay").inc()
+            raise HTTPException(status_code=401, detail="Refresh token revoked")
 
+        new_access_token = create_access_token(str(user.id), user.password_hash)
+        REFRESH_ROTATIONS.inc()
         return TokenPair(access_token=new_access_token, refresh_token=new_refresh_token, token_type="bearer")
 
     except jwt.ExpiredSignatureError:
+        REFRESH_REJECTS.labels(reason="expired").inc()
         raise HTTPException(status_code=401, detail="Refresh token expired") from None
     except jwt.InvalidTokenError:
+        REFRESH_REJECTS.labels(reason="invalid_jwt").inc()
         raise HTTPException(status_code=401, detail="Invalid refresh token") from None

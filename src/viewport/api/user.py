@@ -5,6 +5,7 @@ from viewport.api.auth import hash_password, verify_password
 from viewport.auth_utils import get_current_user
 from viewport.dependencies import get_user_repository
 from viewport.models.user import User
+from viewport.repositories.refresh_token_repository import RefreshTokenRepository
 from viewport.repositories.user_repository import UserRepository
 from viewport.schemas.auth import ChangePasswordRequest, MeResponse, UpdateMeRequest
 
@@ -48,7 +49,27 @@ async def change_password(req: ChangePasswordRequest, repo: UserRepository = Dep
 
     hashed_password = await run_in_threadpool(hash_password, req.new_password)
 
-    user = await repo.update_user_password(current_user.id, hashed_password)
-    if not user:
+    refresh_sessions = RefreshTokenRepository(repo.db)
+    if not await refresh_sessions.lock_user_for_update(current_user.id):
+        await repo.db.rollback()
         raise HTTPException(status_code=404, detail="User not found")
+    locked_password_hash = await repo.get_user_password_hash(current_user.id)
+    if locked_password_hash is None:
+        await repo.db.rollback()
+        raise HTTPException(status_code=404, detail="User not found")
+    if locked_password_hash != current_user.password_hash:
+        await repo.db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Password changed concurrently")
+
+    await refresh_sessions.revoke_all_for_user(current_user.id, commit=False, lock_user=False)
+    user = await repo.update_user_password(
+        current_user.id,
+        hashed_password,
+        commit=False,
+        lock_for_update=False,
+    )
+    if not user:
+        await repo.db.rollback()
+        raise HTTPException(status_code=404, detail="User not found")
+    await repo.db.commit()
     return {"message": "Password updated successfully"}

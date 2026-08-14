@@ -14,6 +14,7 @@ from viewport.auth_utils import authsettings
 from viewport.logger import logger
 from viewport.models.sharelink import ShareLink
 from viewport.schemas.sharelink import validate_sharelink_password
+from viewport.services.auth_rate_limiter import AuthRateLimitRoute, get_auth_rate_limit_settings, get_auth_rate_limiter, hash_rate_limit_identity, is_trusted_proxy_peer, resolve_client_ip
 from viewport.sharelink_utils import is_sharelink_expired
 
 PUBLIC_CACHE_CONTROL_HEADERS = {
@@ -75,6 +76,11 @@ async def require_sharelink_password(sharelink: ShareLink, request: Request) -> 
         _log_denied_password_attempt(sharelink, request, reason="password_failed")
         raise HTTPException(status_code=401, detail="ShareLink password required", headers=PASSWORD_CHALLENGE_HEADERS)
 
+    await get_auth_rate_limiter().enforce(
+        request,
+        AuthRateLimitRoute.SHARE_UNLOCK,
+        str(sharelink.id),
+    )
     is_valid = await run_in_threadpool(verify_password, supplied_password, sharelink.password_hash)
     if not is_valid:
         _log_denied_password_attempt(sharelink, request, reason="password_failed")
@@ -83,13 +89,22 @@ async def require_sharelink_password(sharelink: ShareLink, request: Request) -> 
 
 async def unlock_sharelink_password(
     sharelink: ShareLink,
-    password: str,
+    password: str | None,
     request: Request,
     response: Response,
 ) -> None:
     if sharelink.password_hash is None:
         return
 
+    if password is None or not _is_valid_sharelink_password_shape(password):
+        _log_denied_password_attempt(sharelink, request, reason="password_failed")
+        raise HTTPException(status_code=401, detail="ShareLink password required", headers=PASSWORD_CHALLENGE_HEADERS)
+
+    await get_auth_rate_limiter().enforce(
+        request,
+        AuthRateLimitRoute.SHARE_UNLOCK,
+        str(sharelink.id),
+    )
     is_valid = await run_in_threadpool(verify_password, password, sharelink.password_hash)
     if not is_valid:
         _log_denied_password_attempt(sharelink, request, reason="password_failed")
@@ -173,7 +188,7 @@ def _resolve_share_cookie_samesite(request: Request) -> Literal["lax", "none"]:
 
 
 def _is_request_https(request: Request) -> bool:
-    forwarded_proto = request.headers.get("x-forwarded-proto")
+    forwarded_proto = _trusted_forwarded_header(request, "x-forwarded-proto")
     if forwarded_proto:
         return forwarded_proto.split(",")[0].strip().lower() == "https"
     return request.url.scheme == "https"
@@ -190,7 +205,7 @@ def _is_cross_origin_request(request: Request) -> bool:
 
 
 def _request_origin(request: Request) -> tuple[str, str] | None:
-    host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    host = _trusted_forwarded_header(request, "x-forwarded-host") or request.headers.get("host")
     if not host:
         return None
     forwarded_host = host.split(",")[0].strip().lower()
@@ -205,13 +220,41 @@ def _normalize_origin(origin: str) -> tuple[str, str] | None:
 
 
 def _public_request_scheme(request: Request) -> str:
-    forwarded_proto = request.headers.get("x-forwarded-proto")
+    forwarded_proto = _trusted_forwarded_header(request, "x-forwarded-proto")
     if forwarded_proto:
         return forwarded_proto.split(",")[0].strip().lower()
     return request.url.scheme.lower()
 
 
+def get_public_request_base_url(request: Request) -> str:
+    """Build an external base URL without letting Uvicorn rewrite the socket peer."""
+    if request.client is None:
+        return str(request.base_url).rstrip("/")
+
+    host = _trusted_forwarded_header(request, "x-forwarded-host") or request.headers.get("host")
+    if not host:
+        return str(request.base_url).rstrip("/")
+    public_host = host.split(",")[0].strip()
+    root_path = str(request.scope.get("root_path", "")).rstrip("/")
+    return f"{_public_request_scheme(request)}://{public_host}{root_path}"
+
+
+def _trusted_forwarded_header(request: Request, name: str) -> str | None:
+    """Read proxy metadata only when the immediate socket peer is trusted."""
+    if request.client is None:
+        return None
+    settings = get_auth_rate_limit_settings()
+    if not is_trusted_proxy_peer(request.client.host, settings.trusted_proxy_cidrs):
+        return None
+    return request.headers.get(name)
+
+
 def _log_denied_password_attempt(sharelink: ShareLink, request: Request, *, reason: str) -> None:
+    try:
+        client_ip = resolve_client_ip(request, get_auth_rate_limit_settings().trusted_proxy_cidrs)
+        client_correlation = hash_rate_limit_identity("share-denial", client_ip)[:16]
+    except ValueError:
+        client_correlation = "invalid"
     logger.log_event(
         "sharelink_password_denied",
         share_id=str(sharelink.id),
@@ -219,6 +262,5 @@ def _log_denied_password_attempt(sharelink: ShareLink, request: Request, *, reas
         reason=reason,
         method=request.method,
         path=request.url.path,
-        client_ip=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
+        client_correlation=client_correlation,
     )

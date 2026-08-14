@@ -69,6 +69,10 @@ def create_celery_app(settings: CelerySettings | None = None) -> Celery:
             "task": "cleanup_video_temp_files",
             "schedule": crontab(minute=15),
         },
+        "cleanup-refresh-token-sessions-every-hour": {
+            "task": "cleanup_refresh_token_sessions",
+            "schedule": crontab(minute=30),
+        },
         "reconcile-successful-uploads-every-10-min": {
             "task": "reconcile_successful_uploads",
             "schedule": crontab(minute="*/10"),

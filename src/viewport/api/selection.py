@@ -34,7 +34,8 @@ from viewport.schemas.selection import (
     SelectionTogglePhotoResponse,
 )
 from viewport.selection_utils import NOT_STARTED_SELECTION_STATUS, selection_rollup_status
-from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_valid_public_sharelink
+from viewport.services.auth_rate_limiter import get_auth_rate_limit_settings, is_trusted_proxy_peer
+from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_public_request_base_url, get_valid_public_sharelink
 
 router = APIRouter(tags=["selection"])
 SELECTION_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
@@ -51,7 +52,12 @@ def _selection_cookie_path(share_id: uuid.UUID) -> str:
 
 
 def _should_use_secure_selection_cookie(request: Request) -> bool:
-    forwarded_proto = request.headers.get("x-forwarded-proto")
+    forwarded_proto = None
+    if request.client and is_trusted_proxy_peer(
+        request.client.host,
+        get_auth_rate_limit_settings().trusted_proxy_cidrs,
+    ):
+        forwarded_proto = request.headers.get("x-forwarded-proto")
     if forwarded_proto:
         return forwarded_proto.split(",")[0].strip().lower() == "https"
     return request.url.scheme == "https"
@@ -937,7 +943,7 @@ async def export_gallery_selection_links_csv(
 
     rows_data = await repo.get_gallery_sharelinks_with_sessions(gallery_id, current_user.id)
     aggregates = await repo.get_gallery_session_aggregates(gallery_id, current_user.id)
-    base_url = str(request.base_url).rstrip("/")
+    base_url = get_public_request_base_url(request)
     rows = [
         [
             str(sharelink.id),
