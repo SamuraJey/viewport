@@ -35,7 +35,6 @@ jobs:
               - 'Dockerfile.backend.test'
               - 'Justfile'
               - 'docker-compose*.yml'
-              - 'config/**'
               - '.dockerignore'
               - '.github/workflows/ci.yml'
             frontend:
