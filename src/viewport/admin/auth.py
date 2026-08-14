@@ -6,9 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 
-from viewport.api.auth import verify_password
+from viewport.api.auth import DUMMY_HASH, verify_password
 from viewport.models.db import get_session_maker
 from viewport.models.user import User
+from viewport.schemas.auth import validate_user_password
+from viewport.services.auth_rate_limiter import AuthRateLimitRoute, get_auth_rate_limiter
 
 
 class AdminAuth(AuthenticationBackend):
@@ -71,12 +73,24 @@ class AdminAuth(AuthenticationBackend):
         if not email or not password:
             return False
 
+        await get_auth_rate_limiter().enforce(
+            request,
+            AuthRateLimitRoute.ADMIN_LOGIN,
+            email,
+        )
+
+        try:
+            validate_user_password(password)
+        except ValueError:
+            return False
+
         session_maker = self._get_session_maker()
         async with session_maker() as session:
             stmt = select(User).where(User.email == email)
             user = (await session.execute(stmt)).scalar_one_or_none()
 
         if not user:
+            await run_in_threadpool(verify_password, password, DUMMY_HASH)
             return False
 
         is_valid = await run_in_threadpool(verify_password, password, user.password_hash)

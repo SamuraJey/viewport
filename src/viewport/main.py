@@ -3,11 +3,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqladmin import Admin
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import RedirectResponse
 
-from viewport.admin import AdminAuth, GalleryAdmin, PhotoAdmin, ProjectAdmin, ShareLinkAdmin, UserAdmin
+from viewport.admin import AdminAuth, GalleryAdmin, PhotoAdmin, ProjectAdmin, ShareLinkAdmin, UserAdmin, ViewportAdmin
 from viewport.api.auth import router as auth_router
 from viewport.api.gallery import router as gallery_router
 from viewport.api.photo import router as photo_router
@@ -142,7 +141,7 @@ setup_metrics(app)
 
 
 authentication_backend = AdminAuth(secret_key=authsettings.jwt_secret_key)
-admin = Admin(
+admin = ViewportAdmin(
     app,
     get_engine(),
     base_url="/admin",

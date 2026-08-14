@@ -1,5 +1,5 @@
 import asyncio
-import logging
+from unittest.mock import patch
 
 import pytest
 from fastapi import Depends, FastAPI
@@ -115,19 +115,25 @@ async def test_function_scoped_dependency_closes_before_streaming_starts():
     assert any(message["type"] == "http.response.body" and message.get("body") == b"chunk" for message in sent_messages)
 
 
-def test_connection_pool_instrumentation_tracks_real_checkout_duration(caplog):
+def test_connection_pool_instrumentation_tracks_real_checkout_duration():
     pool_name = "test-lifecycle"
     labels = {"pool": pool_name}
     checked_out_before = _sample_value(DB_CONNECTIONS_CHECKED_OUT, "viewport_db_connections_checked_out", labels)
     duration_count_before = _sample_value(DB_CONNECTION_CHECKOUT_DURATION_SECONDS, "viewport_db_connection_checkout_duration_seconds_count", labels)
     engine = create_engine("sqlite://")
-    instrument_connection_pool(engine, pool_name=pool_name, long_checkout_seconds=0.0)
+    try:
+        instrument_connection_pool(engine, pool_name=pool_name, long_checkout_seconds=0.0)
 
-    with caplog.at_level(logging.WARNING, logger="viewport.db_metrics"), engine.connect() as connection:
-        assert _sample_value(DB_CONNECTIONS_CHECKED_OUT, "viewport_db_connections_checked_out", labels) == checked_out_before + 1
-        connection.execute(text("SELECT 1"))
+        with patch("viewport.db_metrics.logger.warning") as warning, engine.connect() as connection:
+            assert _sample_value(DB_CONNECTIONS_CHECKED_OUT, "viewport_db_connections_checked_out", labels) == checked_out_before + 1
+            connection.execute(text("SELECT 1"))
 
-    assert _sample_value(DB_CONNECTIONS_CHECKED_OUT, "viewport_db_connections_checked_out", labels) == checked_out_before
-    assert _sample_value(DB_CONNECTION_CHECKOUT_DURATION_SECONDS, "viewport_db_connection_checkout_duration_seconds_count", labels) == duration_count_before + 1
-    assert "Long-lived database connection checkout" in caplog.text
-    engine.dispose()
+        assert _sample_value(DB_CONNECTIONS_CHECKED_OUT, "viewport_db_connections_checked_out", labels) == checked_out_before
+        assert _sample_value(DB_CONNECTION_CHECKOUT_DURATION_SECONDS, "viewport_db_connection_checkout_duration_seconds_count", labels) == duration_count_before + 1
+        warning.assert_called_once()
+        message, duration, logged_pool_name = warning.call_args.args
+        assert message == "Long-lived database connection checkout: %.3fs (pool=%s)"
+        assert duration >= 0.0
+        assert logged_pool_name == pool_name
+    finally:
+        engine.dispose()

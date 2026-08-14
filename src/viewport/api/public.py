@@ -33,13 +33,23 @@ from viewport.schemas.public import (
     PublicShareResponse,
     PublicShareUnlockRequest,
 )
+from viewport.services.auth_rate_limiter import get_auth_rate_limit_settings, resolve_client_ip
 from viewport.services.project_presence import record_project_presence
 from viewport.services.redis_service import RedisService
-from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_available_public_sharelink, get_valid_public_sharelink, unlock_sharelink_password
+from viewport.sharelink_access import PUBLIC_CACHE_CONTROL_HEADERS, get_available_public_sharelink, get_public_request_base_url, get_valid_public_sharelink, unlock_sharelink_password
 from viewport.zip_utils import build_zip_fallback_name, make_content_disposition_header, make_unique_zip_entry_name, sanitize_zip_entry_name
 
 router = APIRouter(prefix="/s", tags=["public"])
 INTERNAL_PROJECT_NAVIGATION_HEADER = "x-viewport-internal-navigation"
+
+
+def _resolved_client_ip(request: Request) -> str | None:
+    if request.client is None:
+        return None
+    try:
+        return resolve_client_ip(request, get_auth_rate_limit_settings().trusted_proxy_cidrs)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid forwarded client address") from exc
 
 
 def _resolve_public_sorting(gallery: Gallery) -> tuple[GalleryPhotoSortBy, SortOrder]:
@@ -66,19 +76,19 @@ async def get_valid_sharelink(
 @router.post("/{share_id}/unlock", status_code=204)
 async def unlock_sharelink(
     share_id: UUID,
-    payload: PublicShareUnlockRequest,
     request: Request,
     response: Response,
+    payload: PublicShareUnlockRequest | None = None,
     repo: ShareLinkRepository = Depends(get_sharelink_repository),
 ) -> None:
     """Validate a protected public share password and issue an HttpOnly access cookie."""
     response.headers.update(PUBLIC_CACHE_CONTROL_HEADERS)
     sharelink = await get_available_public_sharelink(share_id, repo)
-    await unlock_sharelink_password(sharelink, payload.password, request, response)
+    await unlock_sharelink_password(sharelink, payload.password if payload is not None else None, request, response)
 
 
 def _site_url(request: Request) -> str:
-    return str(request.base_url).rstrip("/")
+    return get_public_request_base_url(request)
 
 
 def _date_str(*candidates: date | datetime | None) -> str:
@@ -255,7 +265,7 @@ async def _build_public_gallery_response(
     )
 
     if record_view and offset == 0:
-        client_ip = request.client.host if request.client else None
+        client_ip = _resolved_client_ip(request)
         await repo.record_view(
             share_id,
             ip_address=client_ip,
@@ -379,7 +389,7 @@ async def _build_public_project_response(
     await record_project_presence(
         redis,
         project.id,
-        ip_address=request.client.host if request.client else None,
+        ip_address=_resolved_client_ip(request),
         user_agent=request.headers.get("user-agent"),
     )
 
@@ -476,7 +486,7 @@ async def _build_public_project_response(
         )
 
     if record_view:
-        client_ip = request.client.host if request.client else None
+        client_ip = _resolved_client_ip(request)
         await ShareLinkRepository(project_repo.db).record_view(
             share_id,
             ip_address=client_ip,

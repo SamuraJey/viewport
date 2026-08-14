@@ -61,6 +61,31 @@ def test_alembic_upgrade_and_downgrade(postgres_container) -> None:
             assert version == head_revision
             gallery_columns = {column["name"] for column in inspector.get_columns("galleries")}
             assert {"private_notes", "public_description"} <= gallery_columns
+            assert inspector.has_table("refresh_token_sessions")
+            refresh_columns = {column["name"] for column in inspector.get_columns("refresh_token_sessions")}
+            assert refresh_columns == {
+                "jti_hash",
+                "user_id",
+                "family_id",
+                "parent_jti_hash",
+                "issued_at",
+                "expires_at",
+                "used_at",
+                "revoked_at",
+                "replaced_by_jti_hash",
+            }
+            refresh_indexes = {index["name"] for index in inspector.get_indexes("refresh_token_sessions")}
+            assert {
+                "ix_refresh_token_sessions_expires_at",
+                "ix_refresh_token_sessions_family_id",
+                "ix_refresh_token_sessions_revoked_at",
+                "ix_refresh_token_sessions_user_active",
+            } <= refresh_indexes
+            refresh_foreign_keys = inspector.get_foreign_keys("refresh_token_sessions")
+            assert any(
+                foreign_key["referred_table"] == "users" and foreign_key["constrained_columns"] == ["user_id"] and foreign_key["options"].get("ondelete") == "CASCADE"
+                for foreign_key in refresh_foreign_keys
+            )
 
             command.downgrade(config, "base")
 
