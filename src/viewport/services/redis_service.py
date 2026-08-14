@@ -19,6 +19,7 @@ from typing import Any
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from redis.asyncio import ConnectionPool, Redis
+from redis.commands.core import AsyncScript
 from redis.exceptions import RedisError
 
 logger = logging.getLogger(__name__)
@@ -169,6 +170,7 @@ class RedisService:
         self._settings = settings
         self._reconnect_lock = asyncio.Lock()
         self._next_reconnect_at = 0.0
+        self._fixed_window_script: AsyncScript | None = None
 
     @classmethod
     async def create(cls, settings: RedisSettings | None = None) -> "RedisService":
@@ -238,6 +240,7 @@ class RedisService:
             self._pool = None
             self._available = False
             self._settings = None
+            self._fixed_window_script = None
 
     async def ping(self) -> bool:
         """Ping Redis to check connection."""
@@ -340,13 +343,16 @@ class RedisService:
         if not self.is_available:
             return None
 
+        client = self._client
+        if client is None:
+            return None
+
         try:
-            result = await self._client.eval(  # type: ignore[union-attr, misc]
-                FIXED_WINDOW_INCREMENT_SCRIPT,
-                1,
-                key,
-                window_seconds,
-            )
+            script = self._fixed_window_script
+            if script is None:
+                script = client.register_script(FIXED_WINDOW_INCREMENT_SCRIPT)
+                self._fixed_window_script = script
+            result = await script(keys=(key,), args=(window_seconds,), client=client)
             if not isinstance(result, (list, tuple)) or len(result) != 2:
                 logger.warning("Redis fixed-window script returned an invalid result for key %s", key)
                 return None
@@ -366,14 +372,15 @@ class RedisService:
         async with self._reconnect_lock:
             if self.is_available or self._settings is None or time.monotonic() < self._next_reconnect_at:
                 return
+            self._next_reconnect_at = time.monotonic() + 5.0
             replacement = await type(self).create(self._settings)
             if not replacement.is_available:
-                self._next_reconnect_at = time.monotonic() + 5.0
                 return
 
             old_client = self._client
             self._client = replacement._client
             self._pool = replacement._pool
+            self._fixed_window_script = None
             self._available = True
             self._next_reconnect_at = 0.0
             replacement._client = None

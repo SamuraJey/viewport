@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import hmac
 import ipaddress
 import math
 import time
@@ -15,10 +16,17 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from viewport.auth_metrics import AUTH_RATE_LIMIT_DECISIONS
+from viewport.auth_utils import authsettings
 from viewport.services.redis_service import FixedWindowIncrement, RedisService, get_redis_service
 
 type IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
 type IPNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
+
+
+def _normalize_mapped_ipv4(address: IPAddress) -> IPAddress:
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        return address.ipv4_mapped
+    return address
 
 
 class InvalidClientAddressError(ValueError):
@@ -142,7 +150,7 @@ def _canonical_ip(value: str) -> IPAddress:
         raw = host
     else:
         try:
-            return ipaddress.ip_address(raw)
+            return _normalize_mapped_ipv4(ipaddress.ip_address(raw))
         except ValueError:
             host, separator, port = raw.rpartition(":")
             if not separator or not _valid_port(port):
@@ -153,10 +161,10 @@ def _canonical_ip(value: str) -> IPAddress:
                 raise InvalidClientAddressError("Invalid IP address") from None
             if not isinstance(parsed, ipaddress.IPv4Address):
                 raise InvalidClientAddressError("IPv6 addresses with ports must be bracketed") from None
-            return parsed
+            return _normalize_mapped_ipv4(parsed)
 
     try:
-        return ipaddress.ip_address(raw)
+        return _normalize_mapped_ipv4(ipaddress.ip_address(raw))
     except ValueError:
         raise InvalidClientAddressError("Invalid IP address") from None
 
@@ -251,8 +259,8 @@ def _parse_x_forwarded_for(value: str) -> tuple[IPAddress, ...]:
 
 
 def _header_chain(request: Request) -> tuple[IPAddress, ...]:
-    forwarded_values = request.headers.getlist("forwarded")
-    xff_values = request.headers.getlist("x-forwarded-for")
+    forwarded_values = [value for value in request.headers.getlist("forwarded") if value.strip()]
+    xff_values = [value for value in request.headers.getlist("x-forwarded-for") if value.strip()]
     forwarded = _parse_forwarded_header(",".join(forwarded_values)) if forwarded_values else None
     xff = _parse_x_forwarded_for(",".join(xff_values)) if xff_values else None
     if forwarded is not None and xff is not None and forwarded != xff:
@@ -286,11 +294,11 @@ def resolve_client_ip(request: Request, trusted_proxy_cidrs: str | Iterable[str 
 
 
 def hash_rate_limit_identity(kind: str, value: str, *, max_bytes: int = 256) -> str:
-    """Hash a normalized, bounded identity for use in a Redis key."""
+    """Key-hash a normalized, bounded identity for use in a Redis key."""
     normalized = value.strip().casefold().encode("utf-8")
     bounded = normalized[:max_bytes]
     digest_input = kind.encode("ascii") + b"\0" + str(len(normalized)).encode("ascii") + b"\0" + bounded
-    return hashlib.sha256(digest_input).hexdigest()
+    return hmac.new(authsettings.jwt_secret_key.encode("utf-8"), digest_input, hashlib.sha256).hexdigest()
 
 
 @dataclass

@@ -1,12 +1,15 @@
 """Focused tests for authentication rate limiting and proxy trust."""
 
 import asyncio
+import hashlib
+import hmac
 from dataclasses import dataclass
 from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException, Request
 
+from viewport.auth_utils import authsettings
 from viewport.services.auth_rate_limiter import AuthRateLimiter, AuthRateLimitRoute, AuthRateLimitSettings, InvalidClientAddressError, hash_rate_limit_identity, resolve_client_ip
 from viewport.services.redis_service import RedisService, RedisSettings
 
@@ -98,6 +101,16 @@ class TestClientIpResolution:
 
     def test_socket_ipv6_is_canonicalized(self):
         assert resolve_client_ip(make_request("2001:0db8:0:0::9")) == "2001:db8::9"
+
+    def test_blank_forwarded_values_are_treated_as_absent(self):
+        request = make_request("10.0.0.8", {"Forwarded": "  ", "X-Forwarded-For": ""})
+
+        assert resolve_client_ip(request, "10.0.0.0/8") == "10.0.0.8"
+
+    def test_ipv4_mapped_proxy_peer_matches_ipv4_trusted_cidr(self):
+        request = make_request("::ffff:10.0.0.8", {"X-Forwarded-For": "192.0.2.44"})
+
+        assert resolve_client_ip(request, "10.0.0.0/8") == "192.0.2.44"
 
 
 class TestAuthRateLimiterBudgets:
@@ -263,6 +276,10 @@ def test_hashed_identity_is_fixed_length_and_contains_no_raw_identity():
     raw = "A" * 20_000 + "@Example.com"
 
     digest = hash_rate_limit_identity("user_login:scope", raw, max_bytes=64)
+    normalized = raw.strip().casefold().encode("utf-8")
+    digest_input = b"user_login:scope\0" + str(len(normalized)).encode("ascii") + b"\0" + normalized[:64]
+    expected = hmac.new(authsettings.jwt_secret_key.encode("utf-8"), digest_input, hashlib.sha256).hexdigest()
 
     assert len(digest) == 64
     assert raw.casefold() not in digest
+    assert digest == expected

@@ -53,8 +53,6 @@ _SHARED_POSTGRES_CONTAINER: PostgresContainer | None = None
 _SHARED_POSTGRES_INFO: dict[str, Any] | None = None
 _SHARED_S3_CONTAINER: DockerContainer | None = None
 _SHARED_S3_INFO: dict[str, Any] | None = None
-_SHARED_VALKEY_CONTAINER: DockerContainer | None = None
-_SHARED_VALKEY_INFO: dict[str, Any] | None = None
 
 os.environ.update(
     {
@@ -242,7 +240,7 @@ def _worker_redis_db_index(config: pytest.Config) -> int:
 
 
 def pytest_configure(config: pytest.Config) -> None:
-    global _SHARED_POSTGRES_CONTAINER, _SHARED_POSTGRES_INFO, _SHARED_S3_CONTAINER, _SHARED_S3_INFO, _SHARED_VALKEY_CONTAINER, _SHARED_VALKEY_INFO
+    global _SHARED_POSTGRES_CONTAINER, _SHARED_POSTGRES_INFO, _SHARED_S3_CONTAINER, _SHARED_S3_INFO
 
     if _is_worker_process(config) or not _xdist_enabled(config):
         return
@@ -264,26 +262,16 @@ def pytest_configure(config: pytest.Config) -> None:
         except Exception:
             pass  # Docker not available, skip shared container
 
-    if _SHARED_VALKEY_CONTAINER is None:
-        try:
-            valkey_container = _start_valkey_container()
-            _SHARED_VALKEY_CONTAINER = valkey_container
-            _SHARED_VALKEY_INFO = _connection_info_from_valkey_container(valkey_container).to_dict()
-        except Exception:
-            pass  # Docker not available, skip shared container
-
 
 def pytest_configure_node(node) -> None:
     if _SHARED_POSTGRES_INFO is not None:
         node.workerinput["shared_postgres"] = _SHARED_POSTGRES_INFO
     if _SHARED_S3_INFO is not None:
         node.workerinput["shared_s3"] = _SHARED_S3_INFO
-    if _SHARED_VALKEY_INFO is not None:
-        node.workerinput["shared_valkey"] = _SHARED_VALKEY_INFO
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:
-    global _SHARED_POSTGRES_CONTAINER, _SHARED_POSTGRES_INFO, _SHARED_S3_CONTAINER, _SHARED_S3_INFO, _SHARED_VALKEY_CONTAINER, _SHARED_VALKEY_INFO
+    global _SHARED_POSTGRES_CONTAINER, _SHARED_POSTGRES_INFO, _SHARED_S3_CONTAINER, _SHARED_S3_INFO
 
     if _is_worker_process(config):
         return
@@ -299,11 +287,6 @@ def pytest_unconfigure(config: pytest.Config) -> None:
         _SHARED_S3_CONTAINER.stop()
         _SHARED_S3_CONTAINER = None
         _SHARED_S3_INFO = None
-
-    if _SHARED_VALKEY_CONTAINER is not None:
-        _SHARED_VALKEY_CONTAINER.stop()
-        _SHARED_VALKEY_CONTAINER = None
-        _SHARED_VALKEY_INFO = None
 
 
 @contextmanager
@@ -602,15 +585,8 @@ def _s3_test_bucket(request: pytest.FixtureRequest) -> Generator[None]:
 
 @pytest.fixture(scope="session")
 def valkey_container(request: pytest.FixtureRequest) -> Generator[str]:
-    """ValKey container shared per session with worker-specific Redis DB."""
-    worker_input = getattr(request.config, "workerinput", {})
-    shared_info = worker_input.get("shared_valkey")
+    """Start Valkey lazily once per pytest worker that requests it."""
     db_index = _worker_redis_db_index(request.config)
-
-    if shared_info:
-        valkey_info = ValkeyConnectionInfo.from_dict(shared_info)
-        yield valkey_info.redis_url(db_index)
-        return
 
     container = _start_valkey_container()
     try:

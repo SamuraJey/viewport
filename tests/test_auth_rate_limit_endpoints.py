@@ -183,9 +183,12 @@ def test_share_unlock_rate_limit_runs_before_bcrypt(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(sharelink_access, "verify_password", verify_password)
 
     with TestClient(_public_app(repo), client=("192.0.2.30", 43000)) as client:
+        missing_password = client.post(f"/s/{sharelink.id}/unlock")
         first = client.post(f"/s/{sharelink.id}/unlock", json={"password": "wrong-pass"})
         denied = client.post(f"/s/{sharelink.id}/unlock", json={"password": "wrong-pass"})
 
+    assert missing_password.status_code == 401
+    assert missing_password.json() == {"detail": "ShareLink password required"}
     assert first.status_code == 401
     assert denied.status_code == 429
     assert denied.headers["Retry-After"] == "60"

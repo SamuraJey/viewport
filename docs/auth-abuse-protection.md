@@ -43,18 +43,20 @@ All settings come from `src/viewport/services/auth_rate_limiter.py`. Defaults sh
 | `AUTH_RATE_LIMIT_FALLBACK_MAX_ENTRIES` | `10000` | Maximum counters in each process-local fallback map |
 | `AUTH_RATE_LIMIT_IDENTITY_MAX_BYTES` | `256` | Maximum normalized identity bytes included before key hashing |
 
-Identities are normalized, length-bounded, and SHA-256 hashed before entering Redis keys or denial logs. Passwords and raw email/IP identity values are not used as Redis key material.
+Identities are normalized, length-bounded, and HMAC-SHA-256 hashed with the process JWT secret before entering Redis keys or denial logs. Passwords and raw email/IP identity values are not used as Redis key material.
 
 ## Trusted proxy policy
 
 The raw socket peer is authoritative unless it belongs to `AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS`. Forwarded headers from untrusted peers are ignored. For a trusted immediate peer, the application validates the complete `Forwarded` or `X-Forwarded-For` chain and selects the first address to the left of the trusted proxy suffix. Malformed chains, or disagreeing `Forwarded` and `X-Forwarded-For` chains, are rejected with `400` rather than used for rate-limit identity.
 
-The Docker image starts Uvicorn with `--no-proxy-headers`, so Uvicorn does not rewrite the request peer or scheme from client-supplied headers. Application code reads forwarded client, scheme, and host metadata only when the immediate socket peer is in the configured CIDRs. Deployments behind a reverse proxy must therefore:
+The Docker image starts Uvicorn with `--no-proxy-headers`, so `request.client.host` remains the raw TCP peer (the proxy address when one is present) and `request.url.scheme` remains the backend connection scheme. Application code resolves the rate-limit client separately and reads forwarded scheme/host metadata for public URLs and share-cookie policy only when that raw peer is in the configured CIDRs. Deployments behind a reverse proxy must therefore:
 
 1. set `AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS` to the narrowest actual proxy networks;
 2. overwrite or sanitize inbound forwarded headers and append a canonical client chain;
 3. leave the setting empty when the application is directly internet-facing.
 
 Do not use a broad trust value merely to make HTTPS cookies work. Incorrect proxy trust permits clients to choose their rate-limit identity and public-origin metadata.
+
+The base `docker-compose.yml` publishes the backend directly on port `8000` and defines no Nginx API proxy, so it intentionally has no proxy CIDR to trust. The Nginx image in `Dockerfile.frontend` only serves static frontend assets and is not an API reverse proxy in that Compose topology. If an operator adds an Nginx proxy, it must be placed on an explicitly addressed narrow network and that actual address or CIDR must be supplied through `AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS`.
 
 The checked-in TrueNAS/Traefik deployment requires `AUTH_RATE_LIMIT_TRUSTED_PROXY_CIDRS` at Compose-render time and refuses to start without it. Set it to the exact subnet assigned to the external Traefik proxy network; do not use a generic private-address range.

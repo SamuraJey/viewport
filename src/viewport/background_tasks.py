@@ -1162,7 +1162,10 @@ def cleanup_refresh_token_sessions_task() -> dict[str, int | float]:
                 select(RefreshTokenSession.jti_hash)
                 .where(
                     or_(
-                        RefreshTokenSession.expires_at < audit_threshold,
+                        and_(
+                            RefreshTokenSession.revoked_at.is_(None),
+                            RefreshTokenSession.expires_at < audit_threshold,
+                        ),
                         and_(
                             RefreshTokenSession.revoked_at.is_not(None),
                             RefreshTokenSession.revoked_at < audit_threshold,

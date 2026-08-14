@@ -18,8 +18,9 @@ def test_refresh_session_cleanup_preserves_the_audit_retention_window(
     stale_revoked_hash = hash_refresh_jti(f"stale-revoked-{uuid4()}")
     recent_expired_hash = hash_refresh_jti(f"recent-expired-{uuid4()}")
     recent_revoked_hash = hash_refresh_jti(f"recent-revoked-{uuid4()}")
+    recently_revoked_old_expiry_hash = hash_refresh_jti(f"recently-revoked-old-expiry-{uuid4()}")
     active_hash = hash_refresh_jti(f"active-{uuid4()}")
-    retained_hashes = {recent_expired_hash, recent_revoked_hash, active_hash}
+    retained_hashes = {recent_expired_hash, recent_revoked_hash, recently_revoked_old_expiry_hash, active_hash}
 
     with Session(sync_engine) as db:
         user = User(
@@ -59,6 +60,14 @@ def test_refresh_session_cleanup_preserves_the_audit_retention_window(
                     issued_at=now - timedelta(days=30),
                     expires_at=now + timedelta(days=1),
                     revoked_at=now - timedelta(days=6),
+                ),
+                RefreshTokenSession(
+                    jti_hash=recently_revoked_old_expiry_hash,
+                    user_id=user.id,
+                    family_id=uuid4(),
+                    issued_at=now - timedelta(days=30),
+                    expires_at=now - timedelta(days=8),
+                    revoked_at=now - timedelta(days=1),
                 ),
                 RefreshTokenSession(
                     jti_hash=active_hash,
