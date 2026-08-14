@@ -7,14 +7,14 @@ ARG APP_GID=1001
 
 FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 
-FROM python:${PYTHON_VERSION}-slim AS build
+FROM python:${PYTHON_VERSION}-slim AS production-dependencies
 COPY --from=uv /uv /uvx /bin/
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean && \
     apt-get update && \
-    apt-get install -y --no-install-recommends build-essential libvips-dev pkg-config
+    apt-get install -y --no-install-recommends build-essential libheif-plugin-aomenc libvips-dev pkg-config
 
 WORKDIR /app
 
@@ -23,11 +23,12 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never
 
 COPY uv.lock pyproject.toml README.md ./
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     uv sync --locked --no-install-project --no-dev
-RUN .venv/bin/python -c "import pyvips; assert pyvips.API_mode; assert pyvips.type_find('VipsOperation', 'heifsave_buffer')"
+RUN .venv/bin/python -c "import pyvips; assert pyvips.API_mode; image = pyvips.Image.black(2, 2, bands=3).copy(interpretation='srgb'); encoded = bytes(image.heifsave_buffer(compression='av1', Q=70)); assert encoded[4:12] == b'ftypavif'"
 
-# Copy source code separately - light layer, invalidated on code changes
+FROM production-dependencies AS build
+
 COPY src/ src/
 
 FROM python:${PYTHON_VERSION}-slim AS runtime

@@ -8,6 +8,7 @@ wheels/
 
 # cache
 .uv-docker-cache
+.npm-docker-cache
 *_cache
 
 # Virtual environments
@@ -28,6 +29,9 @@ temporary/
 docker-compose-true-nas-deploy.yml
 .idea
 frontend/coverage
+test-results/
+coverage.xml
+backend-junit.xml
 
 performance_tests/
 

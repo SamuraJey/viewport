@@ -1,19 +1,21 @@
-ARG NODE_VERSION=22
-ARG VITE_API_URL
+# syntax=docker/dockerfile:1
 
-FROM node:${NODE_VERSION}-alpine AS build
+ARG NODE_VERSION=22
+
+FROM node:${NODE_VERSION}-alpine AS dependencies
 WORKDIR /app
 
-# Install dependencies using the lockfile for reproducible builds
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci --omit=dev
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm ci --prefer-offline --no-audit
 
-# Re-declare ARG for stage scope; expose as ENV so Vite picks it up at build time
+FROM dependencies AS build
+
+COPY frontend/ ./
+
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 
-# Copy application sources and produce the optimized build
-COPY frontend/ .
 RUN npm run build
 
 FROM nginx@sha256:5a1b9b3dd82ce370617a2ad9825c03b354415b2f74f856a54273a5ec6052cb38 AS runtime
