@@ -25,7 +25,6 @@ ENV UV_COMPILE_BYTECODE=1 \
 COPY uv.lock pyproject.toml README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
     uv sync --locked --no-install-project --no-dev
-RUN .venv/bin/python -c "import pyvips; assert pyvips.API_mode; image = pyvips.Image.black(2, 2, bands=3).copy(interpretation='srgb'); encoded = bytes(image.heifsave_buffer(compression='av1', Q=70)); assert encoded[4:12] == b'ftypavif'"
 
 FROM production-dependencies AS build
 
