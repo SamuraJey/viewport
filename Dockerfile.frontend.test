@@ -1,0 +1,14 @@
+# syntax=docker/dockerfile:1
+
+ARG NODE_VERSION=22
+
+FROM node:${NODE_VERSION}-alpine AS test
+WORKDIR /app
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+    npm ci --prefer-offline --no-audit
+
+COPY frontend/ ./
+
+CMD ["npm", "run", "test:run", "--", "--reporter=dot"]

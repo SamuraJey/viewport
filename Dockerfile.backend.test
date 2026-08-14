@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1
+
+ARG PYTHON_VERSION=3.14
+ARG UV_VERSION=0.11.21
+
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
+
+FROM python:${PYTHON_VERSION}-slim AS test
+COPY --from=uv /uv /uvx /bin/
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends build-essential libheif-plugin-aomenc libvips-dev pkg-config
+
+WORKDIR /app
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
+
+COPY uv.lock pyproject.toml README.md ./
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    uv sync --locked --no-install-project --no-dev
+RUN .venv/bin/python -c "import pyvips; assert pyvips.API_mode; image = pyvips.Image.black(2, 2, bands=3).copy(interpretation='srgb'); encoded = bytes(image.heifsave_buffer(compression='av1', Q=70)); assert encoded[4:12] == b'ftypavif'"
+
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    uv sync --locked --no-install-project
+
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH="/app/src" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONFAULTHANDLER=1
+
+COPY src/ src/
+COPY alembic.ini ./
+COPY config/ config/
+COPY tests/ tests/
+
+CMD ["pytest", "-n", "4", "tests"]
