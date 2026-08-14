@@ -9,6 +9,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException, Request
 
+import viewport.services.auth_rate_limiter as limiter_module
 from viewport.auth_utils import authsettings
 from viewport.services.auth_rate_limiter import AuthRateLimiter, AuthRateLimitRoute, AuthRateLimitSettings, InvalidClientAddressError, hash_rate_limit_identity, resolve_client_ip
 from viewport.services.redis_service import RedisService, RedisSettings
@@ -111,6 +112,86 @@ class TestClientIpResolution:
         request = make_request("::ffff:10.0.0.8", {"X-Forwarded-For": "192.0.2.44"})
 
         assert resolve_client_ip(request, "10.0.0.0/8") == "192.0.2.44"
+
+    def test_forwarded_chain_stops_at_first_untrusted_proxy(self):
+        request = make_request("10.0.0.8", {"X-Forwarded-For": "192.0.2.44, 198.51.100.2"})
+
+        assert resolve_client_ip(request, "10.0.0.0/8") == "198.51.100.2"
+
+    def test_request_without_socket_peer_is_rejected(self):
+        request = make_request("192.0.2.1")
+        request.scope["client"] = None
+
+        with pytest.raises(InvalidClientAddressError, match="no socket peer"):
+            resolve_client_ip(request)
+
+
+class TestProxyInputValidation:
+    def test_invalid_trusted_proxy_cidr_is_rejected(self):
+        with pytest.raises(ValueError, match="Invalid trusted proxy CIDR"):
+            limiter_module.parse_trusted_proxy_cidrs("10.0.0.0/8,not-a-network")
+
+    def test_invalid_socket_peer_is_not_trusted(self):
+        assert limiter_module.is_trusted_proxy_peer("not-an-ip", "10.0.0.0/8") is False
+
+    def test_ipv4_peer_with_port_is_canonicalized(self):
+        assert limiter_module._canonical_ip("192.0.2.10:443").compressed == "192.0.2.10"
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "",
+            "[192.0.2.1]:not-a-port",
+            "not-an-ip:443",
+            "2001:db8:0:0:0:0:0:1:80",
+            "[not-an-ip]",
+        ],
+    )
+    def test_invalid_socket_address_forms_are_rejected(self, value: str):
+        with pytest.raises(InvalidClientAddressError):
+            limiter_module._canonical_ip(value)
+
+    def test_quoted_split_honors_escaped_delimiters(self):
+        value = r'for="left\,right",for=192.0.2.1'
+
+        assert limiter_module._split_quoted(value, ",") == [r'for="left\,right"', "for=192.0.2.1"]
+
+    def test_quoted_split_rejects_unterminated_value(self):
+        with pytest.raises(InvalidClientAddressError, match="Malformed quoted Forwarded header"):
+            limiter_module._split_quoted('for="unterminated', ",")
+
+    def test_forwarded_unquoting_handles_escapes(self):
+        assert limiter_module._unquote_forwarded_value(r'"left\;right"') == "left;right"
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            'prefix"suffix"',
+            '"inner"quote"',
+            '"trailing\\"',
+        ],
+    )
+    def test_forwarded_unquoting_rejects_malformed_quotes(self, value: str):
+        with pytest.raises(InvalidClientAddressError, match="Malformed Forwarded value"):
+            limiter_module._unquote_forwarded_value(value)
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "for=192.0.2.1,,for=192.0.2.2",
+            "for",
+            "for=192.0.2.1;for=192.0.2.2",
+            "proto=https",
+        ],
+    )
+    def test_malformed_forwarded_elements_are_rejected(self, value: str):
+        with pytest.raises(InvalidClientAddressError):
+            limiter_module._parse_forwarded_header(value)
+
+    @pytest.mark.parametrize("value", ["192.0.2.1,,192.0.2.2", '"192.0.2.1"'])
+    def test_malformed_x_forwarded_for_elements_are_rejected(self, value: str):
+        with pytest.raises(InvalidClientAddressError, match="Malformed X-Forwarded-For header"):
+            limiter_module._parse_x_forwarded_for(value)
 
 
 class TestAuthRateLimiterBudgets:
@@ -283,3 +364,12 @@ def test_hashed_identity_is_fixed_length_and_contains_no_raw_identity():
     assert len(digest) == 64
     assert raw.casefold() not in digest
     assert digest == expected
+
+
+def test_process_wide_limiter_is_initialized_once(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(limiter_module, "_auth_rate_limiter", None)
+
+    first = limiter_module.get_auth_rate_limiter()
+    second = limiter_module.get_auth_rate_limiter()
+
+    assert first is second

@@ -5,7 +5,7 @@ Tests cover connection management, graceful degradation, and common operations.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 from redis.exceptions import RedisError
@@ -71,6 +71,22 @@ class TestRedisServiceCreate:
             service = await RedisService.create()
 
             assert service.is_available is False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("startup_error", [RedisError("connection refused"), RuntimeError("unexpected startup failure")])
+    async def test_create_still_degrades_when_failed_client_cleanup_raises(self, startup_error: Exception):
+        mock_client = AsyncMock()
+        mock_client.ping = AsyncMock(side_effect=startup_error)
+        mock_client.aclose = AsyncMock(side_effect=RuntimeError("cleanup failed"))
+
+        with (
+            patch("viewport.services.redis_service.ConnectionPool.from_url"),
+            patch("viewport.services.redis_service.Redis", return_value=mock_client),
+        ):
+            service = await RedisService.create()
+
+        assert service.is_available is False
+        mock_client.aclose.assert_awaited_once_with(close_connection_pool=True)
 
 
 class TestRedisServiceOperations:
@@ -197,6 +213,15 @@ class TestRedisServiceOperations:
         assert await service.fixed_window_increment("auth-limit:key", 60) is None
 
     @pytest.mark.asyncio
+    async def test_fixed_window_increment_defensively_handles_missing_client(self):
+        service = RedisService(None, None, available=True)
+
+        with patch.object(RedisService, "is_available", new_callable=PropertyMock, return_value=True):
+            result = await service.fixed_window_increment("auth-limit:key", 60)
+
+        assert result is None
+
+    @pytest.mark.asyncio
     async def test_fixed_window_increment_recovers_after_degraded_startup(self):
         settings = RedisSettings(redis_url="redis://redis.invalid:6379/1")
         recovered_client = AsyncMock()
@@ -263,6 +288,32 @@ class TestRedisServiceOperations:
 
         assert second_finished_before_network is True
         create.assert_awaited_once_with(settings)
+
+    @pytest.mark.asyncio
+    async def test_reconnect_returns_immediately_when_service_is_already_available(self):
+        settings = RedisSettings(redis_url="redis://redis.invalid:6379/1")
+        service = RedisService(AsyncMock(), None, available=True, settings=settings)
+
+        with patch.object(RedisService, "create", new=AsyncMock()) as create:
+            await service._reconnect_if_due()
+
+        create.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_successful_reconnect_survives_stale_client_close_failure(self):
+        settings = RedisSettings(redis_url="redis://redis.invalid:6379/1")
+        stale_client = AsyncMock()
+        stale_client.aclose = AsyncMock(side_effect=RuntimeError("stale close failed"))
+        recovered_client = AsyncMock()
+        replacement = RedisService(recovered_client, MagicMock(), available=True, settings=settings)
+        service = RedisService(stale_client, MagicMock(), available=False, settings=settings)
+
+        with patch.object(RedisService, "create", new=AsyncMock(return_value=replacement)):
+            await service._reconnect_if_due()
+
+        assert service.is_available is True
+        assert service._client is recovered_client
+        stale_client.aclose.assert_awaited_once_with(close_connection_pool=True)
 
     @pytest.mark.asyncio
     async def test_fixed_window_increment_rejects_non_positive_window(self):

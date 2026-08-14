@@ -1,14 +1,23 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from viewport.models.refresh_token_session import RefreshTokenSession
 from viewport.models.user import User
-from viewport.repositories.refresh_token_repository import RefreshRotationRejected, RefreshRotationRejectReason, RefreshRotationSuccess, RefreshTokenRepository, hash_refresh_jti
+from viewport.repositories.refresh_token_repository import (
+    RefreshRotationRejected,
+    RefreshRotationRejectReason,
+    RefreshRotationSuccess,
+    RefreshSessionUserNotFoundError,
+    RefreshTokenRepository,
+    hash_refresh_jti,
+)
 from viewport.repositories.user_repository import UserRepository
 
 
@@ -20,6 +29,29 @@ async def _create_user(db: AsyncSession) -> User:
     db.add(user)
     await db.commit()
     return user
+
+
+def test_hash_refresh_jti_rejects_empty_value() -> None:
+    with pytest.raises(ValueError, match="must not be empty"):
+        hash_refresh_jti("")
+
+
+@pytest.mark.asyncio
+async def test_create_root_rolls_back_when_user_does_not_exist(db_session: AsyncSession) -> None:
+    missing_user_id = uuid4()
+    raw_jti = f"missing-user-{uuid4()}"
+    issued_at = datetime.now(UTC)
+
+    with pytest.raises(RefreshSessionUserNotFoundError):
+        await RefreshTokenRepository(db_session).create_root(
+            missing_user_id,
+            raw_jti,
+            uuid4(),
+            issued_at,
+            issued_at + timedelta(days=1),
+        )
+
+    assert await db_session.get(RefreshTokenSession, hash_refresh_jti(raw_jti)) is None
 
 
 @pytest.mark.asyncio
@@ -100,6 +132,117 @@ async def test_sequential_replay_revokes_the_rotated_child_and_family(
     assert all(session.revoked_at is not None for session in family)
     child = next(session for session in family if session.parent_jti_hash is not None)
     assert child.jti_hash == hash_refresh_jti(child_jti)
+
+
+@pytest.mark.asyncio
+async def test_rotation_returns_user_not_found_without_creating_child(db_session: AsyncSession) -> None:
+    result = await RefreshTokenRepository(db_session).consume_and_create_child(
+        uuid4(),
+        f"missing-parent-{uuid4()}",
+        f"missing-child-{uuid4()}",
+        datetime.now(UTC),
+        datetime.now(UTC) + timedelta(days=1),
+    )
+
+    assert result == RefreshRotationRejected(RefreshRotationRejectReason.USER_NOT_FOUND)
+
+
+@pytest.mark.asyncio
+async def test_rotation_of_unknown_parent_returns_not_found(db_session: AsyncSession) -> None:
+    user = await _create_user(db_session)
+
+    result = await RefreshTokenRepository(db_session).consume_and_create_child(
+        user.id,
+        f"unknown-parent-{uuid4()}",
+        f"child-{uuid4()}",
+        datetime.now(UTC),
+        datetime.now(UTC) + timedelta(days=1),
+    )
+
+    assert result == RefreshRotationRejected(RefreshRotationRejectReason.NOT_FOUND)
+
+
+@pytest.mark.asyncio
+async def test_rotation_of_expired_parent_revokes_its_family(db_session: AsyncSession) -> None:
+    user = await _create_user(db_session)
+    repo = RefreshTokenRepository(db_session)
+    now = datetime.now(UTC)
+    root_jti = f"expired-root-{uuid4()}"
+    snapshot = await repo.create_root(
+        user.id,
+        root_jti,
+        uuid4(),
+        now - timedelta(days=2),
+        now - timedelta(days=1),
+    )
+
+    result = await repo.consume_and_create_child(
+        user.id,
+        root_jti,
+        f"child-{uuid4()}",
+        now,
+        now + timedelta(days=1),
+    )
+
+    assert isinstance(result, RefreshRotationRejected)
+    assert result.reason is RefreshRotationRejectReason.EXPIRED
+    assert result.family_id == snapshot.family_id
+    assert result.revoked_sessions == 1
+    stored = await db_session.get(RefreshTokenSession, snapshot.jti_hash)
+    assert stored is not None
+    assert stored.revoked_at == now
+
+
+@pytest.mark.asyncio
+async def test_rotation_of_revoked_parent_reports_revoked_without_rewriting_timestamp(db_session: AsyncSession) -> None:
+    user = await _create_user(db_session)
+    repo = RefreshTokenRepository(db_session)
+    now = datetime.now(UTC)
+    root_jti = f"revoked-root-{uuid4()}"
+    snapshot = await repo.create_root(user.id, root_jti, uuid4(), now, now + timedelta(days=1))
+    revoked_at = now + timedelta(seconds=1)
+    assert await repo.revoke_all_for_user(user.id, revoked_at=revoked_at, commit=True) == 1
+
+    result = await repo.consume_and_create_child(
+        user.id,
+        root_jti,
+        f"child-{uuid4()}",
+        revoked_at + timedelta(seconds=1),
+        now + timedelta(days=1),
+    )
+
+    assert isinstance(result, RefreshRotationRejected)
+    assert result.reason is RefreshRotationRejectReason.REVOKED
+    assert result.family_id == snapshot.family_id
+    assert result.revoked_sessions == 0
+    stored = await db_session.get(RefreshTokenSession, snapshot.jti_hash)
+    assert stored is not None
+    assert stored.revoked_at == revoked_at
+
+
+@pytest.mark.asyncio
+async def test_rotation_commit_failure_rolls_back_parent_consumption(db_session: AsyncSession) -> None:
+    user = await _create_user(db_session)
+    repo = RefreshTokenRepository(db_session)
+    now = datetime.now(UTC)
+    parent_jti = f"parent-{uuid4()}"
+    colliding_child_jti = f"existing-{uuid4()}"
+    parent = await repo.create_root(user.id, parent_jti, uuid4(), now, now + timedelta(days=1))
+    await repo.create_root(user.id, colliding_child_jti, uuid4(), now, now + timedelta(days=1))
+
+    with pytest.raises(IntegrityError):
+        await repo.consume_and_create_child(
+            user.id,
+            parent_jti,
+            colliding_child_jti,
+            now + timedelta(seconds=1),
+            now + timedelta(days=1),
+        )
+
+    stored_parent = await db_session.get(RefreshTokenSession, parent.jti_hash)
+    assert stored_parent is not None
+    assert stored_parent.used_at is None
+    assert stored_parent.replaced_by_jti_hash is None
 
 
 @pytest.mark.asyncio
@@ -200,6 +343,31 @@ async def test_revoke_all_for_user_revokes_every_family(db_session: AsyncSession
     assert already_revoked_count == 0
     assert len(sessions) == 2
     assert all(session.revoked_at == revoked_at for session in sessions)
+
+
+@pytest.mark.asyncio
+async def test_revoke_all_commits_when_requested_for_missing_user() -> None:
+    db = AsyncMock(spec=AsyncSession)
+    repo = RefreshTokenRepository(db)
+    repo.lock_user_for_update = AsyncMock(return_value=False)  # type: ignore[method-assign]
+
+    result = await repo.revoke_all_for_user(uuid4(), commit=True)
+
+    assert result == 0
+    db.commit.assert_awaited_once()
+    db.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_revoke_all_rolls_back_failed_committed_sweep() -> None:
+    db = AsyncMock(spec=AsyncSession)
+    db.execute.side_effect = RuntimeError("database unavailable")
+    repo = RefreshTokenRepository(db)
+
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        await repo.revoke_all_for_user(uuid4(), commit=True, lock_user=False)
+
+    db.rollback.assert_awaited_once()
 
 
 @pytest.mark.asyncio
