@@ -102,4 +102,23 @@ venv/
 .vscode/
 
 frontend/coverage
+frontend/dist
+**/node_modules
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage*
+.codegraph
+.omx
+.agents
+.codex
+.playwright
+.playwright-cli
+.qwen
+output
+screenshots
+*.har
+postgres_data
+s3_data
 .uv-docker-cache
+.npm-docker-cache

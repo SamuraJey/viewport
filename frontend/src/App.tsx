@@ -10,7 +10,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { KeyboardShortcutsDialog } from './components/a11y/KeyboardShortcutsDialog';
 import { CommandPalette } from './components/command/CommandPalette';
 import { RouteTransition } from './components/RouteTransition';
-
+// test
 const LoginPage = lazy(() =>
   import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })),
 );
