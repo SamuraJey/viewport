@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { shareLinkService } from '../services/shareLinkService';
 import type { PublicPhoto, SharedGallery } from '../types';
 
@@ -37,6 +37,14 @@ export const usePublicGallery = ({
   const [isPasswordRequired, setIsPasswordRequired] = useState(false);
   const [isVerifyingPassword, setIsVerifyingPassword] = useState(false);
   const [passwordVersion, setPasswordVersion] = useState(0);
+  const requestControllerRef = useRef<AbortController | null>(null);
+
+  const startRequest = useCallback(() => {
+    requestControllerRef.current?.abort();
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    return controller;
+  }, []);
 
   const fetchGalleryData = useCallback(async (): Promise<boolean> => {
     if (!shareId) {
@@ -47,19 +55,24 @@ export const usePublicGallery = ({
       return false;
     }
 
+    const controller = startRequest();
     try {
       setIsLoading(true);
       setError('');
       setErrorStatus(null);
       setIsPasswordRequired(false);
-      setPhotos([]);
+      setIsLoadingMore(false);
       setHasMore(false);
-      const data = await shareLinkService.getSharedGallery(shareId, {
-        limit: photosPerPage,
-        offset: 0,
-        galleryId,
-        skipProjectViewCount,
-      });
+      const data = await shareLinkService.getSharedGallery(
+        shareId,
+        {
+          limit: photosPerPage,
+          offset: 0,
+          galleryId,
+          skipProjectViewCount,
+        },
+        controller.signal,
+      );
 
       setGallery(data);
       const loadedPhotos = data.scope_type === 'project' ? [] : data.photos || [];
@@ -67,6 +80,10 @@ export const usePublicGallery = ({
       setHasMore(loadedPhotos.length === photosPerPage);
       return true;
     } catch (err) {
+      if (controller.signal.aborted) {
+        return false;
+      }
+
       const status = getErrorStatus(err);
       if (!isExpectedPublicGalleryStatus(status)) {
         console.error('Failed to fetch shared gallery:', err);
@@ -84,27 +101,38 @@ export const usePublicGallery = ({
       }
       return false;
     } finally {
-      setIsLoading(false);
+      if (!controller.signal.aborted) {
+        setIsLoading(false);
+      }
     }
-  }, [galleryId, shareId, photosPerPage, skipProjectViewCount]);
+  }, [galleryId, shareId, photosPerPage, skipProjectViewCount, startRequest]);
 
   const loadMorePhotos = useCallback(async () => {
     if (isLoadingMore || !hasMore || !shareId) return;
 
+    const controller = startRequest();
     setIsLoadingMore(true);
     try {
       const currentOffset = photos.length;
-      const moreData = await shareLinkService.getSharedGallery(shareId, {
-        limit: photosPerPage,
-        offset: currentOffset,
-        galleryId,
-        skipProjectViewCount,
-      });
+      const moreData = await shareLinkService.getSharedGallery(
+        shareId,
+        {
+          limit: photosPerPage,
+          offset: currentOffset,
+          galleryId,
+          skipProjectViewCount,
+        },
+        controller.signal,
+      );
 
       const newPhotos = moreData.scope_type === 'project' ? [] : moreData.photos || [];
       setPhotos((prev) => [...prev, ...newPhotos]);
       setHasMore(newPhotos.length === photosPerPage);
     } catch (err) {
+      if (controller.signal.aborted) {
+        return;
+      }
+
       const status = getErrorStatus(err);
       if (!isExpectedPublicGalleryStatus(status)) {
         console.error('Failed to load more photos:', err);
@@ -120,7 +148,9 @@ export const usePublicGallery = ({
         setError(status === 410 ? 'Share link has expired' : 'Gallery not found');
       }
     } finally {
-      setIsLoadingMore(false);
+      if (!controller.signal.aborted) {
+        setIsLoadingMore(false);
+      }
     }
   }, [
     galleryId,
@@ -130,10 +160,14 @@ export const usePublicGallery = ({
     hasMore,
     photosPerPage,
     skipProjectViewCount,
+    startRequest,
   ]);
 
   useEffect(() => {
-    fetchGalleryData();
+    void fetchGalleryData();
+    return () => {
+      requestControllerRef.current?.abort();
+    };
   }, [fetchGalleryData]);
 
   const submitPassword = useCallback(

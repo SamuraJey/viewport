@@ -99,6 +99,17 @@ describe('shareLinkService', () => {
     });
   });
 
+  it('forwards an AbortSignal when loading a shared gallery', async () => {
+    vi.mocked(publicApi.get).mockResolvedValue({ data: { photos: [], total_photos: 0 } } as any);
+    const controller = new AbortController();
+
+    await shareLinkService.getSharedGallery('share123', undefined, controller.signal);
+
+    expect(publicApi.get).toHaveBeenCalledWith('/s/share123', {
+      signal: controller.signal,
+    });
+  });
+
   it('fetches owner share links with a backend status filter', async () => {
     vi.mocked(api.get).mockResolvedValue({ data: { share_links: [], total: 0 } } as any);
 

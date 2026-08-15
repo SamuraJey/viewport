@@ -122,6 +122,7 @@ Gallery endpoints still work and now accept project placement fields where relev
 - `PublicGalleryPage.tsx` now renders either:
   - a gallery share page with photos, or
   - a project share page that opens the first listed gallery, keeps a project-scoped hero, renders a horizontal list of gallery names, and keeps a sticky selection bar visible during proofing
+- switching between galleries inside one project share preserves the public page and its window scroll position; the current grid remains visible but non-interactive while the next gallery is loaded and then swaps atomically to the new data
 
 ### Public gallery sharing and proofing
 

@@ -132,9 +132,12 @@ const deleteShareLink = async (galleryId: string, shareLinkId: string): Promise<
 const getSharedGallery = async (
   shareId: string,
   options?: SharedGalleryQueryOptions,
+  signal?: AbortSignal,
 ): Promise<SharedGallery> => {
   if (isDemoModeEnabled()) {
-    return getDemoService().getSharedGallery(shareId, options);
+    const gallery = await getDemoService().getSharedGallery(shareId, options);
+    signal?.throwIfAborted();
+    return gallery;
   }
 
   const params = new URLSearchParams();
@@ -149,11 +152,16 @@ const getSharedGallery = async (
   const basePath = nestedGalleryId ? `/s/${shareId}/galleries/${nestedGalleryId}` : `/s/${shareId}`;
   const queryString = params.toString();
   const url = queryString ? `${basePath}?${queryString}` : basePath;
-  const config = options?.skipProjectViewCount
-    ? { headers: { 'X-Viewport-Internal-Navigation': '1' } }
-    : undefined;
+  const config = {
+    ...(options?.skipProjectViewCount
+      ? { headers: { 'X-Viewport-Internal-Navigation': '1' } }
+      : {}),
+    ...(signal ? { signal } : {}),
+  };
 
-  const response = config ? await publicApi.get(url, config) : await publicApi.get(url);
+  const response = Object.keys(config).length
+    ? await publicApi.get(url, config)
+    : await publicApi.get(url);
   return response.data;
 };
 

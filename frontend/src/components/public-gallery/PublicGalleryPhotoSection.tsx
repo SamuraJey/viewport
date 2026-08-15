@@ -302,9 +302,11 @@ export const PublicGalleryPhotoSection = ({
 }: PublicGalleryPhotoSectionProps) => {
   const hasSelectionEnabled = selection?.enabled ?? false;
   const photoCountLabel =
-    displayedPhotos === totalPhotos
+    isLoading && photos.length > 0
       ? `(${displayedPhotos})`
-      : `(${displayedPhotos} / ${totalPhotos})`;
+      : displayedPhotos === totalPhotos
+        ? `(${displayedPhotos})`
+        : `(${displayedPhotos} / ${totalPhotos})`;
 
   return (
     <section
@@ -328,137 +330,158 @@ export const PublicGalleryPhotoSection = ({
         )}
       </div>
 
-      {isLoading ? (
+      {isLoading && photos.length === 0 ? (
         <div className="flex min-h-80 items-center justify-center rounded-3xl border border-border/40 bg-surface-1/25 text-sm font-medium text-muted">
           <Loader2 className="mr-3 h-6 w-6 animate-spin text-accent" />
           Loading gallery photos...
         </div>
       ) : photos.length > 0 ? (
         <>
-          <div className={gridClassNames} data-grid-layout={gridLayout} ref={gridRef}>
-            {photos.map((photo, index) => {
-              const accessiblePhotoName = getAccessiblePhotoName({
-                displayName: photo.filename,
-                filename: photo.filename,
-              });
-              const isUniformLayout = gridLayout === 'uniform';
-              const photoComment = selection?.commentsByPhotoId[photo.photo_id] ?? '';
-              const isSelected = selection?.selectedIds.has(photo.photo_id) ?? false;
-              const hasComment = Boolean(photoComment.trim());
-              const canMutateSelection = selection?.canMutate ?? false;
-              const allowPhotoComments = selection?.allowPhotoComments ?? false;
-              const selectionButtonLabel = isSelected
-                ? `Remove ${accessiblePhotoName} from favorites`
-                : `Add ${accessiblePhotoName} to favorites`;
-              const isSelectionLocked = Boolean(selection?.session && !selection.canMutate);
-              const cardClassName = isSelected
-                ? 'ring-2 ring-accent/45 ring-offset-2 ring-offset-surface'
-                : 'hover:shadow-lg';
-              const imageWrapperClassName = isUniformLayout ? 'pg-card--uniform' : '';
-              const imageClassName = isUniformLayout ? 'pg-card__media--uniform' : '';
+          <div className="relative isolate">
+            <div
+              role={isLoading ? 'status' : undefined}
+              aria-live={isLoading ? 'polite' : undefined}
+              aria-label={isLoading ? 'Loading next gallery photos' : undefined}
+              aria-hidden={isLoading ? undefined : true}
+              className={`pointer-events-none absolute top-3 left-1/2 z-20 inline-flex -translate-x-1/2 items-center gap-2 rounded-xl border border-border/50 bg-surface/92 px-3 py-2 text-sm font-medium text-text shadow-lg backdrop-blur-md transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:translate-y-0 motion-reduce:transition-none ${
+                isLoading ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'
+              }`}
+            >
+              <Loader2 className="h-4 w-4 animate-spin text-accent motion-reduce:animate-none" />
+              Loading gallery photos...
+            </div>
 
-              return (
-                <div
-                  key={photo.photo_id}
-                  className={`pg-card group relative h-full overflow-visible transition-all duration-300 ${cardClassName}`}
-                  style={getItemStyle(photo)}
-                  data-testid="public-batch"
-                  data-photo-id={photo.photo_id}
-                >
+            <div
+              className={`${gridClassNames} transition-opacity duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${
+                isLoading ? 'pointer-events-none opacity-70' : 'opacity-100'
+              }`}
+              data-grid-layout={gridLayout}
+              ref={gridRef}
+              aria-busy={isLoading}
+              inert={isLoading ? true : undefined}
+            >
+              {photos.map((photo, index) => {
+                const accessiblePhotoName = getAccessiblePhotoName({
+                  displayName: photo.filename,
+                  filename: photo.filename,
+                });
+                const isUniformLayout = gridLayout === 'uniform';
+                const photoComment = selection?.commentsByPhotoId[photo.photo_id] ?? '';
+                const isSelected = selection?.selectedIds.has(photo.photo_id) ?? false;
+                const hasComment = Boolean(photoComment.trim());
+                const canMutateSelection = selection?.canMutate ?? false;
+                const allowPhotoComments = selection?.allowPhotoComments ?? false;
+                const selectionButtonLabel = isSelected
+                  ? `Remove ${accessiblePhotoName} from favorites`
+                  : `Add ${accessiblePhotoName} to favorites`;
+                const isSelectionLocked = Boolean(selection?.session && !selection.canMutate);
+                const cardClassName = isSelected
+                  ? 'ring-2 ring-accent/45 ring-offset-2 ring-offset-surface'
+                  : 'hover:shadow-lg';
+                const imageWrapperClassName = isUniformLayout ? 'pg-card--uniform' : '';
+                const imageClassName = isUniformLayout ? 'pg-card__media--uniform' : '';
+
+                return (
                   <div
-                    className={`relative h-full overflow-hidden rounded-xl ${imageWrapperClassName}`}
+                    key={photo.photo_id}
+                    className={`pg-card group relative h-full overflow-visible transition-all duration-300 ${cardClassName}`}
+                    style={getItemStyle(photo)}
+                    data-testid="public-batch"
+                    data-photo-id={photo.photo_id}
                   >
-                    {hasSelectionEnabled ? (
-                      <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-2">
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            selection?.onTogglePhoto(photo.photo_id);
-                          }}
-                          disabled={isSelectionLocked}
-                          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-sm transition-all duration-200 focus-visible:opacity-100 focus-visible:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface ${
-                            isSelected
-                              ? 'border-accent/50 bg-accent text-accent-foreground opacity-100 shadow-lg'
-                              : 'border-white/45 bg-black/20 text-white opacity-70 hover:bg-black/35 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100'
-                          } ${isSelectionLocked ? 'cursor-not-allowed opacity-70' : ''}`}
-                          aria-label={selectionButtonLabel}
-                          aria-pressed={isSelected}
-                          title={isSelected ? 'Remove from favorites' : 'Add to favorites'}
-                        >
-                          <Heart className={`h-4 w-4 ${isSelected ? 'fill-current' : ''}`} />
-                        </button>
-
-                        {allowPhotoComments && isSelected ? (
-                          <AppPopover
-                            className="relative"
-                            buttonAriaLabel={`${hasComment ? 'Edit' : 'Add'} a note for ${accessiblePhotoName}`}
-                            buttonClassName={(open) =>
-                              `inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/45 bg-black/25 text-white backdrop-blur-sm transition-all duration-200 hover:bg-black/35 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface ${
-                                open || hasComment
-                                  ? 'opacity-100 shadow-lg'
-                                  : 'opacity-85 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100'
-                              }`
-                            }
-                            buttonContent={(open) => (
-                              <span className="relative inline-flex">
-                                <MessageSquare className="h-4 w-4" />
-                                {hasComment && !open ? (
-                                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-accent" />
-                                ) : null}
-                              </span>
-                            )}
-                            anchor={{ to: 'bottom end', gap: '10px' }}
-                            panelClassName="w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-border/50 bg-surface/98 p-4 shadow-2xl backdrop-blur"
-                            panel={(close) => (
-                              <PhotoCommentPanel
-                                photoId={photo.photo_id}
-                                accessiblePhotoName={accessiblePhotoName}
-                                photoComment={photoComment}
-                                hasComment={hasComment}
-                                disabled={!canMutateSelection}
-                                onClose={close}
-                                onUpdatePhotoComment={selection?.onUpdatePhotoComment}
-                              />
-                            )}
-                          />
-                        ) : null}
-                      </div>
-                    ) : null}
-                    {photo.media_type === 'video' && (
-                      <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm">
-                          <Play className="h-6 w-6 text-white fill-white" />
-                        </div>
-                        {typeof photo.duration_ms === 'number' && photo.duration_ms > 0 && (
-                          <div className="absolute bottom-3 right-3 rounded-md bg-black/70 px-2 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-                            {formatDuration(photo.duration_ms)}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => onOpenPhoto(index)}
-                      className="block h-full w-full cursor-pointer border-0 bg-transparent p-0 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
-                      aria-label={accessiblePhotoName}
+                    <div
+                      className={`relative h-full overflow-hidden rounded-xl ${imageWrapperClassName}`}
                     >
-                      <LazyImage
-                        src={photo.thumbnail_url}
-                        alt={accessiblePhotoName}
-                        className={`pg-card__media ${isUniformLayout ? '' : 'transition-transform duration-300 group-hover:scale-[1.01]'} ${imageClassName}`}
-                        imgClassName="pg-card__img"
-                        aspectRatioHint={
-                          isUniformLayout ? undefined : getAspectRatioHint(photo)
-                        }
-                        objectFit={isUniformLayout ? 'contain' : 'cover'}
-                      />
-                    </button>
+                      {hasSelectionEnabled ? (
+                        <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-2">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              selection?.onTogglePhoto(photo.photo_id);
+                            }}
+                            disabled={isSelectionLocked}
+                            className={`inline-flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-sm transition-all duration-200 focus-visible:opacity-100 focus-visible:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface ${
+                              isSelected
+                                ? 'border-accent/50 bg-accent text-accent-foreground opacity-100 shadow-lg'
+                                : 'border-white/45 bg-black/20 text-white opacity-70 hover:bg-black/35 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100'
+                            } ${isSelectionLocked ? 'cursor-not-allowed opacity-70' : ''}`}
+                            aria-label={selectionButtonLabel}
+                            aria-pressed={isSelected}
+                            title={isSelected ? 'Remove from favorites' : 'Add to favorites'}
+                          >
+                            <Heart className={`h-4 w-4 ${isSelected ? 'fill-current' : ''}`} />
+                          </button>
+
+                          {allowPhotoComments && isSelected ? (
+                            <AppPopover
+                              className="relative"
+                              buttonAriaLabel={`${hasComment ? 'Edit' : 'Add'} a note for ${accessiblePhotoName}`}
+                              buttonClassName={(open) =>
+                                `inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/45 bg-black/25 text-white backdrop-blur-sm transition-all duration-200 hover:bg-black/35 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface ${
+                                  open || hasComment
+                                    ? 'opacity-100 shadow-lg'
+                                    : 'opacity-85 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100'
+                                }`
+                              }
+                              buttonContent={(open) => (
+                                <span className="relative inline-flex">
+                                  <MessageSquare className="h-4 w-4" />
+                                  {hasComment && !open ? (
+                                    <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-accent" />
+                                  ) : null}
+                                </span>
+                              )}
+                              anchor={{ to: 'bottom end', gap: '10px' }}
+                              panelClassName="w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-border/50 bg-surface/98 p-4 shadow-2xl backdrop-blur"
+                              panel={(close) => (
+                                <PhotoCommentPanel
+                                  photoId={photo.photo_id}
+                                  accessiblePhotoName={accessiblePhotoName}
+                                  photoComment={photoComment}
+                                  hasComment={hasComment}
+                                  disabled={!canMutateSelection}
+                                  onClose={close}
+                                  onUpdatePhotoComment={selection?.onUpdatePhotoComment}
+                                />
+                              )}
+                            />
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {photo.media_type === 'video' && (
+                        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+                          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm">
+                            <Play className="h-6 w-6 text-white fill-white" />
+                          </div>
+                          {typeof photo.duration_ms === 'number' && photo.duration_ms > 0 && (
+                            <div className="absolute bottom-3 right-3 rounded-md bg-black/70 px-2 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                              {formatDuration(photo.duration_ms)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onOpenPhoto(index)}
+                        className="block h-full w-full cursor-pointer border-0 bg-transparent p-0 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface"
+                        aria-label={accessiblePhotoName}
+                      >
+                        <LazyImage
+                          src={photo.thumbnail_url}
+                          alt={accessiblePhotoName}
+                          className={`pg-card__media ${isUniformLayout ? '' : 'transition-transform duration-300 group-hover:scale-[1.01]'} ${imageClassName}`}
+                          imgClassName="pg-card__img"
+                          aspectRatioHint={isUniformLayout ? undefined : getAspectRatioHint(photo)}
+                          objectFit={isUniformLayout ? 'contain' : 'cover'}
+                        />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
 
           <div ref={observerTargetRef} className="mt-4 h-4" />

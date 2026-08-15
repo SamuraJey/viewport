@@ -46,6 +46,12 @@ const NavigationControls = () => {
       <button type="button" onClick={() => navigate('/two')}>
         Open two
       </button>
+      <button type="button" onClick={() => navigate('/share/abc/galleries/gallery-1')}>
+        Open gallery one
+      </button>
+      <button type="button" onClick={() => navigate('/share/abc/galleries/gallery-2')}>
+        Open gallery two
+      </button>
       <button type="button" onClick={() => navigate(-1)}>
         Back
       </button>
@@ -64,6 +70,7 @@ const renderTransition = () =>
         <Route element={<RouteTransition />}>
           <Route path="/one" element={<h1>One</h1>} />
           <Route path="/two" element={<h1>Two</h1>} />
+          <Route path="/share/:shareId/galleries/:galleryId" element={<h1>Gallery</h1>} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -99,6 +106,19 @@ describe('RouteTransition', () => {
 
     await user.click(screen.getByRole('button', { name: 'Forward' }));
     await screen.findByRole('heading', { name: 'Two' });
+
+    await user.click(screen.getByRole('button', { name: 'Open gallery one' }));
+    await screen.findByRole('heading', { name: 'Gallery' });
+    const firstGalleryTransition = container.querySelector('[data-route-transition-path]');
+
+    await user.click(screen.getByRole('button', { name: 'Open gallery two' }));
+    await waitFor(() => {
+      expect(container.querySelector('[data-route-transition-path]')).toBe(firstGalleryTransition);
+    });
+    expect(firstGalleryTransition).toHaveAttribute(
+      'data-route-transition-path',
+      '/share/abc/galleries/gallery-2',
+    );
     expect(scrollSpy).not.toHaveBeenCalled();
     scrollSpy.mockRestore();
   });
