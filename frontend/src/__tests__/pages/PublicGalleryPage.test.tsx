@@ -8,7 +8,7 @@ if (!(global as any).ResizeObserver) {
     disconnect() {}
   };
 }
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ApiError } from '../../lib/errorHandling';
@@ -680,6 +680,57 @@ describe('PublicGalleryPage', () => {
     expect(projectDownloadButton).toHaveAttribute('aria-describedby', projectSizeLabel.id);
     expect(screen.queryByText('Download visible folders')).not.toBeInTheDocument();
     expect(container.querySelector('img[src="/full/project-cover.jpg"]')).not.toBeNull();
+  });
+
+  it('keeps the current grid mounted while the next project gallery loads', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-1' };
+    let resolveGallerySwitch: ((gallery: typeof mockProjectGallery) => void) | undefined;
+
+    vi.mocked(shareLinkService.getSharedGallery)
+      .mockResolvedValueOnce(mockProjectGallery as any)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveGallerySwitch = resolve;
+          }),
+      );
+
+    const view = render(wrapper('/share/abc123/galleries/gallery-1'));
+
+    await waitFor(() => {
+      expect(view.container.querySelector('[data-photo-id="p1"]')).not.toBeNull();
+    });
+
+    mockRouteParams = { shareId: 'abc123', galleryId: 'gallery-2' };
+    view.rerender(wrapper('/share/abc123/galleries/gallery-2'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('status', { name: 'Loading next gallery photos' })).toBeInTheDocument();
+    });
+    expect(view.container.querySelector('[data-photo-id="p1"]')).not.toBeNull();
+    expect(view.container.querySelector('[data-grid-layout]')).toHaveAttribute('aria-busy', 'true');
+
+    await act(async () => {
+      resolveGallerySwitch?.({
+        ...mockProjectGallery,
+        gallery_name: '3eds',
+        photos: [
+          {
+            photo_id: 'p3',
+            thumbnail_url: '/thumbs/p3.jpg',
+            full_url: '/full/p3.jpg',
+            filename: '3.jpg',
+          },
+        ],
+        total_photos: 1,
+      });
+    });
+
+    await waitFor(() => {
+      expect(view.container.querySelector('[data-photo-id="p3"]')).not.toBeNull();
+      expect(view.container.querySelector('[data-photo-id="p1"]')).toBeNull();
+    });
   });
 
   it('uses project-level appearance for hero focal point in project folder view', async () => {

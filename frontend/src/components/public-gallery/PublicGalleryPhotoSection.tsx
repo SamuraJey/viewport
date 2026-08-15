@@ -302,7 +302,9 @@ export const PublicGalleryPhotoSection = ({
 }: PublicGalleryPhotoSectionProps) => {
   const hasSelectionEnabled = selection?.enabled ?? false;
   const photoCountLabel =
-    displayedPhotos === totalPhotos
+    isLoading && photos.length > 0
+      ? `(${totalPhotos})`
+      : displayedPhotos === totalPhotos
       ? `(${displayedPhotos})`
       : `(${displayedPhotos} / ${totalPhotos})`;
 
@@ -328,14 +330,32 @@ export const PublicGalleryPhotoSection = ({
         )}
       </div>
 
-      {isLoading ? (
+      {isLoading && photos.length > 0 ? (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-label="Loading next gallery photos"
+          className="inline-flex items-center gap-2 text-sm font-medium text-muted"
+        >
+          <Loader2 className="h-4 w-4 animate-spin text-accent motion-reduce:animate-none" />
+          Loading gallery photos...
+        </div>
+      ) : null}
+
+      {isLoading && photos.length === 0 ? (
         <div className="flex min-h-80 items-center justify-center rounded-3xl border border-border/40 bg-surface-1/25 text-sm font-medium text-muted">
           <Loader2 className="mr-3 h-6 w-6 animate-spin text-accent" />
           Loading gallery photos...
         </div>
       ) : photos.length > 0 ? (
         <>
-          <div className={gridClassNames} data-grid-layout={gridLayout} ref={gridRef}>
+          <div
+            className={`${gridClassNames} ${isLoading ? 'pointer-events-none opacity-60' : ''}`}
+            data-grid-layout={gridLayout}
+            ref={gridRef}
+            aria-busy={isLoading}
+            inert={isLoading ? true : undefined}
+          >
             {photos.map((photo, index) => {
               const accessiblePhotoName = getAccessiblePhotoName({
                 displayName: photo.filename,
