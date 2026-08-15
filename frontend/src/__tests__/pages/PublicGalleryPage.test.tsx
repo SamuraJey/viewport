@@ -718,6 +718,7 @@ describe('PublicGalleryPage', () => {
     expect(view.container.querySelector('[data-photo-id="p1"]')).not.toBeNull();
     expect(photoGrid).toHaveClass('transition-opacity', 'opacity-70');
     expect(photoGrid).toHaveAttribute('aria-busy', 'true');
+    expect(photoGrid).toHaveAttribute('inert');
 
     await act(async () => {
       resolveGallerySwitch?.({
