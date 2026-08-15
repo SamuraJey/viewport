@@ -708,8 +708,16 @@ describe('PublicGalleryPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('status', { name: 'Loading next gallery photos' })).toBeInTheDocument();
     });
+    const loadingStatus = screen.getByRole('status', {
+      name: 'Loading next gallery photos',
+    });
+    const photoGrid = view.container.querySelector('[data-grid-layout]');
+
+    expect(loadingStatus).toHaveClass('absolute');
+    expect(screen.getByText('(2)')).toBeInTheDocument();
     expect(view.container.querySelector('[data-photo-id="p1"]')).not.toBeNull();
-    expect(view.container.querySelector('[data-grid-layout]')).toHaveAttribute('aria-busy', 'true');
+    expect(photoGrid).toHaveClass('transition-opacity', 'opacity-70');
+    expect(photoGrid).toHaveAttribute('aria-busy', 'true');
 
     await act(async () => {
       resolveGallerySwitch?.({
@@ -844,9 +852,10 @@ describe('PublicGalleryPage', () => {
     rerender(wrapper());
 
     await waitFor(() => {
-      expect(screen.getByText('Loading gallery photos...')).toBeInTheDocument();
+      expect(
+        screen.getByRole('status', { name: 'Loading next gallery photos' }),
+      ).toBeInTheDocument();
     });
-    expect(screen.queryByRole('status', { name: /loading gallery/i })).not.toBeInTheDocument();
 
     resolveGallerySwitch({
       ...mockProjectGallery,
@@ -858,7 +867,9 @@ describe('PublicGalleryPage', () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText('Loading gallery photos...')).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('status', { name: 'Loading next gallery photos' }),
+      ).not.toBeInTheDocument();
     });
 
     expect(getRootProjectCalls()).toBe(0);
