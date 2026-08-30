@@ -51,8 +51,11 @@ Directory read details:
   single call is never treated as the complete result.
 - The read yields to the event loop between batches so the UI stays
   responsive for large directories.
-- No artificial file-count cap is imposed. The queue relies on lazy thumbnail
-  loading for large selections.
+- There is no per-file count limit on the queue itself, but the directory read
+  is bounded by a 10,000-batch safety limit in `readAllEntries` (each
+  `readEntries()` call returns at most ~100 entries in Chromium). A directory
+  whose top level exceeds roughly 1,000,000 entries would be truncated at that
+  point; for any realistic folder size every top-level file is read.
 - Empty directories produce no queue entries.
 - Unreadable file entries are skipped rather than failing the entire read.
 - `entry.fullPath` is stored as the client-side source path via a `WeakMap`
@@ -190,11 +193,11 @@ presign, and multipart contracts are untouched.
 - **Top-level collection.** Dropped directories are read with the File System
   Entry API (`webkitGetAsEntry`/`getAsEntry`, `createReader().readEntries()`
   called until it returns an empty batch) but only the directory's immediate
-  file entries are read — nested subdirectories are skipped to keep intake fast
-  for large trees. The read runs **only on the actual drop**, never on
-  `dragenter`; during a drag the payload is classified cheaply so the overlay can
-  describe it without reading the directory. There is no artificial file-count
-  cap.
+   file entries are read — nested subdirectories are skipped to keep intake fast
+   for large trees. The read runs **only on the actual drop**, never on
+   `dragenter`; during a drag the payload is classified cheaply so the overlay can
+   describe it without reading the directory. The read is bounded by a 10,000-batch
+   safety limit (see the directory-read details above).
 - **Folder picker filtering.** The `webkitdirectory` picker collects the whole
   tree natively in the browser, so `filterTopLevelFiles` drops files whose
   `webkitRelativePath` contains a subdirectory, keeping only top-level files and

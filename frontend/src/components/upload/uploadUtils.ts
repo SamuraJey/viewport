@@ -190,14 +190,21 @@ const readTopLevelFiles = async (entry: AnyEntry): Promise<File[]> => {
   // intentionally skipped: a full recursive walk can be expensive for large
   // trees, so folder intake is top-level only.
   if (typeof entry.createReader !== 'function') return [];
+  // A directory-reader failure (createReader/readAllEntries) propagates as the
+  // folder-level error path; only individual child read failures are skipped.
   const reader = entry.createReader();
   const entries = await readAllEntries(reader);
   const files: File[] = [];
   for (const child of entries) {
     if (!child.isFile) continue;
-    const file = await readFileEntry(child as AnyEntry);
-    setUploadSourcePath(file, child.fullPath);
-    files.push(file);
+    try {
+      const file = await readFileEntry(child as AnyEntry);
+      setUploadSourcePath(file, child.fullPath);
+      files.push(file);
+    } catch {
+      // A single unreadable file (e.g. access revoked mid-read) is skipped so
+      // readable siblings are still returned.
+    }
   }
   return files;
 };
