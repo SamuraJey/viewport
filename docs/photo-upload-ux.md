@@ -173,6 +173,17 @@ are untouched.
   hidden in browsers that do not support it, so the single-click file path is
   always available and no misleading folder action is shown. A directory can
   also be dropped anywhere on the gallery page or onto the open review modal.
+  The Project page's empty state ("Build this project with galleries") also
+  offers an **Upload folder** action: it creates a new gallery named after the
+  chosen folder (truncated to the gallery-name limit) and opens it with the
+  folder's supported files already staged in the review queue.
+- **Project-page folder handoff.** Because the new gallery does not exist until
+  it is created, the Project page enqueues the selected files in an in-memory
+  `pendingFilesQueue` keyed by the new gallery id, then navigates to the gallery
+  route. The Gallery page consumes the queue once its uploader is ready and feeds
+  the files through the existing `handleExternalFiles` review flow. Files are held
+  in memory only (never serialized or sent anywhere), the queue is cleared on
+  first read (idempotent under StrictMode), and no backend change is required.
 - **Recursive collection.** Dropped directories are walked with the File System
   Entry API (`webkitGetAsEntry`/`getAsEntry`, `createReader().readEntries()`
   called until it returns an empty batch, recursing into nested directories).

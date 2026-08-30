@@ -34,6 +34,7 @@ import { galleryService } from '../services/galleryService';
 import { projectService } from '../services/projectService';
 import { shareLinkService } from '../services/shareLinkService';
 import { handleApiError } from '../lib/errorHandling';
+import { consumePendingFiles, clearPendingFiles } from '../lib/pendingFilesQueue';
 import type {
   GalleryPhotoSortBy,
   ProjectDetail,
@@ -498,6 +499,31 @@ export const GalleryPage = () => {
 
     return photoUploaderRef.current.handleExternalFiles(files);
   }, []);
+
+  // Consume files queued by the Project page's "Upload folder" flow once the
+  // uploader is ready. The queue is cleared on first read, so the StrictMode
+  // double-invocation (and any later re-run) is a no-op. The uploader ref may
+  // not be attached on the very first pass, so poll briefly before giving up.
+  useEffect(() => {
+    if (!gallery) return;
+    const pending = consumePendingFiles(galleryId);
+    if (pending.length === 0) return;
+
+    let attempts = 0;
+    const interval = window.setInterval(() => {
+      attempts += 1;
+      if (photoUploaderRef.current) {
+        window.clearInterval(interval);
+        photoUploaderRef.current.handleExternalFiles(pending);
+        return;
+      }
+      if (attempts >= 50) {
+        window.clearInterval(interval);
+        clearPendingFiles(galleryId);
+      }
+    }, 100);
+    return () => window.clearInterval(interval);
+  }, [gallery, galleryId]);
 
   const areAllOnPageSelected =
     photoUrls.length > 0 && photoUrls.every((p) => selection.isSelected(p.id));
