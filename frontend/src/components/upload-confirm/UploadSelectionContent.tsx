@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { AlertTriangle, ImageOff, X, Upload, Images, Loader2, Shrink } from 'lucide-react';
+import { TriangleAlert, ImageOff, X, Upload, Images, LoaderCircle, Shrink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SUPPORTED_UPLOAD_TYPES } from '../../constants/upload';
 import { formatFileSize } from '../../lib/utils';
@@ -33,7 +33,7 @@ const ThumbSkeleton = () => (
 const ResizeSpinner = () => (
   <div className="absolute inset-0 flex items-center justify-center bg-black/40 dark:bg-black/60 backdrop-blur-[1px] z-10">
     <div className="flex flex-col items-center gap-2">
-      <Loader2 className="w-8 h-8 text-white animate-spin" />
+      <LoaderCircle className="w-8 h-8 text-white animate-spin" />
       <span className="text-xs text-white font-semibold">Resizing…</span>
     </div>
   </div>
@@ -153,7 +153,7 @@ const FileCard = memo(
 
           {hasError && !isResizing && (
             <div className="absolute inset-0 flex items-center justify-center bg-red-900/10 backdrop-blur-[2px]">
-              <AlertTriangle className="w-8 h-8 text-red-500 drop-shadow-md" />
+              <TriangleAlert className="w-8 h-8 text-red-500 drop-shadow-md" />
             </div>
           )}
         </div>
@@ -172,7 +172,7 @@ const FileCard = memo(
 
           {hasError && fileErrorText && (
             <div className="mt-2 text-xs text-red-600 dark:text-red-400 font-semibold flex items-start gap-1">
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <span>Won't upload: {fileErrorText}</span>
               {canResize && (
                 <button
@@ -194,7 +194,7 @@ const FileCard = memo(
               className="mt-2 text-xs text-yellow-600 dark:text-yellow-400 font-medium flex items-start gap-1"
               title={`Will be renamed to ${renameWarning}`}
             >
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <span className="truncate">Rename: {renameWarning}</span>
             </div>
           )}
@@ -473,7 +473,7 @@ export const UploadSelectionContent = ({
       {resizeError && (
         <div className="p-3 bg-red-50/70 dark:bg-red-500/10 border border-red-200/70 dark:border-red-500/20 rounded-xl text-sm">
           <div className="flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
+            <TriangleAlert className="w-4 h-4 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
             <p className="text-red-800 dark:text-red-300 font-medium">{resizeError}</p>
           </div>
         </div>
@@ -482,7 +482,7 @@ export const UploadSelectionContent = ({
       {readyFilesCount === 0 && files.length > 0 && (
         <div className="p-4 bg-red-50/70 dark:bg-red-500/10 border border-red-200/70 dark:border-red-500/20 rounded-2xl shadow-xs text-sm">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="w-4.5 h-4.5 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
+            <TriangleAlert className="w-4.5 h-4.5 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
             <p className="text-red-800 dark:text-red-300 font-medium">
               {(() => {
                 const allLarge = files.every((f) => isFileTooLarge(f));
@@ -503,7 +503,7 @@ export const UploadSelectionContent = ({
       {hasIssues && (
         <div className="p-4 bg-yellow-50/70 dark:bg-yellow-500/10 border border-yellow-200/70 dark:border-yellow-500/20 rounded-2xl shadow-xs text-sm">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="w-4.5 h-4.5 shrink-0 text-yellow-600 dark:text-yellow-400 mt-0.5" />
+            <TriangleAlert className="w-4.5 h-4.5 shrink-0 text-yellow-600 dark:text-yellow-400 mt-0.5" />
             <div>
               <ul className="text-yellow-800 dark:text-yellow-300 space-y-1.5 list-disc ml-4 font-medium">
                 {hasLargeFiles && readyFilesCount > 0 && (
@@ -534,7 +534,7 @@ export const UploadSelectionContent = ({
         <div className="flex items-center justify-end p-3 bg-surface-1 dark:bg-surface-dark-2 border border-border/40 rounded-xl">
           {isResizeAllActive && resizeAllProgress ? (
             <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-muted">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
               Resizing {resizeAllProgress.current} of {resizeAllProgress.total}…
             </div>
           ) : (

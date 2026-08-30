@@ -1,6 +1,6 @@
 import {
   BarChart3,
-  CheckCircle2,
+  CircleCheckBig,
   Download,
   MousePointerClick,
   SlidersHorizontal,
@@ -74,7 +74,7 @@ export const OverviewTab = ({
           helper={`${numberFormatter.format(totals.zipDownloads)} ZIP · ${numberFormatter.format(totals.singleDownloads)} single · ${downloadsPerView}% per view`}
         />
         <MetricCard
-          icon={CheckCircle2}
+          icon={CircleCheckBig}
           label="Selection"
           value={numberFormatter.format(selectionSummary.selected_count)}
           helper={`${numberFormatter.format(selectionSummary.total_sessions)} sessions · ${numberFormatter.format(selectionSummary.submitted_sessions)} submitted`}

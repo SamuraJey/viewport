@@ -1,4 +1,4 @@
-import { AlertTriangle, LogOut, Trash2 } from 'lucide-react';
+import { TriangleAlert, LogOut, Trash2 } from 'lucide-react';
 
 interface ProfileDangerZoneSectionProps {
   onLogout: () => void;
@@ -27,7 +27,7 @@ export const ProfileDangerZoneSection = ({ onLogout }: ProfileDangerZoneSectionP
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-danger" aria-hidden="true" />
+            <TriangleAlert className="h-4 w-4 shrink-0 text-danger" aria-hidden="true" />
             <p className="text-sm font-semibold text-danger">Delete account</p>
           </div>
           <p id="account-delete-unavailable-description" className="mt-1 text-xs text-muted">

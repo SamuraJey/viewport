@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GripVertical, ImageIcon, Loader2, RotateCw, Shrink, Video, X } from 'lucide-react';
+import { GripVertical, ImageIcon, LoaderCircle, RotateCw, Shrink, Video, X } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { AppBadge } from '../ui';
@@ -191,7 +191,7 @@ export const UploadQueueItem = ({
         )}
         {isResizing && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-slate-950/70 text-white backdrop-blur-sm">
-            <Loader2 className="h-8 w-8 animate-spin" aria-hidden="true" />
+            <LoaderCircle className="h-8 w-8 animate-spin" aria-hidden="true" />
             <span className="text-sm font-bold">Resizing preview</span>
           </div>
         )}
@@ -252,7 +252,7 @@ export const UploadQueueItem = ({
                 aria-label={`Resize ${displayedName} to fit size limit`}
               >
                 {isResizing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (
                   <Shrink className="h-4 w-4" aria-hidden="true" />
                 )}

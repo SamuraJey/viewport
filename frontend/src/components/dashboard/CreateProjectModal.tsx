@@ -1,5 +1,5 @@
 import { useId, type FormEvent, type RefObject } from 'react';
-import { CalendarDays, CheckCircle2, FolderPlus, Loader2, Sparkles } from 'lucide-react';
+import { CalendarDays, CircleCheckBig, FolderPlus, LoaderCircle, Sparkles } from 'lucide-react';
 
 import { GALLERY_NAME_MAX_LENGTH } from '../../constants/gallery';
 import { AppDrawer, AppDrawerSection } from '../ui';
@@ -69,7 +69,7 @@ export const CreateProjectModal = ({
             className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:shadow-none"
           >
             {isCreating ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <LoaderCircle className="h-4 w-4 animate-spin" />
             ) : (
               <Sparkles className="h-4 w-4" />
             )}
@@ -144,7 +144,7 @@ export const CreateProjectModal = ({
               key={featureTitle}
               className="flex gap-3 rounded-2xl border border-border/35 bg-surface-1/70 p-3.5"
             >
-              <CheckCircle2
+              <CircleCheckBig
                 className={`mt-0.5 h-4 w-4 shrink-0 ${index === 0 ? 'text-accent' : 'text-success'}`}
               />
               <div>

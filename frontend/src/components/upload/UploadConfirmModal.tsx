@@ -7,7 +7,7 @@ import {
   useState,
   type DragEvent,
 } from 'react';
-import { AlertTriangle, CheckCircle2, Images, Loader2, Shrink, Upload, X } from 'lucide-react';
+import { TriangleAlert, CircleCheckBig, Images, LoaderCircle, Shrink, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { PhotoUploadResponse } from '../../types';
 import { usePhotoUpload } from '../../hooks/usePhotoUpload';
@@ -295,7 +295,7 @@ export const UploadConfirmModal = memo(
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-2 rounded-full bg-accent/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-accent">
                   {result ? (
-                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    <CircleCheckBig className="h-3.5 w-3.5" aria-hidden="true" />
                   ) : isUploading ? (
                     <Upload className="h-3.5 w-3.5" aria-hidden="true" />
                   ) : (
@@ -363,7 +363,7 @@ export const UploadConfirmModal = memo(
 
           {!result && resizableJobs.length > 0 && (
             <div className="mb-5 flex flex-col gap-3 rounded-2xl bg-warning/10 p-4 sm:flex-row sm:items-center">
-              <AlertTriangle className="h-5 w-5 shrink-0 text-warning" aria-hidden="true" />
+              <TriangleAlert className="h-5 w-5 shrink-0 text-warning" aria-hidden="true" />
               <p className="min-w-0 flex-1 text-sm font-semibold leading-6 text-text">
                 {validUploadCount === 0
                   ? 'All selected files exceed the maximum size. Resize the images below or remove them.'
@@ -377,7 +377,7 @@ export const UploadConfirmModal = memo(
                 aria-label="Resize all oversized images"
               >
                 {isResizingAll ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (
                   <Shrink className="h-4 w-4" aria-hidden="true" />
                 )}
@@ -405,7 +405,7 @@ export const UploadConfirmModal = memo(
             className="pointer-events-none absolute inset-3 z-30 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-surface/95 px-6 text-center text-accent dark:bg-surface-foreground/95"
           >
             {isScanningDrop ? (
-              <Loader2 className="mb-3 h-8 w-8 animate-spin" aria-hidden="true" />
+              <LoaderCircle className="mb-3 h-8 w-8 animate-spin" aria-hidden="true" />
             ) : (
               <Upload className="mb-3 h-8 w-8" aria-hidden="true" />
             )}
@@ -461,7 +461,7 @@ export const UploadConfirmModal = memo(
                 className="inline-flex h-11 min-w-32 items-center justify-center gap-2 rounded-xl bg-text px-6 text-sm font-bold text-surface transition-colors hover:bg-text/90 focus:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {isUploading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (
                   <Upload className="h-4 w-4" aria-hidden="true" />
                 )}

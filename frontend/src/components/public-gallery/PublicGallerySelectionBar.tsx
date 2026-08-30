@@ -1,4 +1,4 @@
-import { CheckCircle2, Heart } from 'lucide-react';
+import { CircleCheckBig, Heart } from 'lucide-react';
 
 import type { SelectionConfig, SelectionSession } from '../../types';
 
@@ -81,7 +81,7 @@ export const PublicGallerySelectionBar = ({
               disabled={isMutating}
               className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <CheckCircle2 className="h-4 w-4" />
+              <CircleCheckBig className="h-4 w-4" />
               {isMutating ? 'Finishing…' : 'Finish selection'}
             </button>
           ) : null}

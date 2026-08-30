@@ -3,12 +3,12 @@ import { Link } from 'react-router';
 import {
   ArrowLeft,
   ArrowUpDown,
-  CheckSquare,
+  SquareCheck,
   ChevronDown,
   Download,
   FolderUp,
-  Loader2,
-  MoreHorizontal,
+  LoaderCircle,
+  Ellipsis,
   Search,
   Share2,
   Settings,
@@ -297,7 +297,7 @@ export const GalleryHeader = ({
                   className="gallery-date-input h-5 min-w-0 border-none bg-transparent px-0 text-xs font-bold normal-case tracking-normal text-text focus:outline-hidden"
                   aria-label="Shooting date"
                 />
-                {isSavingShootingDate && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {isSavingShootingDate && <LoaderCircle className="h-3.5 w-3.5 animate-spin" />}
               </label>
               {subtitle ? <div className="min-w-0 truncate">{subtitle}</div> : null}
             </div>
@@ -313,7 +313,7 @@ export const GalleryHeader = ({
                 aria-label="Share gallery"
               >
                 {isCreatingShareLink ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
                 ) : (
                   <Share2 className="h-4 w-4" />
                 )}
@@ -397,7 +397,7 @@ export const GalleryHeader = ({
               }
               buttonContent={(open) => (
                 <>
-                  <MoreHorizontal className="h-5 w-5" />
+                  <Ellipsis className="h-5 w-5" />
                   <span className="sr-only">
                     {open ? 'Close more actions' : 'Open more actions'}
                   </span>
@@ -417,7 +417,7 @@ export const GalleryHeader = ({
                       className={overflowActionClass()}
                     >
                       {isDownloadingZip ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <LoaderCircle className="h-4 w-4 animate-spin" />
                       ) : (
                         <Download className="h-4 w-4" />
                       )}
@@ -432,7 +432,7 @@ export const GalleryHeader = ({
                       onKeyDown={handleMoreActionsEscape(close)}
                       className={overflowActionClass()}
                     >
-                      <CheckSquare className="h-4 w-4" />
+                      <SquareCheck className="h-4 w-4" />
                       {isSelectionMode ? 'Cancel selection' : 'Select photos'}
                     </button>
                   ) : null}
@@ -555,7 +555,7 @@ export const GalleryHeader = ({
                     />
                     {isSavingPublicSortSettings && (
                       <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                         Saving public sorting...
                       </p>
                     )}
@@ -575,7 +575,7 @@ export const GalleryHeader = ({
           </p>
           {isLoadingPhotos ? (
             <span className="inline-flex items-center gap-1.5 text-accent" aria-live="polite">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading
+              <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> Loading
             </span>
           ) : null}
         </div>

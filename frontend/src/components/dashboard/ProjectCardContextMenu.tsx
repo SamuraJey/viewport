@@ -2,7 +2,7 @@ import {
   Copy,
   ExternalLink,
   FolderPlus,
-  MoreHorizontal,
+  Ellipsis,
   Pencil,
   Settings,
   Share2,
@@ -76,7 +76,7 @@ export const ProjectCardContextMenu = ({
         open ? 'bg-surface-2 text-text dark:bg-surface-dark-2' : ''
       }`
     }
-    buttonContent={<MoreHorizontal className="h-5 w-5" aria-hidden="true" />}
+    buttonContent={<Ellipsis className="h-5 w-5" aria-hidden="true" />}
     panelClassName="mt-2 w-60 rounded-xl border border-border/60 bg-surface p-1.5 shadow-lg dark:border-border/45 dark:bg-surface-dark"
     panelFocus
     panel={(close) => (

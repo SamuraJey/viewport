@@ -16,7 +16,7 @@ import {
   ImageIcon,
   Link2,
   ListChecks,
-  Loader2,
+  LoaderCircle,
   PencilLine,
   Share2,
 } from 'lucide-react';
@@ -1045,7 +1045,7 @@ export const ProjectPage = () => {
             >
               {isRenamingProject ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
                   Saving…
                 </>
               ) : (

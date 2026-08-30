@@ -1,4 +1,4 @@
-import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LoaderCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface PaginationControlsProps {
   pagination: {
@@ -42,7 +42,7 @@ export const PaginationControls = ({ pagination, isLoading = false }: Pagination
           aria-label="Previous page"
         >
           {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin text-muted" />
+            <LoaderCircle className="h-4 w-4 animate-spin text-muted" />
           ) : (
             <ChevronLeft className="h-4 w-4 text-muted" />
           )}
@@ -91,7 +91,7 @@ export const PaginationControls = ({ pagination, isLoading = false }: Pagination
         >
           <span className="hidden sm:inline">Next</span>
           {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin text-muted" />
+            <LoaderCircle className="h-4 w-4 animate-spin text-muted" />
           ) : (
             <ChevronRight className="h-4 w-4 text-muted" />
           )}

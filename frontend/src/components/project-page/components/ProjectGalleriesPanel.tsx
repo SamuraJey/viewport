@@ -1,5 +1,5 @@
 import type { ReactNode, RefObject } from 'react';
-import { Check, Eye, EyeOff, FolderPlus, FolderUp, GripHorizontal, Info, Loader2, Settings2 } from 'lucide-react';
+import { Check, Eye, EyeOff, FolderPlus, FolderUp, GripHorizontal, Info, LoaderCircle, Settings2 } from 'lucide-react';
 
 import { EnhancedGalleryCard } from '../../dashboard/EnhancedGalleryCard';
 import { AppBadge, AppPopover } from '../../ui';
@@ -88,7 +88,7 @@ export const ProjectGalleriesPanel = ({
               className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-5 py-3 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 dark:border-border/40 dark:bg-surface-dark-1"
             >
               {isUploadingFolder ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : (
                 <FolderUp className="h-4 w-4" />
               )}

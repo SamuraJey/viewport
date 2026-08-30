@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { CheckCircle2, Loader2, Lock, Mail, Save, User } from 'lucide-react';
+import { CircleCheckBig, LoaderCircle, Lock, Mail, Save, User } from 'lucide-react';
 
 const DISPLAY_NAME_MAX = 48;
 
@@ -170,14 +170,14 @@ export const ProfileInfoSection = ({
       >
         {savingProfile ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <LoaderCircle className="h-4 w-4 animate-spin" />
             Saving…
           </>
         ) : (
           <>
             <Save className="h-4 w-4" />
             Save Profile
-            {displayName.trim().length > 0 && <CheckCircle2 className="h-4 w-4 opacity-60" />}
+            {displayName.trim().length > 0 && <CircleCheckBig className="h-4 w-4 opacity-60" />}
           </>
         )}
       </button>

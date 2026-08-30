@@ -3,7 +3,7 @@ import {
   Check,
   ImageIcon,
   ImageOff,
-  Loader2,
+  LoaderCircle,
   Maximize2,
   Minimize2,
   Moon,
@@ -378,7 +378,7 @@ export const AppearanceEditor = ({
       <div className="space-y-8">
         <div className="rounded-3xl border border-border/40 bg-surface-1/25 p-8 dark:border-border/20">
           <div className="flex items-center gap-4">
-            <Loader2 className="h-6 w-6 animate-spin text-accent" />
+            <LoaderCircle className="h-6 w-6 animate-spin text-accent" />
             <span className="text-sm font-medium text-muted">Loading appearance settings…</span>
           </div>
           <div className="mt-6 grid grid-cols-2 gap-4">
@@ -406,7 +406,7 @@ export const AppearanceEditor = ({
         {saveStatus !== 'idle' && (
           <div aria-live="polite">
             {saveStatus === 'saving' ? (
-              <AppBadge tone="neutral" variant="subtle" size="sm" icon={<Loader2 className="h-4 w-4 animate-spin" />}>
+              <AppBadge tone="neutral" variant="subtle" size="sm" icon={<LoaderCircle className="h-4 w-4 animate-spin" />}>
                 {SAVE_STATUS_LABELS[saveStatus]}
               </AppBadge>
             ) : saveStatus === 'saved' ? (
@@ -587,7 +587,7 @@ export const AppearanceEditor = ({
 
               {isLoadingCoverPickerPhotos && coverPickerPhotos.length === 0 && (
                 <div className="flex justify-center py-10 text-sm font-medium text-muted">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
                   Loading photos…
                 </div>
               )}
@@ -600,7 +600,7 @@ export const AppearanceEditor = ({
                 >
                   {isLoadingCoverPickerPhotos ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
                       Loading more photos…
                     </>
                   ) : (

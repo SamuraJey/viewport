@@ -1,5 +1,5 @@
 import { memo, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { LayoutGrid, List, Loader2, Lock, LockOpen } from 'lucide-react';
+import { LayoutGrid, List, LoaderCircle, Lock, LockOpen } from 'lucide-react';
 import { PaginationControls } from '../PaginationControls';
 import type { SelectionItem, SelectionSession } from '../../types';
 import { AppTabs } from '../ui';
@@ -224,7 +224,7 @@ export const GallerySelectionSessionsPanel = ({
   const selectedSessionPanel = isLoadingDetail ? (
     <div className="text-sm text-muted">
       <span className="inline-flex items-center gap-2">
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <LoaderCircle className="h-4 w-4 animate-spin" />
         Loading selected list...
       </span>
     </div>
@@ -461,7 +461,7 @@ export const GallerySelectionSessionsPanel = ({
         <div className="pb-1">
           {isLoadingRows ? (
             <div className="inline-flex items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-3 py-2 text-sm text-muted">
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <LoaderCircle className="h-4 w-4 animate-spin" />
               Loading favorite lists...
             </div>
           ) : visibleUserTabs.length ? (

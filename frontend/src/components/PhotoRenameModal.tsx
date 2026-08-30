@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { FileText, Check, Loader2 } from 'lucide-react';
+import { FileText, Check, LoaderCircle } from 'lucide-react';
 import { sanitizeFilenameStem, isValidFilenameStem } from '../lib/filenameUtils';
 import { toast } from 'sonner';
 import { AppDrawer, AppDrawerSection } from './ui';
@@ -112,7 +112,7 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
             >
               {isRenaming ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
                   Renaming...
                 </>
               ) : (

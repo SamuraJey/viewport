@@ -1,4 +1,4 @@
-import { AlertTriangle, Upload } from 'lucide-react';
+import { TriangleAlert, Upload } from 'lucide-react';
 import type { PhotoUploadResponse } from '../../types';
 
 interface CancelWarningProps {
@@ -14,7 +14,7 @@ export const UploadCancelWarning = ({
 }: CancelWarningProps) => (
   <div className="px-5 sm:px-6 py-4 bg-red-50 dark:bg-red-500/10 border-b border-red-200 dark:border-red-500/20 animate-in fade-in slide-in-from-top-2">
     <div className="flex items-center gap-2 text-red-800 dark:text-red-200 mb-3">
-      <AlertTriangle className="w-5 h-5 shrink-0" />
+      <TriangleAlert className="w-5 h-5 shrink-0" />
       <span className="font-semibold text-sm sm:text-base">
         {isUploading ? 'Cancel Upload?' : 'Close Window?'}
       </span>

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import { authService } from '../services/authService';
 import { validateEmail, validatePassword } from '../lib/utils';
 import { getErrorMessage } from '../lib/errorHandling';
-import { UserPlus, Mail, CheckCircle } from 'lucide-react';
+import { UserPlus, Mail, CircleCheck } from 'lucide-react';
 import { AuthLayout } from '../components/AuthLayout';
 import { AuthCard } from '../components/auth/AuthCard';
 import { AuthPasswordField, AuthTextField } from '../components/auth/AuthFields';
@@ -167,7 +167,7 @@ export const RegisterPage = () => {
   const renderSuccess = () => (
     <div className="relative z-10 flex w-full max-w-md flex-col gap-6 rounded-2xl border border-border/50 bg-surface p-10 text-center shadow-xl backdrop-blur-lg dark:border-white/10 dark:bg-surface-dark-1">
       <div className="w-20 h-20 mx-auto bg-green-50 dark:bg-green-500/10 rounded-full flex items-center justify-center mb-2">
-        <CheckCircle className="h-10 w-10 text-green-500" />
+        <CircleCheck className="h-10 w-10 text-green-500" />
       </div>
       <h2 className="text-3xl font-bold tracking-tight text-text">Registration Successful!</h2>
       <p className="text-lg text-muted font-medium">Redirecting you to sign in...</p>

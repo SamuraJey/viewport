@@ -4,7 +4,7 @@ import {
   ArrowRight,
   BarChart3,
   Camera,
-  CheckCircle2,
+  CircleCheckBig,
   ChevronRight,
   CloudUpload,
   FolderKanban,
@@ -525,7 +525,7 @@ export const LandingPage = () => {
                 <ul className="mt-6 space-y-3 text-sm text-muted">
                   {card.points.map((point) => (
                     <li key={point} className="flex items-start gap-2">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                      <CircleCheckBig className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                       <span>{point}</span>
                     </li>
                   ))}
