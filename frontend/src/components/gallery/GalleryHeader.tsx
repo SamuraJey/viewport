@@ -6,6 +6,7 @@ import {
   CheckSquare,
   ChevronDown,
   Download,
+  FolderUp,
   Loader2,
   MoreHorizontal,
   Search,
@@ -81,6 +82,7 @@ interface GalleryHeaderProps {
   sortOrder: SortOrder;
   onDeleteGallery: () => void;
   onAddPhotos?: () => void;
+  onAddFolder?: () => void;
   onDownloadGallery?: () => void;
   onToggleSelectionMode?: () => void;
   isSelectionMode?: boolean;
@@ -125,6 +127,7 @@ export const GalleryHeader = ({
   sortOrder,
   onDeleteGallery,
   onAddPhotos,
+  onAddFolder,
   onDownloadGallery,
   onToggleSelectionMode,
   isSelectionMode = false,
@@ -137,10 +140,49 @@ export const GalleryHeader = ({
 }: GalleryHeaderProps) => {
   const filtersButtonRef = useRef<HTMLButtonElement | null>(null);
   const moreActionsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const uploadSplitButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeMoreActions = (close: (focusableElement?: HTMLElement) => void) => {
     close(moreActionsButtonRef.current ?? undefined);
     moreActionsButtonRef.current?.focus();
   };
+  const closeUploadSplit = (close: (focusableElement?: HTMLElement) => void) => {
+    close(uploadSplitButtonRef.current ?? undefined);
+    uploadSplitButtonRef.current?.focus();
+  };
+  const runUploadSplitAction = (
+    close: (focusableElement?: HTMLElement) => void,
+    action: () => void,
+  ) => {
+    closeUploadSplit(close);
+    action();
+  };
+  const handleUploadSplitMouseDown =
+    (close: (focusableElement?: HTMLElement) => void, action: () => void) =>
+    (event: MouseEvent<HTMLElement>) => {
+      if (event.button !== 0) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      runUploadSplitAction(close, action);
+    };
+  const handleUploadSplitClick =
+    (close: (focusableElement?: HTMLElement) => void, action: () => void) =>
+    (event: MouseEvent<HTMLElement>) => {
+      if (event.detail !== 0) {
+        return;
+      }
+      runUploadSplitAction(close, action);
+    };
+  const handleUploadSplitEscape =
+    (close: (focusableElement?: HTMLElement) => void) => (event: KeyboardEvent<HTMLElement>) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      closeUploadSplit(close);
+    };
   const runMoreActionsAction = (
     close: (focusableElement?: HTMLElement) => void,
     action: () => void,
@@ -283,15 +325,65 @@ export const GalleryHeader = ({
             ) : null}
 
             {onAddPhotos ? (
-              <button
-                type="button"
-                onClick={onAddPhotos}
-                className={`${compactButtonClass} border-transparent bg-accent text-accent-foreground hover:brightness-110`}
-                aria-label="Add photos"
-              >
-                <Upload className="h-4 w-4" />
-                <span>Add photos</span>
-              </button>
+              <div className="inline-flex overflow-hidden rounded-xl border-transparent bg-accent shadow-xs">
+                <button
+                  type="button"
+                  onClick={onAddPhotos}
+                  className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 px-4 text-sm font-bold text-accent-foreground transition-all duration-200 hover:brightness-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark"
+                  aria-label="Add photos"
+                >
+                  <Upload className="h-4 w-4" />
+                  <span>Add photos</span>
+                </button>
+                {onAddFolder ? (
+                  <AppPopover
+                    className="relative"
+                    buttonRef={uploadSplitButtonRef}
+                    buttonAriaLabel="Add photos or folder"
+                    buttonClassName={(open) =>
+                      `inline-flex h-10 cursor-pointer items-center justify-center border-l border-accent-foreground/20 px-2.5 text-accent-foreground transition-all duration-200 hover:brightness-110 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:focus-visible:ring-offset-surface-dark ${
+                        open ? 'bg-accent-foreground/10' : ''
+                      }`
+                    }
+                    buttonContent={(open) => (
+                      <>
+                        <ChevronDown
+                          className={`h-4 w-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+                        />
+                        <span className="sr-only">
+                          {open ? 'Close upload options' : 'Open upload options'}
+                        </span>
+                      </>
+                    )}
+                    panelFocus
+                    panelClassName="w-56 rounded-2xl border border-border/50 bg-surface p-2 shadow-lg dark:border-border/40 dark:bg-surface-dark-1"
+                    panel={(close) => (
+                      <div className="space-y-1" role="group" aria-label="Upload options">
+                        <button
+                          type="button"
+                          onMouseDown={handleUploadSplitMouseDown(close, onAddPhotos)}
+                          onClick={handleUploadSplitClick(close, onAddPhotos)}
+                          onKeyDown={handleUploadSplitEscape(close)}
+                          className={overflowActionClass()}
+                        >
+                          <Upload className="h-4 w-4" />
+                          Upload files
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={handleUploadSplitMouseDown(close, onAddFolder)}
+                          onClick={handleUploadSplitClick(close, onAddFolder)}
+                          onKeyDown={handleUploadSplitEscape(close)}
+                          className={overflowActionClass()}
+                        >
+                          <FolderUp className="h-4 w-4" />
+                          Upload folder
+                        </button>
+                      </div>
+                    )}
+                  />
+                ) : null}
+              </div>
             ) : null}
 
             <AppPopover

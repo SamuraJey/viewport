@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { UploadConfirmModal } from './upload/UploadConfirmModal';
 import { UploadDropzone } from './upload/UploadDropzone';
-import { isSupportedUploadFile, prepareUploadSelection } from './upload/uploadUtils';
+import { isSupportedUploadFile, prepareUploadSelection, filterTopLevelFiles } from './upload/uploadUtils';
 import {
   MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES,
   MAX_UPLOAD_FILE_SIZE_MB,
@@ -25,12 +25,21 @@ interface PhotoUploaderProps {
 
 export interface PhotoUploaderHandle {
   openFilePicker: () => void;
+  openFolderPicker: () => void;
+  isFolderPickerSupported: boolean;
   handleExternalFiles: (fileList: FileList | File[]) => number;
 }
 
 const PRIMARY_VIDEO_FORMATS = VIDEO_EXTENSIONS.slice(0, 2)
   .map((extension) => extension.slice(1).toUpperCase())
   .join(' / ');
+
+const supportsDirectoryPicker = (): boolean => {
+  if (typeof document === 'undefined') return false;
+  const input = document.createElement('input');
+  input.type = 'file';
+  return 'webkitdirectory' in input;
+};
 
 const DropzoneOpenPublisher = ({
   open,
@@ -59,12 +68,18 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
     ref,
   ) => {
     const hiddenFileInputRef = useRef<HTMLInputElement>(null);
+    const hiddenFolderInputRef = useRef<HTMLInputElement>(null);
     const dropzoneOpenRef = useRef<(() => void) | null>(null);
     const filesRef = useRef<File[]>([]);
     const [files, setFiles] = useState<File[]>([]);
     const [error, setError] = useState('');
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [isUploadBusy, setIsUploadBusy] = useState(false);
+    const [folderPickerSupported, setFolderPickerSupported] = useState(false);
+
+    useEffect(() => {
+      setFolderPickerSupported(supportsDirectoryPicker());
+    }, []);
 
     const openModal = useCallback(() => {
       setShowConfirmModal(true);
@@ -129,6 +144,15 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
       event.target.value = '';
     };
 
+    const handleFolderInput = (event: React.ChangeEvent<HTMLInputElement>) => {
+      if (event.target.files?.length) {
+        // The webkitdirectory picker collects the whole tree natively; keep only
+        // top-level files so folder intake stays consistent with directory drops.
+        handleFiles(filterTopLevelFiles(Array.from(event.target.files)));
+      }
+      event.target.value = '';
+    };
+
     const handleUploadComplete = (result: PhotoUploadResponse) => {
       setShowConfirmModal(false);
       handleFilesChange([]);
@@ -165,9 +189,19 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
           }
           hiddenFileInputRef.current?.click();
         },
+        openFolderPicker: () => {
+          if (isUploadBusy) {
+            toast.warning('Wait for the current transfer to finish', {
+              description: 'You can add more files when the active upload is complete.',
+            });
+            return;
+          }
+          hiddenFolderInputRef.current?.click();
+        },
+        isFolderPickerSupported: folderPickerSupported,
         handleExternalFiles: handleFiles,
       }),
-      [handleFiles, showDropzone],
+      [folderPickerSupported, handleFiles, isUploadBusy, showDropzone],
     );
 
     return (
@@ -180,6 +214,19 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
             multiple
             accept={SUPPORTED_UPLOAD_TYPES.join(',')}
             aria-label="Choose photos or videos to upload"
+            className="hidden"
+          />
+        )}
+
+        {folderPickerSupported && (
+          <input
+            type="file"
+            ref={hiddenFolderInputRef}
+            onChange={handleFolderInput}
+            multiple
+            accept={SUPPORTED_UPLOAD_TYPES.join(',')}
+            {...({ webkitdirectory: '' } as React.InputHTMLAttributes<HTMLElement>)}
+            aria-label="Choose a folder to upload"
             className="hidden"
           />
         )}

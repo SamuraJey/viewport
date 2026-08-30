@@ -24,6 +24,7 @@ import { MetricCard } from '../components/dashboard/MetricCard';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { AppDialog, AppDialogDescription, AppDialogTitle, AppTabs } from '../components/ui';
 import { GALLERY_NAME_MAX_LENGTH } from '../constants/gallery';
+import { filterTopLevelFiles, isSupportedUploadFile } from '../components/upload/uploadUtils';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
 import { ShareLinkSettingsModal } from '../components/share-links/ShareLinkSettingsModal';
 import { useConfirmation } from '../hooks/useConfirmation';
@@ -41,9 +42,10 @@ import type {
 } from '../types';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { usePendingAction } from '../hooks/usePendingAction';
+import { enqueuePendingFiles } from '../lib/pendingFilesQueue';
 
 import type { GalleryDraft } from '../components/project-page/types';
-import { buildGalleryDraft } from '../components/project-page/utils';
+import { buildGalleryDraft, toDateInputValue } from '../components/project-page/utils';
 import { ProjectGalleriesPanel } from '../components/project-page/components/ProjectGalleriesPanel';
 import { applyProjectGalleryOrder } from '../components/project-page/projectGalleryDnd';
 import { ProjectAppearanceSection } from '../components/appearance/ProjectAppearanceSection';
@@ -76,6 +78,9 @@ export const ProjectPage = () => {
   const [renameInput, setRenameInput] = useState('');
   const [isRenamingGallery, setIsRenamingGallery] = useState(false);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
+  const [folderPickerSupported, setFolderPickerSupported] = useState(false);
+  const [isUploadingFolder, setUploadingFolder] = useState(false);
   const projectNameInputRef = useRef<HTMLInputElement | null>(null);
   const projectTitleRef = useRef<HTMLHeadingElement | null>(null);
   const renameInputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -175,6 +180,13 @@ export const ProjectPage = () => {
   }, [loadProject]);
 
   useDocumentTitle(project?.name ? `${project.name} · Project · Viewport` : 'Project · Viewport');
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    setFolderPickerSupported('webkitdirectory' in input);
+  }, []);
 
   useLayoutEffect(() => {
     const heading = projectTitleRef.current;
@@ -317,6 +329,44 @@ export const ProjectPage = () => {
   const handleCreateGallerySubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void handleCreateGallery();
+  };
+
+  const handleUploadFolder = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    event.preventDefault();
+    const input = folderInputRef.current;
+    const fileList = input?.files;
+    if (!fileList || fileList.length === 0) return;
+
+    const files = Array.from(fileList);
+    // The webkitdirectory picker collects the whole tree natively; keep only
+    // top-level files so folder intake stays consistent with directory drops.
+    const supportedFiles = filterTopLevelFiles(files).filter(isSupportedUploadFile);
+    if (supportedFiles.length === 0) {
+      setError('No supported photos or videos in that folder. Use JPG, PNG, or a supported video.');
+      if (input) input.value = '';
+      return;
+    }
+
+    const folderName =
+      (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath?.split('/')[0] ||
+      'New gallery';
+    const baseName = folderName.slice(0, GALLERY_NAME_MAX_LENGTH);
+
+    setUploadingFolder(true);
+    try {
+      const created = await projectService.createProjectGallery(projectId, {
+        name: baseName,
+        shooting_date: toDateInputValue(project?.shooting_date),
+        project_visibility: 'listed',
+      });
+      enqueuePendingFiles(created.id, supportedFiles);
+      navigate(`/projects/${projectId}/galleries/${created.id}`);
+    } catch (err) {
+      setError(handleApiError(err).message || 'Failed to create gallery');
+    } finally {
+      setUploadingFolder(false);
+      if (input) input.value = '';
+    }
   };
 
   const openGalleryDialog = () => {
@@ -722,6 +772,8 @@ export const ProjectPage = () => {
       isReorderingGallery={isReorderingGallery}
       requiresReorderConfirmation={projectSelectionWarningSummary.hasSensitiveSessions}
       openGalleryDialog={openGalleryDialog}
+      onUploadFolder={folderPickerSupported ? () => folderInputRef.current?.click() : undefined}
+      isUploadingFolder={isUploadingFolder}
       setRenameInput={setRenameInput}
       handleConfirmRename={() => void handleConfirmRename()}
       cancelInlineRename={cancelInlineRename}
@@ -779,6 +831,17 @@ export const ProjectPage = () => {
 
   return (
     <div className="space-y-5">
+      {folderPickerSupported && (
+        <input
+          type="file"
+          ref={folderInputRef}
+          onChange={handleUploadFolder}
+          multiple
+          {...({ webkitdirectory: '' } as React.InputHTMLAttributes<HTMLElement>)}
+          aria-label="Choose a folder to upload into a new gallery"
+          className="hidden"
+        />
+      )}
       <section className="relative overflow-hidden rounded-4xl border border-border/50 bg-surface p-5 shadow-xs dark:border-border/30 dark:bg-surface-dark">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(31,144,255,0.12),transparent_34%),radial-gradient(circle_at_88%_10%,rgba(34,197,94,0.08),transparent_28%)]" />
         <div className="relative flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">

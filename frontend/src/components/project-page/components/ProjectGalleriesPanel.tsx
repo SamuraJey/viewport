@@ -1,5 +1,5 @@
 import type { ReactNode, RefObject } from 'react';
-import { Check, Eye, EyeOff, FolderPlus, GripHorizontal, Info, Settings2 } from 'lucide-react';
+import { Check, Eye, EyeOff, FolderPlus, FolderUp, GripHorizontal, Info, Loader2, Settings2 } from 'lucide-react';
 
 import { EnhancedGalleryCard } from '../../dashboard/EnhancedGalleryCard';
 import { AppBadge, AppPopover } from '../../ui';
@@ -19,6 +19,8 @@ interface ProjectGalleriesPanelProps {
   isReorderingGallery: string | null;
   requiresReorderConfirmation: boolean;
   openGalleryDialog: () => void;
+  onUploadFolder?: () => void;
+  isUploadingFolder?: boolean;
   setRenameInput: (value: string) => void;
   handleConfirmRename: () => void;
   cancelInlineRename: () => void;
@@ -46,6 +48,8 @@ export const ProjectGalleriesPanel = ({
   isReorderingGallery,
   requiresReorderConfirmation,
   openGalleryDialog,
+  onUploadFolder,
+  isUploadingFolder = false,
   setRenameInput,
   handleConfirmRename,
   cancelInlineRename,
@@ -67,14 +71,31 @@ export const ProjectGalleriesPanel = ({
           Add the first gallery to start uploading photos. You can keep galleries listed in the
           project share or mark them direct-link-only later.
         </p>
-        <button
-          type="button"
-          onClick={openGalleryDialog}
-          className="mt-6 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent"
-        >
-          <FolderPlus className="h-4 w-4" />
-          Add first gallery
-        </button>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={openGalleryDialog}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground transition-all duration-200 hover:-translate-y-0.5 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent"
+          >
+            <FolderPlus className="h-4 w-4" />
+            Add first gallery
+          </button>
+          {onUploadFolder ? (
+            <button
+              type="button"
+              onClick={onUploadFolder}
+              disabled={isUploadingFolder}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border/50 bg-surface-1 px-5 py-3 text-sm font-semibold text-text transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 dark:border-border/40 dark:bg-surface-dark-1"
+            >
+              {isUploadingFolder ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FolderUp className="h-4 w-4" />
+              )}
+              {isUploadingFolder ? 'Creating gallery…' : 'Upload folder'}
+            </button>
+          ) : null}
+        </div>
       </div>
     ) : (
       <div className="space-y-5">

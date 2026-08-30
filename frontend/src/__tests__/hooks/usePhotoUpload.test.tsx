@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { usePhotoUpload } from '../../hooks/usePhotoUpload';
 import { photoService } from '../../services/photoService';
+import { setUploadSourcePath, getUploadFileKey } from '../../components/upload/uploadUtils';
 import type { PhotoUploadProgress, PhotoUploadResponse } from '../../types';
 
 vi.mock('../../services/photoService', () => ({
@@ -382,5 +383,36 @@ describe('usePhotoUpload', () => {
 
     expect(photoService.retryFailedUploads).not.toHaveBeenCalled();
     expect(result.current.result).toMatchObject({ total_files: 0, failed_uploads: 0 });
+  });
+
+  it('keeps same basename from different source paths as distinct jobs', () => {
+    // Both files are identical in name, content, MIME type, and lastModified;
+    // only their source paths differ. Without the source path in the key they
+    // would deduplicate, so this isolates the source path as the distinguishing
+    // factor.
+    const first = new File(['image-data'], 'photo.jpg', {
+      type: 'image/jpeg',
+      lastModified: 123,
+    });
+    const second = new File(['image-data'], 'photo.jpg', {
+      type: 'image/jpeg',
+      lastModified: 123,
+    });
+    setUploadSourcePath(first, 'sub-a/photo.jpg');
+    setUploadSourcePath(second, 'sub-b/photo.jpg');
+
+    // Verify keys are distinct.
+    expect(getUploadFileKey(first)).not.toBe(getUploadFileKey(second));
+
+    const { result } = renderHook(() =>
+      usePhotoUpload('gallery-1', [first, second], ['photo.jpg'], vi.fn()),
+    );
+
+    expect(result.current.jobs.map((job) => job.filename)).toEqual([
+      'photo (1).jpg',
+      'photo (2).jpg',
+    ]);
+    // Job IDs must differ because source paths differ.
+    expect(result.current.jobs[0].id).not.toBe(result.current.jobs[1].id);
   });
 });
