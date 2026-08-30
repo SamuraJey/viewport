@@ -133,11 +133,7 @@ def test_refresh_session_cleanup_rechecks_retention_after_concurrent_revoke(
         setup_db.commit()
 
     with Session(sync_engine) as revoker_db:
-        session = revoker_db.scalar(
-            select(RefreshTokenSession)
-            .where(RefreshTokenSession.jti_hash == token_hash)
-            .with_for_update()
-        )
+        session = revoker_db.scalar(select(RefreshTokenSession).where(RefreshTokenSession.jti_hash == token_hash).with_for_update())
         assert session is not None
 
         with ThreadPoolExecutor(max_workers=1) as executor:
@@ -170,11 +166,7 @@ def test_refresh_session_cleanup_rechecks_retention_after_concurrent_revoke(
             result = cleanup.result(timeout=5)
 
     with Session(sync_engine) as verification_db:
-        retained = verification_db.scalar(
-            select(RefreshTokenSession).where(
-                RefreshTokenSession.jti_hash == token_hash
-            )
-        )
+        retained = verification_db.scalar(select(RefreshTokenSession).where(RefreshTokenSession.jti_hash == token_hash))
 
     assert result["deleted_count"] == 0
     assert retained is not None

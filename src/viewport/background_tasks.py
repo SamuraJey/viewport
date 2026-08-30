@@ -1169,10 +1169,7 @@ def cleanup_refresh_token_sessions_task() -> dict[str, int | float]:
                 ),
             )
             stale_hashes = (
-                select(RefreshTokenSession.jti_hash)
-                .where(stale_for_audit_cleanup)
-                .order_by(RefreshTokenSession.expires_at, RefreshTokenSession.jti_hash)
-                .limit(REFRESH_SESSION_CLEANUP_BATCH_SIZE)
+                select(RefreshTokenSession.jti_hash).where(stale_for_audit_cleanup).order_by(RefreshTokenSession.expires_at, RefreshTokenSession.jti_hash).limit(REFRESH_SESSION_CLEANUP_BATCH_SIZE)
             )
             result = db.execute(
                 delete(RefreshTokenSession).where(

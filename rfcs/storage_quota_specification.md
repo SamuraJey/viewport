@@ -104,6 +104,7 @@
 ```python
 from sqlalchemy import BigInteger
 
+
 class User(Base):
     # ... существующие поля ...
 
@@ -112,16 +113,11 @@ class User(Base):
         BigInteger,
         nullable=False,
         default=5368709120,  # 5 GB
-        server_default="5368709120"
+        server_default="5368709120",
     )
 
     # Current storage usage in bytes
-    storage_used = mapped_column(
-        BigInteger,
-        nullable=False,
-        default=0,
-        server_default="0"
-    )
+    storage_used = mapped_column(BigInteger, nullable=False, default=0, server_default="0")
 ```
 
 **Обоснование типов:**
@@ -140,22 +136,21 @@ alembic revision --autogenerate -m "Add storage quota fields to users"
 **Содержание миграции:**
 ```python
 def upgrade():
-    op.add_column('users', sa.Column(
-        'storage_quota',
-        sa.BigInteger(),
-        nullable=False,
-        server_default='5368709120'  # 5 GB
-    ))
-    op.add_column('users', sa.Column(
-        'storage_used',
-        sa.BigInteger(),
-        nullable=False,
-        server_default='0'
-    ))
+    op.add_column(
+        "users",
+        sa.Column(
+            "storage_quota",
+            sa.BigInteger(),
+            nullable=False,
+            server_default="5368709120",  # 5 GB
+        ),
+    )
+    op.add_column("users", sa.Column("storage_used", sa.BigInteger(), nullable=False, server_default="0"))
+
 
 def downgrade():
-    op.drop_column('users', 'storage_used')
-    op.drop_column('users', 'storage_quota')
+    op.drop_column("users", "storage_used")
+    op.drop_column("users", "storage_quota")
 ```
 
 **После миграции для существующих пользователей:**
@@ -179,6 +174,7 @@ SET storage_used = (
 ```python
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class StorageSettings(BaseSettings):
     """Storage and quota settings"""
 
@@ -193,6 +189,7 @@ class StorageSettings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
 
 storage_settings = StorageSettings()
 ```
@@ -226,14 +223,10 @@ class UserRepository(BaseRepository):
             "storage_used": user.storage_used,
             "storage_quota": user.storage_quota,
             "storage_available": user.storage_quota - user.storage_used,
-            "usage_percentage": round((user.storage_used / user.storage_quota) * 100, 2)
+            "usage_percentage": round((user.storage_used / user.storage_quota) * 100, 2),
         }
 
-    def check_storage_available(
-        self,
-        user_id: uuid.UUID,
-        required_bytes: int
-    ) -> tuple[bool, int]:
+    def check_storage_available(self, user_id: uuid.UUID, required_bytes: int) -> tuple[bool, int]:
         """
         Check if user has enough storage space
 
@@ -247,11 +240,7 @@ class UserRepository(BaseRepository):
         available = user.storage_quota - user.storage_used
         return available >= required_bytes, available
 
-    def increment_storage_used(
-        self,
-        user_id: uuid.UUID,
-        bytes_added: int
-    ) -> bool:
+    def increment_storage_used(self, user_id: uuid.UUID, bytes_added: int) -> bool:
         """Increment user's storage usage"""
         user = self.get_user_by_id(user_id)
         if not user:
@@ -262,11 +251,7 @@ class UserRepository(BaseRepository):
         self.db.refresh(user)
         return True
 
-    def decrement_storage_used(
-        self,
-        user_id: uuid.UUID,
-        bytes_removed: int
-    ) -> bool:
+    def decrement_storage_used(self, user_id: uuid.UUID, bytes_removed: int) -> bool:
         """Decrement user's storage usage"""
         user = self.get_user_by_id(user_id)
         if not user:
@@ -287,12 +272,7 @@ class UserRepository(BaseRepository):
         from src.viewport.models.gallery import Gallery, Photo
 
         # Calculate total file size from all photos in user's galleries
-        stmt = (
-            select(func.coalesce(func.sum(Photo.file_size), 0))
-            .select_from(Photo)
-            .join(Gallery, Photo.gallery_id == Gallery.id)
-            .where(Gallery.owner_id == user_id)
-        )
+        stmt = select(func.coalesce(func.sum(Photo.file_size), 0)).select_from(Photo).join(Gallery, Photo.gallery_id == Gallery.id).where(Gallery.owner_id == user_id)
 
         total_size = self.db.execute(stmt).scalar()
 
@@ -305,11 +285,7 @@ class UserRepository(BaseRepository):
         self.db.refresh(user)
         return user.storage_used
 
-    def update_user_quota(
-        self,
-        user_id: uuid.UUID,
-        new_quota_bytes: int
-    ) -> User | None:
+    def update_user_quota(self, user_id: uuid.UUID, new_quota_bytes: int) -> User | None:
         """Update user's storage quota (admin operation)"""
         user = self.get_user_by_id(user_id)
         if not user:
@@ -336,34 +312,24 @@ def create_photo(
     thumbnail_object_key: str,
     file_size: int,
     width: int | None = None,
-    height: int | None = None
+    height: int | None = None,
 ) -> Photo:
     """Create photo and update owner's storage usage"""
-    photo = Photo(
-        gallery_id=gallery_id,
-        object_key=object_key,
-        thumbnail_object_key=thumbnail_object_key,
-        file_size=file_size,
-        width=width,
-        height=height
-    )
+    photo = Photo(gallery_id=gallery_id, object_key=object_key, thumbnail_object_key=thumbnail_object_key, file_size=file_size, width=width, height=height)
     self.db.add(photo)
     self.db.commit()
     self.db.refresh(photo)
 
     # Update user's storage usage
     from src.viewport.repositories.user_repository import UserRepository
+
     user_repo = UserRepository(self.db)
     user_repo.increment_storage_used(owner_id, file_size)
 
     return photo
 
-def delete_photo(
-    self,
-    photo_id: uuid.UUID,
-    gallery_id: uuid.UUID,
-    owner_id: uuid.UUID
-) -> bool:
+
+def delete_photo(self, photo_id: uuid.UUID, gallery_id: uuid.UUID, owner_id: uuid.UUID) -> bool:
     """Delete photo and update owner's storage usage"""
     from src.viewport.s3_utils import delete_object
 
@@ -384,6 +350,7 @@ def delete_photo(
 
     # Update user's storage usage
     from src.viewport.repositories.user_repository import UserRepository
+
     user_repo = UserRepository(self.db)
     user_repo.decrement_storage_used(owner_id, file_size)
 
@@ -405,13 +372,15 @@ from src.viewport.schemas.user import StorageInfoResponse
 
 router = APIRouter(prefix="/users", tags=["users"])
 
+
 def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
     return UserRepository(db)
+
 
 @router.get("/me/storage", response_model=StorageInfoResponse)
 def get_my_storage_info(
     repo: UserRepository = Depends(get_user_repository),
-    current_user = Depends(get_current_user),
+    current_user=Depends(get_current_user),
 ):
     """Get current user's storage quota and usage information"""
     storage_info = repo.get_storage_info(current_user.id)
@@ -428,8 +397,10 @@ def get_my_storage_info(
 ```python
 from pydantic import BaseModel, Field
 
+
 class StorageInfoResponse(BaseModel):
     """Storage quota and usage information"""
+
     storage_used: int = Field(..., description="Storage used in bytes")
     storage_quota: int = Field(..., description="Total storage quota in bytes")
     storage_available: int = Field(..., description="Available storage in bytes")
@@ -473,12 +444,7 @@ class MeResponse(BaseModel):
 
 ```python
 @router.post("/{gallery_id}/photos", response_model=PhotoResponse, status_code=status.HTTP_201_CREATED)
-def upload_photo(
-    gallery_id: UUID,
-    file: UploadFile = File(...),
-    repo: GalleryRepository = Depends(get_gallery_repository),
-    current_user = Depends(get_current_user)
-):
+def upload_photo(gallery_id: UUID, file: UploadFile = File(...), repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
     # Check gallery ownership
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
@@ -492,17 +458,14 @@ def upload_photo(
 
     # NEW: Check storage quota
     user_repo = UserRepository(repo.db)
-    has_space, available = user_repo.check_storage_available(
-        current_user.id,
-        file_size
-    )
+    has_space, available = user_repo.check_storage_available(current_user.id, file_size)
 
     if not has_space:
         available_mb = round(available / (1024 * 1024), 2)
         required_mb = round(file_size / (1024 * 1024), 2)
         raise HTTPException(
             status_code=507,  # Insufficient Storage
-            detail=f"Insufficient storage space. Available: {available_mb} MB, Required: {required_mb} MB"
+            detail=f"Insufficient storage space. Available: {available_mb} MB, Required: {required_mb} MB",
         )
 
     # ... rest of upload logic ...
@@ -515,7 +478,7 @@ def upload_photo(
         thumbnail_object_key,
         file_size,
         width=width,
-        height=height
+        height=height,
     )
 
     return PhotoResponse.from_db_photo(photo)
@@ -525,12 +488,7 @@ def upload_photo(
 
 ```python
 @router.post("/{gallery_id}/photos/batch", response_model=PhotoUploadResponse)
-def upload_photos_batch(
-    gallery_id: UUID,
-    files: Annotated[list[UploadFile], File()],
-    repo: GalleryRepository = Depends(get_gallery_repository),
-    current_user = Depends(get_current_user)
-):
+def upload_photos_batch(gallery_id: UUID, files: Annotated[list[UploadFile], File()], repo: GalleryRepository = Depends(get_gallery_repository), current_user=Depends(get_current_user)):
     gallery = repo.get_gallery_by_id_and_owner(gallery_id, current_user.id)
     if not gallery:
         raise HTTPException(status_code=404, detail="Gallery not found")
@@ -550,28 +508,17 @@ def upload_photos_batch(
 
             # Check individual file size
             if file_size > MAX_FILE_SIZE:
-                results.append(PhotoUploadResult(
-                    filename=file.filename or "unknown",
-                    success=False,
-                    error=f"File too large (max 10MB), got {file_size / (1024 * 1024):.1f}MB"
-                ))
+                results.append(PhotoUploadResult(filename=file.filename or "unknown", success=False, error=f"File too large (max 10MB), got {file_size / (1024 * 1024):.1f}MB"))
                 failed_uploads += 1
                 continue
 
             # NEW: Check storage quota for each file
-            has_space, available = user_repo.check_storage_available(
-                current_user.id,
-                file_size
-            )
+            has_space, available = user_repo.check_storage_available(current_user.id, file_size)
 
             if not has_space:
                 available_mb = round(available / (1024 * 1024), 2)
                 required_mb = round(file_size / (1024 * 1024), 2)
-                results.append(PhotoUploadResult(
-                    filename=file.filename or "unknown",
-                    success=False,
-                    error=f"Insufficient storage. Available: {available_mb} MB, Required: {required_mb} MB"
-                ))
+                results.append(PhotoUploadResult(filename=file.filename or "unknown", success=False, error=f"Insufficient storage. Available: {available_mb} MB, Required: {required_mb} MB"))
                 failed_uploads += 1
                 continue
 
@@ -585,33 +532,20 @@ def upload_photos_batch(
                 thumbnail_object_key,
                 file_size,
                 width=w,
-                height=h
+                height=h,
             )
 
             photo_response = PhotoResponse.from_db_photo(photo)
-            results.append(PhotoUploadResult(
-                filename=file.filename or "unknown",
-                success=True,
-                photo=photo_response
-            ))
+            results.append(PhotoUploadResult(filename=file.filename or "unknown", success=True, photo=photo_response))
             successful_uploads += 1
 
         except Exception as e:
-            results.append(PhotoUploadResult(
-                filename=file.filename or "unknown",
-                success=False,
-                error=str(e)
-            ))
+            results.append(PhotoUploadResult(filename=file.filename or "unknown", success=False, error=str(e)))
             failed_uploads += 1
         finally:
             file.file.seek(0)
 
-    return PhotoUploadResponse(
-        results=results,
-        total_files=len(files),
-        successful_uploads=successful_uploads,
-        failed_uploads=failed_uploads
-    )
+    return PhotoUploadResponse(results=results, total_files=len(files), successful_uploads=successful_uploads, failed_uploads=failed_uploads)
 ```
 
 #### 5.3.5 Административные эндпоинты (опционально)
@@ -628,14 +562,16 @@ from src.viewport.repositories.user_repository import UserRepository
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
+
 def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
     return UserRepository(db)
+
 
 @router.post("/users/{user_id}/recalculate-storage")
 def recalculate_user_storage(
     user_id: str,
     repo: UserRepository = Depends(get_user_repository),
-    current_user = Depends(require_admin),  # Admin only!
+    current_user=Depends(require_admin),  # Admin only!
 ):
     """Recalculate storage usage for a user (admin only)"""
     from uuid import UUID
@@ -649,18 +585,15 @@ def recalculate_user_storage(
     if new_usage is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    return {
-        "user_id": user_id,
-        "storage_used": new_usage,
-        "message": "Storage usage recalculated successfully"
-    }
+    return {"user_id": user_id, "storage_used": new_usage, "message": "Storage usage recalculated successfully"}
+
 
 @router.patch("/users/{user_id}/quota")
 def update_user_quota(
     user_id: str,
     new_quota_bytes: int,
     repo: UserRepository = Depends(get_user_repository),
-    current_user = Depends(require_admin),
+    current_user=Depends(require_admin),
 ):
     """Update user's storage quota (admin only)"""
     from uuid import UUID
@@ -677,18 +610,14 @@ def update_user_quota(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    return {
-        "user_id": user_id,
-        "storage_quota": user.storage_quota,
-        "message": "Quota updated successfully"
-    }
+    return {"user_id": user_id, "storage_quota": user.storage_quota, "message": "Quota updated successfully"}
 ```
 
 **Примечание:** Реализация `require_admin` зависит от вашей системы ролей. Простой вариант:
 
 ```python
 # В auth_utils.py
-def require_admin(current_user = Depends(get_current_user)):
+def require_admin(current_user=Depends(get_current_user)):
     """Check if current user is admin (implement your logic)"""
     # Вариант 1: проверка email
     if current_user.email not in ["admin@viewport.com"]:
@@ -714,7 +643,7 @@ total_size = file_size + thumbnail_size
 # Проверять квоту для total_size
 has_space, available = user_repo.check_storage_available(
     current_user.id,
-    total_size  # Оригинал + thumbnail
+    total_size,  # Оригинал + thumbnail
 )
 
 # И при создании фото указывать total_size
@@ -725,7 +654,7 @@ photo = repo.create_photo(
     thumbnail_object_key,
     total_size,  # Общий размер
     width=width,
-    height=height
+    height=height,
 )
 ```
 
@@ -753,6 +682,7 @@ def register_user(request: RegisterRequest, repo: UserRepository = Depends(get_u
 
     # Set default quota from settings
     from src.viewport.storage_settings import storage_settings
+
     repo.update_user_quota(user.id, storage_settings.default_storage_quota)
 
     # ... return response ...
@@ -983,15 +913,12 @@ export const ProfilePage: React.FC = () => {
 import pytest
 from uuid import uuid4
 
+
 class TestStorageQuota:
     def test_new_user_has_default_quota(self, client, db):
         """Test that new user gets default storage quota"""
         # Register new user
-        response = client.post("/auth/register", json={
-            "email": "test@example.com",
-            "password": "password123",
-            "invite_code": "testinvitecode"
-        })
+        response = client.post("/auth/register", json={"email": "test@example.com", "password": "password123", "invite_code": "testinvitecode"})
         assert response.status_code == 201
 
         # Check storage quota is set
@@ -1000,11 +927,7 @@ class TestStorageQuota:
         assert user.storage_quota == 5 * 1024 * 1024 * 1024  # 5 GB
         assert user.storage_used == 0
 
-    def test_upload_increments_storage_used(
-        self,
-        authenticated_client,
-        gallery_id_fixture
-    ):
+    def test_upload_increments_storage_used(self, authenticated_client, gallery_id_fixture):
         """Test that uploading a photo increments storage_used"""
         # Get initial storage
         storage_before = authenticated_client.get("/users/me/storage").json()
@@ -1012,49 +935,32 @@ class TestStorageQuota:
         # Upload a photo
         file_content = b"x" * 1000  # 1 KB
         files = {"file": ("test.jpg", file_content, "image/jpeg")}
-        response = authenticated_client.post(
-            f"/galleries/{gallery_id_fixture}/photos",
-            files=files
-        )
+        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
         assert response.status_code == 201
 
         # Check storage increased
         storage_after = authenticated_client.get("/users/me/storage").json()
         assert storage_after["storage_used"] > storage_before["storage_used"]
 
-    def test_delete_decrements_storage_used(
-        self,
-        authenticated_client,
-        gallery_id_fixture
-    ):
+    def test_delete_decrements_storage_used(self, authenticated_client, gallery_id_fixture):
         """Test that deleting a photo decrements storage_used"""
         # Upload a photo
         file_content = b"x" * 1000
         files = {"file": ("test.jpg", file_content, "image/jpeg")}
-        upload_response = authenticated_client.post(
-            f"/galleries/{gallery_id_fixture}/photos",
-            files=files
-        )
+        upload_response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
         photo_id = upload_response.json()["id"]
 
         storage_before = authenticated_client.get("/users/me/storage").json()
 
         # Delete the photo
-        response = authenticated_client.delete(
-            f"/galleries/{gallery_id_fixture}/photos/{photo_id}"
-        )
+        response = authenticated_client.delete(f"/galleries/{gallery_id_fixture}/photos/{photo_id}")
         assert response.status_code == 204
 
         # Check storage decreased
         storage_after = authenticated_client.get("/users/me/storage").json()
         assert storage_after["storage_used"] < storage_before["storage_used"]
 
-    def test_upload_rejected_when_quota_exceeded(
-        self,
-        authenticated_client,
-        gallery_id_fixture,
-        db
-    ):
+    def test_upload_rejected_when_quota_exceeded(self, authenticated_client, gallery_id_fixture, db):
         """Test that upload is rejected when quota would be exceeded"""
         # Set user's quota to very low value
         user_repo = UserRepository(db)
@@ -1064,21 +970,13 @@ class TestStorageQuota:
         # Try to upload a 2 KB file
         file_content = b"x" * 2000
         files = {"file": ("test.jpg", file_content, "image/jpeg")}
-        response = authenticated_client.post(
-            f"/galleries/{gallery_id_fixture}/photos",
-            files=files
-        )
+        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
 
         # Should be rejected with 507
         assert response.status_code == 507
         assert "insufficient storage" in response.json()["detail"].lower()
 
-    def test_batch_upload_respects_quota(
-        self,
-        authenticated_client,
-        gallery_id_fixture,
-        db
-    ):
+    def test_batch_upload_respects_quota(self, authenticated_client, gallery_id_fixture, db):
         """Test that batch upload respects quota"""
         # Set quota to allow only 1 file
         user_repo = UserRepository(db)
@@ -1090,10 +988,7 @@ class TestStorageQuota:
             ("files", ("photo1.jpg", b"x" * 1000, "image/jpeg")),
             ("files", ("photo2.jpg", b"x" * 1000, "image/jpeg")),
         ]
-        response = authenticated_client.post(
-            f"/galleries/{gallery_id_fixture}/photos/batch",
-            files=files
-        )
+        response = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos/batch", files=files)
 
         assert response.status_code == 200
         data = response.json()
@@ -1125,9 +1020,7 @@ class TestStorageQuota:
         assert "storage_quota" in data
         assert "storage_available" in data
         assert "usage_percentage" in data
-        assert data["storage_available"] == (
-            data["storage_quota"] - data["storage_used"]
-        )
+        assert data["storage_available"] == (data["storage_quota"] - data["storage_used"])
 ```
 
 ### 7.2 Frontend Tests
@@ -1202,10 +1095,8 @@ describe('StorageQuota', () => {
 ```python
 # tests/test_storage_integration.py
 
-def test_full_upload_delete_cycle_updates_storage(
-    authenticated_client,
-    gallery_id_fixture
-):
+
+def test_full_upload_delete_cycle_updates_storage(authenticated_client, gallery_id_fixture):
     """Test complete cycle: upload -> check -> delete -> check"""
     # Initial state
     storage_initial = authenticated_client.get("/users/me/storage").json()
@@ -1214,10 +1105,7 @@ def test_full_upload_delete_cycle_updates_storage(
     # Upload
     file_content = b"x" * 5000
     files = {"file": ("test.jpg", file_content, "image/jpeg")}
-    upload_resp = authenticated_client.post(
-        f"/galleries/{gallery_id_fixture}/photos",
-        files=files
-    )
+    upload_resp = authenticated_client.post(f"/galleries/{gallery_id_fixture}/photos", files=files)
     assert upload_resp.status_code == 201
     photo_id = upload_resp.json()["id"]
 
@@ -1226,9 +1114,7 @@ def test_full_upload_delete_cycle_updates_storage(
     assert storage_after_upload["storage_used"] > initial_used
 
     # Delete
-    delete_resp = authenticated_client.delete(
-        f"/galleries/{gallery_id_fixture}/photos/{photo_id}"
-    )
+    delete_resp = authenticated_client.delete(f"/galleries/{gallery_id_fixture}/photos/{photo_id}")
     assert delete_resp.status_code == 204
 
     # Check storage back to initial (or close to it)
@@ -1461,6 +1347,7 @@ from src.viewport.models.user import User
 from src.viewport.repositories.user_repository import UserRepository
 import os
 
+
 def recalculate_all():
     database_url = os.getenv("DATABASE_URL")
     engine = create_engine(database_url)
@@ -1481,6 +1368,7 @@ def recalculate_all():
                 print(f"User {user.email}: {old_usage} -> {new_usage}")
 
         print("Done!")
+
 
 if __name__ == "__main__":
     recalculate_all()
