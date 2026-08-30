@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useNavigationType, useParams } from 'react-router';
 import {
   ArrowLeft,
-  CheckCircle2,
+  CircleCheckBig,
   Download as DownloadIcon,
   Heart,
   Link2,
@@ -1054,7 +1054,7 @@ export const PublicGalleryPage = () => {
                     disabled={!selection.canMutateSession || selection.isMutating}
                     className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <CheckCircle2 className="h-4 w-4" />
+                    <CircleCheckBig className="h-4 w-4" />
                     Finish selection
                   </button>
                   <button

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, memo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Share2,
-  Loader2,
+  LoaderCircle,
   Eye,
   PencilLine,
   BarChart3,
@@ -160,7 +160,7 @@ const ShareLinksSectionComponent = ({
             aria-label="Create new share link"
           >
             {isCreatingLink ? (
-              <Loader2 className="h-4 w-4 animate-spin text-accent-foreground" />
+              <LoaderCircle className="h-4 w-4 animate-spin text-accent-foreground" />
             ) : (
               <Share2 className="h-4 w-4 text-accent-foreground" />
             )}
@@ -184,7 +184,7 @@ const ShareLinksSectionComponent = ({
         </div>
       ) : isLoading ? (
         <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-surface-1 px-4 py-5 text-sm text-muted dark:border-border/40 dark:bg-surface-dark-1 dark:text-muted-dark">
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <LoaderCircle className="h-4 w-4 animate-spin" />
           <span>Loading share links...</span>
         </div>
       ) : sortedShareLinks.length > 0 ? (

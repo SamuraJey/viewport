@@ -1,4 +1,4 @@
-import { AlertCircle, RefreshCw, X } from 'lucide-react';
+import { CircleAlert, RefreshCw, X } from 'lucide-react';
 import { useOnline } from '../hooks/useOnline';
 
 interface ErrorDisplayProps {
@@ -30,7 +30,7 @@ export const ErrorDisplay = ({
       {variant === 'card' ? (
         <div className="space-y-5">
           <div className="w-16 h-16 bg-red-100 dark:bg-red-500/20 rounded-full flex items-center justify-center mx-auto">
-            <AlertCircle className="w-8 h-8 text-red-500 dark:text-red-400" />
+            <CircleAlert className="w-8 h-8 text-red-500 dark:text-red-400" />
           </div>
           <div>
             <h3 className="text-xl font-bold text-red-700 dark:text-red-300 mb-2">Error</h3>
@@ -62,7 +62,7 @@ export const ErrorDisplay = ({
       ) : (
         <>
           <div className="flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 dark:text-red-400 shrink-0" />
+            <CircleAlert className="w-5 h-5 text-red-500 dark:text-red-400 shrink-0" />
             <span className="text-sm font-medium">{error}</span>
           </div>
           <div className="flex items-center gap-3">
@@ -101,7 +101,7 @@ export const NetworkStatus = () => {
 
   return (
     <div className="mb-6 bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 text-yellow-700 dark:text-yellow-400 px-4 py-3 rounded-xl text-sm flex items-center gap-3 shadow-xs">
-      <AlertCircle className="w-5 h-5 shrink-0" />
+      <CircleAlert className="w-5 h-5 shrink-0" />
       <span className="truncate font-medium">
         You're currently offline. Some features may not work properly.
       </span>

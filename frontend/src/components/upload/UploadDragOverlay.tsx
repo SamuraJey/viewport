@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Loader2, UploadCloud } from 'lucide-react';
+import { TriangleAlert, LoaderCircle, UploadCloud } from 'lucide-react';
 import { MAX_VIDEO_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
 import type { DropPayloadKind } from './uploadUtils';
 
@@ -58,9 +58,9 @@ export const UploadDragOverlay = ({
           }`}
         >
           {isRejected ? (
-            <AlertTriangle className="h-10 w-10" />
+            <TriangleAlert className="h-10 w-10" />
           ) : isScanning ? (
-            <Loader2 className="h-10 w-10 animate-spin" />
+            <LoaderCircle className="h-10 w-10 animate-spin" />
           ) : (
             <UploadCloud className="h-10 w-10" />
           )}

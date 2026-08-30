@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2, SearchX } from 'lucide-react';
+import { LoaderCircle, SearchX } from 'lucide-react';
 import type { MutableRefObject, RefObject } from 'react';
 import { PaginationControls } from '../PaginationControls';
 import { EmptyGalleryState } from './EmptyGalleryState';
@@ -74,7 +74,7 @@ const GalleryPhotoGridSkeleton = ({ page, renderNonce }: { page: number; renderN
     aria-label={`Loading photos page ${page}`}
   >
     <div className="mb-4 flex items-center gap-3 text-muted">
-      <Loader2 className="h-5 w-5 animate-spin text-accent motion-reduce:animate-none" />
+      <LoaderCircle className="h-5 w-5 animate-spin text-accent motion-reduce:animate-none" />
       <span className="text-sm font-bold uppercase tracking-wide">Loading photos</span>
       <span className="text-xs font-semibold text-muted/70">Page {page}</span>
     </div>

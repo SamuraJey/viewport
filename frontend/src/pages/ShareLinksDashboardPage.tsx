@@ -14,10 +14,10 @@ import {
   Info,
   Link2,
   ListChecks,
-  Loader2,
+  LoaderCircle,
   Lock,
   LockOpen,
-  MoreHorizontal,
+  Ellipsis,
   Plus,
   RefreshCw,
   Search,
@@ -602,7 +602,7 @@ export const ShareLinksDashboardPage = () => {
                 className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border/50 bg-surface-1/80 px-4 py-2.5 text-sm font-bold text-text transition-all duration-200 hover:border-accent/40 hover:bg-surface-2 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface dark:border-white/10 dark:bg-white/[0.035] dark:text-accent-foreground dark:hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isRefreshing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
                 ) : (
                   <RefreshCw className="h-4 w-4" />
                 )}
@@ -844,7 +844,7 @@ export const ShareLinksDashboardPage = () => {
                   aria-live="polite"
                   aria-label="Updating share links"
                 >
-                  <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                  <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
                   <span>Updating share links…</span>
                 </div>
               ) : null}
@@ -984,7 +984,7 @@ export const ShareLinksDashboardPage = () => {
                               }
                               buttonContent={
                                 <>
-                                  <MoreHorizontal className="h-4 w-4" />
+                                  <Ellipsis className="h-4 w-4" />
                                   More
                                 </>
                               }
@@ -1014,7 +1014,7 @@ export const ShareLinksDashboardPage = () => {
                                     }}
                                     className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/6"
                                   >
-                                    <MoreHorizontal className="h-4 w-4" />
+                                    <Ellipsis className="h-4 w-4" />
                                     Edit label
                                   </button>
                                   {linkStatus === 'active' ? (
@@ -1226,7 +1226,7 @@ export const ShareLinksDashboardPage = () => {
                                     open ? 'border-accent/45 text-accent' : '',
                                   )
                                 }
-                                buttonContent={<MoreHorizontal className="h-4 w-4" />}
+                                buttonContent={<Ellipsis className="h-4 w-4" />}
                                 panelClassName="w-56 rounded-2xl border border-border/50 bg-surface p-2 shadow-lg dark:border-white/10 dark:bg-surface-dark-1"
                                 panel={(close) => (
                                   <div
@@ -1253,7 +1253,7 @@ export const ShareLinksDashboardPage = () => {
                                       }}
                                       className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:bg-surface-1 dark:text-accent-foreground dark:hover:bg-white/6"
                                     >
-                                      <MoreHorizontal className="h-4 w-4" />
+                                      <Ellipsis className="h-4 w-4" />
                                       Edit label
                                     </button>
                                     {linkStatus === 'active' ? (

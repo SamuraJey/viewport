@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { Eye, EyeOff, Key, Loader2, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Key, LoaderCircle, ShieldCheck } from 'lucide-react';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -216,7 +216,7 @@ export const ProfilePasswordSection = ({
       >
         {changingPassword ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <LoaderCircle className="h-4 w-4 animate-spin" />
             Changing password…
           </>
         ) : (

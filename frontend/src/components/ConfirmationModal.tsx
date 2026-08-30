@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, AlertTriangle, Check } from 'lucide-react';
+import { X, TriangleAlert, Check } from 'lucide-react';
 import { AppDialog, AppDialogDescription, AppDialogTitle } from './ui';
 
 export interface ConfirmationModalProps {
@@ -59,7 +59,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = React.memo(
             <div
               className={`flex items-center justify-center w-10 h-10 rounded-xl ${isDangerous ? 'bg-red-100 dark:bg-red-900/50' : 'bg-blue-100 dark:bg-blue-900/50'}`}
             >
-              <AlertTriangle
+              <TriangleAlert
                 className={`w-5 h-5 ${isDangerous ? 'text-red-600 dark:text-red-400' : 'text-blue-600 dark:text-blue-400'}`}
               />
             </div>
@@ -111,7 +111,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = React.memo(
               </>
             ) : (
               <>
-                {isDangerous && <AlertTriangle className="w-4 h-4" />}
+                {isDangerous && <TriangleAlert className="w-4 h-4" />}
                 {!isDangerous && <Check className="w-4 h-4" />}
                 {confirmText}
               </>

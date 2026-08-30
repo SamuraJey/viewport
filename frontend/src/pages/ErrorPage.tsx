@@ -1,7 +1,7 @@
 import { Link } from 'react-router';
 import type { ErrorInfo, ReactNode } from 'react';
 import {
-  AlertTriangle,
+  TriangleAlert,
   Home,
   RefreshCw,
   Lock,
@@ -113,7 +113,7 @@ const ErrorPageContent = ({
   );
   useDocumentTitle(`${errorDetails.title} · Viewport`);
 
-  const errorIcon = statusIcons[errorStatus] ?? <AlertTriangle className="w-20 h-20 text-muted" />;
+  const errorIcon = statusIcons[errorStatus] ?? <TriangleAlert className="w-20 h-20 text-muted" />;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface p-4 text-text dark:bg-surface-dark">

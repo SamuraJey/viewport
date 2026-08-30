@@ -1,4 +1,4 @@
-import { CheckSquare, Download, Square, Trash2 } from 'lucide-react';
+import { SquareCheck, Download, Square, Trash2 } from 'lucide-react';
 
 interface PhotoSelectionBarProps {
   isSelectionMode: boolean;
@@ -51,7 +51,7 @@ export const PhotoSelectionBar = ({
           >
             {areAllOnPageSelected ? (
               <>
-                <CheckSquare className="h-5 w-5 text-accent" />
+                <SquareCheck className="h-5 w-5 text-accent" />
                 <span className="text-sm font-bold text-text">Clear Page</span>
               </>
             ) : (

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Loader2 } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
 
 import { AppDialog, AppDialogDescription, AppDialogTitle } from '../ui';
 import { GALLERY_NAME_MAX_LENGTH } from '../../constants/gallery';
@@ -79,7 +79,7 @@ export const RenameProjectModal = ({
             }
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-bold text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+            {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
             Save name
           </button>
         </div>

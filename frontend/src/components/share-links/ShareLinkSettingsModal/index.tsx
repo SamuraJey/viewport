@@ -4,7 +4,7 @@ import {
   Copy,
   ExternalLink,
   FileText,
-  Loader2,
+  LoaderCircle,
   PencilLine,
   Share2,
   SlidersHorizontal,
@@ -468,7 +468,7 @@ export const ShareLinkSettingsModal = ({
         className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
         disabled={!canSubmit}
       >
-        {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+        {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
         {mode === 'create' ? 'Create link' : 'Save changes'}
       </button>
     </div>
@@ -510,7 +510,7 @@ export const ShareLinkSettingsModal = ({
                 disabled={isRetryingSelection}
                 className="mt-3 inline-flex items-center gap-2 rounded-xl border border-danger/30 px-3 py-2 text-xs font-semibold transition-colors hover:bg-danger/10 disabled:opacity-60"
               >
-                {isRetryingSelection ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                {isRetryingSelection ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : null}
                 Retry selection settings
               </button>
             </div>

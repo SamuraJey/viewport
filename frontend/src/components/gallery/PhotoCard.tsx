@@ -1,9 +1,9 @@
 import { memo, useEffect, useRef, useState, type MouseEvent } from 'react';
 import {
-  CheckSquare,
+  SquareCheck,
   Download,
   ImageOff,
-  Loader2,
+  LoaderCircle,
   Pencil,
   Play,
   Search,
@@ -109,7 +109,7 @@ const PhotoCardComponent = ({
           title={isSelected ? 'Deselect' : 'Select'}
           aria-pressed={isSelected}
         >
-          {isSelected ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
+          {isSelected ? <SquareCheck className="w-5 h-5" /> : <Square className="w-5 h-5" />}
         </button>
       )}
 
@@ -119,7 +119,7 @@ const PhotoCardComponent = ({
         {photo.status === 'processing' && (
           <AppBadge
             tone="warning"
-            icon={<Loader2 className="h-3 w-3 animate-spin" />}
+            icon={<LoaderCircle className="h-3 w-3 animate-spin" />}
             className="absolute top-3 right-3 z-10"
             aria-label="Photo is processing"
           >
@@ -129,7 +129,7 @@ const PhotoCardComponent = ({
         {photo.status === 'pending' && (
           <AppBadge
             tone="info"
-            icon={<Loader2 className="h-3 w-3 animate-spin" />}
+            icon={<LoaderCircle className="h-3 w-3 animate-spin" />}
             className="absolute top-3 right-3 z-10"
             aria-label="Photo upload is pending"
           >

@@ -1,10 +1,10 @@
 import {
-  CheckCircle2,
+  CircleCheckBig,
   Clock3,
   Download,
   FileText,
   ImageIcon,
-  Loader2,
+  LoaderCircle,
   Lock,
   LockOpen,
   Mail,
@@ -191,7 +191,7 @@ export const SelectionTab = ({
                 }}
                 className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-accent-foreground transition-all duration-200 hover:bg-accent/90 focus:outline-hidden focus-visible:ring-[3px] focus-visible:ring-accent focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
               >
-                {isSavingSelectionConfig ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {isSavingSelectionConfig ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
                 {selectionConfigHasChanges ? 'Save selection settings' : 'Selection settings saved'}
               </button>
               <div className="grid grid-cols-2 gap-2">
@@ -239,17 +239,17 @@ export const SelectionTab = ({
           </p>
           <ol className="mt-4 space-y-3 text-sm text-muted">
             <li className="flex gap-3">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+              <CircleCheckBig className="mt-0.5 h-4 w-4 shrink-0 text-success" />
               <span>
                 Confirm the public list title and limits before sending the link to clients.
               </span>
             </li>
             <li className="flex gap-3">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+              <CircleCheckBig className="mt-0.5 h-4 w-4 shrink-0 text-success" />
               <span>Filter sessions by status to find unfinished or submitted selections.</span>
             </li>
             <li className="flex gap-3">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+              <CircleCheckBig className="mt-0.5 h-4 w-4 shrink-0 text-success" />
               <span>Export CSV for files or Lightroom text when the final session is ready.</span>
             </li>
           </ol>
@@ -265,7 +265,7 @@ export const SelectionTab = ({
           tone={selectionAggregate.total_sessions > 0 ? 'accent' : 'neutral'}
         />
         <SelectionMetricCard
-          icon={CheckCircle2}
+          icon={CircleCheckBig}
           label="Submitted"
           value={selectionAggregate.submitted_sessions}
           hint="Ready for review/export"
@@ -491,7 +491,7 @@ export const SelectionTab = ({
                 </div>
                 {isSelectionLoading ? (
                   <span className="inline-flex items-center gap-2 text-sm text-muted">
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
                     Loading selection...
                   </span>
                 ) : null}

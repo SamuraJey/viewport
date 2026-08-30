@@ -8,11 +8,11 @@ import type {
 } from 'react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
-  AlertCircle,
-  CheckCircle2,
+  CircleAlert,
+  CircleCheckBig,
   Heart,
   ImageOff,
-  Loader2,
+  LoaderCircle,
   MessageSquare,
   Play,
   X,
@@ -150,9 +150,9 @@ const PhotoCommentPanel = ({
     return 'success';
   })();
   const statusIcon: ReactNode = (() => {
-    if (saveState === 'error') return <AlertCircle className="h-3.5 w-3.5" />;
-    if (saveState === 'saving') return <Loader2 className="h-3.5 w-3.5 animate-spin" />;
-    return <CheckCircle2 className="h-3.5 w-3.5" />;
+    if (saveState === 'error') return <CircleAlert className="h-3.5 w-3.5" />;
+    if (saveState === 'saving') return <LoaderCircle className="h-3.5 w-3.5 animate-spin" />;
+    return <CircleCheckBig className="h-3.5 w-3.5" />;
   })();
 
   const handleSave = useCallback(
@@ -216,7 +216,7 @@ const PhotoCommentPanel = ({
           title={hasUnsavedChanges ? 'Save note and close' : 'Close'}
         >
           {isSaving ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <X className="h-3.5 w-3.5" />
           )}
@@ -332,7 +332,7 @@ export const PublicGalleryPhotoSection = ({
 
       {isLoading && photos.length === 0 ? (
         <div className="flex min-h-80 items-center justify-center rounded-3xl border border-border/40 bg-surface-1/25 text-sm font-medium text-muted">
-          <Loader2 className="mr-3 h-6 w-6 animate-spin text-accent" />
+          <LoaderCircle className="mr-3 h-6 w-6 animate-spin text-accent" />
           Loading gallery photos...
         </div>
       ) : photos.length > 0 ? (
@@ -347,7 +347,7 @@ export const PublicGalleryPhotoSection = ({
                 isLoading ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'
               }`}
             >
-              <Loader2 className="h-4 w-4 animate-spin text-accent motion-reduce:animate-none" />
+              <LoaderCircle className="h-4 w-4 animate-spin text-accent motion-reduce:animate-none" />
               Loading gallery photos...
             </div>
 
@@ -488,7 +488,7 @@ export const PublicGalleryPhotoSection = ({
 
           {isLoadingMore && (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-accent" />
+              <LoaderCircle className="h-8 w-8 animate-spin text-accent" />
               <span className="ml-3 font-medium text-muted">Loading more photos...</span>
             </div>
           )}

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
-  AlertTriangle,
+  TriangleAlert,
   ArrowLeft,
   CalendarClock,
-  CheckCircle2,
+  CircleCheckBig,
   Clock3,
-  Loader2,
+  LoaderCircle,
   Lock,
   MousePointerClick,
   ShieldCheck,
@@ -604,7 +604,7 @@ export const ShareLinkDetailPage = () => {
 
   const healthCards: LinkHealthCardProps[] = [
     {
-      icon: status === 'active' ? ShieldCheck : status === 'expired' ? AlertTriangle : Lock,
+      icon: status === 'active' ? ShieldCheck : status === 'expired' ? TriangleAlert : Lock,
       label: 'Link health',
       value: status === 'active' ? 'Public and reachable' : status,
       hint:
@@ -623,7 +623,7 @@ export const ShareLinkDetailPage = () => {
       tone: totals.totalViews > 0 ? 'accent' : 'neutral',
     },
     {
-      icon: CheckCircle2,
+      icon: CircleCheckBig,
       label: 'Selection',
       value: selectionSummary.is_enabled
         ? `${numberFormatter.format(selectionSummary.selected_count)} selected`
@@ -824,7 +824,7 @@ export const ShareLinkDetailPage = () => {
                   aria-live="polite"
                   aria-label="Updating analytics"
                 >
-                  <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                  <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
                   Updating analytics…
                 </span>
               ) : null}

@@ -1,4 +1,4 @@
-import { AlertCircle } from 'lucide-react';
+import { CircleAlert } from 'lucide-react';
 import { Clock3 } from 'lucide-react';
 import { Link } from 'react-router';
 
@@ -10,7 +10,7 @@ export const PublicGalleryError = ({ error }: PublicGalleryErrorProps) => (
   <div className="flex min-h-screen items-center justify-center bg-surface p-4 text-text">
     <div className="w-full max-w-md rounded-3xl border border-border/50 bg-surface p-8 text-center shadow-2xl sm:p-10">
       <div className="w-20 h-20 bg-danger/10 rounded-full flex items-center justify-center mx-auto mb-6">
-        <AlertCircle className="w-10 h-10 text-danger" />
+        <CircleAlert className="w-10 h-10 text-danger" />
       </div>
       <h1 className="mb-3 text-3xl font-bold tracking-tight text-text">Gallery Not Available</h1>
       <p className="text-lg font-medium text-muted">{error}</p>

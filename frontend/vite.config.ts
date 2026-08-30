@@ -4,7 +4,7 @@ import type { ProxyOptions } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { compression } from 'vite-plugin-compression2';
-import { API_URL_VALIDATION_MESSAGES, assertRequiredHttpsApiUrl } from './src/lib/apiUrlValidation';
+import { API_URL_VALIDATION_MESSAGES, assertRequiredHttpsApiUrl } from './src/lib/apiUrlValidation.ts';
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
