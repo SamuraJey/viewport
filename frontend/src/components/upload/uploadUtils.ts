@@ -185,30 +185,35 @@ const readAllEntries = async (reader: FileSystemDirectoryReader): Promise<FileSy
   return allEntries;
 };
 
-const traverseDirectory = async (
-  entry: FileSystemEntry,
-  onProgress?: (fileCount: number) => void,
-): Promise<File[]> => {
+const readTopLevelFiles = async (entry: AnyEntry): Promise<File[]> => {
+  // Read only the directory's immediate file entries. Nested subdirectories are
+  // intentionally skipped: a full recursive walk can be expensive for large
+  // trees, so folder intake is top-level only.
+  if (typeof entry.createReader !== 'function') return [];
+  const reader = entry.createReader();
+  const entries = await readAllEntries(reader);
   const files: File[] = [];
-  const visit = async (current: AnyEntry): Promise<void> => {
-    if (current.isFile) {
-      const file = await readFileEntry(current);
-      setUploadSourcePath(file, current.fullPath);
-      files.push(file);
-      onProgress?.(files.length);
-      return;
-    }
-    if (current.isDirectory && typeof current.createReader === 'function') {
-      const reader = current.createReader();
-      const entries = await readAllEntries(reader);
-      for (const child of entries) {
-        await visit(child as AnyEntry);
-      }
-    }
-  };
-  await visit(entry as AnyEntry);
+  for (const child of entries) {
+    if (!child.isFile) continue;
+    const file = await readFileEntry(child as AnyEntry);
+    setUploadSourcePath(file, child.fullPath);
+    files.push(file);
+  }
   return files;
 };
+
+/**
+ * Keep only files that live directly inside the selected folder (top level),
+ * dropping files from nested subdirectories. Used by the `webkitdirectory`
+ * picker, whose browser-collected `FileList` already contains the whole tree
+ * with `webkitRelativePath` populated.
+ */
+export const filterTopLevelFiles = (files: File[]): File[] =>
+  files.filter((file) => {
+    const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+    if (!relativePath) return true;
+    return relativePath.split('/').length <= 2;
+  });
 
 const readFileEntry = (entry: AnyEntry): Promise<File> => {
   const fileCallback = entry.file;
@@ -240,7 +245,7 @@ const extractFilesFromItem = async (item: DataTransferItem): Promise<File[]> => 
     return file ? [file] : [];
   }
   if (entry.isDirectory) {
-    return traverseDirectory(entry);
+    return readTopLevelFiles(entry as AnyEntry);
   }
   if (entry.isFile) {
     const file = await readFileEntry(entry as AnyEntry);

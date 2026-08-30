@@ -3,6 +3,7 @@ import {
   classifyDropPayload,
   deduplicateUploadFiles,
   extractFilesFromEvent,
+  filterTopLevelFiles,
   getUploadFileKey,
   getUploadSourcePath,
   getUploadValidationError,
@@ -198,7 +199,7 @@ describe('extractFilesFromEvent', () => {
     expect(getUploadSourcePath(files[0])).toBe('dir/photo.jpg');
   });
 
-  it('recursively flattens a nested directory entry', async () => {
+  it('reads only top-level files from a directory entry (no recursion)', async () => {
     const deepFile = file('deep.jpg');
     const shallowFile = file('shallow.jpg');
     const nestedDir = makeDirEntry('root/sub', [makeFileEntry('root/sub/deep.jpg', deepFile)]);
@@ -211,11 +212,13 @@ describe('extractFilesFromEvent', () => {
 
     const { files, hadDirectory } = await extractFilesFromEvent(event);
 
-    expect(files).toHaveLength(2);
-    expect(files.map((f) => f.name).sort()).toEqual(['deep.jpg', 'shallow.jpg']);
+    // Only the top-level file is read; the nested subdirectory is skipped.
+    expect(files).toHaveLength(1);
+    expect(files.map((f) => f.name)).toEqual(['shallow.jpg']);
     expect(hadDirectory).toBe(true);
-    expect(getUploadSourcePath(deepFile)).toBe('root/sub/deep.jpg');
     expect(getUploadSourcePath(shallowFile)).toBe('root/shallow.jpg');
+    // The nested file is never read, so it carries no source path.
+    expect(getUploadSourcePath(deepFile)).toBe('');
   });
 
   it('handles a mixed file and directory drop', async () => {
@@ -343,6 +346,36 @@ describe('extractFilesFromEvent', () => {
     expect(hadDirectory).toBe(true);
     expect(files).toHaveLength(1);
     expect(files[0]).toBe(f);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* filterTopLevelFiles                                                 */
+/* ------------------------------------------------------------------ */
+
+const fileWithRelativePath = (relativePath: string): File => {
+  const f = file(relativePath.split('/').pop() ?? 'file.jpg');
+  Object.defineProperty(f, 'webkitRelativePath', {
+    value: relativePath,
+    configurable: true,
+  });
+  return f;
+};
+
+describe('filterTopLevelFiles', () => {
+  it('keeps top-level files and drops nested subdirectory files', () => {
+    const top = fileWithRelativePath('folder/a.jpg');
+    const nested = fileWithRelativePath('folder/sub/b.jpg');
+    const deep = fileWithRelativePath('folder/sub/deeper/c.jpg');
+
+    expect(filterTopLevelFiles([top, nested, deep])).toEqual([top]);
+  });
+
+  it('keeps files without a relative path (plain picker / paste)', () => {
+    const plain = file('plain.jpg');
+    const top = fileWithRelativePath('folder/a.jpg');
+
+    expect(filterTopLevelFiles([plain, top])).toEqual([plain, top]);
   });
 });
 

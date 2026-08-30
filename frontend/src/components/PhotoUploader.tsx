@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { UploadConfirmModal } from './upload/UploadConfirmModal';
 import { UploadDropzone } from './upload/UploadDropzone';
-import { isSupportedUploadFile, prepareUploadSelection } from './upload/uploadUtils';
+import { isSupportedUploadFile, prepareUploadSelection, filterTopLevelFiles } from './upload/uploadUtils';
 import {
   MAX_VIDEO_UPLOAD_FILE_SIZE_BYTES,
   MAX_UPLOAD_FILE_SIZE_MB,
@@ -145,7 +145,11 @@ export const PhotoUploader = forwardRef<PhotoUploaderHandle, PhotoUploaderProps>
     };
 
     const handleFolderInput = (event: React.ChangeEvent<HTMLInputElement>) => {
-      if (event.target.files?.length) handleFiles(event.target.files);
+      if (event.target.files?.length) {
+        // The webkitdirectory picker collects the whole tree natively; keep only
+        // top-level files so folder intake stays consistent with directory drops.
+        handleFiles(filterTopLevelFiles(Array.from(event.target.files)));
+      }
       event.target.value = '';
     };
 

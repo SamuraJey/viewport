@@ -9,11 +9,12 @@ settings.
 
 ## Folder and directory upload
 
-In addition to individual files, the owner can upload an entire directory tree.
-Directory structure is **not preserved**: all supported images and videos found
-recursively are collected into a flat queue in the current gallery. The
-relative path is used only on the client for file identity and deduplication;
-it is never sent to the backend or persisted.
+In addition to individual files, the owner can upload a directory. Only the
+directory's **top-level** supported images and videos are collected into a flat
+queue in the current gallery; nested subdirectories are **not** walked. This
+keeps intake fast for large trees. Directory structure is **not preserved**,
+and the relative path is used only on the client for file identity and
+deduplication; it is never sent to the backend or persisted.
 
 ### Entry points
 
@@ -23,13 +24,15 @@ it is never sent to the backend or persisted.
   **Upload folder** options. The folder option uses a hidden
    `<input type="file" webkitdirectory>` and is feature-detected — on browsers
    that do not support `webkitdirectory`, the folder action is
-   hidden so users never see a misleading control.
+   hidden so users never see a misleading control. The browser collects the
+   whole tree natively, but `filterTopLevelFiles` keeps only top-level files
+   (a file whose `webkitRelativePath` has at most one `/`) before intake.
 - **Directory drag-and-drop**: dropping a directory onto any part of the
-  gallery page, or onto the open review modal, recursively flattens all
-  nested files into the queue. Mixed drops (files and folders together) are
-  supported.
+  gallery page, or onto the open review modal, reads the directory's
+  top-level files into the queue. Nested subdirectories are skipped. Mixed
+  drops (files and folders together) are supported.
 
-### Recursive extraction
+### Top-level extraction
 
 The shared `extractFilesFromEvent` function in `uploadUtils.ts` handles all
 three event shapes:
@@ -38,20 +41,20 @@ three event shapes:
    `File.webkitRelativePath` is already populated by the browser.
 2. Plain drops without the Entry API — falls back to `dataTransfer.files`.
 3. Directory drops using the Entry API — iterates `dataTransfer.items`,
-   resolves each via `getAsEntry()` / `webkitGetAsEntry()`, and recursively
-   traverses `FileSystemDirectoryEntry` children.
+   resolves each via `getAsEntry()` / `webkitGetAsEntry()`, and reads the
+   directory's immediate file entries (no recursion into subdirectories).
 
-Directory traversal details:
+Directory read details:
 
 - `createReader().readEntries()` is called repeatedly until it returns an
   empty array. Chromium caps each call at approximately 100 entries, so a
   single call is never treated as the complete result.
-- The traversal yields to the event loop between batches so the UI stays
+- The read yields to the event loop between batches so the UI stays
   responsive for large directories.
 - No artificial file-count cap is imposed. The queue relies on lazy thumbnail
   loading for large selections.
 - Empty directories produce no queue entries.
-- Unreadable file entries are skipped rather than failing the entire traversal.
+- Unreadable file entries are skipped rather than failing the entire read.
 - `entry.fullPath` is stored as the client-side source path via a `WeakMap`
   (the browser `File` object is never mutated).
 
@@ -161,10 +164,10 @@ changing the server contract.
 ## Folder and directory intake
 
 Folder intake is a **frontend-only** path. The directory structure is never
-stored: every supported image and video found under a folder is collected
-recursively and flattened into the current gallery's queue, so the backend,
-object keys (`gallery_id/photo_id.ext`), quota, presign, and multipart contracts
-are untouched.
+stored: the folder's top-level supported images and videos are collected and
+flattened into the current gallery's queue (nested subdirectories are not
+walked), so the backend, object keys (`gallery_id/photo_id.ext`), quota,
+presign, and multipart contracts are untouched.
 
 - **Entry points.** The gallery header **Add photos** control is a split action:
   the main button opens the regular file picker in one click (unchanged), and an
@@ -176,7 +179,7 @@ are untouched.
   The Project page's empty state ("Build this project with galleries") also
   offers an **Upload folder** action: it creates a new gallery named after the
   chosen folder (truncated to the gallery-name limit) and opens it with the
-  folder's supported files already staged in the review queue.
+  folder's top-level supported files already staged in the review queue.
 - **Project-page folder handoff.** Because the new gallery does not exist until
   it is created, the Project page enqueues the selected files in an in-memory
   `pendingFilesQueue` keyed by the new gallery id, then navigates to the gallery
@@ -184,13 +187,19 @@ are untouched.
   the files through the existing `handleExternalFiles` review flow. Files are held
   in memory only (never serialized or sent anywhere), the queue is cleared on
   first read (idempotent under StrictMode), and no backend change is required.
-- **Recursive collection.** Dropped directories are walked with the File System
+- **Top-level collection.** Dropped directories are read with the File System
   Entry API (`webkitGetAsEntry`/`getAsEntry`, `createReader().readEntries()`
-  called until it returns an empty batch, recursing into nested directories).
-  The full traversal runs **only on the actual drop**, never on `dragenter`;
-  during a drag the payload is classified cheaply so the overlay can describe it
-  without reading the tree. There is no artificial file-count cap.
-- **Flattening.** All nested files are flattened into a single flat queue for the
+  called until it returns an empty batch) but only the directory's immediate
+  file entries are read — nested subdirectories are skipped to keep intake fast
+  for large trees. The read runs **only on the actual drop**, never on
+  `dragenter`; during a drag the payload is classified cheaply so the overlay can
+  describe it without reading the directory. There is no artificial file-count
+  cap.
+- **Folder picker filtering.** The `webkitdirectory` picker collects the whole
+  tree natively in the browser, so `filterTopLevelFiles` drops files whose
+  `webkitRelativePath` contains a subdirectory, keeping only top-level files and
+  making the picker consistent with directory drops.
+- **Flattening.** Top-level files are flattened into a single flat queue for the
   gallery. Empty directories produce no queue entries, and unsupported files
   (e.g. `readme.txt`) are filtered by the existing type/size validation.
 - **Client-only relative path.** The relative path is used *only* on the client
@@ -198,17 +207,17 @@ are untouched.
   directory-drop files are tagged with `entry.fullPath` through a `WeakMap`
   (the browser `File` is never mutated). The upload identity key
   (`name + size + type + lastModified + sourcePath`) includes the normalized
-  source path when known, so two `photo.jpg` files from different
-  subdirectories are kept distinct, while re-selecting the same file from the
-  same folder still deduplicates. The path is **never sent to the backend** and
+  source path when known, so two `photo.jpg` files from different top-level
+  drops are kept distinct, while re-selecting the same file from the same folder
+  still deduplicates. The path is **never sent to the backend** and
   is not persisted.
 - **Same basenames.** Files that collide on filename receive the existing
   deterministic rename (`photo.jpg`, `photo (1).jpg`, …) and rename warnings,
   exactly as with a flat multi-file selection.
 - **Scanning state.** Because a large directory is read asynchronously, the
   overlay and review modal show a **Scanning folder** state (with a polite live
-  region) while the tree is being read, and a second drop is blocked until the
-  first traversal finishes. A directory that cannot be read surfaces a single
+  region) while the directory is being read, and a second drop is blocked until
+  the first read finishes. A directory that cannot be read surfaces a single
   clear error instead of opening the queue with a misleadingly empty result.
 - **Browser fallback.** When the Entry API is unavailable, dropped items fall
   back to `getAsFile()`. When `webkitdirectory` is unsupported, the folder
@@ -266,8 +275,11 @@ Frontend coverage includes:
 - page-wide drop acceptance and rejection feedback;
 - per-file upload progress and retry behavior;
 - keyboard and pointer queue reordering;
-- directory extraction: file entries, nested directories, mixed drops,
-  repeated `readEntries()` batches, `getAsFile` fallback;
+- directory extraction: file entries, top-level-only reads (nested
+  subdirectories skipped), mixed drops, repeated `readEntries()` batches,
+  `getAsFile` fallback;
+- `filterTopLevelFiles`: keeps top-level files, drops nested subdirectory files,
+  keeps files without a relative path;
 - source path deduplication: same basename from different paths stays
   distinct, same source path deduplicates;
 - source path transfer through image resize;
@@ -291,13 +303,13 @@ recommended:
 
 ```text
 fixture/
-  first/photo.jpg
-  second/photo.jpg
-  nested/deeper/video.mp4
+  photo.jpg
+  clip.mp4
+  sub/nested-photo.jpg
   ignored/readme.txt
 ```
 
-Verify the folder picker and both drop entry points, the scanning state, two
-`photo.jpg` rows, the rename of the second file, and the absence of
-`readme.txt` in the queue. Backend suite is not required since the server
-contract is unchanged.
+Verify the folder picker and both drop entry points, the scanning state, the
+top-level `photo.jpg` and `clip.mp4` rows, and that the nested
+`sub/nested-photo.jpg` and `ignored/readme.txt` are **not** in the queue.
+Backend suite is not required since the server contract is unchanged.

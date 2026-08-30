@@ -24,7 +24,7 @@ import { MetricCard } from '../components/dashboard/MetricCard';
 import { ShareLinksSection } from '../components/gallery/ShareLinksSection';
 import { AppDialog, AppDialogDescription, AppDialogTitle, AppTabs } from '../components/ui';
 import { GALLERY_NAME_MAX_LENGTH } from '../constants/gallery';
-import { isSupportedUploadFile } from '../components/upload/uploadUtils';
+import { filterTopLevelFiles, isSupportedUploadFile } from '../components/upload/uploadUtils';
 import { ShareLinkEditorModal } from '../components/share-links/ShareLinkEditorModal';
 import { ShareLinkSettingsModal } from '../components/share-links/ShareLinkSettingsModal';
 import { useConfirmation } from '../hooks/useConfirmation';
@@ -338,7 +338,9 @@ export const ProjectPage = () => {
     if (!fileList || fileList.length === 0) return;
 
     const files = Array.from(fileList);
-    const supportedFiles = files.filter(isSupportedUploadFile);
+    // The webkitdirectory picker collects the whole tree natively; keep only
+    // top-level files so folder intake stays consistent with directory drops.
+    const supportedFiles = filterTopLevelFiles(files).filter(isSupportedUploadFile);
     if (supportedFiles.length === 0) {
       setError('No supported photos or videos in that folder. Use JPG, PNG, or a supported video.');
       if (input) input.value = '';

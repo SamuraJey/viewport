@@ -103,7 +103,7 @@ describe('GalleryDropZone', () => {
     });
   });
 
-  it('passes all nested files from a directory drop', async () => {
+  it('passes top-level files from a directory drop', async () => {
     // Override extractFilesFromEvent to resolve synchronously (no setTimeout
     // yields) so jsdom act() can flush the dragenter processing.
     vi.mocked(extractFilesFromEvent).mockResolvedValue({

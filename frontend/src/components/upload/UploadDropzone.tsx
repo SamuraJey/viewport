@@ -59,12 +59,12 @@ export const UploadDropzone = ({
       }
       const nativeEvent =
         event instanceof Event ? event : (event as { nativeEvent: Event }).nativeEvent;
-      // Only perform the full recursive directory traversal on an actual drop.
-      // During dragenter the browser exposes DataTransferItems (MIME type only,
-      // no name/size); traversing there would be wasteful and would flip the
-      // dropzone into its processing state before the user has dropped anything.
-      // GalleryDropZone classifies the payload separately via classifyDropPayload.
-      // The input change event has no dataTransfer, so it must fall through to the
+      // Only perform the directory read on an actual drop. During dragenter the
+      // browser exposes DataTransferItems (MIME type only, no name/size);
+      // reading there would be wasteful and would flip the dropzone into its
+      // processing state before the user has dropped anything. GalleryDropZone
+      // classifies the payload separately via classifyDropPayload. The input
+      // change event has no dataTransfer, so it must fall through to the
       // extractor, which reads event.target.files.
       if (nativeEvent.type === 'dragenter') {
         const dataTransfer = (nativeEvent as DragEvent).dataTransfer;
