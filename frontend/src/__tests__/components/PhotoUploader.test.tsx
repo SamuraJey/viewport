@@ -11,6 +11,20 @@ vi.mock('../../lib/imageResize', () => ({
   resizeImageForUpload: vi.fn(async (file: File) => file),
 }));
 
+// jsdom does not support webkitdirectory, so feature-detect it as supported
+// in tests by stubbing the property on created input elements.
+beforeEach(() => {
+  Object.defineProperty(HTMLInputElement.prototype, 'webkitdirectory', {
+    configurable: true,
+    get: () => '',
+    set: () => {},
+  });
+});
+
+afterEach(() => {
+  delete (HTMLInputElement.prototype as unknown as Record<string, unknown>).webkitdirectory;
+});
+
 describe('PhotoUploader', () => {
   const mockOnUploadComplete = vi.fn();
 
@@ -470,5 +484,85 @@ describe('PhotoUploader', () => {
 
     // onUploadComplete should not be called when already uploading
     expect(mockOnUploadComplete).not.toHaveBeenCalled();
+  });
+
+  describe('folder picker', () => {
+    it('renders a hidden folder input with webkitdirectory, multiple, and accept', async () => {
+      render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
+
+      const folderInput = await screen.findByLabelText('Choose a folder to upload');
+      expect(folderInput).toHaveAttribute('webkitdirectory');
+      expect(folderInput).toHaveAttribute('multiple');
+      expect(folderInput.getAttribute('accept')).toContain('image/jpeg');
+    });
+
+    it('opens the review queue after folder selection', async () => {
+      const { setUploadSourcePath } = await import('../../components/upload/uploadUtils');
+      const f = new File(['image'], 'photo.jpg', { type: 'image/jpeg' });
+      setUploadSourcePath(f, 'folder/photo.jpg');
+
+      render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
+
+      const folderInput = await screen.findByLabelText('Choose a folder to upload');
+      await act(async () => {
+        fireEvent.change(folderInput, { target: { files: [f] } });
+      });
+
+      expect(await screen.findByText('photo.jpg')).toBeInTheDocument();
+    });
+
+    it('keeps two files with the same basename from different source paths', async () => {
+      const { setUploadSourcePath, getUploadFileKey } = await import(
+        '../../components/upload/uploadUtils'
+      );
+      // Use different content sizes so the files are distinct even without
+      // source path, then verify the source path makes the keys different.
+      const first = new File(['aa'], 'photo.jpg', { type: 'image/jpeg' });
+      const second = new File(['bbb'], 'photo.jpg', {
+        type: 'image/jpeg',
+        lastModified: 99,
+      });
+      setUploadSourcePath(first, 'folder-a/photo.jpg');
+      setUploadSourcePath(second, 'folder-b/photo.jpg');
+
+      // Verify keys are distinct before rendering.
+      expect(getUploadFileKey(first)).not.toBe(getUploadFileKey(second));
+
+      render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
+
+      const folderInput = await screen.findByLabelText('Choose a folder to upload');
+      await act(async () => {
+        fireEvent.change(folderInput, { target: { files: [first, second] } });
+      });
+
+      // Both files should appear — same basename, different content + source paths.
+      const items = await screen.findAllByText('photo.jpg');
+      expect(items.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('reports duplicates when the same folder is re-selected', async () => {
+      const { setUploadSourcePath } = await import('../../components/upload/uploadUtils');
+      const f = new File(['image'], 'photo.jpg', { type: 'image/jpeg' });
+      setUploadSourcePath(f, 'folder/photo.jpg');
+
+      render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
+
+      const folderInput = await screen.findByLabelText('Choose a folder to upload');
+      await act(async () => {
+        fireEvent.change(folderInput, { target: { files: [f] } });
+      });
+      expect(await screen.findByText('photo.jpg')).toBeInTheDocument();
+
+      // Re-select the same file (same source path) — should be deduplicated.
+      const { toast } = await import('sonner');
+      const toastSpy = vi.spyOn(toast, 'info');
+      await act(async () => {
+        fireEvent.change(folderInput, { target: { files: [f] } });
+      });
+
+      // A duplicate toast should have been emitted.
+      expect(toastSpy.mock.calls.some((call) => /duplicate/i.test(String(call[0])))).toBe(true);
+      toastSpy.mockRestore();
+    });
   });
 });

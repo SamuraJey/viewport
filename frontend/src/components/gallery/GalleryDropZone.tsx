@@ -4,7 +4,11 @@ import { toast } from 'sonner';
 import { PasteHandler } from '../upload/PasteHandler';
 import { UploadDragOverlay } from '../upload/UploadDragOverlay';
 import { UploadDropzone } from '../upload/UploadDropzone';
-import { describeUploadRejections } from '../upload/uploadUtils';
+import {
+  classifyDropPayload,
+  describeUploadRejections,
+  type DropPayloadKind,
+} from '../upload/uploadUtils';
 
 interface GalleryDropZoneProps {
   children: ReactNode;
@@ -18,13 +22,29 @@ export const GalleryDropZone = ({
   disabled = false,
 }: GalleryDropZoneProps) => {
   const [draggedFileCount, setDraggedFileCount] = useState(0);
+  const [payloadKind, setPayloadKind] = useState<DropPayloadKind>('unknown');
+  const [isScanning, setIsScanning] = useState(false);
 
   const handleDragEnter = useCallback((event: DropEvent) => {
     if ('dataTransfer' in event) {
-      setDraggedFileCount(
-        Array.from(event.dataTransfer?.items ?? []).filter((item) => item.kind === 'file').length,
+      const items = Array.from(event.dataTransfer?.items ?? []).filter(
+        (item) => item.kind === 'file',
       );
+      setDraggedFileCount(items.length);
+      setPayloadKind(classifyDropPayload(event.dataTransfer ?? null));
     }
+  }, []);
+
+  const handleFilesAccepted = useCallback(
+    (files: File[]) => {
+      setIsScanning(false);
+      onFilesAccepted(files);
+    },
+    [onFilesAccepted],
+  );
+
+  const handleDropzoneState = useCallback((isProcessing: boolean) => {
+    setIsScanning(isProcessing);
   }, []);
 
   const handlePaste = useCallback(
@@ -43,24 +63,39 @@ export const GalleryDropZone = ({
 
   return (
     <UploadDropzone
-      onFilesAccepted={onFilesAccepted}
+      onFilesAccepted={handleFilesAccepted}
       onFilesRejected={(rejections) =>
         toast.error('Some files were not added', {
           description: describeUploadRejections(rejections),
         })
       }
       onDragEnter={handleDragEnter}
-      disabled={disabled}
+      onProcessingChange={handleDropzoneState}
+      onError={(error) =>
+        toast.error('Could not read the dropped folder', {
+          description: error.message,
+        })
+      }
+      disabled={disabled || isScanning}
       className="contents"
     >
-      {({ isDragGlobal, isDragReject }) => (
+      {({ isDragGlobal, isDragReject, isProcessing }) => (
         <>
           <PasteHandler onPaste={handlePaste} disabled={disabled} />
           <UploadDragOverlay
-            visible={isDragGlobal && !disabled}
+            visible={(isDragGlobal || isProcessing) && !disabled}
             fileCount={draggedFileCount}
             isRejected={isDragReject}
+            payloadKind={payloadKind}
+            isScanning={isProcessing}
           />
+          <div role="status" aria-live="polite" className="sr-only">
+            {isProcessing
+              ? payloadKind === 'folders'
+                ? 'Scanning folder for photos and videos.'
+                : 'Preparing dropped files.'
+              : ''}
+          </div>
           {children}
         </>
       )}

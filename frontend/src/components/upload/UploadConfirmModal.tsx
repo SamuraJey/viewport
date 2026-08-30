@@ -14,7 +14,7 @@ import { usePhotoUpload } from '../../hooks/usePhotoUpload';
 import { resizeImageForUpload } from '../../lib/imageResize';
 import { formatFileSize } from '../../lib/utils';
 import { MAX_UPLOAD_FILE_SIZE_MB } from '../../constants/upload';
-import { isResizableOversizedImage } from './uploadUtils';
+import { isResizableOversizedImage, extractFilesFromEvent, transferUploadSourcePath } from './uploadUtils';
 import { PasteHandler } from './PasteHandler';
 import { UploadQueueList } from './UploadQueueList';
 import { UploadProgressContent } from '../upload-confirm/UploadProgressContent';
@@ -86,6 +86,7 @@ export const UploadConfirmModal = memo(
     const [resizingJobId, setResizingJobId] = useState<string | null>(null);
     const [isResizingAll, setIsResizingAll] = useState(false);
     const [isDragOver, setIsDragOver] = useState(false);
+    const [isScanningDrop, setIsScanningDrop] = useState(false);
     const uploadButtonRef = useRef<HTMLButtonElement>(null);
     const isActiveRef = useRef(true);
 
@@ -94,7 +95,12 @@ export const UploadConfirmModal = memo(
       [jobs],
     );
     const intakeDisabled =
-      !onFilesAdded || isUploading || isResizingAll || resizingJobId !== null || Boolean(result);
+      !onFilesAdded ||
+      isUploading ||
+      isResizingAll ||
+      resizingJobId !== null ||
+      Boolean(result) ||
+      isScanningDrop;
     const handlePaste = useCallback(
       (pastedFiles: File[]) => {
         const stagedCount = onFilesAdded?.(pastedFiles) ?? 0;
@@ -131,12 +137,25 @@ export const UploadConfirmModal = memo(
     }, []);
 
     const handleDrop = useCallback(
-      (event: DragEvent<HTMLDivElement>) => {
+      async (event: DragEvent<HTMLDivElement>) => {
         event.preventDefault();
         event.stopPropagation();
         setIsDragOver(false);
         if (intakeDisabled || event.dataTransfer.files.length === 0) return;
-        onFilesAdded?.(Array.from(event.dataTransfer.files));
+        setIsScanningDrop(true);
+        try {
+          const { files } = await extractFilesFromEvent(event.nativeEvent as Event);
+          if (!isActiveRef.current) return;
+          onFilesAdded?.(files);
+        } catch (error) {
+          if (isActiveRef.current) {
+            toast.error('Could not read the dropped folder', {
+              description: error instanceof Error ? error.message : 'Try again.',
+            });
+          }
+        } finally {
+          if (isActiveRef.current) setIsScanningDrop(false);
+        }
       },
       [intakeDisabled, onFilesAdded],
     );
@@ -198,6 +217,7 @@ export const UploadConfirmModal = memo(
         try {
           const resized = await resizeImageForUpload(job.file);
           if (!isActiveRef.current) return;
+          transferUploadSourcePath(job.file, resized);
           handleReplaceJob(jobId, resized);
         } catch (error) {
           if (!isActiveRef.current) return;
@@ -224,6 +244,7 @@ export const UploadConfirmModal = memo(
           try {
             const resized = await resizeImageForUpload(job.file);
             if (!isActiveRef.current) break;
+            transferUploadSourcePath(job.file, resized);
             workingFiles[index] = resized;
           } catch (error) {
             if (!isActiveRef.current) break;
@@ -239,11 +260,13 @@ export const UploadConfirmModal = memo(
       }
     }, [files, isResizingAll, onFilesChange, resizableJobs]);
 
-    const liveMessage = progress
-      ? `Upload in progress. ${progress.successCount} of ${files.length} files uploaded.${progress.failedCount > 0 ? ` ${progress.failedCount} failed.` : ''}`
-      : result
-        ? `${result.successful_uploads} of ${result.total_files} files uploaded. ${result.failed_uploads} failed.`
-        : `${validUploadCount} of ${files.length} files ready to upload.`;
+    const liveMessage = isScanningDrop
+      ? 'Scanning dropped folder for photos and videos.'
+      : progress
+        ? `Upload in progress. ${progress.successCount} of ${files.length} files uploaded.${progress.failedCount > 0 ? ` ${progress.failedCount} failed.` : ''}`
+        : result
+          ? `${result.successful_uploads} of ${result.total_files} files uploaded. ${result.failed_uploads} failed.`
+          : `${validUploadCount} of ${files.length} files ready to upload.`;
 
     if (!isOpen) return null;
 
@@ -376,15 +399,23 @@ export const UploadConfirmModal = memo(
           />
         </div>
 
-        {isDragOver && (
+        {(isDragOver || isScanningDrop) && (
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-3 z-30 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-accent bg-surface/95 px-6 text-center text-accent dark:bg-surface-foreground/95"
           >
-            <Upload className="mb-3 h-8 w-8" aria-hidden="true" />
-            <p className="text-base font-bold">Drop to add files</p>
+            {isScanningDrop ? (
+              <Loader2 className="mb-3 h-8 w-8 animate-spin" aria-hidden="true" />
+            ) : (
+              <Upload className="mb-3 h-8 w-8" aria-hidden="true" />
+            )}
+            <p className="text-base font-bold">
+              {isScanningDrop ? 'Scanning folder' : 'Drop to add files'}
+            </p>
             <p className="mt-1 max-w-md text-sm font-medium text-muted">
-              They will join the current queue without changing its order.
+              {isScanningDrop
+                ? 'Collecting photos and videos from the folder.'
+                : 'They will join the current queue without changing its order.'}
             </p>
           </div>
         )}

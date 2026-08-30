@@ -215,4 +215,117 @@ describe('GalleryHeader', () => {
     expect(onCreateShareLink).toHaveBeenCalledTimes(1);
     expect(screen.getByText('3')).toBeInTheDocument();
   });
+
+  describe('upload split action', () => {
+    it('calls onAddPhotos from the main button in a single click', async () => {
+      const user = userEvent.setup();
+      const onAddPhotos = vi.fn();
+      const onAddFolder = vi.fn();
+
+      render(
+        <MemoryRouter>
+          <GalleryHeader
+            {...createProps()}
+            onAddPhotos={onAddPhotos}
+            onAddFolder={onAddFolder}
+          />
+        </MemoryRouter>,
+      );
+
+      await user.click(screen.getByLabelText('Add photos'));
+
+      expect(onAddPhotos).toHaveBeenCalledTimes(1);
+      expect(onAddFolder).not.toHaveBeenCalled();
+      // A single click on the main button must not open the options menu.
+      expect(screen.queryByLabelText('Upload options')).not.toBeInTheDocument();
+    });
+
+    it('opens the upload menu and calls onAddFolder from the folder action', async () => {
+      const user = userEvent.setup();
+      const onAddPhotos = vi.fn();
+      const onAddFolder = vi.fn();
+
+      render(
+        <MemoryRouter>
+          <GalleryHeader
+            {...createProps()}
+            onAddPhotos={onAddPhotos}
+            onAddFolder={onAddFolder}
+          />
+        </MemoryRouter>,
+      );
+
+      await user.click(screen.getByLabelText('Add photos or folder'));
+      expect(screen.getByLabelText('Upload options')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Upload files' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Upload folder' })).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Upload folder' }));
+
+      expect(onAddFolder).toHaveBeenCalledTimes(1);
+      expect(onAddPhotos).not.toHaveBeenCalled();
+      // The panel closes once an action is chosen.
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Upload options')).not.toBeInTheDocument();
+      });
+    });
+
+    it('calls onAddPhotos from the menu files action', async () => {
+      const user = userEvent.setup();
+      const onAddPhotos = vi.fn();
+      const onAddFolder = vi.fn();
+
+      render(
+        <MemoryRouter>
+          <GalleryHeader
+            {...createProps()}
+            onAddPhotos={onAddPhotos}
+            onAddFolder={onAddFolder}
+          />
+        </MemoryRouter>,
+      );
+
+      await user.click(screen.getByLabelText('Add photos or folder'));
+      await user.click(await screen.findByRole('button', { name: 'Upload files' }));
+
+      expect(onAddPhotos).toHaveBeenCalledTimes(1);
+      expect(onAddFolder).not.toHaveBeenCalled();
+    });
+
+    it('closes the upload menu with Escape and returns focus to the trigger', async () => {
+      const user = userEvent.setup();
+      const onAddFolder = vi.fn();
+
+      render(
+        <MemoryRouter>
+          <GalleryHeader {...createProps()} onAddPhotos={vi.fn()} onAddFolder={onAddFolder} />
+        </MemoryRouter>,
+      );
+
+      const trigger = screen.getByLabelText('Add photos or folder');
+      await user.click(trigger);
+      const folderAction = await screen.findByRole('button', { name: 'Upload folder' });
+
+      folderAction.focus();
+      await user.keyboard('{Escape}');
+
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Upload options')).not.toBeInTheDocument();
+      });
+      expect(trigger).toHaveFocus();
+      expect(onAddFolder).not.toHaveBeenCalled();
+    });
+
+    it('hides the folder action when onAddFolder is not provided', () => {
+      render(
+        <MemoryRouter>
+          <GalleryHeader {...createProps()} onAddPhotos={vi.fn()} />
+        </MemoryRouter>,
+      );
+
+      expect(screen.getByLabelText('Add photos')).toBeInTheDocument();
+      // The split chevron and its menu are absent without a folder handler.
+      expect(screen.queryByLabelText('Add photos or folder')).not.toBeInTheDocument();
+    });
+  });
 });

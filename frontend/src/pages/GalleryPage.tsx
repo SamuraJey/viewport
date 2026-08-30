@@ -126,6 +126,7 @@ export const GalleryPage = () => {
   const [isShareLinkCreateOpen, setIsShareLinkCreateOpen] = useState(false);
   const [editingShareLink, setEditingShareLink] = useState<ShareLink | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [folderPickerSupported, setFolderPickerSupported] = useState(false);
   const [photoSizeById, setPhotoSizeById] = useState<Record<string, number>>({});
   const [favoritesTabs, setFavoritesTabs] = useState<FavoritesUserTab[]>([]);
   const [selectedFavoritesTabKey, setSelectedFavoritesTabKey] = useState<string | null>(null);
@@ -196,6 +197,13 @@ export const GalleryPage = () => {
   useEffect(() => {
     setSearchInput(urlSearch);
   }, [urlSearch]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    setFolderPickerSupported('webkitdirectory' in input);
+  }, []);
 
   const deferredSearchInput = useDeferredValue(searchInput);
 
@@ -1203,6 +1211,11 @@ export const GalleryPage = () => {
             sortOrder={sortOrder}
             onDeleteGallery={handleDeleteGallery}
             onAddPhotos={() => photoUploaderRef.current?.openFilePicker()}
+            onAddFolder={
+              folderPickerSupported
+                ? () => photoUploaderRef.current?.openFolderPicker()
+                : undefined
+            }
             onDownloadGallery={photoUrls.length > 0 ? handleDownloadGallery : undefined}
             onToggleSelectionMode={photoUrls.length > 0 ? handleToggleSelectionMode : undefined}
             isSelectionMode={isSelectionMode}
