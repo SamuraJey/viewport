@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UploadConfirmModal } from '../../../components/upload/UploadConfirmModal';
 import { usePhotoUpload } from '../../../hooks/usePhotoUpload';
 import { resizeImageForUpload } from '../../../lib/imageResize';
-import { extractFilesFromEvent } from '../../../components/upload/uploadUtils';
+import { extractFilesFromEvent, DirectoryReadError } from '../../../components/upload/uploadUtils';
 import { MAX_UPLOAD_FILE_SIZE_BYTES } from '../../../constants/upload';
 
 vi.mock('../../../hooks/usePhotoUpload', () => ({
@@ -340,6 +340,52 @@ describe('UploadConfirmModal', () => {
       await waitFor(() => {
         // The late result must not re-add files to a closed queue.
         expect(onFilesAdded).not.toHaveBeenCalled();
+      });
+    });
+
+    it('clears the scanning state and recovers after a DirectoryReadError', async () => {
+      const onFilesAdded = vi.fn();
+      vi.mocked(usePhotoUpload).mockReturnValue(idleUpload());
+
+      render(
+        <UploadConfirmModal
+          isOpen
+          onClose={vi.fn()}
+          files={[new File(['a'], 'a.jpg', { type: 'image/jpeg' })]}
+          galleryId="gallery-1"
+          onUploadComplete={vi.fn()}
+          onFilesAdded={onFilesAdded}
+        />,
+      );
+
+      const panel = document.querySelector('[data-upload-dropzone="review-queue"]')!;
+
+      // First drop: extraction rejects with a controlled DirectoryReadError.
+      vi.mocked(extractFilesFromEvent).mockRejectedValue(new DirectoryReadError());
+      const failed = new File(['failed'], 'failed.jpg', { type: 'image/jpeg' });
+      fireEvent.drop(panel, makeDropEvent([failed]));
+
+      // The scanning state appears while extraction is in flight…
+      await waitFor(() => {
+        expect(screen.getByText('Scanning folder')).toBeInTheDocument();
+      });
+      // …and is cleared once the rejection is handled.
+      await waitFor(() => {
+        expect(screen.queryByText('Scanning folder')).not.toBeInTheDocument();
+      });
+      // The failed drop must not stage any files.
+      expect(onFilesAdded).not.toHaveBeenCalled();
+
+      // A subsequent drop after the error still works.
+      vi.mocked(extractFilesFromEvent).mockResolvedValue({
+        files: [new File(['ok'], 'ok.jpg', { type: 'image/jpeg' })],
+        hadDirectory: true,
+      });
+      const ok = new File(['ok'], 'ok.jpg', { type: 'image/jpeg' });
+      fireEvent.drop(panel, makeDropEvent([ok]));
+
+      await waitFor(() => {
+        expect(onFilesAdded).toHaveBeenCalledTimes(1);
       });
     });
   });

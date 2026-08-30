@@ -233,8 +233,9 @@ const readFileEntry = (entry: AnyEntry): Promise<File> => {
 
 const extractFilesFromItem = async (item: DataTransferItem): Promise<File[]> => {
   const entry = getAsEntry(item);
-  if (entry === undefined) return [];
-  if (entry === null) {
+  // `null` (no Entry API) and `undefined` (the Entry API threw) both fall back
+  // to `getAsFile()` so a dropped file is never silently lost.
+  if (entry === undefined || entry === null) {
     const file = item.getAsFile();
     return file ? [file] : [];
   }
@@ -270,9 +271,11 @@ export const extractFilesFromEvent = async (
   try {
     for (const item of items) {
       if (item.kind !== 'file') continue;
+      // Resolve the entry only to flag directory drops; `extractFilesFromItem`
+      // re-resolves it and falls back to `getAsFile()` when the Entry API is
+      // unavailable or throws, so every file item is preserved.
       const entry = getAsEntry(item);
-      if (entry === undefined) continue;
-      if (entry !== null && entry.isDirectory) hadDirectory = true;
+      if (entry && entry.isDirectory) hadDirectory = true;
       const extracted = await extractFilesFromItem(item);
       files.push(...extracted);
     }

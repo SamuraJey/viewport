@@ -386,10 +386,17 @@ describe('usePhotoUpload', () => {
   });
 
   it('keeps same basename from different source paths as distinct jobs', () => {
-    const first = makeFile('photo.jpg');
-    const second = new File(['other-image-data'], 'photo.jpg', {
+    // Both files are identical in name, content, MIME type, and lastModified;
+    // only their source paths differ. Without the source path in the key they
+    // would deduplicate, so this isolates the source path as the distinguishing
+    // factor.
+    const first = new File(['image-data'], 'photo.jpg', {
       type: 'image/jpeg',
-      lastModified: 99,
+      lastModified: 123,
+    });
+    const second = new File(['image-data'], 'photo.jpg', {
+      type: 'image/jpeg',
+      lastModified: 123,
     });
     setUploadSourcePath(first, 'sub-a/photo.jpg');
     setUploadSourcePath(second, 'sub-b/photo.jpg');

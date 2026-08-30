@@ -21,9 +21,9 @@ it is never sent to the backend or persisted.
   action. The main button opens the regular file picker (one click, unchanged
   from before). The adjacent chevron opens a popover with **Upload files** and
   **Upload folder** options. The folder option uses a hidden
-  `<input type="file" webkitdirectory>` and is feature-detected — on browsers
-  that do not support `webkitdirectory` (e.g. Safari), the folder action is
-  hidden so users never see a misleading control.
+   `<input type="file" webkitdirectory>` and is feature-detected — on browsers
+   that do not support `webkitdirectory`, the folder action is
+   hidden so users never see a misleading control.
 - **Directory drag-and-drop**: dropping a directory onto any part of the
   gallery page, or onto the open review modal, recursively flattens all
   nested files into the queue. Mixed drops (files and folders together) are
@@ -60,7 +60,7 @@ Directory traversal details:
 The deduplication key (`getUploadFileKey`) now includes the normalized source
 path:
 
-```
+```text
 sourcePath::name::size::type::lastModified
 ```
 
