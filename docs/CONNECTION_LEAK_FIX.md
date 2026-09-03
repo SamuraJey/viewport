@@ -20,7 +20,7 @@ sqlalchemy.exc.TimeoutError: QueuePool limit of size 20 overflow 20 reached
 ```python
 # ❌ WRONG - Creates race condition
 @router.get("/endpoint")
-async def endpoint(repo = Depends(get_repository)):
+async def endpoint(repo=Depends(get_repository)):
     result = await run_in_threadpool(repo.some_method)
     return result
 ```
@@ -43,7 +43,7 @@ FastAPI automatically runs **sync endpoints** in threadpool correctly, ensuring 
 ```python
 # ✅ CORRECT - FastAPI handles threadpool
 @router.get("/endpoint")
-def endpoint(repo = Depends(get_repository)):
+def endpoint(repo=Depends(get_repository)):
     result = repo.some_method()
     return result
 ```
@@ -54,7 +54,7 @@ For CPU-intensive work (bcrypt, cryptography) - keep `run_in_threadpool`:
 
 ```python
 @router.post("/login")
-async def login(request: LoginRequest, repo = Depends(get_repository)):
+async def login(request: LoginRequest, repo=Depends(get_repository)):
     # CPU-bound bcrypt - correct use of run_in_threadpool
     is_valid = await run_in_threadpool(verify_password, request.password, user.password_hash)
 
@@ -69,7 +69,7 @@ If endpoint must stay async (for async S3 operations), DB calls should be direct
 
 ```python
 @router.get("/photos")
-async def get_photos(repo = Depends(get_repository), s3 = Depends(get_s3_client)):
+async def get_photos(repo=Depends(get_repository), s3=Depends(get_s3_client)):
     # Direct DB call - blocks briefly but avoids race condition
     photos = repo.get_photos()
 

@@ -60,11 +60,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
 
     # Relationships
-    galleries: Mapped[list["Gallery"]] = relationship(
-        "Gallery",
-        back_populates="owner",
-        cascade="all, delete-orphan"
-    )
+    galleries: Mapped[list["Gallery"]] = relationship("Gallery", back_populates="owner", cascade="all, delete-orphan")
 ```
 
 **Fields:**
@@ -95,10 +91,7 @@ class Gallery(Base):
     __tablename__ = "galleries"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    owner_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"),
-        index=True
-    )
+    owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String, nullable=False, default="")
     cover_photo_id: Mapped[UUID | None] = mapped_column(
         UUID(as_uuid=True),
@@ -110,16 +103,8 @@ class Gallery(Base):
 
     # Relationships
     owner: Mapped["User"] = relationship("User", back_populates="galleries")
-    photos: Mapped[list["Photo"]] = relationship(
-        "Photo",
-        back_populates="gallery",
-        cascade="all, delete-orphan"
-    )
-    share_links: Mapped[list["ShareLink"]] = relationship(
-        "ShareLink",
-        back_populates="gallery",
-        cascade="all, delete-orphan"
-    )
+    photos: Mapped[list["Photo"]] = relationship("Photo", back_populates="gallery", cascade="all, delete-orphan")
+    share_links: Mapped[list["ShareLink"]] = relationship("ShareLink", back_populates="gallery", cascade="all, delete-orphan")
     cover_photo: Mapped["Photo | None"] = relationship(
         "Photo",
         primaryjoin="Gallery.cover_photo_id==Photo.id",
@@ -161,10 +146,7 @@ class Photo(Base):
     __tablename__ = "photos"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    gallery_id: Mapped[UUID] = mapped_column(
-        ForeignKey("galleries.id", ondelete="CASCADE"),
-        index=True
-    )
+    gallery_id: Mapped[UUID] = mapped_column(ForeignKey("galleries.id", ondelete="CASCADE"), index=True)
     object_key: Mapped[str] = mapped_column(String, nullable=False)
     thumbnail_object_key: Mapped[str] = mapped_column(String, nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -208,10 +190,7 @@ class ShareLink(Base):
     __tablename__ = "share_links"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    gallery_id: Mapped[UUID] = mapped_column(
-        ForeignKey("galleries.id", ondelete="CASCADE"),
-        index=True
-    )
+    gallery_id: Mapped[UUID] = mapped_column(ForeignKey("galleries.id", ondelete="CASCADE"), index=True)
     expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
     views: Mapped[int] = mapped_column(default=0)
     zip_downloads: Mapped[int] = mapped_column(default=0)
@@ -281,10 +260,8 @@ photos = db.query(Photo).filter_by(gallery_id=gallery_id).all()
 ### Find active share links
 ```python
 import datetime
-active_links = db.query(ShareLink).filter(
-    (ShareLink.expires_at == None) |
-    (ShareLink.expires_at > datetime.datetime.utcnow())
-).all()
+
+active_links = db.query(ShareLink).filter((ShareLink.expires_at == None) | (ShareLink.expires_at > datetime.datetime.utcnow())).all()
 ```
 
 ### Get photos by share link
@@ -349,10 +326,7 @@ Database schema changes use Alembic migrations. See [Migrations Guide](../develo
 Use `joinedload()` to prevent N+1 queries:
 
 ```python
-galleries = db.query(Gallery)\
-    .options(joinedload(Gallery.owner))\
-    .filter_by(owner_id=user_id)\
-    .all()
+galleries = db.query(Gallery).options(joinedload(Gallery.owner)).filter_by(owner_id=user_id).all()
 ```
 
 ### Pagination
@@ -362,20 +336,14 @@ Always paginate large result sets:
 page = 1
 size = 20
 offset = (page - 1) * size
-galleries = db.query(Gallery)\
-    .filter_by(owner_id=user_id)\
-    .offset(offset)\
-    .limit(size)\
-    .all()
+galleries = db.query(Gallery).filter_by(owner_id=user_id).offset(offset).limit(size).all()
 ```
 
 ### Counter Updates
 Counters on ShareLink use atomic operations to prevent race conditions:
 
 ```python
-db.query(ShareLink).filter_by(id=share_id).update({
-    ShareLink.views: ShareLink.views + 1
-})
+db.query(ShareLink).filter_by(id=share_id).update({ShareLink.views: ShareLink.views + 1})
 db.commit()
 ```
 

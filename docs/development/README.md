@@ -169,10 +169,13 @@ npm run lint:fix  # auto-fix
 ### Backend
 ```python
 # Add breakpoint
-import pdb; pdb.set_trace()
+import pdb
+
+pdb.set_trace()
 
 # Or use debugpy for remote debugging
 import debugpy
+
 debugpy.listen(("0.0.0.0", 5678))
 debugpy.wait_for_client()
 ```

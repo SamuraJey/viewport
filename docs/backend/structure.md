@@ -97,6 +97,7 @@ Pydantic models for request/response validation.
 class GalleryCreate(BaseModel):
     pass  # Empty for initial version
 
+
 class GalleryResponse(BaseModel):
     id: UUID
     owner_id: UUID
@@ -166,6 +167,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
 
 @router.get("/galleries")
 async def list_galleries(db: Session = Depends(get_db)):

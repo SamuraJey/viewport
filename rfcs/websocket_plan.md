@@ -118,6 +118,7 @@ import json
 from typing import AsyncIterator
 import redis.asyncio as redis
 
+
 class PubSubService:
     def __init__(self, redis_url: str):
         self.redis = redis.from_url(redis_url)
@@ -139,6 +140,7 @@ class PubSubService:
 # src/viewport/api/websocket.py
 from fastapi import WebSocket, WebSocketDisconnect, Query
 from viewport.auth_utils import decode_access_token
+
 
 @router.websocket("/ws/galleries/{gallery_id}/thumbnails")
 async def thumbnail_progress_ws(
