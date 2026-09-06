@@ -43,6 +43,24 @@ action rows. Share-link save/cancel actions share one row when space allows.
 Appearance previews have narrower mobile gutters and a width-bounded phone
 preview. Popovers are width-bounded and use anchor padding at screen edges.
 
+## Notched phones and the software keyboard
+
+- The viewport meta sets `viewport-fit=cover` and
+  `interactive-widget=resizes-content`. Cover mode makes the
+  `env(safe-area-inset-*)` paddings real on notched phones: the sticky shell
+  header, landing header, and auth corner buttons pad away the status bar and
+  camera cutout, while the mobile navigation dock, main content, and footer
+  clear the home indicator. Overlay surfaces (dialogs, drawer footers, the
+  public selection bar) already consumed these insets.
+- `interactive-widget=resizes-content` pins Chrome on Android to resizing the
+  layout viewport when the keyboard opens, the behavior the fixed dock and
+  visible-viewport overlays were designed around. Safari ignores the value and
+  keeps its visual-viewport behavior, which `useOverlayViewport` already
+  tracks.
+- Interactive elements suppress the browser tap highlight and use
+  `touch-action: manipulation` to drop the legacy double-tap zoom delay;
+  pinch zoom, focus rings, and active states remain the feedback channels.
+
 ## Verification
 
 Automated tests cover viewport resize/panning, keyboard dismissal, pinch zoom,

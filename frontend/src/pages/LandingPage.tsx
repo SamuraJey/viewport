@@ -282,7 +282,7 @@ export const LandingPage = () => {
       </div>
 
       <header className="sticky top-0 z-50 border-b border-border/40 bg-surface/90 backdrop-blur-xl dark:border-border/30 dark:bg-surface-dark/85">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-6">
           <Link
             to="/"
             className="flex items-center gap-2.5 font-oswald text-xl font-bold uppercase tracking-wider text-text transition-opacity hover:opacity-80 dark:text-accent-foreground"

@@ -23,6 +23,27 @@
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
+/* Touch feedback comes from visible focus rings and active states, not the
+   browser's gray tap flash; manipulation drops the legacy double-tap zoom
+   delay on controls without affecting pinch zoom. */
+button,
+a,
+[role='button'],
+input,
+select,
+textarea,
+label,
+summary {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a,
+[role='button'],
+summary {
+  touch-action: manipulation;
+}
+
 @media (max-width: 767px), (pointer: coarse) {
   /* 16px prevents focus zoom on iOS without disabling user zoom. */
   :is(.owner-workspace, .app-dialog-panel, .app-drawer) :is(input, textarea, select) {
