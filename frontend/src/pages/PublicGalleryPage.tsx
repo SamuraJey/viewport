@@ -21,7 +21,10 @@ import {
 } from '../components/public-gallery/galleryAppearance';
 import { PublicGalleryHero } from '../components/public-gallery/PublicGalleryHero';
 import { PublicGalleryPhotoSection } from '../components/public-gallery/PublicGalleryPhotoSection';
-import { PublicGallerySelectionBar } from '../components/public-gallery/PublicGallerySelectionBar';
+import {
+  PublicGallerySelectionBar,
+  getStatusLabel,
+} from '../components/public-gallery/PublicGallerySelectionBar';
 import { PublicGalleryShareDrawer } from '../components/public-gallery/PublicGalleryShareDrawer';
 import {
   PublicGalleryError,
@@ -580,6 +583,22 @@ export const PublicGalleryPage = () => {
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       setStartFormError('');
+      if (!startForm.client_name.trim()) {
+        setStartFormError('Please enter your name.');
+        return;
+      }
+      if (selection.config?.require_email && !startForm.client_email?.trim()) {
+        setStartFormError('Please enter your email.');
+        return;
+      }
+      if (selection.config?.require_phone && !startForm.client_phone?.trim()) {
+        setStartFormError('Please enter your phone number.');
+        return;
+      }
+      if (selection.config?.require_client_note && !startForm.client_note?.trim()) {
+        setStartFormError('Please add a short note.');
+        return;
+      }
       void selection
         .startSession({
           client_name: startForm.client_name,
@@ -1006,7 +1025,7 @@ export const PublicGalleryPage = () => {
             </h2>
             <p className="mt-3 text-sm text-muted">
               {selection.session?.client_name || 'Anonymous guest'}
-              {selection.session?.status ? ` • ${selection.session.status}` : ''}
+              {selection.session?.status ? ` • ${getStatusLabel(selection.session.status)}` : ''}
             </p>
 
             <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-sm text-muted">

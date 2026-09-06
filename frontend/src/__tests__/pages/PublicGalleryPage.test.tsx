@@ -1143,6 +1143,37 @@ describe('PublicGalleryPage', () => {
     });
   });
 
+  it('shows a friendly message and skips the API when the name is empty', async () => {
+    const { shareLinkService } = await import('../../services/shareLinkService');
+    const user = userEvent.setup();
+    vi.mocked(shareLinkService.getPublicSelectionConfig).mockResolvedValue({
+      is_enabled: true,
+      list_title: 'Selected photos',
+      limit_enabled: false,
+      limit_value: null,
+      allow_photo_comments: false,
+      require_name: true,
+      require_email: false,
+      require_phone: false,
+      require_client_note: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    } as any);
+
+    render(wrapper());
+
+    const favoriteButton = await screen.findByRole('button', { name: /add 1.jpg to favorites/i });
+    await user.click(favoriteButton);
+    await screen.findByLabelText(/your name/i);
+
+    await user.click(screen.getByRole('button', { name: /continue/i }));
+
+    expect(
+      await screen.findByText('Please enter your name.', { selector: '[role=alert]' }),
+    ).toBeInTheDocument();
+    expect(shareLinkService.startPublicSelectionSession).not.toHaveBeenCalled();
+  });
+
   it('shows a compact note trigger for selected photos instead of placing comments in the grid', async () => {
     const { shareLinkService } = await import('../../services/shareLinkService');
     vi.mocked(shareLinkService.getPublicSelectionConfig).mockResolvedValue({
@@ -1247,7 +1278,7 @@ describe('PublicGalleryPage', () => {
     });
 
     expect(screen.getByRole('button', { name: /back to gallery/i })).toBeInTheDocument();
-    expect(screen.getByText('Jane Client • in_progress')).toBeInTheDocument();
+    expect(screen.getByText('Jane Client • Selection in progress')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /download all photos/i })).not.toBeInTheDocument();
   });
 

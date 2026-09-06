@@ -31,6 +31,7 @@ interface ShareLinksSectionProps {
   onEditLink?: (link: ShareLink) => void;
   onOpenLinkAnalytics?: (linkId: string) => void;
   onOpenDashboard?: () => void;
+  emptyStateNoun?: string;
 }
 
 const numberFormatter = new Intl.NumberFormat();
@@ -64,6 +65,7 @@ const ShareLinksSectionComponent = ({
   onEditLink,
   onOpenLinkAnalytics,
   onOpenDashboard,
+  emptyStateNoun = 'gallery',
 }: ShareLinksSectionProps) => {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -388,7 +390,7 @@ const ShareLinksSectionComponent = ({
         <div className="rounded-2xl border border-border/50 bg-surface-1 py-10 text-center shadow-inner dark:border-border/40 dark:bg-surface-dark-1">
           <Share2 className="mx-auto mb-4 h-12 w-12 text-muted opacity-50" />
           <p className="font-medium text-muted dark:text-muted-dark">
-            No share links created yet. Create one to share this gallery!
+            No share links created yet. Create one to share this {emptyStateNoun}!
           </p>
         </div>
       )}

@@ -92,6 +92,15 @@ const makeDemoId = (): string => {
 
 const nowIso = (): string => new Date().toISOString();
 
+const formatShareDate = (value?: string | null): string => {
+  if (!value) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  const day = String(parsed.getUTCDate()).padStart(2, '0');
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, '0');
+  return `${day}.${month}.${parsed.getUTCFullYear()}`;
+};
+
 const DEFAULT_GALLERY_APPEARANCE = {
   cover_focal_x: 50,
   cover_focal_y: 50,
@@ -2177,7 +2186,7 @@ class DemoServiceStore {
         scope_type: 'gallery',
         gallery_name: galleryState.gallery.name,
         photographer: this.user.display_name || this.user.email,
-        date: galleryState.gallery.shooting_date,
+        date: formatShareDate(galleryState.gallery.shooting_date),
         site_url: window.location.origin,
         total_photos: sortedPhotos.length,
         total_size_bytes: totalSizeBytes,
@@ -2255,7 +2264,7 @@ class DemoServiceStore {
       project_id: projectState.project.id,
       project_name: projectState.project.name,
       photographer: this.user.display_name || this.user.email,
-      date: projectState.project.shooting_date,
+      date: formatShareDate(projectState.project.shooting_date),
       site_url: window.location.origin,
       cover: effectiveCoverPhoto
         ? {
@@ -2308,7 +2317,7 @@ class DemoServiceStore {
         scope_type: 'gallery',
         gallery_name: folderState.gallery.name,
         photographer: this.user.display_name || this.user.email,
-        date: folderState.gallery.shooting_date,
+        date: formatShareDate(folderState.gallery.shooting_date),
         site_url: window.location.origin,
         total_photos: sortedPhotos.length,
         total_size_bytes: folderTotalSizeBytes,

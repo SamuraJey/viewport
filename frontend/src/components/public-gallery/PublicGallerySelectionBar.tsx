@@ -10,7 +10,7 @@ interface PublicGallerySelectionBarProps {
   onFinishSelection: () => void;
 }
 
-const getStatusLabel = (status: SelectionSession['status']) => {
+export const getStatusLabel = (status: SelectionSession['status']) => {
   if (status === 'in_progress') return 'Selection in progress';
   if (status === 'submitted') return 'Selection submitted';
   if (status === 'closed') return 'Selection closed';

@@ -811,6 +811,7 @@ export const ProjectPage = () => {
       onEditLink={(link) => setEditingShareLink(link)}
       onOpenLinkAnalytics={(linkId) => navigate(`/share-links/${linkId}`)}
       onOpenDashboard={() => navigate('/share-links')}
+      emptyStateNoun="project"
     />
   );
 
