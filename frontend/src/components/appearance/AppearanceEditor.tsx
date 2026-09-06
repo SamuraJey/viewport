@@ -774,7 +774,7 @@ export const AppearanceEditor = ({
         </section>
       </aside>
 
-      <section className="flex min-h-[42rem] flex-col bg-surface-1 px-6 py-10 dark:bg-surface-dark-1 lg:px-11 lg:py-[4.5rem]">
+      <section className="flex min-w-0 flex-col bg-surface-1 px-3 py-6 dark:bg-surface-dark-1 sm:px-6 sm:py-10 lg:min-h-[42rem] lg:px-11 lg:py-[4.5rem]">
         <div className="mx-auto flex w-full max-w-xl border-b border-border/50 dark:border-border/30">
           {[
             { key: 'cover' as const, label: 'Cover' },
@@ -799,7 +799,7 @@ export const AppearanceEditor = ({
           })}
         </div>
 
-        <div className="flex flex-1 items-start justify-center pt-[4.5rem]">
+        <div className="flex min-w-0 flex-1 items-start justify-center pt-6 lg:pt-[4.5rem]">
           {previewTab === 'cover' ? (
             <div className="relative w-full max-w-6xl">
               <div className="mb-2 text-xl font-bold leading-none text-muted/50">...</div>
@@ -821,7 +821,7 @@ export const AppearanceEditor = ({
                   </div>
                 </div>
 
-                <div className="w-[15rem] shrink-0">
+                <div className="w-[15rem] max-w-full shrink-0">
                   <p className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-muted">
                     Phone 9:16
                   </p>

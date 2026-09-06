@@ -453,7 +453,7 @@ export const ShareLinkSettingsModal = ({
 
   const formId = `${useId()}-share-link-settings-${mode}`;
   const drawerFooter = createdLink ? undefined : (
-    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+    <div className="flex flex-wrap items-center justify-end gap-2">
       <button
         type="button"
         onClick={handleClose}
@@ -567,11 +567,11 @@ export const ShareLinkSettingsModal = ({
             selectedKey={activeTab}
             onChange={setActiveTab}
             preserveInactivePanels
-            listClassName="sticky top-0 z-10 flex shrink-0 gap-1 overflow-x-auto border-b border-border/50 bg-surface/95 px-4 backdrop-blur-xl dark:border-border/40"
-            defaultPanelClassName="px-5 py-5 sm:px-6"
+            listClassName="share-link-tabs sticky top-0 z-10 flex shrink-0 gap-0 overflow-x-auto border-b border-border/50 bg-surface/95 px-1 backdrop-blur-xl dark:border-border/40 sm:gap-1 sm:px-4"
+            defaultPanelClassName="px-4 py-4 sm:px-6 sm:py-5"
           />
 
-          <div className="space-y-2 px-5 pb-4 sm:px-6">
+          <div className="space-y-2 px-4 pb-4 sm:px-6">
             {hasMissingCustomExpiry ? (
               <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
                 Choose a custom expiration date or select another TTL.

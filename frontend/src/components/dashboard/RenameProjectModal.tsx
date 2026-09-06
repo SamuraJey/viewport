@@ -26,7 +26,13 @@ export const RenameProjectModal = ({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open) inputRef.current?.select();
+    if (
+      open &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(min-width: 768px) and (pointer: fine)').matches
+    ) {
+      inputRef.current?.select();
+    }
   }, [open]);
 
   return (
@@ -44,14 +50,14 @@ export const RenameProjectModal = ({
           onSave();
         }}
       >
-        <div className="px-6 pb-4 pt-6">
+        <div className="px-4 pb-4 pt-5 sm:px-6 sm:pt-6">
           <AppDialogTitle className="text-xl font-bold tracking-[-0.02em] text-text">
             Rename project
           </AppDialogTitle>
-          <AppDialogDescription className="mt-2 text-sm leading-6 text-muted">
+          <AppDialogDescription className="mobile-dialog-detail mt-2 text-sm leading-6 text-muted">
             Update how “{projectName}” appears in your workspace and client deliveries.
           </AppDialogDescription>
-          <label className="mt-5 block text-sm font-semibold text-text" htmlFor="rename-project">
+          <label className="mt-4 block text-sm font-semibold text-text sm:mt-5" htmlFor="rename-project">
             Project name
           </label>
           <input
@@ -63,7 +69,7 @@ export const RenameProjectModal = ({
             className="mt-2 h-11 w-full rounded-xl bg-surface-1 px-3 text-sm font-semibold text-text outline-none ring-1 ring-border/55 transition-shadow focus:ring-[3px] focus:ring-accent dark:bg-surface-dark-1 dark:ring-border/40"
           />
         </div>
-        <div className="flex justify-end gap-3 border-t border-border/45 bg-surface-1/70 px-6 py-4 dark:border-border/35 dark:bg-surface-dark-1/65">
+        <div className="flex justify-end gap-2 border-t border-border/45 bg-surface-1/70 px-4 py-3 sm:gap-3 sm:px-6 sm:py-4 dark:border-border/35 dark:bg-surface-dark-1/65">
           <button
             type="button"
             onClick={onClose}

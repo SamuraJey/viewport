@@ -17,7 +17,13 @@ export const useCreateProjectModal = ({ onCreated, onError }: UseCreateProjectMo
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (isOpen) inputRef.current?.focus();
+    if (
+      isOpen &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(min-width: 768px) and (pointer: fine)').matches
+    ) {
+      inputRef.current?.focus();
+    }
   }, [isOpen]);
 
   const open = () => {

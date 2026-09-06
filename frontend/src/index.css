@@ -3,6 +3,148 @@
 @config '../tailwind.config.js';
 @import 'tailwindcss';
 
+/* Overlay geometry follows the visible viewport, including the software keyboard. */
+.app-dialog-viewport {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
+}
+
+.app-drawer-footer {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.app-drawer [data-overlay-scroll] {
+  scroll-padding-block: 1rem;
+}
+
+.app-drawer [data-overlay-scroll]:last-child {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 767px), (pointer: coarse) {
+  /* 16px prevents focus zoom on iOS without disabling user zoom. */
+  :is(.owner-workspace, .app-dialog-panel, .app-drawer) :is(input, textarea, select) {
+    font-size: max(1rem, 16px);
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .app-drawer-header {
+    min-height: 64px;
+    max-height: 64px !important;
+    align-items: center;
+    padding: 8px 60px 8px 16px;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+  }
+
+  .app-drawer[data-side='bottom'] > :first-child {
+    height: 16px;
+  }
+
+  .app-drawer-header [data-drawer-icon],
+  .app-drawer-header [data-drawer-eyebrow],
+  .app-drawer-header [data-drawer-description] {
+    display: none;
+  }
+
+  .app-drawer-header > div {
+    padding-right: 0;
+  }
+
+  .app-drawer-header h2 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: clamp(1.125rem, 5vw, 1.5rem);
+  }
+
+  .app-drawer-header button {
+    top: 10px;
+    right: 8px;
+  }
+
+  .app-drawer-section {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .app-drawer-section [data-drawer-section-header] {
+    display: none;
+  }
+
+  .app-drawer-section [data-drawer-section-body] {
+    padding: 0;
+  }
+
+  .share-link-tabs button {
+    min-height: 2.75rem;
+    flex: 1 0 auto;
+    justify-content: center;
+    padding-inline: 0.75rem;
+  }
+
+  :is(.app-dialog-panel, .app-drawer) :is(input, textarea, select) {
+    min-height: 44px;
+    height: clamp(44px, 3rem, 56px);
+  }
+
+  .app-drawer[data-keyboard-open='true'] > :first-child {
+    height: 0.75rem;
+  }
+
+  .app-drawer[data-keyboard-open='true'] .app-drawer-header {
+    min-height: 52px;
+    max-height: 52px !important;
+    padding-block: 4px;
+  }
+
+  .app-drawer[data-keyboard-open='true'] [data-drawer-icon],
+  .app-drawer[data-keyboard-open='true'] [data-drawer-eyebrow],
+  .app-drawer[data-keyboard-open='true'] [data-drawer-description] {
+    display: none;
+  }
+
+  .app-drawer[data-keyboard-open='true'] .app-drawer-header > div {
+    padding-right: 0;
+  }
+
+  .app-drawer[data-keyboard-open='true'] .app-drawer-header h2 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 1.125rem;
+  }
+
+  .app-drawer[data-keyboard-open='true'] .app-drawer-header button {
+    top: 4px;
+    right: 0.5rem;
+  }
+
+  .app-drawer[data-keyboard-open='true'] .app-drawer-footer {
+    padding-block: 0.5rem;
+  }
+
+  [data-keyboard-open='true'] .mobile-dialog-intro {
+    padding-block: 0.75rem;
+  }
+
+  [data-keyboard-open='true'] .mobile-dialog-intro > div > span,
+  [data-keyboard-open='true'] .mobile-dialog-intro p,
+  [data-keyboard-open='true'] .mobile-dialog-detail {
+    display: none;
+  }
+
+  [data-keyboard-open='true'] .mobile-dialog-intro h2 {
+    margin-top: 0;
+    font-size: 1.125rem;
+  }
+}
+
 @theme {
   --color-accent: rgb(var(--color-accent-rgb));
   --color-accent-foreground: rgb(var(--color-accent-foreground-rgb));

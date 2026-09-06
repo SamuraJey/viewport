@@ -54,7 +54,7 @@ export const Layout = ({ children, onOpenCommandPalette }: LayoutProps) => {
   ];
 
   return (
-    <div className="min-h-screen bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
+    <div className="owner-workspace min-h-screen bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
       <SkipToContentLink />
       <header className="sticky top-0 z-40 border-b border-border/60 bg-surface/95 py-2 backdrop-blur-xl dark:bg-surface-dark/95 sm:py-2.5">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-3 sm:px-4">

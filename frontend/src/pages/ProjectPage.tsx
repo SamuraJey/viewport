@@ -980,7 +980,7 @@ export const ProjectPage = () => {
         panelClassName="overflow-hidden rounded-[2rem] border border-border/50 bg-surface shadow-2xl dark:border-border/20 dark:bg-surface-dark"
       >
         <form onSubmit={handleRenameProjectSubmit}>
-          <div className="bg-linear-to-br from-accent/12 via-surface to-surface px-6 py-5 dark:from-accent/15 dark:via-surface-dark dark:to-surface-dark">
+          <div className="mobile-dialog-intro bg-linear-to-br from-accent/12 via-surface to-surface px-4 py-3 sm:px-6 sm:py-5 dark:from-accent/15 dark:via-surface-dark dark:to-surface-dark">
             <div className="flex items-start gap-3">
               <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
                 <PencilLine className="h-6 w-6" />
@@ -992,14 +992,14 @@ export const ProjectPage = () => {
                 <AppDialogTitle className="mt-1 font-oswald text-2xl font-bold uppercase tracking-wide text-text">
                   Rename project
                 </AppDialogTitle>
-                <AppDialogDescription className="mt-1 text-sm leading-6 text-muted">
+                <AppDialogDescription className="mobile-dialog-detail mt-1 text-sm leading-6 text-muted">
                   Update the internal project name shown on the dashboard and this delivery hub.
                 </AppDialogDescription>
               </div>
             </div>
           </div>
 
-          <div className="space-y-3 p-6">
+          <div className="space-y-3 p-4 sm:p-6">
             <label
               className="block text-xs font-bold uppercase tracking-[0.16em] text-muted"
               htmlFor="project-rename-name"
@@ -1016,7 +1016,7 @@ export const ProjectPage = () => {
               className="h-12 w-full rounded-2xl border border-border/45 bg-surface-1 px-4 text-sm font-semibold text-text outline-none transition-colors placeholder:text-muted/70 hover:border-accent/45 focus:border-accent dark:border-border/30 dark:bg-surface-dark-1"
               placeholder="Project name"
             />
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+            <div className="mobile-dialog-detail flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
               <span>Use a name you can recognize later in the dashboard.</span>
               <span>
                 {projectNameDraft.length}/{GALLERY_NAME_MAX_LENGTH}
@@ -1024,7 +1024,7 @@ export const ProjectPage = () => {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 border-t border-border/40 bg-surface-1/55 px-6 py-4 dark:border-border/30 dark:bg-surface-dark-1/55">
+          <div className="flex flex-wrap justify-end gap-3 border-t border-border/40 bg-surface-1/55 px-4 py-3 sm:px-6 sm:py-4 dark:border-border/30 dark:bg-surface-dark-1/55">
             <button
               type="button"
               onClick={closeProjectRenameDialog}
@@ -1064,7 +1064,7 @@ export const ProjectPage = () => {
         panelClassName="overflow-hidden rounded-[2rem] border border-border/50 bg-surface shadow-2xl dark:border-border/20 dark:bg-surface-dark"
       >
         <form onSubmit={handleCreateGallerySubmit}>
-          <div className="bg-linear-to-br from-accent/12 via-surface to-surface px-6 py-5 dark:from-accent/15 dark:via-surface-dark dark:to-surface-dark">
+          <div className="mobile-dialog-intro bg-linear-to-br from-accent/12 via-surface to-surface px-4 py-3 sm:px-6 sm:py-5 dark:from-accent/15 dark:via-surface-dark dark:to-surface-dark">
             <div className="flex items-start gap-3">
               <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
                 <FolderPlus className="h-6 w-6" />
@@ -1073,17 +1073,17 @@ export const ProjectPage = () => {
                 <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-accent">
                   Add gallery
                 </p>
-                <AppDialogTitle className="mt-1 font-oswald text-2xl font-bold uppercase tracking-wide text-text">
-                  Build the next chapter
+                <AppDialogTitle className="mt-1 font-oswald text-xl font-bold uppercase tracking-wide text-text sm:text-2xl">
+                  Add gallery
                 </AppDialogTitle>
-                <AppDialogDescription className="mt-1 text-sm leading-6 text-muted">
-                  Create a leaf gallery for uploads, client proofing, and optional direct delivery.
+                <AppDialogDescription className="mobile-dialog-detail mt-1 text-sm leading-6 text-muted">
+                  Create a gallery for uploads, proofing, and delivery.
                 </AppDialogDescription>
               </div>
             </div>
           </div>
 
-          <div className="space-y-5 p-6">
+          <div className="space-y-4 p-4 sm:space-y-5 sm:p-6">
             <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_11rem]">
               <div>
                 <label
@@ -1147,7 +1147,7 @@ export const ProjectPage = () => {
                 <option value="listed">Visible in project</option>
                 <option value="direct_only">Direct link only</option>
               </select>
-              <div className="mt-3 rounded-2xl border border-border/35 bg-surface-1/70 p-3 text-sm leading-6 text-muted dark:border-border/25 dark:bg-white/[0.035]">
+              <div className="mobile-dialog-detail mt-3 rounded-2xl border border-border/35 bg-surface-1/70 p-3 text-sm leading-6 text-muted dark:border-border/25 dark:bg-white/[0.035]">
                 <span className="inline-flex items-center gap-2 font-semibold text-text">
                   <ListChecks className="h-4 w-4 text-accent" />
                   What this controls
@@ -1159,7 +1159,7 @@ export const ProjectPage = () => {
               </div>
             </div>
           </div>
-          <div className="flex justify-end gap-3 border-t border-border/40 bg-surface-1/55 px-6 py-4 dark:border-border/30 dark:bg-surface-dark-1/55">
+          <div className="flex flex-wrap justify-end gap-3 border-t border-border/40 bg-surface-1/55 px-4 py-3 sm:px-6 sm:py-4 dark:border-border/30 dark:bg-surface-dark-1/55">
             <button
               type="button"
               onClick={closeGalleryDialog}

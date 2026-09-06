@@ -101,6 +101,7 @@
   - `AppSwitch` for binary setting toggles.
   - `AppPopover` for anchored floating panels.
   - Do not reimplement focus traps, modal scroll lock, manual tab ARIA roles, or click-outside handlers when these wrappers already cover the behavior.
+  - Mobile overlays use `useOverlayViewport` for software-keyboard sizing. Keep `AppDialog`'s outer container scrollable; owner `AppDrawer` bodies scroll between compact single-title headers and action footers, with drag limited to the handle and Vaul input repositioning disabled. Do not autofocus owner form fields on coarse-pointer/mobile layouts; focus the overlay until the user chooses a field. Explicit public snap-point drawers retain Vaul behavior. Owner/overlay form fields are at least 16px on phones to avoid focus zoom. See `docs/mobile-owner-ux.md`.
   - Keep native `<select>` and ordinary form checkboxes unless a custom composite widget is required.
 
 ## Migrations / tests / lint

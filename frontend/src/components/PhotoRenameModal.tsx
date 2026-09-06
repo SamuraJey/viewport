@@ -31,7 +31,11 @@ export const PhotoRenameModal: React.FC<PhotoRenameModalProps> = React.memo(
         }
         setError(null);
         setTimeout(() => {
-          if (inputRef.current) {
+          if (
+            inputRef.current &&
+            typeof window.matchMedia === 'function' &&
+            window.matchMedia('(min-width: 768px) and (pointer: fine)').matches
+          ) {
             inputRef.current.focus();
             inputRef.current.select();
           }

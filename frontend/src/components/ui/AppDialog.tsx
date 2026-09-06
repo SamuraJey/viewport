@@ -9,12 +9,10 @@ import { useCallback, useLayoutEffect, useRef } from 'react';
 import { Description, Dialog, DialogPanel, DialogTitle } from '@headlessui/react';
 import { motion } from 'framer-motion';
 import { cn } from '../../lib/utils';
+import { useOverlayViewport } from '../../hooks/useOverlayViewport';
 
 type FocusRef =
-  | MutableRefObject<HTMLElement | null>
-  | RefObject<HTMLElement | null>
-  | null
-  | undefined;
+  MutableRefObject<HTMLElement | null> | RefObject<HTMLElement | null> | null | undefined;
 
 type DataAttributes = {
   [key in `data-${string}`]?: string | number | boolean | undefined;
@@ -46,6 +44,12 @@ export const AppDialog = ({
   initialFocusRef,
   children,
 }: AppDialogProps) => {
+  const viewport = useOverlayViewport(open);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const usePanelAsInitialFocus =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(max-width: 767px), (pointer: coarse)').matches;
   const { className: panelPropsClassName, ...panelAttributes } = panelProps ?? {};
   const ignoreInitialCloseRef = useRef(false);
   const frameRef = useRef<number | null>(null);
@@ -106,7 +110,7 @@ export const AppDialog = ({
     <Dialog
       open={open}
       onClose={handleClose}
-      initialFocus={initialFocusRef ?? undefined}
+      initialFocus={usePanelAsInitialFocus ? panelRef : (initialFocusRef ?? undefined)}
       className={cn('relative z-50', className)}
     >
       <motion.div
@@ -117,17 +121,29 @@ export const AppDialog = ({
       />
 
       <div
+        data-overlay-viewport
+        style={
+          viewport ? { top: viewport.top, height: viewport.height, bottom: 'auto' } : undefined
+        }
         className={cn(
-          'fixed inset-0 flex w-screen items-center justify-center p-4',
+          'app-dialog-viewport fixed inset-0 flex w-full items-start justify-center overflow-y-auto overscroll-contain p-3 sm:p-4',
           containerClassName,
         )}
       >
         <DialogPanel
+          ref={panelRef}
+          tabIndex={-1}
           {...panelAttributes}
-          className={cn('mx-auto w-full', sizeClassName, panelPropsClassName)}
+          data-keyboard-open={viewport?.keyboardOpen ? 'true' : 'false'}
+          data-lenis-prevent="true"
+          className={cn(
+            'my-auto mx-auto min-w-0 w-full shrink-0',
+            sizeClassName,
+            panelPropsClassName,
+          )}
         >
           <motion.div
-            className={cn('relative w-full', panelClassName)}
+            className={cn('app-dialog-panel relative w-full', panelClassName)}
             initial={{ opacity: 0, scale: 0.96, y: 16 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
