@@ -147,6 +147,9 @@ export const GallerySelectionSessionsPanel = ({
     }
 
     const query = deferredItemSearch.trim().toLowerCase();
+    // The recency filter compares against the wall clock at render time;
+    // memoization is recomputed on every filter/search input change.
+    // eslint-disable-next-line react/purity
     const now = Date.now();
 
     const matches = selectedSession.items.filter((item) => {

@@ -1,7 +1,7 @@
 /* Import Google Fonts */
 @import 'https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;700&family=Cuprum:wght@400;500;700&family=PT+Sans:wght@400;700&display=swap';
-@config '../tailwind.config.js';
 @import 'tailwindcss';
+@config '../tailwind.config.js';
 
 /* Devices with a real hovering cursor. Touch devices report hover: none, so
    controls hidden behind group-hover must stay visible there. */
@@ -469,9 +469,8 @@ html.dark {
   /* White / black as RGB tokens so /NN works */
   --color-white-rgb: 255 255 255;
   --color-black-rgb: 0 0 0;
-  --color-white: #ffffff;
-  --color-black: #000000;
-
+  --color-white: #fff;
+  --color-black: #000;
   --color-border-rgb: var(--color-neutral-300-rgb);
   --color-text-rgb: var(--color-neutral-900-rgb);
   --color-muted-rgb: var(--color-neutral-500-rgb);
@@ -493,7 +492,6 @@ html.dark {
   --color-warning-foreground-rgb: 255 255 255;
   --color-photo-overlay-rgb: var(--color-black-rgb);
   --shadow-color-rgb: 15 23 42;
-
   --readability-font-scale-factor: 1;
   --readability-line-height: 1.5;
   --readability-focus-ring-width: 3px;
@@ -535,7 +533,6 @@ html.dark {
   --color-neutral-700: #9ca3af;
   --color-neutral-800: #d1d5db;
   --color-neutral-900: #f3f4f6;
-
   --color-primary-50-rgb: 7 20 40;
   /* #071428 */
   --color-primary-100-rgb: 8 32 52;
@@ -570,10 +567,8 @@ html.dark {
   --color-primary-700: #7fc6ff;
   --color-primary-800: #cfecff;
   --color-primary-900: #eaf7ff;
-
   --color-white-rgb: 255 255 255;
   --color-black-rgb: 0 0 0;
-
   --color-border-rgb: 113 113 122;
   --color-text-rgb: var(--color-neutral-900-rgb);
   --color-muted-rgb: 186 195 210;
@@ -1029,8 +1024,8 @@ body.dark .popup-arrow,
 /* Make sure SVG icons inside the button use the button color */
 .gallery-create__btn .w-5 svg,
 .gallery-create__btn .w-5 path {
-  stroke: currentColor !important;
-  fill: currentColor !important;
+  stroke: currentcolor !important;
+  fill: currentcolor !important;
 }
 
 /* Ensure the small copy button and its icons use success color only in the gallery list */
@@ -1396,11 +1391,13 @@ body.dark .gallery-create__btn,
 .pg-grid.pg-spacing-small {
   gap: 0.5rem;
 }
+
 .pg-spacing-medium.pg-grid,
 .pg-spacing-medium .pg-grid,
 .pg-grid.pg-spacing-medium {
   gap: 1rem;
 }
+
 .pg-spacing-large.pg-grid,
 .pg-spacing-large .pg-grid,
 .pg-grid.pg-spacing-large {
@@ -1488,9 +1485,8 @@ body.dark .gallery-create__btn,
 .pg-columns > .pg-card {
   display: inline-block;
   width: 100%;
-  break-inside: avoid;
   -webkit-column-break-inside: avoid;
-  page-break-inside: avoid;
+  break-inside: avoid;
   margin-bottom: 1.25rem;
   /* Reserve a stable height so images loading asynchronously don't
      change the flow of the masonry columns. Adjust this value to taste. */
@@ -1548,9 +1544,7 @@ html.dark .popup-container {
 
 /* Fix for popup action buttons inside popups - only override neutral ones, preserve accent colors */
 html.dark
-  .popup-action:not(.popup-action--accent):not(.popup-action--warning):not(
-    .popup-action--success
-  ):not(.popup-action--danger) {
+  .popup-action:not(.popup-action--accent, .popup-action--warning, .popup-action--success, .popup-action--danger) {
   background-color: rgb(63, 63, 70) !important;
   color: rgb(244, 244, 245) !important;
   border-color: rgb(82, 82, 91) !important;

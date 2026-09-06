@@ -135,7 +135,10 @@ export const DashboardPage = () => {
     },
     [activeSearch, activeSortBy, activeSortOrder, page, pageSize, setTotal],
   );
-  fetchProjectsRef.current = fetchProjects;
+
+  useEffect(() => {
+    fetchProjectsRef.current = fetchProjects;
+  }, [fetchProjects]);
 
   const createProjectModal = useCreateProjectModal({
     onCreated: (project) => navigate(`/projects/${project.id}`),
