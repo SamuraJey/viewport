@@ -60,6 +60,13 @@ preview. Popovers are width-bounded and use anchor padding at screen edges.
 - Interactive elements suppress the browser tap highlight and use
   `touch-action: manipulation` to drop the legacy double-tap zoom delay;
   pinch zoom, focus rings, and active states remain the feedback channels.
+- Controls hidden behind `group-hover` (photo action panels, gallery card
+  share/delete/visibility buttons, inline rename icons) stay visible on touch
+  devices. The Tailwind `can-hover` custom variant scopes the hidden state to
+  `(hover: hover) and (pointer: fine)`; new hover-only controls must hide via
+  `can-hover:` instead of a bare breakpoint so they remain reachable without a
+  cursor. Project cards keep their always-visible context menu as the touch
+  path for quick actions.
 
 ## Verification
 

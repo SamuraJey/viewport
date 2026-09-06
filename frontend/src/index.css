@@ -3,6 +3,14 @@
 @config '../tailwind.config.js';
 @import 'tailwindcss';
 
+/* Devices with a real hovering cursor. Touch devices report hover: none, so
+   controls hidden behind group-hover must stay visible there. */
+@custom-variant can-hover {
+  @media (hover: hover) and (pointer: fine) {
+    @slot;
+  }
+}
+
 /* Overlay geometry follows the visible viewport, including the software keyboard. */
 .app-dialog-viewport {
   padding-top: max(0.75rem, env(safe-area-inset-top));

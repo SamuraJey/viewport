@@ -53,7 +53,7 @@ export const CollectionCardCover = ({
       </div>
     ) : null}
     {topRightOverlay ? (
-      <div className="pointer-events-none absolute right-3 top-14 z-30 flex gap-2 opacity-0 transition-opacity duration-200 group-hover/card:pointer-events-auto group-hover/card:opacity-100 group-focus-within/card:pointer-events-auto group-focus-within/card:opacity-100 sm:top-3">
+      <div className="pointer-events-auto absolute right-3 top-14 z-30 flex gap-2 opacity-100 transition-opacity duration-200 sm:top-3 can-hover:pointer-events-none can-hover:opacity-0 can-hover:group-hover/card:pointer-events-auto can-hover:group-hover/card:opacity-100 can-hover:group-focus-within/card:pointer-events-auto can-hover:group-focus-within/card:opacity-100">
         {topRightOverlay}
       </div>
     ) : null}
