@@ -10,7 +10,12 @@ const setDesktopViewport = (matches: boolean) => {
     configurable: true,
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
-      matches: query === '(min-width: 768px)' ? matches : false,
+      matches:
+        query === '(min-width: 768px)'
+          ? matches
+          : query === '(max-width: 767px), (pointer: coarse)'
+            ? !matches
+            : false,
       media: query,
       onchange: null,
       addEventListener: vi.fn(),

@@ -42,6 +42,7 @@ interface AppDrawerProps {
 }
 
 const DESKTOP_MEDIA_QUERY = '(min-width: 768px)';
+const COMPACT_LAYOUT_MEDIA_QUERY = '(max-width: 767px), (pointer: coarse)';
 type NestedDrawerRegistration = (drawerId: symbol, open: boolean) => void;
 const AppDrawerNestingContext = createContext<NestedDrawerRegistration | null>(null);
 
@@ -49,6 +50,11 @@ const getIsDesktop = () =>
   typeof window !== 'undefined' &&
   typeof window.matchMedia === 'function' &&
   window.matchMedia(DESKTOP_MEDIA_QUERY).matches;
+
+const getIsCompactLayout = () =>
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia(COMPACT_LAYOUT_MEDIA_QUERY).matches;
 
 const useResolvedDirection = (side?: AppDrawerSide) => {
   const [isDesktop, setIsDesktop] = useState(getIsDesktop);
@@ -188,7 +194,7 @@ export const AppDrawer = ({
                   : undefined
             }
             onOpenAutoFocus={(event) => {
-              if (isBottom) {
+              if (isBottom && getIsCompactLayout()) {
                 event.preventDefault();
                 contentRef.current?.focus({ preventScroll: true });
               } else if (initialFocusRef?.current) {
