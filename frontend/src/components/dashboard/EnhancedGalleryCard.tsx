@@ -238,7 +238,7 @@ export const EnhancedGalleryCard = ({
             <button
               type="button"
               onClick={beginRenameFromEvent}
-              className="absolute right-0 top-1 inline-flex h-4 w-4 items-center justify-center text-muted opacity-0 transition-opacity duration-200 hover:text-accent group-hover/card:opacity-100 group-focus-within/card:opacity-100 focus:opacity-100 focus:outline-none"
+              className="absolute right-0 top-1 inline-flex h-4 w-4 items-center justify-center text-muted transition-opacity duration-200 hover:text-accent focus:opacity-100 focus:outline-none can-hover:opacity-0 can-hover:group-hover/card:opacity-100 can-hover:group-focus-within/card:opacity-100"
               aria-label={`Rename ${galleryTitle}`}
               title="Rename gallery"
             >

@@ -72,7 +72,10 @@ export const AppPopover = ({
               as={motion.div}
               anchor={anchor}
               focus={panelFocus}
-              className={cn('z-50 origin-top-right', panelClassName)}
+              className={cn(
+                'z-50 max-w-[calc(100vw-1.5rem)] overflow-y-auto overscroll-contain origin-top-right [--anchor-padding:12px]',
+                panelClassName,
+              )}
               variants={panelVariants}
               initial="closed"
               animate="open"

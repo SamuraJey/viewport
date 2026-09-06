@@ -172,7 +172,7 @@ const PhotoCardComponent = ({
           )}
 
         {/* Action Panel - overlay at the bottom */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/80 via-black/40 to-transparent transition-all duration-200 z-20 flex items-center justify-center gap-2 opacity-0 pointer-events-none translate-y-4 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-focus-within:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0">
+        <div className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/80 via-black/40 to-transparent transition-all duration-200 z-20 flex items-center justify-center gap-2 opacity-100 pointer-events-auto translate-y-0 can-hover:opacity-0 can-hover:pointer-events-none can-hover:translate-y-4 can-hover:group-hover:opacity-100 can-hover:group-hover:pointer-events-auto can-hover:group-hover:translate-y-0 can-hover:group-focus-within:opacity-100 can-hover:group-focus-within:pointer-events-auto can-hover:group-focus-within:translate-y-0">
           <button
             type="button"
             onClick={(e) => {

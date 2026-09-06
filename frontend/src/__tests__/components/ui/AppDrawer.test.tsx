@@ -10,7 +10,12 @@ const setDesktopViewport = (matches: boolean) => {
     configurable: true,
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
-      matches: query === '(min-width: 768px)' ? matches : false,
+      matches:
+        query === '(min-width: 768px)'
+          ? matches
+          : query === '(max-width: 767px), (pointer: coarse)'
+            ? !matches
+            : false,
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -53,7 +58,7 @@ afterEach(() => {
 });
 
 describe('AppDrawer', () => {
-  it('opens as a bottom sheet on mobile, focuses content, closes on Escape, and restores focus', async () => {
+  it('opens as a bottom sheet on mobile without opening the keyboard, closes on Escape, and restores focus', async () => {
     setDesktopViewport(false);
     const user = userEvent.setup();
     render(<DrawerHarness />);
@@ -63,7 +68,8 @@ describe('AppDrawer', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Edit details' });
     expect(dialog).toHaveAttribute('data-side', 'bottom');
-    expect(screen.getByLabelText('Name')).toHaveFocus();
+    expect(dialog).toHaveFocus();
+    expect(screen.getByLabelText('Name')).not.toHaveFocus();
 
     await user.keyboard('{Escape}');
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit details' })).toBeNull());

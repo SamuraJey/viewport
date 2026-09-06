@@ -134,7 +134,7 @@ export const CreateProjectModal = ({
           </div>
         </AppDrawerSection>
 
-        <div className="grid gap-3">
+        <div className="hidden gap-3 md:grid">
           {[
             ['Empty by design', 'Add galleries explicitly after creation.'],
             ['Project links ready', 'Share all listed galleries from one URL.'],

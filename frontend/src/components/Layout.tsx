@@ -54,9 +54,9 @@ export const Layout = ({ children, onOpenCommandPalette }: LayoutProps) => {
   ];
 
   return (
-    <div className="min-h-screen bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
+    <div className="owner-workspace min-h-screen bg-surface text-text dark:bg-surface-dark dark:text-accent-foreground">
       <SkipToContentLink />
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-surface/95 py-2 backdrop-blur-xl dark:bg-surface-dark/95 sm:py-2.5">
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-surface/95 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 backdrop-blur-xl dark:bg-surface-dark/95 sm:pt-[max(0.625rem,env(safe-area-inset-top))] sm:pb-2.5">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-3 sm:px-4">
           <Link
             to="/dashboard"
@@ -179,14 +179,14 @@ export const Layout = ({ children, onOpenCommandPalette }: LayoutProps) => {
       <main
         id="main-content"
         tabIndex={-1}
-        className="max-w-7xl xl:max-w-380 2xl:max-w-480 mx-auto px-4 xl:px-6 2xl:px-8 py-8 pb-28 md:pb-8"
+        className="max-w-7xl xl:max-w-380 2xl:max-w-480 mx-auto px-4 xl:px-6 2xl:px-8 py-8 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8"
       >
         <NetworkStatus />
         {children}
       </main>
       <nav
         aria-label="Primary mobile navigation"
-        className="fixed inset-x-3 bottom-3 z-40 rounded-3xl border border-border/60 bg-surface/95 p-2 shadow-2xl backdrop-blur-xl dark:border-border/40 dark:bg-surface-dark/95 md:hidden"
+        className="fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 rounded-3xl border border-border/60 bg-surface/95 p-2 shadow-2xl backdrop-blur-xl dark:border-border/40 dark:bg-surface-dark/95 md:hidden"
       >
         <div className="grid grid-cols-2 gap-1">
           {navItems.map(({ to, label, icon: Icon, active }) => (
@@ -206,7 +206,7 @@ export const Layout = ({ children, onOpenCommandPalette }: LayoutProps) => {
           ))}
         </div>
       </nav>
-      <footer className="border-t border-border/50 bg-surface/70 px-4 py-4 pb-24 text-sm text-muted dark:bg-surface-dark/70 md:pb-4">
+      <footer className="border-t border-border/50 bg-surface/70 px-4 py-4 pb-[calc(6rem+env(safe-area-inset-bottom))] text-sm text-muted dark:bg-surface-dark/70 md:pb-4">
         <div className="mx-auto flex w-full max-w-7xl justify-end">
           <Link
             to="/accessibility"
