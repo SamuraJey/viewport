@@ -103,12 +103,18 @@ const PhotoCommentPanel = ({
     textareaRef.current?.focus({ preventScroll: true });
   }, [disabled]);
 
-  useEffect(() => {
-    draftRef.current = photoComment;
-    savedDraftRef.current = photoComment;
+  const [lastDraftKey, setLastDraftKey] = useState<string | null>(null);
+  const draftKey = `${photoId}|${photoComment}`;
+  if (lastDraftKey !== draftKey) {
+    setLastDraftKey(draftKey);
     setDraft(photoComment);
     setLastSavedDraft(photoComment);
     setSaveState('idle');
+  }
+
+  useEffect(() => {
+    draftRef.current = photoComment;
+    savedDraftRef.current = photoComment;
   }, [photoId, photoComment]);
 
   useEffect(() => {

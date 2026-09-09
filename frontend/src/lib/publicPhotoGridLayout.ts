@@ -86,9 +86,7 @@ export const getPublicPhotoAspectRatio = (
   const height = toPositiveFinite(item.height);
   if (width !== null && height !== null) return clampAspectRatio(width / height);
 
-  return clampAspectRatio(
-    toPositiveFinite(fallbackRatio) ?? DEFAULT_PUBLIC_PHOTO_ASPECT_RATIO,
-  );
+  return clampAspectRatio(toPositiveFinite(fallbackRatio) ?? DEFAULT_PUBLIC_PHOTO_ASPECT_RATIO);
 };
 
 const resolveAspectRatio = <T extends PublicPhotoGridItem>(
@@ -207,9 +205,7 @@ export const computeJustifiedLayout = <T extends PublicPhotoGridItem>(
     const gapWidth = gap * Math.max(group.items.length - 1, 0);
     const ratioSum = group.ratios.reduce((sum, ratio) => sum + ratio, 0);
     const availableWidth =
-      containerWidth === 0
-        ? ratioSum * targetRowHeight
-        : Math.max(0, containerWidth - gapWidth);
+      containerWidth === 0 ? ratioSum * targetRowHeight : Math.max(0, containerWidth - gapWidth);
     const fittedHeight = ratioSum > 0 ? availableWidth / ratioSum : 0;
     const rowHeight = isComplete ? fittedHeight : Math.min(targetRowHeight, fittedHeight);
 
@@ -220,10 +216,7 @@ export const computeJustifiedLayout = <T extends PublicPhotoGridItem>(
       const idealWidth = aspectRatio * rowHeight;
       const isLastCompletedItem = isComplete && itemIndex === group.items.length - 1;
       const width = isLastCompletedItem
-        ? Math.max(
-            1,
-            availableWidth - consumedWidth - JUSTIFIED_ROW_ROUNDING_GUARD_PX,
-          )
+        ? Math.max(1, availableWidth - consumedWidth - JUSTIFIED_ROW_ROUNDING_GUARD_PX)
         : idealWidth;
       consumedWidth += width;
 

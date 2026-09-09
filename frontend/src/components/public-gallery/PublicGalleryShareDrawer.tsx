@@ -1,13 +1,5 @@
 import QRCode from 'react-qr-code';
-import {
-  Check,
-  Copy,
-  Mail,
-  MessageCircle,
-  QrCode,
-  Share2,
-  Smartphone,
-} from 'lucide-react';
+import { Check, Copy, Mail, MessageCircle, QrCode, Share2, Smartphone } from 'lucide-react';
 
 import { AppDrawer } from '../ui';
 
@@ -65,11 +57,7 @@ export const PublicGalleryShareDrawer = ({
   >
     <div className="grid gap-3 sm:grid-cols-2">
       {nativeShareSupported ? (
-        <button
-          type="button"
-          onClick={() => void onShareViaDevice()}
-          className={actionClassName}
-        >
+        <button type="button" onClick={() => void onShareViaDevice()} className={actionClassName}>
           <span className={iconClassName}>
             <Smartphone className="h-5 w-5" />
           </span>
@@ -90,9 +78,7 @@ export const PublicGalleryShareDrawer = ({
           <span className="block text-sm font-bold text-text">
             {linkCopied ? 'Link copied' : 'Copy link'}
           </span>
-          <span className="mt-0.5 block text-xs leading-5 text-muted">
-            Ready to paste anywhere
-          </span>
+          <span className="mt-0.5 block text-xs leading-5 text-muted">Ready to paste anywhere</span>
         </span>
       </button>
 
@@ -112,9 +98,7 @@ export const PublicGalleryShareDrawer = ({
         </span>
         <span className="min-w-0">
           <span className="block text-sm font-bold text-text">SMS</span>
-          <span className="mt-0.5 block text-xs leading-5 text-muted">
-            Send from your phone
-          </span>
+          <span className="mt-0.5 block text-xs leading-5 text-muted">Send from your phone</span>
         </span>
       </a>
 

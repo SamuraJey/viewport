@@ -164,8 +164,12 @@ export const usePublicGallery = ({
   ]);
 
   useEffect(() => {
-    void fetchGalleryData();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void fetchGalleryData();
+    });
     return () => {
+      cancelled = true;
       requestControllerRef.current?.abort();
     };
   }, [fetchGalleryData]);

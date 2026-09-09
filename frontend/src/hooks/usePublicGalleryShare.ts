@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { useCopyToClipboard } from './useCopyToClipboard';
 import { useModal } from './useModal';
@@ -13,10 +13,7 @@ const browserSupportsNativeShare = () =>
   typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 
 const isShareCancellation = (error: unknown) =>
-  typeof error === 'object' &&
-  error !== null &&
-  'name' in error &&
-  error.name === 'AbortError';
+  typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError';
 
 export const usePublicGalleryShare = (payload: PublicGallerySharePayload) => {
   const {
@@ -25,19 +22,13 @@ export const usePublicGalleryShare = (payload: PublicGallerySharePayload) => {
     close: closeShareDrawerState,
   } = useModal();
   const { isOpen: isQrDrawerOpen, open: openQrDrawer, close: closeQrDrawer } = useModal();
-  const [isNativeShareSupported, setIsNativeShareSupported] = useState(
-    browserSupportsNativeShare,
-  );
+  const [isNativeShareSupported] = useState(browserSupportsNativeShare);
   const [nativeShareError, setNativeShareError] = useState('');
   const {
     copied: shareLinkCopied,
     copy: copyShareLink,
     reset: resetShareLinkCopied,
   } = useCopyToClipboard();
-
-  useEffect(() => {
-    setIsNativeShareSupported(browserSupportsNativeShare());
-  }, []);
 
   const openShareDrawer = useCallback(() => {
     setNativeShareError('');

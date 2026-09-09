@@ -19,13 +19,21 @@ export function useCommandItems(options: { enabled: boolean }): UseCommandItemsR
   const [shareLinks, setShareLinks] = useState<Command[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastEnabled, setLastEnabled] = useState(enabled);
 
-  useEffect(() => {
+  // Drop cached commands as soon as the palette becomes disabled.
+  if (enabled !== lastEnabled) {
+    setLastEnabled(enabled);
     if (!enabled) {
       setProjects([]);
       setShareLinks([]);
       setIsLoading(false);
       setError(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!enabled) {
       return;
     }
 

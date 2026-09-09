@@ -552,6 +552,7 @@ export const GalleryHeader = ({
                       aria-label="Public gallery sort"
                       startContent={<ArrowUpDown className="h-4 w-4 text-muted" />}
                       buttonClassName="h-10 border border-border/40 bg-surface-1 px-2.5 text-sm font-semibold text-text dark:border-border/30 dark:bg-surface-dark-2"
+                      optionsClassName="z-[60]"
                     />
                     {isSavingPublicSortSettings && (
                       <p className="flex items-center gap-1.5 text-xs font-medium text-muted">

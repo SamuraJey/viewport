@@ -77,14 +77,14 @@ describe('RegisterPage', () => {
     const passwordToggle = passwordInput.parentElement?.querySelector('button');
 
     expect(passwordInput).toHaveAttribute('type', 'password');
+    expect(passwordToggle).not.toBeNull();
+    const toggleButton = passwordToggle as HTMLButtonElement;
 
-    if (passwordToggle) {
-      await userEvent.click(passwordToggle);
-      expect(passwordInput).toHaveAttribute('type', 'text');
+    await userEvent.click(toggleButton);
+    expect(passwordInput).toHaveAttribute('type', 'text');
 
-      await userEvent.click(passwordToggle);
-      expect(passwordInput).toHaveAttribute('type', 'password');
-    }
+    await userEvent.click(toggleButton);
+    expect(passwordInput).toHaveAttribute('type', 'password');
   });
 
   it('should show password validation message', () => {

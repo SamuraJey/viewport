@@ -16,8 +16,11 @@ import { consumePendingAction, type PendingAction } from '../components/command/
 export function usePendingAction(onConsume: (action: PendingAction) => void): void {
   const location = useLocation();
   const onConsumeRef = useRef(onConsume);
-  onConsumeRef.current = onConsume;
   const consumedKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    onConsumeRef.current = onConsume;
+  }, [onConsume]);
 
   useEffect(() => {
     if (consumedKeyRef.current === location.key) return;

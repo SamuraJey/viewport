@@ -406,7 +406,12 @@ export const AppearanceEditor = ({
         {saveStatus !== 'idle' && (
           <div aria-live="polite">
             {saveStatus === 'saving' ? (
-              <AppBadge tone="neutral" variant="subtle" size="sm" icon={<LoaderCircle className="h-4 w-4 animate-spin" />}>
+              <AppBadge
+                tone="neutral"
+                variant="subtle"
+                size="sm"
+                icon={<LoaderCircle className="h-4 w-4 animate-spin" />}
+              >
                 {SAVE_STATUS_LABELS[saveStatus]}
               </AppBadge>
             ) : saveStatus === 'saved' ? (

@@ -49,7 +49,7 @@ describe('PhotoUploader', () => {
       expect.stringContaining('video/mp4'),
     );
     expect(
-      screen.getByText(/JPG \/ PNG \/ MP4 \/ MOV.*10 MB \(images\).*500 MB \(video\)/i),
+      screen.getByText(/JPG \/ PNG \/ MP4 \/ MOV.*10 MB \(images\).*1500 MB \(video\)/i),
     ).toBeInTheDocument();
   });
 
@@ -68,26 +68,25 @@ describe('PhotoUploader', () => {
     render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
 
     const fileInput = document.querySelector('input[type="file"]');
-    expect(fileInput).toBeInTheDocument();
+    expect(fileInput).not.toBeNull();
+    const uploadInput = fileInput as HTMLInputElement;
 
-    if (fileInput) {
-      await user.upload(fileInput as HTMLInputElement, [file1, file2]);
+    await user.upload(uploadInput, [file1, file2]);
 
-      // Should show selected files
-      await waitFor(() => {
-        expect(screen.getByText('test1.jpg')).toBeInTheDocument();
-        expect(screen.getByText('test2.png')).toBeInTheDocument();
-      });
+    // Should show selected files
+    await waitFor(() => {
+      expect(screen.getByText('test1.jpg')).toBeInTheDocument();
+      expect(screen.getByText('test2.png')).toBeInTheDocument();
+    });
 
-      // Thumbnails are generated via native Blob URLs lazy-loaded by IntersectionObserver
-      await waitFor(() => {
-        expect(screen.getByAltText('Preview of test1.jpg')).toBeInTheDocument();
-        expect(screen.getByAltText('Preview of test2.png')).toBeInTheDocument();
-      });
+    // Thumbnails are generated via native Blob URLs lazy-loaded by IntersectionObserver
+    await waitFor(() => {
+      expect(screen.getByAltText('Preview of test1.jpg')).toBeInTheDocument();
+      expect(screen.getByAltText('Preview of test2.png')).toBeInTheDocument();
+    });
 
-      // 1 call per file: for the thumbnail blob URL
-      expect(URL.createObjectURL).toHaveBeenCalled();
-    }
+    // 1 call per file: for the thumbnail blob URL
+    expect(URL.createObjectURL).toHaveBeenCalled();
   });
 
   it('should revoke preview URL when a selected file is removed', async () => {
@@ -97,24 +96,23 @@ describe('PhotoUploader', () => {
     render(<PhotoUploader galleryId="test-gallery" onUploadComplete={mockOnUploadComplete} />);
 
     const fileInput = document.querySelector('input[type="file"]');
-    expect(fileInput).toBeInTheDocument();
+    expect(fileInput).not.toBeNull();
+    const uploadInput = fileInput as HTMLInputElement;
 
-    if (fileInput) {
-      await user.upload(fileInput as HTMLInputElement, file);
+    await user.upload(uploadInput, file);
 
-      // Thumbnail is generated asynchronously — wait for the img tag to appear
-      await waitFor(() => {
-        expect(screen.getByAltText('Preview of remove-me.jpg')).toBeInTheDocument();
-      });
+    // Thumbnail is generated asynchronously — wait for the img tag to appear
+    await waitFor(() => {
+      expect(screen.getByAltText('Preview of remove-me.jpg')).toBeInTheDocument();
+    });
 
-      await user.click(screen.getByLabelText('Remove remove-me.jpg'));
+    await user.click(screen.getByLabelText('Remove remove-me.jpg'));
 
-      await waitFor(() => {
-        expect(screen.queryByAltText('Preview of remove-me.jpg')).not.toBeInTheDocument();
-      });
+    await waitFor(() => {
+      expect(screen.queryByAltText('Preview of remove-me.jpg')).not.toBeInTheDocument();
+    });
 
-      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
-    }
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
   });
 
   it('re-enables intake after the last queued file is removed', async () => {
@@ -228,22 +226,23 @@ describe('PhotoUploader', () => {
     const fileInput = screen
       .getByRole('button', { name: /upload photos/i })
       .querySelector('input[type="file"]');
-    if (fileInput) {
-      const file = new File(['test'], 'test.txt', { type: 'text/plain' });
-      fireEvent.change(fileInput, { target: { files: [file] } });
+    expect(fileInput).not.toBeNull();
+    const uploadInput = fileInput as HTMLInputElement;
 
-      // Wait for error message to appear
-      await waitFor(() => {
-        expect(
-          screen.getByText(
-            'Only JPG, PNG and supported video files are allowed. Please select valid files.',
-          ),
-        ).toBeInTheDocument();
-      });
+    const file = new File(['test'], 'test.txt', { type: 'text/plain' });
+    fireEvent.change(uploadInput, { target: { files: [file] } });
 
-      // Modal should not open for invalid files
-      expect(screen.queryByText('Confirm Photo Upload')).not.toBeInTheDocument();
-    }
+    // Wait for error message to appear
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'Only JPG, PNG and supported video files are allowed. Please select valid files.',
+        ),
+      ).toBeInTheDocument();
+    });
+
+    // Modal should not open for invalid files
+    expect(screen.queryByText('Confirm Photo Upload')).not.toBeInTheDocument();
   });
 
   it('should open modal with oversized file and show resize option', async () => {
@@ -341,13 +340,9 @@ describe('PhotoUploader', () => {
       }),
     );
     const validFile = new File(['valid'], 'valid.jpg', { type: 'image/jpeg' });
-    const largeFile = new File(
-      [new ArrayBuffer(MAX_UPLOAD_FILE_SIZE_BYTES + 1)],
-      'large.jpg',
-      {
-        type: 'image/jpeg',
-      },
-    );
+    const largeFile = new File([new ArrayBuffer(MAX_UPLOAD_FILE_SIZE_BYTES + 1)], 'large.jpg', {
+      type: 'image/jpeg',
+    });
 
     render(
       <StrictMode>
@@ -439,14 +434,15 @@ describe('PhotoUploader', () => {
 
     const fileInput = screen.getByLabelText(/upload photos/i).querySelector('input[type="file"]');
 
-    if (fileInput) {
-      await user.upload(fileInput as HTMLInputElement, [file]);
+    expect(fileInput).not.toBeNull();
+    const uploadInput = fileInput as HTMLInputElement;
 
-      // The component should show the file is selected
-      await waitFor(() => {
-        expect(screen.getByText('test.jpg')).toBeInTheDocument();
-      });
-    }
+    await user.upload(uploadInput, [file]);
+
+    // The component should show the file is selected
+    await waitFor(() => {
+      expect(screen.getByText('test.jpg')).toBeInTheDocument();
+    });
   });
 
   it('should show error messages when validation fails', () => {
@@ -512,9 +508,8 @@ describe('PhotoUploader', () => {
     });
 
     it('keeps two files with the same basename from different source paths', async () => {
-      const { setUploadSourcePath, getUploadFileKey } = await import(
-        '../../components/upload/uploadUtils'
-      );
+      const { setUploadSourcePath, getUploadFileKey } =
+        await import('../../components/upload/uploadUtils');
       // Use different content sizes so the files are distinct even without
       // source path, then verify the source path makes the keys different.
       const first = new File(['aa'], 'photo.jpg', { type: 'image/jpeg' });

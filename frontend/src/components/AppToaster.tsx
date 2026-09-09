@@ -31,8 +31,7 @@ export const AppToaster = () => {
           description: 'text-muted',
           actionButton: 'bg-accent text-accent-foreground',
           cancelButton: 'bg-surface-2 text-muted dark:bg-surface-dark-2 dark:text-muted-dark',
-          closeButton:
-            'text-muted hover:text-text rounded-lg transition-colors',
+          closeButton: 'text-muted hover:text-text rounded-lg transition-colors',
         },
       }}
     />

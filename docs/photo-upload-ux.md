@@ -233,7 +233,7 @@ presign, and multipart contracts are untouched.
   resolved from the filename extension before the presign request. Oversized
   images that enter the queue must be resized or removed before upload.
 - Accepted videos: MP4, MOV, M4V, WEBM, MKV, AVI, MPEG/MPG, and 3GP, up to
-  500 MB. When a browser omits `File.type`, the supported MIME type and size
+  1500 MB. When a browser omits `File.type`, the supported MIME type and size
   limit are resolved from the filename extension before the presign request.
 - Empty, unsupported, duplicate, and oversized files receive immediate feedback.
 - Removing the final queued file closes the empty review dialog and immediately

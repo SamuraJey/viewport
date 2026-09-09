@@ -21,7 +21,10 @@ import {
 } from '../components/public-gallery/galleryAppearance';
 import { PublicGalleryHero } from '../components/public-gallery/PublicGalleryHero';
 import { PublicGalleryPhotoSection } from '../components/public-gallery/PublicGalleryPhotoSection';
-import { PublicGallerySelectionBar } from '../components/public-gallery/PublicGallerySelectionBar';
+import {
+  PublicGallerySelectionBar,
+  getStatusLabel,
+} from '../components/public-gallery/PublicGallerySelectionBar';
 import { PublicGalleryShareDrawer } from '../components/public-gallery/PublicGalleryShareDrawer';
 import {
   PublicGalleryError,
@@ -137,13 +140,18 @@ export const PublicGalleryPage = () => {
       return;
     }
 
-    navigate(favoritesPath);
-    setOpenFavoritesAfterStart(false);
+    queueMicrotask(() => {
+      navigate(favoritesPath);
+      setOpenFavoritesAfterStart(false);
+    });
   }, [favoritesPath, navigate, openFavoritesAfterStart]);
 
-  useEffect(() => {
+  const sessionSyncKey = `${selection.session?.id ?? ''}|${selection.session?.client_note ?? ''}`;
+  const [lastSessionSyncKey, setLastSessionSyncKey] = useState(sessionSyncKey);
+  if (lastSessionSyncKey !== sessionSyncKey) {
+    setLastSessionSyncKey(sessionSyncKey);
     setSessionNoteDraft(selection.session?.client_note ?? '');
-  }, [selection.session?.client_note]);
+  }
 
   useEffect(() => {
     if (!shareId || !isFavoritesView) {
@@ -282,11 +290,13 @@ export const PublicGalleryPage = () => {
     loadMorePhotosRef.current = loadMorePhotos;
   }, [loadMorePhotos]);
 
-  useEffect(() => {
+  const [lastDownloadKey, setLastDownloadKey] = useState('');
+  if (lastDownloadKey !== `${activeGalleryId}|${shareId}`) {
+    setLastDownloadKey(`${activeGalleryId}|${shareId}`);
     setDownloadError('');
     setIsDownloadPasswordRequired(false);
     setIsDownloadExpired(false);
-  }, [activeGalleryId, shareId]);
+  }
 
   useEffect(() => {
     if (isFavoritesView) {
@@ -450,10 +460,7 @@ export const PublicGalleryPage = () => {
   const heroAppearance = appearance;
   const publicThemeClassName = getPublicGalleryThemeClassName(appearance);
   const showStickySelectionBar = Boolean(
-    selection.config?.is_enabled &&
-    selection.session &&
-    hasScrolledPastHero &&
-    !isFavoritesView,
+    selection.config?.is_enabled && selection.session && hasScrolledPastHero && !isFavoritesView,
   );
   const heroTitle = isProjectFolderView
     ? folderShare?.project_name || projectGalleryTabs?.project_name || 'Public Project'
@@ -580,6 +587,22 @@ export const PublicGalleryPage = () => {
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       setStartFormError('');
+      if (!startForm.client_name.trim()) {
+        setStartFormError('Please enter your name.');
+        return;
+      }
+      if (selection.config?.require_email && !startForm.client_email?.trim()) {
+        setStartFormError('Please enter your email.');
+        return;
+      }
+      if (selection.config?.require_phone && !startForm.client_phone?.trim()) {
+        setStartFormError('Please enter your phone number.');
+        return;
+      }
+      if (selection.config?.require_client_note && !startForm.client_note?.trim()) {
+        setStartFormError('Please add a short note.');
+        return;
+      }
       void selection
         .startSession({
           client_name: startForm.client_name,
@@ -769,9 +792,7 @@ export const PublicGalleryPage = () => {
     );
   }
   return (
-    <div
-      className={`pg-public-page ${publicThemeClassName} min-h-screen bg-surface text-text`}
-    >
+    <div className={`pg-public-page ${publicThemeClassName} min-h-screen bg-surface text-text`}>
       <SkipToContentLink targetId="main-content" />
       <div
         data-testid="public-gallery-utility-controls"
@@ -1006,7 +1027,7 @@ export const PublicGalleryPage = () => {
             </h2>
             <p className="mt-3 text-sm text-muted">
               {selection.session?.client_name || 'Anonymous guest'}
-              {selection.session?.status ? ` • ${selection.session.status}` : ''}
+              {selection.session?.status ? ` • ${getStatusLabel(selection.session.status)}` : ''}
             </p>
 
             <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-sm text-muted">

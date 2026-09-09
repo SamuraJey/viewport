@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type ReactNode, type RefObject } from 'react';
 import { Link, MemoryRouter } from 'react-router';
@@ -110,6 +110,29 @@ describe('GalleryHeader', () => {
     await user.click(screen.getByRole('button', { name: /public sort/i }));
 
     expect(screen.getByLabelText(/public gallery sort/i)).toBeInTheDocument();
+  });
+
+  it('renders public sort options above the containing popover and selects every option', async () => {
+    const user = userEvent.setup();
+    const onPublicSortChange = vi.fn();
+
+    render(
+      <MemoryRouter>
+        <GalleryHeader {...createProps()} onPublicSortChange={onPublicSortChange} />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: /public sort/i }));
+    await user.click(screen.getByRole('button', { name: /public gallery sort/i }));
+
+    const listbox = await screen.findByRole('listbox');
+    expect(listbox).toHaveClass('z-[60]');
+
+    fireEvent.click(screen.getByRole('option', { name: 'Size (small to large)' }));
+
+    await waitFor(() => {
+      expect(onPublicSortChange).toHaveBeenCalledWith({ sortBy: 'file_size', sortOrder: 'asc' });
+    });
   });
 
   it('opens the public sort popover from the global event without toggling it closed', async () => {
@@ -224,11 +247,7 @@ describe('GalleryHeader', () => {
 
       render(
         <MemoryRouter>
-          <GalleryHeader
-            {...createProps()}
-            onAddPhotos={onAddPhotos}
-            onAddFolder={onAddFolder}
-          />
+          <GalleryHeader {...createProps()} onAddPhotos={onAddPhotos} onAddFolder={onAddFolder} />
         </MemoryRouter>,
       );
 
@@ -247,11 +266,7 @@ describe('GalleryHeader', () => {
 
       render(
         <MemoryRouter>
-          <GalleryHeader
-            {...createProps()}
-            onAddPhotos={onAddPhotos}
-            onAddFolder={onAddFolder}
-          />
+          <GalleryHeader {...createProps()} onAddPhotos={onAddPhotos} onAddFolder={onAddFolder} />
         </MemoryRouter>,
       );
 
@@ -277,11 +292,7 @@ describe('GalleryHeader', () => {
 
       render(
         <MemoryRouter>
-          <GalleryHeader
-            {...createProps()}
-            onAddPhotos={onAddPhotos}
-            onAddFolder={onAddFolder}
-          />
+          <GalleryHeader {...createProps()} onAddPhotos={onAddPhotos} onAddFolder={onAddFolder} />
         </MemoryRouter>,
       );
 

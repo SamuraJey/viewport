@@ -58,10 +58,7 @@ const makeDirEntry = (
   } as unknown as FileSystemDirectoryEntry;
 };
 
-const makeFileItem = (
-  entry: FileSystemEntry | null,
-  fileObj: File,
-): DataTransferItem =>
+const makeFileItem = (entry: FileSystemEntry | null, fileObj: File): DataTransferItem =>
   ({
     kind: 'file',
     type: fileObj.type,
@@ -86,9 +83,7 @@ describe('uploadUtils', () => {
 
   it('deduplicates against the existing queue without truncating the selection', () => {
     const existing = file('existing.jpg');
-    const incoming = Array.from({ length: 202 }, (_, index) =>
-      file(`photo-${index}.jpg`),
-    );
+    const incoming = Array.from({ length: 202 }, (_, index) => file(`photo-${index}.jpg`));
 
     const result = prepareUploadSelection([existing], [existing, ...incoming]);
 
@@ -106,7 +101,7 @@ describe('uploadUtils', () => {
     expect(getUploadValidationError(image)).toBe(
       'Image exceeds the 10 MB limit. Resize it before uploading.',
     );
-    expect(getUploadValidationError(video)).toBe('Video exceeds the 500 MB limit.');
+    expect(getUploadValidationError(video)).toBe('Video exceeds the 1500 MB limit.');
   });
 });
 
@@ -304,7 +299,9 @@ describe('extractFilesFromEvent', () => {
       name: f.name,
       file(this: unknown, success: (file: File) => void) {
         if (this !== fileEntry) {
-          throw new TypeError("Failed to execute 'file' on 'FileSystemFileEntry': Illegal invocation");
+          throw new TypeError(
+            "Failed to execute 'file' on 'FileSystemFileEntry': Illegal invocation",
+          );
         }
         success(f);
       },

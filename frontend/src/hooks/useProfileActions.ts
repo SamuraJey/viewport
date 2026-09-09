@@ -13,6 +13,15 @@ export const useProfileActions = (isOpen: boolean, onClose: () => void) => {
   const [error, setError] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [wasOpen, setWasOpen] = useState(false);
+
+  // Clear stale errors whenever the modal transitions to open.
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      setError(null);
+    }
+  }
 
   const navigate = useNavigate();
   const { user, setUser, logout } = useAuthStore();
@@ -26,7 +35,6 @@ export const useProfileActions = (isOpen: boolean, onClose: () => void) => {
 
   useEffect(() => {
     if (!isOpen) return;
-    setError(null);
     authService
       .getCurrentUser()
       .then((fetchedUser) => {

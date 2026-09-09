@@ -18,9 +18,7 @@ import { shareLinkService } from '../../services/shareLinkService';
 const getProjects = vi.mocked(projectService.getProjects);
 const getOwnerShareLinks = vi.mocked(shareLinkService.getOwnerShareLinks);
 
-const wrapper = ({ children }: { children: ReactNode }) => (
-  <MemoryRouter>{children}</MemoryRouter>
-);
+const wrapper = ({ children }: { children: ReactNode }) => <MemoryRouter>{children}</MemoryRouter>;
 
 describe('useCommandItems', () => {
   beforeEach(() => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { User, Lock, ShieldAlert } from 'lucide-react';
 
 import { useProfileActions } from '../hooks/useProfileActions';
@@ -50,14 +50,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = React.memo(({ isOpen, o
   const confirmPassRef = useRef<HTMLInputElement>(null);
 
   const [showStorageTooltip, setShowStorageTooltip] = useState(false);
+  const [wasOpen, setWasOpen] = useState(false);
 
   const initials = getAvatarInitials(displayName, email);
   const avatarHue = stringToHue(email || displayName);
 
   // Reset tab to profile when modal opens
-  useEffect(() => {
-    if (isOpen) setActiveTab('profile');
-  }, [isOpen]);
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
+    if (isOpen) {
+      setActiveTab('profile');
+    }
+  }
 
   const profilePanel = (
     <>

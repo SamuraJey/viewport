@@ -84,13 +84,19 @@ const FileCard = memo(
       return () => observer.disconnect();
     }, []);
 
-    useEffect(() => {
-      if (!shouldLoad) return;
-
-      // Reset thumbnail state for new file — prevents stale thumbnail
-      // from previous file in the same card position.
+    // Reset thumbnail state when a new file lands in the same card position,
+    // so a stale thumbnail from the previous file never shows. Files are
+    // compared by reference so a replacement File with identical metadata
+    // still triggers a reset.
+    const [lastThumbFile, setLastThumbFile] = useState<File | null>(null);
+    if (shouldLoad && lastThumbFile !== file) {
+      setLastThumbFile(file);
       setThumbUrl(null);
       setThumbLoaded(false);
+    }
+
+    useEffect(() => {
+      if (!shouldLoad) return;
 
       let cancelled = false;
       let cleanup: (() => void) | null = null;
@@ -365,9 +371,11 @@ export const UploadSelectionContent = ({
     }
   };
 
-  useEffect(() => {
+  const [lastFileCount, setLastFileCount] = useState(files.length);
+  if (lastFileCount !== files.length) {
+    setLastFileCount(files.length);
     setVisibleCount((prev) => Math.min(Math.max(BATCH_SIZE, prev), files.length));
-  }, [files.length]);
+  }
 
   useEffect(() => {
     if (observerRef.current) observerRef.current.disconnect();
@@ -488,7 +496,7 @@ export const UploadSelectionContent = ({
                 const allLarge = files.every((f) => isFileTooLarge(f));
                 const allInvalidType = files.every((f) => isFileTypeInvalid(f));
                 if (allLarge) {
-                  return 'All selected files exceed the maximum size. Images are limited to 10 MB and videos to 500 MB.';
+                  return 'All selected files exceed the maximum size. Images are limited to 10 MB and videos to 1500 MB.';
                 }
                 if (allInvalidType) {
                   return 'Only JPG, PNG and supported video formats are allowed. Please select valid files.';

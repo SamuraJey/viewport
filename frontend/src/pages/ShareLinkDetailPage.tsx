@@ -138,6 +138,8 @@ export const ShareLinkDetailPage = () => {
 
   const copyResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedSessionRequestRef = useRef(0);
+  const analyticsRequestRef = useRef(0);
+  const selectionDetailRequestRef = useRef(0);
 
   useDocumentTitle(
     analytics?.share_link.label?.trim()
@@ -154,8 +156,9 @@ export const ShareLinkDetailPage = () => {
     [],
   );
 
-  useEffect(() => {
-    selectedSessionRequestRef.current += 1;
+  const [lastShareLinkId, setLastShareLinkId] = useState(shareLinkId);
+  if (lastShareLinkId !== shareLinkId) {
+    setLastShareLinkId(shareLinkId);
     setAnalytics(null);
     setError('');
     setIsLoading(true);
@@ -169,6 +172,12 @@ export const ShareLinkDetailPage = () => {
     setSessionSearch('');
     setSessionStatusFilter('all');
     setSessionSort('recent');
+  }
+
+  useEffect(() => {
+    selectedSessionRequestRef.current += 1;
+    analyticsRequestRef.current += 1;
+    selectionDetailRequestRef.current += 1;
   }, [shareLinkId]);
 
   const fetchAnalytics = useCallback(async () => {
@@ -178,14 +187,20 @@ export const ShareLinkDetailPage = () => {
       return;
     }
 
+    const requestId = ++analyticsRequestRef.current;
     setIsLoading(true);
     setError('');
     try {
-      setAnalytics(await shareLinkService.getShareLinkAnalytics(shareLinkId, days));
+      const result = await shareLinkService.getShareLinkAnalytics(shareLinkId, days);
+      if (analyticsRequestRef.current !== requestId) return;
+      setAnalytics(result);
     } catch (err) {
+      if (analyticsRequestRef.current !== requestId) return;
       setError(handleApiError(err).message || 'Failed to load share link analytics');
     } finally {
-      setIsLoading(false);
+      if (analyticsRequestRef.current === requestId) {
+        setIsLoading(false);
+      }
     }
   }, [days, shareLinkId]);
 
@@ -205,19 +220,24 @@ export const ShareLinkDetailPage = () => {
   const fetchSelectionDetail = useCallback(async () => {
     if (!shareLinkId) return null;
 
+    const requestId = ++selectionDetailRequestRef.current;
     setIsSelectionLoading(true);
     setHasAttemptedSelectionLoad(true);
     setSelectionError('');
     try {
       const detail = await shareLinkService.getOwnerSelectionDetail(shareLinkId);
+      if (selectionDetailRequestRef.current !== requestId) return detail;
       setSelectionDetail(detail);
       hydrateSelectionDraft(detail);
       return detail;
     } catch (err) {
+      if (selectionDetailRequestRef.current !== requestId) return null;
       setSelectionError(handleApiError(err).message || 'Failed to load selection details');
       return null;
     } finally {
-      setIsSelectionLoading(false);
+      if (selectionDetailRequestRef.current === requestId) {
+        setIsSelectionLoading(false);
+      }
     }
   }, [hydrateSelectionDraft, shareLinkId]);
 
@@ -250,7 +270,13 @@ export const ShareLinkDetailPage = () => {
   );
 
   useEffect(() => {
-    void fetchAnalytics();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void fetchAnalytics();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [fetchAnalytics]);
 
   useEffect(() => {
@@ -262,7 +288,13 @@ export const ShareLinkDetailPage = () => {
     ) {
       return;
     }
-    void fetchSelectionDetail();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void fetchSelectionDetail();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [
     activeTab,
     fetchSelectionDetail,
@@ -319,8 +351,11 @@ export const ShareLinkDetailPage = () => {
     }
 
     selectedSessionRequestRef.current += 1;
-    setSelectedSessionId(visibleSelectionSessions[0]?.id ?? null);
-    setSelectedSessionDetail(null);
+    const nextSessionId = visibleSelectionSessions[0]?.id ?? null;
+    queueMicrotask(() => {
+      setSelectedSessionId(nextSessionId);
+      setSelectedSessionDetail(null);
+    });
   }, [activeTab, selectedSessionId, selectionDetail, visibleSelectionSessions]);
 
   useEffect(() => {
@@ -332,7 +367,13 @@ export const ShareLinkDetailPage = () => {
     ) {
       return;
     }
-    void fetchSelectedSessionDetail(selectedSessionId);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void fetchSelectedSessionDetail(selectedSessionId);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [
     activeTab,
     fetchSelectedSessionDetail,

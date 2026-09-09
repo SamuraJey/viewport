@@ -16,9 +16,7 @@ vi.mock('../../../lib/imageResize', () => ({
 }));
 
 vi.mock('../../../components/upload/uploadUtils', async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import('../../../components/upload/uploadUtils')
-  >();
+  const actual = await importOriginal<typeof import('../../../components/upload/uploadUtils')>();
   return {
     ...actual,
     extractFilesFromEvent: vi.fn(),

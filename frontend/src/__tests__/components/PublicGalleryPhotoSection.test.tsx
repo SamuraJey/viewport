@@ -6,7 +6,15 @@ import type { PublicGridLayout } from '../../hooks/usePublicGalleryGrid';
 import type { PublicPhoto } from '../../types';
 
 vi.mock('../../components/LazyImage', () => ({
-  LazyImage: ({ alt, className, objectFit }: { alt: string; className: string; objectFit: string }) => (
+  LazyImage: ({
+    alt,
+    className,
+    objectFit,
+  }: {
+    alt: string;
+    className: string;
+    objectFit: string;
+  }) => (
     <div
       data-testid="lazy-image"
       data-object-fit={objectFit}

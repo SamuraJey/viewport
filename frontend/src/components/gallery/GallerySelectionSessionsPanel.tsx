@@ -147,6 +147,9 @@ export const GallerySelectionSessionsPanel = ({
     }
 
     const query = deferredItemSearch.trim().toLowerCase();
+    // The recency filter compares against the wall clock at render time;
+    // memoization is recomputed on every filter/search input change.
+    // eslint-disable-next-line react/purity
     const now = Date.now();
 
     const matches = selectedSession.items.filter((item) => {
@@ -180,22 +183,24 @@ export const GallerySelectionSessionsPanel = ({
     return filteredSessionItems.slice(startIndex, startIndex + pageSize);
   }, [filteredSessionItems, page, pageSize]);
 
-  useEffect(() => {
+  // Reset to the first page whenever the session, view mode, or filters change.
+  const [lastPageKey, setLastPageKey] = useState<string | null>(null);
+  const pageResetKey = `${selectedSession?.id ?? ''}|${viewMode}|${commentsOnly}|${recentOnly}|${deferredItemSearch}`;
+  if (lastPageKey !== pageResetKey) {
+    setLastPageKey(pageResetKey);
     setPage(1);
-  }, [selectedSession?.id, viewMode, commentsOnly, recentOnly, deferredItemSearch]);
+  }
 
-  useEffect(() => {
+  // Keep the current page within bounds when the item count shrinks.
+  const [lastTotalPages, setLastTotalPages] = useState(totalPages);
+  if (lastTotalPages !== totalPages) {
+    setLastTotalPages(totalPages);
     if (totalPages === 0) {
-      if (page !== 1) {
-        setPage(1);
-      }
-      return;
-    }
-
-    if (page > totalPages) {
+      setPage(1);
+    } else if (page > totalPages) {
       setPage(totalPages);
     }
-  }, [page, totalPages]);
+  }
 
   useEffect(() => {
     if (activeVisibleTabKey && activeVisibleTabKey !== selectedUserTabKey) {

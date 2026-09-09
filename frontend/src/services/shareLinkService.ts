@@ -74,8 +74,7 @@ const downloadOwnerExport = async (path: string, fallbackFilename: string): Prom
   const contentDisposition =
     (response.headers['content-disposition'] as string | undefined) ??
     (response.headers['Content-Disposition' as keyof typeof response.headers] as
-      | string
-      | undefined);
+      string | undefined);
   const filename = parseDownloadFilename(contentDisposition, fallbackFilename);
   triggerBlobDownload(response.data, filename);
 };

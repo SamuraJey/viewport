@@ -1,10 +1,20 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "jsx-a11y"],
+  "plugins": ["react", "jsx-a11y", "import", "vitest", "promise"],
   "categories": {
     "correctness": "error"
   },
   "rules": {
+    "react/exhaustive-deps": "warn",
+    "react/set-state-in-effect": "warn",
+    "import/no-cycle": [
+      "error",
+      {
+        "maxDepth": 4
+      }
+    ],
+    "vitest/no-conditional-expect": "error",
+    "vitest/require-mock-type-parameters": "off",
     "oxc/no-async-await": "off",
     "oxc/no-optional-chaining": "off",
     "oxc/no-rest-spread-properties": "off",
@@ -26,7 +36,8 @@
     {
       "files": ["**/__tests__/**", "**/*.test.{ts,tsx}"],
       "rules": {
-        "no-constant-binary-expression": "off"
+        "no-constant-binary-expression": "off",
+        "react/refs": "off"
       }
     },
     {

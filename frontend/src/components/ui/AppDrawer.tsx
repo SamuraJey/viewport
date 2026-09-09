@@ -64,7 +64,6 @@ const useResolvedDirection = (side?: AppDrawerSide) => {
 
     const mediaQuery = window.matchMedia(DESKTOP_MEDIA_QUERY);
     const handleChange = (event: MediaQueryListEvent) => setIsDesktop(event.matches);
-    setIsDesktop(mediaQuery.matches);
     mediaQuery.addEventListener?.('change', handleChange);
 
     return () => mediaQuery.removeEventListener?.('change', handleChange);
@@ -113,18 +112,19 @@ export const AppDrawer = ({
   const resolvedSnapPoints = direction === 'bottom' ? snapPoints : undefined;
   const firstSnapPoint = resolvedSnapPoints?.[0] ?? null;
   const [activeSnapPoint, setActiveSnapPoint] = useState<number | string | null>(firstSnapPoint);
+  const [lastSnapResetKey, setLastSnapResetKey] = useState(`${open}|${firstSnapPoint}`);
+  if (lastSnapResetKey !== `${open}|${firstSnapPoint}`) {
+    setLastSnapResetKey(`${open}|${firstSnapPoint}`);
+    if (open && firstSnapPoint !== null) {
+      setActiveSnapPoint(firstSnapPoint);
+    }
+  }
 
   useLayoutEffect(() => {
     if (open) {
       previousFocusRef.current = document.activeElement as HTMLElement | null;
     }
   }, [open]);
-
-  useEffect(() => {
-    if (open && firstSnapPoint !== null) {
-      setActiveSnapPoint(firstSnapPoint);
-    }
-  }, [firstSnapPoint, open]);
 
   useEffect(() => {
     if (!nested || !registerWithParentDrawer) return;
@@ -236,13 +236,19 @@ export const AppDrawer = ({
               )}
             >
               {icon ? (
-                <div data-drawer-icon className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-accent/10 text-accent">
+                <div
+                  data-drawer-icon
+                  className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-accent/10 text-accent"
+                >
                   {icon}
                 </div>
               ) : null}
               <div className="min-w-0 flex-1 pr-10">
                 {eyebrow ? (
-                  <p data-drawer-eyebrow className="mb-1 text-[10px] font-bold uppercase tracking-[0.22em] text-accent">
+                  <p
+                    data-drawer-eyebrow
+                    className="mb-1 text-[10px] font-bold uppercase tracking-[0.22em] text-accent"
+                  >
                     {eyebrow}
                   </p>
                 ) : null}
@@ -250,7 +256,10 @@ export const AppDrawer = ({
                   {title}
                 </Drawer.Title>
                 {description ? (
-                  <Drawer.Description data-drawer-description className="mt-1 text-sm leading-5 text-muted">
+                  <Drawer.Description
+                    data-drawer-description
+                    className="mt-1 text-sm leading-5 text-muted"
+                  >
                     {description}
                   </Drawer.Description>
                 ) : null}

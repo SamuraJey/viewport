@@ -79,6 +79,8 @@ export const useGalleryActions = ({
     [],
   );
 
+  const currentGalleryId = gallery?.id ?? null;
+
   const fetchShareLinks = useCallback(
     async (isInitial = true) => {
       if (isInitial) {
@@ -127,7 +129,7 @@ export const useGalleryActions = ({
           order: filters.order,
         });
         latestGalleryRef.current = galleryData;
-        const shouldRefreshShareLinks = gallery?.id !== galleryData.id;
+        const shouldRefreshShareLinks = currentGalleryId !== galleryData.id;
         setGallery(galleryData);
         setPhotoUrls(galleryData.photos || []);
         setTotal(galleryData.total_photos);
@@ -147,7 +149,7 @@ export const useGalleryActions = ({
       }
     },
     [
-      gallery?.id,
+      currentGalleryId,
       galleryId,
       pageSize,
       setTotal,

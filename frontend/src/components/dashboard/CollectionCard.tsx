@@ -5,11 +5,10 @@ import type { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 import { AppBadge } from '../ui';
 
-interface CollectionCardProps
-  extends Pick<
-    HTMLMotionProps<'article'>,
-    'onMouseEnter' | 'onMouseLeave' | 'onFocusCapture' | 'onBlurCapture'
-  > {
+interface CollectionCardProps extends Pick<
+  HTMLMotionProps<'article'>,
+  'onMouseEnter' | 'onMouseLeave' | 'onFocusCapture' | 'onBlurCapture'
+> {
   ariaLabel: string;
   body: ReactNode;
   bodyClassName?: string;
@@ -38,10 +37,7 @@ export const CollectionCardCover = ({
   topRightOverlay,
 }: CollectionCardCoverProps) => (
   <div
-    className={cn(
-      'relative h-52 overflow-hidden bg-surface-2 dark:bg-surface-dark-2',
-      className,
-    )}
+    className={cn('relative h-52 overflow-hidden bg-surface-2 dark:bg-surface-dark-2', className)}
   >
     {children}
     {topOverlay ? (
@@ -119,13 +115,7 @@ export const CollectionShareBadge = ({
   icon?: ReactNode;
   label?: string;
 }) => (
-  <AppBadge
-    tone="success"
-    variant="subtle"
-    size="xs"
-    icon={icon}
-    className="backdrop-blur-sm"
-  >
+  <AppBadge tone="success" variant="subtle" size="xs" icon={icon} className="backdrop-blur-sm">
     {label}
   </AppBadge>
 );

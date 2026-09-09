@@ -18,10 +18,7 @@ interface FileSystemEntry {
 
 interface FileSystemFileEntry extends FileSystemEntry {
   readonly isFile: true;
-  file(
-    successCallback: (file: File) => void,
-    errorCallback?: (error: DOMException) => void,
-  ): void;
+  file(successCallback: (file: File) => void, errorCallback?: (error: DOMException) => void): void;
 }
 
 interface FileSystemDirectoryEntry extends FileSystemEntry {

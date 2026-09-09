@@ -1,4 +1,4 @@
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -179,6 +179,23 @@ const getSessionOrder = () =>
   within(screen.getByRole('list', { name: /selection sessions/i }))
     .getAllByRole('button', { name: /open selection session for/i })
     .map((button) => button.getAttribute('aria-label')?.replace('Open selection session for ', ''));
+
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+};
+
+const NavigateButton = ({ to, label }: { to: string; label: string }) => {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => navigate(to)}>
+      {label}
+    </button>
+  );
+};
 
 describe('ShareLinkDetailPage', () => {
   beforeEach(() => {
@@ -380,6 +397,65 @@ describe('ShareLinkDetailPage', () => {
     expect(screen.getByRole('heading', { name: /client proofing/i })).toBeInTheDocument();
     expect(screen.queryByTestId('share-link-detail-skeleton')).not.toBeInTheDocument();
     expect(shareLinkService.getOwnerSelectionDetail).not.toHaveBeenCalled();
+  });
+
+  it('ignores a stale analytics response that resolves after a newer request', async () => {
+    const user = userEvent.setup();
+    const staleRequest = deferred<ShareLinkAnalyticsResponse>();
+    const freshRequest = deferred<ShareLinkAnalyticsResponse>();
+    vi.mocked(shareLinkService.getShareLinkAnalytics)
+      .mockResolvedValueOnce(makeAnalytics())
+      .mockReturnValueOnce(staleRequest.promise)
+      .mockReturnValueOnce(freshRequest.promise);
+
+    renderPage();
+    expect(await screen.findByRole('heading', { name: /client proofing/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Last 7 days' }));
+    await user.click(screen.getByRole('button', { name: 'Last 30 days' }));
+
+    freshRequest.resolve(makeAnalytics({ shareLink: { label: 'Faster link' } }));
+    expect(await screen.findByRole('heading', { name: /faster link/i })).toBeInTheDocument();
+
+    staleRequest.resolve(makeAnalytics());
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: /client proofing/i })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('heading', { name: /faster link/i })).toBeInTheDocument();
+  });
+
+  it('ignores a stale selection response that resolves after the link changes', async () => {
+    const user = userEvent.setup();
+    const staleRequest = deferred<OwnerSelectionDetail>();
+    vi.mocked(shareLinkService.getShareLinkAnalytics).mockImplementation(async (linkId) =>
+      makeAnalytics({ shareLink: { id: linkId } }),
+    );
+    vi.mocked(shareLinkService.getOwnerSelectionDetail)
+      .mockReturnValueOnce(staleRequest.promise)
+      .mockResolvedValue(makeSelectionDetail([makeSession('session-fresh', 'Fresh Client')]));
+
+    render(
+      <MemoryRouter initialEntries={['/share-links/link-1']}>
+        <NavigateButton to="/share-links/link-2" label="switch share link" />
+        <Routes>
+          <Route path="/share-links/:shareLinkId" element={<ShareLinkDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole('heading', { name: /client proofing/i });
+    await user.click(screen.getByRole('tab', { name: /photo selection/i }));
+    await screen.findByText(/manage selection configuration and per-client selection sessions/i);
+
+    await user.click(screen.getByRole('button', { name: /switch share link/i }));
+    await screen.findByText('link-2');
+
+    staleRequest.resolve(makeSelectionDetail([makeSession('session-stale', 'Stale Client')]));
+
+    expect(await screen.findByRole('heading', { name: /client proofing/i })).toBeInTheDocument();
+    await screen.findByText(/fresh client/i);
+    expect(screen.queryByText(/stale client/i)).not.toBeInTheDocument();
+    expect(shareLinkService.getOwnerSelectionDetail).toHaveBeenCalledTimes(2);
   });
 
   it('validates and saves selection configuration changes', async () => {

@@ -174,17 +174,25 @@ export const ShareLinksDashboardPage = () => {
   );
 
   useEffect(() => {
-    void fetchLinks();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void fetchLinks();
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [fetchLinks]);
 
-  useEffect(() => {
+  const [lastPruneLinks, setLastPruneLinks] = useState(links);
+  if (lastPruneLinks !== links) {
+    setLastPruneLinks(links);
     setSelectedLinkIds((current) => {
       if (current.size === 0) return current;
       const visibleIds = new Set(links.map((link) => link.id));
       const next = new Set([...current].filter((linkId) => visibleIds.has(linkId)));
       return next.size === current.size ? current : next;
     });
-  }, [links]);
+  }
 
   const handleToggleLinkSelection = (linkId: string) => {
     setSelectedLinkIds((current) => {
